@@ -1,0 +1,9 @@
+name: 41026-asd-project
+
+# Release 0: define the integrated frontend, backend/API, database, and AI-mode
+# services after the project topic and service boundaries are approved.
+#
+# Release 1: add the MCP and RAG services.
+# Release 2 local: add the multi-agent service.
+# Release 2 cloud: keep MCP, RAG, and multi-agent services disabled.
+services: {}
