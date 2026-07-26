@@ -1,0 +1,84 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+dist/
+build/
+!scripts/build/
+!scripts/build/.gitkeep
+.venv/
+venv/
+env/
+
+# Node and frontend tooling
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.parcel-cache/
+.vite/
+
+# Local databases and runtime data
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+data/
+uploads/
+
+# Logs, caches, and temporary files
+*.log
+logs/
+cache/
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+
+# Docker and local overrides
+docker-compose.override.yml
+compose.override.yml
+
+# IDEs and editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.code-workspace
+
+# Operating systems
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Cloud and infrastructure state
+.terraform/
+*.tfstate
+*.tfstate.*
+.aws-sam/
+.azure/

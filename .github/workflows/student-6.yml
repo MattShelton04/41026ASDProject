@@ -1,0 +1,14 @@
+name: Student 6 CI (scaffold)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Define Student 6 validation after team approval."

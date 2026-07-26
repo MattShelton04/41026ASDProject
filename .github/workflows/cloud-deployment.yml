@@ -1,0 +1,14 @@
+name: Cloud Deployment (Release 2 scaffold)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Define Azure or AWS deployment after the provider is chosen."

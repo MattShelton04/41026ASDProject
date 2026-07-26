@@ -1,0 +1,14 @@
+name: Integration CI (scaffold)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Define integrated build, test, and Docker Compose checks."
