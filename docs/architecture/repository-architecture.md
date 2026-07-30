@@ -9,8 +9,7 @@
 - Adversarial reviewer: Gemini 3.6 Flash in Antigravity
 - Publication: Initial scaffold commit `17c1e76`, pull request #1
 - Review state: Adversarial-review improvements accepted by Matthew for
-  publication; tutor approval remains required for the six-person team and
-  other project decisions identified below
+  publication; team structure updated to standard five-person template
 
 ## Purpose
 
@@ -62,7 +61,7 @@ Matthew directed Codex to:
 
 1. Inspect the locally archived 41026 group-project material.
 2. Plan the scaffold in Markdown before changing the repository.
-3. Follow the supplied repository diagram while adapting it for six students.
+3. Follow the supplied repository diagram using five student workspaces.
 4. Record Matthew as Student 1 and leave clear placeholders for other members.
 5. Create scaffolding only, without application implementation.
 6. Avoid committing or pushing any changes.
@@ -84,14 +83,14 @@ course sources. The original review input is retained at
 
 | Review finding | Disposition | Result |
 |---|---|---|
-| Written specification names workflows `student-N.yml` | Accepted | Renamed all six student workflows; retained `integration-ci.yml` from the repository diagram |
-| Six-person approval and ten-minute showcase pressure | Accepted as project risk | Approval remains an open action; the team must plan less than 100 seconds per student after shared introduction and integration coverage |
+| Written specification names workflows `student-N.yml` | Accepted | Renamed all five student workflows; retained `integration-ci.yml` from the repository diagram |
+| Five-person team showcase timing | Accepted as project risk | The team must plan ~2 minutes per student after shared introduction and integration coverage |
 | Database isolation/container model needs a decision | Accepted as future architecture work | Expanded the open decision; no topology was invented before the project design exists |
 | Add active path-filtered workflow triggers now | Deferred | Disabled manual placeholders remain intentional until real build and test commands exist |
-| Pre-allocate Student 1-6 ports in Compose | Rejected for the scaffold | The proposal assumes service boundaries and conflicts with course example ports; ports will follow the approved architecture |
+| Pre-allocate Student 1-5 ports in Compose | Rejected for the scaffold | The proposal assumes service boundaries and conflicts with course example ports; ports will follow the approved architecture |
 | Build the shared UI design system now | Deferred | This would be application implementation; the shared locations already exist for Release 0 work |
 | Add test runner scripts now | Deferred | Test locations already exist; runners should be added with the selected runtime and test strategy |
-| Commit a six-person registration form | Rejected for the repository | The form requires approval and contains personal information/signatures; it should be handled through the authorised submission channel |
+| Commit group registration form | Rejected for the repository | The form requires approval and contains personal information/signatures; it should be handled through the authorised submission channel |
 
 This review cycle demonstrates iterative AI-assisted engineering: generation,
 independent challenge by a different model, verification against primary
@@ -119,7 +118,7 @@ flowchart TD
     R --> W[GitHub Actions workflows]
     R --> D[Documentation and release evidence]
     R --> S[Shared integration components]
-    R --> I[Six student workspaces]
+    R --> I[Five student workspaces]
     R --> A[Shared AI services]
     R --> U[Build, test, and deploy scripts]
 
@@ -140,7 +139,7 @@ flowchart TD
 .
 |-- .github/
 |   `-- workflows/
-|       |-- student-1.yml ... student-6.yml
+|       |-- student-1.yml ... student-5.yml
 |       |-- integration-ci.yml
 |       `-- cloud-deployment.yml
 |-- docs/
@@ -159,7 +158,7 @@ flowchart TD
 |   |   |-- js/
 |   |   `-- assets/
 |   `-- configuration/
-|-- student-1/ ... student-6/
+|-- student-1/ ... student-5/
 |   |-- README.md
 |   |-- frontend/
 |   |-- backend/
@@ -183,14 +182,11 @@ flowchart TD
 
 ## Architectural decisions
 
-### ADR-001: Six student workspaces
+### ADR-001: Five student workspaces
 
-- Decision: Create `student-1` through `student-6` with identical structures.
-- Reason: The requested working team size is six and consistent templates make
-  ownership clear.
-- Consequence: The published brief and registration form currently specify
-  five students. The sixth member and feature require tutor or subject
-  coordinator approval.
+- Decision: Create `student-1` through `student-5` with identical structures.
+- Reason: Aligns directly with the official subject specification for five-person teams.
+- Consequence: Five student feature microservices form the application.
 - Change cost: Adding or removing a member requires one `student-N/` directory,
   one student workflow, and roster/integration updates.
 
@@ -243,9 +239,9 @@ disabled according to the current specification.
 ## Implemented scaffold contents
 
 - Root project overview, team roster, release path, and next decisions
-- Six student READMEs and equivalent frontend, backend, database, test, and
+- Five student READMEs and equivalent frontend, backend, database, test, and
   Dockerfile placeholders
-- Six student CI placeholders plus integration and cloud workflow placeholders
+- Five student CI placeholders plus integration and cloud workflow placeholders
 - Documentation areas for architecture, reports, and Releases 0-2
 - Unified frontend and shared configuration locations
 - Release-gated AI service locations
@@ -259,8 +255,8 @@ The following checks were completed after scaffolding:
 
 | Check | Result |
 |---|---|
-| Six equivalent student workspaces | Passed |
-| Six matching student CI workflow files | Passed |
+| Five equivalent student workspaces | Passed |
+| Five matching student CI workflow files | Passed |
 | All planned shared and release directories retained | Passed |
 | YAML syntax for eight workflows and Docker Compose | Passed before and after workflow renaming |
 | Docker Compose schema validation | Passed |
@@ -272,10 +268,9 @@ The following checks were completed after scaffolding:
 
 ## Known open decisions
 
-- Obtain approval for a six-person team and sixth feature.
 - Select the project problem and Agentic AI topic.
 - Allocate one approved integrated feature to each student.
-- Plan the ten-minute showcase so all six students demonstrate their feature
+- Plan the ten-minute showcase so all five students demonstrate their feature
   and LLM interaction while leaving time for integrated context.
 - Choose SQLite or PostgreSQL and record the database ownership, isolation,
   persistence, and containerisation model.
