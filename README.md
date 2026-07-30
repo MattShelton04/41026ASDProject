@@ -8,10 +8,8 @@ there is no runnable application yet.
 
 ## Team
 
-This scaffold has room for six students. The published course specification and
-registration form currently describe five-person teams, so the six-person team
-and sixth individual feature must be confirmed with the tutor or subject
-coordinator.
+This scaffold contains the standard five-student workspace structure aligned with the
+published course specification and registration requirements.
 
 | Student | Name | Student ID | UTS email | Feature |
 |---|---|---|---|---|
@@ -20,7 +18,6 @@ coordinator.
 | 3 | To be confirmed | To be confirmed | To be confirmed | To be decided |
 | 4 | To be confirmed | To be confirmed | To be confirmed | To be decided |
 | 5 | To be confirmed | To be confirmed | To be confirmed | To be decided |
-| 6 | To be confirmed | To be confirmed | To be confirmed | To be decided |
 
 Each student has an equivalent `student-N/` workspace for their frontend,
 backend/API, database, tests, Dockerfile, and ownership notes.
@@ -42,7 +39,7 @@ deployment.
 - `.github/workflows/`: student, integration, and cloud workflow placeholders
 - `docs/`: architecture, reports, and release-specific evidence
 - `shared/`: integrated home page, common assets, and configuration templates
-- `student-1/` to `student-6/`: individual feature workspaces
+- `student-1/` to `student-5/`: individual feature workspaces
 - `ai-services/`: shared AI mode, MCP, RAG, and multi-agent service locations
 - `scripts/`: shared build, test, and deployment automation
 - `docker-compose.yml`: future integrated local application definition
