@@ -91,7 +91,14 @@ def _openapi() -> dict[str, Any]:
                                 }
                             },
                         },
-                        "503": problem_response,
+                        "503": {
+                            "description": "A required readiness dependency is unavailable",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/HealthResponse"}
+                                }
+                            },
+                        },
                     },
                 }
             },

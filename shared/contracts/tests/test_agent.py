@@ -30,6 +30,13 @@ def test_agent_request_rejects_unknown_and_unbounded_values() -> None:
     with pytest.raises(ValidationError, match="String should have at most 4000 characters"):
         AgentRunRequest(feature_key="student-1-feature", objective="x" * 4_001)
 
+    with pytest.raises(ValidationError, match=r"default\.v1"):
+        AgentRunRequest(
+            feature_key="student-1-feature",
+            objective="Find matching records",
+            prompt_set="unregistered.v1",  # type: ignore[arg-type]
+        )
+
 
 def test_plan_requires_unambiguous_contiguous_action_order() -> None:
     with pytest.raises(ValidationError, match="action sequences must be contiguous"):

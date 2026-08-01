@@ -13,7 +13,7 @@ from agent_core.errors import (
     UnknownToolError,
 )
 from agent_core.generation import ValidatedModelOutput, generate_validated
-from agent_core.limits import LimitKind, ensure_within_limits
+from agent_core.limits import LimitKind, ensure_time_remaining, ensure_within_limits
 from agent_core.ports import (
     Clock,
     IdGenerator,
@@ -86,6 +86,7 @@ __all__ = [
     "authorize_tool",
     "can_transition",
     "create_run",
+    "ensure_time_remaining",
     "ensure_within_limits",
     "generate_validated",
     "plan_recovery",

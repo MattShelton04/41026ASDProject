@@ -22,6 +22,7 @@ class Settings:
     ollama_timeout_seconds: float
     ollama_keep_alive: str
     max_model_response_bytes: int
+    ollama_health_timeout_seconds: float = 2.0
     require_ollama_ready: bool = False
 
     @classmethod
@@ -37,6 +38,10 @@ class Settings:
             raise ConfigurationError("OLLAMA_BASE_URL must use http or https")
 
         timeout = _positive_float(values.get("OLLAMA_TIMEOUT_SECONDS", "120"), "timeout")
+        health_timeout = _positive_float(
+            values.get("OLLAMA_HEALTH_TIMEOUT_SECONDS", "2"),
+            "health timeout",
+        )
         max_bytes = _bounded_int(
             values.get("AI_MODE_MAX_MODEL_RESPONSE_BYTES", "1048576"),
             "maximum model response bytes",
@@ -57,6 +62,7 @@ class Settings:
             ollama_timeout_seconds=timeout,
             ollama_keep_alive=keep_alive,
             max_model_response_bytes=max_bytes,
+            ollama_health_timeout_seconds=health_timeout,
             require_ollama_ready=_boolean(
                 values.get("AI_MODE_REQUIRE_OLLAMA_READY", "false"),
                 "strict Ollama readiness",

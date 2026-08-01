@@ -17,7 +17,7 @@ from agent_core.errors import (
     ToolSchemaValidationError,
 )
 from agent_core.generation import ValidatedModelOutput, generate_validated
-from agent_core.limits import ensure_within_limits
+from agent_core.limits import ensure_time_remaining, ensure_within_limits
 from agent_core.ports import (
     Clock,
     IdGenerator,
@@ -327,6 +327,10 @@ class AgentRunner:
 
     def _adapt(self, detail: AgentRunDetail) -> AgentRun:
         run = detail.run
+        try:
+            ensure_time_remaining(run, now=self._clock.now())
+        except RunLimitExceededError as exc:
+            return self._fail(run, exc, code="run_limit_reached")
         plan, _ = self._active_plan(detail.steps, include_current_action=True)
         result = self._last_tool_result(detail.steps)
         observation = self._last_observation(detail.steps)

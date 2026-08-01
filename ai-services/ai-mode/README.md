@@ -31,6 +31,7 @@ supplied, configuration normalizes it to the native API root.
 | `OLLAMA_BASE_URL` | `http://localhost:11434` |
 | `OLLAMA_MODEL` | `qwen2.5:0.5b` |
 | `OLLAMA_TIMEOUT_SECONDS` | `120` |
+| `OLLAMA_HEALTH_TIMEOUT_SECONDS` | `2` |
 | `OLLAMA_KEEP_ALIVE` | `5m` |
 | `AI_MODE_MAX_MODEL_RESPONSE_BYTES` | `1048576` |
 | `AI_MODE_REQUIRE_OLLAMA_READY` | `false` |

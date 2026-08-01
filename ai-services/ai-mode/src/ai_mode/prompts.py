@@ -6,15 +6,22 @@ import hashlib
 import json
 from collections.abc import Mapping
 from pathlib import Path
+from typing import ClassVar
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from agent_core import ModelMessage, ModelRole, PromptBuilder, StructuredModelRequest
+from agent_core import (
+    AgentCoreError,
+    ModelMessage,
+    ModelRole,
+    PromptBuilder,
+    StructuredModelRequest,
+)
 from shared_contracts import AgentRun, Observation, Plan, ToolDefinition, ToolResult
 
 
-class PromptRegistryError(ValueError):
+class PromptRegistryError(AgentCoreError):
     """A prompt asset is missing, malformed, or inconsistent."""
 
 
@@ -89,13 +96,20 @@ class PromptRegistry:
 class RegistryPromptBuilder(PromptBuilder):
     """Build stable-prefix prompts with dynamic data clearly separated."""
 
+    _PROMPT_SETS: ClassVar[dict[str, dict[ModelRole, tuple[str, str]]]] = {
+        "default.v1": {
+            ModelRole.PLANNER: ("planner", "v1"),
+            ModelRole.ADAPTER: ("adapter", "v1"),
+        }
+    }
+
     def __init__(self, registry: PromptRegistry) -> None:
         self._registry = registry
 
     def build_plan_request(
         self, run: AgentRun, definitions: tuple[ToolDefinition, ...]
     ) -> StructuredModelRequest:
-        prompt = self._registry.load("planner", "v1")
+        prompt = self._load_for(run, ModelRole.PLANNER)
         dynamic = {
             "objective": run.objective,
             "feature_key": run.feature_key,
@@ -111,7 +125,7 @@ class RegistryPromptBuilder(PromptBuilder):
         tool_result: ToolResult,
         observation: Observation,
     ) -> StructuredModelRequest:
-        prompt = self._registry.load("adapter", "v1")
+        prompt = self._load_for(run, ModelRole.ADAPTER)
         dynamic = {
             "plan": plan.model_dump(mode="json"),
             "tool_result": tool_result.model_dump(mode="json"),
@@ -119,6 +133,13 @@ class RegistryPromptBuilder(PromptBuilder):
             "iteration_count": run.iteration_count,
         }
         return self._request(run, prompt, dynamic)
+
+    def _load_for(self, run: AgentRun, role: ModelRole) -> PromptTemplate:
+        try:
+            prompt_id, version = self._PROMPT_SETS[run.prompt_set][role]
+        except KeyError as exc:
+            raise PromptRegistryError(f"unsupported prompt set: {run.prompt_set}") from exc
+        return self._registry.load(prompt_id, version)
 
     @staticmethod
     def _request(

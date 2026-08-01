@@ -112,6 +112,12 @@ next action, request a new plan, request review, complete, or fail. Iteration co
 tool-call count, wall-time budget, and the single optional model repair are enforced by
 code rather than prompts.
 
+Elapsed time is checked before every model or tool phase, including adaptation. A
+blocking provider/tool call is bounded by its adapter timeout and is not forcibly
+interrupted by the state machine; if it crosses the run budget, no subsequent external
+call begins. This keeps persisted phase boundaries atomic and makes the limit semantics
+explicit.
+
 ## Tool-call and review semantics
 
 1. The planner may reference only immutable, allowlisted `ToolDefinition` entries.

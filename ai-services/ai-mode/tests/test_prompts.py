@@ -96,3 +96,5 @@ def test_builder_constructs_evidence_based_adaptation_request() -> None:
 
     assert request.role.value == "adapter"
     assert '"count":1' in request.messages[1].content
+    assert request.prompt_id == "adapter"
+    assert request.prompt_version == "v1"

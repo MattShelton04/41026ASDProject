@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -52,6 +52,14 @@ NOW = datetime(2026, 8, 1, 0, 0, tzinfo=UTC)
 class FixedClock:
     def now(self) -> datetime:
         return NOW
+
+
+class MutableClock(FixedClock):
+    def __init__(self) -> None:
+        self.current = NOW
+
+    def now(self) -> datetime:
+        return self.current
 
 
 class RandomIds:
@@ -241,6 +249,7 @@ def _runner(
     limits: RunLimits | None = None,
     tool_exception: Exception | None = None,
     cancel_during_execute: bool = False,
+    clock: FixedClock | None = None,
 ) -> tuple[AgentRunner, MemoryStore, RecordingToolExecutor]:
     run = create_run(
         AgentRunRequest(
@@ -265,7 +274,7 @@ def _runner(
         prompt_builder=TestPromptBuilder(),
         tools=ToolRegistry([tool or _tool()]),
         tool_executor=executor,
-        clock=FixedClock(),
+        clock=clock or FixedClock(),
         ids=RandomIds(),
     )
     return runner, store, executor
@@ -407,6 +416,26 @@ def test_iteration_limit_stops_a_continue_loop_before_another_effect() -> None:
     assert result.error is not None
     assert result.error.code == "run_limit_reached"
     assert len(executor.calls) == 1
+
+
+def test_elapsed_budget_prevents_an_adaptation_model_call_after_tool_io() -> None:
+    clock = MutableClock()
+    runner, store, _ = _runner(
+        [_model_result(_plan()), _model_result(_adaptation("complete"))],
+        limits=RunLimits(time_budget_ms=1_000),
+        clock=clock,
+    )
+    ready = runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    observing = runner.advance(store.get(ready.id))  # type: ignore[arg-type]
+    clock.current = NOW + timedelta(seconds=2)
+    adapting = runner.advance(store.get(observing.id))  # type: ignore[arg-type]
+
+    result = runner.advance(store.get(adapting.id))  # type: ignore[arg-type]
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "run_limit_reached"
+    assert result.error.message == "time limit reached"
 
 
 def test_adaptation_review_without_actionable_target_fails_closed() -> None:

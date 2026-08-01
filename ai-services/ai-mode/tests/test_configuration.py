@@ -23,6 +23,7 @@ def test_course_openai_compatible_url_is_normalized_for_native_ollama_api() -> N
         ({"OLLAMA_BASE_URL": "file:///tmp/model"}, "must use http"),
         ({"OLLAMA_TIMEOUT_SECONDS": "0"}, "greater than zero"),
         ({"OLLAMA_TIMEOUT_SECONDS": "slow"}, "must be numeric"),
+        ({"OLLAMA_HEALTH_TIMEOUT_SECONDS": "0"}, "greater than zero"),
         ({"AI_MODE_MAX_MODEL_RESPONSE_BYTES": "10"}, "must be between"),
         ({"AI_MODE_MAX_MODEL_RESPONSE_BYTES": "many"}, "must be an integer"),
         ({"OLLAMA_MODEL": " "}, "cannot be empty"),

@@ -37,11 +37,13 @@ class OllamaProvider(LLMProvider):
         base_url: str,
         profiles: Mapping[str, OllamaModelProfile],
         timeout_seconds: float,
+        health_timeout_seconds: float = 2.0,
         max_response_bytes: int,
         client: httpx.Client | None = None,
     ) -> None:
         self._profiles = dict(profiles)
         self._max_response_bytes = max_response_bytes
+        self._health_timeout_seconds = health_timeout_seconds
         self._owns_client = client is None
         self._client = client or httpx.Client(
             base_url=base_url.rstrip("/"),
@@ -98,7 +100,7 @@ class OllamaProvider(LLMProvider):
     def health(self) -> ProviderHealth:
         """Report endpoint and configured-model readiness without throwing."""
         try:
-            response = self._client.get("/api/tags")
+            response = self._client.get("/api/tags", timeout=self._health_timeout_seconds)
             response.raise_for_status()
             body = response.json()
             if not isinstance(body, dict):

@@ -65,10 +65,8 @@
       "type": "string"
     },
     "prompt_set": {
+      "const": "default.v1",
       "default": "default.v1",
-      "maxLength": 100,
-      "minLength": 1,
-      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
       "title": "Prompt Set",
       "type": "string"
     }

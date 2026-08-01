@@ -185,6 +185,21 @@ def test_health_includes_configured_model_availability(
     assert provider.health().reachable is reachable
 
 
+def test_health_uses_its_short_independent_timeout() -> None:
+    captured_timeout = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_timeout
+        captured_timeout = request.extensions["timeout"]
+        return httpx.Response(200, json={"models": [{"name": "qwen2.5:0.5b"}]})
+
+    provider = _provider(httpx.MockTransport(handler))
+
+    assert provider.health().reachable is True
+    assert isinstance(captured_timeout, dict)
+    assert captured_timeout["read"] == 2.0
+
+
 def test_health_contains_invalid_or_failed_responses() -> None:
     invalid = _provider(httpx.MockTransport(lambda request: httpx.Response(200, json=[])))
     failed = _provider(httpx.MockTransport(lambda request: httpx.Response(503)))

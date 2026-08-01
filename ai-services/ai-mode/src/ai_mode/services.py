@@ -74,6 +74,7 @@ def build_services(settings: Settings) -> AppServices:
         clock=clock,
         ids=ids,
     )
+
     def discover_resumable() -> Iterable[UUID]:
         for detail in store.list_resumable():
             decision = runner.recover_interrupted(detail)

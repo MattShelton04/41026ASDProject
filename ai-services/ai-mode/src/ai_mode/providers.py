@@ -17,5 +17,6 @@ def build_ollama_provider(settings: Settings) -> OllamaProvider:
             )
         },
         timeout_seconds=settings.ollama_timeout_seconds,
+        health_timeout_seconds=settings.ollama_health_timeout_seconds,
         max_response_bytes=settings.max_model_response_bytes,
     )

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import Field, JsonValue, model_validator
@@ -106,7 +106,7 @@ class AgentRunRequest(ContractModel):
 
     feature_key: Identifier
     objective: str = Field(min_length=1, max_length=4_000)
-    prompt_set: Identifier = "default.v1"
+    prompt_set: Literal["default.v1"] = "default.v1"
     model_profile: Identifier = "local-small.v1"
     limits: RunLimits = Field(default_factory=RunLimits)
 
