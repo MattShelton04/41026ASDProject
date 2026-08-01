@@ -8,12 +8,14 @@ import pytest
 
 from agent_core import ConcurrentRunUpdateError, create_run, transition_run
 from ai_mode.persistence import SQLiteRunStore
+from ai_mode.persistence.sqlite import PersistenceError
 from shared_contracts import (
     AgentRunRequest,
     AgentStep,
     RunStatus,
     StepPhase,
     StepStatus,
+    ToolError,
 )
 
 NOW = datetime(2026, 8, 1, 0, 0, tzinfo=UTC)
@@ -92,6 +94,31 @@ def test_stale_update_does_not_append_its_step(tmp_path: Path) -> None:
     assert store.get(run.id).steps == ()  # type: ignore[union-attr]
 
 
+def test_step_failure_rolls_back_the_run_update_atomically(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    run = _run()
+    store.create(run)
+    step = AgentStep(
+        id=uuid4(),
+        run_id=run.id,
+        sequence=1,
+        phase=StepPhase.PLAN,
+        status=StepStatus.RUNNING,
+    )
+    planning = transition_run(run, RunStatus.PLANNING, now=NOW)
+    store.save(planning, expected_version=run.version, step=step)
+    ready = transition_run(planning, RunStatus.READY, now=NOW)
+    invalid_update = step.model_copy(update={"sequence": 2})
+
+    with pytest.raises(PersistenceError, match="identity or sequence"):
+        store.save(ready, expected_version=planning.version, step=invalid_update)
+
+    detail = store.get(run.id)
+    assert detail is not None
+    assert detail.run == planning
+    assert detail.steps == (step,)
+
+
 def test_cancellation_is_immediate_for_queued_run_and_idempotent(tmp_path: Path) -> None:
     store = _store(tmp_path)
     run = _run()
@@ -103,3 +130,24 @@ def test_cancellation_is_immediate_for_queued_run_and_idempotent(tmp_path: Path)
     assert cancelled is not None
     assert cancelled.status is RunStatus.CANCELLED
     assert again == cancelled
+
+
+def test_list_resumable_excludes_terminal_and_review_blocked_runs(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    queued = _run()
+    terminal = _run()
+    store.create(queued)
+    store.create(terminal)
+    planning = transition_run(terminal, RunStatus.PLANNING, now=NOW)
+    store.save(planning, expected_version=terminal.version)
+    failed = transition_run(
+        planning,
+        RunStatus.FAILED,
+        now=NOW,
+        error=ToolError(code="test_failure", message="Expected test failure"),
+    )
+    store.save(failed, expected_version=planning.version)
+
+    resumable = store.list_resumable()
+
+    assert [detail.run.id for detail in resumable] == [queued.id]

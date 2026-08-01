@@ -26,6 +26,7 @@ from agent_core.ports import (
     StructuredModelRequest,
     ToolExecutor,
 )
+from agent_core.recovery import RecoveryDecision, RecoveryDisposition, plan_recovery
 from agent_core.state_machine import TERMINAL_STATUSES, transition_run
 from agent_core.tools import ToolPolicyDecision, ToolRegistry, authorize_tool
 from shared_contracts import (
@@ -106,6 +107,25 @@ class AgentRunner:
             return self._adapt(detail)
         raise AgentCoreError(f"run is not at an automatically resumable boundary: {run.status}")
 
+    def recover_interrupted(self, detail: AgentRunDetail) -> RecoveryDecision:
+        """Reconcile one persisted run after process interruption."""
+        try:
+            decision = plan_recovery(detail, tools=self._tools, now=self._clock.now())
+        except AgentCoreError as exc:
+            failed = self._fail(detail.run, exc, code="recovery_state_invalid")
+            return RecoveryDecision(
+                run=failed,
+                disposition=RecoveryDisposition.IGNORE,
+                changed=True,
+            )
+        if decision.changed:
+            self._store.save(
+                decision.run,
+                expected_version=detail.run.version,
+                step=decision.step,
+            )
+        return decision
+
     def _plan(self, detail: AgentRunDetail) -> AgentRun:
         run = detail.run
         now = self._clock.now()
@@ -160,7 +180,7 @@ class AgentRunner:
         except AgentCoreError as exc:
             return self._fail(run, exc, code=self._error_code(exc))
 
-        approved = self._approved_pending_action(detail.steps)
+        approved = self._resumable_pending_action(detail.steps)
         if approved is None:
             is_write = definition.side_effect is not SideEffectClass.READ_ONLY
             idempotency_key = (
@@ -192,7 +212,11 @@ class AgentRunner:
             )
         else:
             step, call = approved
-            if call.tool_name != action.tool_name or call.arguments != action.arguments:
+            if (
+                call.tool_name != action.tool_name
+                or call.tool_version != definition.version
+                or call.arguments != action.arguments
+            ):
                 return self._fail(
                     run,
                     AgentCoreError("approved action no longer matches the active plan"),
@@ -220,7 +244,17 @@ class AgentRunner:
 
         acting = transition_run(run, RunStatus.ACTING, now=self._clock.now())
         self._store.save(acting, expected_version=run.version, step=step)
-        result = self._tool_executor.execute(call, definition)
+        try:
+            result = self._tool_executor.execute(call, definition)
+        except Exception as exc:
+            if definition.side_effect is SideEffectClass.READ_ONLY:
+                return self._fail_with_step(
+                    acting,
+                    step,
+                    exc,
+                    code="tool_executor_error",
+                )
+            return self._pause_uncertain_effect(acting, step, call)
         if result.call_id != call.id:
             return self._fail_with_step(
                 acting,
@@ -244,7 +278,7 @@ class AgentRunner:
         completed = self._complete_step(
             step,
             now=self._clock.now(),
-            output={"tool_result": result.model_dump(mode="json")},
+            output={**step.output, "tool_result": result.model_dump(mode="json")},
         )
         if result.outcome is ToolOutcome.FAILED and not result.retryable:
             error = result.error or ToolError(code="tool_failed", message="Tool execution failed")
@@ -470,14 +504,44 @@ class AgentRunner:
         raise AgentCoreError("run has no persisted observation")
 
     @staticmethod
-    def _approved_pending_action(steps: tuple[AgentStep, ...]) -> tuple[AgentStep, ToolCall] | None:
+    def _resumable_pending_action(
+        steps: tuple[AgentStep, ...],
+    ) -> tuple[AgentStep, ToolCall] | None:
         for step in reversed(steps):
             if step.phase is not StepPhase.ACT or step.status is not StepStatus.PENDING:
                 continue
             call = ToolCall.model_validate(step.input.get("tool_call"))
-            if call.approval_status is ApprovalStatus.APPROVED:
+            if call.approval_status in {
+                ApprovalStatus.NOT_REQUIRED,
+                ApprovalStatus.APPROVED,
+            }:
                 return step, call
         return None
+
+    def _pause_uncertain_effect(
+        self,
+        run: AgentRun,
+        step: AgentStep,
+        call: ToolCall,
+    ) -> AgentRun:
+        """Require review when an adapter exception leaves an effect outcome unknown."""
+        pending_call = call.model_copy(update={"approval_status": ApprovalStatus.PENDING})
+        pending_step = step.model_copy(
+            update={
+                "status": StepStatus.PENDING,
+                "input": {**step.input, "tool_call": pending_call.model_dump(mode="json")},
+                "output": {
+                    **step.output,
+                    "recovery": {
+                        "code": "action_outcome_unknown",
+                        "message": "Tool execution ended without a persisted result",
+                    },
+                },
+            }
+        )
+        review = transition_run(run, RunStatus.REVIEW_REQUIRED, now=self._clock.now())
+        self._store.save(review, expected_version=run.version, step=pending_step)
+        return review
 
     def _required_detail(self, run_id: UUID) -> AgentRunDetail:
         detail = self._store.get(run_id)

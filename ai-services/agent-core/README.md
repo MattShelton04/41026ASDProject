@@ -13,12 +13,17 @@ package performs no Flask, SQLite, filesystem, or network I/O.
 - provider, prompt, tool, persistence, queue, clock, and ID ports;
 - bounded structured-output validation with at most one repair;
 - a persisted phase runner that records state before and after model/tool effects; and
-- deterministic cancellation and protected-action review policies.
+- deterministic cancellation and protected-action review policies; and
+- effect-aware restart recovery for model, read-only, and uncertain mutation work.
 
 The runner executes one action at a time. It persists `acting` before dispatching a
 tool and persists the result before observation. A protected action becomes
 `review_required`; approval resumes the original call and idempotency key rather than
 constructing a new mutation.
+
+See [`docs/architecture/agent-run-state-machine.md`](../../docs/architecture/agent-run-state-machine.md)
+for the normative transitions, durable checkpoints, recovery matrix, and feature-tool
+idempotency obligations.
 
 ## Boundaries
 
@@ -34,7 +39,8 @@ here.
 
 The deterministic suite covers legal/illegal state transitions, schema repair, unknown
 or malformed tools, policy review, idempotent approval, cancellation, tool failure,
-complete four-phase success, and loop limits. Run it with:
+executor exceptions, phase interruptions, complete four-phase success, atomic rollback,
+and loop limits. Run it with:
 
 ```text
 uv run pytest ai-services/agent-core/tests

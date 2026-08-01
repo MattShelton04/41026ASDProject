@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 from pydantic import BaseModel, ValidationError
@@ -13,6 +14,8 @@ from agent_core.ports import (
     StructuredModelRequest,
     StructuredModelResult,
 )
+
+INVALID_OUTPUT_CONTEXT_LIMIT = 20_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,17 +48,33 @@ def generate_validated[StructuredOutputT: BaseModel](
                 raise ModelOutputValidationError(
                     f"model output failed {output_type.__name__} validation"
                 ) from exc
+            invalid_output = json.dumps(
+                result.content,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            if len(invalid_output) > INVALID_OUTPUT_CONTEXT_LIMIT:
+                invalid_output = (
+                    invalid_output[:INVALID_OUTPUT_CONTEXT_LIMIT]
+                    + "\n[previous response truncated]"
+                )
+            previous_response = ModelMessage(role="assistant", content=invalid_output)
             repair_instruction = ModelMessage(
                 role="user",
                 content=(
                     "The previous JSON response was invalid. Return only a corrected object that "
                     "matches the supplied schema. Validation errors: "
-                    f"{exc.errors(include_url=False)}"
+                    f"{exc.errors(include_url=False, include_input=False)}"
                 ),
             )
             current_request = current_request.model_copy(
                 update={
-                    "messages": (*current_request.messages, repair_instruction),
+                    "messages": (
+                        *current_request.messages,
+                        previous_response,
+                        repair_instruction,
+                    ),
                     "repair_attempt": attempt + 1,
                 }
             )

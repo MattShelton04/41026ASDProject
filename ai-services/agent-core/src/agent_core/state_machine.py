@@ -24,7 +24,14 @@ ALLOWED_TRANSITIONS: Mapping[RunStatus, frozenset[RunStatus]] = {
     RunStatus.READY: frozenset(
         {RunStatus.ACTING, RunStatus.REVIEW_REQUIRED, RunStatus.CANCELLED, RunStatus.FAILED}
     ),
-    RunStatus.ACTING: frozenset({RunStatus.OBSERVING, RunStatus.REVIEW_REQUIRED, RunStatus.FAILED}),
+    RunStatus.ACTING: frozenset(
+        {
+            RunStatus.READY,
+            RunStatus.OBSERVING,
+            RunStatus.REVIEW_REQUIRED,
+            RunStatus.FAILED,
+        }
+    ),
     RunStatus.OBSERVING: frozenset({RunStatus.ADAPTING, RunStatus.FAILED}),
     RunStatus.ADAPTING: frozenset(
         {

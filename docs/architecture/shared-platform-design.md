@@ -20,8 +20,8 @@ create/read/cancel/review HTTP endpoints. JSON Schema and OpenAPI artefacts are 
 and drift-checked by the canonical quality gate.
 
 This does not complete the shared-foundation definition of done. Feature-owned HTTP tool
-registration/execution, startup reconciliation, resumable events, the development
-run-detail page, the reference feature, Compose/Ollama profiles, real-model evaluation,
+registration/execution, resumable events, the development run-detail page, the
+reference feature, Compose/Ollama profiles, real-model evaluation,
 and integration evidence remain. MCP, RAG, and multi-agent runtime behavior remains
 disabled and unclaimed.
 
@@ -403,6 +403,11 @@ stateDiagram-v2
 
 Run status and step phase are separate enums so reports can distinguish, for example,
 an active run currently in `observe` from a completed observation step.
+
+The implemented transition invariants, phase checkpoints, effect-aware startup
+recovery, repair turns, and idempotency obligations are maintained in
+[`agent-run-state-machine.md`](agent-run-state-machine.md). That document is normative
+for runner behavior when this broader roadmap and the implementation differ.
 
 ### 8.2 Execution algorithm
 

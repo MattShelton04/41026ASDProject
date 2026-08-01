@@ -74,7 +74,13 @@ def test_invalid_output_gets_exactly_one_schema_informed_repair() -> None:
     assert output.repair_count == 1
     assert len(provider.requests) == 2
     assert provider.requests[1].repair_attempt == 1
+    assert [message.role for message in provider.requests[1].messages[-2:]] == [
+        "assistant",
+        "user",
+    ]
+    assert provider.requests[1].messages[-2].content == '{"goal":"missing fields"}'
     assert "Validation errors" in provider.requests[1].messages[-1].content
+    assert "'input':" not in provider.requests[1].messages[-1].content
 
 
 def test_invalid_repair_is_terminal_and_never_loops() -> None:

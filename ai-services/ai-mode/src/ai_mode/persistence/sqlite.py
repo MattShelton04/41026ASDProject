@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
 from agent_core import ConcurrentRunUpdateError, RunStore, StoreHealth, request_cancellation
-from shared_contracts import AgentRun, AgentRunDetail, AgentStep, HumanReview
+from shared_contracts import AgentRun, AgentRunDetail, AgentStep, HumanReview, RunStatus
 
 SCHEMA_VERSION = 1
 
@@ -57,7 +59,7 @@ class SQLiteRunStore(RunStore):
     def initialize(self) -> None:
         """Create the store and apply forward-only migrations explicitly."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as connection:
+        with self._connection() as connection:
             current = int(connection.execute("PRAGMA user_version").fetchone()[0])
             if current > SCHEMA_VERSION:
                 raise PersistenceError(
@@ -70,7 +72,7 @@ class SQLiteRunStore(RunStore):
     def create(self, run: AgentRun) -> None:
         """Persist a new run exactly once."""
         try:
-            with self._connect() as connection:
+            with self._transaction() as connection:
                 connection.execute(
                     """
                     INSERT INTO agent_runs (id, version, status, updated_at, payload_json)
@@ -83,7 +85,7 @@ class SQLiteRunStore(RunStore):
 
     def get(self, run_id: UUID) -> AgentRunDetail | None:
         """Load a validated run and its steps in stable sequence order."""
-        with self._connect() as connection:
+        with self._connection() as connection:
             run_row = connection.execute(
                 "SELECT payload_json FROM agent_runs WHERE id = ?", (str(run_id),)
             ).fetchone()
@@ -113,6 +115,30 @@ class SQLiteRunStore(RunStore):
             raise PersistenceError(f"stored agent run is invalid: {run_id}") from exc
         return AgentRunDetail(run=run, steps=steps, reviews=reviews)
 
+    def list_resumable(self) -> tuple[AgentRunDetail, ...]:
+        """Load active runs in a stable order for startup reconciliation."""
+        excluded = (
+            RunStatus.REVIEW_REQUIRED.value,
+            RunStatus.SUCCEEDED.value,
+            RunStatus.FAILED.value,
+            RunStatus.CANCELLED.value,
+        )
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT id FROM agent_runs
+                WHERE status NOT IN (?, ?, ?, ?)
+                ORDER BY updated_at ASC, id ASC
+                """,
+                excluded,
+            ).fetchall()
+        details: list[AgentRunDetail] = []
+        for row in rows:
+            detail = self.get(UUID(row["id"]))
+            if detail is not None:
+                details.append(detail)
+        return tuple(details)
+
     def save(
         self,
         run: AgentRun,
@@ -128,8 +154,7 @@ class SQLiteRunStore(RunStore):
             raise PersistenceError("step belongs to a different agent run")
         if review is not None and review.run_id != run.id:
             raise PersistenceError("review belongs to a different agent run")
-        with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
+        with self._transaction() as connection:
             cursor = connection.execute(
                 """
                 UPDATE agent_runs
@@ -165,17 +190,14 @@ class SQLiteRunStore(RunStore):
                         self._dump(review),
                     ),
                 )
-            connection.commit()
 
     def request_cancellation(self, run_id: UUID, *, now: datetime) -> AgentRun | None:
         """Record cancellation intent idempotently in one write transaction."""
-        with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
+        with self._transaction() as connection:
             row = connection.execute(
                 "SELECT payload_json FROM agent_runs WHERE id = ?", (str(run_id),)
             ).fetchone()
             if row is None:
-                connection.rollback()
                 return None
             try:
                 current = AgentRun.model_validate_json(row["payload_json"])
@@ -183,7 +205,6 @@ class SQLiteRunStore(RunStore):
                 raise PersistenceError(f"stored agent run is invalid: {run_id}") from exc
             updated = request_cancellation(current, now=now)
             if updated is current:
-                connection.rollback()
                 return current
             cursor = connection.execute(
                 """
@@ -202,13 +223,12 @@ class SQLiteRunStore(RunStore):
             )
             if cursor.rowcount != 1:
                 raise ConcurrentRunUpdateError(f"agent run {run_id} was concurrently updated")
-            connection.commit()
             return updated
 
     def health(self) -> StoreHealth:
         """Verify connectivity and migration state without changing the store."""
         try:
-            with self._connect() as connection:
+            with self._connection() as connection:
                 version = int(connection.execute("PRAGMA user_version").fetchone()[0])
                 connection.execute("SELECT 1").fetchone()
             if version != SCHEMA_VERSION:
@@ -231,6 +251,26 @@ class SQLiteRunStore(RunStore):
         connection.execute(f"PRAGMA busy_timeout = {self._busy_timeout_ms}")
         connection.execute("PRAGMA journal_mode = WAL")
         return connection
+
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        connection = self._connect()
+        try:
+            yield connection
+        finally:
+            connection.close()
+
+    @contextmanager
+    def _transaction(self) -> Iterator[sqlite3.Connection]:
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                yield connection
+            except BaseException:
+                connection.rollback()
+                raise
+            else:
+                connection.commit()
 
     @classmethod
     def _upsert_step(cls, connection: sqlite3.Connection, step: AgentStep) -> None:

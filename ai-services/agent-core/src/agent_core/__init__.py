@@ -30,6 +30,11 @@ from agent_core.ports import (
     StructuredModelResult,
     ToolExecutor,
 )
+from agent_core.recovery import (
+    RecoveryDecision,
+    RecoveryDisposition,
+    plan_recovery,
+)
 from agent_core.reviews import ReviewApplication, apply_human_review
 from agent_core.runner import BLOCKED_STATUSES, AgentRunner
 from agent_core.runs import create_run, request_cancellation
@@ -60,6 +65,8 @@ __all__ = [
     "ModelRole",
     "PromptBuilder",
     "ProviderHealth",
+    "RecoveryDecision",
+    "RecoveryDisposition",
     "ReviewApplication",
     "RunLimitExceededError",
     "RunQueue",
@@ -81,6 +88,7 @@ __all__ = [
     "create_run",
     "ensure_within_limits",
     "generate_validated",
+    "plan_recovery",
     "request_cancellation",
     "transition_run",
 ]

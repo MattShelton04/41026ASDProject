@@ -10,6 +10,7 @@ from agent_core import (
     Clock,
     IdGenerator,
     LLMProvider,
+    RecoveryDisposition,
     RunQueue,
     RunStore,
     ToolExecutor,
@@ -81,5 +82,13 @@ def build_services(settings: Settings) -> AppServices:
         clock=clock,
         ids=ids,
     )
+    resumable_ids = tuple(
+        decision.run.id
+        for detail in store.list_resumable()
+        if (decision := runner.recover_interrupted(detail)).disposition
+        is RecoveryDisposition.REENQUEUE
+    )
     queue = SerialRunQueue(runner.run_until_blocked)
+    for run_id in resumable_ids:
+        queue.enqueue(run_id)
     return AppServices(store=store, provider=provider, queue=queue, clock=clock, ids=ids)

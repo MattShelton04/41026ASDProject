@@ -40,7 +40,9 @@ uv run flask --app ai_mode:create_app run --port 5005
 
 The SQLite adapter enables foreign keys, WAL mode, a busy timeout, forward schema
 versioning, and optimistic run versions. Run and step changes—and review records where
-applicable—are committed atomically.
+applicable—are committed atomically. On startup, incomplete runs are reconciled from
+their persisted phase boundary: safe work is re-enqueued and uncertain writes return to
+human review.
 
 ## Current integration boundary
 
@@ -50,6 +52,6 @@ Ollama, but any invented or unregistered tool fails before dispatch. The next ve
 integration increment must configure feature-owned HTTP tool definitions/execution;
 it must not add feature business behavior to this service.
 
-Resumable event streaming, startup reconciliation, the development run-detail page,
-Compose/Ollama profiles, and the reference feature are also remaining Release 0 work.
+Resumable event streaming, the development run-detail page, Compose/Ollama profiles,
+and the reference feature are also remaining Release 0 work.
 MCP, RAG, and multi-agent runtime services remain release-gated.

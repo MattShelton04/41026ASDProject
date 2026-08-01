@@ -5,23 +5,28 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+import pytest
+
 from agent_core import (
     AgentRunner,
     ConcurrentRunUpdateError,
     ModelMessage,
     ModelMetrics,
     ModelRole,
+    RecoveryDisposition,
     StructuredModelRequest,
     StructuredModelResult,
     ToolRegistry,
     apply_human_review,
     create_run,
+    transition_run,
 )
 from shared_contracts import (
     AgentRun,
     AgentRunDetail,
     AgentRunRequest,
     AgentStep,
+    ApprovalStatus,
     HumanReview,
     HumanReviewRequest,
     Observation,
@@ -30,6 +35,8 @@ from shared_contracts import (
     RunLimits,
     RunStatus,
     SideEffectClass,
+    StepPhase,
+    StepStatus,
     ToolCall,
     ToolDefinition,
     ToolError,
@@ -64,6 +71,10 @@ class MemoryStore:
         if run_id != self.run.id:
             return None
         return AgentRunDetail(run=self.run, steps=tuple(self.steps), reviews=tuple(self.reviews))
+
+    def list_resumable(self) -> tuple[AgentRunDetail, ...]:
+        detail = self.get(self.run.id)
+        return (detail,) if detail is not None else ()
 
     def save(
         self,
@@ -127,16 +138,20 @@ class RecordingToolExecutor:
         *,
         outcome: ToolOutcome = ToolOutcome.SUCCEEDED,
         retryable: bool = False,
+        exception: Exception | None = None,
     ) -> None:
         self.store = store
         self.outcome = outcome
         self.retryable = retryable
+        self.exception = exception
         self.calls: list[ToolCall] = []
 
     def execute(self, call: ToolCall, definition: ToolDefinition) -> ToolResult:
         assert self.store.run.status is RunStatus.ACTING
         assert self.store.steps[-1].status.value == "running"
         self.calls.append(call)
+        if self.exception is not None:
+            raise self.exception
         if self.outcome is ToolOutcome.SUCCEEDED:
             return ToolResult(
                 call_id=call.id,
@@ -211,11 +226,12 @@ def _adaptation(decision: str) -> dict[str, object]:
 
 
 def _runner(
-    outcomes: list[StructuredModelResult],
+    outcomes: list[StructuredModelResult | Exception],
     *,
     tool: ToolDefinition | None = None,
     tool_outcome: ToolOutcome = ToolOutcome.SUCCEEDED,
     limits: RunLimits | None = None,
+    tool_exception: Exception | None = None,
 ) -> tuple[AgentRunner, MemoryStore, RecordingToolExecutor]:
     run = create_run(
         AgentRunRequest(
@@ -228,7 +244,11 @@ def _runner(
         now=NOW,
     )
     store = MemoryStore(run)
-    executor = RecordingToolExecutor(store, outcome=tool_outcome)
+    executor = RecordingToolExecutor(
+        store,
+        outcome=tool_outcome,
+        exception=tool_exception,
+    )
     runner = AgentRunner(
         store=store,
         provider=ScriptedLLMProvider(outcomes),
@@ -338,3 +358,148 @@ def test_iteration_limit_stops_a_continue_loop_before_another_effect() -> None:
     assert result.error is not None
     assert result.error.code == "run_limit_reached"
     assert len(executor.calls) == 1
+
+
+def test_unexpected_read_only_executor_exception_is_persisted_safely() -> None:
+    runner, store, executor = _runner(
+        [_model_result(_plan())],
+        tool_exception=RuntimeError("private adapter detail"),
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "tool_executor_error"
+    assert result.error.message == "Unexpected orchestration failure"
+    assert store.steps[-1].status is StepStatus.FAILED
+    assert len(executor.calls) == 1
+
+
+def test_unexpected_write_executor_exception_pauses_uncertain_effect_for_review() -> None:
+    runner, store, executor = _runner(
+        [_model_result(_plan())],
+        tool=_tool(side_effect=SideEffectClass.REVERSIBLE_WRITE),
+        tool_exception=RuntimeError("response was lost"),
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.REVIEW_REQUIRED
+    assert result.tool_call_count == 0
+    pending_step = store.steps[-1]
+    pending_call = ToolCall.model_validate(pending_step.input["tool_call"])
+    assert pending_step.status is StepStatus.PENDING
+    assert pending_call.approval_status.value == "pending"
+    assert pending_call.idempotency_key is not None
+    assert pending_step.output["recovery"] is not None
+    assert len(executor.calls) == 1
+
+
+def test_interrupted_planning_attempt_is_closed_and_retried_from_safe_boundary() -> None:
+    runner, store, _ = _runner([RuntimeError("process interrupted")])
+
+    with pytest.raises(RuntimeError, match="process interrupted"):
+        runner.run_until_blocked(store.run.id)
+
+    interrupted_version = store.run.version
+    detail = store.get(store.run.id)
+    assert detail is not None
+    decision = runner.recover_interrupted(detail)
+
+    assert decision.disposition is RecoveryDisposition.REENQUEUE
+    assert store.run.status is RunStatus.PLANNING
+    assert store.run.version == interrupted_version + 1
+    assert store.steps[-1].status is StepStatus.FAILED
+    assert store.steps[-1].error is not None
+    assert store.steps[-1].error.code == "execution_interrupted"
+
+
+def test_interrupted_adaptation_attempt_is_closed_and_retried_from_safe_boundary() -> None:
+    runner, store, _ = _runner([_model_result(_plan()), RuntimeError("process interrupted")])
+
+    with pytest.raises(RuntimeError, match="process interrupted"):
+        runner.run_until_blocked(store.run.id)
+
+    detail = store.get(store.run.id)
+    assert detail is not None
+    assert detail.run.status is RunStatus.ADAPTING
+    decision = runner.recover_interrupted(detail)
+
+    assert decision.disposition is RecoveryDisposition.REENQUEUE
+    assert store.run.status is RunStatus.ADAPTING
+    assert store.steps[-1].phase is StepPhase.ADAPT
+    assert store.steps[-1].status is StepStatus.FAILED
+
+
+def test_observing_boundary_needs_no_repair_before_reenqueue() -> None:
+    runner, store, _ = _runner([_model_result(_plan())])
+    ready = runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    assert ready.status is RunStatus.READY
+    observing = runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    assert observing.status is RunStatus.OBSERVING
+    version = observing.version
+
+    detail = store.get(store.run.id)
+    assert detail is not None
+    decision = runner.recover_interrupted(detail)
+
+    assert decision.disposition is RecoveryDisposition.REENQUEUE
+    assert decision.changed is False
+    assert store.run.version == version
+
+
+@pytest.mark.parametrize(
+    ("side_effect", "expected_status", "expected_disposition"),
+    [
+        (SideEffectClass.READ_ONLY, RunStatus.READY, RecoveryDisposition.REENQUEUE),
+        (
+            SideEffectClass.REVERSIBLE_WRITE,
+            RunStatus.REVIEW_REQUIRED,
+            RecoveryDisposition.AWAIT_REVIEW,
+        ),
+    ],
+)
+def test_interrupted_action_recovery_is_effect_aware(
+    side_effect: SideEffectClass,
+    expected_status: RunStatus,
+    expected_disposition: RecoveryDisposition,
+) -> None:
+    definition = _tool(side_effect=side_effect)
+    runner, store, _ = _runner([_model_result(_plan())], tool=definition)
+    ready = runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    call = ToolCall(
+        id=uuid4(),
+        run_id=ready.id,
+        step_id=uuid4(),
+        tool_name=definition.name,
+        tool_version=definition.version,
+        arguments={"query": "verified"},
+        idempotency_key=(None if side_effect is SideEffectClass.READ_ONLY else f"{ready.id}:1:v1"),
+        approval_status=ApprovalStatus.NOT_REQUIRED,
+    )
+    step = AgentStep(
+        id=call.step_id,
+        run_id=ready.id,
+        sequence=2,
+        phase=StepPhase.ACT,
+        status=StepStatus.RUNNING,
+        started_at=NOW,
+        input={"tool_call": call.model_dump(mode="json")},
+    )
+    acting = transition_run(ready, RunStatus.ACTING, now=NOW)
+    store.save(acting, expected_version=ready.version, step=step)
+
+    detail = store.get(store.run.id)
+    assert detail is not None
+    decision = runner.recover_interrupted(detail)
+
+    assert decision.disposition is expected_disposition
+    assert store.run.status is expected_status
+    recovered_call = ToolCall.model_validate(store.steps[-1].input["tool_call"])
+    assert recovered_call.id == call.id
+    assert store.steps[-1].status is StepStatus.PENDING
+    if side_effect is SideEffectClass.READ_ONLY:
+        assert recovered_call.approval_status is ApprovalStatus.NOT_REQUIRED
+    else:
+        assert recovered_call.approval_status is ApprovalStatus.PENDING

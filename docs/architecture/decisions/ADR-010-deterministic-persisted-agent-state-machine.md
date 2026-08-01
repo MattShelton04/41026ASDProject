@@ -34,4 +34,10 @@ one transaction. A model-format error receives at most one schema-informed repai
 
 The core is deterministic and testable without Ollama, and later adapters can reuse the
 same records. Persistence and recovery code is more explicit. Startup reconciliation
-and uncertain in-flight action handling remain required before Release 0 completion.
+now retries interrupted model and read-only work, while uncertain in-flight mutations
+route to human review with their original idempotency keys. Feature tool endpoints must
+provide atomic idempotency enforcement and operation-status evidence before mutations
+can be integrated end to end.
+
+The detailed implemented lifecycle is maintained in
+[`../agent-run-state-machine.md`](../agent-run-state-machine.md).

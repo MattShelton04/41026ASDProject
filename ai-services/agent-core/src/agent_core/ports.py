@@ -141,6 +141,10 @@ class RunStore(Protocol):
         """Load one run and its ordered safe steps."""
         ...
 
+    def list_resumable(self) -> tuple[AgentRunDetail, ...]:
+        """Load non-terminal runs that startup reconciliation may need to resume."""
+        ...
+
     def save(
         self,
         run: AgentRun,
