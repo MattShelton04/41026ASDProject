@@ -45,7 +45,8 @@ deployment.
 - `student-1/` to `student-5/`: individual feature workspaces
 - `ai-services/`: agent-core and AI-mode projects plus later-release service locations
 - `scripts/`: shared quality, build, test, and deployment automation
-- `docker-compose.yml`: future integrated local application definition
+- `docker-compose.yml`: Release 0 AI-mode and profiled Ollama integration; student
+  services are added after feature allocation
 - `CONTRIBUTING.md`: environment setup, commands, ownership, and pull request workflow
 - `AGENTS.md`: durable repository instructions for coding agents
 - `docs/architecture/repository-architecture.md`: scaffold plan, architectural
@@ -78,6 +79,19 @@ uv run python scripts/check.py
 See the official [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/)
 for alternative installation methods. See [CONTRIBUTING.md](CONTRIBUTING.md) for editor setup,
 hooks, dependency changes, ownership boundaries, and the complete developer/agent workflow.
+
+For the assignment-aligned container runtime, start Docker Desktop and run:
+
+```text
+docker compose --profile release-0 --profile ollama-container up --detach --build --wait --wait-timeout 600
+uv run ai-mode-ollama-smoke
+```
+
+Compose starts pinned Ollama and AI-mode containers and prepares the small Release 0
+model; the installed diagnostic then performs a real structured-output provider check.
+Native Ollama, routing choices, resource settings, lifecycle commands, and
+troubleshooting are documented in
+[`docs/release-0/ollama-operations.md`](docs/release-0/ollama-operations.md).
 
 ## Next decisions
 

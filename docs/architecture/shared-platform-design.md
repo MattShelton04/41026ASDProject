@@ -17,11 +17,13 @@ contracts, deterministic state graph, limits and tool policy, persistence-indepe
 ports, bounded four-phase runner, deterministic fake provider, SQLite run/step/review
 store, prompt registry, native Ollama structured-output adapter, serial worker, and
 create/read/cancel/review HTTP endpoints. JSON Schema and OpenAPI artefacts are generated
-and drift-checked by the canonical quality gate.
+and drift-checked by the canonical quality gate. A pinned non-root AI-mode image,
+profiled Ollama runtime/model initializer, native-host override, and real structured
+provider diagnostic now supply the shared Release 0 container boundary.
 
 This does not complete the shared-foundation definition of done. Feature-owned HTTP tool
 registration/execution, resumable events, the development run-detail page, the
-reference feature, Compose/Ollama profiles, real-model evaluation,
+reference feature, representative real-model evaluation,
 and integration evidence remain. MCP, RAG, and multi-agent runtime behavior remains
 disabled and unclaimed.
 

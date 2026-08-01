@@ -20,7 +20,9 @@ timeouts and response sizes, non-streaming schema-constrained JSON, `keep_alive`
 transport failures, and non-throwing health results.
 
 Accept a configured `/v1` suffix for compatibility with the course guide, but normalize
-it to the native API root. Real-model tests remain separate from deterministic CI.
+it to the native API root. Support native-host development and a pinned Compose-managed
+runtime; use the latter for integration and release evidence. Real-model tests remain a
+separate explicitly requested CI job rather than part of deterministic CI.
 
 ## Alternatives considered
 
@@ -35,4 +37,6 @@ it to the native API root. Real-model tests remain separate from deterministic C
 Ollama behavior is isolated and mockable, with richer evidence metadata. The native API
 adapter requires explicit compatibility tests when Ollama changes. Model availability is
 reported as degraded readiness rather than making deterministic application behavior
-unavailable.
+unavailable. The Compose model uses a persistent model volume and one-shot initializer,
+while an installed provider-level diagnostic provides machine-readable structured
+generation evidence without duplicating Compose lifecycle behavior.

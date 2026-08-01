@@ -38,6 +38,11 @@ Run locally with:
 uv run flask --app ai_mode:create_app run --port 5005
 ```
 
+The assignment-aligned Compose path and the native-host alternative are documented in
+[`docs/release-0/ollama-operations.md`](../../docs/release-0/ollama-operations.md).
+The `ai-mode-ollama-smoke` console command performs a real provider-level structured
+output diagnostic without owning Docker lifecycle or feature behavior.
+
 The SQLite adapter enables foreign keys, WAL mode, a busy timeout, forward schema
 versioning, and optimistic run versions. Run and step changes—and review records where
 applicable—are committed atomically. On startup, incomplete runs are reconciled from
@@ -52,6 +57,6 @@ Ollama, but any invented or unregistered tool fails before dispatch. The next ve
 integration increment must configure feature-owned HTTP tool definitions/execution;
 it must not add feature business behavior to this service.
 
-Resumable event streaming, the development run-detail page, Compose/Ollama profiles,
-and the reference feature are also remaining Release 0 work.
+Resumable event streaming, the development run-detail page, and the reference feature
+are also remaining Release 0 work.
 MCP, RAG, and multi-agent runtime services remain release-gated.
