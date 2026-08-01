@@ -47,8 +47,11 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return _problem(400, "invalid_json", "Request body must be a JSON object")
+    services = _services()
+    effective_payload = dict(payload)
+    effective_payload.setdefault("model_profile", services.default_model_profile)
     try:
-        command = AgentRunRequest.model_validate(payload)
+        command = AgentRunRequest.model_validate(effective_payload)
     except ValidationError as exc:
         issues = tuple(
             FieldIssue(
@@ -60,7 +63,15 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
         )
         return _problem(422, "validation_failed", "Request validation failed", errors=issues)
 
-    services = _services()
+    if (
+        services.model_registry is not None
+        and services.model_registry.profile(command.model_profile) is None
+    ):
+        return _problem(
+            422,
+            "model_profile_not_supported",
+            f"Model profile is not registered: {command.model_profile}",
+        )
     run = create_run(
         command,
         run_id=services.ids.new(),
@@ -92,6 +103,15 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
     response = jsonify(run.model_dump(mode="json"))
     response.headers[AGENT_RUN_ID_HEADER] = str(run.id)
     return response, 202, {"Location": location}
+
+
+@api.get("/model-profiles")
+def get_model_profiles() -> tuple[Response, int]:
+    """Return safe supported-model metadata and operational profile limits."""
+    registry = _services().model_registry
+    if registry is None:
+        return _problem(503, "model_registry_unavailable", "Model registry is unavailable")
+    return jsonify(registry.model_dump(mode="json")), 200
 
 
 @api.get("/agent-runs/<uuid:run_id>")

@@ -9,12 +9,12 @@ def test_course_openai_compatible_url_is_normalized_for_native_ollama_api() -> N
     settings = Settings.from_env(
         {
             "OLLAMA_BASE_URL": "http://localhost:11434/v1",
-            "OLLAMA_MODEL": "qwen2.5:0.5b",
+            "AI_MODE_DEFAULT_MODEL_PROFILE": "local-balanced.v1",
         }
     )
 
     assert settings.ollama_base_url == "http://localhost:11434"
-    assert settings.ollama_model == "qwen2.5:0.5b"
+    assert settings.default_model_profile == "local-balanced.v1"
 
 
 @pytest.mark.parametrize(
@@ -30,8 +30,8 @@ def test_course_openai_compatible_url_is_normalized_for_native_ollama_api() -> N
         ({"AI_MODE_MAX_TOOL_REQUEST_BYTES": "10"}, "must be between"),
         ({"AI_MODE_MAX_TOOL_RESPONSE_BYTES": "many"}, "must be an integer"),
         ({"AI_MODE_EVIDENCE_ACCESS_TOKEN": "short"}, "at least 16"),
-        ({"OLLAMA_MODEL": " "}, "cannot be empty"),
         ({"OLLAMA_KEEP_ALIVE": " "}, "cannot be empty"),
+        ({"AI_MODE_DEFAULT_MODEL_PROFILE": "Not Valid"}, "is invalid"),
         ({"AI_MODE_REQUIRE_OLLAMA_READY": "sometimes"}, "must be true or false"),
     ],
 )

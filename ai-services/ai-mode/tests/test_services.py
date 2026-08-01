@@ -14,7 +14,6 @@ def test_default_services_initialize_without_contacting_ollama(tmp_path: Path) -
         Settings(
             database_path=tmp_path / "state.sqlite3",
             ollama_base_url="http://ollama.invalid",
-            ollama_model="qwen2.5:0.5b",
             ollama_timeout_seconds=1,
             ollama_keep_alive="5m",
             max_model_response_bytes=100_000,
@@ -25,6 +24,8 @@ def test_default_services_initialize_without_contacting_ollama(tmp_path: Path) -
     assert services.clock.now().tzinfo is not None
     assert services.ids.new() != services.ids.new()
     assert isinstance(services.queue, SerialRunQueue)
+    assert services.model_registry is not None
+    assert services.default_model_profile == "local-standard.v1"
     services.queue.close()
     services.provider.close()  # type: ignore[attr-defined]
 

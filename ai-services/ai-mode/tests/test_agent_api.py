@@ -35,6 +35,29 @@ def test_create_validates_media_type_and_contract(app: Flask) -> None:
     assert_problem_detail(validation_response.get_json(), status=422, code="validation_failed")
 
 
+def test_model_registry_is_visible_and_unknown_profiles_are_rejected(app: Flask) -> None:
+    client = app.test_client()
+
+    catalogue = client.get("/api/v1/model-profiles")
+    rejected = client.post(
+        "/api/v1/agent-runs",
+        json={
+            "feature_key": "student-1-feature",
+            "objective": "Find records",
+            "model_profile": "unregistered.v1",
+        },
+    )
+
+    assert catalogue.status_code == 200
+    assert catalogue.get_json()["default_profile"] == "local-standard.v1"
+    assert {item["family"] for item in catalogue.get_json()["models"]} == {
+        "qwen",
+        "llama",
+        "deepseek",
+    }
+    assert_problem_detail(rejected.get_json(), status=422, code="model_profile_not_supported")
+
+
 def test_create_persists_before_enqueue_and_propagates_request_id(
     app: Flask, app_services: AppServices
 ) -> None:

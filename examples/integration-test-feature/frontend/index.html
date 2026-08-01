@@ -3,12 +3,52 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Integration test feature</title>
+    <title>Shared platform integration console</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
   </head>
   <body>
     <main>
-      <h1>Integration test feature</h1>
-      <p>This development-only page identifies the shared-platform integration fixture.</p>
+      <header>
+        <p class="eyebrow">Non-product integration fixture</p>
+        <h1>Shared platform integration console</h1>
+        <p>
+          Exercise the example frontend, feature backend, database service, AI-mode,
+          Ollama, model registry, and persisted agent-run trace from one page.
+        </p>
+      </header>
+
+      <section aria-labelledby="records-heading">
+        <h2 id="records-heading">Feature boundary</h2>
+        <form id="search-form">
+          <label for="search-query">Search the ten seeded records</label>
+          <div class="controls">
+            <input id="search-query" value="Reference record" maxlength="200" required>
+            <button type="submit">Search</button>
+          </div>
+        </form>
+        <form id="create-form">
+          <label for="record-title">Create an idempotent test record</label>
+          <div class="controls">
+            <input id="record-title" placeholder="A unique record title" maxlength="200" required>
+            <button type="submit">Create</button>
+          </div>
+        </form>
+        <pre id="feature-output" aria-live="polite">Ready.</pre>
+      </section>
+
+      <section aria-labelledby="agent-heading">
+        <h2 id="agent-heading">Agentic boundary</h2>
+        <form id="agent-form">
+          <label for="objective">Run a Plan → Act → Observe → Adapt objective</label>
+          <textarea id="objective" rows="3" maxlength="4000" required>Search for Reference record 03 and complete when the matching record is observed.</textarea>
+          <div class="controls">
+            <select id="model-profile" aria-label="Model profile"></select>
+            <button type="submit">Start AI run</button>
+          </div>
+        </form>
+        <pre id="agent-output" aria-live="polite">Loading model registry…</pre>
+      </section>
     </main>
   </body>
 </html>

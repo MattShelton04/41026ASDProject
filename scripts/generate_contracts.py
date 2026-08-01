@@ -17,6 +17,7 @@ from shared_contracts import (
     FeatureManifest,
     HealthResponse,
     HumanReviewRequest,
+    ModelRegistry,
     ProblemDetail,
     ToolDefinition,
 )
@@ -35,6 +36,7 @@ SCHEMA_MODELS: dict[str, type[BaseModel]] = {
     "problem-detail.schema.json": ProblemDetail,
     "tool-definition.schema.json": ToolDefinition,
     "feature-manifest.schema.json": FeatureManifest,
+    "model-registry.schema.json": ModelRegistry,
 }
 
 
@@ -140,6 +142,22 @@ def _openapi() -> dict[str, Any]:
                         "413": problem_response,
                         "415": problem_response,
                         "422": problem_response,
+                        "503": problem_response,
+                    },
+                }
+            },
+            "/api/v1/model-profiles": {
+                "get": {
+                    "operationId": "getModelProfiles",
+                    "responses": {
+                        "200": {
+                            "description": "Supported models and bounded runtime profiles",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/ModelRegistry"}
+                                }
+                            },
+                        },
                         "503": problem_response,
                     },
                 }

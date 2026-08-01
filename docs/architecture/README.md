@@ -10,6 +10,8 @@ Architecture sources, decisions, and exported diagrams belong here.
   transitions, durable phase checkpoints, tool turns, idempotency, and restart recovery.
 - `decisions/ADR-014-append-only-safe-agent-run-events.md` records the resumable event
   persistence and cursor-polling decision.
+- `decisions/ADR-015-validated-model-registry.md` records supported-model metadata,
+  logical profiles, operational limits, and readiness selection.
 - `reviews/` retains external/adversarial review inputs. Findings are not
   authoritative until verified and dispositioned in the architecture record.
 - Future artefacts should cover individual microservices, the integrated application,

@@ -1,0 +1,21 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background: #0b1020;
+  color: #e7edf8;
+}
+
+body { margin: 0; }
+main { width: min(960px, calc(100% - 2rem)); margin: 3rem auto; }
+header { margin-bottom: 2rem; }
+.eyebrow { color: #77d6c9; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+h1 { font-size: clamp(2rem, 5vw, 3.5rem); margin: .25rem 0; }
+section { background: #141b30; border: 1px solid #2b3655; border-radius: 1rem; padding: 1.25rem; margin: 1rem 0; }
+form { display: grid; gap: .6rem; margin: 1rem 0; }
+label { font-weight: 650; }
+.controls { display: flex; gap: .75rem; flex-wrap: wrap; }
+input, textarea, select, button { box-sizing: border-box; border: 1px solid #405071; border-radius: .5rem; padding: .75rem; font: inherit; }
+input, textarea, select { flex: 1; min-width: 14rem; background: #0d1427; color: inherit; }
+button { background: #63cabd; color: #07110f; cursor: pointer; font-weight: 750; }
+button:hover { background: #82ded2; }
+pre { min-height: 3rem; max-height: 28rem; overflow: auto; padding: 1rem; background: #080d19; border-radius: .5rem; white-space: pre-wrap; }

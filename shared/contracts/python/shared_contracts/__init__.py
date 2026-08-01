@@ -44,6 +44,13 @@ from shared_contracts.http import (
     HealthStatus,
     ProblemDetail,
 )
+from shared_contracts.model_registry import (
+    ApprovedModelFamily,
+    ModelProfile,
+    ModelRegistry,
+    ModelRoleName,
+    SupportedModel,
+)
 
 __all__ = [
     "AGENT_RUN_ID_HEADER",
@@ -59,6 +66,7 @@ __all__ = [
     "AgentRunRequest",
     "AgentStep",
     "ApprovalStatus",
+    "ApprovedModelFamily",
     "FeatureManifest",
     "FeatureManifestError",
     "FieldIssue",
@@ -67,6 +75,9 @@ __all__ = [
     "HealthStatus",
     "HumanReview",
     "HumanReviewRequest",
+    "ModelProfile",
+    "ModelRegistry",
+    "ModelRoleName",
     "Observation",
     "Plan",
     "PlanAction",
@@ -77,6 +88,7 @@ __all__ = [
     "SideEffectClass",
     "StepPhase",
     "StepStatus",
+    "SupportedModel",
     "ToolCall",
     "ToolDefinition",
     "ToolError",

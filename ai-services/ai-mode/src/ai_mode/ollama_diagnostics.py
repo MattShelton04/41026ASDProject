@@ -20,7 +20,7 @@ from agent_core import (
 )
 from ai_mode.adapters.ollama import OllamaProvider
 from ai_mode.configuration import Settings
-from ai_mode.providers import PRIMARY_MODEL_PROFILE, build_ollama_provider
+from ai_mode.providers import build_ollama_provider, configured_model_registry
 
 
 class SmokeItem(BaseModel):
@@ -42,7 +42,9 @@ class SmokeResponse(BaseModel):
     items: tuple[SmokeItem, ...] = Field(min_length=1, max_length=50)
 
 
-def run_smoke(provider: LLMProvider) -> Mapping[str, object]:
+def run_smoke(
+    provider: LLMProvider, *, model_profile: str = "local-standard.v1"
+) -> Mapping[str, object]:
     """Exercise health and one schema-constrained turn through the provider port."""
     health = provider.health()
     if not health.reachable:
@@ -50,7 +52,7 @@ def run_smoke(provider: LLMProvider) -> Mapping[str, object]:
     request = StructuredModelRequest(
         run_id=uuid4(),
         role=ModelRole.REVIEWER,
-        model_profile=PRIMARY_MODEL_PROFILE,
+        model_profile=model_profile,
         messages=(
             ModelMessage(
                 role="system",
@@ -99,9 +101,9 @@ def _parser() -> argparse.ArgumentParser:
         help="Override OLLAMA_BASE_URL for this check",
     )
     parser.add_argument(
-        "--model",
+        "--profile",
         default=None,
-        help="Override OLLAMA_MODEL for this check",
+        help="Override the registry's default logical profile for this check",
     )
     parser.add_argument("--timeout-seconds", type=float, default=None)
     return parser
@@ -115,12 +117,24 @@ def main() -> int:
         environment = dict(os.environ)
         if args.base_url is not None:
             environment["OLLAMA_BASE_URL"] = args.base_url
-        if args.model is not None:
-            environment["OLLAMA_MODEL"] = args.model
+        if args.profile is not None:
+            environment["AI_MODE_DEFAULT_MODEL_PROFILE"] = args.profile
         if args.timeout_seconds is not None:
             environment["OLLAMA_TIMEOUT_SECONDS"] = str(args.timeout_seconds)
-        provider = build_ollama_provider(Settings.from_env(environment))
-        print(json.dumps(run_smoke(provider), indent=2, sort_keys=True))
+        settings = Settings.from_env(environment)
+        registry, model_profile = configured_model_registry(settings)
+        provider = build_ollama_provider(
+            settings,
+            registry=registry,
+            readiness_profile=model_profile,
+        )
+        print(
+            json.dumps(
+                run_smoke(provider, model_profile=model_profile),
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
     except (ModelProviderError, RuntimeError, ValueError) as exc:
         print(f"Ollama diagnostic failed: {exc}", file=sys.stderr)

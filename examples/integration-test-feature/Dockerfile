@@ -47,3 +47,6 @@ CMD ["gunicorn", "--bind=0.0.0.0:5102", "--workers=1", "--threads=4", "integrati
 
 FROM nginx:1.29.1-alpine3.22-slim AS frontend
 COPY examples/integration-test-feature/frontend/index.html /usr/share/nginx/html/index.html
+COPY examples/integration-test-feature/frontend/app.js /usr/share/nginx/html/app.js
+COPY examples/integration-test-feature/frontend/styles.css /usr/share/nginx/html/styles.css
+COPY examples/integration-test-feature/frontend/nginx.conf /etc/nginx/conf.d/default.conf

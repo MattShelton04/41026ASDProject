@@ -76,7 +76,7 @@ def test_console_entrypoint_reports_success_and_closes_provider(
     monkeypatch.setattr(
         ollama_diagnostics,
         "build_ollama_provider",
-        lambda settings: provider,
+        lambda *_args, **_kwargs: provider,
     )
     monkeypatch.setattr("sys.argv", ["ai-mode-ollama-smoke"])
 
@@ -98,7 +98,7 @@ def test_console_entrypoint_returns_nonzero_with_safe_error(
     monkeypatch.setattr(
         ollama_diagnostics,
         "build_ollama_provider",
-        lambda settings: provider,
+        lambda *_args, **_kwargs: provider,
     )
     monkeypatch.setattr("sys.argv", ["ai-mode-ollama-smoke"])
 

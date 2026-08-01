@@ -22,10 +22,17 @@ from ai_mode.adapters.system import SystemClock, UUID4Generator
 from ai_mode.configuration import Settings
 from ai_mode.persistence import SQLiteRunStore
 from ai_mode.prompts import PromptRegistry, RegistryPromptBuilder
-from ai_mode.providers import build_ollama_provider
+from ai_mode.providers import build_ollama_provider, configured_model_registry
 from ai_mode.queue import SerialRunQueue
 from ai_mode.tool_catalog import build_tool_runtime, load_tool_catalog
-from shared_contracts import ToolCall, ToolDefinition, ToolError, ToolOutcome, ToolResult
+from shared_contracts import (
+    ModelRegistry,
+    ToolCall,
+    ToolDefinition,
+    ToolError,
+    ToolOutcome,
+    ToolResult,
+)
 
 
 class UnconfiguredToolExecutor(ToolExecutor):
@@ -59,6 +66,8 @@ class AppServices:
     queue: RunQueue
     clock: Clock
     ids: IdGenerator
+    model_registry: ModelRegistry | None = None
+    default_model_profile: str = "local-standard.v1"
     closeables: tuple[object, ...] = ()
 
     def close(self) -> None:
@@ -73,13 +82,20 @@ def build_services(settings: Settings) -> AppServices:
     """Build the default Release 0 dependency graph without contacting Ollama."""
     store = SQLiteRunStore(settings.database_path)
     store.initialize()
-    provider = build_ollama_provider(settings)
+    model_registry, default_model_profile = configured_model_registry(settings)
+    provider = build_ollama_provider(
+        settings,
+        registry=model_registry,
+        readiness_profile=default_model_profile,
+    )
     clock = SystemClock()
     ids = UUID4Generator()
     prompt_root = Path(__file__).resolve().parent / "prompt_assets"
     registry = PromptRegistry(prompt_root)
     registry.load("planner", "v1")
+    registry.load("planner", "v2")
     registry.load("adapter", "v1")
+    registry.load("adapter", "v2")
     if settings.tool_catalog_path is None:
         tools = ToolRegistry(())
         tool_executor: ToolExecutor = UnconfiguredToolExecutor()
@@ -112,5 +128,7 @@ def build_services(settings: Settings) -> AppServices:
         queue=queue,
         clock=clock,
         ids=ids,
+        model_registry=model_registry,
+        default_model_profile=default_model_profile,
         closeables=(queue, tool_executor, provider),
     )

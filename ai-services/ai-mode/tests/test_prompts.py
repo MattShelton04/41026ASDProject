@@ -65,7 +65,7 @@ def test_builder_keeps_stable_instructions_before_untrusted_dynamic_data() -> No
     assert "software-controlled" in request.messages[0].content
     assert request.messages[1].role == "user"
     assert "untrusted task data" in request.messages[1].content
-    assert request.prompt_hash == PromptRegistry(PROMPT_ROOT).load("planner", "v1").content_hash
+    assert request.prompt_hash == PromptRegistry(PROMPT_ROOT).load("planner", "v2").content_hash
     assert len(request.rendered_input_hash) == 64
 
 
@@ -98,4 +98,4 @@ def test_builder_constructs_evidence_based_adaptation_request() -> None:
     assert request.role.value == "adapter"
     assert '"count":1' in request.messages[1].content
     assert request.prompt_id == "adapter"
-    assert request.prompt_version == "v1"
+    assert request.prompt_version == "v2"

@@ -427,6 +427,26 @@ def test_iteration_limit_stops_a_continue_loop_before_another_effect() -> None:
     assert len(executor.calls) == 1
 
 
+def test_continue_after_last_action_replans_instead_of_exhausting_the_plan() -> None:
+    runner, store, executor = _runner(
+        [
+            _model_result(_plan()),
+            _model_result(_adaptation("continue")),
+            _model_result(_plan(arguments={"query": "refined"})),
+            _model_result(_adaptation("complete")),
+        ]
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert result.iteration_count == 2
+    assert [call.arguments for call in executor.calls] == [
+        {"query": "verified"},
+        {"query": "refined"},
+    ]
+
+
 def test_elapsed_budget_prevents_an_adaptation_model_call_after_tool_io() -> None:
     clock = MutableClock()
     runner, store, _ = _runner(

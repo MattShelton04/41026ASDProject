@@ -51,6 +51,11 @@ services:
       dockerfile: examples/integration-test-feature/Dockerfile
       target: frontend
     image: 41026-asd/integration-test-feature-frontend:dev
+    depends_on:
+      integration-test-feature-backend:
+        condition: service_healthy
+      ai-mode:
+        condition: service_healthy
     ports:
       - 127.0.0.1:${INTEGRATION_TEST_FEATURE_PORT:-5190}:80
     networks: [shared_platform]

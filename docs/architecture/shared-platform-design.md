@@ -25,11 +25,13 @@ The next domain-neutral Release 0 increment adds validated feature manifests,
 feature-scoped/versioned tool registration, fail-fast YAML tool composition, a bounded
 HTTP executor, create-run idempotency, safe append-only progress events, and an opt-in
 redacted development evidence page. A non-product `integration-test-feature` proves
-the agent/core/backend/database boundary over real HTTP and SQLite.
+the agent/core/backend/database boundary over real HTTP and SQLite. A validated model
+registry now maps stable logical profiles to assignment-approved Ollama tags and explicit
+context/output budgets; ADR-015 records the selection and readiness policy.
 
 This does not complete the shared-foundation definition of done. Student owners must
 still supply their approved manifests and feature endpoints; the integrated edge and
-Compose topology, a product reference feature, representative real-model evaluation,
+Compose topology, a product-feature integration, representative real-model evaluation,
 and release evidence remain. MCP, RAG, and multi-agent runtime behavior remains disabled
 and unclaimed.
 
@@ -471,7 +473,10 @@ remain available. No feature backend imports an Ollama or commercial-provider SD
 
 Configuration selects a model profile rather than embedding model names in feature
 code. Profiles can reduce context, output length, concurrency, or agent discretion on
-less capable hardware. The same tests run against every supported profile.
+less capable hardware. The versioned registry records the assignment-approved family,
+exact Ollama tag, advertised maximum context, official source, and conservative runtime
+budgets. Startup and CI validate it; the public API exposes the same typed view. The same
+evaluation set should run against every supported profile before a default changes.
 
 ### 9.2 Prompt registry
 
@@ -935,8 +940,8 @@ requests. Do not paste floating `latest` image tags into release or deployment f
 3. Implement `ai-mode` with SQLite run store, prompt registry, Ollama adapter, and run
    detail endpoint.
 4. Implement the edge/home page and manifest-driven feature links.
-5. Create one reference feature skeleton, then stamp only structural boilerplate for
-   students 2-5.
+5. Create one non-product integration-test fixture that proves the structural pattern;
+   do not stamp or edit student-owned feature behavior before allocation.
 6. Build Compose health checks and native/container Ollama profiles.
 7. Prove a complete Plan -> Act -> Observe -> Adapt case plus an unavailable-model case.
 
@@ -995,7 +1000,7 @@ superseding decision where applicable.
 The foundation is complete when:
 
 - all shared packages have owners, README files, tests, and stable public interfaces;
-- one reference feature proves frontend -> backend -> database CRUD and backend ->
+- one integration-test fixture proves frontend -> backend -> database CRUD and backend ->
   orchestrator -> Ollama interaction;
 - the orchestrator persists and displays a bounded four-phase run;
 - fake-model tests cover success, invalid schema, tool failure, timeout, approval,

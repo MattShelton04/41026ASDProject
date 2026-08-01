@@ -15,6 +15,7 @@ tools:
             type: string
             minLength: 1
             maxLength: 200
+            description: Plain case-insensitive title substring, for example Reference record 03; do not use field prefixes or search operators.
         required: [query]
         additionalProperties: false
       output_schema:

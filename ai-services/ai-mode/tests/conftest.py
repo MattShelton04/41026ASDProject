@@ -11,6 +11,7 @@ from flask import Flask
 
 from agent_core import ProviderHealth
 from ai_mode import create_app
+from ai_mode.model_registry import load_model_registry
 from ai_mode.persistence import SQLiteRunStore
 from ai_mode.services import AppServices
 from shared_testkit import ScriptedLLMProvider
@@ -49,6 +50,7 @@ def app_services(tmp_path: Path) -> AppServices:
         queue=CapturingQueue(),
         clock=FixedClock(),
         ids=FixedIds(),
+        model_registry=load_model_registry(),
     )
 
 

@@ -347,7 +347,7 @@ class AgentRunner:
             ensure_time_remaining(run, now=self._clock.now())
         except RunLimitExceededError as exc:
             return self._fail(run, exc, code="run_limit_reached")
-        plan, _ = self._active_plan(detail.steps, include_current_action=True)
+        plan, action_index = self._active_plan(detail.steps, include_current_action=True)
         result = self._last_tool_result(detail.steps)
         observation = self._last_observation(detail.steps)
         now = self._clock.now()
@@ -387,7 +387,10 @@ class AgentRunner:
         counted = in_progress.model_copy(
             update={"iteration_count": in_progress.iteration_count + 1}
         )
-        target, final_result, error = self._adaptation_transition(generated.value)
+        target, final_result, error = self._adaptation_transition(
+            generated.value,
+            has_remaining_action=action_index + 1 < len(plan.actions),
+        )
         next_run = transition_run(
             counted,
             target,
@@ -401,6 +404,8 @@ class AgentRunner:
     @staticmethod
     def _adaptation_transition(
         adaptation: Adaptation,
+        *,
+        has_remaining_action: bool,
     ) -> tuple[RunStatus, dict[str, JsonValue] | None, ToolError | None]:
         if adaptation.decision is AdaptationDecision.REQUEST_REVIEW:
             return (
@@ -412,7 +417,9 @@ class AgentRunner:
                 ),
             )
         mapping = {
-            AdaptationDecision.CONTINUE: RunStatus.READY,
+            AdaptationDecision.CONTINUE: (
+                RunStatus.READY if has_remaining_action else RunStatus.PLANNING
+            ),
             AdaptationDecision.REPLAN: RunStatus.PLANNING,
             AdaptationDecision.COMPLETE: RunStatus.SUCCEEDED,
             AdaptationDecision.FAIL: RunStatus.FAILED,

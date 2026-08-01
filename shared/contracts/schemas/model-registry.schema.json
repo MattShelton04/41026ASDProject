@@ -1,0 +1,199 @@
+{
+  "$defs": {
+    "ApprovedModelFamily": {
+      "description": "Open model families permitted by the assignment specification.",
+      "enum": [
+        "qwen",
+        "llama",
+        "deepseek"
+      ],
+      "title": "ApprovedModelFamily",
+      "type": "string"
+    },
+    "ModelProfile": {
+      "additionalProperties": false,
+      "description": "Stable logical name and bounded operational settings for one model.",
+      "properties": {
+        "context_tokens": {
+          "maximum": 2000000,
+          "minimum": 1024,
+          "title": "Context Tokens",
+          "type": "integer"
+        },
+        "description": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "intended_roles": {
+          "items": {
+            "$ref": "#/$defs/ModelRoleName"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Intended Roles",
+          "type": "array"
+        },
+        "keep_alive": {
+          "maxLength": 50,
+          "minLength": 1,
+          "title": "Keep Alive",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Key",
+          "type": "string"
+        },
+        "maximum_output_tokens": {
+          "maximum": 32768,
+          "minimum": 1,
+          "title": "Maximum Output Tokens",
+          "type": "integer"
+        },
+        "model_key": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Model Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "model_key",
+        "context_tokens",
+        "maximum_output_tokens",
+        "keep_alive",
+        "intended_roles",
+        "description"
+      ],
+      "title": "ModelProfile",
+      "type": "object"
+    },
+    "ModelRoleName": {
+      "description": "Agent roles for which a runtime profile is intended.",
+      "enum": [
+        "planner",
+        "adapter",
+        "reviewer"
+      ],
+      "title": "ModelRoleName",
+      "type": "string"
+    },
+    "SupportedModel": {
+      "additionalProperties": false,
+      "description": "One concrete Ollama model with traceable capacity metadata.",
+      "properties": {
+        "description": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "download_size_gb": {
+          "exclusiveMinimum": 0,
+          "maximum": 1000,
+          "title": "Download Size Gb",
+          "type": "number"
+        },
+        "family": {
+          "$ref": "#/$defs/ApprovedModelFamily"
+        },
+        "key": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Key",
+          "type": "string"
+        },
+        "maximum_context_tokens": {
+          "maximum": 2000000,
+          "minimum": 1024,
+          "title": "Maximum Context Tokens",
+          "type": "integer"
+        },
+        "ollama_tag": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Ollama Tag",
+          "type": "string"
+        },
+        "parameters_billion": {
+          "exclusiveMinimum": 0,
+          "maximum": 1000,
+          "title": "Parameters Billion",
+          "type": "number"
+        },
+        "provider": {
+          "const": "ollama",
+          "default": "ollama",
+          "title": "Provider",
+          "type": "string"
+        },
+        "source_url": {
+          "pattern": "^https://(www\\.)?(registry\\.)?ollama\\.com/",
+          "title": "Source Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "family",
+        "ollama_tag",
+        "parameters_billion",
+        "download_size_gb",
+        "maximum_context_tokens",
+        "source_url",
+        "description"
+      ],
+      "title": "SupportedModel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Versioned catalogue returned by AI-mode and loaded at composition time.",
+  "properties": {
+    "default_profile": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Default Profile",
+      "type": "string"
+    },
+    "models": {
+      "items": {
+        "$ref": "#/$defs/SupportedModel"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Models",
+      "type": "array"
+    },
+    "profiles": {
+      "items": {
+        "$ref": "#/$defs/ModelProfile"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Profiles",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "default_profile",
+    "models",
+    "profiles"
+  ],
+  "title": "ModelRegistry",
+  "type": "object"
+}

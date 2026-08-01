@@ -100,7 +100,11 @@ class RegistryPromptBuilder(PromptBuilder):
         "default.v1": {
             ModelRole.PLANNER: ("planner", "v1"),
             ModelRole.ADAPTER: ("adapter", "v1"),
-        }
+        },
+        "default.v2": {
+            ModelRole.PLANNER: ("planner", "v2"),
+            ModelRole.ADAPTER: ("adapter", "v2"),
+        },
     }
 
     def __init__(self, registry: PromptRegistry) -> None:

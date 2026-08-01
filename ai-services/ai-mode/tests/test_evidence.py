@@ -16,7 +16,6 @@ def test_evidence_view_is_hidden_without_bearer_token_and_redacts_fields(
     settings = Settings(
         database_path=Path("unused.sqlite3"),
         ollama_base_url="http://ollama.invalid",
-        ollama_model="fake",
         ollama_timeout_seconds=1,
         ollama_keep_alive="0",
         max_model_response_bytes=10_000,

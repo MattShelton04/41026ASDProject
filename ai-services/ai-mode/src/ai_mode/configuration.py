@@ -18,9 +18,8 @@ class Settings:
 
     database_path: Path
     ollama_base_url: str
-    ollama_model: str
     ollama_timeout_seconds: float
-    ollama_keep_alive: str
+    ollama_keep_alive: str | None
     max_model_response_bytes: int
     ollama_health_timeout_seconds: float = 2.0
     require_ollama_ready: bool = False
@@ -28,6 +27,8 @@ class Settings:
     max_tool_request_bytes: int = 262_144
     max_tool_response_bytes: int = 1_048_576
     tool_catalog_path: Path | None = None
+    model_registry_path: Path | None = None
+    default_model_profile: str | None = None
     evidence_access_token: str | None = None
 
     @classmethod
@@ -71,13 +72,15 @@ class Settings:
             minimum=1_024,
             maximum=10_485_760,
         )
-        model = values.get("OLLAMA_MODEL", "qwen2.5:0.5b").strip()
-        if not model:
-            raise ConfigurationError("OLLAMA_MODEL cannot be empty")
-        keep_alive = values.get("OLLAMA_KEEP_ALIVE", "5m").strip()
-        if not keep_alive:
+        keep_alive_value = values.get("OLLAMA_KEEP_ALIVE")
+        keep_alive = keep_alive_value.strip() if keep_alive_value is not None else None
+        if keep_alive_value is not None and not keep_alive:
             raise ConfigurationError("OLLAMA_KEEP_ALIVE cannot be empty")
         catalog_value = values.get("AI_MODE_TOOL_CATALOG_PATH", "").strip()
+        registry_value = values.get("AI_MODE_MODEL_REGISTRY_PATH", "").strip()
+        default_profile = values.get("AI_MODE_DEFAULT_MODEL_PROFILE", "").strip() or None
+        if default_profile is not None and not _identifier(default_profile):
+            raise ConfigurationError("AI_MODE_DEFAULT_MODEL_PROFILE is invalid")
         evidence_token = values.get("AI_MODE_EVIDENCE_ACCESS_TOKEN", "").strip() or None
         if evidence_token is not None and len(evidence_token) < 16:
             raise ConfigurationError("AI_MODE_EVIDENCE_ACCESS_TOKEN must be at least 16 characters")
@@ -85,7 +88,6 @@ class Settings:
         return cls(
             database_path=Path(values.get("AI_MODE_DATABASE_PATH", "instance/agent-state.sqlite3")),
             ollama_base_url=base_url,
-            ollama_model=model,
             ollama_timeout_seconds=timeout,
             ollama_keep_alive=keep_alive,
             max_model_response_bytes=max_bytes,
@@ -98,6 +100,8 @@ class Settings:
             max_tool_request_bytes=max_tool_request_bytes,
             max_tool_response_bytes=max_tool_response_bytes,
             tool_catalog_path=Path(catalog_value) if catalog_value else None,
+            model_registry_path=Path(registry_value) if registry_value else None,
+            default_model_profile=default_profile,
             evidence_access_token=evidence_token,
         )
 
@@ -129,3 +133,13 @@ def _boolean(value: str, label: str) -> bool:
     if normalized in {"false", "0", "no"}:
         return False
     raise ConfigurationError(f"{label} must be true or false")
+
+
+def _identifier(value: str) -> bool:
+    return (
+        len(value) <= 100
+        and value[0].isalnum()
+        and all(
+            character.islower() or character.isdigit() or character in "._-" for character in value
+        )
+    )

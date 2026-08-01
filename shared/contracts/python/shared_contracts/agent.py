@@ -106,8 +106,8 @@ class AgentRunRequest(ContractModel):
 
     feature_key: Identifier
     objective: str = Field(min_length=1, max_length=4_000)
-    prompt_set: Literal["default.v1"] = "default.v1"
-    model_profile: Identifier = "local-small.v1"
+    prompt_set: Literal["default.v1", "default.v2"] = "default.v2"
+    model_profile: Identifier = "local-standard.v1"
     limits: RunLimits = Field(default_factory=RunLimits)
 
 
