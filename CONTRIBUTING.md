@@ -67,6 +67,7 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Run tests | `uv run pytest` |
 | Run tests with coverage | `uv run pytest --cov --cov-report=term-missing` |
 | Generate contract artefacts | `uv run python scripts/generate_contracts.py` |
+| Validate feature tool catalogues | `uv run python scripts/validate_tool_catalogs.py` |
 | Start the AI-mode service | `uv run flask --app ai_mode:create_app run --port 5005` |
 
 The local service exposes health endpoints and the versioned `/api/v1/agent-runs`
