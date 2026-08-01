@@ -159,11 +159,19 @@ class RecordingToolExecutor:
         self.exception = exception
         self.cancel_during_execute = cancel_during_execute
         self.calls: list[ToolCall] = []
+        self.timeouts_ms: list[int] = []
 
-    def execute(self, call: ToolCall, definition: ToolDefinition) -> ToolResult:
+    def execute(
+        self,
+        call: ToolCall,
+        definition: ToolDefinition,
+        *,
+        timeout_ms: int,
+    ) -> ToolResult:
         assert self.store.run.status is RunStatus.ACTING
         assert self.store.steps[-1].status.value == "running"
         self.calls.append(call)
+        self.timeouts_ms.append(timeout_ms)
         if self.cancel_during_execute:
             self.store.request_cancellation(call.run_id, now=NOW)
         if self.exception is not None:
@@ -436,6 +444,21 @@ def test_elapsed_budget_prevents_an_adaptation_model_call_after_tool_io() -> Non
     assert result.error is not None
     assert result.error.code == "run_limit_reached"
     assert result.error.message == "time limit reached"
+
+
+def test_tool_timeout_is_capped_to_the_remaining_run_budget() -> None:
+    clock = MutableClock()
+    runner, store, executor = _runner(
+        [_model_result(_plan())],
+        limits=RunLimits(time_budget_ms=1_000),
+        clock=clock,
+    )
+    ready = runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    clock.current = NOW + timedelta(milliseconds=750)
+
+    runner.advance(store.get(ready.id))  # type: ignore[arg-type]
+
+    assert executor.timeouts_ms == [250]
 
 
 def test_adaptation_review_without_actionable_target_fails_closed() -> None:

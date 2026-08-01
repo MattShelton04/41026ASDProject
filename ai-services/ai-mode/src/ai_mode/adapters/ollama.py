@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -44,6 +45,7 @@ class OllamaProvider(LLMProvider):
         self._profiles = dict(profiles)
         self._max_response_bytes = max_response_bytes
         self._health_timeout_seconds = health_timeout_seconds
+        self._generation_timeout_seconds = timeout_seconds
         self._owns_client = client is None
         self._client = client or httpx.Client(
             base_url=base_url.rstrip("/"),
@@ -71,7 +73,7 @@ class OllamaProvider(LLMProvider):
                 "num_predict": request.max_output_tokens,
             },
         }
-        response = self._post(payload)
+        response = self._post(payload, deadline_at=request.deadline_at)
         if len(response.content) > self._max_response_bytes:
             raise ModelProviderError(
                 "Ollama response exceeded the configured size limit",
@@ -129,9 +131,28 @@ class OllamaProvider(LLMProvider):
         if self._owns_client:
             self._client.close()
 
-    def _post(self, payload: Mapping[str, object]) -> httpx.Response:
+    def _post(
+        self,
+        payload: Mapping[str, object],
+        *,
+        deadline_at: datetime | None,
+    ) -> httpx.Response:
         try:
-            response = self._client.post("/api/chat", json=payload)
+            timeout_seconds = self._generation_timeout_seconds
+            if deadline_at is not None:
+                remaining_seconds = (deadline_at - datetime.now(UTC)).total_seconds()
+                if remaining_seconds <= 0:
+                    raise ModelProviderError(
+                        "Model deadline expired before dispatch",
+                        code="model_timeout",
+                        retryable=True,
+                    )
+                timeout_seconds = min(timeout_seconds, remaining_seconds)
+            response = self._client.post(
+                "/api/chat",
+                json=payload,
+                timeout=timeout_seconds,
+            )
             response.raise_for_status()
             return response
         except httpx.TimeoutException as exc:

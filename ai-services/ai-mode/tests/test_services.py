@@ -49,7 +49,7 @@ def test_unconfigured_tool_executor_returns_safe_terminal_result() -> None:
         side_effect=SideEffectClass.READ_ONLY,
     )
 
-    result = UnconfiguredToolExecutor().execute(call, definition)
+    result = UnconfiguredToolExecutor().execute(call, definition, timeout_ms=1_000)
 
     assert result.outcome.value == "failed"
     assert result.error is not None

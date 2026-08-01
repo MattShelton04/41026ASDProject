@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import httpx
@@ -12,7 +13,9 @@ from agent_core import ModelMessage, ModelProviderError, ModelRole, StructuredMo
 from ai_mode.adapters.ollama import OllamaModelProfile, OllamaProvider
 
 
-def _request(profile: str = "local-small.v1") -> StructuredModelRequest:
+def _request(
+    profile: str = "local-small.v1", *, deadline_at: datetime | None = None
+) -> StructuredModelRequest:
     return StructuredModelRequest(
         run_id=uuid4(),
         role=ModelRole.PLANNER,
@@ -24,6 +27,7 @@ def _request(profile: str = "local-small.v1") -> StructuredModelRequest:
         prompt_hash="a" * 64,
         rendered_input_hash="b" * 64,
         max_output_tokens=128,
+        deadline_at=deadline_at,
     )
 
 
@@ -109,6 +113,42 @@ def test_transport_timeout_is_typed_and_retryable() -> None:
 
     assert raised.value.code == "model_timeout"
     assert raised.value.retryable is True
+
+
+def test_generation_timeout_is_capped_by_the_run_deadline() -> None:
+    captured_timeout = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_timeout
+        captured_timeout = request.extensions["timeout"]
+        return httpx.Response(
+            200,
+            json={"model": "qwen", "message": {"content": '{"ok":true}'}},
+        )
+
+    deadline = datetime.now(UTC) + timedelta(seconds=1)
+
+    _provider(httpx.MockTransport(handler)).generate_structured(_request(deadline_at=deadline))
+
+    assert isinstance(captured_timeout, dict)
+    assert 0 < captured_timeout["read"] <= 1
+
+
+def test_expired_generation_deadline_fails_before_network_io() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500)
+
+    with pytest.raises(ModelProviderError) as raised:
+        _provider(httpx.MockTransport(handler)).generate_structured(
+            _request(deadline_at=datetime.now(UTC) - timedelta(seconds=1))
+        )
+
+    assert raised.value.code == "model_timeout"
+    assert calls == 0
 
 
 @pytest.mark.parametrize(

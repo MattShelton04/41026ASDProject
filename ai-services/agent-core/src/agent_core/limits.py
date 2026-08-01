@@ -26,6 +26,11 @@ def ensure_within_limits(run: AgentRun, *, now: datetime) -> None:
 
 def ensure_time_remaining(run: AgentRun, *, now: datetime) -> None:
     """Reject another external-I/O phase after the elapsed-time budget."""
-    elapsed_ms = max(0, int((now - run.created_at).total_seconds() * 1_000))
-    if elapsed_ms >= run.limits.time_budget_ms:
+    if remaining_time_ms(run, now=now) == 0:
         raise RunLimitExceededError(f"{LimitKind.TIME.value} limit reached")
+
+
+def remaining_time_ms(run: AgentRun, *, now: datetime) -> int:
+    """Return the nonnegative wall-time allowance available to external I/O."""
+    elapsed_ms = max(0, int((now - run.created_at).total_seconds() * 1_000))
+    return max(0, run.limits.time_budget_ms - elapsed_ms)

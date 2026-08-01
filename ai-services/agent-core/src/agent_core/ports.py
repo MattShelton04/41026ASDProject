@@ -53,6 +53,7 @@ class StructuredModelRequest(CoreModel):
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     max_output_tokens: int = Field(default=1_024, ge=1, le=32_768)
     repair_attempt: int = Field(default=0, ge=0, le=1)
+    deadline_at: datetime | None = None
 
 
 class ModelMetrics(CoreModel):
@@ -105,7 +106,13 @@ class LLMProvider(Protocol):
 class ToolExecutor(Protocol):
     """Port for invoking a validated, allowlisted feature-owned tool."""
 
-    def execute(self, call: ToolCall, definition: ToolDefinition) -> ToolResult:
+    def execute(
+        self,
+        call: ToolCall,
+        definition: ToolDefinition,
+        *,
+        timeout_ms: int,
+    ) -> ToolResult:
         """Execute within the definition timeout and return a safe result."""
         ...
 

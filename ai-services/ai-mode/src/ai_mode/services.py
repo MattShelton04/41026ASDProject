@@ -30,7 +30,13 @@ from shared_contracts import ToolCall, ToolDefinition, ToolError, ToolOutcome, T
 class UnconfiguredToolExecutor(ToolExecutor):
     """Defensive adapter used until feature-owned HTTP tools are registered."""
 
-    def execute(self, call: ToolCall, definition: ToolDefinition) -> ToolResult:
+    def execute(
+        self,
+        call: ToolCall,
+        definition: ToolDefinition,
+        *,
+        timeout_ms: int,
+    ) -> ToolResult:
         return ToolResult(
             call_id=call.id,
             outcome=ToolOutcome.FAILED,

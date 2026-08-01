@@ -112,11 +112,11 @@ next action, request a new plan, request review, complete, or fail. Iteration co
 tool-call count, wall-time budget, and the single optional model repair are enforced by
 code rather than prompts.
 
-Elapsed time is checked before every model or tool phase, including adaptation. A
-blocking provider/tool call is bounded by its adapter timeout and is not forcibly
-interrupted by the state machine; if it crosses the run budget, no subsequent external
-call begins. This keeps persisted phase boundaries atomic and makes the limit semantics
-explicit.
+Elapsed time is checked before every model or tool phase, including adaptation. Model
+requests carry the run's absolute deadline, and tool executors receive the lesser of
+their registered timeout and the run's remaining budget. Transport adapters enforce
+those values. The runner also checks the next persisted boundary, so no subsequent
+external call begins after expiry.
 
 ## Tool-call and review semantics
 

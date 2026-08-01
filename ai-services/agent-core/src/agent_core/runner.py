@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import NoReturn
 from uuid import UUID
 
@@ -17,7 +17,7 @@ from agent_core.errors import (
     ToolSchemaValidationError,
 )
 from agent_core.generation import ValidatedModelOutput, generate_validated
-from agent_core.limits import ensure_time_remaining, ensure_within_limits
+from agent_core.limits import ensure_time_remaining, ensure_within_limits, remaining_time_ms
 from agent_core.ports import (
     Clock,
     IdGenerator,
@@ -151,7 +151,10 @@ class AgentRunner:
         except AgentCoreError as exc:
             return self._fail_with_step(planning, step, exc, code="run_limit_reached")
         try:
-            request = self._prompt_builder.build_plan_request(planning, self._tools.definitions)
+            request = self._with_run_deadline(
+                self._prompt_builder.build_plan_request(planning, self._tools.definitions),
+                planning,
+            )
             generated = generate_validated(
                 self._provider,
                 request,
@@ -253,7 +256,15 @@ class AgentRunner:
         acting = transition_run(run, RunStatus.ACTING, now=self._clock.now())
         self._store.save(acting, expected_version=run.version, step=step)
         try:
-            result = self._tool_executor.execute(call, definition)
+            now = self._clock.now()
+            ensure_time_remaining(acting, now=now)
+            result = self._tool_executor.execute(
+                call,
+                definition,
+                timeout_ms=min(definition.timeout_ms, remaining_time_ms(acting, now=now)),
+            )
+        except RunLimitExceededError as exc:
+            return self._fail_with_step(acting, step, exc, code="run_limit_reached")
         except Exception as exc:
             if definition.side_effect is SideEffectClass.READ_ONLY:
                 return self._fail_with_step(
@@ -345,8 +356,11 @@ class AgentRunner:
         in_progress = run.model_copy(update={"version": run.version + 1, "updated_at": now})
         self._store.save(in_progress, expected_version=run.version, step=step)
         try:
-            request = self._prompt_builder.build_adaptation_request(
-                in_progress, plan, result, observation
+            request = self._with_run_deadline(
+                self._prompt_builder.build_adaptation_request(
+                    in_progress, plan, result, observation
+                ),
+                in_progress,
             )
             generated = generate_validated(
                 self._provider,
@@ -439,6 +453,13 @@ class AgentRunner:
         if isinstance(exc, RunLimitExceededError):
             return "run_limit_reached"
         return "invalid_model_or_tool_data"
+
+    @staticmethod
+    def _with_run_deadline(
+        request: StructuredModelRequest, run: AgentRun
+    ) -> StructuredModelRequest:
+        deadline = run.created_at + timedelta(milliseconds=run.limits.time_budget_ms)
+        return request.model_copy(update={"deadline_at": deadline})
 
     @staticmethod
     def _invocation_summary[OutputT: BaseModel](
