@@ -7,8 +7,8 @@ from uuid import uuid4
 import pytest
 
 from agent_core import ConcurrentRunUpdateError, create_run, transition_run
-from ai_mode.persistence import SQLiteRunStore
-from ai_mode.persistence.sqlite import PersistenceError
+from ai_mode.persistence import IdempotencyConflictError, SQLiteRunStore
+from ai_mode.persistence.sqlite import MIGRATION_1, PersistenceError
 from shared_contracts import (
     AgentRunRequest,
     AgentStep,
@@ -45,6 +45,10 @@ def test_initialize_and_round_trip_run(tmp_path: Path) -> None:
     assert store.get(run.id) is not None
     assert store.get(run.id).run == run  # type: ignore[union-attr]
     assert store.health().ready is True
+    events = store.list_events(run.id)
+    assert len(events) == 1
+    assert events[0].event_type == "run.created"
+    assert events[0].run_version == 0
 
 
 def test_run_and_step_updates_are_atomic_and_upsert_the_same_step(tmp_path: Path) -> None:
@@ -151,3 +155,64 @@ def test_list_resumable_excludes_terminal_and_review_blocked_runs(tmp_path: Path
     resumable = store.list_resumable()
 
     assert [detail.run.id for detail in resumable] == [queued.id]
+
+
+def test_create_idempotency_returns_original_and_rejects_argument_mismatch(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    original = _run()
+    duplicate = _run()
+
+    created, was_created = store.create_or_get(
+        original,
+        idempotency_key="create-key",
+        request_hash="a" * 64,
+    )
+    replayed, replay_created = store.create_or_get(
+        duplicate,
+        idempotency_key="create-key",
+        request_hash="a" * 64,
+    )
+
+    assert was_created is True
+    assert replay_created is False
+    assert replayed == created == original
+    assert store.get(duplicate.id) is None
+    with pytest.raises(IdempotencyConflictError, match="different run request"):
+        store.create_or_get(
+            duplicate,
+            idempotency_key="create-key",
+            request_hash="b" * 64,
+        )
+
+
+def test_schema_one_database_is_forward_migrated_with_existing_run(tmp_path: Path) -> None:
+    path = tmp_path / "old.sqlite3"
+    run = _run()
+    import json
+    import sqlite3
+
+    with sqlite3.connect(path) as connection:
+        connection.executescript(MIGRATION_1)
+        connection.execute("PRAGMA user_version = 1")
+        connection.execute(
+            """
+            INSERT INTO agent_runs (id, version, status, updated_at, payload_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                str(run.id),
+                run.version,
+                run.status.value,
+                run.updated_at.isoformat(),
+                json.dumps(run.model_dump(mode="json")),
+            ),
+        )
+
+    store = SQLiteRunStore(path)
+    store.initialize()
+
+    assert store.get(run.id) is not None
+    assert store.health().detail == "schema version 2"
+    assert store.list_events(run.id) == ()

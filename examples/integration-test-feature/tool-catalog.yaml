@@ -1,0 +1,76 @@
+schema_version: 1
+services:
+  - service: integration-test-feature-backend
+    base_url: http://integration-test-feature-backend:5101
+tools:
+  - definition:
+      name: integration_test.records.search.v1
+      version: v1
+      feature_key: student-1-integration-test
+      description: Search deterministic integration-test records by title.
+      input_schema:
+        type: object
+        properties:
+          query:
+            type: string
+            minLength: 1
+            maxLength: 200
+        required: [query]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          items:
+            type: array
+            items:
+              type: object
+              properties:
+                id: {type: integer, minimum: 1}
+                title: {type: string}
+                status: {enum: [active, archived]}
+              required: [id, title, status]
+              additionalProperties: false
+          count: {type: integer, minimum: 0}
+        required: [items, count]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 2000
+      requires_approval: false
+    service: integration-test-feature-backend
+    method: POST
+    path: /api/v1/tools/records.search.v1
+  - definition:
+      name: integration_test.records.create.v1
+      version: v1
+      feature_key: student-1-integration-test
+      description: Create one integration-test record with atomic idempotency.
+      input_schema:
+        type: object
+        properties:
+          title:
+            type: string
+            minLength: 1
+            maxLength: 200
+        required: [title]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          record:
+            type: object
+            properties:
+              id: {type: integer, minimum: 1}
+              title: {type: string}
+              status: {enum: [active, archived]}
+            required: [id, title, status]
+            additionalProperties: false
+          created: {type: boolean}
+        required: [record, created]
+        additionalProperties: false
+      side_effect: reversible_write
+      timeout_ms: 2000
+      requires_approval: true
+    service: integration-test-feature-backend
+    method: POST
+    path: /api/v1/tools/records.create.v1
+shared_tools: []

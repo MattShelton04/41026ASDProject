@@ -10,6 +10,8 @@ from shared_contracts.base import ContractModel
 
 REQUEST_ID_HEADER = "X-Request-ID"
 AGENT_RUN_ID_HEADER = "X-Agent-Run-ID"
+IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
+TRACEPARENT_HEADER = "traceparent"
 
 
 class HealthStatus(StrEnum):

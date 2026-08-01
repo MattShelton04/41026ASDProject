@@ -5,6 +5,8 @@ from shared_contracts.agent import (
     AdaptationDecision,
     AgentRun,
     AgentRunDetail,
+    AgentRunEvent,
+    AgentRunEventPage,
     AgentRunRequest,
     AgentStep,
     ApprovalStatus,
@@ -25,9 +27,17 @@ from shared_contracts.agent import (
     ToolOutcome,
     ToolResult,
 )
+from shared_contracts.feature import (
+    FeatureManifest,
+    FeatureManifestError,
+    load_feature_manifest,
+    load_feature_manifests,
+)
 from shared_contracts.http import (
     AGENT_RUN_ID_HEADER,
+    IDEMPOTENCY_KEY_HEADER,
     REQUEST_ID_HEADER,
+    TRACEPARENT_HEADER,
     FieldIssue,
     HealthCheck,
     HealthResponse,
@@ -37,14 +47,20 @@ from shared_contracts.http import (
 
 __all__ = [
     "AGENT_RUN_ID_HEADER",
+    "IDEMPOTENCY_KEY_HEADER",
     "REQUEST_ID_HEADER",
+    "TRACEPARENT_HEADER",
     "Adaptation",
     "AdaptationDecision",
     "AgentRun",
     "AgentRunDetail",
+    "AgentRunEvent",
+    "AgentRunEventPage",
     "AgentRunRequest",
     "AgentStep",
     "ApprovalStatus",
+    "FeatureManifest",
+    "FeatureManifestError",
     "FieldIssue",
     "HealthCheck",
     "HealthResponse",
@@ -66,4 +82,6 @@ __all__ = [
     "ToolError",
     "ToolOutcome",
     "ToolResult",
+    "load_feature_manifest",
+    "load_feature_manifests",
 ]

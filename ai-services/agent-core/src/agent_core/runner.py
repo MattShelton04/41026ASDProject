@@ -152,7 +152,10 @@ class AgentRunner:
             return self._fail_with_step(planning, step, exc, code="run_limit_reached")
         try:
             request = self._with_run_deadline(
-                self._prompt_builder.build_plan_request(planning, self._tools.definitions),
+                self._prompt_builder.build_plan_request(
+                    planning,
+                    self._tools.definitions_for(planning.feature_key),
+                ),
                 planning,
             )
             generated = generate_validated(
@@ -162,7 +165,7 @@ class AgentRunner:
                 max_repairs=run.limits.max_model_repairs,
             )
             for action in generated.value.actions:
-                definition = self._tools.resolve(action.tool_name)
+                definition = self._tools.resolve(planning.feature_key, action.tool_name)
                 self._tools.validate_input(definition, action.arguments)
         except AgentCoreError as exc:
             return self._fail_with_step(planning, step, exc, code=self._error_code(exc))
@@ -185,7 +188,7 @@ class AgentRunner:
             ensure_within_limits(run, now=self._clock.now())
             plan, action_index = self._active_plan(detail.steps)
             action = plan.actions[action_index]
-            definition = self._tools.resolve(action.tool_name)
+            definition = self._tools.resolve(run.feature_key, action.tool_name)
             self._tools.validate_input(definition, action.arguments)
         except IndexError as exc:
             return self._fail(run, exc, code="plan_exhausted")
@@ -206,6 +209,8 @@ class AgentRunner:
                 id=call_id,
                 run_id=run.id,
                 step_id=self._ids.new(),
+                request_id=run.request_id,
+                traceparent=run.traceparent,
                 tool_name=definition.name,
                 tool_version=definition.version,
                 arguments=action.arguments,

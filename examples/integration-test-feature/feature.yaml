@@ -1,0 +1,10 @@
+schema_version: 1
+feature_key: student-1-integration-test
+display_name: Integration test feature (non-product)
+owner: student-1
+frontend_base_path: /examples/integration-test-feature
+backend_base_path: /api/examples/integration-test-feature/v1
+health_path: /health/ready
+ai_capabilities:
+  - integration_test.records.search.v1
+  - integration_test.records.create.v1

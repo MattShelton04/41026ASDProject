@@ -50,6 +50,7 @@ def test_builder_keeps_stable_instructions_before_untrusted_dynamic_data() -> No
     definition = ToolDefinition(
         name="student_1.records.search.v1",
         version="v1",
+        feature_key="student-1-feature",
         description="Search records",
         input_schema={"type": "object"},
         output_schema={"type": "object"},

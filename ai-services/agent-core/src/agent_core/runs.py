@@ -13,11 +13,13 @@ def create_run(
     run_id: UUID,
     request_id: str,
     now: datetime,
+    traceparent: str | None = None,
 ) -> AgentRun:
     """Create a queued run without performing persistence or external I/O."""
     return AgentRun(
         id=run_id,
         request_id=request_id,
+        traceparent=traceparent,
         feature_key=request.feature_key,
         objective=request.objective,
         status=RunStatus.QUEUED,

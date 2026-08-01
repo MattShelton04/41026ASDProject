@@ -3,17 +3,27 @@
 from __future__ import annotations
 
 import logging
+from hashlib import sha256
 from typing import cast
 from uuid import UUID
 
 from flask import Blueprint, Response, current_app, g, jsonify, request, url_for
 from pydantic import ValidationError
 
-from agent_core import AgentCoreError, apply_human_review, create_run
+from agent_core import (
+    TERMINAL_STATUSES,
+    AgentCoreError,
+    ConcurrentRunUpdateError,
+    apply_human_review,
+    create_run,
+)
+from ai_mode.persistence import IdempotencyConflictError, PersistenceError
 from ai_mode.queue import RunQueueFullError
 from ai_mode.services import AppServices
 from shared_contracts import (
     AGENT_RUN_ID_HEADER,
+    IDEMPOTENCY_KEY_HEADER,
+    AgentRunEventPage,
     AgentRunRequest,
     FieldIssue,
     HumanReviewRequest,
@@ -56,9 +66,28 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
         run_id=services.ids.new(),
         request_id=g.request_id,
         now=services.clock.now(),
+        traceparent=g.traceparent,
     )
-    services.store.create(run)
-    _signal_run(services, run.id)
+    idempotency_key = request.headers.get(IDEMPOTENCY_KEY_HEADER, "").strip()
+    if len(idempotency_key) > 200:
+        return _problem(400, "idempotency_key_invalid", "Idempotency-Key is too long")
+    created = True
+    try:
+        if idempotency_key:
+            request_hash = sha256(command.model_dump_json().encode("utf-8")).hexdigest()
+            run, created = services.store.create_or_get(
+                run,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+            )
+        else:
+            services.store.create(run)
+    except IdempotencyConflictError as exc:
+        return _problem(409, "idempotency_conflict", str(exc))
+    except PersistenceError:
+        return _problem(503, "state_store_unavailable", "Agent run could not be persisted")
+    if created:
+        _signal_run(services, run.id)
     location = url_for("agent_api.get_agent_run", run_id=run.id)
     response = jsonify(run.model_dump(mode="json"))
     response.headers[AGENT_RUN_ID_HEADER] = str(run.id)
@@ -72,6 +101,36 @@ def get_agent_run(run_id: UUID) -> tuple[Response, int]:
     if detail is None:
         return _problem(404, "agent_run_not_found", "Agent run does not exist")
     response = jsonify(detail.model_dump(mode="json"))
+    response.headers[AGENT_RUN_ID_HEADER] = str(run_id)
+    return response, 200
+
+
+@api.get("/agent-runs/<uuid:run_id>/events")
+def get_agent_run_events(run_id: UUID) -> tuple[Response, int]:
+    """Return resumable, ordered progress events using an exclusive cursor."""
+    detail = _services().store.get(run_id)
+    if detail is None:
+        return _problem(404, "agent_run_not_found", "Agent run does not exist")
+    raw_cursor = request.headers.get("Last-Event-ID") or request.args.get("after", "0")
+    raw_limit = request.args.get("limit", "100")
+    try:
+        cursor = int(raw_cursor)
+        limit = int(raw_limit)
+    except ValueError:
+        return _problem(400, "event_cursor_invalid", "Event cursor and limit must be integers")
+    if cursor < 0 or not 1 <= limit <= 200:
+        return _problem(
+            400,
+            "event_cursor_invalid",
+            "Event cursor must be non-negative and limit must be between 1 and 200",
+        )
+    events = _services().store.list_events(run_id, after_id=cursor, limit=limit)
+    page = AgentRunEventPage(
+        items=events,
+        next_cursor=events[-1].id if events else cursor,
+        terminal=detail.run.status in TERMINAL_STATUSES,
+    )
+    response = jsonify(page.model_dump(mode="json"))
     response.headers[AGENT_RUN_ID_HEADER] = str(run_id)
     return response, 200
 
@@ -119,12 +178,17 @@ def review_agent_run(run_id: UUID) -> tuple[Response, int]:
         )
     except AgentCoreError as exc:
         return _problem(409, "review_not_pending", str(exc))
-    services.store.save(
-        application.run,
-        expected_version=detail.run.version,
-        step=application.step,
-        review=application.review,
-    )
+    try:
+        services.store.save(
+            application.run,
+            expected_version=detail.run.version,
+            step=application.step,
+            review=application.review,
+        )
+    except ConcurrentRunUpdateError:
+        return _problem(409, "run_concurrently_updated", "Agent run was concurrently updated")
+    except PersistenceError:
+        return _problem(503, "state_store_unavailable", "Review could not be persisted")
     if command.decision is ReviewDecision.APPROVE:
         _signal_run(services, run_id)
     refreshed = services.store.get(run_id)
@@ -169,6 +233,7 @@ def _problem_title(status: int) -> str:
         400: "Invalid JSON",
         404: "Not found",
         409: "Conflict",
+        413: "Request too large",
         415: "Unsupported media type",
         422: "Invalid request",
         503: "Service unavailable",

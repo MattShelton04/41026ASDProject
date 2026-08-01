@@ -43,6 +43,7 @@ def test_unconfigured_tool_executor_returns_safe_terminal_result() -> None:
     definition = ToolDefinition(
         name=call.tool_name,
         version="v1",
+        feature_key="student-1-feature",
         description="Search records",
         input_schema={"type": "object"},
         output_schema={"type": "object"},

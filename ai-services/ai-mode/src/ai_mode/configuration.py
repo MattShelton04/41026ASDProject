@@ -24,6 +24,11 @@ class Settings:
     max_model_response_bytes: int
     ollama_health_timeout_seconds: float = 2.0
     require_ollama_ready: bool = False
+    max_request_bytes: int = 65_536
+    max_tool_request_bytes: int = 262_144
+    max_tool_response_bytes: int = 1_048_576
+    tool_catalog_path: Path | None = None
+    evidence_access_token: str | None = None
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
@@ -48,12 +53,34 @@ class Settings:
             minimum=1_024,
             maximum=10_485_760,
         )
+        max_request_bytes = _bounded_int(
+            values.get("AI_MODE_MAX_REQUEST_BYTES", "65536"),
+            "maximum API request bytes",
+            minimum=1_024,
+            maximum=1_048_576,
+        )
+        max_tool_request_bytes = _bounded_int(
+            values.get("AI_MODE_MAX_TOOL_REQUEST_BYTES", "262144"),
+            "maximum tool request bytes",
+            minimum=1_024,
+            maximum=10_485_760,
+        )
+        max_tool_response_bytes = _bounded_int(
+            values.get("AI_MODE_MAX_TOOL_RESPONSE_BYTES", "1048576"),
+            "maximum tool response bytes",
+            minimum=1_024,
+            maximum=10_485_760,
+        )
         model = values.get("OLLAMA_MODEL", "qwen2.5:0.5b").strip()
         if not model:
             raise ConfigurationError("OLLAMA_MODEL cannot be empty")
         keep_alive = values.get("OLLAMA_KEEP_ALIVE", "5m").strip()
         if not keep_alive:
             raise ConfigurationError("OLLAMA_KEEP_ALIVE cannot be empty")
+        catalog_value = values.get("AI_MODE_TOOL_CATALOG_PATH", "").strip()
+        evidence_token = values.get("AI_MODE_EVIDENCE_ACCESS_TOKEN", "").strip() or None
+        if evidence_token is not None and len(evidence_token) < 16:
+            raise ConfigurationError("AI_MODE_EVIDENCE_ACCESS_TOKEN must be at least 16 characters")
 
         return cls(
             database_path=Path(values.get("AI_MODE_DATABASE_PATH", "instance/agent-state.sqlite3")),
@@ -67,6 +94,11 @@ class Settings:
                 values.get("AI_MODE_REQUIRE_OLLAMA_READY", "false"),
                 "strict Ollama readiness",
             ),
+            max_request_bytes=max_request_bytes,
+            max_tool_request_bytes=max_tool_request_bytes,
+            max_tool_response_bytes=max_tool_response_bytes,
+            tool_catalog_path=Path(catalog_value) if catalog_value else None,
+            evidence_access_token=evidence_token,
         )
 
 

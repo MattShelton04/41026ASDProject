@@ -13,11 +13,16 @@ is the shared agent orchestrator. The separate `ollama` container owns model inf
 | `GET /health/ready` | Store readiness plus a truthful healthy/degraded Ollama check |
 | `POST /api/v1/agent-runs` | Validate, persist, enqueue, and return `202` |
 | `GET /api/v1/agent-runs/{id}` | Return the safe run, ordered steps, and reviews |
+| `GET /api/v1/agent-runs/{id}/events` | Return safe ordered events after a resumable cursor |
 | `POST /api/v1/agent-runs/{id}/cancel` | Idempotently record cancellation intent |
 | `POST /api/v1/agent-runs/{id}/reviews` | Approve/reject exactly one pending action |
 
 All responses propagate `X-Request-ID`; agent responses also include
-`X-Agent-Run-ID`. Errors use the shared Problem Details-compatible contract.
+`X-Agent-Run-ID`. Valid W3C `traceparent` values are persisted and forwarded to feature
+tools. `POST /agent-runs` supports `Idempotency-Key`, returning the original run for an
+exact retry and `409` for key reuse with changed input. Errors use the shared Problem
+Details-compatible contract. JSON bodies are rejected before parsing when they exceed
+the configured limit.
 
 ## Configuration
 
@@ -40,6 +45,11 @@ HTTP 400 responses remain terminal request errors.
 | `OLLAMA_KEEP_ALIVE` | `5m` |
 | `AI_MODE_MAX_MODEL_RESPONSE_BYTES` | `1048576` |
 | `AI_MODE_REQUIRE_OLLAMA_READY` | `false` |
+| `AI_MODE_MAX_REQUEST_BYTES` | `65536` |
+| `AI_MODE_MAX_TOOL_REQUEST_BYTES` | `262144` |
+| `AI_MODE_MAX_TOOL_RESPONSE_BYTES` | `1048576` |
+| `AI_MODE_TOOL_CATALOG_PATH` | unset (no tools registered) |
+| `AI_MODE_EVIDENCE_ACCESS_TOKEN` | unset (view absent) |
 
 Run locally with:
 
@@ -54,20 +64,27 @@ output diagnostic without owning Docker lifecycle or feature behavior. It uses t
 settings parser, logical model profile, and provider factory as the running service.
 
 The SQLite adapter enables foreign keys, WAL mode, a busy timeout, forward schema
-versioning, and optimistic run versions. Run and step changes—and review records where
-applicable—are committed atomically. On startup, incomplete runs are reconciled from
+versioning, optimistic run versions, create-request idempotency, and safe append-only
+progress events. Run and step changes, review records, and their corresponding event
+are committed atomically. On startup, incomplete runs are reconciled from
 their persisted phase boundary: safe work is re-enqueued and uncertain writes return to
 human review. The worker performs the same durable discovery while idle, so the bounded
 memory queue is a wake-up optimization rather than a source of truth.
 
-## Current integration boundary
+## Feature tool integration
 
-The default tool registry is intentionally empty until the approved product features
-define their owned, allowlisted backend tools. A run can be accepted and can contact
-Ollama, but any invented or unregistered tool fails before dispatch. The next vertical
-integration increment must configure feature-owned HTTP tool definitions/execution;
-it must not add feature business behavior to this service.
+The default registry remains empty, but `AI_MODE_TOOL_CATALOG_PATH` can now point to a
+strict YAML startup catalogue. It binds immutable feature-owned definitions to fixed
+service identities, methods, and paths. A run sees only its feature's definitions plus
+explicitly approved shared tools. The HTTP adapter does not accept model-provided URLs,
+does not follow redirects, bounds both directions, validates media type and output
+schema, applies the remaining deadline, propagates correlation/idempotency headers,
+and maps failures to safe typed results without response-body leakage.
 
-Resumable event streaming, the development run-detail page, and the reference feature
-are also remaining Release 0 work.
+An optional `/development/agent-runs/{id}` evidence view exists only when a bearer token
+of at least 16 characters is configured. It HTML-escapes content and redacts sensitive
+field names. The `examples/integration-test-feature` package proves a full deterministic
+loop over real HTTP and a separately owned SQLite database without claiming a product
+feature. Production feature manifests, endpoints, and Compose topology still require
+the approved team domain and feature ownership decisions.
 MCP, RAG, and multi-agent runtime services remain release-gated.

@@ -173,11 +173,14 @@ requesting private reasoning. If repair fails, the phase and run fail determinis
 
 ## Current boundaries and later releases
 
-The state machine, SQLite recovery, native Ollama adapter, and HTTP run/review surface
+The state machine, SQLite recovery, native Ollama adapter, HTTP run/review surface,
+feature-scoped HTTP tool adapter, create-run idempotency, and resumable safe-event pages
 are implemented. The default tool registry remains empty until feature owners define
-their HTTP contracts. Authentication for the reviewer identity, resumable event
-streaming, an operation-status endpoint, and a run-detail UI are still required before
-their corresponding capabilities can be claimed complete.
+their HTTP contracts. The integration-test feature proves feature-side mutation
+idempotency and operation status; approved product endpoints, production reviewer
+authentication, and the integrated edge UI are still required before the full Release
+0 capability can be claimed complete. An opt-in authenticated development evidence
+view is available for local inspection.
 
 `AdaptationDecision.REQUEST_REVIEW` is reserved as a later-release contract seam. In
 Release 0 it fails closed with `unsupported_review_target`: the current review endpoint

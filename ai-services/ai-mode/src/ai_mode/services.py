@@ -24,6 +24,7 @@ from ai_mode.persistence import SQLiteRunStore
 from ai_mode.prompts import PromptRegistry, RegistryPromptBuilder
 from ai_mode.providers import build_ollama_provider
 from ai_mode.queue import SerialRunQueue
+from ai_mode.tool_catalog import build_tool_runtime, load_tool_catalog
 from shared_contracts import ToolCall, ToolDefinition, ToolError, ToolOutcome, ToolResult
 
 
@@ -58,6 +59,14 @@ class AppServices:
     queue: RunQueue
     clock: Clock
     ids: IdGenerator
+    closeables: tuple[object, ...] = ()
+
+    def close(self) -> None:
+        """Best-effort cleanup of owned queues, clients, and providers."""
+        for resource in self.closeables:
+            close = getattr(resource, "close", None)
+            if callable(close):
+                close()
 
 
 def build_services(settings: Settings) -> AppServices:
@@ -71,12 +80,21 @@ def build_services(settings: Settings) -> AppServices:
     registry = PromptRegistry(prompt_root)
     registry.load("planner", "v1")
     registry.load("adapter", "v1")
+    if settings.tool_catalog_path is None:
+        tools = ToolRegistry(())
+        tool_executor: ToolExecutor = UnconfiguredToolExecutor()
+    else:
+        tools, tool_executor = build_tool_runtime(
+            load_tool_catalog(settings.tool_catalog_path),
+            max_request_bytes=settings.max_tool_request_bytes,
+            max_response_bytes=settings.max_tool_response_bytes,
+        )
     runner = AgentRunner(
         store=store,
         provider=provider,
         prompt_builder=RegistryPromptBuilder(registry),
-        tools=ToolRegistry(()),
-        tool_executor=UnconfiguredToolExecutor(),
+        tools=tools,
+        tool_executor=tool_executor,
         clock=clock,
         ids=ids,
     )
@@ -88,4 +106,11 @@ def build_services(settings: Settings) -> AppServices:
                 yield decision.run.id
 
     queue = SerialRunQueue(runner.run_until_blocked, discover=discover_resumable)
-    return AppServices(store=store, provider=provider, queue=queue, clock=clock, ids=ids)
+    return AppServices(
+        store=store,
+        provider=provider,
+        queue=queue,
+        clock=clock,
+        ids=ids,
+        closeables=(queue, tool_executor, provider),
+    )

@@ -3,6 +3,7 @@ name: Integration CI
 on:
   pull_request:
   push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       run_ollama_smoke:
@@ -50,6 +51,7 @@ jobs:
           docker compose --profile release-0 --profile ollama-container config --quiet
           docker compose --file docker-compose.yml --file docker-compose.gpu.yml --profile release-0 --profile ollama-container config --quiet
           docker compose --file docker-compose.yml --file docker-compose.native-ollama.yml --profile release-0 config --quiet
+          docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test config --quiet
 
   container:
     name: Build AI-mode container

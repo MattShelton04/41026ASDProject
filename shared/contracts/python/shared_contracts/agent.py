@@ -144,6 +144,7 @@ class ToolDefinition(ContractModel):
 
     name: Identifier
     version: Identifier
+    feature_key: Identifier
     description: str = Field(min_length=1, max_length=1_000)
     input_schema: JsonObject
     output_schema: JsonObject
@@ -158,6 +159,11 @@ class ToolCall(ContractModel):
     id: UUID
     run_id: UUID
     step_id: UUID
+    request_id: str = Field(default="unknown", min_length=1, max_length=200)
+    traceparent: str | None = Field(
+        default=None,
+        pattern=r"^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+    )
     tool_name: Identifier
     tool_version: Identifier
     arguments: JsonObject = Field(default_factory=dict, max_length=100)
@@ -261,6 +267,10 @@ class AgentRun(ContractModel):
 
     id: UUID
     request_id: str = Field(min_length=1, max_length=200)
+    traceparent: str | None = Field(
+        default=None,
+        pattern=r"^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+    )
     feature_key: Identifier
     objective: str = Field(min_length=1, max_length=4_000)
     status: RunStatus
@@ -283,3 +293,25 @@ class AgentRunDetail(ContractModel):
     run: AgentRun
     steps: tuple[AgentStep, ...] = ()
     reviews: tuple[HumanReview, ...] = ()
+
+
+class AgentRunEvent(ContractModel):
+    """One safe, append-only progress event suitable for resumable clients."""
+
+    id: int = Field(ge=1)
+    run_id: UUID
+    run_version: int = Field(ge=0)
+    event_type: Identifier
+    status: RunStatus
+    occurred_at: datetime
+    step_id: UUID | None = None
+    step_phase: StepPhase | None = None
+    step_status: StepStatus | None = None
+
+
+class AgentRunEventPage(ContractModel):
+    """Bounded cursor page of safe progress events."""
+
+    items: tuple[AgentRunEvent, ...]
+    next_cursor: int = Field(ge=0)
+    terminal: bool

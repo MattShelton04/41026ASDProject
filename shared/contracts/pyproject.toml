@@ -3,7 +3,10 @@ name = "shared-contracts"
 version = "0.1.0"
 description = "Domain-neutral API contracts shared by the ASD project services"
 requires-python = ">=3.12,<3.13"
-dependencies = ["pydantic>=2.11,<3"]
+dependencies = [
+    "pydantic>=2.11,<3",
+    "pyyaml>=6.0,<7",
+]
 
 [build-system]
 requires = ["uv_build>=0.12,<0.13"]

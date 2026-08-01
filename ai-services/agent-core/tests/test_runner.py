@@ -196,6 +196,7 @@ def _tool(*, side_effect: SideEffectClass = SideEffectClass.READ_ONLY) -> ToolDe
     return ToolDefinition(
         name="student_1.records.search.v1",
         version="v1",
+        feature_key="student-1-feature",
         description="Search feature-owned records",
         input_schema={
             "type": "object",

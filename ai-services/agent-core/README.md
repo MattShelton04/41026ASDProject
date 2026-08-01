@@ -8,7 +8,8 @@ package performs no Flask, SQLite, filesystem, or network I/O.
 - strict Plan, Act, Observe, Adapt and human-review contracts;
 - explicit legal run transitions with terminal-state invariants;
 - iteration, tool-call, model-repair, and wall-time limits;
-- immutable allowlisted tool registry with JSON Schema input/output validation;
+- immutable, version-encoded, feature-scoped tool registry with JSON Schema
+  input/output validation and explicitly approved shared tools;
 - side-effect, approval, external-effect, and idempotency policy;
 - provider, prompt, tool, persistence, queue, clock, and ID ports;
 - bounded structured-output validation with at most one repair;

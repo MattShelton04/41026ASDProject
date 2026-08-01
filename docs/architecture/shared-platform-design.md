@@ -21,11 +21,17 @@ and drift-checked by the canonical quality gate. A pinned non-root AI-mode image
 profiled Ollama runtime/model initializer, native-host override, and real structured
 provider diagnostic now supply the shared Release 0 container boundary.
 
-This does not complete the shared-foundation definition of done. Feature-owned HTTP tool
-registration/execution, resumable events, the development run-detail page, the
-reference feature, representative real-model evaluation,
-and integration evidence remain. MCP, RAG, and multi-agent runtime behavior remains
-disabled and unclaimed.
+The next domain-neutral Release 0 increment adds validated feature manifests,
+feature-scoped/versioned tool registration, fail-fast YAML tool composition, a bounded
+HTTP executor, create-run idempotency, safe append-only progress events, and an opt-in
+redacted development evidence page. A non-product `integration-test-feature` proves
+the agent/core/backend/database boundary over real HTTP and SQLite.
+
+This does not complete the shared-foundation definition of done. Student owners must
+still supply their approved manifests and feature endpoints; the integrated edge and
+Compose topology, a product reference feature, representative real-model evaluation,
+and release evidence remain. MCP, RAG, and multi-agent runtime behavior remains disabled
+and unclaimed.
 
 This document is both a high-level design and a detailed build guide. It deliberately
 defines the stable shared platform before the project domain and five feature schemas
@@ -362,7 +368,7 @@ access as model-callable tools.
 |---|---|
 | `POST /api/v1/agent-runs` | Validate, persist, and accept a run; return `202`, run ID, status, and `Location` |
 | `GET /api/v1/agent-runs/{run_id}` | Return current state, safe step summaries, limits, and final result/error |
-| `GET /api/v1/agent-runs/{run_id}/events` | Stream ordered safe progress events with resumable event IDs |
+| `GET /api/v1/agent-runs/{run_id}/events` | Page ordered safe progress events after an explicit resumable cursor |
 | `POST /api/v1/agent-runs/{run_id}/cancel` | Idempotently request cancellation |
 | `POST /api/v1/agent-runs/{run_id}/reviews` | Approve or reject exactly one pending protected action |
 | `GET /health/live` | Process liveness only; no dependency calls |
@@ -547,9 +553,12 @@ database microservice: only the `ai-mode` process opens the file. Large artefact
 outside rows and are referenced by hash. Database rows store only safe, bounded
 excerpts.
 
-The initial schema includes an integer schema version and forward-only migrations.
-Step append and run-status update occur in one transaction. Optimistic version numbers
-prevent two workers advancing the same run.
+The schema includes an integer schema version and forward-only migrations. Schema
+version 2 adds create-request idempotency records and append-only safe progress events.
+Step append, run-status update, review where present, and its event occur in one
+transaction. Optimistic version numbers prevent two workers advancing the same run.
+The event decision and cursor semantics are recorded in
+[`ADR-014`](decisions/ADR-014-append-only-safe-agent-run-events.md).
 
 Later MCP, RAG, and multi-agent services do not mount this file. They interact through
 the orchestrator's internal contracts, leaving `ai-mode` as the single state owner.

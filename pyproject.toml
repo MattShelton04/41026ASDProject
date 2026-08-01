@@ -32,6 +32,7 @@ members = [
     "student-5",
     "ai-services/agent-core",
     "ai-services/ai-mode",
+    "examples/integration-test-feature",
 ]
 
 [tool.uv.sources]
@@ -46,11 +47,12 @@ testpaths = [
     "shared/testkit/tests",
     "ai-services/agent-core/tests",
     "ai-services/ai-mode/tests",
+    "examples/integration-test-feature/tests",
 ]
 
 [tool.coverage.run]
 branch = true
-source = ["agent_core", "ai_mode", "shared_contracts", "shared_testkit"]
+source = ["agent_core", "ai_mode", "integration_test_feature", "shared_contracts", "shared_testkit"]
 
 [tool.coverage.report]
 exclude_also = [
@@ -70,13 +72,20 @@ src = [
     "shared/testkit/python",
     "ai-services/agent-core/src",
     "ai-services/ai-mode/src",
+    "examples/integration-test-feature/src",
 ]
 
 [tool.ruff.lint]
 select = ["B", "C4", "E", "F", "I", "N", "RUF", "SIM", "UP"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["agent_core", "ai_mode", "shared_contracts", "shared_testkit"]
+known-first-party = [
+    "agent_core",
+    "ai_mode",
+    "integration_test_feature",
+    "shared_contracts",
+    "shared_testkit",
+]
 
 [tool.mypy]
 python_version = "3.12"

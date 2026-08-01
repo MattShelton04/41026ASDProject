@@ -6,8 +6,11 @@ The project topic and individual features are still to be decided. The repositor
 contains a reproducible Python workspace, strict shared contracts/test utilities, a
 framework-independent bounded agent state machine, and an AI-mode foundation with
 SQLite workflow persistence, versioned prompts, native Ollama integration, health and
-agent-run APIs, a serial background worker, and human-review gating. Feature business
-logic and feature-owned tool endpoints have not begun.
+agent-run APIs, a serial background worker, feature-scoped HTTP tools, resumable safe
+events, request idempotency, and human-review gating. The non-product
+`examples/integration-test-feature` proves the shared boundaries over real HTTP and
+SQLite. Approved student feature business logic and feature-owned production endpoints
+have not begun.
 
 ## Team
 

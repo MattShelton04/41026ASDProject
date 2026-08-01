@@ -8,6 +8,8 @@ Architecture sources, decisions, and exported diagrams belong here.
   contract, testing, caching, portability, and Azure architecture for Releases 0-2.
 - `agent-run-state-machine.md` is the implemented operational specification for run
   transitions, durable phase checkpoints, tool turns, idempotency, and restart recovery.
+- `decisions/ADR-014-append-only-safe-agent-run-events.md` records the resumable event
+  persistence and cursor-polling decision.
 - `reviews/` retains external/adversarial review inputs. Findings are not
   authoritative until verified and dispositioned in the architecture record.
 - Future artefacts should cover individual microservices, the integrated application,

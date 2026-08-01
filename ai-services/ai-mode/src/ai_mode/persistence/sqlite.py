@@ -11,9 +11,16 @@ from pathlib import Path
 from uuid import UUID
 
 from agent_core import ConcurrentRunUpdateError, RunStore, StoreHealth, request_cancellation
-from shared_contracts import AgentRun, AgentRunDetail, AgentStep, HumanReview, RunStatus
+from shared_contracts import (
+    AgentRun,
+    AgentRunDetail,
+    AgentRunEvent,
+    AgentStep,
+    HumanReview,
+    RunStatus,
+)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS agent_runs (
@@ -44,9 +51,29 @@ CREATE TABLE IF NOT EXISTS human_reviews (
 );
 """
 
+MIGRATION_2 = """
+CREATE TABLE IF NOT EXISTS create_run_requests (
+    idempotency_key TEXT PRIMARY KEY,
+    request_hash TEXT NOT NULL,
+    run_id TEXT NOT NULL UNIQUE REFERENCES agent_runs(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS run_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
+    run_version INTEGER NOT NULL CHECK (run_version >= 0),
+    occurred_at TEXT NOT NULL,
+    payload_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_run_events_run_id_id ON run_events (run_id, id);
+"""
+
 
 class PersistenceError(RuntimeError):
     """The owned state store is unavailable or contains incompatible data."""
+
+
+class IdempotencyConflictError(PersistenceError):
+    """An idempotency key was reused for a different validated request."""
 
 
 class SQLiteRunStore(RunStore):
@@ -67,7 +94,11 @@ class SQLiteRunStore(RunStore):
                 )
             if current < 1:
                 connection.executescript(MIGRATION_1)
-                connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+                connection.execute("PRAGMA user_version = 1")
+                current = 1
+            if current < 2:
+                connection.executescript(MIGRATION_2)
+                connection.execute("PRAGMA user_version = 2")
 
     def create(self, run: AgentRun) -> None:
         """Persist a new run exactly once."""
@@ -80,8 +111,56 @@ class SQLiteRunStore(RunStore):
                     """,
                     self._run_values(run),
                 )
+                self._append_event(connection, run, event_type="run.created")
         except sqlite3.IntegrityError as exc:
             raise PersistenceError(f"agent run already exists: {run.id}") from exc
+
+    def create_or_get(
+        self,
+        run: AgentRun,
+        *,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> tuple[AgentRun, bool]:
+        """Atomically create once or return the original run for an exact retry."""
+        with self._transaction() as connection:
+            existing = connection.execute(
+                """
+                SELECT request_hash, run_id FROM create_run_requests
+                WHERE idempotency_key = ?
+                """,
+                (idempotency_key,),
+            ).fetchone()
+            if existing is not None:
+                if existing["request_hash"] != request_hash:
+                    raise IdempotencyConflictError(
+                        "idempotency key was already used for a different run request"
+                    )
+                row = connection.execute(
+                    "SELECT payload_json FROM agent_runs WHERE id = ?", (existing["run_id"],)
+                ).fetchone()
+                if row is None:
+                    raise PersistenceError("idempotency record references a missing agent run")
+                try:
+                    return AgentRun.model_validate_json(row["payload_json"]), False
+                except ValueError as exc:
+                    raise PersistenceError("idempotent agent run is invalid") from exc
+            connection.execute(
+                """
+                INSERT INTO agent_runs (id, version, status, updated_at, payload_json)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                self._run_values(run),
+            )
+            connection.execute(
+                """
+                INSERT INTO create_run_requests (idempotency_key, request_hash, run_id)
+                VALUES (?, ?, ?)
+                """,
+                (idempotency_key, request_hash, str(run.id)),
+            )
+            self._append_event(connection, run, event_type="run.created")
+            return run, True
 
     def get(self, run_id: UUID) -> AgentRunDetail | None:
         """Load a validated run and its steps in stable sequence order."""
@@ -139,6 +218,28 @@ class SQLiteRunStore(RunStore):
                 details.append(detail)
         return tuple(details)
 
+    def list_events(
+        self,
+        run_id: UUID,
+        *,
+        after_id: int = 0,
+        limit: int = 100,
+    ) -> tuple[AgentRunEvent, ...]:
+        """Return a bounded page of safe events after an exclusive cursor."""
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT payload_json FROM run_events
+                WHERE run_id = ? AND id > ?
+                ORDER BY id ASC LIMIT ?
+                """,
+                (str(run_id), after_id, limit),
+            ).fetchall()
+        try:
+            return tuple(AgentRunEvent.model_validate_json(row["payload_json"]) for row in rows)
+        except ValueError as exc:
+            raise PersistenceError(f"stored events are invalid for agent run: {run_id}") from exc
+
     def save(
         self,
         run: AgentRun,
@@ -190,6 +291,14 @@ class SQLiteRunStore(RunStore):
                         self._dump(review),
                     ),
                 )
+            event_type = (
+                "review.recorded"
+                if review is not None
+                else "step.updated"
+                if step
+                else "run.updated"
+            )
+            self._append_event(connection, run, event_type=event_type, step=step)
 
     def request_cancellation(self, run_id: UUID, *, now: datetime) -> AgentRun | None:
         """Record cancellation intent idempotently in one write transaction."""
@@ -223,6 +332,7 @@ class SQLiteRunStore(RunStore):
             )
             if cursor.rowcount != 1:
                 raise ConcurrentRunUpdateError(f"agent run {run_id} was concurrently updated")
+            self._append_event(connection, updated, event_type="run.cancellation_requested")
             return updated
 
     def health(self) -> StoreHealth:
@@ -312,6 +422,40 @@ class SQLiteRunStore(RunStore):
             cls._dump(run),
         )
 
+    @classmethod
+    def _append_event(
+        cls,
+        connection: sqlite3.Connection,
+        run: AgentRun,
+        *,
+        event_type: str,
+        step: AgentStep | None = None,
+    ) -> None:
+        cursor = connection.execute(
+            """
+            INSERT INTO run_events (run_id, run_version, occurred_at, payload_json)
+            VALUES (?, ?, ?, '')
+            """,
+            (str(run.id), run.version, run.updated_at.isoformat()),
+        )
+        if cursor.lastrowid is None:
+            raise PersistenceError("SQLite did not return the appended event identifier")
+        event = AgentRunEvent(
+            id=int(cursor.lastrowid),
+            run_id=run.id,
+            run_version=run.version,
+            event_type=event_type,
+            status=run.status,
+            occurred_at=run.updated_at,
+            step_id=step.id if step else None,
+            step_phase=step.phase if step else None,
+            step_status=step.status if step else None,
+        )
+        connection.execute(
+            "UPDATE run_events SET payload_json = ? WHERE id = ?",
+            (cls._dump(event), event.id),
+        )
+
     @staticmethod
-    def _dump(model: AgentRun | AgentStep | HumanReview) -> str:
+    def _dump(model: AgentRun | AgentRunEvent | AgentStep | HumanReview) -> str:
         return json.dumps(model.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))

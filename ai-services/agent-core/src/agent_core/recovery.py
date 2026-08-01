@@ -109,7 +109,11 @@ def _recover_action(
         raise AgentCoreError("interrupted action has no valid persisted tool call") from exc
 
     try:
-        definition = tools.resolve(call.tool_name)
+        definition = tools.resolve(
+            detail.run.feature_key,
+            call.tool_name,
+            version=call.tool_version,
+        )
         replay_is_safe = (
             definition.version == call.tool_version
             and definition.side_effect is SideEffectClass.READ_ONLY
