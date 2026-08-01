@@ -71,6 +71,36 @@ def test_structured_chat_payload_and_metrics_use_native_api() -> None:
     assert result.metrics.prompt_tokens == 20
 
 
+def test_complex_schema_grammar_rejection_falls_back_to_validated_json_mode(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    formats: list[object] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        formats.append(payload["format"])
+        if isinstance(payload["format"], dict):
+            return httpx.Response(
+                400,
+                json={"error": "Failed to initialize samplers: failed to parse grammar"},
+            )
+        return httpx.Response(
+            200,
+            json={"model": "qwen", "message": {"content": '{"ok":true}'}},
+        )
+
+    provider = _provider(httpx.MockTransport(handler))
+    result = provider.generate_structured(_request())
+    repeated = provider.generate_structured(_request())
+
+    assert isinstance(formats[0], dict)
+    assert formats[1] == "json"
+    assert formats[2] == "json"
+    assert result.content == {"ok": True}
+    assert repeated.content == {"ok": True}
+    assert "application-side validation" in caplog.text
+
+
 def test_malformed_model_content_is_returned_as_invalid_structured_data_for_repair() -> None:
     provider = _provider(
         httpx.MockTransport(

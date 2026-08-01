@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from hashlib import sha256
+from threading import Lock
 from typing import Any
 
 import httpx
@@ -18,6 +21,8 @@ from agent_core import (
     StructuredModelRequest,
     StructuredModelResult,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +51,8 @@ class OllamaProvider(LLMProvider):
         self._max_response_bytes = max_response_bytes
         self._health_timeout_seconds = health_timeout_seconds
         self._generation_timeout_seconds = timeout_seconds
+        self._unsupported_schema_digests: set[str] = set()
+        self._schema_lock = Lock()
         self._owns_client = client is None
         self._client = client or httpx.Client(
             base_url=base_url.rstrip("/"),
@@ -66,7 +73,7 @@ class OllamaProvider(LLMProvider):
             "model": profile.model,
             "messages": [message.model_dump(mode="json") for message in request.messages],
             "stream": False,
-            "format": request.output_schema,
+            "format": self._format_spec(request.output_schema),
             "keep_alive": profile.keep_alive,
             "options": {
                 "temperature": request.temperature,
@@ -138,21 +145,25 @@ class OllamaProvider(LLMProvider):
         deadline_at: datetime | None,
     ) -> httpx.Response:
         try:
-            timeout_seconds = self._generation_timeout_seconds
-            if deadline_at is not None:
-                remaining_seconds = (deadline_at - datetime.now(UTC)).total_seconds()
-                if remaining_seconds <= 0:
-                    raise ModelProviderError(
-                        "Model deadline expired before dispatch",
-                        code="model_timeout",
-                        retryable=True,
-                    )
-                timeout_seconds = min(timeout_seconds, remaining_seconds)
             response = self._client.post(
                 "/api/chat",
                 json=payload,
-                timeout=timeout_seconds,
+                timeout=self._request_timeout(deadline_at),
             )
+            if _is_grammar_rejection(response, payload.get("format")):
+                format_spec = payload["format"]
+                if isinstance(format_spec, dict):
+                    with self._schema_lock:
+                        self._unsupported_schema_digests.add(_schema_digest(format_spec))
+                LOGGER.warning(
+                    "Ollama rejected the JSON Schema grammar; using JSON mode with "
+                    "application-side validation"
+                )
+                response = self._client.post(
+                    "/api/chat",
+                    json={**payload, "format": "json"},
+                    timeout=self._request_timeout(deadline_at),
+                )
             response.raise_for_status()
             return response
         except httpx.TimeoutException as exc:
@@ -170,6 +181,24 @@ class OllamaProvider(LLMProvider):
                 code="model_overloaded" if retryable else "model_request_rejected",
                 retryable=retryable,
             ) from exc
+
+    def _request_timeout(self, deadline_at: datetime | None) -> float:
+        if deadline_at is None:
+            return self._generation_timeout_seconds
+        remaining_seconds = (deadline_at - datetime.now(UTC)).total_seconds()
+        if remaining_seconds <= 0:
+            raise ModelProviderError(
+                "Model deadline expired before dispatch",
+                code="model_timeout",
+                retryable=True,
+            )
+        return min(self._generation_timeout_seconds, remaining_seconds)
+
+    def _format_spec(self, schema: dict[str, Any]) -> dict[str, Any] | str:
+        digest = _schema_digest(schema)
+        with self._schema_lock:
+            unsupported = digest in self._unsupported_schema_digests
+        return "json" if unsupported else schema
 
     @staticmethod
     def _response_object(response: httpx.Response) -> dict[str, Any]:
@@ -223,3 +252,22 @@ def _optional_nanoseconds_to_ms(value: object) -> int | None:
 
 def _optional_nonnegative_int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def _is_grammar_rejection(response: httpx.Response, format_spec: object) -> bool:
+    """Recognize Ollama/llama.cpp schema-complexity rejection without masking other 400s."""
+    if response.status_code != 400 or not isinstance(format_spec, dict):
+        return False
+    if len(response.content) > 10_000:
+        return False
+    try:
+        body = response.json()
+    except json.JSONDecodeError:
+        return False
+    error = body.get("error") if isinstance(body, dict) else None
+    return isinstance(error, str) and "failed to parse grammar" in error.lower()
+
+
+def _schema_digest(schema: Mapping[str, Any]) -> str:
+    canonical = json.dumps(schema, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return sha256(canonical.encode("utf-8")).hexdigest()

@@ -9,7 +9,7 @@ import sys
 from collections.abc import Mapping
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from agent_core import (
     LLMProvider,
@@ -23,13 +23,23 @@ from ai_mode.configuration import Settings
 from ai_mode.providers import PRIMARY_MODEL_PROFILE, build_ollama_provider
 
 
+class SmokeItem(BaseModel):
+    """Nested dynamic data representative of production plan schemas."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sequence: int
+    arguments: dict[str, JsonValue]
+
+
 class SmokeResponse(BaseModel):
-    """Minimal schema proving that the configured runtime honors structured output."""
+    """Schema proving structured output and complex-grammar compatibility."""
 
     model_config = ConfigDict(extra="forbid")
 
     ready: bool
     message: str
+    items: tuple[SmokeItem, ...] = Field(min_length=1, max_length=50)
 
 
 def run_smoke(provider: LLMProvider) -> Mapping[str, object]:
@@ -48,7 +58,10 @@ def run_smoke(provider: LLMProvider) -> Mapping[str, object]:
             ),
             ModelMessage(
                 role="user",
-                content='Set ready to true and message to exactly "ollama-ready".',
+                content=(
+                    'Set ready to true, message to exactly "ollama-ready", and items to one '
+                    "entry with sequence 1 and an empty arguments object."
+                ),
             ),
         ),
         output_schema=SmokeResponse.model_json_schema(),
@@ -61,7 +74,13 @@ def run_smoke(provider: LLMProvider) -> Mapping[str, object]:
     )
     generated = provider.generate_structured(request)
     response = SmokeResponse.model_validate(generated.content)
-    if response.ready is not True or response.message != "ollama-ready":
+    if (
+        response.ready is not True
+        or response.message != "ollama-ready"
+        or len(response.items) != 1
+        or response.items[0].sequence != 1
+        or response.items[0].arguments != {}
+    ):
         raise RuntimeError("Ollama returned valid but unexpected diagnostic content")
     return {
         "status": "ready",

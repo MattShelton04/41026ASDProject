@@ -25,6 +25,11 @@ The adapter calls Ollama's native `/api/chat` endpoint to retain JSON Schema out
 `keep_alive`, token counts, and detailed durations. If the course `/v1` base URL is
 supplied, configuration normalizes it to the native API root.
 
+Some valid application schemas exceed llama.cpp's grammar-complexity limit. The adapter
+recognizes that specific rejection and retries in Ollama JSON mode; the agent-core
+validator and bounded repair turn still enforce the complete application schema. Other
+HTTP 400 responses remain terminal request errors.
+
 | Variable | Default |
 |---|---|
 | `AI_MODE_DATABASE_PATH` | `instance/agent-state.sqlite3` |

@@ -12,7 +12,11 @@ from shared_testkit import ScriptedLLMProvider
 
 def _result(*, message: str = "ollama-ready") -> StructuredModelResult:
     return StructuredModelResult(
-        content={"ready": True, "message": message},
+        content={
+            "ready": True,
+            "message": message,
+            "items": [{"sequence": 1, "arguments": {}}],
+        },
         provider="scripted",
         model="test-model",
         metrics=ModelMetrics(total_duration_ms=1),
