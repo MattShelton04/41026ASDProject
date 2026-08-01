@@ -69,7 +69,11 @@ def test_console_entrypoint_reports_success_and_closes_provider(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     provider = CloseableScriptedProvider([_result()])
-    monkeypatch.setattr(ollama_diagnostics, "OllamaProvider", lambda **kwargs: provider)
+    monkeypatch.setattr(
+        ollama_diagnostics,
+        "build_ollama_provider",
+        lambda settings: provider,
+    )
     monkeypatch.setattr("sys.argv", ["ai-mode-ollama-smoke"])
 
     exit_code = ollama_diagnostics.main()
@@ -87,7 +91,11 @@ def test_console_entrypoint_returns_nonzero_with_safe_error(
         [],
         health=ProviderHealth(reachable=False, detail="configured model is missing"),
     )
-    monkeypatch.setattr(ollama_diagnostics, "OllamaProvider", lambda **kwargs: provider)
+    monkeypatch.setattr(
+        ollama_diagnostics,
+        "build_ollama_provider",
+        lambda settings: provider,
+    )
     monkeypatch.setattr("sys.argv", ["ai-mode-ollama-smoke"])
 
     exit_code = ollama_diagnostics.main()

@@ -29,7 +29,8 @@ def create_app(
     """Create AI-mode with explicit, replaceable boundary dependencies."""
     app = Flask(__name__)
     service_version = _get_package_version()
-    app_services = services or build_services(settings or Settings.from_env())
+    runtime_settings = settings or Settings.from_env()
+    app_services = services or build_services(runtime_settings)
     app.extensions["ai_mode_services"] = app_services
     app.register_blueprint(api)
 
@@ -85,6 +86,9 @@ def create_app(
                 ),
             },
         )
-        return jsonify(response.model_dump(mode="json")), 200 if store_ready else 503
+        dependencies_ready = store_ready and (
+            provider_health.reachable or not runtime_settings.require_ollama_ready
+        )
+        return jsonify(response.model_dump(mode="json")), 200 if dependencies_ready else 503
 
     return app

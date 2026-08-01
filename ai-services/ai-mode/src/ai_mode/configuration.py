@@ -22,6 +22,7 @@ class Settings:
     ollama_timeout_seconds: float
     ollama_keep_alive: str
     max_model_response_bytes: int
+    require_ollama_ready: bool = False
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
@@ -56,6 +57,10 @@ class Settings:
             ollama_timeout_seconds=timeout,
             ollama_keep_alive=keep_alive,
             max_model_response_bytes=max_bytes,
+            require_ollama_ready=_boolean(
+                values.get("AI_MODE_REQUIRE_OLLAMA_READY", "false"),
+                "strict Ollama readiness",
+            ),
         )
 
 
@@ -77,3 +82,12 @@ def _bounded_int(value: str, label: str, *, minimum: int, maximum: int) -> int:
     if not minimum <= parsed <= maximum:
         raise ConfigurationError(f"{label} must be between {minimum} and {maximum}")
     return parsed
+
+
+def _boolean(value: str, label: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes"}:
+        return True
+    if normalized in {"false", "0", "no"}:
+        return False
+    raise ConfigurationError(f"{label} must be true or false")

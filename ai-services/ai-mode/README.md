@@ -31,6 +31,7 @@ supplied, configuration normalizes it to the native API root.
 | `OLLAMA_TIMEOUT_SECONDS` | `120` |
 | `OLLAMA_KEEP_ALIVE` | `5m` |
 | `AI_MODE_MAX_MODEL_RESPONSE_BYTES` | `1048576` |
+| `AI_MODE_REQUIRE_OLLAMA_READY` | `false` |
 
 Run locally with:
 
@@ -41,7 +42,8 @@ uv run flask --app ai_mode:create_app run --port 5005
 The assignment-aligned Compose path and the native-host alternative are documented in
 [`docs/release-0/ollama-operations.md`](../../docs/release-0/ollama-operations.md).
 The `ai-mode-ollama-smoke` console command performs a real provider-level structured
-output diagnostic without owning Docker lifecycle or feature behavior.
+output diagnostic without owning Docker lifecycle or feature behavior. It uses the same
+settings parser, logical model profile, and provider factory as the running service.
 
 The SQLite adapter enables foreign keys, WAL mode, a busy timeout, forward schema
 versioning, and optimistic run versions. Run and step changes—and review records where

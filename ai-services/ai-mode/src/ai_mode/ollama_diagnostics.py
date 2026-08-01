@@ -18,10 +18,9 @@ from agent_core import (
     ModelRole,
     StructuredModelRequest,
 )
-from ai_mode.adapters.ollama import OllamaModelProfile, OllamaProvider
-
-DEFAULT_BASE_URL = "http://localhost:11434"
-DEFAULT_MODEL = "qwen2.5:0.5b"
+from ai_mode.adapters.ollama import OllamaProvider
+from ai_mode.configuration import Settings
+from ai_mode.providers import PRIMARY_MODEL_PROFILE, build_ollama_provider
 
 
 class SmokeResponse(BaseModel):
@@ -41,7 +40,7 @@ def run_smoke(provider: LLMProvider) -> Mapping[str, object]:
     request = StructuredModelRequest(
         run_id=uuid4(),
         role=ModelRole.REVIEWER,
-        model_profile="smoke.v1",
+        model_profile=PRIMARY_MODEL_PROFILE,
         messages=(
             ModelMessage(
                 role="system",
@@ -77,15 +76,15 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--base-url",
-        default=os.environ.get("OLLAMA_SMOKE_BASE_URL", DEFAULT_BASE_URL),
-        help="Host-reachable Ollama URL",
+        default=None,
+        help="Override OLLAMA_BASE_URL for this check",
     )
     parser.add_argument(
         "--model",
-        default=os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL),
-        help="Installed model tag to exercise",
+        default=None,
+        help="Override OLLAMA_MODEL for this check",
     )
-    parser.add_argument("--timeout-seconds", type=float, default=180)
+    parser.add_argument("--timeout-seconds", type=float, default=None)
     return parser
 
 
@@ -94,12 +93,14 @@ def main() -> int:
     args = _parser().parse_args()
     provider: OllamaProvider | None = None
     try:
-        provider = OllamaProvider(
-            base_url=args.base_url,
-            profiles={"smoke.v1": OllamaModelProfile(model=args.model, keep_alive="30s")},
-            timeout_seconds=args.timeout_seconds,
-            max_response_bytes=100_000,
-        )
+        environment = dict(os.environ)
+        if args.base_url is not None:
+            environment["OLLAMA_BASE_URL"] = args.base_url
+        if args.model is not None:
+            environment["OLLAMA_MODEL"] = args.model
+        if args.timeout_seconds is not None:
+            environment["OLLAMA_TIMEOUT_SECONDS"] = str(args.timeout_seconds)
+        provider = build_ollama_provider(Settings.from_env(environment))
         print(json.dumps(run_smoke(provider), indent=2, sort_keys=True))
         return 0
     except (ModelProviderError, RuntimeError, ValueError) as exc:

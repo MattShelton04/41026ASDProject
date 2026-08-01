@@ -39,4 +39,7 @@ adapter requires explicit compatibility tests when Ollama changes. Model availab
 reported as degraded readiness rather than making deterministic application behavior
 unavailable. The Compose model uses a persistent model volume and one-shot initializer,
 while an installed provider-level diagnostic provides machine-readable structured
-generation evidence without duplicating Compose lifecycle behavior.
+generation evidence without duplicating Compose lifecycle behavior. Provider
+construction and logical profile selection have one shared composition function.
+Readiness remains degraded-but-serving by default; deployments that require a loaded
+model, including the integrated Compose profile, explicitly enable strict readiness.

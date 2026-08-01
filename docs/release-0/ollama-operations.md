@@ -42,7 +42,9 @@ docker compose --profile release-0 --profile ollama-container up --detach --buil
 
 This builds the non-root AI-mode image, starts pinned Ollama, pulls the configured model
 through a one-shot initializer, and waits until AI-mode reports both store and model
-readiness.
+readiness. Compose enables strict provider readiness with
+`AI_MODE_REQUIRE_OLLAMA_READY=true`; host development defaults it to `false` so CRUD and
+run inspection remain available with a truthful degraded status when Ollama is offline.
 
 After startup, run the installed provider diagnostic:
 
@@ -51,7 +53,8 @@ uv run ai-mode-ollama-smoke
 ```
 
 It performs one real JSON-Schema-constrained generation through the production adapter.
-It owns neither Docker lifecycle nor application/business behavior.
+It owns neither Docker lifecycle nor application/business behavior, and it reuses the
+service's settings parser, logical model profile, and provider factory.
 
 Ordinary Compose commands remain the operational interface:
 

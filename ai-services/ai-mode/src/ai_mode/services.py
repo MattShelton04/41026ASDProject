@@ -16,11 +16,11 @@ from agent_core import (
     ToolExecutor,
     ToolRegistry,
 )
-from ai_mode.adapters.ollama import OllamaModelProfile, OllamaProvider
 from ai_mode.adapters.system import SystemClock, UUID4Generator
 from ai_mode.configuration import Settings
 from ai_mode.persistence import SQLiteRunStore
 from ai_mode.prompts import PromptRegistry, RegistryPromptBuilder
+from ai_mode.providers import build_ollama_provider
 from ai_mode.queue import SerialRunQueue
 from shared_contracts import ToolCall, ToolDefinition, ToolError, ToolOutcome, ToolResult
 
@@ -56,17 +56,7 @@ def build_services(settings: Settings) -> AppServices:
     """Build the default Release 0 dependency graph without contacting Ollama."""
     store = SQLiteRunStore(settings.database_path)
     store.initialize()
-    provider = OllamaProvider(
-        base_url=settings.ollama_base_url,
-        profiles={
-            "local-small.v1": OllamaModelProfile(
-                model=settings.ollama_model,
-                keep_alive=settings.ollama_keep_alive,
-            )
-        },
-        timeout_seconds=settings.ollama_timeout_seconds,
-        max_response_bytes=settings.max_model_response_bytes,
-    )
+    provider = build_ollama_provider(settings)
     clock = SystemClock()
     ids = UUID4Generator()
     prompt_root = Path(__file__).resolve().parent / "prompt_assets"

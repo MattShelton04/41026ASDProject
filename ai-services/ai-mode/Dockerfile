@@ -56,6 +56,6 @@ USER ai-mode
 EXPOSE 5005
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=60 \
-    CMD ["python", "-c", "import json, sys, urllib.request; response = json.load(urllib.request.urlopen('http://127.0.0.1:5005/health/ready', timeout=2)); sys.exit(0 if response.get('status') == 'healthy' else 1)"]
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5005/health/ready', timeout=2)"]
 
 CMD ["gunicorn", "--bind=0.0.0.0:5005", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "ai_mode:create_app()"]
