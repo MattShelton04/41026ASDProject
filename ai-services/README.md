@@ -8,8 +8,10 @@
 | `rag-server/` | Release 1 | Retrieval-Augmented Generation and grounding |
 | `multi-agent-server/` | Release 2 | Planner, worker, reviewer, and human review orchestration |
 
-`agent-core` and `ai-mode` are Python workspace projects. AI-mode currently exposes
-only deterministic health endpoints; its orchestration API, persistence, and model
-adapter are follow-up work. MCP, RAG, and multi-agent directories remain placeholders.
-Those services are required locally in their applicable releases and disabled in the
-cloud.
+`agent-core` now contains the deterministic state machine, bounded runner, tool policy,
+ports, and human-review rules. `ai-mode` supplies the first SQLite, prompt-registry,
+native Ollama, background-queue, and versioned HTTP adapters. See each package README
+for implemented behavior and the remaining Release 0 vertical-integration work.
+
+MCP, RAG, and multi-agent directories remain placeholders. Those services are required
+locally in their applicable releases and disabled in the cloud.

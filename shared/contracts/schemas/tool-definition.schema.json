@@ -1,0 +1,79 @@
+{
+  "$defs": {
+    "JsonValue": {},
+    "SideEffectClass": {
+      "description": "Policy classification for model-callable tools.",
+      "enum": [
+        "read_only",
+        "reversible_write",
+        "destructive_write",
+        "external_effect"
+      ],
+      "title": "SideEffectClass",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Allowlisted tool metadata and its JSON Schema boundary.",
+  "properties": {
+    "description": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "input_schema": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Input Schema",
+      "type": "object"
+    },
+    "name": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Name",
+      "type": "string"
+    },
+    "output_schema": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Output Schema",
+      "type": "object"
+    },
+    "requires_approval": {
+      "default": false,
+      "title": "Requires Approval",
+      "type": "boolean"
+    },
+    "side_effect": {
+      "$ref": "#/$defs/SideEffectClass"
+    },
+    "timeout_ms": {
+      "default": 10000,
+      "maximum": 120000,
+      "minimum": 100,
+      "title": "Timeout Ms",
+      "type": "integer"
+    },
+    "version": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "version",
+    "description",
+    "input_schema",
+    "output_schema",
+    "side_effect"
+  ],
+  "title": "ToolDefinition",
+  "type": "object"
+}

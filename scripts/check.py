@@ -12,6 +12,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 COMMANDS: tuple[tuple[str, ...], ...] = (
     (sys.executable, "-m", "ruff", "format", "--check", "."),
     (sys.executable, "-m", "ruff", "check", "."),
+    (sys.executable, "scripts/generate_contracts.py", "--check"),
     (
         sys.executable,
         "-m",
@@ -21,6 +22,7 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
         "ai-services/agent-core/src/agent_core",
         "ai-services/ai-mode/src/ai_mode",
         "scripts/check.py",
+        "scripts/generate_contracts.py",
     ),
     (
         sys.executable,

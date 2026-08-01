@@ -3,8 +3,11 @@
 Shared repository for the Spring 2026 group project.
 
 The project topic and individual features are still to be decided. The repository now
-contains a reproducible Python workspace, shared contract/test packages, and a minimal
-AI-mode application factory with health endpoints; feature business logic has not begun.
+contains a reproducible Python workspace, strict shared contracts/test utilities, a
+framework-independent bounded agent state machine, and an AI-mode foundation with
+SQLite workflow persistence, versioned prompts, native Ollama integration, health and
+agent-run APIs, a serial background worker, and human-review gating. Feature business
+logic and feature-owned tool endpoints have not begun.
 
 ## Team
 

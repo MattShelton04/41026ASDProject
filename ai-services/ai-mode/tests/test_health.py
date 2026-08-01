@@ -7,10 +7,11 @@ import pytest
 from flask.testing import FlaskClient
 
 from ai_mode import create_app
+from ai_mode.services import AppServices
 
 
-def test_liveness_does_not_require_external_dependencies() -> None:
-    client: FlaskClient = create_app().test_client()
+def test_liveness_does_not_require_external_dependencies(app_services: AppServices) -> None:
+    client: FlaskClient = create_app(services=app_services).test_client()
 
     response = client.get("/health/live")
 
@@ -27,8 +28,8 @@ def test_liveness_does_not_require_external_dependencies() -> None:
     }
 
 
-def test_readiness_reports_current_scaffold_check() -> None:
-    client: FlaskClient = create_app().test_client()
+def test_readiness_reports_current_scaffold_check(app_services: AppServices) -> None:
+    client: FlaskClient = create_app(services=app_services).test_client()
 
     response = client.get("/health/ready")
 
@@ -37,9 +38,11 @@ def test_readiness_reports_current_scaffold_check() -> None:
 
 
 @pytest.mark.parametrize("path", ["/health/live", "/health/ready"])
-def test_health_endpoints_tolerate_missing_package_metadata(path: str) -> None:
+def test_health_endpoints_tolerate_missing_package_metadata(
+    path: str, app_services: AppServices
+) -> None:
     with patch("ai_mode.app.version", side_effect=PackageNotFoundError("ai-mode")):
-        client: FlaskClient = create_app().test_client()
+        client: FlaskClient = create_app(services=app_services).test_client()
 
     response = client.get(path)
 

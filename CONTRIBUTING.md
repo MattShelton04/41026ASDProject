@@ -66,10 +66,12 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Type-check production packages | `uv run mypy shared/contracts/python/shared_contracts shared/testkit/python/shared_testkit ai-services/agent-core/src/agent_core ai-services/ai-mode/src/ai_mode` |
 | Run tests | `uv run pytest` |
 | Run tests with coverage | `uv run pytest --cov --cov-report=term-missing` |
-| Start the scaffold AI-mode service | `uv run flask --app ai_mode:create_app run --port 5005` |
+| Generate contract artefacts | `uv run python scripts/generate_contracts.py` |
+| Start the AI-mode service | `uv run flask --app ai_mode:create_app run --port 5005` |
 
-The local service exposes `GET /health/live` and `GET /health/ready`. Its business API,
-persistence, and model adapter will be added as explicit follow-up work.
+The local service exposes health endpoints and the versioned `/api/v1/agent-runs`
+create/read/cancel/review surface. Its default feature-tool registry remains empty until
+approved feature backends publish their allowlisted tool contracts.
 
 ## Dependencies and workspace projects
 

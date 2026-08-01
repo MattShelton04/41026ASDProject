@@ -7,11 +7,14 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.138,<7",
     "mypy>=1.18,<2",
     "pre-commit>=4.3,<5",
     "pytest>=8.4,<9",
     "pytest-cov>=7,<8",
     "ruff>=0.14,<1",
+    "types-jsonschema>=4.25,<5",
+    "types-pyyaml>=6.0,<7",
 ]
 
 [tool.uv]

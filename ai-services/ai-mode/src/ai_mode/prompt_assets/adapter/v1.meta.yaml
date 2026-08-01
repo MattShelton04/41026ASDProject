@@ -1,0 +1,5 @@
+prompt_id: adapter
+version: v1
+role: adapter
+template: v1.system.j2
+description: Release 0 evidence-based adaptation prompt
