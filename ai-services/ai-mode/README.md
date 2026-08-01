@@ -1,7 +1,9 @@
-# AI-mode orchestration service
+# AI-mode shared agent orchestrator
 
 `ai-mode` owns the HTTP orchestration boundary, workflow-state SQLite database,
 versioned prompts, native Ollama integration, and concurrency-one background worker.
+The name follows the assignment's **AI mode** capability; operationally this container
+is the shared agent orchestrator. The separate `ollama` container owns model inference.
 
 ## HTTP surface
 

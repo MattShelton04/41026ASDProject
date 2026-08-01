@@ -30,6 +30,44 @@ The first container start downloads the pinned Ollama runtime image and
 `qwen2.5:0.5b`. The model and AI-mode SQLite state use named volumes and survive a
 normal `down`/`up` cycle.
 
+### Optional NVIDIA GPU acceleration
+
+The portable base Compose topology is deliberately CPU-compatible. Containers do not
+automatically inherit a host GPU. On Windows, NVIDIA acceleration requires
+[Docker Desktop's WSL 2 GPU path](https://docs.docker.com/desktop/features/gpu/), a
+supported NVIDIA GPU, current Windows/NVIDIA drivers, and a current WSL kernel. The
+override follows Docker's
+[Compose GPU reservation model](https://docs.docker.com/compose/how-tos/gpu-support/)
+and Ollama's [container GPU guidance](https://docs.ollama.com/docker). Confirm Docker
+advertises the `nvidia` runtime before opting in:
+
+```text
+nvidia-smi
+docker info
+```
+
+Merge the hardware override when starting the integrated runtime:
+
+```text
+docker compose --file docker-compose.yml --file docker-compose.gpu.yml --profile release-0 --profile ollama-container up --detach --build --wait --wait-timeout 600
+```
+
+The override requests NVIDIA device `0` by default. On a multi-GPU host, set
+`OLLAMA_GPU_DEVICE_ID` in the uncommitted root `.env` file to the desired Docker-visible
+device ID. The override intentionally uses one explicit device rather than claiming
+every GPU on a shared development machine.
+
+Verify device visibility and actual model placement after a generation:
+
+```text
+docker compose --file docker-compose.yml --file docker-compose.gpu.yml exec ollama nvidia-smi
+curl http://localhost:11434/api/ps
+```
+
+In `/api/ps`, a positive `size_vram` confirms model data is resident on GPU. CI
+validates the merged GPU configuration but does not run it because hosted runners do
+not promise an NVIDIA device.
+
 ## Recommended: fully containerised runtime
 
 Docker Compose is the single lifecycle and routing source of truth. The same commands
@@ -77,6 +115,35 @@ Host inspection endpoints are bound to loopback during development:
 
 Future shared-edge integration should use the internal `ai-mode:5005` service address
 and may remove the host AI-mode port from the release-evidence topology.
+
+## Local development loop
+
+Use the deterministic quality gate for normal code changes; it requires neither Docker
+nor a model download:
+
+```text
+uv sync --locked --all-packages --all-groups
+uv run python scripts/check.py
+```
+
+For fast application iteration with the production provider boundary, run only Ollama
+in Compose and AI-mode from the host:
+
+```text
+docker compose --profile ollama-container up --detach --wait ollama ollama-init
+uv run flask --app ai_mode:create_app run --port 5005
+uv run ai-mode-ollama-smoke
+```
+
+This hybrid loop uses the host default `OLLAMA_BASE_URL=http://localhost:11434`, so no
+routing override is needed. Use the fully containerised command for integration and
+release evidence. The AI-mode image has no source bind mount by design; after changing
+service code, rerun its `up --build` command to exercise the deployable artifact.
+
+The diagnostic is a real provider call, not a complete feature task. Full agent-loop
+tests use deterministic fake providers and tools. A live end-to-end feature task becomes
+valid only after an approved student feature exposes an allowlisted HTTP tool; until
+then the empty registry correctly rejects invented tool calls.
 
 ## Native Ollama developer path
 

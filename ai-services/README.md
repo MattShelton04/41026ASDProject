@@ -1,5 +1,19 @@
 # Shared AI services
 
+The assignment calls the user-facing capability **AI mode**. In this repository the
+names describe distinct runtime responsibilities:
+
+| Name | Kind | Responsibility |
+|---|---|---|
+| `agent-core` | Python library | Domain-neutral run state machine, policies, and ports |
+| `ai-mode` | HTTP service/container | Shared agent orchestrator and owner of workflow state |
+| `ollama` | Model runtime/container | Local inference behind Ollama's native API |
+| `ollama-init` | One-shot container | Idempotently ensures the configured model is present |
+
+Keeping `ai-mode` preserves traceability to the assignment language; “shared agent
+orchestrator” is its technical role. It is not the model server and it does not own
+feature data or business rules.
+
 | Directory | Intended release | Purpose |
 |---|---|---|
 | `agent-core/` | Release 0 | Framework-independent orchestration policies and ports |

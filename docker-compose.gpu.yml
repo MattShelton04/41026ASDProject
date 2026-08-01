@@ -1,0 +1,12 @@
+# Optional NVIDIA acceleration for the Compose-managed Ollama runtime.
+# Keep hardware policy out of the portable base topology; select a device with
+# OLLAMA_GPU_DEVICE_ID when a host exposes more than one GPU.
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${OLLAMA_GPU_DEVICE_ID:-0}"]
+              capabilities: [gpu]

@@ -45,9 +45,10 @@ jobs:
       - name: Run quality gate
         run: uv run --locked python scripts/check.py
 
-      - name: Validate integrated and native-Ollama Compose models
+      - name: Validate integrated, GPU, and native-Ollama Compose models
         run: |
           docker compose --profile release-0 --profile ollama-container config --quiet
+          docker compose --file docker-compose.yml --file docker-compose.gpu.yml --profile release-0 --profile ollama-container config --quiet
           docker compose --file docker-compose.yml --file docker-compose.native-ollama.yml --profile release-0 config --quiet
 
   container:
