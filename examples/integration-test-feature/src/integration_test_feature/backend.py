@@ -67,6 +67,28 @@ def create_backend_app(database_base_url: str, *, client: httpx.Client | None = 
         )
         return jsonify(response.json()), response.status_code
 
+    @app.post("/api/v1/tools/records.inspect.v1")
+    def inspect_tool() -> tuple[Response, int]:
+        title = _required_title(request.get_json(silent=True))
+        if title is None:
+            return jsonify({"code": "invalid_arguments"}), 422
+        response = http_client.get(
+            f"{origin}/api/v1/records/by-title/{quote(title, safe='')}",
+            headers=_forwarded_headers(request.headers),
+        )
+        return jsonify(response.json()), response.status_code
+
+    @app.post("/api/v1/tools/records.dependencies.v1")
+    def dependencies_tool() -> tuple[Response, int]:
+        title = _required_title(request.get_json(silent=True))
+        if title is None:
+            return jsonify({"code": "invalid_arguments"}), 422
+        response = http_client.get(
+            f"{origin}/api/v1/records/by-title/{quote(title, safe='')}/dependencies",
+            headers=_forwarded_headers(request.headers),
+        )
+        return jsonify(response.json()), response.status_code
+
     @app.get("/api/v1/tool-operations/<path:idempotency_key>")
     def operation_status(idempotency_key: str) -> tuple[Response, int]:
         response = http_client.get(
@@ -80,6 +102,11 @@ def create_backend_app(database_base_url: str, *, client: httpx.Client | None = 
 
 def _forwarded_headers(headers: Headers) -> dict[str, str]:
     return {name: headers[name] for name in PROPAGATED_HEADERS if name in headers}
+
+
+def _required_title(payload: Any) -> str | None:
+    title = payload.get("title", "").strip() if isinstance(payload, dict) else ""
+    return title if 1 <= len(title) <= 200 else None
 
 
 def create_app() -> Flask:

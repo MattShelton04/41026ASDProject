@@ -9,45 +9,114 @@
   </head>
   <body>
     <main>
-      <header>
-        <p class="eyebrow">Non-product integration fixture</p>
-        <h1>Shared platform integration console</h1>
-        <p>
-          Exercise the example frontend, feature backend, database service, AI-mode,
-          Ollama, model registry, and persisted agent-run trace from one page.
-        </p>
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Non-product integration fixture</p>
+          <h1>Agent integration console</h1>
+          <p class="lede">
+            Follow a request from the browser through AI-mode and its allowlisted tools,
+            with a readable transcript, live phase events, and exact correlation metadata.
+          </p>
+        </div>
+        <div class="topology" aria-label="Integration topology">
+          <span>Browser</span><b>→</b><span>AI-mode</span><b>→</b><span>Feature API</span><b>→</b><span>SQLite owner</span>
+        </div>
       </header>
 
-      <section aria-labelledby="records-heading">
-        <h2 id="records-heading">Feature boundary</h2>
-        <form id="search-form">
-          <label for="search-query">Search the ten seeded records</label>
-          <div class="controls">
-            <input id="search-query" value="Reference record" maxlength="200" required>
-            <button type="submit">Search</button>
+      <section aria-labelledby="feature-heading">
+        <div class="section-heading">
+          <div>
+            <p class="kicker">Deterministic boundary checks</p>
+            <h2 id="feature-heading">Feature explorer</h2>
           </div>
-        </form>
-        <form id="create-form">
-          <label for="record-title">Create an idempotent test record</label>
-          <div class="controls">
-            <input id="record-title" placeholder="A unique record title" maxlength="200" required>
-            <button type="submit">Create</button>
-          </div>
-        </form>
-        <pre id="feature-output" aria-live="polite">Ready.</pre>
+          <span class="badge neutral">No model required</span>
+        </div>
+        <div class="feature-controls">
+          <form id="search-form">
+            <label for="search-query">Search seeded records</label>
+            <div class="controls">
+              <input id="search-query" value="Reference record" maxlength="200" required>
+              <button type="submit">Search</button>
+            </div>
+          </form>
+          <form id="create-form">
+            <label for="record-title">Create an idempotent record</label>
+            <div class="controls">
+              <input id="record-title" placeholder="A unique record title" maxlength="200" required>
+              <button type="submit">Create</button>
+            </div>
+          </form>
+        </div>
+        <div class="controls compact-controls">
+          <button id="explore-record" class="secondary" type="button">Inspect record 03 and its dependencies</button>
+        </div>
+        <div id="feature-output" class="result-panel" aria-live="polite">
+          <p class="muted">Choose a deterministic action to inspect the feature boundary.</p>
+        </div>
       </section>
 
       <section aria-labelledby="agent-heading">
-        <h2 id="agent-heading">Agentic boundary</h2>
-        <form id="agent-form">
-          <label for="objective">Run a Plan → Act → Observe → Adapt objective</label>
-          <textarea id="objective" rows="3" maxlength="4000" required>Search for Reference record 03 and complete when the matching record is observed.</textarea>
+        <div class="section-heading">
+          <div>
+            <p class="kicker">Probabilistic model, deterministic guardrails</p>
+            <h2 id="agent-heading">Agent run</h2>
+          </div>
+          <span id="run-status" class="badge neutral">Idle</span>
+        </div>
+
+        <form id="agent-form" class="agent-form">
+          <div class="field-row">
+            <label for="scenario">Evaluation scenario</label>
+            <select id="scenario">
+              <option value="dependency-audit">Longer-horizon dependency audit</option>
+              <option value="single-lookup">Single-record lookup</option>
+              <option value="custom">Custom objective</option>
+            </select>
+          </div>
+          <label for="objective">User objective</label>
+          <textarea id="objective" rows="5" maxlength="4000" required>Audit Reference record 03. First search for it, then inspect its priority and summary, then inspect every direct dependency. Complete only after reporting the record priority and every dependency title, relationship, and status.</textarea>
           <div class="controls">
             <select id="model-profile" aria-label="Model profile"></select>
-            <button type="submit">Start AI run</button>
+            <button id="start-run" type="submit">Start run</button>
+            <button id="cancel-run" class="danger" type="button" disabled>Cancel run</button>
           </div>
         </form>
-        <pre id="agent-output" aria-live="polite">Loading model registry…</pre>
+
+        <div id="run-metadata" class="metadata-grid" hidden aria-label="Run correlation metadata"></div>
+
+        <div class="phase-strip" aria-label="Agent phase progress">
+          <div data-phase="plan"><span>1</span><strong>Plan</strong><small>Choose bounded actions</small></div>
+          <div data-phase="act"><span>2</span><strong>Act</strong><small>Call an allowlisted tool</small></div>
+          <div data-phase="observe"><span>3</span><strong>Observe</strong><small>Persist safe evidence</small></div>
+          <div data-phase="adapt"><span>4</span><strong>Adapt</strong><small>Continue or complete</small></div>
+        </div>
+
+        <div class="debug-grid">
+          <div>
+            <div class="subheading">
+              <h3>Conversation and execution</h3>
+              <span id="poll-state" class="muted">Load a model profile to begin.</span>
+            </div>
+            <div id="conversation" class="conversation" aria-live="polite">
+              <div class="empty-state">A submitted objective and its execution trace will appear here.</div>
+            </div>
+          </div>
+
+          <aside>
+            <div class="subheading">
+              <h3>Live event journal</h3>
+              <span id="event-cursor" class="mono muted">cursor 0</span>
+            </div>
+            <ol id="event-feed" class="event-feed" aria-live="polite">
+              <li class="empty-state">No persisted events yet.</li>
+            </ol>
+          </aside>
+        </div>
+
+        <details class="raw-evidence">
+          <summary>Raw safe run detail</summary>
+          <pre id="agent-output">Loading model registry…</pre>
+        </details>
       </section>
     </main>
   </body>

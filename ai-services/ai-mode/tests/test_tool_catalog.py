@@ -27,6 +27,8 @@ def test_example_catalog_composes_scoped_immutable_tools() -> None:
         definition.name for definition in registry.definitions_for("student-1-integration-test")
     ] == [
         "integration_test.records.search.v1",
+        "integration_test.records.inspect.v1",
+        "integration_test.records.dependencies.v1",
         "integration_test.records.create.v1",
     ]
     assert registry.definitions_for("student-2-feature") == ()

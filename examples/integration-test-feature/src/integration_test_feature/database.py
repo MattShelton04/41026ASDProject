@@ -49,11 +49,54 @@ class IntegrationRecordStore:
                     outcome TEXT NOT NULL CHECK (outcome IN ('applied')),
                     result_json TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS record_details (
+                    record_id INTEGER PRIMARY KEY REFERENCES records(id) ON DELETE CASCADE,
+                    summary TEXT NOT NULL,
+                    priority INTEGER NOT NULL CHECK (priority BETWEEN 1 AND 5)
+                );
+                CREATE TABLE IF NOT EXISTS record_dependencies (
+                    record_id INTEGER NOT NULL REFERENCES records(id) ON DELETE CASCADE,
+                    depends_on_record_id INTEGER NOT NULL REFERENCES records(id) ON DELETE CASCADE,
+                    relationship TEXT NOT NULL CHECK (relationship IN ('requires', 'informs')),
+                    PRIMARY KEY (record_id, depends_on_record_id),
+                    CHECK (record_id != depends_on_record_id)
+                );
                 """
             )
             connection.executemany(
                 "INSERT OR IGNORE INTO records (title, status) VALUES (?, 'active')",
                 ((f"Reference record {index:02d}",) for index in range(1, 11)),
+            )
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO record_details (record_id, summary, priority)
+                SELECT id, ?, ? FROM records WHERE title = ?
+                """,
+                (
+                    (
+                        f"Deterministic evidence item {index:02d} for integration testing.",
+                        ((index - 1) % 5) + 1,
+                        f"Reference record {index:02d}",
+                    )
+                    for index in range(1, 11)
+                ),
+            )
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO record_dependencies (
+                    record_id, depends_on_record_id, relationship
+                )
+                SELECT source.id, dependency.id, ?
+                FROM records AS source, records AS dependency
+                WHERE source.title = ? AND dependency.title = ?
+                """,
+                (
+                    ("requires", "Reference record 03", "Reference record 01"),
+                    ("informs", "Reference record 03", "Reference record 02"),
+                    ("requires", "Reference record 06", "Reference record 03"),
+                    ("requires", "Reference record 08", "Reference record 04"),
+                    ("informs", "Reference record 08", "Reference record 05"),
+                ),
             )
 
     def search(self, query: str) -> list[dict[str, object]]:
@@ -66,6 +109,47 @@ class IntegrationRecordStore:
                 (f"%{query.lower()}%",),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def inspect(self, title: str) -> dict[str, object] | None:
+        """Return deterministic detail for one exact record title."""
+        with self._connection() as connection:
+            row = connection.execute(
+                """
+                SELECT records.id, records.title, records.status,
+                       record_details.summary, record_details.priority
+                FROM records
+                JOIN record_details ON record_details.record_id = records.id
+                WHERE records.title = ? COLLATE NOCASE
+                """,
+                (title,),
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def dependencies(self, title: str) -> dict[str, object] | None:
+        """Return one record plus its ordered dependency evidence."""
+        record = self.inspect(title)
+        if record is None:
+            return None
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT dependency.id, dependency.title, dependency.status,
+                       detail.priority, link.relationship
+                FROM record_dependencies AS link
+                JOIN records AS dependency ON dependency.id = link.depends_on_record_id
+                JOIN record_details AS detail ON detail.record_id = dependency.id
+                WHERE link.record_id = ?
+                ORDER BY dependency.id ASC
+                """,
+                (record["id"],),
+            ).fetchall()
+        items = [dict(row) for row in rows]
+        return {
+            "record": record,
+            "items": items,
+            "count": len(items),
+            "all_active": all(item["status"] == "active" for item in items),
+        }
 
     def create(self, title: str, *, idempotency_key: str) -> tuple[dict[str, object], bool]:
         request_hash = sha256(
@@ -164,6 +248,20 @@ def create_database_app(store: IntegrationRecordStore) -> Flask:
         except IntegrationTestConflictError:
             return jsonify({"code": "idempotency_conflict"}), 409
         return jsonify(result), 201 if created else 200
+
+    @app.get("/api/v1/records/by-title/<path:title>")
+    def inspect_record(title: str) -> tuple[Response, int]:
+        record = store.inspect(title.strip())
+        if record is None:
+            return jsonify({"code": "record_not_found"}), 404
+        return jsonify({"record": record}), 200
+
+    @app.get("/api/v1/records/by-title/<path:title>/dependencies")
+    def record_dependencies(title: str) -> tuple[Response, int]:
+        result = store.dependencies(title.strip())
+        if result is None:
+            return jsonify({"code": "record_not_found"}), 404
+        return jsonify(result), 200
 
     @app.get("/api/v1/operations/<path:idempotency_key>")
     def operation_status(idempotency_key: str) -> tuple[Response, int]:

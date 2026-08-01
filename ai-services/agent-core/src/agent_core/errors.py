@@ -13,6 +13,10 @@ class RunLimitExceededError(AgentCoreError):
     """A deterministic run limit has been reached."""
 
 
+class RunStalledError(AgentCoreError):
+    """A run attempted to repeat a completed plan without new evidence."""
+
+
 class ToolRegistrationError(AgentCoreError):
     """A tool definition is duplicate or contains an invalid schema."""
 

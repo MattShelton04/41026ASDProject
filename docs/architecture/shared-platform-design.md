@@ -439,7 +439,10 @@ loop indefinitely. Mutation retries reuse the original idempotency key.
 ### 8.3 Planner, Worker, and Reviewer evolution
 
 - **Release 0:** one orchestrator process performs the four phases. The LLM may propose
-  a plan or adaptation, while code executes tools and enforces policy.
+  a plan or adaptation, while code executes tools and enforces policy. Planner and
+  adapter are separate, stateless inference requests (currently to the same configured
+  model), not independent persistent agents. Each request receives its own versioned
+  system prompt and reconstructs context from persisted safe run data.
 - **Release 1:** the same orchestrator can call MCP tools and obtain RAG context. These
   become new adapters, not a new loop.
 - **Release 2:** Planner, Worker, and Reviewer become explicit roles sharing the same
@@ -497,6 +500,20 @@ Every prompt invocation records the logical prompt ID, semantic version, Git con
 hash, rendered-input hash, and model digest. Stable instructions, schemas, and tool
 definitions appear before dynamic user and retrieval content. Prompt changes require
 evaluation results in the pull request.
+
+The shared registry owns only domain-neutral orchestration prompts: how to produce a
+bounded plan and how to adapt from typed evidence. Feature-specific terminology,
+task recipes, grounding rules, examples, and final-result expectations belong to the
+owning feature. The current Release 0 manifest declares capabilities but does not yet
+carry a versioned feature-guidance reference; add that contract before product features
+need domain-specific prompting. AI-mode should load allowlisted, hashed feature guidance
+at startup and inject it as delimited task data. A feature must not replace the shared
+authorization, limit, output-validation, or adaptation policy instructions.
+
+Retain prompt assets referenced by persisted runs for replay and evidence. Startup
+validation should enumerate the declared prompt-set registry rather than maintain a
+second hand-written list of versions. Retire an old prompt set only through a documented
+compatibility and retention decision, not as routine file cleanup.
 
 ### 9.3 Cache layers
 

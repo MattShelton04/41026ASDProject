@@ -92,10 +92,8 @@ def build_services(settings: Settings) -> AppServices:
     ids = UUID4Generator()
     prompt_root = Path(__file__).resolve().parent / "prompt_assets"
     registry = PromptRegistry(prompt_root)
-    registry.load("planner", "v1")
-    registry.load("planner", "v2")
-    registry.load("adapter", "v1")
-    registry.load("adapter", "v2")
+    prompt_builder = RegistryPromptBuilder(registry)
+    prompt_builder.validate_declared()
     if settings.tool_catalog_path is None:
         tools = ToolRegistry(())
         tool_executor: ToolExecutor = UnconfiguredToolExecutor()
@@ -108,7 +106,7 @@ def build_services(settings: Settings) -> AppServices:
     runner = AgentRunner(
         store=store,
         provider=provider,
-        prompt_builder=RegistryPromptBuilder(registry),
+        prompt_builder=prompt_builder,
         tools=tools,
         tool_executor=tool_executor,
         clock=clock,

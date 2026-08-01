@@ -125,6 +125,7 @@ class TestPromptBuilder:
         plan: Plan,
         tool_result: ToolResult,
         observation: Observation,
+        tool_results: tuple[ToolResult, ...],
     ) -> StructuredModelRequest:
         return self._request(run, ModelRole.ADAPTER, "adapter")
 
@@ -250,6 +251,21 @@ def _adaptation(decision: str) -> dict[str, object]:
     return payload
 
 
+def _two_action_plan() -> dict[str, object]:
+    plan = _plan()
+    actions = list(plan["actions"])  # type: ignore[arg-type]
+    actions.append(
+        {
+            "sequence": 2,
+            "tool_name": "student_1.records.search.v1",
+            "arguments": {"query": "verified detail"},
+            "purpose": "Fetch the detail required by the success criterion",
+        }
+    )
+    plan["actions"] = actions
+    return plan
+
+
 def _runner(
     outcomes: list[StructuredModelResult | Exception],
     *,
@@ -303,6 +319,22 @@ def test_runner_persists_a_complete_four_phase_success() -> None:
     assert [step.phase.value for step in store.steps] == ["plan", "act", "observe", "adapt"]
     assert all(step.status.value == "succeeded" for step in store.steps)
     assert len(executor.calls) == 1
+
+
+def test_successful_intermediate_action_continues_without_an_extra_model_call() -> None:
+    runner, store, executor = _runner(
+        [_model_result(_two_action_plan()), _model_result(_adaptation("complete"))]
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert result.iteration_count == 2
+    assert len(executor.calls) == 2
+    adaptations = [step for step in store.steps if step.phase is StepPhase.ADAPT]
+    assert adaptations[0].output["decision_source"] == "orchestration_policy"
+    assert "model_invocation" not in adaptations[0].output
+    assert adaptations[1].output["decision_source"] == "model"
 
 
 def test_protected_action_stops_for_review_before_any_effect() -> None:
@@ -445,6 +477,26 @@ def test_continue_after_last_action_replans_instead_of_exhausting_the_plan() -> 
         {"query": "verified"},
         {"query": "refined"},
     ]
+
+
+def test_replanning_cannot_repeat_a_successful_plan_without_progress() -> None:
+    runner, store, executor = _runner(
+        [
+            _model_result(_plan()),
+            _model_result(_adaptation("continue")),
+            _model_result(_plan()),
+        ]
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "run_stalled"
+    assert result.error.message == (
+        "planner repeated the previous plan after successful tool evidence"
+    )
+    assert len(executor.calls) == 1
 
 
 def test_elapsed_budget_prevents_an_adaptation_model_call_after_tool_io() -> None:

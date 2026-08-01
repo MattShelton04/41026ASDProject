@@ -26,6 +26,7 @@ from agent_core import (
 )
 from ai_mode.adapters.http_tools import HttpToolBinding, HttpToolExecutor
 from ai_mode.persistence import SQLiteRunStore
+from ai_mode.tool_catalog import load_tool_catalog
 from integration_test_feature import (
     IntegrationRecordStore,
     create_backend_app,
@@ -38,13 +39,13 @@ from shared_contracts import (
     Observation,
     Plan,
     RunStatus,
-    SideEffectClass,
     ToolDefinition,
     ToolResult,
 )
 from shared_testkit import ScriptedLLMProvider
 
 NOW = datetime(2026, 8, 1, tzinfo=UTC)
+CATALOG_PATH = Path(__file__).parents[1] / "tool-catalog.yaml"
 
 
 class _QuietRequestHandler(WSGIRequestHandler):
@@ -88,7 +89,10 @@ class _PromptBuilder:
         definitions: tuple[ToolDefinition, ...],
     ) -> StructuredModelRequest:
         assert [definition.name for definition in definitions] == [
-            "integration_test.records.search.v1"
+            "integration_test.records.search.v1",
+            "integration_test.records.inspect.v1",
+            "integration_test.records.dependencies.v1",
+            "integration_test.records.create.v1",
         ]
         return self._request(run, ModelRole.PLANNER)
 
@@ -98,8 +102,9 @@ class _PromptBuilder:
         plan: Plan,
         tool_result: ToolResult,
         observation: Observation,
+        tool_results: tuple[ToolResult, ...],
     ) -> StructuredModelRequest:
-        assert tool_result.content["count"] == 10
+        assert len(tool_results) == len(plan.actions)
         return self._request(run, ModelRole.ADAPTER)
 
     @staticmethod
@@ -117,41 +122,8 @@ class _PromptBuilder:
         )
 
 
-def _search_tool() -> ToolDefinition:
-    return ToolDefinition(
-        name="integration_test.records.search.v1",
-        version="v1",
-        feature_key="student-1-integration-test",
-        description="Search integration-test records",
-        input_schema={
-            "type": "object",
-            "properties": {"query": {"type": "string", "minLength": 1}},
-            "required": ["query"],
-            "additionalProperties": False,
-        },
-        output_schema={
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "id": {"type": "integer"},
-                            "title": {"type": "string"},
-                            "status": {"type": "string"},
-                        },
-                        "required": ["id", "title", "status"],
-                        "additionalProperties": False,
-                    },
-                },
-                "count": {"type": "integer", "minimum": 0},
-            },
-            "required": ["items", "count"],
-            "additionalProperties": False,
-        },
-        side_effect=SideEffectClass.READ_ONLY,
-    )
+def _tool_definitions() -> tuple[ToolDefinition, ...]:
+    return tuple(registration.definition for registration in load_tool_catalog(CATALOG_PATH).tools)
 
 
 def _model_result(content: dict[str, object]) -> StructuredModelResult:
@@ -163,14 +135,14 @@ def _model_result(content: dict[str, object]) -> StructuredModelResult:
     )
 
 
-def test_full_agent_loop_calls_feature_backend_and_exclusive_database(tmp_path: Path) -> None:
+def test_long_horizon_agent_loop_calls_three_feature_tools(tmp_path: Path) -> None:
     feature_store = IntegrationRecordStore(tmp_path / "feature.sqlite3")
     feature_store.initialize()
     with (
         _serve(create_database_app(feature_store)) as database_url,
         _serve(create_backend_app(database_url)) as backend_url,
     ):
-        definition = _search_tool()
+        definitions = _tool_definitions()
         executor = HttpToolExecutor(
             service_base_urls={"integration-test-backend": backend_url},
             bindings=[
@@ -179,8 +151,13 @@ def test_full_agent_loop_calls_feature_backend_and_exclusive_database(tmp_path: 
                     tool_version=definition.version,
                     service="integration-test-backend",
                     method="POST",
-                    path="/api/v1/tools/records.search.v1",
+                    path=next(
+                        registration.path
+                        for registration in load_tool_catalog(CATALOG_PATH).tools
+                        if registration.definition.name == definition.name
+                    ),
                 )
+                for definition in definitions
             ],
         )
         state_store = SQLiteRunStore(tmp_path / "agent-state.sqlite3")
@@ -188,7 +165,10 @@ def test_full_agent_loop_calls_feature_backend_and_exclusive_database(tmp_path: 
         run = create_run(
             AgentRunRequest(
                 feature_key="student-1-integration-test",
-                objective="Count every seeded integration-test record",
+                objective=(
+                    "Audit Reference record 03 by searching for it, inspecting it, "
+                    "and checking every direct dependency"
+                ),
             ),
             run_id=uuid4(),
             request_id="integration-request",
@@ -203,12 +183,28 @@ def test_full_agent_loop_calls_feature_backend_and_exclusive_database(tmp_path: 
                         "actions": [
                             {
                                 "sequence": 1,
-                                "tool_name": definition.name,
+                                "tool_name": "integration_test.records.search.v1",
                                 "arguments": {"query": "Reference record"},
                                 "purpose": "Search through the feature backend",
-                            }
+                            },
+                            {
+                                "sequence": 2,
+                                "tool_name": "integration_test.records.inspect.v1",
+                                "arguments": {"title": "Reference record 03"},
+                                "purpose": "Inspect priority and summary",
+                            },
+                            {
+                                "sequence": 3,
+                                "tool_name": "integration_test.records.dependencies.v1",
+                                "arguments": {"title": "Reference record 03"},
+                                "purpose": "Verify dependency status",
+                            },
                         ],
-                        "success_criteria": ["Ten records are returned"],
+                        "success_criteria": [
+                            "The target record is found",
+                            "Its priority and summary are inspected",
+                            "Every direct dependency status is reported",
+                        ],
                         "risk_level": "low",
                         "assumptions": [],
                     }
@@ -216,8 +212,13 @@ def test_full_agent_loop_calls_feature_backend_and_exclusive_database(tmp_path: 
                 _model_result(
                     {
                         "decision": "complete",
-                        "justification": "The HTTP tool returned ten seeded records",
-                        "final_result": {"count": 10},
+                        "justification": "All dependency evidence is available",
+                        "final_result": {
+                            "record": "Reference record 03",
+                            "priority": 3,
+                            "dependency_count": 2,
+                            "all_dependencies_active": True,
+                        },
                     }
                 ),
             ]
@@ -226,7 +227,7 @@ def test_full_agent_loop_calls_feature_backend_and_exclusive_database(tmp_path: 
             store=state_store,
             provider=provider,
             prompt_builder=_PromptBuilder(),
-            tools=ToolRegistry([definition]),
+            tools=ToolRegistry(definitions),
             tool_executor=executor,
             clock=_Clock(),
             ids=_Ids(),
@@ -236,11 +237,104 @@ def test_full_agent_loop_calls_feature_backend_and_exclusive_database(tmp_path: 
         executor.close()
 
     assert result.status is RunStatus.SUCCEEDED
-    assert result.final_result == {"count": 10}
+    assert result.final_result == {
+        "record": "Reference record 03",
+        "priority": 3,
+        "dependency_count": 2,
+        "all_dependencies_active": True,
+    }
     detail = state_store.get(run.id)
     assert detail is not None
-    assert [step.phase.value for step in detail.steps] == ["plan", "act", "observe", "adapt"]
-    assert len(state_store.list_events(run.id)) == 8
+    assert [step.phase.value for step in detail.steps] == [
+        "plan",
+        "act",
+        "observe",
+        "adapt",
+        "act",
+        "observe",
+        "adapt",
+        "act",
+        "observe",
+        "adapt",
+    ]
+    assert result.iteration_count == 3
+    assert result.tool_call_count == 3
+    assert len(state_store.list_events(run.id)) == 18
+
+
+def test_record_detail_and_dependency_tools_return_richer_evidence(tmp_path: Path) -> None:
+    feature_store = IntegrationRecordStore(tmp_path / "feature.sqlite3")
+    feature_store.initialize()
+    with (
+        _serve(create_database_app(feature_store)) as database_url,
+        _serve(create_backend_app(database_url)) as backend_url,
+        httpx.Client(base_url=backend_url) as client,
+    ):
+        ready = client.get("/health/ready")
+        detail = client.post(
+            "/api/v1/tools/records.inspect.v1",
+            json={"title": "Reference record 03"},
+            headers={"X-Request-ID": "fixture-detail"},
+        )
+        dependencies = client.post(
+            "/api/v1/tools/records.dependencies.v1",
+            json={"title": "Reference record 03"},
+            headers={"X-Request-ID": "fixture-dependencies"},
+        )
+        missing = client.post(
+            "/api/v1/tools/records.inspect.v1",
+            json={"title": "Missing record"},
+        )
+        missing_dependencies = client.post(
+            "/api/v1/tools/records.dependencies.v1",
+            json={"title": "Missing record"},
+        )
+        invalid_detail = client.post("/api/v1/tools/records.inspect.v1", json={})
+        invalid_dependencies = client.post("/api/v1/tools/records.dependencies.v1", json={})
+
+    assert ready.status_code == 200
+    assert ready.json() == {"status": "healthy"}
+    assert detail.status_code == 200
+    assert detail.json()["record"] == {
+        "id": 3,
+        "title": "Reference record 03",
+        "status": "active",
+        "summary": "Deterministic evidence item 03 for integration testing.",
+        "priority": 3,
+    }
+    assert dependencies.status_code == 200
+    assert dependencies.json()["count"] == 2
+    assert dependencies.json()["all_active"] is True
+    assert [item["title"] for item in dependencies.json()["items"]] == [
+        "Reference record 01",
+        "Reference record 02",
+    ]
+    assert missing.status_code == 404
+    assert missing.json() == {"code": "record_not_found"}
+    assert missing_dependencies.status_code == 404
+    assert missing_dependencies.json() == {"code": "record_not_found"}
+    assert invalid_detail.status_code == 422
+    assert invalid_dependencies.status_code == 422
+
+
+def test_console_assets_expose_safe_trace_and_long_horizon_controls() -> None:
+    frontend = CATALOG_PATH.parent / "frontend"
+    document = (frontend / "index.html").read_text(encoding="utf-8")
+    script = (frontend / "app.js").read_text(encoding="utf-8")
+    proxy = (frontend / "nginx.conf").read_text(encoding="utf-8")
+
+    assert 'id="conversation"' in document
+    assert 'id="event-feed"' in document
+    assert 'id="run-metadata"' in document
+    assert "Longer-horizon dependency audit" in document
+    assert "Raw safe run detail" in document
+    assert "jsonRequest(`${currentLocation}/events?after=${cursor}&limit=200`)" in script
+    assert "traceparent: newTraceparent()" in script
+    assert "renderInvocation(article, step.output.model_invocation)" in script
+    assert "signature === lastRenderedDetailSignature" in script
+    assert 'querySelectorAll("details[open][data-state-key]")' in script
+    assert "events.body.items.length > 0 || !currentRun" in script
+    assert "proxy_set_header X-Request-ID $correlation_request_id" in proxy
 
 
 def test_mutation_replay_has_one_effect_and_reports_operation_status(tmp_path: Path) -> None:

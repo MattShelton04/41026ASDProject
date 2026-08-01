@@ -41,6 +41,92 @@ tools:
     method: POST
     path: /api/v1/tools/records.search.v1
   - definition:
+      name: integration_test.records.inspect.v1
+      version: v1
+      feature_key: student-1-integration-test
+      description: Inspect the summary and priority of one deterministic record by exact title.
+      input_schema:
+        type: object
+        properties:
+          title:
+            type: string
+            minLength: 1
+            maxLength: 200
+            description: Exact record title returned by the search tool.
+        required: [title]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          record:
+            type: object
+            properties:
+              id: {type: integer, minimum: 1}
+              title: {type: string}
+              status: {enum: [active, archived]}
+              summary: {type: string}
+              priority: {type: integer, minimum: 1, maximum: 5}
+            required: [id, title, status, summary, priority]
+            additionalProperties: false
+        required: [record]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 2000
+      requires_approval: false
+    service: integration-test-feature-backend
+    method: POST
+    path: /api/v1/tools/records.inspect.v1
+  - definition:
+      name: integration_test.records.dependencies.v1
+      version: v1
+      feature_key: student-1-integration-test
+      description: Inspect a record and the status, priority, and relationship of every direct dependency by exact title.
+      input_schema:
+        type: object
+        properties:
+          title:
+            type: string
+            minLength: 1
+            maxLength: 200
+            description: Exact record title returned by the search tool.
+        required: [title]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          record:
+            type: object
+            properties:
+              id: {type: integer, minimum: 1}
+              title: {type: string}
+              status: {enum: [active, archived]}
+              summary: {type: string}
+              priority: {type: integer, minimum: 1, maximum: 5}
+            required: [id, title, status, summary, priority]
+            additionalProperties: false
+          items:
+            type: array
+            items:
+              type: object
+              properties:
+                id: {type: integer, minimum: 1}
+                title: {type: string}
+                status: {enum: [active, archived]}
+                priority: {type: integer, minimum: 1, maximum: 5}
+                relationship: {enum: [requires, informs]}
+              required: [id, title, status, priority, relationship]
+              additionalProperties: false
+          count: {type: integer, minimum: 0}
+          all_active: {type: boolean}
+        required: [record, items, count, all_active]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 2000
+      requires_approval: false
+    service: integration-test-feature-backend
+    method: POST
+    path: /api/v1/tools/records.dependencies.v1
+  - definition:
       name: integration_test.records.create.v1
       version: v1
       feature_key: student-1-integration-test

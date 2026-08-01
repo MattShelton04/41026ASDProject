@@ -1,0 +1,5 @@
+prompt_id: planner
+version: v3
+role: planner
+template: v3.system.j2
+description: Bounded planner that preserves explicit multi-evidence objectives in ordered tool plans.

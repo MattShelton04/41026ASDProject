@@ -133,8 +133,9 @@ class PromptBuilder(Protocol):
         plan: Plan,
         tool_result: ToolResult,
         observation: Observation,
+        tool_results: tuple[ToolResult, ...],
     ) -> StructuredModelRequest:
-        """Build a schema-constrained adaptation request."""
+        """Build an adaptation request with ordered evidence from the active plan."""
         ...
 
 

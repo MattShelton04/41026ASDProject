@@ -14,6 +14,7 @@ from agent_core.errors import (
     ConcurrentRunUpdateError,
     ModelProviderError,
     RunLimitExceededError,
+    RunStalledError,
     ToolSchemaValidationError,
 )
 from agent_core.generation import ValidatedModelOutput, generate_validated
@@ -164,6 +165,10 @@ class AgentRunner:
                 Plan,
                 max_repairs=run.limits.max_model_repairs,
             )
+            if self._repeats_successful_plan(detail.steps, generated.value):
+                raise RunStalledError(
+                    "planner repeated the previous plan after successful tool evidence"
+                )
             for action in generated.value.actions:
                 definition = self._tools.resolve(planning.feature_key, action.tool_name)
                 self._tools.validate_input(definition, action.arguments)
@@ -349,7 +354,9 @@ class AgentRunner:
             return self._fail(run, exc, code="run_limit_reached")
         plan, action_index = self._active_plan(detail.steps, include_current_action=True)
         result = self._last_tool_result(detail.steps)
+        tool_results = self._active_plan_tool_results(detail.steps)
         observation = self._last_observation(detail.steps)
+        has_remaining_action = action_index + 1 < len(plan.actions)
         now = self._clock.now()
         step = self._running_step(
             run,
@@ -360,36 +367,55 @@ class AgentRunner:
         )
         in_progress = run.model_copy(update={"version": run.version + 1, "updated_at": now})
         self._store.save(in_progress, expected_version=run.version, step=step)
-        try:
-            request = self._with_run_deadline(
-                self._prompt_builder.build_adaptation_request(
-                    in_progress, plan, result, observation
+        if result.outcome is ToolOutcome.SUCCEEDED and has_remaining_action:
+            adaptation = Adaptation(
+                decision=AdaptationDecision.CONTINUE,
+                justification=(
+                    "Validated tool result succeeded; continuing to the next planned action."
                 ),
-                in_progress,
             )
-            generated = generate_validated(
-                self._provider,
-                request,
-                Adaptation,
-                max_repairs=run.limits.max_model_repairs,
-            )
-        except AgentCoreError as exc:
-            return self._fail_with_step(in_progress, step, exc, code=self._error_code(exc))
+            output: dict[str, JsonValue] = {
+                "adaptation": adaptation.model_dump(mode="json"),
+                "decision_source": "orchestration_policy",
+            }
+        else:
+            try:
+                request = self._with_run_deadline(
+                    self._prompt_builder.build_adaptation_request(
+                        in_progress,
+                        plan,
+                        result,
+                        observation,
+                        tool_results,
+                    ),
+                    in_progress,
+                )
+                generated = generate_validated(
+                    self._provider,
+                    request,
+                    Adaptation,
+                    max_repairs=run.limits.max_model_repairs,
+                )
+            except AgentCoreError as exc:
+                return self._fail_with_step(in_progress, step, exc, code=self._error_code(exc))
+            adaptation = generated.value
+            output = {
+                "adaptation": adaptation.model_dump(mode="json"),
+                "decision_source": "model",
+                "model_invocation": self._invocation_summary(request, generated),
+            }
 
         completed = self._complete_step(
             step,
             now=self._clock.now(),
-            output={
-                "adaptation": generated.value.model_dump(mode="json"),
-                "model_invocation": self._invocation_summary(request, generated),
-            },
+            output=output,
         )
         counted = in_progress.model_copy(
             update={"iteration_count": in_progress.iteration_count + 1}
         )
         target, final_result, error = self._adaptation_transition(
-            generated.value,
-            has_remaining_action=action_index + 1 < len(plan.actions),
+            adaptation,
+            has_remaining_action=has_remaining_action,
         )
         next_run = transition_run(
             counted,
@@ -464,7 +490,37 @@ class AgentRunner:
             return exc.code
         if isinstance(exc, RunLimitExceededError):
             return "run_limit_reached"
+        if isinstance(exc, RunStalledError):
+            return "run_stalled"
         return "invalid_model_or_tool_data"
+
+    @staticmethod
+    def _repeats_successful_plan(steps: tuple[AgentStep, ...], candidate: Plan) -> bool:
+        """Reject an identical action sequence after successful work made no progress."""
+        previous_position: int | None = None
+        previous: Plan | None = None
+        for index, step in reversed(list(enumerate(steps))):
+            if step.phase is StepPhase.PLAN and "plan" in step.output:
+                previous_position = index
+                previous = Plan.model_validate(step.output["plan"])
+                break
+        if previous_position is None or previous is None:
+            return False
+        results = [
+            ToolResult.model_validate(step.output["tool_result"])
+            for step in steps[previous_position + 1 :]
+            if step.phase is StepPhase.ACT and "tool_result" in step.output
+        ]
+        if not results or any(result.outcome is not ToolOutcome.SUCCEEDED for result in results):
+            return False
+
+        def signature(plan: Plan) -> tuple[tuple[str, str], ...]:
+            return tuple(
+                (action.tool_name, action.model_dump_json(include={"arguments"}))
+                for action in plan.actions
+            )
+
+        return signature(previous) == signature(candidate)
 
     @staticmethod
     def _with_run_deadline(
@@ -548,6 +604,25 @@ class AgentRunner:
             if step.phase is StepPhase.ACT and "tool_result" in step.output:
                 return ToolResult.model_validate(step.output["tool_result"])
         raise AgentCoreError("run has no persisted tool result")
+
+    @staticmethod
+    def _active_plan_tool_results(steps: tuple[AgentStep, ...]) -> tuple[ToolResult, ...]:
+        """Return ordered persisted tool evidence produced by the active plan."""
+        plan_position = next(
+            (
+                index
+                for index, step in reversed(list(enumerate(steps)))
+                if step.phase is StepPhase.PLAN and "plan" in step.output
+            ),
+            None,
+        )
+        if plan_position is None:
+            raise AgentCoreError("run has no persisted valid plan")
+        return tuple(
+            ToolResult.model_validate(step.output["tool_result"])
+            for step in steps[plan_position + 1 :]
+            if step.phase is StepPhase.ACT and "tool_result" in step.output
+        )
 
     @staticmethod
     def _last_observation(steps: tuple[AgentStep, ...]) -> Observation:

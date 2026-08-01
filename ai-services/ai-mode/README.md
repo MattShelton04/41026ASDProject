@@ -97,9 +97,17 @@ For a containerised custom registry, mount the file read-only and set
 `AI_MODE_MODEL_REGISTRY_PATH` to its path inside the container; a host path is not
 implicitly visible in Docker.
 
-The default `default.v2` prompt set uses immutable planner and adapter v2 templates,
-whose explicit generic output skeletons improve small-model schema adherence.
-`default.v1` remains accepted for replaying runs created with the original prompt assets.
+The default `default.v3` prompt set keeps the explicit generic output skeletons and
+adds an evidence-completeness policy for ordered multi-action objectives. Immutable
+`default.v1` and `default.v2` remain accepted for replaying runs created with the
+earlier prompt assets.
+
+Planner and adapter are roles in one persisted orchestrator, not separate long-lived
+agents. Each role is a separate stateless Ollama request with its own versioned system
+prompt. The planner receives the objective and allowlisted tools; the adapter receives
+the active plan's ordered persisted action/results and current observation. Successful
+intermediate actions continue by deterministic orchestration policy, avoiding an
+unnecessary adapter inference while preserving an auditable ADAPT step.
 
 The SQLite adapter enables foreign keys, WAL mode, a busy timeout, forward schema
 versioning, optimistic run versions, create-request idempotency, and safe append-only
