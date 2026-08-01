@@ -150,10 +150,14 @@ external call begins after expiry.
 
 An unexpected executor exception during a read is terminal and safely recorded. The
 same exception during a write has an uncertain outcome, so the call returns to pending
-review. Approving it means “retry/reconcile this exact idempotent operation”; rejecting
-it cancels further execution. The eventual feature HTTP adapter should offer an
-operation-status lookup so a reviewer can distinguish “already applied” from “not
-applied” before choosing.
+review. Retryable transport failures such as timeouts, lost connections, and server
+errors are also uncertain for writes even when the adapter returns a typed result; they
+follow the same review path. The tool-call counter advances in the atomic pre-dispatch
+checkpoint, so crashes and ambiguous attempts cannot bypass the run limit. Approving an
+uncertain action means “retry/reconcile this exact idempotent operation”; rejecting it
+cancels further execution. Feature HTTP adapters should offer an operation-status
+lookup so a reviewer can distinguish “already applied” from “not applied” before
+choosing.
 
 ## Durable scheduling and reconciliation
 

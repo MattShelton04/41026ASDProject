@@ -263,7 +263,8 @@ class AgentRunner:
             self._store.save(review, expected_version=run.version, step=step)
             return review
 
-        acting = transition_run(run, RunStatus.ACTING, now=self._clock.now())
+        dispatching = run.model_copy(update={"tool_call_count": run.tool_call_count + 1})
+        acting = transition_run(dispatching, RunStatus.ACTING, now=self._clock.now())
         self._store.save(acting, expected_version=run.version, step=step)
         try:
             now = self._clock.now()
@@ -303,7 +304,13 @@ class AgentRunner:
                     retryable=False,
                 )
 
-        counted = acting.model_copy(update={"tool_call_count": acting.tool_call_count + 1})
+        if (
+            definition.side_effect is not SideEffectClass.READ_ONLY
+            and result.outcome is not ToolOutcome.SUCCEEDED
+            and result.retryable
+        ):
+            return self._pause_uncertain_effect(acting, step, call, reported_result=result)
+
         completed = self._complete_step(
             step,
             now=self._clock.now(),
@@ -311,12 +318,12 @@ class AgentRunner:
         )
         if result.outcome is ToolOutcome.FAILED and not result.retryable:
             error = result.error or ToolError(code="tool_failed", message="Tool execution failed")
-            failed = transition_run(counted, RunStatus.FAILED, now=self._clock.now(), error=error)
+            failed = transition_run(acting, RunStatus.FAILED, now=self._clock.now(), error=error)
             failed_step = completed.model_copy(update={"status": StepStatus.FAILED, "error": error})
             self._store.save(failed, expected_version=acting.version, step=failed_step)
             return failed
 
-        observing = transition_run(counted, RunStatus.OBSERVING, now=self._clock.now())
+        observing = transition_run(acting, RunStatus.OBSERVING, now=self._clock.now())
         self._store.save(observing, expected_version=acting.version, step=completed)
         return observing
 
@@ -651,19 +658,24 @@ class AgentRunner:
         run: AgentRun,
         step: AgentStep,
         call: ToolCall,
+        *,
+        reported_result: ToolResult | None = None,
     ) -> AgentRun:
         """Require review when an adapter exception leaves an effect outcome unknown."""
         pending_call = call.model_copy(update={"approval_status": ApprovalStatus.PENDING})
+        recovery: dict[str, JsonValue] = {
+            "code": "action_outcome_unknown",
+            "message": "Tool execution ended without a durable successful result",
+        }
+        if reported_result is not None:
+            recovery["reported_result"] = reported_result.model_dump(mode="json")
         pending_step = step.model_copy(
             update={
                 "status": StepStatus.PENDING,
                 "input": {**step.input, "tool_call": pending_call.model_dump(mode="json")},
                 "output": {
                     **step.output,
-                    "recovery": {
-                        "code": "action_outcome_unknown",
-                        "message": "Tool execution ended without a persisted result",
-                    },
+                    "recovery": recovery,
                 },
             }
         )
