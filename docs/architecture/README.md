@@ -4,6 +4,8 @@ Architecture sources, decisions, and exported diagrams belong here.
 
 - `repository-architecture.md` records the initial scaffold plan, repository
   architecture, AI-assisted engineering process, decisions, and validation.
+- `shared-platform-design.md` defines the proposed shared-service, agentic-harness,
+  contract, testing, caching, portability, and Azure architecture for Releases 0-2.
 - `reviews/` retains external/adversarial review inputs. Findings are not
   authoritative until verified and dispositioned in the architecture record.
 - Future artefacts should cover individual microservices, the integrated
