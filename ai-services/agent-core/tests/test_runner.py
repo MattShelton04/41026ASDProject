@@ -574,13 +574,35 @@ def test_unexpected_write_executor_exception_pauses_uncertain_effect_for_review(
     result = runner.run_until_blocked(store.run.id)
 
     assert result.status is RunStatus.REVIEW_REQUIRED
-    assert result.tool_call_count == 0
+    assert result.tool_call_count == 1
     pending_step = store.steps[-1]
     pending_call = ToolCall.model_validate(pending_step.input["tool_call"])
     assert pending_step.status is StepStatus.PENDING
     assert pending_call.approval_status.value == "pending"
     assert pending_call.idempotency_key is not None
     assert pending_step.output["recovery"] is not None
+    assert len(executor.calls) == 1
+
+
+def test_retryable_write_failure_pauses_unknown_outcome_for_review() -> None:
+    runner, store, executor = _runner(
+        [_model_result(_plan())],
+        tool=_tool(side_effect=SideEffectClass.REVERSIBLE_WRITE),
+        tool_outcome=ToolOutcome.TIMED_OUT,
+    )
+    executor.retryable = True
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.REVIEW_REQUIRED
+    assert result.tool_call_count == 1
+    pending_step = store.steps[-1]
+    pending_call = ToolCall.model_validate(pending_step.input["tool_call"])
+    recovery = pending_step.output["recovery"]
+    assert pending_step.status is StepStatus.PENDING
+    assert pending_call.approval_status is ApprovalStatus.PENDING
+    assert isinstance(recovery, dict)
+    assert recovery["reported_result"]["outcome"] == "timed_out"
     assert len(executor.calls) == 1
 
 
@@ -618,6 +640,45 @@ def test_interrupted_adaptation_attempt_is_closed_and_retried_from_safe_boundary
     assert store.run.status is RunStatus.ADAPTING
     assert store.steps[-1].phase is StepPhase.ADAPT
     assert store.steps[-1].status is StepStatus.FAILED
+
+
+def test_stable_adapting_boundary_is_reenqueued_without_recovery_mutation() -> None:
+    runner, store, _ = _runner([_model_result(_plan())])
+    runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    adapting = runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    assert adapting.status is RunStatus.ADAPTING
+    version = adapting.version
+
+    detail = store.get(store.run.id)
+    assert detail is not None
+    assert not any(
+        step.phase is StepPhase.ADAPT and step.status is StepStatus.RUNNING for step in detail.steps
+    )
+    decision = runner.recover_interrupted(detail)
+
+    assert decision.disposition is RecoveryDisposition.REENQUEUE
+    assert decision.changed is False
+    assert store.run.version == version
+
+
+def test_stable_replanning_boundary_is_reenqueued_without_recovery_mutation() -> None:
+    runner, store, _ = _runner([_model_result(_plan()), _model_result(_adaptation("replan"))])
+    for _ in range(4):
+        runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    assert store.run.status is RunStatus.PLANNING
+    version = store.run.version
+
+    detail = store.get(store.run.id)
+    assert detail is not None
+    assert not any(
+        step.phase is StepPhase.PLAN and step.status is StepStatus.RUNNING for step in detail.steps
+    )
+    decision = runner.recover_interrupted(detail)
+
+    assert decision.disposition is RecoveryDisposition.REENQUEUE
+    assert decision.changed is False
+    assert store.run.version == version
 
 
 def test_observing_boundary_needs_no_repair_before_reenqueue() -> None:

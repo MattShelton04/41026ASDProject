@@ -19,6 +19,7 @@ from shared_contracts import (
     StepPhase,
     StepStatus,
     ToolCall,
+    ToolError,
 )
 from shared_testkit import assert_problem_detail
 
@@ -77,6 +78,23 @@ def test_create_persists_before_enqueue_and_propagates_request_id(
     assert detail is not None
     assert detail.run.request_id == "request-123"
     assert app_services.queue.run_ids == [detail.run.id]  # type: ignore[attr-defined]
+
+
+def test_unsafe_request_id_is_replaced_before_persistence_and_propagation(
+    app: Flask, app_services: AppServices
+) -> None:
+    response = app.test_client().post(
+        "/api/v1/agent-runs",
+        json={"feature_key": "student-1-feature", "objective": "Find records"},
+        headers={REQUEST_ID_HEADER: "unsafe request id"},
+    )
+
+    generated = response.headers[REQUEST_ID_HEADER]
+    run = app_services.store.get(UUID(response.get_json()["id"]))
+    assert response.status_code == 202
+    assert generated != "unsafe request id"
+    assert UUID(generated)
+    assert run is not None and run.run.request_id == generated
 
 
 def test_create_is_idempotent_for_exact_retries_and_conflicts_on_changed_input(
@@ -191,6 +209,57 @@ def test_events_use_an_exclusive_resumable_cursor(app: Flask) -> None:
     assert resumed.get_json()["next_cursor"] == cursor
 
 
+def test_terminal_event_page_is_true_only_after_all_events_are_consumed(
+    app: Flask, app_services: AppServices
+) -> None:
+    created = app.test_client().post(
+        "/api/v1/agent-runs",
+        json={"feature_key": "student-1-feature", "objective": "Find records"},
+    )
+    run_id = UUID(created.get_json()["id"])
+    detail = app_services.store.get(run_id)
+    assert detail is not None
+    planning = transition_run(detail.run, RunStatus.PLANNING, now=app_services.clock.now())
+    app_services.store.save(planning, expected_version=detail.run.version)
+    failed = transition_run(
+        planning,
+        RunStatus.FAILED,
+        now=app_services.clock.now(),
+        error=ToolError(code="test_failure", message="Expected test failure"),
+    )
+    app_services.store.save(failed, expected_version=planning.version)
+
+    first = app.test_client().get(f"/api/v1/agent-runs/{run_id}/events?limit=1")
+    first_page = first.get_json()
+    second = app.test_client().get(
+        f"/api/v1/agent-runs/{run_id}/events?limit=1&after={first_page['next_cursor']}"
+    )
+    second_page = second.get_json()
+    final = app.test_client().get(
+        f"/api/v1/agent-runs/{run_id}/events?limit=1&after={second_page['next_cursor']}"
+    )
+
+    assert first_page["terminal"] is False
+    assert second_page["terminal"] is False
+    assert final.get_json()["terminal"] is True
+    assert len(first_page["items"]) == len(second_page["items"]) == 1
+    assert len(final.get_json()["items"]) == 1
+
+
+def test_event_cursor_rejects_values_outside_sqlite_integer_range(app: Flask) -> None:
+    created = app.test_client().post(
+        "/api/v1/agent-runs",
+        json={"feature_key": "student-1-feature", "objective": "Find records"},
+    )
+    run_id = created.get_json()["id"]
+
+    response = app.test_client().get(
+        f"/api/v1/agent-runs/{run_id}/events?after=9223372036854775808"
+    )
+
+    assert_problem_detail(response.get_json(), status=400, code="event_cursor_invalid")
+
+
 def test_request_body_limit_is_enforced_before_json_parsing(app: Flask) -> None:
     response = app.test_client().post(
         "/api/v1/agent-runs",
@@ -276,3 +345,12 @@ def test_review_approval_is_persisted_and_requeues_exactly_one_action(
     assert payload["run"]["status"] == "ready"
     assert payload["reviews"][0]["decision"] == "approve"
     assert app_services.queue.run_ids == [run_id, run_id]  # type: ignore[attr-defined]
+
+
+def test_review_requires_json_media_type(app: Flask) -> None:
+    response = app.test_client().post(
+        f"/api/v1/agent-runs/{uuid4()}/reviews",
+        data='{"decision":"approve","reviewer":"reviewer@example.test"}',
+    )
+
+    assert_problem_detail(response.get_json(), status=415, code="unsupported_media_type")

@@ -33,6 +33,7 @@ from shared_contracts import (
 
 api = Blueprint("agent_api", __name__, url_prefix="/api/v1")
 LOGGER = logging.getLogger(__name__)
+MAX_EVENT_CURSOR = 9_223_372_036_854_775_807
 
 
 def _services() -> AppServices:
@@ -138,17 +139,19 @@ def get_agent_run_events(run_id: UUID) -> tuple[Response, int]:
         limit = int(raw_limit)
     except ValueError:
         return _problem(400, "event_cursor_invalid", "Event cursor and limit must be integers")
-    if cursor < 0 or not 1 <= limit <= 200:
+    if not 0 <= cursor <= MAX_EVENT_CURSOR or not 1 <= limit <= 200:
         return _problem(
             400,
             "event_cursor_invalid",
-            "Event cursor must be non-negative and limit must be between 1 and 200",
+            "Event cursor is out of range or limit is not between 1 and 200",
         )
-    events = _services().store.list_events(run_id, after_id=cursor, limit=limit)
+    available = _services().store.list_events(run_id, after_id=cursor, limit=limit + 1)
+    events = available[:limit]
+    has_more = len(available) > limit
     page = AgentRunEventPage(
         items=events,
         next_cursor=events[-1].id if events else cursor,
-        terminal=detail.run.status in TERMINAL_STATUSES,
+        terminal=detail.run.status in TERMINAL_STATUSES and not has_more,
     )
     response = jsonify(page.model_dump(mode="json"))
     response.headers[AGENT_RUN_ID_HEADER] = str(run_id)
@@ -170,7 +173,9 @@ def cancel_agent_run(run_id: UUID) -> tuple[Response, int]:
 @api.post("/agent-runs/<uuid:run_id>/reviews")
 def review_agent_run(run_id: UUID) -> tuple[Response, int]:
     """Approve or reject exactly one pending protected action."""
-    payload = request.get_json(silent=True) if request.is_json else None
+    if not request.is_json:
+        return _problem(415, "unsupported_media_type", "Content-Type must be application/json")
+    payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return _problem(400, "invalid_json", "Request body must be a JSON object")
     try:

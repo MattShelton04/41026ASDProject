@@ -18,7 +18,8 @@ is the shared agent orchestrator. The separate `ollama` container owns model inf
 | `POST /api/v1/agent-runs/{id}/cancel` | Idempotently record cancellation intent |
 | `POST /api/v1/agent-runs/{id}/reviews` | Approve/reject exactly one pending action |
 
-All responses propagate `X-Request-ID`; agent responses also include
+All responses propagate a safe caller-supplied `X-Request-ID`, or a generated UUID when
+the supplied value is absent or invalid; agent responses also include
 `X-Agent-Run-ID`. Valid W3C `traceparent` values are persisted and forwarded to feature
 tools. `POST /agent-runs` supports `Idempotency-Key`, returning the original run for an
 exact retry and `409` for key reuse with changed input. Errors use the shared Problem

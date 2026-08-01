@@ -19,7 +19,11 @@ repos:
           shared/testkit/python/shared_testkit
           ai-services/agent-core/src/agent_core
           ai-services/ai-mode/src/ai_mode
+          examples/integration-test-feature/src/integration_test_feature
           scripts/check.py
+          scripts/generate_contracts.py
+          scripts/validate_model_registry.py
+          scripts/validate_tool_catalogs.py
         language: system
         pass_filenames: false
         types_or: [python, pyi]

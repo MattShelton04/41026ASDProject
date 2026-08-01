@@ -73,7 +73,21 @@ def _retry_model_phase(
     *,
     now: datetime,
 ) -> RecoveryDecision:
-    step = _single_running_step(detail, phase)
+    running_steps = _running_steps(detail, phase)
+    if not running_steps:
+        # PLANNING and ADAPTING are also stable boundaries: an adaptation can commit
+        # PLANNING before the next PLAN attempt starts, and observation commits
+        # ADAPTING before the ADAPT attempt starts. A process can stop between those
+        # transactions, in which case there is no interrupted effect to close.
+        return RecoveryDecision(
+            run=detail.run,
+            disposition=RecoveryDisposition.REENQUEUE,
+        )
+    if len(running_steps) != 1:
+        raise AgentCoreError(
+            f"{detail.run.status.value} run must have at most one running {phase.value} step"
+        )
+    step = running_steps[0]
     interrupted = ToolError(
         code="execution_interrupted",
         message="The process stopped before this model phase completed; the phase will be retried",
@@ -167,11 +181,15 @@ def _recover_action(
 
 
 def _single_running_step(detail: AgentRunDetail, phase: StepPhase) -> AgentStep:
-    candidates = [
-        step for step in detail.steps if step.phase is phase and step.status is StepStatus.RUNNING
-    ]
+    candidates = _running_steps(detail, phase)
     if len(candidates) != 1:
         raise AgentCoreError(
             f"{detail.run.status.value} run must have exactly one running {phase.value} step"
         )
     return candidates[0]
+
+
+def _running_steps(detail: AgentRunDetail, phase: StepPhase) -> list[AgentStep]:
+    return [
+        step for step in detail.steps if step.phase is phase and step.status is StepStatus.RUNNING
+    ]

@@ -1,5 +1,6 @@
 """Component tests for the owned SQLite workflow store."""
 
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -191,7 +192,6 @@ def test_schema_one_database_is_forward_migrated_with_existing_run(tmp_path: Pat
     path = tmp_path / "old.sqlite3"
     run = _run()
     import json
-    import sqlite3
 
     with sqlite3.connect(path) as connection:
         connection.executescript(MIGRATION_1)
@@ -216,3 +216,40 @@ def test_schema_one_database_is_forward_migrated_with_existing_run(tmp_path: Pat
     assert store.get(run.id) is not None
     assert store.health().detail == "schema version 2"
     assert store.list_events(run.id) == ()
+
+
+def test_health_rejects_incomplete_schema_even_when_version_matches(tmp_path: Path) -> None:
+    path = tmp_path / "incomplete.sqlite3"
+    store = SQLiteRunStore(path)
+    store.initialize()
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP TABLE run_events")
+
+    health = store.health()
+
+    assert health.ready is False
+    assert health.detail == "schema is missing tables: run_events"
+
+
+def test_sqlite_failures_are_translated_to_the_persistence_boundary(tmp_path: Path) -> None:
+    path = tmp_path / "broken.sqlite3"
+    store = SQLiteRunStore(path)
+    store.initialize()
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP TABLE run_events")
+
+    with pytest.raises(PersistenceError, match="SQLite operation failed: OperationalError"):
+        store.list_events(uuid4())
+
+
+def test_connection_failures_are_translated_to_the_persistence_boundary(tmp_path: Path) -> None:
+    invalid_database_path = tmp_path / "database-directory"
+    invalid_database_path.mkdir()
+    store = SQLiteRunStore(invalid_database_path)
+
+    with pytest.raises(PersistenceError, match="SQLite connection failed: OperationalError"):
+        store.initialize()
+
+    health = store.health()
+    assert health.ready is False
+    assert health.detail == "SQLite unavailable: OperationalError"

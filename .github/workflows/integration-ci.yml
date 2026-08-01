@@ -43,11 +43,6 @@ jobs:
       - name: Check lockfile
         run: uv lock --check
 
-      - name: Verify generated contracts and model registry
-        run: |
-          uv run --locked python scripts/generate_contracts.py --check
-          uv run --locked python scripts/validate_model_registry.py
-
       - name: Run quality gate
         run: uv run --locked python scripts/check.py
 

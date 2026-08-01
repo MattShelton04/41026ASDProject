@@ -21,6 +21,15 @@ from shared_contracts import (
 )
 
 SCHEMA_VERSION = 2
+REQUIRED_TABLES = frozenset(
+    {
+        "agent_runs",
+        "agent_steps",
+        "human_reviews",
+        "create_run_requests",
+        "run_events",
+    }
+)
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS agent_runs (
@@ -87,6 +96,7 @@ class SQLiteRunStore(RunStore):
         """Create the store and apply forward-only migrations explicitly."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with self._connection() as connection:
+            connection.execute("PRAGMA journal_mode = WAL")
             current = int(connection.execute("PRAGMA user_version").fetchone()[0])
             if current > SCHEMA_VERSION:
                 raise PersistenceError(
@@ -102,8 +112,8 @@ class SQLiteRunStore(RunStore):
 
     def create(self, run: AgentRun) -> None:
         """Persist a new run exactly once."""
-        try:
-            with self._transaction() as connection:
+        with self._transaction() as connection:
+            try:
                 connection.execute(
                     """
                     INSERT INTO agent_runs (id, version, status, updated_at, payload_json)
@@ -111,9 +121,9 @@ class SQLiteRunStore(RunStore):
                     """,
                     self._run_values(run),
                 )
-                self._append_event(connection, run, event_type="run.created")
-        except sqlite3.IntegrityError as exc:
-            raise PersistenceError(f"agent run already exists: {run.id}") from exc
+            except sqlite3.IntegrityError as exc:
+                raise PersistenceError(f"agent run already exists: {run.id}") from exc
+            self._append_event(connection, run, event_type="run.created")
 
     def create_or_get(
         self,
@@ -341,14 +351,24 @@ class SQLiteRunStore(RunStore):
             with self._connection() as connection:
                 version = int(connection.execute("PRAGMA user_version").fetchone()[0])
                 connection.execute("SELECT 1").fetchone()
+                table_rows = connection.execute(
+                    "SELECT name FROM sqlite_schema WHERE type = 'table'"
+                ).fetchall()
             if version != SCHEMA_VERSION:
                 return StoreHealth(
                     ready=False,
                     detail=f"schema version {version}; expected {SCHEMA_VERSION}",
                 )
+            missing = REQUIRED_TABLES.difference(row["name"] for row in table_rows)
+            if missing:
+                return StoreHealth(
+                    ready=False,
+                    detail=f"schema is missing tables: {', '.join(sorted(missing))}",
+                )
             return StoreHealth(ready=True, detail=f"schema version {version}")
-        except sqlite3.Error as exc:
-            return StoreHealth(ready=False, detail=f"SQLite unavailable: {type(exc).__name__}")
+        except (PersistenceError, sqlite3.Error) as exc:
+            cause = exc.__cause__ or exc
+            return StoreHealth(ready=False, detail=f"SQLite unavailable: {type(cause).__name__}")
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
@@ -359,14 +379,21 @@ class SQLiteRunStore(RunStore):
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute(f"PRAGMA busy_timeout = {self._busy_timeout_ms}")
-        connection.execute("PRAGMA journal_mode = WAL")
         return connection
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
-        connection = self._connect()
         try:
-            yield connection
+            connection = self._connect()
+        except sqlite3.Error as exc:
+            raise PersistenceError(f"SQLite connection failed: {type(exc).__name__}") from exc
+        try:
+            try:
+                yield connection
+            except PersistenceError:
+                raise
+            except sqlite3.Error as exc:
+                raise PersistenceError(f"SQLite operation failed: {type(exc).__name__}") from exc
         finally:
             connection.close()
 

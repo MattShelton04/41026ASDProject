@@ -25,6 +25,7 @@ from shared_contracts import (
 
 PACKAGE_NAME = "ai-mode"
 TRACEPARENT_PATTERN = re.compile(r"^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$")
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
 LOGGER = logging.getLogger(__name__)
 
 
@@ -55,7 +56,7 @@ def create_app(
     @app.before_request
     def establish_request_id() -> None:
         supplied = request.headers.get(REQUEST_ID_HEADER, "").strip()
-        g.request_id = supplied[:200] if supplied else str(uuid4())
+        g.request_id = supplied if REQUEST_ID_PATTERN.fullmatch(supplied) else str(uuid4())
         traceparent = request.headers.get(TRACEPARENT_HEADER, "").strip().lower()
         g.traceparent = traceparent or None
 
