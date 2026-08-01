@@ -6,8 +6,12 @@ The project topic and individual features are still to be decided. The repositor
 contains a reproducible Python workspace, strict shared contracts/test utilities, a
 framework-independent bounded agent state machine, and an AI-mode foundation with
 SQLite workflow persistence, versioned prompts, native Ollama integration, health and
-agent-run APIs, a serial background worker, and human-review gating. Feature business
-logic and feature-owned tool endpoints have not begun.
+agent-run APIs, a serial background worker, feature-scoped HTTP tools, resumable safe
+events, request idempotency, and human-review gating. The non-product
+`examples/integration-test-feature` proves the shared boundaries over real HTTP and
+SQLite and provides a browser integration console at `http://localhost:5190` when its
+Compose profile is enabled. Approved student feature business logic and feature-owned production endpoints
+have not begun.
 
 ## Team
 
@@ -83,7 +87,9 @@ hooks, dependency changes, ownership boundaries, and the complete developer/agen
 For the assignment-aligned container runtime, start Docker Desktop and run:
 
 ```text
-docker compose --profile release-0 --profile ollama-container up --detach --build --wait --wait-timeout 600
+docker compose --profile ollama-container up --detach --wait --wait-timeout 120 ollama
+docker compose --profile ollama-container run --rm ollama-init
+docker compose --profile release-0 up --detach --build --wait --wait-timeout 120 ai-mode
 uv run ai-mode-ollama-smoke
 ```
 
@@ -92,6 +98,18 @@ model; the installed diagnostic then performs a real structured-output provider 
 Native Ollama, routing choices, resource settings, lifecycle commands, and
 troubleshooting are documented in
 [`docs/release-0/ollama-operations.md`](docs/release-0/ollama-operations.md).
+
+To preview the non-product integration feature as a working vertical slice, add the
+integration overlay and profile:
+
+```text
+docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile ollama-container up --detach --wait --wait-timeout 120 ollama
+docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile ollama-container run --rm ollama-init
+docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test up --detach --build --wait --wait-timeout 120 ai-mode integration-test-feature-database integration-test-feature-backend integration-test-feature-frontend
+```
+
+Then open <http://localhost:5190>. Detailed behavior and teardown commands are in
+[`examples/integration-test-feature/README.md`](examples/integration-test-feature/README.md).
 
 ## Next decisions
 

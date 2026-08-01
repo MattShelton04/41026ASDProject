@@ -20,6 +20,7 @@ COPY ai-services/agent-core/pyproject.toml ai-services/agent-core/pyproject.toml
 COPY ai-services/ai-mode/pyproject.toml ai-services/ai-mode/pyproject.toml
 COPY shared/contracts/pyproject.toml shared/contracts/pyproject.toml
 COPY shared/testkit/pyproject.toml shared/testkit/pyproject.toml
+COPY examples/integration-test-feature/pyproject.toml examples/integration-test-feature/pyproject.toml
 COPY student-1/pyproject.toml student-1/pyproject.toml
 COPY student-2/pyproject.toml student-2/pyproject.toml
 COPY student-3/pyproject.toml student-3/pyproject.toml

@@ -100,11 +100,25 @@ class RegistryPromptBuilder(PromptBuilder):
         "default.v1": {
             ModelRole.PLANNER: ("planner", "v1"),
             ModelRole.ADAPTER: ("adapter", "v1"),
-        }
+        },
+        "default.v2": {
+            ModelRole.PLANNER: ("planner", "v2"),
+            ModelRole.ADAPTER: ("adapter", "v2"),
+        },
+        "default.v3": {
+            ModelRole.PLANNER: ("planner", "v3"),
+            ModelRole.ADAPTER: ("adapter", "v3"),
+        },
     }
 
     def __init__(self, registry: PromptRegistry) -> None:
         self._registry = registry
+
+    def validate_declared(self) -> None:
+        """Fail startup if any supported immutable prompt asset is unavailable."""
+        assets = {asset for roles in self._PROMPT_SETS.values() for asset in roles.values()}
+        for prompt_id, version in sorted(assets):
+            self._registry.load(prompt_id, version)
 
     def build_plan_request(
         self, run: AgentRun, definitions: tuple[ToolDefinition, ...]
@@ -124,11 +138,21 @@ class RegistryPromptBuilder(PromptBuilder):
         plan: Plan,
         tool_result: ToolResult,
         observation: Observation,
+        tool_results: tuple[ToolResult, ...],
     ) -> StructuredModelRequest:
         prompt = self._load_for(run, ModelRole.ADAPTER)
+        completed_actions = [
+            {
+                "action": action.model_dump(mode="json"),
+                "tool_result": result.model_dump(mode="json"),
+            }
+            for action, result in zip(plan.actions, tool_results, strict=False)
+        ]
         dynamic = {
             "plan": plan.model_dump(mode="json"),
             "tool_result": tool_result.model_dump(mode="json"),
+            "completed_actions": completed_actions,
+            "has_remaining_action": len(tool_results) < len(plan.actions),
             "observation": observation.model_dump(mode="json"),
             "iteration_count": run.iteration_count,
         }

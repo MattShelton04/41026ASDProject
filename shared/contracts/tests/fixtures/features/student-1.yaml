@@ -1,0 +1,8 @@
+schema_version: 1
+feature_key: student-1-placeholder
+display_name: Student 1 feature pending approval
+owner: student-1
+frontend_base_path: /features/student-1
+backend_base_path: /api/features/student-1/v1
+health_path: /health/ready
+ai_capabilities: []

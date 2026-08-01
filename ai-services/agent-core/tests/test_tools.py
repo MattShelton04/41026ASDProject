@@ -23,6 +23,7 @@ def _definition(
     return ToolDefinition(
         name=name,
         version="v1",
+        feature_key="student-1-feature",
         description="Search feature-owned records",
         input_schema={
             "type": "object",
@@ -54,7 +55,7 @@ def test_registry_rejects_duplicates_and_invalid_schemas() -> None:
 def test_registry_rejects_unknown_tools_and_invalid_values() -> None:
     registry = ToolRegistry([_definition()])
     with pytest.raises(UnknownToolError, match="not allowlisted"):
-        registry.resolve("student_2.unknown.v1")
+        registry.resolve("student-1-feature", "student_2.unknown.v1")
 
     with pytest.raises(ToolSchemaValidationError, match="input failed at query"):
         registry.validate_input(registry.definitions[0], {"query": "", "extra": True})
@@ -106,3 +107,32 @@ def test_external_effects_are_disabled_by_default() -> None:
     )
 
     assert decision is ToolPolicyDecision.DENY
+
+
+def test_registry_scopes_feature_tools_and_requires_explicit_shared_approval() -> None:
+    student_one = _definition()
+    student_two = _definition(name="student_2.records.search.v1").model_copy(
+        update={"feature_key": "student-2-feature"}
+    )
+    shared = _definition(name="shared.lookup.v1").model_copy(update={"feature_key": "shared"})
+    registry = ToolRegistry(
+        [student_one, student_two, shared],
+        shared_tools=[shared.name],
+    )
+
+    visible = registry.definitions_for("student-1-feature")
+
+    assert [definition.name for definition in visible] == [student_one.name, shared.name]
+    with pytest.raises(UnknownToolError, match="not allowlisted for feature"):
+        registry.resolve("student-1-feature", student_two.name)
+    with pytest.raises(UnknownToolError, match="version"):
+        registry.resolve("student-1-feature", student_one.name, version="v2")
+    with pytest.raises(ToolRegistrationError, match="explicit approval"):
+        ToolRegistry([shared])
+
+
+def test_registry_rejects_a_name_that_does_not_encode_its_version() -> None:
+    definition = _definition(name="student_1.records.search").model_copy(update={"version": "v1"})
+
+    with pytest.raises(ToolRegistrationError, match="immutable version"):
+        ToolRegistry([definition])

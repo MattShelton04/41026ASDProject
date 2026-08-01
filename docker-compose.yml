@@ -11,12 +11,15 @@ services:
     restart: unless-stopped
     environment:
       AI_MODE_DATABASE_PATH: /var/lib/ai-mode/agent-state.sqlite3
+      AI_MODE_MAX_REQUEST_BYTES: ${AI_MODE_MAX_REQUEST_BYTES:-65536}
       AI_MODE_MAX_MODEL_RESPONSE_BYTES: ${AI_MODE_MAX_MODEL_RESPONSE_BYTES:-1048576}
+      AI_MODE_MAX_TOOL_REQUEST_BYTES: ${AI_MODE_MAX_TOOL_REQUEST_BYTES:-262144}
+      AI_MODE_MAX_TOOL_RESPONSE_BYTES: ${AI_MODE_MAX_TOOL_RESPONSE_BYTES:-1048576}
       AI_MODE_REQUIRE_OLLAMA_READY: "true"
+      AI_MODE_DEFAULT_MODEL_PROFILE: ${AI_MODE_DEFAULT_MODEL_PROFILE:-local-standard.v1}
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
       OLLAMA_HEALTH_TIMEOUT_SECONDS: ${OLLAMA_HEALTH_TIMEOUT_SECONDS:-2}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:0.5b}
       OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-120}
     extra_hosts:
       - host.docker.internal:host-gateway
@@ -60,7 +63,7 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
-    command: [pull, "${OLLAMA_MODEL:-qwen2.5:0.5b}"]
+    command: [pull, "${OLLAMA_MODEL:-qwen2.5:3b}"]
     environment:
       OLLAMA_HOST: http://ollama:11434
     volumes:

@@ -66,6 +66,7 @@ def test_structured_chat_payload_and_metrics_use_native_api() -> None:
     assert captured["stream"] is False
     assert captured["format"] == _request().output_schema
     assert captured["keep_alive"] == "5m"
+    assert captured["options"]["num_ctx"] == 8192
     assert result.content == {"ok": True}
     assert result.metrics.total_duration_ms == 12
     assert result.metrics.prompt_tokens == 20
@@ -74,11 +75,11 @@ def test_structured_chat_payload_and_metrics_use_native_api() -> None:
 def test_complex_schema_grammar_rejection_falls_back_to_validated_json_mode(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    formats: list[object] = []
+    payloads: list[dict[str, object]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         payload = json.loads(request.content)
-        formats.append(payload["format"])
+        payloads.append(payload)
         if isinstance(payload["format"], dict):
             return httpx.Response(
                 400,
@@ -93,9 +94,11 @@ def test_complex_schema_grammar_rejection_falls_back_to_validated_json_mode(
     result = provider.generate_structured(_request())
     repeated = provider.generate_structured(_request())
 
-    assert isinstance(formats[0], dict)
-    assert formats[1] == "json"
-    assert formats[2] == "json"
+    assert isinstance(payloads[0]["format"], dict)
+    assert payloads[1]["format"] == "json"
+    assert "trusted application JSON Schema" in payloads[1]["messages"][1]["content"]
+    assert payloads[2]["format"] == "json"
+    assert "trusted application JSON Schema" in payloads[2]["messages"][1]["content"]
     assert result.content == {"ok": True}
     assert repeated.content == {"ok": True}
     assert "application-side validation" in caplog.text
@@ -130,6 +133,38 @@ def test_unknown_profile_fails_without_network_io() -> None:
         provider.generate_structured(_request("unknown.v1"))
 
     assert raised.value.code == "model_profile_not_found"
+    assert raised.value.retryable is False
+    assert calls == 0
+
+
+def test_profile_output_limit_fails_without_network_io() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500)
+
+    provider = OllamaProvider(
+        base_url="http://ignored.test",
+        profiles={
+            "local-small.v1": OllamaModelProfile(
+                model="qwen2.5:0.5b",
+                maximum_output_tokens=64,
+            )
+        },
+        timeout_seconds=5,
+        max_response_bytes=100_000,
+        client=httpx.Client(
+            base_url="http://ollama.test",
+            transport=httpx.MockTransport(handler),
+        ),
+    )
+
+    with pytest.raises(ModelProviderError) as raised:
+        provider.generate_structured(_request())
+
+    assert raised.value.code == "model_output_limit_exceeded"
     assert raised.value.retryable is False
     assert calls == 0
 
@@ -253,6 +288,30 @@ def test_health_includes_configured_model_availability(
     )
 
     assert provider.health().reachable is reachable
+
+
+def test_health_only_requires_selected_readiness_profiles() -> None:
+    provider = OllamaProvider(
+        base_url="http://ignored.test",
+        profiles={
+            "local-small.v1": OllamaModelProfile(model="qwen2.5:0.5b"),
+            "local-balanced.v1": OllamaModelProfile(model="llama3.1:8b"),
+        },
+        readiness_profiles=frozenset({"local-small.v1"}),
+        timeout_seconds=5,
+        max_response_bytes=100_000,
+        client=httpx.Client(
+            base_url="http://ollama.test",
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={"models": [{"name": "qwen2.5:0.5b"}]},
+                )
+            ),
+        ),
+    )
+
+    assert provider.health().reachable is True
 
 
 def test_health_uses_its_short_independent_timeout() -> None:

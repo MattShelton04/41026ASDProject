@@ -102,15 +102,30 @@ sequenceDiagram
 
     W->>S: adapting + succeeded OBSERVE step (atomic)
     W->>S: adapting + running ADAPT step (atomic)
-    W->>M: schema-constrained adaptation request
-    M-->>W: structured decision
+    alt validated success and another planned action remains
+        W->>W: deterministic continue policy
+    else code cannot decide or the plan is exhausted
+        W->>M: schema-constrained adaptation request with active-plan evidence
+        M-->>W: structured decision
+    end
     W->>S: next run state + succeeded ADAPT step (atomic)
 ```
 
 The runner executes one plan action per iteration. An adaptation can continue to the
 next action, request a new plan, request review, complete, or fail. Iteration count,
 tool-call count, wall-time budget, and the single optional model repair are enforced by
-code rather than prompts.
+code rather than prompts. A validated successful result deterministically continues
+when the active plan still has another action; this decision is persisted as an ADAPT
+step with `decision_source=orchestration_policy` and does not spend a model call. When
+model judgement is required, the adapter receives every ordered action/result pair from
+the active plan, plus the current observation, rather than relying on hidden chat memory.
+
+Replanning must demonstrate progress. If all tool results after the previous plan were
+successful and the planner proposes the same ordered tool names and arguments again,
+the run fails with `run_stalled` before repeating any call. Retryable tool failures may
+still produce an identical retry plan. This deterministic guard complements the hard
+iteration/tool/time limits and prevents contradictory model text from consuming the
+entire budget in a no-progress loop.
 
 Elapsed time is checked before every model or tool phase, including adaptation. Model
 requests carry the run's absolute deadline, and tool executors receive the lesser of
@@ -173,11 +188,14 @@ requesting private reasoning. If repair fails, the phase and run fail determinis
 
 ## Current boundaries and later releases
 
-The state machine, SQLite recovery, native Ollama adapter, and HTTP run/review surface
+The state machine, SQLite recovery, native Ollama adapter, HTTP run/review surface,
+feature-scoped HTTP tool adapter, create-run idempotency, and resumable safe-event pages
 are implemented. The default tool registry remains empty until feature owners define
-their HTTP contracts. Authentication for the reviewer identity, resumable event
-streaming, an operation-status endpoint, and a run-detail UI are still required before
-their corresponding capabilities can be claimed complete.
+their HTTP contracts. The integration-test feature proves feature-side mutation
+idempotency and operation status; approved product endpoints, production reviewer
+authentication, and the integrated edge UI are still required before the full Release
+0 capability can be claimed complete. An opt-in authenticated development evidence
+view is available for local inspection.
 
 `AdaptationDecision.REQUEST_REVIEW` is reserved as a later-release contract seam. In
 Release 0 it fails closed with `unsupported_review_target`: the current review endpoint

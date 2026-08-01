@@ -12,9 +12,12 @@ from pydantic import BaseModel
 from shared_contracts import (
     AgentRun,
     AgentRunDetail,
+    AgentRunEventPage,
     AgentRunRequest,
+    FeatureManifest,
     HealthResponse,
     HumanReviewRequest,
+    ModelRegistry,
     ProblemDetail,
     ToolDefinition,
 )
@@ -27,10 +30,13 @@ SCHEMA_MODELS: dict[str, type[BaseModel]] = {
     "agent-run-request.schema.json": AgentRunRequest,
     "agent-run.schema.json": AgentRun,
     "agent-run-detail.schema.json": AgentRunDetail,
+    "agent-run-event-page.schema.json": AgentRunEventPage,
     "health-response.schema.json": HealthResponse,
     "human-review-request.schema.json": HumanReviewRequest,
     "problem-detail.schema.json": ProblemDetail,
     "tool-definition.schema.json": ToolDefinition,
+    "feature-manifest.schema.json": FeatureManifest,
+    "model-registry.schema.json": ModelRegistry,
 }
 
 
@@ -105,7 +111,11 @@ def _openapi() -> dict[str, Any]:
             "/api/v1/agent-runs": {
                 "post": {
                     "operationId": "createAgentRun",
-                    "parameters": [{"$ref": "#/components/parameters/RequestId"}],
+                    "parameters": [
+                        {"$ref": "#/components/parameters/RequestId"},
+                        {"$ref": "#/components/parameters/Traceparent"},
+                        {"$ref": "#/components/parameters/IdempotencyKey"},
+                    ],
                     "requestBody": {
                         "required": True,
                         "content": {
@@ -128,8 +138,26 @@ def _openapi() -> dict[str, Any]:
                             },
                         },
                         "400": problem_response,
+                        "409": problem_response,
+                        "413": problem_response,
                         "415": problem_response,
                         "422": problem_response,
+                        "503": problem_response,
+                    },
+                }
+            },
+            "/api/v1/model-profiles": {
+                "get": {
+                    "operationId": "getModelProfiles",
+                    "responses": {
+                        "200": {
+                            "description": "Supported models and bounded runtime profiles",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/ModelRegistry"}
+                                }
+                            },
+                        },
                         "503": problem_response,
                     },
                 }
@@ -164,6 +192,49 @@ def _openapi() -> dict[str, Any]:
                                 }
                             },
                         },
+                        "404": problem_response,
+                    },
+                }
+            },
+            "/api/v1/agent-runs/{run_id}/events": {
+                "get": {
+                    "operationId": "getAgentRunEvents",
+                    "parameters": [
+                        run_parameter,
+                        {
+                            "name": "after",
+                            "in": "query",
+                            "required": False,
+                            "schema": {"type": "integer", "minimum": 0, "default": 0},
+                        },
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 200,
+                                "default": 100,
+                            },
+                        },
+                        {
+                            "name": "Last-Event-ID",
+                            "in": "header",
+                            "required": False,
+                            "schema": {"type": "integer", "minimum": 0},
+                        },
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Ordered safe progress events after the cursor",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/AgentRunEventPage"}
+                                }
+                            },
+                        },
+                        "400": problem_response,
                         "404": problem_response,
                     },
                 }
@@ -204,7 +275,22 @@ def _openapi() -> dict[str, Any]:
                     "in": "header",
                     "required": False,
                     "schema": {"type": "string", "maxLength": 200},
-                }
+                },
+                "Traceparent": {
+                    "name": "traceparent",
+                    "in": "header",
+                    "required": False,
+                    "schema": {
+                        "type": "string",
+                        "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+                    },
+                },
+                "IdempotencyKey": {
+                    "name": "Idempotency-Key",
+                    "in": "header",
+                    "required": False,
+                    "schema": {"type": "string", "minLength": 1, "maxLength": 200},
+                },
             },
             "schemas": schemas,
         },

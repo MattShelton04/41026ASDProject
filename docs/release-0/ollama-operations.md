@@ -27,7 +27,7 @@ docker compose version
 ```
 
 The first container start downloads the pinned Ollama runtime image and
-`qwen2.5:0.5b`. The model and AI-mode SQLite state use named volumes and survive a
+`qwen2.5:3b`. The model and AI-mode SQLite state use named volumes and survive a
 normal `down`/`up` cycle.
 
 ### Optional NVIDIA GPU acceleration
@@ -49,7 +49,9 @@ docker info
 Merge the hardware override when starting the integrated runtime:
 
 ```text
-docker compose --file docker-compose.yml --file docker-compose.gpu.yml --profile release-0 --profile ollama-container up --detach --build --wait --wait-timeout 600
+docker compose --file docker-compose.yml --file docker-compose.gpu.yml --profile ollama-container up --detach --wait --wait-timeout 120 ollama
+docker compose --file docker-compose.yml --file docker-compose.gpu.yml --profile ollama-container run --rm ollama-init
+docker compose --file docker-compose.yml --file docker-compose.gpu.yml --profile release-0 up --detach --build --wait --wait-timeout 120 ai-mode
 ```
 
 The override requests NVIDIA device `0` by default. On a multi-GPU host, set
@@ -75,12 +77,15 @@ work in PowerShell, Bash, CI, and agent-run terminals:
 
 ```text
 docker compose --profile release-0 --profile ollama-container config --quiet
-docker compose --profile release-0 --profile ollama-container up --detach --build --wait --wait-timeout 600
+docker compose --profile ollama-container up --detach --wait --wait-timeout 120 ollama
+docker compose --profile ollama-container run --rm ollama-init
+docker compose --profile release-0 up --detach --build --wait --wait-timeout 120 ai-mode
 ```
 
-This builds the non-root AI-mode image, starts pinned Ollama, pulls the configured model
-through a one-shot initializer, and waits until AI-mode reports both store and model
-readiness. Compose enables strict provider readiness with
+This starts pinned Ollama, runs the model initializer to successful completion, builds
+the non-root AI-mode image, and waits until AI-mode reports both store and model
+readiness. Keeping the completed one-shot job out of `up --wait` avoids treating its
+normal exit as an unhealthy long-running service. Compose enables strict readiness with
 `AI_MODE_REQUIRE_OLLAMA_READY=true`; host development defaults it to `false` so CRUD and
 run inspection remain available with a truthful degraded status when Ollama is offline.
 
@@ -111,6 +116,7 @@ Host inspection endpoints are bound to loopback during development:
 |---|---|
 | `http://localhost:5005/health/live` | AI-mode process liveness |
 | `http://localhost:5005/health/ready` | SQLite plus configured-model readiness |
+| `http://localhost:5005/api/v1/model-profiles` | Supported tags and runtime context/output budgets |
 | `http://localhost:11434/api/tags` | Ollama's installed model inventory |
 
 Future shared-edge integration should use the internal `ai-mode:5005` service address
@@ -141,9 +147,10 @@ release evidence. The AI-mode image has no source bind mount by design; after ch
 service code, rerun its `up --build` command to exercise the deployable artifact.
 
 The diagnostic is a real provider call, not a complete feature task. Full agent-loop
-tests use deterministic fake providers and tools. A live end-to-end feature task becomes
-valid only after an approved student feature exposes an allowlisted HTTP tool; until
-then the empty registry correctly rejects invented tool calls.
+tests use deterministic fake providers and tools. The non-product integration fixture
+provides an explicit live end-to-end demonstration; production claims still require an
+approved student feature and its allowlisted HTTP tools. With no tool catalogue selected,
+the empty tool registry correctly rejects invented calls.
 
 ## Native Ollama developer path
 
@@ -151,7 +158,7 @@ Install Ollama using its [official platform instructions](https://docs.ollama.co
 prepare the same model:
 
 ```text
-ollama pull qwen2.5:0.5b
+ollama pull qwen2.5:3b
 ollama serve
 ```
 
@@ -185,6 +192,23 @@ The committed Compose files own container routing, so users do not need shell-sp
 environment syntax. Supported tuning variables are listed in
 `shared/configuration/.env.example`; put local overrides in an uncommitted root `.env`
 file. Image and dependency versions stay reviewed and pinned in source.
+
+`AI_MODE_DEFAULT_MODEL_PROFILE` selects the registry profile required by readiness and
+used when a run omits `model_profile`. Compose's `OLLAMA_MODEL` controls only the
+one-shot pull container and must be the corresponding concrete tag. The bundled choices
+are `local-standard.v1` / `qwen2.5:3b`, constrained `local-small.v1` /
+`qwen2.5:1.5b`, smoke-only `local-smoke.v1` / `qwen2.5:0.5b`,
+`local-balanced.v1` / `llama3.1:8b`, and `local-reasoning.v1` /
+`deepseek-r1:8b`. Optional models can be prepared with, for
+example:
+
+```text
+docker compose --profile ollama-container exec ollama ollama pull llama3.1:8b
+uv run ai-mode-ollama-smoke --profile local-balanced.v1
+```
+
+Set both the profile and pull tag in the uncommitted `.env` before starting Compose if
+an optional profile should become the default.
 
 ## Autonomous inspection and troubleshooting
 

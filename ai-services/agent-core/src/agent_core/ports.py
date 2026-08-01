@@ -13,6 +13,7 @@ from agent_core.models import CoreModel
 from shared_contracts import (
     AgentRun,
     AgentRunDetail,
+    AgentRunEvent,
     AgentStep,
     HumanReview,
     Observation,
@@ -132,8 +133,9 @@ class PromptBuilder(Protocol):
         plan: Plan,
         tool_result: ToolResult,
         observation: Observation,
+        tool_results: tuple[ToolResult, ...],
     ) -> StructuredModelRequest:
-        """Build a schema-constrained adaptation request."""
+        """Build an adaptation request with ordered evidence from the active plan."""
         ...
 
 
@@ -144,12 +146,32 @@ class RunStore(Protocol):
         """Persist a new queued run."""
         ...
 
+    def create_or_get(
+        self,
+        run: AgentRun,
+        *,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> tuple[AgentRun, bool]:
+        """Create once or return the original run for an exact idempotent retry."""
+        ...
+
     def get(self, run_id: UUID) -> AgentRunDetail | None:
         """Load one run and its ordered safe steps."""
         ...
 
     def list_resumable(self) -> tuple[AgentRunDetail, ...]:
         """Load non-terminal runs that startup reconciliation may need to resume."""
+        ...
+
+    def list_events(
+        self,
+        run_id: UUID,
+        *,
+        after_id: int = 0,
+        limit: int = 100,
+    ) -> tuple[AgentRunEvent, ...]:
+        """Load safe append-only progress events after an exclusive cursor."""
         ...
 
     def save(

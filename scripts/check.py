@@ -13,6 +13,7 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
     (sys.executable, "-m", "ruff", "format", "--check", "."),
     (sys.executable, "-m", "ruff", "check", "."),
     (sys.executable, "scripts/generate_contracts.py", "--check"),
+    (sys.executable, "scripts/validate_model_registry.py"),
     (
         sys.executable,
         "-m",
@@ -21,8 +22,10 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
         "shared/testkit/python/shared_testkit",
         "ai-services/agent-core/src/agent_core",
         "ai-services/ai-mode/src/ai_mode",
+        "examples/integration-test-feature/src/integration_test_feature",
         "scripts/check.py",
         "scripts/generate_contracts.py",
+        "scripts/validate_model_registry.py",
     ),
     (
         sys.executable,
@@ -30,6 +33,7 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
         "pytest",
         "--cov=agent_core",
         "--cov=ai_mode",
+        "--cov=integration_test_feature",
         "--cov=shared_contracts",
         "--cov=shared_testkit",
         "--cov-report=term-missing",

@@ -51,7 +51,7 @@
       "$ref": "#/$defs/RunLimits"
     },
     "model_profile": {
-      "default": "local-small.v1",
+      "default": "local-standard.v1",
       "maxLength": 100,
       "minLength": 1,
       "pattern": "^[a-z0-9][a-z0-9_.-]*$",
@@ -65,8 +65,12 @@
       "type": "string"
     },
     "prompt_set": {
-      "const": "default.v1",
-      "default": "default.v1",
+      "default": "default.v3",
+      "enum": [
+        "default.v1",
+        "default.v2",
+        "default.v3"
+      ],
       "title": "Prompt Set",
       "type": "string"
     }

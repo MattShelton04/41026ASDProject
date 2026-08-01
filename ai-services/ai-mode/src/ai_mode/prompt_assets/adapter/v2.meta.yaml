@@ -1,0 +1,5 @@
+prompt_id: adapter
+version: v2
+role: adapter
+template: v2.system.j2
+description: Bounded adaptation decision with explicit output variants for small local models.

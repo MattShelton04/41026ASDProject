@@ -31,6 +31,8 @@ class OllamaModelProfile:
 
     model: str
     keep_alive: str = "5m"
+    context_tokens: int = 8_192
+    maximum_output_tokens: int = 1_024
     digest: str | None = None
 
 
@@ -42,12 +44,17 @@ class OllamaProvider(LLMProvider):
         *,
         base_url: str,
         profiles: Mapping[str, OllamaModelProfile],
+        readiness_profiles: frozenset[str] | None = None,
         timeout_seconds: float,
         health_timeout_seconds: float = 2.0,
         max_response_bytes: int,
         client: httpx.Client | None = None,
     ) -> None:
         self._profiles = dict(profiles)
+        self._readiness_profiles = readiness_profiles or frozenset(self._profiles)
+        unknown_readiness_profiles = self._readiness_profiles - self._profiles.keys()
+        if unknown_readiness_profiles:
+            raise ValueError("readiness profile is not registered")
         self._max_response_bytes = max_response_bytes
         self._health_timeout_seconds = health_timeout_seconds
         self._generation_timeout_seconds = timeout_seconds
@@ -69,17 +76,30 @@ class OllamaProvider(LLMProvider):
                 code="model_profile_not_found",
                 retryable=False,
             )
-        payload = {
+        if request.max_output_tokens > profile.maximum_output_tokens:
+            raise ModelProviderError(
+                (
+                    f"requested output limit {request.max_output_tokens} exceeds "
+                    f"profile maximum {profile.maximum_output_tokens}"
+                ),
+                code="model_output_limit_exceeded",
+                retryable=False,
+            )
+        format_spec = self._format_spec(request.output_schema)
+        payload: dict[str, object] = {
             "model": profile.model,
             "messages": [message.model_dump(mode="json") for message in request.messages],
             "stream": False,
-            "format": self._format_spec(request.output_schema),
+            "format": format_spec,
             "keep_alive": profile.keep_alive,
             "options": {
                 "temperature": request.temperature,
                 "num_predict": request.max_output_tokens,
+                "num_ctx": profile.context_tokens,
             },
         }
+        if format_spec == "json":
+            payload = _json_mode_fallback_payload(payload, request.output_schema)
         response = self._post(payload, deadline_at=request.deadline_at)
         if len(response.content) > self._max_response_bytes:
             raise ModelProviderError(
@@ -119,7 +139,9 @@ class OllamaProvider(LLMProvider):
                 for item in body.get("models", [])
                 if isinstance(item, dict) and isinstance(item.get("name"), str)
             }
-            required = {profile.model for profile in self._profiles.values()}
+            required = {
+                self._profiles[profile_name].model for profile_name in self._readiness_profiles
+            }
             missing = sorted(required - available)
             if missing:
                 return ProviderHealth(
@@ -152,16 +174,17 @@ class OllamaProvider(LLMProvider):
             )
             if _is_grammar_rejection(response, payload.get("format")):
                 format_spec = payload["format"]
-                if isinstance(format_spec, dict):
-                    with self._schema_lock:
-                        self._unsupported_schema_digests.add(_schema_digest(format_spec))
+                if not isinstance(format_spec, dict):
+                    raise AssertionError("grammar rejection requires a schema object")
+                with self._schema_lock:
+                    self._unsupported_schema_digests.add(_schema_digest(format_spec))
                 LOGGER.warning(
                     "Ollama rejected the JSON Schema grammar; using JSON mode with "
                     "application-side validation"
                 )
                 response = self._client.post(
                     "/api/chat",
-                    json={**payload, "format": "json"},
+                    json=_json_mode_fallback_payload(payload, format_spec),
                     timeout=self._request_timeout(deadline_at),
                 )
             response.raise_for_status()
@@ -271,3 +294,32 @@ def _is_grammar_rejection(response: httpx.Response, format_spec: object) -> bool
 def _schema_digest(schema: Mapping[str, Any]) -> str:
     canonical = json.dumps(schema, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _json_mode_fallback_payload(
+    payload: Mapping[str, object], schema: Mapping[str, Any]
+) -> dict[str, object]:
+    """Preserve the trusted schema constraint when grammar compilation is unavailable."""
+    fallback = {**payload, "format": "json"}
+    messages = payload.get("messages")
+    if not isinstance(messages, list):
+        return fallback
+    schema_instruction = {
+        "role": "system",
+        "content": (
+            "The runtime could not compile its schema grammar. Your JSON response must "
+            "still match this trusted application JSON Schema exactly: "
+            + json.dumps(schema, sort_keys=True, separators=(",", ":"))
+        ),
+    }
+    insertion_index = 1 if messages and _is_system_message(messages[0]) else 0
+    fallback["messages"] = [
+        *messages[:insertion_index],
+        schema_instruction,
+        *messages[insertion_index:],
+    ]
+    return fallback
+
+
+def _is_system_message(value: object) -> bool:
+    return isinstance(value, dict) and value.get("role") == "system"

@@ -96,6 +96,19 @@
           "title": "Tool Call Count",
           "type": "integer"
         },
+        "traceparent": {
+          "anyOf": [
+            {
+              "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Traceparent"
+        },
         "updated_at": {
           "format": "date-time",
           "title": "Updated At",
@@ -405,6 +418,13 @@
           "default": null,
           "title": "Idempotency Key"
         },
+        "request_id": {
+          "default": "unknown",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
         "run_id": {
           "format": "uuid",
           "title": "Run Id",
@@ -428,6 +448,19 @@
           "pattern": "^[a-z0-9][a-z0-9_.-]*$",
           "title": "Tool Version",
           "type": "string"
+        },
+        "traceparent": {
+          "anyOf": [
+            {
+              "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Traceparent"
         }
       },
       "required": [

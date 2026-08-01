@@ -21,11 +21,19 @@ and drift-checked by the canonical quality gate. A pinned non-root AI-mode image
 profiled Ollama runtime/model initializer, native-host override, and real structured
 provider diagnostic now supply the shared Release 0 container boundary.
 
-This does not complete the shared-foundation definition of done. Feature-owned HTTP tool
-registration/execution, resumable events, the development run-detail page, the
-reference feature, representative real-model evaluation,
-and integration evidence remain. MCP, RAG, and multi-agent runtime behavior remains
-disabled and unclaimed.
+The next domain-neutral Release 0 increment adds validated feature manifests,
+feature-scoped/versioned tool registration, fail-fast YAML tool composition, a bounded
+HTTP executor, create-run idempotency, safe append-only progress events, and an opt-in
+redacted development evidence page. A non-product `integration-test-feature` proves
+the agent/core/backend/database boundary over real HTTP and SQLite. A validated model
+registry now maps stable logical profiles to assignment-approved Ollama tags and explicit
+context/output budgets; ADR-015 records the selection and readiness policy.
+
+This does not complete the shared-foundation definition of done. Student owners must
+still supply their approved manifests and feature endpoints; the integrated edge and
+Compose topology, a product-feature integration, representative real-model evaluation,
+and release evidence remain. MCP, RAG, and multi-agent runtime behavior remains disabled
+and unclaimed.
 
 This document is both a high-level design and a detailed build guide. It deliberately
 defines the stable shared platform before the project domain and five feature schemas
@@ -362,7 +370,7 @@ access as model-callable tools.
 |---|---|
 | `POST /api/v1/agent-runs` | Validate, persist, and accept a run; return `202`, run ID, status, and `Location` |
 | `GET /api/v1/agent-runs/{run_id}` | Return current state, safe step summaries, limits, and final result/error |
-| `GET /api/v1/agent-runs/{run_id}/events` | Stream ordered safe progress events with resumable event IDs |
+| `GET /api/v1/agent-runs/{run_id}/events` | Page ordered safe progress events after an explicit resumable cursor |
 | `POST /api/v1/agent-runs/{run_id}/cancel` | Idempotently request cancellation |
 | `POST /api/v1/agent-runs/{run_id}/reviews` | Approve or reject exactly one pending protected action |
 | `GET /health/live` | Process liveness only; no dependency calls |
@@ -431,7 +439,10 @@ loop indefinitely. Mutation retries reuse the original idempotency key.
 ### 8.3 Planner, Worker, and Reviewer evolution
 
 - **Release 0:** one orchestrator process performs the four phases. The LLM may propose
-  a plan or adaptation, while code executes tools and enforces policy.
+  a plan or adaptation, while code executes tools and enforces policy. Planner and
+  adapter are separate, stateless inference requests (currently to the same configured
+  model), not independent persistent agents. Each request receives its own versioned
+  system prompt and reconstructs context from persisted safe run data.
 - **Release 1:** the same orchestrator can call MCP tools and obtain RAG context. These
   become new adapters, not a new loop.
 - **Release 2:** Planner, Worker, and Reviewer become explicit roles sharing the same
@@ -465,7 +476,10 @@ remain available. No feature backend imports an Ollama or commercial-provider SD
 
 Configuration selects a model profile rather than embedding model names in feature
 code. Profiles can reduce context, output length, concurrency, or agent discretion on
-less capable hardware. The same tests run against every supported profile.
+less capable hardware. The versioned registry records the assignment-approved family,
+exact Ollama tag, advertised maximum context, official source, and conservative runtime
+budgets. Startup and CI validate it; the public API exposes the same typed view. The same
+evaluation set should run against every supported profile before a default changes.
 
 ### 9.2 Prompt registry
 
@@ -486,6 +500,20 @@ Every prompt invocation records the logical prompt ID, semantic version, Git con
 hash, rendered-input hash, and model digest. Stable instructions, schemas, and tool
 definitions appear before dynamic user and retrieval content. Prompt changes require
 evaluation results in the pull request.
+
+The shared registry owns only domain-neutral orchestration prompts: how to produce a
+bounded plan and how to adapt from typed evidence. Feature-specific terminology,
+task recipes, grounding rules, examples, and final-result expectations belong to the
+owning feature. The current Release 0 manifest declares capabilities but does not yet
+carry a versioned feature-guidance reference; add that contract before product features
+need domain-specific prompting. AI-mode should load allowlisted, hashed feature guidance
+at startup and inject it as delimited task data. A feature must not replace the shared
+authorization, limit, output-validation, or adaptation policy instructions.
+
+Retain prompt assets referenced by persisted runs for replay and evidence. Startup
+validation should enumerate the declared prompt-set registry rather than maintain a
+second hand-written list of versions. Retire an old prompt set only through a documented
+compatibility and retention decision, not as routine file cleanup.
 
 ### 9.3 Cache layers
 
@@ -547,9 +575,12 @@ database microservice: only the `ai-mode` process opens the file. Large artefact
 outside rows and are referenced by hash. Database rows store only safe, bounded
 excerpts.
 
-The initial schema includes an integer schema version and forward-only migrations.
-Step append and run-status update occur in one transaction. Optimistic version numbers
-prevent two workers advancing the same run.
+The schema includes an integer schema version and forward-only migrations. Schema
+version 2 adds create-request idempotency records and append-only safe progress events.
+Step append, run-status update, review where present, and its event occur in one
+transaction. Optimistic version numbers prevent two workers advancing the same run.
+The event decision and cursor semantics are recorded in
+[`ADR-014`](decisions/ADR-014-append-only-safe-agent-run-events.md).
 
 Later MCP, RAG, and multi-agent services do not mount this file. They interact through
 the orchestrator's internal contracts, leaving `ai-mode` as the single state owner.
@@ -926,8 +957,8 @@ requests. Do not paste floating `latest` image tags into release or deployment f
 3. Implement `ai-mode` with SQLite run store, prompt registry, Ollama adapter, and run
    detail endpoint.
 4. Implement the edge/home page and manifest-driven feature links.
-5. Create one reference feature skeleton, then stamp only structural boilerplate for
-   students 2-5.
+5. Create one non-product integration-test fixture that proves the structural pattern;
+   do not stamp or edit student-owned feature behavior before allocation.
 6. Build Compose health checks and native/container Ollama profiles.
 7. Prove a complete Plan -> Act -> Observe -> Adapt case plus an unavailable-model case.
 
@@ -986,7 +1017,7 @@ superseding decision where applicable.
 The foundation is complete when:
 
 - all shared packages have owners, README files, tests, and stable public interfaces;
-- one reference feature proves frontend -> backend -> database CRUD and backend ->
+- one integration-test fixture proves frontend -> backend -> database CRUD and backend ->
   orchestrator -> Ollama interaction;
 - the orchestrator persists and displays a bounded four-phase run;
 - fake-model tests cover success, invalid schema, tool failure, timeout, approval,

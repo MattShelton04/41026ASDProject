@@ -1,0 +1,152 @@
+{
+  "$defs": {
+    "AgentRunEvent": {
+      "additionalProperties": false,
+      "description": "One safe, append-only progress event suitable for resumable clients.",
+      "properties": {
+        "event_type": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "id": {
+          "minimum": 1,
+          "title": "Id",
+          "type": "integer"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "run_version": {
+          "minimum": 0,
+          "title": "Run Version",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus"
+        },
+        "step_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Id"
+        },
+        "step_phase": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StepPhase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "step_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StepStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "run_id",
+        "run_version",
+        "event_type",
+        "status",
+        "occurred_at"
+      ],
+      "title": "AgentRunEvent",
+      "type": "object"
+    },
+    "RunStatus": {
+      "description": "Persisted lifecycle of an agent run.",
+      "enum": [
+        "queued",
+        "planning",
+        "ready",
+        "acting",
+        "observing",
+        "adapting",
+        "review_required",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    },
+    "StepPhase": {
+      "description": "Four auditable phases of the shared agentic loop.",
+      "enum": [
+        "plan",
+        "act",
+        "observe",
+        "adapt"
+      ],
+      "title": "StepPhase",
+      "type": "string"
+    },
+    "StepStatus": {
+      "description": "Execution status of one persisted phase step.",
+      "enum": [
+        "pending",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "StepStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Bounded cursor page of safe progress events.",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/AgentRunEvent"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "next_cursor": {
+      "minimum": 0,
+      "title": "Next Cursor",
+      "type": "integer"
+    },
+    "terminal": {
+      "title": "Terminal",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "items",
+    "next_cursor",
+    "terminal"
+  ],
+  "title": "AgentRunEventPage",
+  "type": "object"
+}

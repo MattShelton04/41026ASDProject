@@ -1,0 +1,5 @@
+prompt_id: adapter
+version: v3
+role: adapter
+template: v3.system.j2
+description: Evidence-complete adaptation policy for ordered multi-action plans.

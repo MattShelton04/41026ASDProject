@@ -3,6 +3,7 @@ name: Integration CI
 on:
   pull_request:
   push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       run_ollama_smoke:
@@ -42,6 +43,11 @@ jobs:
       - name: Check lockfile
         run: uv lock --check
 
+      - name: Verify generated contracts and model registry
+        run: |
+          uv run --locked python scripts/generate_contracts.py --check
+          uv run --locked python scripts/validate_model_registry.py
+
       - name: Run quality gate
         run: uv run --locked python scripts/check.py
 
@@ -50,6 +56,7 @@ jobs:
           docker compose --profile release-0 --profile ollama-container config --quiet
           docker compose --file docker-compose.yml --file docker-compose.gpu.yml --profile release-0 --profile ollama-container config --quiet
           docker compose --file docker-compose.yml --file docker-compose.native-ollama.yml --profile release-0 config --quiet
+          docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test config --quiet
 
   container:
     name: Build AI-mode container
@@ -85,7 +92,10 @@ jobs:
           uv sync --locked --package ai-mode
 
       - name: Start pinned Ollama and AI-mode profiles
-        run: docker compose --profile release-0 --profile ollama-container up --detach --build --wait --wait-timeout 900
+        run: |
+          docker compose --profile ollama-container up --detach --wait --wait-timeout 120 ollama
+          docker compose --profile ollama-container run --rm ollama-init
+          docker compose --profile release-0 up --detach --build --wait --wait-timeout 120 ai-mode
 
       - name: Run real structured-output diagnostic
         run: uv run --locked ai-mode-ollama-smoke
