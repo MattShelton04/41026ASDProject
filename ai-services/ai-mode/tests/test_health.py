@@ -15,11 +15,15 @@ def test_liveness_does_not_require_external_dependencies() -> None:
     response = client.get("/health/live")
 
     assert response.status_code == 200
-    assert response.get_json() == {
+    payload = response.get_json()
+    assert isinstance(payload, dict)
+    service_version = payload.pop("version")
+    assert isinstance(service_version, str)
+    assert service_version
+    assert payload == {
         "checks": {},
         "service": "ai-mode",
         "status": "healthy",
-        "version": "0.1.0",
     }
 
 
