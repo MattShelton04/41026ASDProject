@@ -166,10 +166,10 @@ class RunStore(Protocol):
 
 
 class RunQueue(Protocol):
-    """Small queue seam for a controlled background executor."""
+    """Wake-up seam for a controlled executor backed by durable run state."""
 
     def enqueue(self, run_id: UUID) -> None:
-        """Schedule a persisted run for execution."""
+        """Hint that a persisted run is ready; durable discovery prevents loss."""
         ...
 
 

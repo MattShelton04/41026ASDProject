@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from flask import Flask
 
 from agent_core import transition_run
+from ai_mode.queue import RunQueueFullError
 from ai_mode.services import AppServices
 from shared_contracts import (
     AGENT_RUN_ID_HEADER,
@@ -50,6 +51,26 @@ def test_create_persists_before_enqueue_and_propagates_request_id(
     assert detail is not None
     assert detail.run.request_id == "request-123"
     assert app_services.queue.run_ids == [detail.run.id]  # type: ignore[attr-defined]
+
+
+def test_create_remains_accepted_when_wakeup_queue_is_full(
+    app: Flask, app_services: AppServices
+) -> None:
+    class FullQueue:
+        def enqueue(self, run_id: UUID) -> None:
+            raise RunQueueFullError("full")
+
+    app_services.queue = FullQueue()
+
+    response = app.test_client().post(
+        "/api/v1/agent-runs",
+        json={"feature_key": "student-1-feature", "objective": "Find records"},
+    )
+
+    assert response.status_code == 202
+    run_id = UUID(response.get_json()["id"])
+    assert response.headers[AGENT_RUN_ID_HEADER] == str(run_id)
+    assert app_services.store.get(run_id) is not None
 
 
 def test_get_and_cancel_are_typed_and_cancellation_is_idempotent(

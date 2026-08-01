@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import UUID
 
 from agent_core import (
     AgentRunner,
@@ -72,13 +74,11 @@ def build_services(settings: Settings) -> AppServices:
         clock=clock,
         ids=ids,
     )
-    resumable_ids = tuple(
-        decision.run.id
-        for detail in store.list_resumable()
-        if (decision := runner.recover_interrupted(detail)).disposition
-        is RecoveryDisposition.REENQUEUE
-    )
-    queue = SerialRunQueue(runner.run_until_blocked)
-    for run_id in resumable_ids:
-        queue.enqueue(run_id)
+    def discover_resumable() -> Iterable[UUID]:
+        for detail in store.list_resumable():
+            decision = runner.recover_interrupted(detail)
+            if decision.disposition is RecoveryDisposition.REENQUEUE:
+                yield decision.run.id
+
+    queue = SerialRunQueue(runner.run_until_blocked, discover=discover_resumable)
     return AppServices(store=store, provider=provider, queue=queue, clock=clock, ids=ids)

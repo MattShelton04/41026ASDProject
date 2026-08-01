@@ -51,7 +51,8 @@ The SQLite adapter enables foreign keys, WAL mode, a busy timeout, forward schem
 versioning, and optimistic run versions. Run and step changes—and review records where
 applicable—are committed atomically. On startup, incomplete runs are reconciled from
 their persisted phase boundary: safe work is re-enqueued and uncertain writes return to
-human review.
+human review. The worker performs the same durable discovery while idle, so the bounded
+memory queue is a wake-up optimization rather than a source of truth.
 
 ## Current integration boundary
 

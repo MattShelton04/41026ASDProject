@@ -134,10 +134,13 @@ it cancels further execution. The eventual feature HTTP adapter should offer an
 operation-status lookup so a reviewer can distinguish “already applied” from “not
 applied” before choosing.
 
-## Startup reconciliation
+## Durable scheduling and reconciliation
 
-At AI-mode startup, the store lists non-terminal, non-review-blocked runs in stable
-order. Recovery applies the following policy before a run is re-enqueued:
+SQLite run state is the scheduling source of truth; the bounded in-memory queue is only
+a low-latency wake-up signal. At startup and periodically while idle, AI-mode lists
+non-terminal, non-review-blocked runs in stable order. Queue saturation therefore does
+not lose accepted work, and transient handler failures recover without requiring a
+process restart. Recovery applies the following policy before a run is executed:
 
 | Persisted status | Evidence at interruption | Recovery |
 |---|---|---|
@@ -152,8 +155,7 @@ order. Recovery applies the following policy before a run is re-enqueued:
 | terminal | Complete outcome | Ignore |
 
 Malformed recovery evidence fails closed with `recovery_state_invalid`. Optimistic
-version checks prevent a stale worker or startup reconciler from overwriting a newer
-decision.
+version checks prevent a stale worker or reconciler from overwriting a newer decision.
 
 ## Structured-output turns
 

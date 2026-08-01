@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import cast
 from uuid import UUID
 
@@ -21,6 +22,7 @@ from shared_contracts import (
 )
 
 api = Blueprint("agent_api", __name__, url_prefix="/api/v1")
+LOGGER = logging.getLogger(__name__)
 
 
 def _services() -> AppServices:
@@ -56,12 +58,7 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
         now=services.clock.now(),
     )
     services.store.create(run)
-    try:
-        services.queue.enqueue(run.id)
-    except RunQueueFullError:
-        return _problem(
-            503, "run_queue_unavailable", "Run was persisted but could not be scheduled"
-        )
+    _signal_run(services, run.id)
     location = url_for("agent_api.get_agent_run", run_id=run.id)
     response = jsonify(run.model_dump(mode="json"))
     response.headers[AGENT_RUN_ID_HEADER] = str(run.id)
@@ -85,6 +82,7 @@ def cancel_agent_run(run_id: UUID) -> tuple[Response, int]:
     run = _services().store.request_cancellation(run_id, now=_services().clock.now())
     if run is None:
         return _problem(404, "agent_run_not_found", "Agent run does not exist")
+    _signal_run(_services(), run_id)
     response = jsonify(run.model_dump(mode="json"))
     response.headers[AGENT_RUN_ID_HEADER] = str(run_id)
     return response, 200
@@ -128,20 +126,21 @@ def review_agent_run(run_id: UUID) -> tuple[Response, int]:
         review=application.review,
     )
     if command.decision is ReviewDecision.APPROVE:
-        try:
-            services.queue.enqueue(run_id)
-        except RunQueueFullError:
-            return _problem(
-                503,
-                "run_queue_unavailable",
-                "Review was persisted but the approved run could not be scheduled",
-            )
+        _signal_run(services, run_id)
     refreshed = services.store.get(run_id)
     if refreshed is None:
         return _problem(503, "state_store_unavailable", "Reviewed run could not be reloaded")
     response = jsonify(refreshed.model_dump(mode="json"))
     response.headers[AGENT_RUN_ID_HEADER] = str(run_id)
     return response, 200
+
+
+def _signal_run(services: AppServices, run_id: UUID) -> None:
+    """Best-effort wake-up; durable worker discovery owns eventual scheduling."""
+    try:
+        services.queue.enqueue(run_id)
+    except RunQueueFullError:
+        LOGGER.warning("run wake-up queue is full", extra={"run_id": str(run_id)})
 
 
 def _problem(

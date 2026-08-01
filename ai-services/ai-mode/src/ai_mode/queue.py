@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from queue import Empty, Full, Queue
 from threading import Event, Thread
 from uuid import UUID
@@ -16,12 +16,23 @@ class RunQueueFullError(RuntimeError):
 
 
 class SerialRunQueue:
-    """Execute persisted runs serially in one controlled daemon worker."""
+    """Execute persisted runs serially, using durable discovery as the safety net."""
 
-    def __init__(self, handler: Callable[[UUID], object], *, capacity: int = 100) -> None:
+    def __init__(
+        self,
+        handler: Callable[[UUID], object],
+        *,
+        discover: Callable[[], Iterable[UUID]] | None = None,
+        capacity: int = 100,
+        reconcile_interval_seconds: float = 1.0,
+    ) -> None:
         if capacity < 1:
             raise ValueError("queue capacity must be positive")
+        if reconcile_interval_seconds <= 0:
+            raise ValueError("reconcile interval must be positive")
         self._handler = handler
+        self._discover = discover
+        self._reconcile_interval_seconds = reconcile_interval_seconds
         self._items: Queue[UUID] = Queue(maxsize=capacity)
         self._stopping = Event()
         self._thread = Thread(target=self._work, name="ai-mode-runner", daemon=True)
@@ -44,12 +55,30 @@ class SerialRunQueue:
     def _work(self) -> None:
         while not self._stopping.is_set():
             try:
-                run_id = self._items.get(timeout=0.1)
+                run_id = self._items.get(timeout=self._reconcile_interval_seconds)
             except Empty:
+                self._reconcile()
                 continue
             try:
-                self._handler(run_id)
-            except Exception:
-                LOGGER.exception("agent run worker failed", extra={"run_id": str(run_id)})
+                self._handle(run_id)
             finally:
                 self._items.task_done()
+
+    def _reconcile(self) -> None:
+        if self._discover is None:
+            return
+        try:
+            run_ids = tuple(self._discover())
+        except Exception:
+            LOGGER.exception("durable agent run discovery failed")
+            return
+        for run_id in run_ids:
+            if self._stopping.is_set():
+                return
+            self._handle(run_id)
+
+    def _handle(self, run_id: UUID) -> None:
+        try:
+            self._handler(run_id)
+        except Exception:
+            LOGGER.exception("agent run worker failed", extra={"run_id": str(run_id)})
