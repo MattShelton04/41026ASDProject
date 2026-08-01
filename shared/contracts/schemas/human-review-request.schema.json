@@ -1,0 +1,45 @@
+{
+  "$defs": {
+    "ReviewDecision": {
+      "description": "Human decision for exactly one pending protected action.",
+      "enum": [
+        "approve",
+        "reject"
+      ],
+      "title": "ReviewDecision",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Authenticated human decision submitted for a pending action.",
+  "properties": {
+    "comment": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Comment"
+    },
+    "decision": {
+      "$ref": "#/$defs/ReviewDecision"
+    },
+    "reviewer": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Reviewer",
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision",
+    "reviewer"
+  ],
+  "title": "HumanReviewRequest",
+  "type": "object"
+}

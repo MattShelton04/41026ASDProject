@@ -1,0 +1,204 @@
+{
+  "$defs": {
+    "JsonValue": {},
+    "RunLimits": {
+      "additionalProperties": false,
+      "description": "Hard execution limits controlled by deterministic code.",
+      "properties": {
+        "max_iterations": {
+          "default": 6,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Max Iterations",
+          "type": "integer"
+        },
+        "max_model_repairs": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Max Model Repairs",
+          "type": "integer"
+        },
+        "max_tool_calls": {
+          "default": 12,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Max Tool Calls",
+          "type": "integer"
+        },
+        "time_budget_ms": {
+          "default": 120000,
+          "maximum": 900000,
+          "minimum": 1000,
+          "title": "Time Budget Ms",
+          "type": "integer"
+        }
+      },
+      "title": "RunLimits",
+      "type": "object"
+    },
+    "RunStatus": {
+      "description": "Persisted lifecycle of an agent run.",
+      "enum": [
+        "queued",
+        "planning",
+        "ready",
+        "acting",
+        "observing",
+        "adapting",
+        "review_required",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    },
+    "ToolError": {
+      "additionalProperties": false,
+      "description": "Safe error returned to orchestration code instead of an exception trace.",
+      "properties": {
+        "code": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ToolError",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Public, safe snapshot of a persisted agent run.",
+  "properties": {
+    "cancel_requested": {
+      "default": false,
+      "title": "Cancel Requested",
+      "type": "boolean"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ToolError"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "feature_key": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Feature Key",
+      "type": "string"
+    },
+    "final_result": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Final Result"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "iteration_count": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Iteration Count",
+      "type": "integer"
+    },
+    "limits": {
+      "$ref": "#/$defs/RunLimits"
+    },
+    "model_profile": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Model Profile",
+      "type": "string"
+    },
+    "objective": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Objective",
+      "type": "string"
+    },
+    "prompt_set": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Prompt Set",
+      "type": "string"
+    },
+    "request_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/RunStatus"
+    },
+    "tool_call_count": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Tool Call Count",
+      "type": "integer"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "version": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "request_id",
+    "feature_key",
+    "objective",
+    "status",
+    "prompt_set",
+    "model_profile",
+    "limits",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "AgentRun",
+  "type": "object"
+}

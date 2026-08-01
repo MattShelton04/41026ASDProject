@@ -1,9 +1,77 @@
 name: 41026-asd-project
 
-# Release 0: define the integrated frontend, backend/API, database, and AI-mode
-# services after the project topic and service boundaries are approved.
-#
-# Release 1: add the MCP and RAG services.
-# Release 2 local: add the multi-agent service.
-# Release 2 cloud: keep MCP, RAG, and multi-agent services disabled.
-services: {}
+services:
+  ai-mode:
+    profiles: [release-0]
+    build:
+      context: .
+      dockerfile: ai-services/ai-mode/Dockerfile
+    image: 41026-asd/ai-mode:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      AI_MODE_DATABASE_PATH: /var/lib/ai-mode/agent-state.sqlite3
+      AI_MODE_MAX_MODEL_RESPONSE_BYTES: ${AI_MODE_MAX_MODEL_RESPONSE_BYTES:-1048576}
+      AI_MODE_REQUIRE_OLLAMA_READY: "true"
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
+      OLLAMA_HEALTH_TIMEOUT_SECONDS: ${OLLAMA_HEALTH_TIMEOUT_SECONDS:-2}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:0.5b}
+      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-120}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - 127.0.0.1:${AI_MODE_PORT:-5005}:5005
+    volumes:
+      - ai_mode_state:/var/lib/ai-mode
+    networks:
+      - shared_platform
+    mem_limit: ${AI_MODE_MEMORY_LIMIT:-512m}
+    cpus: ${AI_MODE_CPU_LIMIT:-1.0}
+    stop_grace_period: 35s
+
+  ollama:
+    profiles: [ollama-container]
+    image: ollama/ollama:0.32.5
+    init: true
+    restart: unless-stopped
+    command: [serve]
+    environment:
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
+    ports:
+      - 127.0.0.1:${OLLAMA_PORT:-11434}:11434
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - shared_platform
+    mem_limit: ${OLLAMA_MEMORY_LIMIT:-4g}
+    cpus: ${OLLAMA_CPU_LIMIT:-4.0}
+    healthcheck:
+      test: [CMD, ollama, list]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  ollama-init:
+    profiles: [ollama-container]
+    image: ollama/ollama:0.32.5
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    command: [pull, "${OLLAMA_MODEL:-qwen2.5:0.5b}"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - shared_platform
+
+networks:
+  shared_platform:
+    name: 41026-asd-shared-platform
+
+volumes:
+  ai_mode_state:
+  ollama_models:

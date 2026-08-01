@@ -6,9 +6,15 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "agent-core",
     "flask>=3.1,<4",
+    "gunicorn>=23,<24",
+    "httpx>=0.28,<1",
+    "pyyaml>=6.0,<7",
     "shared-contracts",
 ]
 
+[project.scripts]
+ai-mode-ollama-smoke = "ai_mode.ollama_diagnostics:main"
+
 [build-system]
-requires = ["uv_build>=0.11.32,<0.12"]
+requires = ["uv_build>=0.12,<0.13"]
 build-backend = "uv_build"

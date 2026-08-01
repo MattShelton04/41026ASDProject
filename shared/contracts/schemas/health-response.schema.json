@@ -1,0 +1,73 @@
+{
+  "$defs": {
+    "HealthCheck": {
+      "additionalProperties": false,
+      "description": "State of one readiness dependency or internal component.",
+      "properties": {
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "status": {
+          "$ref": "#/$defs/HealthStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "HealthCheck",
+      "type": "object"
+    },
+    "HealthStatus": {
+      "description": "Portable health state used by liveness and readiness endpoints.",
+      "enum": [
+        "healthy",
+        "degraded",
+        "unhealthy"
+      ],
+      "title": "HealthStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Standard service health payload.",
+  "properties": {
+    "checks": {
+      "additionalProperties": {
+        "$ref": "#/$defs/HealthCheck"
+      },
+      "title": "Checks",
+      "type": "object"
+    },
+    "service": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Service",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/HealthStatus"
+    },
+    "version": {
+      "maxLength": 50,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "service",
+    "status",
+    "version"
+  ],
+  "title": "HealthResponse",
+  "type": "object"
+}

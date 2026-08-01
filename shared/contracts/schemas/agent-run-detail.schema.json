@@ -1,0 +1,498 @@
+{
+  "$defs": {
+    "AgentRun": {
+      "additionalProperties": false,
+      "description": "Public, safe snapshot of a persisted agent run.",
+      "properties": {
+        "cancel_requested": {
+          "default": false,
+          "title": "Cancel Requested",
+          "type": "boolean"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "feature_key": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Feature Key",
+          "type": "string"
+        },
+        "final_result": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Final Result"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "iteration_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Iteration Count",
+          "type": "integer"
+        },
+        "limits": {
+          "$ref": "#/$defs/RunLimits"
+        },
+        "model_profile": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Model Profile",
+          "type": "string"
+        },
+        "objective": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Objective",
+          "type": "string"
+        },
+        "prompt_set": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Prompt Set",
+          "type": "string"
+        },
+        "request_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus"
+        },
+        "tool_call_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tool Call Count",
+          "type": "integer"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "version": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "request_id",
+        "feature_key",
+        "objective",
+        "status",
+        "prompt_set",
+        "model_profile",
+        "limits",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "AgentRun",
+      "type": "object"
+    },
+    "AgentStep": {
+      "additionalProperties": false,
+      "description": "Safe persisted summary of one run phase.",
+      "properties": {
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "maxProperties": 100,
+          "title": "Input",
+          "type": "object"
+        },
+        "output": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "maxProperties": 100,
+          "title": "Output",
+          "type": "object"
+        },
+        "phase": {
+          "$ref": "#/$defs/StepPhase"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "sequence": {
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "status": {
+          "$ref": "#/$defs/StepStatus"
+        }
+      },
+      "required": [
+        "id",
+        "run_id",
+        "sequence",
+        "phase",
+        "status"
+      ],
+      "title": "AgentStep",
+      "type": "object"
+    },
+    "ApprovalStatus": {
+      "description": "Human approval state for a protected tool call.",
+      "enum": [
+        "not_required",
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "title": "ApprovalStatus",
+      "type": "string"
+    },
+    "HumanReview": {
+      "additionalProperties": false,
+      "description": "Immutable audit record for a protected-action decision.",
+      "properties": {
+        "comment": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comment"
+        },
+        "decision": {
+          "$ref": "#/$defs/ReviewDecision"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "reviewed_at": {
+          "format": "date-time",
+          "title": "Reviewed At",
+          "type": "string"
+        },
+        "reviewer": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Reviewer",
+          "type": "string"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "step_id": {
+          "format": "uuid",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "tool_call": {
+          "$ref": "#/$defs/ToolCall"
+        }
+      },
+      "required": [
+        "id",
+        "run_id",
+        "step_id",
+        "tool_call",
+        "decision",
+        "reviewer",
+        "reviewed_at"
+      ],
+      "title": "HumanReview",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "ReviewDecision": {
+      "description": "Human decision for exactly one pending protected action.",
+      "enum": [
+        "approve",
+        "reject"
+      ],
+      "title": "ReviewDecision",
+      "type": "string"
+    },
+    "RunLimits": {
+      "additionalProperties": false,
+      "description": "Hard execution limits controlled by deterministic code.",
+      "properties": {
+        "max_iterations": {
+          "default": 6,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Max Iterations",
+          "type": "integer"
+        },
+        "max_model_repairs": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Max Model Repairs",
+          "type": "integer"
+        },
+        "max_tool_calls": {
+          "default": 12,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Max Tool Calls",
+          "type": "integer"
+        },
+        "time_budget_ms": {
+          "default": 120000,
+          "maximum": 900000,
+          "minimum": 1000,
+          "title": "Time Budget Ms",
+          "type": "integer"
+        }
+      },
+      "title": "RunLimits",
+      "type": "object"
+    },
+    "RunStatus": {
+      "description": "Persisted lifecycle of an agent run.",
+      "enum": [
+        "queued",
+        "planning",
+        "ready",
+        "acting",
+        "observing",
+        "adapting",
+        "review_required",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    },
+    "StepPhase": {
+      "description": "Four auditable phases of the shared agentic loop.",
+      "enum": [
+        "plan",
+        "act",
+        "observe",
+        "adapt"
+      ],
+      "title": "StepPhase",
+      "type": "string"
+    },
+    "StepStatus": {
+      "description": "Execution status of one persisted phase step.",
+      "enum": [
+        "pending",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "StepStatus",
+      "type": "string"
+    },
+    "ToolCall": {
+      "additionalProperties": false,
+      "description": "Validated request to execute one tool.",
+      "properties": {
+        "approval_status": {
+          "$ref": "#/$defs/ApprovalStatus"
+        },
+        "arguments": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "maxProperties": 100,
+          "title": "Arguments",
+          "type": "object"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Idempotency Key"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "step_id": {
+          "format": "uuid",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "tool_name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Tool Name",
+          "type": "string"
+        },
+        "tool_version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Tool Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "run_id",
+        "step_id",
+        "tool_name",
+        "tool_version",
+        "approval_status"
+      ],
+      "title": "ToolCall",
+      "type": "object"
+    },
+    "ToolError": {
+      "additionalProperties": false,
+      "description": "Safe error returned to orchestration code instead of an exception trace.",
+      "properties": {
+        "code": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ToolError",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Run snapshot plus its ordered, safe phase history.",
+  "properties": {
+    "reviews": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/HumanReview"
+      },
+      "title": "Reviews",
+      "type": "array"
+    },
+    "run": {
+      "$ref": "#/$defs/AgentRun"
+    },
+    "steps": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AgentStep"
+      },
+      "title": "Steps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "run"
+  ],
+  "title": "AgentRunDetail",
+  "type": "object"
+}

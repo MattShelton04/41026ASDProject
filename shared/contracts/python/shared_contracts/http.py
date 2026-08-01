@@ -4,16 +4,12 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from shared_contracts.base import ContractModel
 
 REQUEST_ID_HEADER = "X-Request-ID"
 AGENT_RUN_ID_HEADER = "X-Agent-Run-ID"
-
-
-class ContractModel(BaseModel):
-    """Base model that rejects accidental, undocumented contract fields."""
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class HealthStatus(StrEnum):

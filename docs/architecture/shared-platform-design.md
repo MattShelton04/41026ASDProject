@@ -10,6 +10,23 @@
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related record | `docs/architecture/repository-architecture.md` |
 
+### Implementation status (1 August 2026)
+
+The first Release 0 foundation increment now implements the strict shared agent
+contracts, deterministic state graph, limits and tool policy, persistence-independent
+ports, bounded four-phase runner, deterministic fake provider, SQLite run/step/review
+store, prompt registry, native Ollama structured-output adapter, serial worker, and
+create/read/cancel/review HTTP endpoints. JSON Schema and OpenAPI artefacts are generated
+and drift-checked by the canonical quality gate. A pinned non-root AI-mode image,
+profiled Ollama runtime/model initializer, native-host override, and real structured
+provider diagnostic now supply the shared Release 0 container boundary.
+
+This does not complete the shared-foundation definition of done. Feature-owned HTTP tool
+registration/execution, resumable events, the development run-detail page, the
+reference feature, representative real-model evaluation,
+and integration evidence remain. MCP, RAG, and multi-agent runtime behavior remains
+disabled and unclaimed.
+
 This document is both a high-level design and a detailed build guide. It deliberately
 defines the stable shared platform before the project domain and five feature schemas
 are known. Feature-specific entities, prompts, and business rules remain owned by the
@@ -372,7 +389,7 @@ stateDiagram-v2
     observing --> adapting
     adapting --> ready: continue
     adapting --> planning: replan
-    adapting --> review_required: approval needed
+    adapting --> review_required: actionable review target (Release 2)
     review_required --> ready: approved
     review_required --> cancelled: rejected
     adapting --> succeeded: criteria satisfied
@@ -388,6 +405,11 @@ stateDiagram-v2
 
 Run status and step phase are separate enums so reports can distinguish, for example,
 an active run currently in `observe` from a completed observation step.
+
+The implemented transition invariants, phase checkpoints, effect-aware startup
+recovery, repair turns, and idempotency obligations are maintained in
+[`agent-run-state-machine.md`](agent-run-state-machine.md). That document is normative
+for runner behavior when this broader roadmap and the implementation differ.
 
 ### 8.2 Execution algorithm
 
@@ -448,7 +470,7 @@ less capable hardware. The same tests run against every supported profile.
 ### 9.2 Prompt registry
 
 ```text
-ai-services/ai-mode/prompts/
+ai-services/ai-mode/src/ai_mode/prompt_assets/
 |-- planner/
 |   |-- v1.system.j2
 |   `-- v1.meta.yaml
@@ -839,7 +861,7 @@ The current standard top-level structure remains intact and is extended as follo
 |   |-- ai-mode/
 |   |   |-- src/ai_mode/
 |   |   |   |-- api/ application/ adapters/ persistence/
-|   |   |-- prompts/
+|   |   |   `-- prompt_assets/
 |   |   |-- migrations/
 |   |   `-- tests/
 |   |-- mcp-server/
