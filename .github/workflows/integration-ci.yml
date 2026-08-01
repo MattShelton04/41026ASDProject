@@ -1,14 +1,40 @@
-name: Integration CI (scaffold)
+name: Integration CI
 
 on:
+  pull_request:
+  push:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: integration-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  placeholder:
-    if: ${{ false }}
+  quality:
+    name: Python quality gate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - run: echo "Define integrated build, test, and Docker Compose checks."
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.32"
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install
+
+      - name: Reproduce locked workspace
+        run: uv sync --locked --all-packages --all-groups
+
+      - name: Check lockfile
+        run: uv lock --check
+
+      - name: Run quality gate
+        run: uv run --locked python scripts/check.py
