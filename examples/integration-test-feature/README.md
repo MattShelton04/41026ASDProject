@@ -16,6 +16,13 @@ operation-status lookup. Its longer-horizon component test executes a three-acti
 plan over real loopback HTTP with the scripted model; Ollama and Docker are not
 required.
 
+The fixture also demonstrates two boundary conventions intended for real features:
+checked-in tool catalogues are composed by the canonical quality gate, and HTTP errors
+use the shared Problem Details contract across backend/database hops. Feature owners
+should encode expected negative evidence such as an empty search as a successful typed
+tool response; non-retryable HTTP/tool errors are reserved for requests that must fail
+closed.
+
 ## Run the working preview
 
 With Docker Desktop running, start the fixture, AI-mode, and the pinned Ollama runtime:

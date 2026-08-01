@@ -42,7 +42,7 @@ from shared_contracts import (
     ToolDefinition,
     ToolResult,
 )
-from shared_testkit import ScriptedLLMProvider
+from shared_testkit import ScriptedLLMProvider, assert_problem_detail
 
 NOW = datetime(2026, 8, 1, tzinfo=UTC)
 CATALOG_PATH = Path(__file__).parents[1] / "tool-catalog.yaml"
@@ -133,6 +133,20 @@ def _model_result(content: dict[str, object]) -> StructuredModelResult:
         model="fake",
         metrics=ModelMetrics(total_duration_ms=1),
     )
+
+
+def test_tool_catalog_bindings_match_backend_routes() -> None:
+    catalog = load_tool_catalog(CATALOG_PATH)
+    app = create_backend_app("http://database.invalid")
+    exposed = {
+        (rule.rule, method)
+        for rule in app.url_map.iter_rules()
+        for method in rule.methods
+        if method not in {"HEAD", "OPTIONS"}
+    }
+    registered = {(tool.path, tool.method) for tool in catalog.tools}
+
+    assert registered <= exposed
 
 
 def test_long_horizon_agent_loop_calls_three_feature_tools(tmp_path: Path) -> None:
@@ -310,11 +324,14 @@ def test_record_detail_and_dependency_tools_return_richer_evidence(tmp_path: Pat
         "Reference record 02",
     ]
     assert missing.status_code == 404
-    assert missing.json() == {"code": "record_not_found"}
+    assert_problem_detail(missing.json(), status=404, code="record_not_found")
+    assert missing.headers["content-type"].startswith("application/problem+json")
     assert missing_dependencies.status_code == 404
-    assert missing_dependencies.json() == {"code": "record_not_found"}
+    assert_problem_detail(missing_dependencies.json(), status=404, code="record_not_found")
     assert invalid_detail.status_code == 422
+    assert_problem_detail(invalid_detail.json(), status=422, code="invalid_arguments")
     assert invalid_dependencies.status_code == 422
+    assert_problem_detail(invalid_dependencies.json(), status=422, code="invalid_arguments")
 
 
 def test_console_assets_expose_safe_trace_and_long_horizon_controls() -> None:

@@ -14,6 +14,7 @@ from typing import Any
 
 from flask import Flask, Response, jsonify, request
 
+from integration_test_feature.errors import problem_response
 from shared_contracts import IDEMPOTENCY_KEY_HEADER
 
 OPERATION_KEY_PATTERN = re.compile(
@@ -237,30 +238,38 @@ def create_database_app(store: IntegrationRecordStore) -> Flask:
         return jsonify({"items": items, "count": len(items)}), 200
 
     @app.post("/api/v1/records")
-    def create_record() -> tuple[Response, int]:
+    def create_record() -> Response | tuple[Response, int]:
         payload: Any = request.get_json(silent=True)
         title = payload.get("title", "").strip() if isinstance(payload, dict) else ""
         key = request.headers.get(IDEMPOTENCY_KEY_HEADER, "").strip()
         if not title or len(title) > 200 or OPERATION_KEY_PATTERN.fullmatch(key) is None:
-            return jsonify({"code": "invalid_request"}), 422
+            return problem_response(
+                422,
+                "invalid_request",
+                "title and a valid operation idempotency key are required",
+            )
         try:
             result, created = store.create(title, idempotency_key=key)
         except IntegrationTestConflictError:
-            return jsonify({"code": "idempotency_conflict"}), 409
+            return problem_response(
+                409,
+                "idempotency_conflict",
+                "The idempotency key or record title conflicts with an existing operation",
+            )
         return jsonify(result), 201 if created else 200
 
     @app.get("/api/v1/records/by-title/<path:title>")
-    def inspect_record(title: str) -> tuple[Response, int]:
+    def inspect_record(title: str) -> Response | tuple[Response, int]:
         record = store.inspect(title.strip())
         if record is None:
-            return jsonify({"code": "record_not_found"}), 404
+            return problem_response(404, "record_not_found", "Record does not exist")
         return jsonify({"record": record}), 200
 
     @app.get("/api/v1/records/by-title/<path:title>/dependencies")
-    def record_dependencies(title: str) -> tuple[Response, int]:
+    def record_dependencies(title: str) -> Response | tuple[Response, int]:
         result = store.dependencies(title.strip())
         if result is None:
-            return jsonify({"code": "record_not_found"}), 404
+            return problem_response(404, "record_not_found", "Record does not exist")
         return jsonify(result), 200
 
     @app.get("/api/v1/operations/<path:idempotency_key>")

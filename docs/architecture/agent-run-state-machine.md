@@ -148,6 +148,14 @@ external call begins after expiry.
    failures become bounded `ToolError` values and never expose a traceback through the
    run API.
 
+Feature tool authors must distinguish an expected negative domain result from a failed
+invocation. Evidence the agent can legitimately adapt from—such as an empty search or
+`found: false`—belongs in a schema-valid successful response. Reserve non-retryable
+tool failures for requests or invariants that should terminate the current plan, such
+as malformed arguments, authorization denial, an idempotency conflict, or a broken
+response contract. The runner deliberately does not ask a model to override those
+deterministic failures.
+
 An unexpected executor exception during a read is terminal and safely recorded. The
 same exception during a write has an uncertain outcome, so the call returns to pending
 review. Retryable transport failures such as timeouts, lost connections, and server

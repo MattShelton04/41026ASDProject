@@ -10,6 +10,7 @@ import httpx
 from flask import Flask, Response, jsonify, request
 from werkzeug.datastructures import Headers
 
+from integration_test_feature.errors import problem_response
 from shared_contracts import (
     AGENT_RUN_ID_HEADER,
     IDEMPOTENCY_KEY_HEADER,
@@ -41,61 +42,65 @@ def create_backend_app(database_base_url: str, *, client: httpx.Client | None = 
         return jsonify({"status": "healthy" if healthy else "unhealthy"}), 200 if healthy else 503
 
     @app.post("/api/v1/tools/records.search.v1")
-    def search_tool() -> tuple[Response, int]:
+    def search_tool() -> Response:
         payload: Any = request.get_json(silent=True)
         query = payload.get("query", "").strip() if isinstance(payload, dict) else ""
         if not query or len(query) > 200:
-            return jsonify({"code": "invalid_arguments"}), 422
+            return problem_response(422, "invalid_arguments", "query must be 1 to 200 characters")
         response = http_client.get(
             f"{origin}/api/v1/records",
             params={"query": query},
             headers=_forwarded_headers(request.headers),
         )
-        return jsonify(response.json()), response.status_code
+        return _forward_json_response(response)
 
     @app.post("/api/v1/tools/records.create.v1")
-    def create_tool() -> tuple[Response, int]:
+    def create_tool() -> Response:
         payload: Any = request.get_json(silent=True)
         title = payload.get("title", "").strip() if isinstance(payload, dict) else ""
         key = request.headers.get(IDEMPOTENCY_KEY_HEADER, "").strip()
         if not title or not key:
-            return jsonify({"code": "invalid_arguments"}), 422
+            return problem_response(
+                422,
+                "invalid_arguments",
+                "title and Idempotency-Key are required",
+            )
         response = http_client.post(
             f"{origin}/api/v1/records",
             json={"title": title},
             headers=_forwarded_headers(request.headers),
         )
-        return jsonify(response.json()), response.status_code
+        return _forward_json_response(response)
 
     @app.post("/api/v1/tools/records.inspect.v1")
-    def inspect_tool() -> tuple[Response, int]:
+    def inspect_tool() -> Response:
         title = _required_title(request.get_json(silent=True))
         if title is None:
-            return jsonify({"code": "invalid_arguments"}), 422
+            return problem_response(422, "invalid_arguments", "title must be 1 to 200 characters")
         response = http_client.get(
             f"{origin}/api/v1/records/by-title/{quote(title, safe='')}",
             headers=_forwarded_headers(request.headers),
         )
-        return jsonify(response.json()), response.status_code
+        return _forward_json_response(response)
 
     @app.post("/api/v1/tools/records.dependencies.v1")
-    def dependencies_tool() -> tuple[Response, int]:
+    def dependencies_tool() -> Response:
         title = _required_title(request.get_json(silent=True))
         if title is None:
-            return jsonify({"code": "invalid_arguments"}), 422
+            return problem_response(422, "invalid_arguments", "title must be 1 to 200 characters")
         response = http_client.get(
             f"{origin}/api/v1/records/by-title/{quote(title, safe='')}/dependencies",
             headers=_forwarded_headers(request.headers),
         )
-        return jsonify(response.json()), response.status_code
+        return _forward_json_response(response)
 
     @app.get("/api/v1/tool-operations/<path:idempotency_key>")
-    def operation_status(idempotency_key: str) -> tuple[Response, int]:
+    def operation_status(idempotency_key: str) -> Response:
         response = http_client.get(
             f"{origin}/api/v1/operations/{quote(idempotency_key, safe='')}",
             headers=_forwarded_headers(request.headers),
         )
-        return jsonify(response.json()), response.status_code
+        return _forward_json_response(response)
 
     return app
 
@@ -107,6 +112,15 @@ def _forwarded_headers(headers: Headers) -> dict[str, str]:
 def _required_title(payload: Any) -> str | None:
     title = payload.get("title", "").strip() if isinstance(payload, dict) else ""
     return title if 1 <= len(title) <= 200 else None
+
+
+def _forward_json_response(upstream: httpx.Response) -> Response:
+    """Preserve safe JSON and Problem Details media types across the backend hop."""
+    response = jsonify(upstream.json())
+    response.status_code = upstream.status_code
+    if upstream.headers.get("content-type", "").split(";", 1)[0] == "application/problem+json":
+        response.content_type = "application/problem+json"
+    return response
 
 
 def create_app() -> Flask:
