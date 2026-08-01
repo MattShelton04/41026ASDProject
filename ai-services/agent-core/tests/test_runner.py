@@ -19,6 +19,7 @@ from agent_core import (
     ToolRegistry,
     apply_human_review,
     create_run,
+    request_cancellation,
     transition_run,
 )
 from shared_contracts import (
@@ -98,7 +99,10 @@ class MemoryStore:
             self.reviews.append(review)
 
     def request_cancellation(self, run_id: UUID, *, now: datetime) -> AgentRun | None:
-        raise NotImplementedError
+        if run_id != self.run.id:
+            return None
+        self.run = request_cancellation(self.run, now=now)
+        return self.run
 
 
 class TestPromptBuilder:
@@ -139,17 +143,21 @@ class RecordingToolExecutor:
         outcome: ToolOutcome = ToolOutcome.SUCCEEDED,
         retryable: bool = False,
         exception: Exception | None = None,
+        cancel_during_execute: bool = False,
     ) -> None:
         self.store = store
         self.outcome = outcome
         self.retryable = retryable
         self.exception = exception
+        self.cancel_during_execute = cancel_during_execute
         self.calls: list[ToolCall] = []
 
     def execute(self, call: ToolCall, definition: ToolDefinition) -> ToolResult:
         assert self.store.run.status is RunStatus.ACTING
         assert self.store.steps[-1].status.value == "running"
         self.calls.append(call)
+        if self.cancel_during_execute:
+            self.store.request_cancellation(call.run_id, now=NOW)
         if self.exception is not None:
             raise self.exception
         if self.outcome is ToolOutcome.SUCCEEDED:
@@ -232,6 +240,7 @@ def _runner(
     tool_outcome: ToolOutcome = ToolOutcome.SUCCEEDED,
     limits: RunLimits | None = None,
     tool_exception: Exception | None = None,
+    cancel_during_execute: bool = False,
 ) -> tuple[AgentRunner, MemoryStore, RecordingToolExecutor]:
     run = create_run(
         AgentRunRequest(
@@ -248,6 +257,7 @@ def _runner(
         store,
         outcome=tool_outcome,
         exception=tool_exception,
+        cancel_during_execute=cancel_during_execute,
     )
     runner = AgentRunner(
         store=store,
@@ -321,6 +331,45 @@ def test_approved_action_resumes_with_the_original_idempotent_call() -> None:
     assert len(executor.calls) == 1
     assert executor.calls[0].id == pending_call.id
     assert executor.calls[0].idempotency_key == pending_call.idempotency_key
+
+
+def test_replanned_writes_receive_distinct_call_scoped_idempotency_keys() -> None:
+    runner, store, executor = _runner(
+        [
+            _model_result(_plan(arguments={"query": "first"})),
+            _model_result(_adaptation("replan")),
+            _model_result(_plan(arguments={"query": "second"})),
+            _model_result(_adaptation("complete")),
+        ],
+        tool=_tool(side_effect=SideEffectClass.REVERSIBLE_WRITE),
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert len(executor.calls) == 2
+    first, second = executor.calls
+    assert first.arguments != second.arguments
+    assert first.idempotency_key == f"{store.run.id}:call:{first.id}"
+    assert second.idempotency_key == f"{store.run.id}:call:{second.id}"
+    assert first.idempotency_key != second.idempotency_key
+
+
+def test_cancellation_race_reconciles_an_uncertain_write_to_review() -> None:
+    runner, store, executor = _runner(
+        [_model_result(_plan())],
+        tool=_tool(side_effect=SideEffectClass.REVERSIBLE_WRITE),
+        cancel_during_execute=True,
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.REVIEW_REQUIRED
+    assert result.cancel_requested is True
+    assert len(executor.calls) == 1
+    pending = store.steps[-1]
+    assert pending.status is StepStatus.PENDING
+    assert pending.output["recovery"] is not None
 
 
 def test_invalid_planner_arguments_fail_before_tool_execution() -> None:

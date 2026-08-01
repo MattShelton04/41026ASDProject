@@ -11,6 +11,7 @@ from pydantic import BaseModel, JsonValue
 
 from agent_core.errors import (
     AgentCoreError,
+    ConcurrentRunUpdateError,
     ModelProviderError,
     RunLimitExceededError,
     ToolSchemaValidationError,
@@ -79,7 +80,15 @@ class AgentRunner:
             detail = self._required_detail(run_id)
             if detail.run.status in BLOCKED_STATUSES:
                 return detail.run
-            self.advance(detail)
+            try:
+                self.advance(detail)
+            except ConcurrentRunUpdateError:
+                refreshed = self._required_detail(run_id)
+                if not refreshed.run.cancel_requested:
+                    raise
+                decision = self.recover_interrupted(refreshed)
+                if decision.disposition is not RecoveryDisposition.REENQUEUE:
+                    return decision.run
 
     def advance(self, detail: AgentRunDetail) -> AgentRun:
         """Advance one complete phase from the supplied persisted snapshot."""
@@ -183,16 +192,15 @@ class AgentRunner:
         approved = self._resumable_pending_action(detail.steps)
         if approved is None:
             is_write = definition.side_effect is not SideEffectClass.READ_ONLY
-            idempotency_key = (
-                f"{run.id}:{action.sequence}:{definition.version}" if is_write else None
-            )
+            call_id = self._ids.new()
+            idempotency_key = f"{run.id}:call:{call_id}" if is_write else None
             protected = definition.requires_approval or definition.side_effect in {
                 SideEffectClass.DESTRUCTIVE_WRITE,
                 SideEffectClass.EXTERNAL_EFFECT,
             }
             approval = ApprovalStatus.PENDING if protected else ApprovalStatus.NOT_REQUIRED
             call = ToolCall(
-                id=self._ids.new(),
+                id=call_id,
                 run_id=run.id,
                 step_id=self._ids.new(),
                 tool_name=definition.name,

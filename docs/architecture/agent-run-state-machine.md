@@ -117,7 +117,8 @@ code rather than prompts.
 1. The planner may reference only immutable, allowlisted `ToolDefinition` entries.
 2. Input is JSON Schema validated before authorization and again before dispatch.
 3. `read_only` calls need no idempotency key. All other side-effect classes receive the
-   stable key `<run-id>:<action-sequence>:<tool-version>`.
+   stable key `<run-id>:call:<call-id>`. The persisted call ID makes the key unique
+   across replans while exact recovery continues to reuse the same key.
 4. `destructive_write`, `external_effect`, and definitions explicitly marked as
    protected stop in `review_required` before dispatch.
 5. Approval updates the existing pending call. It does not create a replacement call,
