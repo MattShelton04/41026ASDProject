@@ -1,0 +1,9 @@
+[project]
+name = "student-4-feature"
+version = "0.1.0"
+description = "Student 4 owned feature slice"
+requires-python = ">=3.12,<3.13"
+dependencies = ["shared-contracts"]
+
+[tool.uv]
+package = false

@@ -1,0 +1,10 @@
+[project]
+name = "agent-core"
+version = "0.1.0"
+description = "Framework-independent orchestration core for the ASD agent harness"
+requires-python = ">=3.12,<3.13"
+dependencies = ["shared-contracts"]
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12"]
+build-backend = "uv_build"
