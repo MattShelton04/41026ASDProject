@@ -620,6 +620,49 @@ def test_interrupted_adaptation_attempt_is_closed_and_retried_from_safe_boundary
     assert store.steps[-1].status is StepStatus.FAILED
 
 
+def test_stable_adapting_boundary_is_reenqueued_without_recovery_mutation() -> None:
+    runner, store, _ = _runner([_model_result(_plan())])
+    runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    adapting = runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    assert adapting.status is RunStatus.ADAPTING
+    version = adapting.version
+
+    detail = store.get(store.run.id)
+    assert detail is not None
+    assert not any(
+        step.phase is StepPhase.ADAPT and step.status is StepStatus.RUNNING
+        for step in detail.steps
+    )
+    decision = runner.recover_interrupted(detail)
+
+    assert decision.disposition is RecoveryDisposition.REENQUEUE
+    assert decision.changed is False
+    assert store.run.version == version
+
+
+def test_stable_replanning_boundary_is_reenqueued_without_recovery_mutation() -> None:
+    runner, store, _ = _runner(
+        [_model_result(_plan()), _model_result(_adaptation("replan"))]
+    )
+    for _ in range(4):
+        runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    assert store.run.status is RunStatus.PLANNING
+    version = store.run.version
+
+    detail = store.get(store.run.id)
+    assert detail is not None
+    assert not any(
+        step.phase is StepPhase.PLAN and step.status is StepStatus.RUNNING
+        for step in detail.steps
+    )
+    decision = runner.recover_interrupted(detail)
+
+    assert decision.disposition is RecoveryDisposition.REENQUEUE
+    assert decision.changed is False
+    assert store.run.version == version
+
+
 def test_observing_boundary_needs_no_repair_before_reenqueue() -> None:
     runner, store, _ = _runner([_model_result(_plan())])
     ready = runner.advance(store.get(store.run.id))  # type: ignore[arg-type]

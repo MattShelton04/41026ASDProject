@@ -166,11 +166,13 @@ process restart. Recovery applies the following policy before a run is executed:
 | Persisted status | Evidence at interruption | Recovery |
 |---|---|---|
 | `queued` | No external work began | Re-enqueue unchanged |
+| `planning` | No running PLAN step yet | Re-enqueue the stable boundary unchanged |
 | `planning` | Running PLAN step, no accepted response | Mark that attempt failed with `execution_interrupted`; retry planning |
 | `ready` | Valid plan, no action in flight | Re-enqueue unchanged |
 | `acting`, read-only | Exact persisted call, result absent | Return the same step to pending, transition to `ready`, and replay the same call |
 | `acting`, effectful | Exact persisted call and idempotency key, result absent | Return the same step to pending and transition to `review_required` |
 | `observing` | Tool result is already durable | Re-enqueue and derive the deterministic observation |
+| `adapting` | No running ADAPT step yet | Re-enqueue the stable boundary unchanged |
 | `adapting` | Running ADAPT step, no accepted response | Mark that attempt failed with `execution_interrupted`; retry adaptation |
 | `review_required` | Human decision is required | Leave blocked; never auto-enqueue |
 | terminal | Complete outcome | Ignore |
