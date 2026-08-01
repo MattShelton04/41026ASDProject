@@ -15,6 +15,20 @@ shared package, and student slice owns its dependencies in a local `pyproject.to
 Do not install project dependencies globally. `uv` creates and maintains `.venv` in the
 repository root.
 
+Install `uv` with Astral's official installer if `uv --version` is not recognised:
+
+```powershell
+# Windows PowerShell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+```sh
+# macOS or Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Restart the terminal if the installer changes `PATH`, then confirm `uv --version` works.
+
 ## First-time setup
 
 From the repository root:

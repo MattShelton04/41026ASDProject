@@ -50,7 +50,21 @@ deployment.
 
 ## Developer quick start
 
-Install `uv`, then run:
+Install `uv` using Astral's official installer.
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+macOS or Linux:
+
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Restart the terminal if prompted, verify the installation with `uv --version`, then run:
 
 ```text
 uv python install
@@ -58,8 +72,9 @@ uv sync --locked --all-packages --all-groups
 uv run python scripts/check.py
 ```
 
-See `CONTRIBUTING.md` for editor setup, hooks, dependency changes, ownership boundaries,
-and the complete developer/agent workflow.
+See the official [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/)
+for alternative installation methods. See [CONTRIBUTING.md](CONTRIBUTING.md) for editor setup,
+hooks, dependency changes, ownership boundaries, and the complete developer/agent workflow.
 
 ## Next decisions
 

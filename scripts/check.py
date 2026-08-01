@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 COMMANDS: tuple[tuple[str, ...], ...] = (
-    ("ruff", "format", "--check", "."),
-    ("ruff", "check", "."),
+    (sys.executable, "-m", "ruff", "format", "--check", "."),
+    (sys.executable, "-m", "ruff", "check", "."),
     (
+        sys.executable,
+        "-m",
         "mypy",
         "shared/contracts/python/shared_contracts",
         "shared/testkit/python/shared_testkit",
@@ -20,6 +23,8 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
         "scripts/check.py",
     ),
     (
+        sys.executable,
+        "-m",
         "pytest",
         "--cov=agent_core",
         "--cov=ai_mode",
