@@ -360,6 +360,20 @@ def test_iteration_limit_stops_a_continue_loop_before_another_effect() -> None:
     assert len(executor.calls) == 1
 
 
+def test_adaptation_review_without_actionable_target_fails_closed() -> None:
+    runner, store, executor = _runner(
+        [_model_result(_plan()), _model_result(_adaptation("request_review"))]
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "unsupported_review_target"
+    assert "pending tool call" in result.error.message
+    assert len(executor.calls) == 1
+
+
 def test_unexpected_read_only_executor_exception_is_persisted_safely() -> None:
     runner, store, executor = _runner(
         [_model_result(_plan())],

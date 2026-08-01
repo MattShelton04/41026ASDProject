@@ -63,7 +63,7 @@ stateDiagram-v2
     adapting --> ready: continue current plan
     adapting --> planning: replan
     adapting --> adapting: interrupted model call; close step and retry
-    adapting --> review_required: model requests review
+    adapting --> failed: review request has no actionable target
     adapting --> succeeded: validated final result
     adapting --> failed: terminal decision or limit
     adapting --> cancelled: cancellation at safe boundary
@@ -169,6 +169,12 @@ are implemented. The default tool registry remains empty until feature owners de
 their HTTP contracts. Authentication for the reviewer identity, resumable event
 streaming, an operation-status endpoint, and a run-detail UI are still required before
 their corresponding capabilities can be claimed complete.
+
+`AdaptationDecision.REQUEST_REVIEW` is reserved as a later-release contract seam. In
+Release 0 it fails closed with `unsupported_review_target`: the current review endpoint
+can authorize an exact pending tool call, but a free-form adaptation supplies no target
+or deterministic resume decision. A generalized Release 2 review contract must define
+those semantics before enabling that transition.
 
 Release 1 MCP tools and RAG observations must enter through the same tool/provider
 ports. Release 2 Planner, Worker, and Reviewer roles must share these run records and

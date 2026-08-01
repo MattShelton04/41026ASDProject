@@ -371,10 +371,18 @@ class AgentRunner:
     def _adaptation_transition(
         adaptation: Adaptation,
     ) -> tuple[RunStatus, dict[str, JsonValue] | None, ToolError | None]:
+        if adaptation.decision is AdaptationDecision.REQUEST_REVIEW:
+            return (
+                RunStatus.FAILED,
+                None,
+                ToolError(
+                    code="unsupported_review_target",
+                    message=("Adaptation requested review without an actionable pending tool call"),
+                ),
+            )
         mapping = {
             AdaptationDecision.CONTINUE: RunStatus.READY,
             AdaptationDecision.REPLAN: RunStatus.PLANNING,
-            AdaptationDecision.REQUEST_REVIEW: RunStatus.REVIEW_REQUIRED,
             AdaptationDecision.COMPLETE: RunStatus.SUCCEEDED,
             AdaptationDecision.FAIL: RunStatus.FAILED,
         }

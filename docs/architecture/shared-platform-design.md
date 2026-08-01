@@ -389,7 +389,7 @@ stateDiagram-v2
     observing --> adapting
     adapting --> ready: continue
     adapting --> planning: replan
-    adapting --> review_required: approval needed
+    adapting --> review_required: actionable review target (Release 2)
     review_required --> ready: approved
     review_required --> cancelled: rejected
     adapting --> succeeded: criteria satisfied
