@@ -12,9 +12,11 @@ is the shared agent orchestrator. The separate `ollama` container owns model inf
 | `GET /health/live` | Process liveness; never calls dependencies |
 | `GET /health/ready` | Store readiness plus a truthful healthy/degraded Ollama check |
 | `GET /api/v1/model-profiles` | Inspect supported models and bounded logical profiles |
+| `GET /api/v1/agent-runs` | Flagged operations index with stable cursor pagination and filters |
 | `POST /api/v1/agent-runs` | Validate, persist, enqueue, and return `202` |
 | `GET /api/v1/agent-runs/{id}` | Return the safe run, ordered steps, and reviews |
 | `GET /api/v1/agent-runs/{id}/events` | Return safe ordered events after a resumable cursor |
+| `GET /api/v1/operations/agent-runs/{id}` | Flagged, redacted evidence projection with weak ETag |
 | `POST /api/v1/agent-runs/{id}/cancel` | Idempotently record cancellation intent |
 | `POST /api/v1/agent-runs/{id}/reviews` | Approve/reject exactly one pending action |
 
@@ -57,6 +59,23 @@ HTTP 400 responses remain terminal request errors.
 | `AI_MODE_LOG_LEVEL` | `INFO` |
 | `AI_MODE_TOOL_CATALOG_PATH` | unset (no tools registered) |
 | `AI_MODE_EVIDENCE_ACCESS_TOKEN` | unset (view absent) |
+| `AI_MODE_OPERATIONS_ENABLED` | `false` (dashboard and operations API absent) |
+| `AI_MODE_OPERATIONS_ASSETS_PATH` | repository `shared/frontend/operations/ai-mode` path |
+
+### Operations dashboard
+
+The domain-neutral, read-only operations dashboard lists durable runs and follows a selected
+run's safe cursor events at `/operations/ai-mode/`. It displays policy-projected evidence,
+model/tool timings, limits, and correlation identifiers; it never reads SQLite or Ollama from
+the browser. Enable it only for trusted local development or demonstrations:
+
+```text
+AI_MODE_OPERATIONS_ENABLED=true uv run flask --app ai_mode:create_app run --port 5005
+```
+
+On PowerShell, set `$env:AI_MODE_OPERATIONS_ENABLED='true'` before the Flask command. The
+dashboard and its list/evidence endpoints are not registered when the flag is false. Remote
+deployment remains disabled until the team defines authenticated operator and feature scopes.
 
 Run locally with:
 

@@ -1,0 +1,222 @@
+{
+  "$defs": {
+    "AgentRunSummary": {
+      "additionalProperties": false,
+      "description": "Compact, safe row returned by the operations run index.",
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Ms"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Code"
+        },
+        "feature_key": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Feature Key",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "iteration_count": {
+          "minimum": 0,
+          "title": "Iteration Count",
+          "type": "integer"
+        },
+        "latest_phase": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StepPhase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "latest_step_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StepStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model_profile": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Model Profile",
+          "type": "string"
+        },
+        "objective_preview": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Objective Preview"
+        },
+        "prompt_set": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Prompt Set",
+          "type": "string"
+        },
+        "review_required": {
+          "title": "Review Required",
+          "type": "boolean"
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus"
+        },
+        "tool_call_count": {
+          "minimum": 0,
+          "title": "Tool Call Count",
+          "type": "integer"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 0,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "feature_key",
+        "status",
+        "model_profile",
+        "prompt_set",
+        "iteration_count",
+        "tool_call_count",
+        "version",
+        "review_required",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "AgentRunSummary",
+      "type": "object"
+    },
+    "RunStatus": {
+      "description": "Persisted lifecycle of an agent run.",
+      "enum": [
+        "queued",
+        "planning",
+        "ready",
+        "acting",
+        "observing",
+        "adapting",
+        "review_required",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    },
+    "StepPhase": {
+      "description": "Four auditable phases of the shared agentic loop.",
+      "enum": [
+        "plan",
+        "act",
+        "observe",
+        "adapt"
+      ],
+      "title": "StepPhase",
+      "type": "string"
+    },
+    "StepStatus": {
+      "description": "Execution status of one persisted phase step.",
+      "enum": [
+        "pending",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "StepStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Stable cursor page of operations summaries.",
+  "properties": {
+    "as_of": {
+      "format": "date-time",
+      "title": "As Of",
+      "type": "string"
+    },
+    "items": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AgentRunSummary"
+      },
+      "maxItems": 100,
+      "title": "Items",
+      "type": "array"
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "maxLength": 512,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Next Cursor"
+    }
+  },
+  "required": [
+    "as_of"
+  ],
+  "title": "AgentRunPage",
+  "type": "object"
+}

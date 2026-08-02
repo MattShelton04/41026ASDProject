@@ -1,15 +1,17 @@
 """Component tests for the owned SQLite workflow store."""
 
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
 from agent_core import ConcurrentRunUpdateError, create_run, transition_run
+from ai_mode.operations import RunListQuery
 from ai_mode.persistence import IdempotencyConflictError, SQLiteRunStore
-from ai_mode.persistence.sqlite import MIGRATION_1, PersistenceError
+from ai_mode.persistence.sqlite import MIGRATION_1, MIGRATION_2, PersistenceError
 from shared_contracts import (
     AgentRunRequest,
     AgentStep,
@@ -191,8 +193,6 @@ def test_create_idempotency_returns_original_and_rejects_argument_mismatch(
 def test_schema_one_database_is_forward_migrated_with_existing_run(tmp_path: Path) -> None:
     path = tmp_path / "old.sqlite3"
     run = _run()
-    import json
-
     with sqlite3.connect(path) as connection:
         connection.executescript(MIGRATION_1)
         connection.execute("PRAGMA user_version = 1")
@@ -214,8 +214,107 @@ def test_schema_one_database_is_forward_migrated_with_existing_run(tmp_path: Pat
     store.initialize()
 
     assert store.get(run.id) is not None
-    assert store.health().detail == "schema version 2"
+    assert store.health().detail == "schema version 3"
     assert store.list_events(run.id) == ()
+
+    with sqlite3.connect(path) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(agent_runs)")}
+        indexes = {row[1] for row in connection.execute("PRAGMA index_list(agent_runs)")}
+        indexed = connection.execute(
+            "SELECT created_at, feature_key, model_profile FROM agent_runs WHERE id = ?",
+            (str(run.id),),
+        ).fetchone()
+    assert {"created_at", "feature_key", "model_profile"}.issubset(columns)
+    assert {
+        "ix_agent_runs_created_id",
+        "ix_agent_runs_status_created_id",
+        "ix_agent_runs_feature_created_id",
+    }.issubset(indexes)
+    assert indexed == (run.created_at.isoformat(), run.feature_key, run.model_profile)
+
+
+def test_run_snapshot_query_filters_and_pages_stably(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    first = create_run(
+        AgentRunRequest(feature_key="student-1-feature", objective="First"),
+        run_id=UUID(int=1),
+        request_id="first",
+        now=NOW,
+    )
+    second = create_run(
+        AgentRunRequest(feature_key="student-2-feature", objective="Second"),
+        run_id=UUID(int=2),
+        request_id="second",
+        now=NOW,
+    )
+    third = create_run(
+        AgentRunRequest(feature_key="student-1-feature", objective="Third"),
+        run_id=UUID(int=3),
+        request_id="third",
+        now=NOW,
+    )
+    for run in (first, second, third):
+        store.create(run)
+
+    page, has_more = store.list_run_snapshots(RunListQuery(limit=2))
+    inserted_between_pages = create_run(
+        AgentRunRequest(feature_key="student-3-feature", objective="Inserted"),
+        run_id=UUID(int=4),
+        request_id="inserted",
+        now=NOW,
+    )
+    store.create(inserted_between_pages)
+    filtered, filtered_more = store.list_run_snapshots(
+        RunListQuery(feature_key="student-1-feature", limit=10)
+    )
+    next_page, next_more = store.list_run_snapshots(
+        RunListQuery(
+            cursor_created_at=page[-1].run.created_at,
+            cursor_id=page[-1].run.id,
+            limit=2,
+        )
+    )
+
+    assert [snapshot.run.id for snapshot in page] == [third.id, second.id]
+    assert has_more is True
+    assert [snapshot.run.id for snapshot in filtered] == [third.id, first.id]
+    assert filtered_more is False
+    assert [snapshot.run.id for snapshot in next_page] == [first.id]
+    assert next_more is False
+
+    with sqlite3.connect(tmp_path / "agent-state.sqlite3") as connection:
+        query_plan = connection.execute(
+            """
+            EXPLAIN QUERY PLAN SELECT id FROM agent_runs
+            WHERE feature_key = ? ORDER BY created_at DESC, id DESC LIMIT 10
+            """,
+            ("student-1-feature",),
+        ).fetchall()
+    assert any("ix_agent_runs_feature_created_id" in str(row) for row in query_plan)
+
+
+def test_schema_two_migration_fails_closed_for_invalid_snapshot(tmp_path: Path) -> None:
+    path = tmp_path / "invalid-v2.sqlite3"
+    with sqlite3.connect(path) as connection:
+        connection.executescript(MIGRATION_1)
+        connection.executescript(MIGRATION_2)
+        connection.execute("PRAGMA user_version = 2")
+        connection.execute(
+            """
+            INSERT INTO agent_runs (id, version, status, updated_at, payload_json)
+            VALUES (?, 0, 'queued', ?, ?)
+            """,
+            (str(uuid4()), NOW.isoformat(), json.dumps({"invalid": True})),
+        )
+
+    with pytest.raises(PersistenceError, match="cannot be indexed"):
+        SQLiteRunStore(path).initialize()
+
+    with sqlite3.connect(path) as connection:
+        version = connection.execute("PRAGMA user_version").fetchone()[0]
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(agent_runs)")}
+    assert version == 2
+    assert "created_at" not in columns
 
 
 def test_health_rejects_incomplete_schema_even_when_version_matches(tmp_path: Path) -> None:

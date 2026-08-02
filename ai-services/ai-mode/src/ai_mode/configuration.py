@@ -19,6 +19,9 @@ DEFAULT_QUEUE_CAPACITY = 100
 DEFAULT_QUEUE_RECONCILE_INTERVAL_SECONDS = 1.0
 DEFAULT_ENVIRONMENT = "local"
 DEFAULT_LOG_LEVEL = "INFO"
+DEFAULT_OPERATIONS_ASSETS_PATH = (
+    Path(__file__).resolve().parents[4] / "shared" / "frontend" / "operations" / "ai-mode"
+)
 SUPPORTED_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
 
 
@@ -46,6 +49,8 @@ class Settings:
     model_registry_path: Path | None = None
     default_model_profile: str | None = None
     evidence_access_token: str | None = None
+    operations_enabled: bool = False
+    operations_assets_path: Path = DEFAULT_OPERATIONS_ASSETS_PATH
     environment: str = DEFAULT_ENVIRONMENT
     log_level: str = DEFAULT_LOG_LEVEL
 
@@ -150,6 +155,13 @@ class Settings:
             model_registry_path=Path(registry_value) if registry_value else None,
             default_model_profile=default_profile,
             evidence_access_token=evidence_token,
+            operations_enabled=_boolean(
+                values.get("AI_MODE_OPERATIONS_ENABLED", "false"),
+                "operations interface",
+            ),
+            operations_assets_path=Path(
+                values.get("AI_MODE_OPERATIONS_ASSETS_PATH", str(DEFAULT_OPERATIONS_ASSETS_PATH))
+            ),
             environment=environment,
             log_level=log_level,
         )

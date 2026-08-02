@@ -4,11 +4,15 @@
 
 | Field | Value |
 |---|---|
-| Status | Partially implemented baseline; operations interface remains proposed |
+| Status | Release 0 local read-only operations baseline implemented; remote controls remain proposed |
 | Date | 2 August 2026 |
 | Scope | Shared run discovery, live progress, traceability, audit evidence, and conversation grouping |
 | Primary audience | Shared-platform maintainers, feature owners, reviewers, and demonstrators |
 | Related design | [Shared platform design](shared-platform-design.md), [agent run state machine](agent-run-state-machine.md), and [ADR-014](decisions/ADR-014-append-only-safe-agent-run-events.md) |
+
+The concrete Release 0 contracts, query/persistence work, UI structure, security gates,
+test matrix, and delivery milestones are defined in the
+[AI-mode operations interface implementation plan](../release-0/ai-mode-operations-interface-plan.md).
 
 ## 1. Executive recommendation
 
@@ -61,20 +65,24 @@ rows, no retention rule is enforced, and no signed evidence export exists.
 | Surface | Current behavior | Boundary |
 |---|---|---|
 | `GET /api/v1/agent-runs/{id}` | Returns the current safe run snapshot, ordered steps, and reviews | Requires the caller to already know the run ID |
+| `GET /api/v1/agent-runs` | Flagged, filtered stable-cursor page of compact run summaries | Absent unless the local operations feature is enabled |
 | `GET /api/v1/agent-runs/{id}/events` | Returns up to 200 ordered events after an exclusive `after` or `Last-Event-ID` cursor | Events deliberately contain state metadata, not arguments, outputs, or logs |
+| `GET /api/v1/operations/agent-runs/{id}` | Flagged allowlisted evidence projection with nested redaction and weak ETag | Local trusted use; remote authorization remains undecided |
 | `POST .../{id}/cancel` | Records cancellation intent idempotently | There is no operations-oriented permission model yet |
 | `POST .../{id}/reviews` | Records an exact approve/reject decision | Production reviewer identity and authentication remain undecided |
 | `/development/agent-runs/{id}` | Optional bearer-token HTML view of the persisted detail | Raw JSON presentation; development-only; absent unless configured |
+| `/operations/ai-mode/` | Read-only run browser, phase evidence, model/tool metrics, cursor journal, and correlation view | Absent unless `AI_MODE_OPERATIONS_ENABLED=true` |
 
 Progress events contain event ID, run ID and version, event type, status, timestamp,
 and optional step identity/phase/status. Their database-global monotonically increasing
 IDs and exclusive cursor give deterministic reconnect behavior. Version-1 databases
 migrate forward but do not receive invented historical events.
 
-The development evidence view escapes HTML and recursively redacts values under a
-small set of sensitive key names. This is a useful safeguard, but key-name filtering
-cannot find secrets embedded in arbitrary free text or feature-defined fields. It
-must not be treated as a production data-loss-prevention boundary.
+The operations projection applies depth/property/item/string bounds, sensitive-key
+redaction, and conservative common credential-pattern redaction in free text. The browser
+uses `textContent` and a restrictive content-security policy. These are useful safeguards,
+not a production data-loss-prevention boundary; feature owners must still decide what data
+may be persisted and which fields require stronger feature-specific policy.
 
 ### 2.3 Correlation and logging
 

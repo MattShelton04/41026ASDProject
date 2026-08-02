@@ -32,6 +32,7 @@ RUN uv sync --locked --no-dev --package ai-mode --no-install-workspace
 COPY ai-services/agent-core/src ai-services/agent-core/src
 COPY ai-services/ai-mode/src ai-services/ai-mode/src
 COPY shared/contracts/python shared/contracts/python
+COPY shared/frontend shared/frontend
 
 RUN uv sync --locked --no-dev --package ai-mode \
     && uv cache clean
@@ -51,6 +52,7 @@ RUN groupadd --gid 10001 ai-mode \
 COPY --from=builder --chown=ai-mode:ai-mode /app/.venv /app/.venv
 COPY --from=builder --chown=ai-mode:ai-mode /app/ai-services /app/ai-services
 COPY --from=builder --chown=ai-mode:ai-mode /app/shared/contracts /app/shared/contracts
+COPY --from=builder --chown=ai-mode:ai-mode /app/shared/frontend /app/shared/frontend
 
 USER ai-mode
 

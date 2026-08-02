@@ -16,6 +16,7 @@ from shared_contracts import (
     MAX_EVENT_PAGE_SIZE,
     MAX_IDEMPOTENCY_KEY_LENGTH,
     MAX_REQUEST_ID_LENGTH,
+    MAX_RUN_PAGE_SIZE,
     PROBLEM_DETAIL_MEDIA_TYPE,
     REQUEST_ID_HEADER,
     TRACEPARENT_HEADER,
@@ -23,6 +24,8 @@ from shared_contracts import (
     AgentRun,
     AgentRunDetail,
     AgentRunEventPage,
+    AgentRunEvidenceDetail,
+    AgentRunPage,
     AgentRunRequest,
     FeatureManifest,
     HealthResponse,
@@ -40,7 +43,9 @@ SCHEMA_MODELS: dict[str, type[BaseModel]] = {
     "agent-run-request.schema.json": AgentRunRequest,
     "agent-run.schema.json": AgentRun,
     "agent-run-detail.schema.json": AgentRunDetail,
+    "agent-run-evidence-detail.schema.json": AgentRunEvidenceDetail,
     "agent-run-event-page.schema.json": AgentRunEventPage,
+    "agent-run-page.schema.json": AgentRunPage,
     "health-response.schema.json": HealthResponse,
     "human-review-request.schema.json": HumanReviewRequest,
     "problem-detail.schema.json": ProblemDetail,
@@ -119,6 +124,60 @@ def _openapi() -> dict[str, Any]:
                 }
             },
             "/api/v1/agent-runs": {
+                "get": {
+                    "operationId": "listAgentRuns",
+                    "parameters": [
+                        {
+                            "name": "status",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "array",
+                                "items": {"$ref": "#/components/schemas/RunStatus"},
+                            },
+                        },
+                        {
+                            "name": "feature_key",
+                            "in": "query",
+                            "required": False,
+                            "schema": {"type": "string", "maxLength": 100},
+                        },
+                        {
+                            "name": "model_profile",
+                            "in": "query",
+                            "required": False,
+                            "schema": {"type": "string", "maxLength": 100},
+                        },
+                        {
+                            "name": "cursor",
+                            "in": "query",
+                            "required": False,
+                            "schema": {"type": "string", "maxLength": 512},
+                        },
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": MAX_RUN_PAGE_SIZE,
+                                "default": 50,
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Stable page of safe agent-run summaries",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/AgentRunPage"}
+                                }
+                            },
+                        },
+                        "400": problem_response,
+                    },
+                },
                 "post": {
                     "operationId": "createAgentRun",
                     "parameters": [
@@ -154,7 +213,7 @@ def _openapi() -> dict[str, Any]:
                         "422": problem_response,
                         "503": problem_response,
                     },
-                }
+                },
             },
             "/api/v1/model-profiles": {
                 "get": {
@@ -274,6 +333,27 @@ def _openapi() -> dict[str, Any]:
                         "409": problem_response,
                         "422": problem_response,
                         "503": problem_response,
+                    },
+                }
+            },
+            "/api/v1/operations/agent-runs/{run_id}": {
+                "get": {
+                    "operationId": "getAgentRunEvidence",
+                    "parameters": [run_parameter],
+                    "responses": {
+                        "200": {
+                            "description": "Policy-projected run evidence",
+                            "headers": {"ETag": {"schema": {"type": "string"}}},
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/AgentRunEvidenceDetail"
+                                    }
+                                }
+                            },
+                        },
+                        "304": {"description": "Projected run version is unchanged"},
+                        "404": problem_response,
                     },
                 }
             },

@@ -111,6 +111,13 @@ docker compose --file docker-compose.yml --file docker-compose.integration-test.
 Then open <http://localhost:5190>. Detailed behavior and teardown commands are in
 [`examples/integration-test-feature/README.md`](examples/integration-test-feature/README.md).
 
+For the shared read-only AI-mode operations dashboard, set
+`AI_MODE_OPERATIONS_ENABLED=true` in the local environment or `.env`, start AI-mode, and open
+<http://localhost:5005/operations/ai-mode/>. The feature flag is false by default and removes
+the dashboard plus its list/evidence API routes when disabled. The implementation and
+remaining remote-access decisions are documented in
+[`docs/release-0/ai-mode-operations-interface-plan.md`](docs/release-0/ai-mode-operations-interface-plan.md).
+
 ## Next decisions
 
 Before implementation begins, the team should confirm its membership with the

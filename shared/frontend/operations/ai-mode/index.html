@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>AI-mode operations</title>
+    <link rel="stylesheet" href="/operations/ai-mode/assets/styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#run-detail">Skip to run detail</a>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Shared platform · Release 0</p>
+        <h1>AI-mode operations</h1>
+      </div>
+      <div class="connection" role="status" aria-live="polite">
+        <span id="connection-dot" class="connection-dot"></span>
+        <span id="connection-state">Connecting…</span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="run-browser" aria-label="Agent run browser">
+        <form id="filters" class="filters">
+          <label>
+            Feature
+            <input id="feature-filter" name="feature_key" maxlength="100" placeholder="All features">
+          </label>
+          <label>
+            Status
+            <select id="status-filter" name="status">
+              <option value="">All statuses</option>
+              <option value="queued">Queued</option>
+              <option value="planning">Planning</option>
+              <option value="ready">Ready</option>
+              <option value="acting">Acting</option>
+              <option value="observing">Observing</option>
+              <option value="adapting">Adapting</option>
+              <option value="review_required">Review required</option>
+              <option value="succeeded">Succeeded</option>
+              <option value="failed">Failed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </label>
+          <label>
+            Model profile
+            <input id="model-filter" name="model_profile" maxlength="100" placeholder="All profiles">
+          </label>
+          <div class="filter-actions">
+            <button type="submit">Apply</button>
+            <button id="clear-filters" class="secondary" type="button">Clear</button>
+          </div>
+        </form>
+
+        <section class="page-counts" aria-label="Visible run counts">
+          <div><strong id="count-active">0</strong><span>active</span></div>
+          <div><strong id="count-review">0</strong><span>review</span></div>
+          <div><strong id="count-failed">0</strong><span>failed</span></div>
+          <div><strong id="count-complete">0</strong><span>complete</span></div>
+        </section>
+        <p class="count-note">Counts describe the loaded filtered page.</p>
+
+        <div class="run-list-heading">
+          <h2>Runs</h2>
+          <button id="refresh-runs" class="icon-button" type="button">Refresh</button>
+        </div>
+        <ol id="run-list" class="run-list" aria-live="polite">
+          <li class="empty">Loading persisted runs…</li>
+        </ol>
+        <button id="load-more" class="load-more" type="button" hidden>Load older runs</button>
+      </aside>
+
+      <section id="run-detail" class="run-detail" tabindex="-1">
+        <div id="empty-detail" class="hero-empty">
+          <p class="eyebrow">Durable workflow evidence</p>
+          <h2>Select a run to look under the hood</h2>
+          <p>Inspect attributed phases, model and tool timings, redacted values, safe errors,
+            and correlation identifiers without opening AI-mode's SQLite database.</p>
+        </div>
+
+        <div id="detail-content" hidden>
+          <header class="detail-header">
+            <div>
+              <div class="title-line">
+                <span id="run-status" class="status-badge"></span>
+                <span id="stale-state" class="stale-state" hidden>stale</span>
+              </div>
+              <h2 id="run-objective">Agent run</h2>
+              <p id="run-subtitle" class="mono muted"></p>
+            </div>
+            <button id="copy-link" class="secondary" type="button">Copy deep link</button>
+          </header>
+
+          <ol id="phase-strip" class="phase-strip" aria-label="Agent loop phases">
+            <li data-phase="plan">Plan</li>
+            <li data-phase="act">Act</li>
+            <li data-phase="observe">Observe</li>
+            <li data-phase="adapt">Adapt</li>
+          </ol>
+
+          <section class="metadata-panel" aria-labelledby="metadata-title">
+            <div class="section-heading">
+              <div><p class="eyebrow">Snapshot</p><h3 id="metadata-title">Run metadata</h3></div>
+              <span id="last-updated" class="muted"></span>
+            </div>
+            <dl id="run-metadata" class="metadata-grid"></dl>
+          </section>
+
+          <div class="detail-columns">
+            <section aria-labelledby="execution-title">
+              <div class="section-heading">
+                <div><p class="eyebrow">Attributed evidence</p><h3 id="execution-title">Execution</h3></div>
+              </div>
+              <div id="execution" class="execution"></div>
+            </section>
+
+            <aside class="event-panel" aria-labelledby="events-title">
+              <div class="section-heading">
+                <div><p class="eyebrow">Cursor journal</p><h3 id="events-title">Live events</h3></div>
+                <span id="event-cursor" class="mono muted">#0</span>
+              </div>
+              <ol id="event-list" class="event-list"></ol>
+            </aside>
+          </div>
+
+          <details class="raw-panel">
+            <summary>Projected JSON</summary>
+            <p class="muted">This is the allowlisted operations projection, not raw provider output.</p>
+            <pre id="raw-projection"></pre>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <div id="announcement" class="visually-hidden" role="status" aria-live="polite"></div>
+    <script type="module" src="/operations/ai-mode/assets/app.js"></script>
+  </body>
+</html>
