@@ -10,6 +10,10 @@
 | Primary audience | Shared-platform maintainers, feature owners, reviewers, and demonstrators |
 | Related design | [Shared platform design](shared-platform-design.md), [agent run state machine](agent-run-state-machine.md), and [ADR-014](decisions/ADR-014-append-only-safe-agent-run-events.md) |
 
+The concrete Release 0 contracts, query/persistence work, UI structure, security gates,
+test matrix, and delivery milestones are defined in the
+[AI-mode operations interface implementation plan](../release-0/ai-mode-operations-interface-plan.md).
+
 ## 1. Executive recommendation
 
 Add a small operations interface as a read-oriented projection over AI-mode's existing
