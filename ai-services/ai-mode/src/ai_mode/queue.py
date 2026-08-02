@@ -6,7 +6,14 @@ import logging
 from collections.abc import Callable, Iterable
 from queue import Empty, Full, Queue
 from threading import Event, Thread
+from time import monotonic
 from uuid import UUID
+
+from ai_mode.configuration import (
+    DEFAULT_QUEUE_CAPACITY,
+    DEFAULT_QUEUE_RECONCILE_INTERVAL_SECONDS,
+)
+from shared_contracts import AgentRun
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,8 +30,8 @@ class SerialRunQueue:
         handler: Callable[[UUID], object],
         *,
         discover: Callable[[], Iterable[UUID]] | None = None,
-        capacity: int = 100,
-        reconcile_interval_seconds: float = 1.0,
+        capacity: int = DEFAULT_QUEUE_CAPACITY,
+        reconcile_interval_seconds: float = DEFAULT_QUEUE_RECONCILE_INTERVAL_SECONDS,
     ) -> None:
         if capacity < 1:
             raise ValueError("queue capacity must be positive")
@@ -70,7 +77,14 @@ class SerialRunQueue:
         try:
             run_ids = tuple(self._discover())
         except Exception:
-            LOGGER.exception("durable agent run discovery failed")
+            LOGGER.exception(
+                "Durable agent run discovery failed",
+                extra={
+                    "event": "agent.queue.discovery_failed",
+                    "outcome": "failure",
+                    "error_code": "run_discovery_failed",
+                },
+            )
             return
         for run_id in run_ids:
             if self._stopping.is_set():
@@ -78,7 +92,36 @@ class SerialRunQueue:
             self._handle(run_id)
 
     def _handle(self, run_id: UUID) -> None:
+        started = monotonic()
         try:
-            self._handler(run_id)
+            result = self._handler(run_id)
         except Exception:
-            LOGGER.exception("agent run worker failed", extra={"run_id": str(run_id)})
+            LOGGER.exception(
+                "agent run worker failed",
+                extra={
+                    "event": "agent.run.worker_failed",
+                    "run_id": run_id,
+                    "outcome": "failure",
+                    "duration_ms": max(0, int((monotonic() - started) * 1_000)),
+                    "error_code": "run_worker_failed",
+                },
+            )
+            return
+        fields: dict[str, object] = {
+            "event": "agent.run.blocked",
+            "run_id": run_id,
+            "outcome": "completed",
+            "duration_ms": max(0, int((monotonic() - started) * 1_000)),
+        }
+        if isinstance(result, AgentRun):
+            fields.update(
+                {
+                    "feature_key": result.feature_key,
+                    "run_status": result.status,
+                    "outcome": result.status,
+                    "iteration_count": result.iteration_count,
+                    "tool_call_count": result.tool_call_count,
+                    "error_code": result.error.code if result.error is not None else None,
+                }
+            )
+        LOGGER.info("Agent run reached a blocked boundary", extra=fields)

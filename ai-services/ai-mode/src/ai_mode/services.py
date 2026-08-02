@@ -66,8 +66,8 @@ class AppServices:
     queue: RunQueue
     clock: Clock
     ids: IdGenerator
+    default_model_profile: str
     model_registry: ModelRegistry | None = None
-    default_model_profile: str = "local-standard.v1"
     closeables: tuple[object, ...] = ()
 
     def close(self) -> None:
@@ -119,7 +119,12 @@ def build_services(settings: Settings) -> AppServices:
             if decision.disposition is RecoveryDisposition.REENQUEUE:
                 yield decision.run.id
 
-    queue = SerialRunQueue(runner.run_until_blocked, discover=discover_resumable)
+    queue = SerialRunQueue(
+        runner.run_until_blocked,
+        discover=discover_resumable,
+        capacity=settings.queue_capacity,
+        reconcile_interval_seconds=settings.queue_reconcile_interval_seconds,
+    )
     return AppServices(
         store=store,
         provider=provider,

@@ -22,7 +22,13 @@ from ai_mode.queue import RunQueueFullError
 from ai_mode.services import AppServices
 from shared_contracts import (
     AGENT_RUN_ID_HEADER,
+    DEFAULT_EVENT_PAGE_SIZE,
     IDEMPOTENCY_KEY_HEADER,
+    LAST_EVENT_ID_HEADER,
+    MAX_EVENT_CURSOR,
+    MAX_EVENT_PAGE_SIZE,
+    MAX_IDEMPOTENCY_KEY_LENGTH,
+    PROBLEM_DETAIL_MEDIA_TYPE,
     AgentRunEventPage,
     AgentRunRequest,
     FieldIssue,
@@ -33,7 +39,6 @@ from shared_contracts import (
 
 api = Blueprint("agent_api", __name__, url_prefix="/api/v1")
 LOGGER = logging.getLogger(__name__)
-MAX_EVENT_CURSOR = 9_223_372_036_854_775_807
 
 
 def _services() -> AppServices:
@@ -81,7 +86,7 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
         traceparent=g.traceparent,
     )
     idempotency_key = request.headers.get(IDEMPOTENCY_KEY_HEADER, "").strip()
-    if len(idempotency_key) > 200:
+    if len(idempotency_key) > MAX_IDEMPOTENCY_KEY_LENGTH:
         return _problem(400, "idempotency_key_invalid", "Idempotency-Key is too long")
     created = True
     try:
@@ -132,18 +137,18 @@ def get_agent_run_events(run_id: UUID) -> tuple[Response, int]:
     detail = _services().store.get(run_id)
     if detail is None:
         return _problem(404, "agent_run_not_found", "Agent run does not exist")
-    raw_cursor = request.headers.get("Last-Event-ID") or request.args.get("after", "0")
-    raw_limit = request.args.get("limit", "100")
+    raw_cursor = request.headers.get(LAST_EVENT_ID_HEADER) or request.args.get("after", "0")
+    raw_limit = request.args.get("limit", str(DEFAULT_EVENT_PAGE_SIZE))
     try:
         cursor = int(raw_cursor)
         limit = int(raw_limit)
     except ValueError:
         return _problem(400, "event_cursor_invalid", "Event cursor and limit must be integers")
-    if not 0 <= cursor <= MAX_EVENT_CURSOR or not 1 <= limit <= 200:
+    if not 0 <= cursor <= MAX_EVENT_CURSOR or not 1 <= limit <= MAX_EVENT_PAGE_SIZE:
         return _problem(
             400,
             "event_cursor_invalid",
-            "Event cursor is out of range or limit is not between 1 and 200",
+            f"Event cursor is out of range or limit is not between 1 and {MAX_EVENT_PAGE_SIZE}",
         )
     available = _services().store.list_events(run_id, after_id=cursor, limit=limit + 1)
     events = available[:limit]
@@ -229,7 +234,15 @@ def _signal_run(services: AppServices, run_id: UUID) -> None:
     try:
         services.queue.enqueue(run_id)
     except RunQueueFullError:
-        LOGGER.warning("run wake-up queue is full", extra={"run_id": str(run_id)})
+        LOGGER.warning(
+            "Run wake-up queue is full",
+            extra={
+                "event": "agent.queue.wakeup_dropped",
+                "run_id": run_id,
+                "outcome": "degraded",
+                "error_code": "run_queue_full",
+            },
+        )
 
 
 def _problem(
@@ -249,7 +262,7 @@ def _problem(
         errors=errors,
     )
     response = jsonify(problem.model_dump(mode="json"))
-    response.content_type = "application/problem+json"
+    response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
     return response, status
 
 

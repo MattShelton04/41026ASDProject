@@ -90,3 +90,16 @@ def test_write_call_contract_retains_idempotency_and_approval_metadata() -> None
     )
 
     assert call.model_dump(mode="json")["approval_status"] == "approved"
+
+
+def test_tool_call_rejects_zero_w3c_trace_identifiers() -> None:
+    with pytest.raises(ValidationError, match="non-zero trace and parent identifiers"):
+        ToolCall(
+            id=uuid4(),
+            run_id=uuid4(),
+            step_id=uuid4(),
+            traceparent="00-" + "0" * 32 + "-00f067aa0ba902b7-01",
+            tool_name="student_1.records.search.v1",
+            tool_version="v1",
+            approval_status=ApprovalStatus.NOT_REQUIRED,
+        )

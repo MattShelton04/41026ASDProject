@@ -10,6 +10,16 @@ from typing import Any
 from pydantic import BaseModel
 
 from shared_contracts import (
+    DEFAULT_EVENT_PAGE_SIZE,
+    IDEMPOTENCY_KEY_HEADER,
+    LAST_EVENT_ID_HEADER,
+    MAX_EVENT_PAGE_SIZE,
+    MAX_IDEMPOTENCY_KEY_LENGTH,
+    MAX_REQUEST_ID_LENGTH,
+    PROBLEM_DETAIL_MEDIA_TYPE,
+    REQUEST_ID_HEADER,
+    TRACEPARENT_HEADER,
+    TRACEPARENT_PATTERN_TEXT,
     AgentRun,
     AgentRunDetail,
     AgentRunEventPage,
@@ -59,7 +69,7 @@ def _openapi() -> dict[str, Any]:
     problem_response = {
         "description": "Problem Details-compatible error",
         "content": {
-            "application/problem+json": {"schema": {"$ref": "#/components/schemas/ProblemDetail"}}
+            PROBLEM_DETAIL_MEDIA_TYPE: {"schema": {"$ref": "#/components/schemas/ProblemDetail"}}
         },
     }
     return {
@@ -214,12 +224,12 @@ def _openapi() -> dict[str, Any]:
                             "schema": {
                                 "type": "integer",
                                 "minimum": 1,
-                                "maximum": 200,
-                                "default": 100,
+                                "maximum": MAX_EVENT_PAGE_SIZE,
+                                "default": DEFAULT_EVENT_PAGE_SIZE,
                             },
                         },
                         {
-                            "name": "Last-Event-ID",
+                            "name": LAST_EVENT_ID_HEADER,
                             "in": "header",
                             "required": False,
                             "schema": {"type": "integer", "minimum": 0},
@@ -271,25 +281,29 @@ def _openapi() -> dict[str, Any]:
         "components": {
             "parameters": {
                 "RequestId": {
-                    "name": "X-Request-ID",
+                    "name": REQUEST_ID_HEADER,
                     "in": "header",
                     "required": False,
-                    "schema": {"type": "string", "maxLength": 200},
+                    "schema": {"type": "string", "maxLength": MAX_REQUEST_ID_LENGTH},
                 },
                 "Traceparent": {
-                    "name": "traceparent",
+                    "name": TRACEPARENT_HEADER,
                     "in": "header",
                     "required": False,
                     "schema": {
                         "type": "string",
-                        "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+                        "pattern": TRACEPARENT_PATTERN_TEXT,
                     },
                 },
                 "IdempotencyKey": {
-                    "name": "Idempotency-Key",
+                    "name": IDEMPOTENCY_KEY_HEADER,
                     "in": "header",
                     "required": False,
-                    "schema": {"type": "string", "minLength": 1, "maxLength": 200},
+                    "schema": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": MAX_IDEMPOTENCY_KEY_LENGTH,
+                    },
                 },
             },
             "schemas": schemas,

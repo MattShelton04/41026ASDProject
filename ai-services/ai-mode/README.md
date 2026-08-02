@@ -51,6 +51,10 @@ HTTP 400 responses remain terminal request errors.
 | `AI_MODE_MAX_REQUEST_BYTES` | `65536` |
 | `AI_MODE_MAX_TOOL_REQUEST_BYTES` | `262144` |
 | `AI_MODE_MAX_TOOL_RESPONSE_BYTES` | `1048576` |
+| `AI_MODE_QUEUE_CAPACITY` | `100` |
+| `AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS` | `1` |
+| `AI_MODE_ENVIRONMENT` | `local` |
+| `AI_MODE_LOG_LEVEL` | `INFO` |
 | `AI_MODE_TOOL_CATALOG_PATH` | unset (no tools registered) |
 | `AI_MODE_EVIDENCE_ACCESS_TOKEN` | unset (view absent) |
 
@@ -117,6 +121,12 @@ are committed atomically. On startup, incomplete runs are reconciled from
 their persisted phase boundary: safe work is re-enqueued and uncertain writes return to
 human review. The worker performs the same durable discovery while idle, so the bounded
 memory queue is a wake-up optimization rather than a source of truth.
+
+AI-mode emits one-line JSON operational events to stdout for HTTP completion, worker
+boundaries, model invocations, and feature tool calls. The schema includes stable nullable
+correlation fields and deliberately excludes prompts, tool arguments/results, authorization
+headers, and response bodies. An inbound valid `traceparent` contributes its trace ID for
+correlation; this baseline does not claim to create OpenTelemetry child spans.
 
 ## Feature tool integration
 

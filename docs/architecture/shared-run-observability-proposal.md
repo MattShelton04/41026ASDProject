@@ -4,8 +4,8 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed for team review; no runtime implementation is claimed |
-| Date | 1 August 2026 |
+| Status | Partially implemented baseline; operations interface remains proposed |
+| Date | 2 August 2026 |
 | Scope | Shared run discovery, live progress, traceability, audit evidence, and conversation grouping |
 | Primary audience | Shared-platform maintainers, feature owners, reviewers, and demonstrators |
 | Related design | [Shared platform design](shared-platform-design.md), [agent run state machine](agent-run-state-machine.md), and [ADR-014](decisions/ADR-014-append-only-safe-agent-run-events.md) |
@@ -32,7 +32,7 @@ general monitoring platform or Release 2 multi-agent control plane.
 
 ## 2. Current implemented capability
 
-The following findings describe the repository on 1 August 2026.
+The following findings describe the repository on 2 August 2026.
 
 ### 2.1 Durable workflow and audit records
 
@@ -78,7 +78,7 @@ must not be treated as a production data-loss-prevention boundary.
 
 ### 2.3 Correlation and logging
 
-The current conventions are useful but incomplete:
+The current conventions provide a useful structured baseline but remain incomplete:
 
 - AI-mode accepts or creates `X-Request-ID` and returns it on every response.
 - Agent API responses include `X-Agent-Run-ID`.
@@ -86,17 +86,19 @@ The current conventions are useful but incomplete:
   the run and forwarded with `X-Request-ID` and `X-Agent-Run-ID` to feature tools.
 - Tool calls and persisted steps provide run, step, and call identifiers that can join
   orchestration evidence to feature-owned operation records.
-- Worker failures and a few adapter conditions are logged with Python logging; worker
-  failures include `run_id` as logging metadata.
+- AI-mode configures one-line JSON stdout logs with a stable allowlisted schema for HTTP
+  completion, worker boundaries, model completion, tool completion, and failures.
+- Log records carry applicable request, run, step, tool-call, trace, feature, outcome,
+  duration, model/token, and safe error-code fields. Prompts, tool arguments/results,
+  authorization headers, response bodies, and arbitrary logging extras are excluded.
 
-There is no repository logging configuration that guarantees JSON output or the full
-correlation field set. AI-mode does not create a trace when none is supplied, create
-child spans for model/tool calls, configure an OpenTelemetry exporter, or expose a log
-query endpoint. Re-forwarding one `traceparent` preserves a correlation hint but is not
-the same as constructing a valid distributed span tree. Consequently, a user cannot
-currently enter a run ID and reliably retrieve every exact application log across all
-services. Locally, `docker compose logs` can be inspected, but log format and field
-coverage do not make that a robust run query.
+Feature services do not yet share the JSON logging implementation because their runtime
+and language conventions have not been selected. AI-mode also does not create a trace when
+none is supplied, create child spans for model/tool calls, configure an OpenTelemetry
+exporter, or expose a log query endpoint. Re-forwarding one `traceparent` preserves a
+correlation hint but is not the same as constructing a valid distributed span tree.
+Consequently, local operators can reliably filter AI-mode stdout by run ID, but they cannot
+yet enter a run ID and retrieve every exact application log across all services.
 
 ### 2.4 Multiple runs versus conversations
 

@@ -2,7 +2,21 @@
 
 import pytest
 
-from ai_mode.configuration import ConfigurationError, Settings
+from ai_mode.configuration import (
+    DEFAULT_MAX_REQUEST_BYTES,
+    DEFAULT_QUEUE_CAPACITY,
+    ConfigurationError,
+    Settings,
+)
+
+
+def test_defaults_have_one_typed_runtime_source() -> None:
+    settings = Settings.from_env({})
+
+    assert settings.max_request_bytes == DEFAULT_MAX_REQUEST_BYTES
+    assert settings.queue_capacity == DEFAULT_QUEUE_CAPACITY
+    assert settings.environment == "local"
+    assert settings.log_level == "INFO"
 
 
 def test_course_openai_compatible_url_is_normalized_for_native_ollama_api() -> None:
@@ -33,6 +47,11 @@ def test_course_openai_compatible_url_is_normalized_for_native_ollama_api() -> N
         ({"OLLAMA_KEEP_ALIVE": " "}, "cannot be empty"),
         ({"AI_MODE_DEFAULT_MODEL_PROFILE": "Not Valid"}, "is invalid"),
         ({"AI_MODE_REQUIRE_OLLAMA_READY": "sometimes"}, "must be true or false"),
+        ({"AI_MODE_QUEUE_CAPACITY": "0"}, "queue capacity must be between"),
+        ({"AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS": "0"}, "greater than zero"),
+        ({"AI_MODE_ENVIRONMENT": "Not Valid"}, "AI_MODE_ENVIRONMENT is invalid"),
+        ({"AI_MODE_ENVIRONMENT": ""}, "AI_MODE_ENVIRONMENT is invalid"),
+        ({"AI_MODE_LOG_LEVEL": "verbose"}, "AI_MODE_LOG_LEVEL must be"),
     ],
 )
 def test_invalid_settings_fail_fast(values: dict[str, str], message: str) -> None:

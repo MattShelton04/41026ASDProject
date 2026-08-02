@@ -42,6 +42,7 @@ class CapturingQueue:
 def app_services(tmp_path: Path) -> AppServices:
     store = SQLiteRunStore(tmp_path / "agent-state.sqlite3")
     store.initialize()
+    model_registry = load_model_registry()
     return AppServices(
         store=store,
         provider=ScriptedLLMProvider(
@@ -50,7 +51,8 @@ def app_services(tmp_path: Path) -> AppServices:
         queue=CapturingQueue(),
         clock=FixedClock(),
         ids=FixedIds(),
-        model_registry=load_model_registry(),
+        default_model_profile=model_registry.default_profile,
+        model_registry=model_registry,
     )
 
 

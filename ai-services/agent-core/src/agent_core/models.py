@@ -4,6 +4,6 @@ from pydantic import BaseModel, ConfigDict
 
 
 class CoreModel(BaseModel):
-    """Reject undocumented fields at adapter boundaries."""
+    """Reject undocumented fields and preserve port values as snapshots."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)

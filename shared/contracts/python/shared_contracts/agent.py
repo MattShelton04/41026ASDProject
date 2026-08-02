@@ -10,9 +10,16 @@ from uuid import UUID
 from pydantic import Field, JsonValue, model_validator
 
 from shared_contracts.base import ContractModel
+from shared_contracts.http import IdempotencyKey, RequestId, Traceparent
 
 Identifier = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-z0-9][a-z0-9_.-]*$")]
 JsonObject = dict[str, JsonValue]
+PromptSet = Literal["default.v1", "default.v2", "default.v3"]
+SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = ("default.v1", "default.v2", "default.v3")
+DEFAULT_PROMPT_SET: PromptSet = "default.v3"
+DEFAULT_EVENT_PAGE_SIZE = 100
+MAX_EVENT_PAGE_SIZE = 200
+MAX_EVENT_CURSOR = 2**63 - 1
 
 
 class RunStatus(StrEnum):
@@ -106,7 +113,7 @@ class AgentRunRequest(ContractModel):
 
     feature_key: Identifier
     objective: str = Field(min_length=1, max_length=4_000)
-    prompt_set: Literal["default.v1", "default.v2", "default.v3"] = "default.v3"
+    prompt_set: PromptSet = DEFAULT_PROMPT_SET
     model_profile: Identifier = "local-standard.v1"
     limits: RunLimits = Field(default_factory=RunLimits)
 
@@ -159,15 +166,12 @@ class ToolCall(ContractModel):
     id: UUID
     run_id: UUID
     step_id: UUID
-    request_id: str = Field(default="unknown", min_length=1, max_length=200)
-    traceparent: str | None = Field(
-        default=None,
-        pattern=r"^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
-    )
+    request_id: RequestId = "unknown"
+    traceparent: Traceparent | None = None
     tool_name: Identifier
     tool_version: Identifier
     arguments: JsonObject = Field(default_factory=dict, max_length=100)
-    idempotency_key: str | None = Field(default=None, min_length=1, max_length=200)
+    idempotency_key: IdempotencyKey | None = None
     approval_status: ApprovalStatus
 
 
@@ -266,11 +270,8 @@ class AgentRun(ContractModel):
     """Public, safe snapshot of a persisted agent run."""
 
     id: UUID
-    request_id: str = Field(min_length=1, max_length=200)
-    traceparent: str | None = Field(
-        default=None,
-        pattern=r"^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
-    )
+    request_id: RequestId
+    traceparent: Traceparent | None = None
     feature_key: Identifier
     objective: str = Field(min_length=1, max_length=4_000)
     status: RunStatus

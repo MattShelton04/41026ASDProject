@@ -1,6 +1,11 @@
 """Stable, domain-neutral contracts shared across service boundaries."""
 
 from shared_contracts.agent import (
+    DEFAULT_EVENT_PAGE_SIZE,
+    DEFAULT_PROMPT_SET,
+    MAX_EVENT_CURSOR,
+    MAX_EVENT_PAGE_SIZE,
+    SUPPORTED_PROMPT_SETS,
     Adaptation,
     AdaptationDecision,
     AgentRun,
@@ -36,13 +41,22 @@ from shared_contracts.feature import (
 from shared_contracts.http import (
     AGENT_RUN_ID_HEADER,
     IDEMPOTENCY_KEY_HEADER,
+    LAST_EVENT_ID_HEADER,
+    MAX_IDEMPOTENCY_KEY_LENGTH,
+    MAX_REQUEST_ID_LENGTH,
+    PROBLEM_DETAIL_MEDIA_TYPE,
     REQUEST_ID_HEADER,
+    REQUEST_ID_PATTERN_TEXT,
     TRACEPARENT_HEADER,
+    TRACEPARENT_PATTERN_TEXT,
     FieldIssue,
     HealthCheck,
     HealthResponse,
     HealthStatus,
     ProblemDetail,
+    is_valid_request_id,
+    is_valid_traceparent,
+    trace_id_from_traceparent,
 )
 from shared_contracts.model_registry import (
     ApprovedModelFamily,
@@ -54,9 +68,20 @@ from shared_contracts.model_registry import (
 
 __all__ = [
     "AGENT_RUN_ID_HEADER",
+    "DEFAULT_EVENT_PAGE_SIZE",
+    "DEFAULT_PROMPT_SET",
     "IDEMPOTENCY_KEY_HEADER",
+    "LAST_EVENT_ID_HEADER",
+    "MAX_EVENT_CURSOR",
+    "MAX_EVENT_PAGE_SIZE",
+    "MAX_IDEMPOTENCY_KEY_LENGTH",
+    "MAX_REQUEST_ID_LENGTH",
+    "PROBLEM_DETAIL_MEDIA_TYPE",
     "REQUEST_ID_HEADER",
+    "REQUEST_ID_PATTERN_TEXT",
+    "SUPPORTED_PROMPT_SETS",
     "TRACEPARENT_HEADER",
+    "TRACEPARENT_PATTERN_TEXT",
     "Adaptation",
     "AdaptationDecision",
     "AgentRun",
@@ -94,6 +119,9 @@ __all__ = [
     "ToolError",
     "ToolOutcome",
     "ToolResult",
+    "is_valid_request_id",
+    "is_valid_traceparent",
     "load_feature_manifest",
     "load_feature_manifests",
+    "trace_id_from_traceparent",
 ]
