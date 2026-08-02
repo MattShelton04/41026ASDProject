@@ -17,6 +17,7 @@ def test_defaults_have_one_typed_runtime_source() -> None:
     assert settings.queue_capacity == DEFAULT_QUEUE_CAPACITY
     assert settings.environment == "local"
     assert settings.log_level == "INFO"
+    assert settings.operations_enabled is False
 
 
 def test_course_openai_compatible_url_is_normalized_for_native_ollama_api() -> None:
@@ -52,6 +53,7 @@ def test_course_openai_compatible_url_is_normalized_for_native_ollama_api() -> N
         ({"AI_MODE_ENVIRONMENT": "Not Valid"}, "AI_MODE_ENVIRONMENT is invalid"),
         ({"AI_MODE_ENVIRONMENT": ""}, "AI_MODE_ENVIRONMENT is invalid"),
         ({"AI_MODE_LOG_LEVEL": "verbose"}, "AI_MODE_LOG_LEVEL must be"),
+        ({"AI_MODE_OPERATIONS_ENABLED": "sometimes"}, "must be true or false"),
     ],
 )
 def test_invalid_settings_fail_fast(values: dict[str, str], message: str) -> None:
@@ -67,3 +69,9 @@ def test_strict_ollama_readiness_is_explicitly_configured(
     settings = Settings.from_env({"AI_MODE_REQUIRE_OLLAMA_READY": value})
 
     assert settings.require_ollama_ready is expected
+
+
+def test_operations_interface_is_explicitly_enabled() -> None:
+    settings = Settings.from_env({"AI_MODE_OPERATIONS_ENABLED": "true"})
+
+    assert settings.operations_enabled is True

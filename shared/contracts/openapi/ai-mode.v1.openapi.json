@@ -31,6 +31,54 @@
       }
     },
     "schemas": {
+      "AdaptationDecision": {
+        "description": "Validated decision made after observing an action.",
+        "enum": [
+          "continue",
+          "replan",
+          "request_review",
+          "complete",
+          "fail"
+        ],
+        "title": "AdaptationDecision",
+        "type": "string"
+      },
+      "AdaptationEvidence": {
+        "additionalProperties": false,
+        "description": "Safe post-observation decision and optional projected result.",
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/AdaptationDecision"
+          },
+          "justification": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Justification",
+            "type": "string"
+          },
+          "redacted_final_result": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Redacted Final Result"
+          }
+        },
+        "required": [
+          "decision",
+          "justification"
+        ],
+        "title": "AdaptationEvidence",
+        "type": "object"
+      },
       "AgentRun": {
         "additionalProperties": false,
         "description": "Public, safe snapshot of a persisted agent run.",
@@ -308,6 +356,128 @@
         "title": "AgentRunEventPage",
         "type": "object"
       },
+      "AgentRunEvidenceDetail": {
+        "additionalProperties": false,
+        "description": "Allowlisted read projection used by the operations interface.",
+        "properties": {
+          "cancel_requested": {
+            "title": "Cancel Requested",
+            "type": "boolean"
+          },
+          "correlation": {
+            "$ref": "#/components/schemas/RunCorrelation"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolError"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "final_result": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Final Result"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/RunLimits"
+          },
+          "objective": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Objective"
+          },
+          "reviews": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HumanReviewEvidence"
+            },
+            "maxItems": 100,
+            "title": "Reviews",
+            "type": "array"
+          },
+          "run": {
+            "$ref": "#/components/schemas/AgentRunSummary"
+          },
+          "steps": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AgentStepEvidence"
+            },
+            "maxItems": 500,
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "run",
+          "limits",
+          "cancel_requested",
+          "correlation"
+        ],
+        "title": "AgentRunEvidenceDetail",
+        "type": "object"
+      },
+      "AgentRunPage": {
+        "additionalProperties": false,
+        "description": "Stable cursor page of operations summaries.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AgentRunSummary"
+            },
+            "maxItems": 100,
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "as_of"
+        ],
+        "title": "AgentRunPage",
+        "type": "object"
+      },
       "AgentRunRequest": {
         "additionalProperties": false,
         "description": "Request accepted from a feature backend to start one agent run.",
@@ -352,6 +522,148 @@
           "objective"
         ],
         "title": "AgentRunRequest",
+        "type": "object"
+      },
+      "AgentRunSummary": {
+        "additionalProperties": false,
+        "description": "Compact, safe row returned by the operations run index.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duration Ms"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error Code"
+          },
+          "feature_key": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Feature Key",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "iteration_count": {
+            "minimum": 0,
+            "title": "Iteration Count",
+            "type": "integer"
+          },
+          "latest_phase": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StepPhase"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "latest_step_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StepStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "model_profile": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Model Profile",
+            "type": "string"
+          },
+          "objective_preview": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Objective Preview"
+          },
+          "prompt_set": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Prompt Set",
+            "type": "string"
+          },
+          "review_required": {
+            "title": "Review Required",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "tool_call_count": {
+            "minimum": 0,
+            "title": "Tool Call Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "feature_key",
+          "status",
+          "model_profile",
+          "prompt_set",
+          "iteration_count",
+          "tool_call_count",
+          "version",
+          "review_required",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentRunSummary",
         "type": "object"
       },
       "AgentStep": {
@@ -443,6 +755,152 @@
         "title": "AgentStep",
         "type": "object"
       },
+      "AgentStepEvidence": {
+        "additionalProperties": false,
+        "description": "One attributed step in the operations timeline.",
+        "properties": {
+          "adaptation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdaptationEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Completed At"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duration Ms"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolError"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "model_invocation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelInvocationEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "observation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservationEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "phase": {
+            "$ref": "#/components/schemas/StepPhase"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "sequence": {
+            "minimum": 1,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/EvidenceSource"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StepStatus"
+          },
+          "summary": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolCallEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "id",
+          "sequence",
+          "phase",
+          "status",
+          "source",
+          "summary"
+        ],
+        "title": "AgentStepEvidence",
+        "type": "object"
+      },
       "ApprovalStatus": {
         "description": "Human approval state for a protected tool call.",
         "enum": [
@@ -462,6 +920,18 @@
           "deepseek"
         ],
         "title": "ApprovedModelFamily",
+        "type": "string"
+      },
+      "EvidenceSource": {
+        "description": "Origin of evidence displayed by the operations interface.",
+        "enum": [
+          "user",
+          "orchestration",
+          "model",
+          "tool",
+          "human"
+        ],
+        "title": "EvidenceSource",
         "type": "string"
       },
       "FeatureManifest": {
@@ -704,6 +1174,84 @@
         "title": "HumanReview",
         "type": "object"
       },
+      "HumanReviewEvidence": {
+        "additionalProperties": false,
+        "description": "Immutable, projected human decision for one protected action.",
+        "properties": {
+          "approval_status": {
+            "$ref": "#/components/schemas/ApprovalStatus"
+          },
+          "call_id": {
+            "format": "uuid",
+            "title": "Call Id",
+            "type": "string"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Comment"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ReviewDecision"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "format": "date-time",
+            "title": "Reviewed At",
+            "type": "string"
+          },
+          "reviewer": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reviewer",
+            "type": "string"
+          },
+          "step_id": {
+            "format": "uuid",
+            "title": "Step Id",
+            "type": "string"
+          },
+          "tool_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Tool Name",
+            "type": "string"
+          },
+          "tool_version": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Tool Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "step_id",
+          "call_id",
+          "tool_name",
+          "tool_version",
+          "approval_status",
+          "decision",
+          "reviewer",
+          "reviewed_at"
+        ],
+        "title": "HumanReviewEvidence",
+        "type": "object"
+      },
       "HumanReviewRequest": {
         "additionalProperties": false,
         "description": "Authenticated human decision submitted for a pending action.",
@@ -739,6 +1287,163 @@
         "type": "object"
       },
       "JsonValue": {},
+      "ModelInvocationEvidence": {
+        "additionalProperties": false,
+        "description": "Reproducibility metadata that intentionally excludes prompt content.",
+        "properties": {
+          "metrics": {
+            "$ref": "#/components/schemas/ModelMetricsEvidence"
+          },
+          "model": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "model_digest": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model Digest"
+          },
+          "prompt_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Prompt Hash",
+            "type": "string"
+          },
+          "prompt_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "prompt_version": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Prompt Version",
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "rendered_input_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Rendered Input Hash",
+            "type": "string"
+          },
+          "repair_count": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Repair Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "prompt_id",
+          "prompt_version",
+          "prompt_hash",
+          "rendered_input_hash",
+          "repair_count",
+          "metrics"
+        ],
+        "title": "ModelInvocationEvidence",
+        "type": "object"
+      },
+      "ModelMetricsEvidence": {
+        "additionalProperties": false,
+        "description": "Portable model timings and counts safe for developer display.",
+        "properties": {
+          "eval_duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Eval Duration Ms"
+          },
+          "load_duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Load Duration Ms"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output Tokens"
+          },
+          "prompt_eval_duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Prompt Eval Duration Ms"
+          },
+          "prompt_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Prompt Tokens"
+          },
+          "total_duration_ms": {
+            "minimum": 0,
+            "title": "Total Duration Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_duration_ms"
+        ],
+        "title": "ModelMetricsEvidence",
+        "type": "object"
+      },
       "ModelProfile": {
         "additionalProperties": false,
         "description": "Stable logical name and bounded operational settings for one model.",
@@ -857,6 +1562,139 @@
         "title": "ModelRoleName",
         "type": "string"
       },
+      "ObservationEvidence": {
+        "additionalProperties": false,
+        "description": "Bounded facts produced from persisted tool evidence.",
+        "properties": {
+          "facts": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Facts",
+            "type": "array"
+          },
+          "new_constraints": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "New Constraints",
+            "type": "array"
+          },
+          "satisfied_criteria": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Satisfied Criteria",
+            "type": "array"
+          },
+          "unassessed_criteria": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Unassessed Criteria",
+            "type": "array"
+          },
+          "unsatisfied_criteria": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Unsatisfied Criteria",
+            "type": "array"
+          }
+        },
+        "title": "ObservationEvidence",
+        "type": "object"
+      },
+      "PlanActionEvidence": {
+        "additionalProperties": false,
+        "description": "Safe, argument-free summary of one planned tool action.",
+        "properties": {
+          "purpose": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "tool_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Tool Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sequence",
+          "tool_name",
+          "purpose"
+        ],
+        "title": "PlanActionEvidence",
+        "type": "object"
+      },
+      "PlanEvidence": {
+        "additionalProperties": false,
+        "description": "Safe planner output without private reasoning or tool arguments.",
+        "properties": {
+          "actions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PlanActionEvidence"
+            },
+            "maxItems": 50,
+            "title": "Actions",
+            "type": "array"
+          },
+          "goal": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Goal",
+            "type": "string"
+          },
+          "risk_level": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Risk Level"
+          },
+          "success_criteria": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Success Criteria",
+            "type": "array"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "title": "PlanEvidence",
+        "type": "object"
+      },
       "ProblemDetail": {
         "additionalProperties": false,
         "description": "Problem Details-compatible error response with stable project extensions.",
@@ -948,6 +1786,69 @@
         ],
         "title": "ReviewDecision",
         "type": "string"
+      },
+      "RunCorrelation": {
+        "additionalProperties": false,
+        "description": "Safe identifiers used to correlate a run across service boundaries.",
+        "properties": {
+          "request_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "telemetry_url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Telemetry Url"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Trace Id"
+          },
+          "traceparent": {
+            "anyOf": [
+              {
+                "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Traceparent"
+          }
+        },
+        "required": [
+          "request_id",
+          "run_id"
+        ],
+        "title": "RunCorrelation",
+        "type": "object"
       },
       "RunLimits": {
         "additionalProperties": false,
@@ -1196,6 +2097,138 @@
         "title": "ToolCall",
         "type": "object"
       },
+      "ToolCallEvidence": {
+        "additionalProperties": false,
+        "description": "Policy-projected tool request and result evidence.",
+        "properties": {
+          "approval_status": {
+            "$ref": "#/components/schemas/ApprovalStatus"
+          },
+          "call_id": {
+            "format": "uuid",
+            "title": "Call Id",
+            "type": "string"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duration Ms"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error Code"
+          },
+          "evidence_references": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Evidence References",
+            "type": "array"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolOutcome"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "redacted_arguments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Redacted Arguments"
+          },
+          "redacted_result": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Redacted Result"
+          },
+          "retryable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Retryable"
+          },
+          "step_id": {
+            "format": "uuid",
+            "title": "Step Id",
+            "type": "string"
+          },
+          "tool_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Tool Name",
+            "type": "string"
+          },
+          "tool_version": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Tool Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "call_id",
+          "step_id",
+          "tool_name",
+          "tool_version",
+          "approval_status"
+        ],
+        "title": "ToolCallEvidence",
+        "type": "object"
+      },
       "ToolDefinition": {
         "additionalProperties": false,
         "description": "Allowlisted tool metadata and its JSON Schema boundary.",
@@ -1293,6 +2326,16 @@
         ],
         "title": "ToolError",
         "type": "object"
+      },
+      "ToolOutcome": {
+        "description": "Portable outcome of a tool invocation.",
+        "enum": [
+          "succeeded",
+          "failed",
+          "timed_out"
+        ],
+        "title": "ToolOutcome",
+        "type": "string"
       }
     }
   },
@@ -1304,6 +2347,82 @@
   "openapi": "3.1.0",
   "paths": {
     "/api/v1/agent-runs": {
+      "get": {
+        "operationId": "listAgentRuns",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/RunStatus"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "feature_key",
+            "required": false,
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "model_profile",
+            "required": false,
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunPage"
+                }
+              }
+            },
+            "description": "Stable page of safe agent-run summaries"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Problem Details-compatible error"
+          }
+        }
+      },
       "post": {
         "operationId": "createAgentRun",
         "parameters": [
@@ -1661,6 +2780,54 @@
             "description": "Supported models and bounded runtime profiles"
           },
           "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Problem Details-compatible error"
+          }
+        }
+      }
+    },
+    "/api/v1/operations/agent-runs/{run_id}": {
+      "get": {
+        "operationId": "getAgentRunEvidence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunEvidenceDetail"
+                }
+              }
+            },
+            "description": "Policy-projected run evidence",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Projected run version is unchanged"
+          },
+          "404": {
             "content": {
               "application/problem+json": {
                 "schema": {

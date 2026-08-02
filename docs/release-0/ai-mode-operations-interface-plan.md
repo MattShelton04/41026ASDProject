@@ -4,12 +4,26 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed, implementation-ready after access decisions |
+| Status | Release 0 local read-only foundation implemented; remote access decisions remain open |
 | Date | 2 August 2026 |
 | Intended release | Release 0 read-only foundation; later releases extend the same model |
 | Owner | Shared platform |
 | Scope | Browser interface for discovering and inspecting live and completed AI-mode runs |
 | Related design | [Shared run observability proposal](../architecture/shared-run-observability-proposal.md), [agent run state machine](../architecture/agent-run-state-machine.md), [ADR-014](../architecture/decisions/ADR-014-append-only-safe-agent-run-events.md) |
+
+### Implementation status (2 August 2026)
+
+Milestones 1-3 now have a working local read-only implementation behind
+`AI_MODE_OPERATIONS_ENABLED=false` by default. It includes generated public contracts,
+schema-v3 query columns and indexes, stable opaque cursor pagination, status/feature/model
+filters, a policy-projected evidence endpoint with weak ETags, nested secret redaction,
+cursor-event reconnect, and accessible framework-free assets under `shared/frontend`.
+
+Until the unified shared edge is implemented, AI-mode serves the same dashboard asset paths
+it will later expose through that edge. This keeps the feature usable now without creating a
+temporary frontend service or a second API. Remote identity/authorization, mutating controls,
+telemetry deep links, and selection of the team's one browser E2E tool remain deliberately
+open; the dashboard stays disabled in those environments.
 
 ## 1. Purpose
 
@@ -547,6 +561,8 @@ Exit criterion: team accepts the data classification and deployment gates in thi
 
 ### Milestone 1 — contracts and indexed run query
 
+Implementation: complete for the Release 0 local read-only scope.
+
 - Add `AgentRunSummary`, `AgentRunPage`, and projected evidence contracts.
 - Add the SQLite migration, backfill, indexes, `RunReader`, and pagination codec.
 - Add list and projected-detail routes plus generated artifacts.
@@ -557,6 +573,9 @@ without accessing SQLite directly.
 
 ### Milestone 2 — read-only shared interface
 
+Implementation: functional interface complete; browser E2E automation awaits selection of
+the team's shared browser test stack.
+
 - Add `/operations/ai-mode/` assets under `shared/frontend`.
 - Implement run index, deep links, detail cards, event journal, reconnect, and status states.
 - Reuse shared CSS tokens and preserve the integration console as the fixture harness.
@@ -566,6 +585,9 @@ Exit criterion: a demonstrator can start a fixture run elsewhere, locate it in t
 watch every durable phase, refresh/reconnect, and inspect its terminal result.
 
 ### Milestone 3 — safe developer evidence
+
+Implementation: complete except optional evidence export, which remains intentionally absent
+without an approved access and retention policy.
 
 - Implement the evidence projector and explicit redaction/truncation policy.
 - Add model/tool performance panels and correlation copy/deep-link controls.

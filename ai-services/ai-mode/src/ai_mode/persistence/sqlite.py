@@ -11,6 +11,7 @@ from pathlib import Path
 from uuid import UUID
 
 from agent_core import ConcurrentRunUpdateError, RunStore, StoreHealth, request_cancellation
+from ai_mode.operations import RunListQuery, RunSnapshot
 from shared_contracts import (
     AgentRun,
     AgentRunDetail,
@@ -18,9 +19,11 @@ from shared_contracts import (
     AgentStep,
     HumanReview,
     RunStatus,
+    StepPhase,
+    StepStatus,
 )
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 REQUIRED_TABLES = frozenset(
     {
         "agent_runs",
@@ -76,6 +79,20 @@ CREATE TABLE IF NOT EXISTS run_events (
 CREATE INDEX IF NOT EXISTS ix_run_events_run_id_id ON run_events (run_id, id);
 """
 
+MIGRATION_3_COLUMNS = (
+    "ALTER TABLE agent_runs ADD COLUMN created_at TEXT",
+    "ALTER TABLE agent_runs ADD COLUMN feature_key TEXT",
+    "ALTER TABLE agent_runs ADD COLUMN model_profile TEXT",
+)
+
+MIGRATION_3_INDEXES = (
+    "CREATE INDEX ix_agent_runs_created_id ON agent_runs (created_at DESC, id DESC)",
+    """CREATE INDEX ix_agent_runs_status_created_id
+       ON agent_runs (status, created_at DESC, id DESC)""",
+    """CREATE INDEX ix_agent_runs_feature_created_id
+       ON agent_runs (feature_key, created_at DESC, id DESC)""",
+)
+
 
 class PersistenceError(RuntimeError):
     """The owned state store is unavailable or contains incompatible data."""
@@ -109,6 +126,9 @@ class SQLiteRunStore(RunStore):
             if current < 2:
                 connection.executescript(MIGRATION_2)
                 connection.execute("PRAGMA user_version = 2")
+                current = 2
+            if current < 3:
+                self._migrate_to_v3(connection)
 
     def create(self, run: AgentRun) -> None:
         """Persist a new run exactly once."""
@@ -116,8 +136,11 @@ class SQLiteRunStore(RunStore):
             try:
                 connection.execute(
                     """
-                    INSERT INTO agent_runs (id, version, status, updated_at, payload_json)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO agent_runs (
+                        id, version, status, updated_at, payload_json,
+                        created_at, feature_key, model_profile
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     self._run_values(run),
                 )
@@ -157,8 +180,11 @@ class SQLiteRunStore(RunStore):
                     raise PersistenceError("idempotent agent run is invalid") from exc
             connection.execute(
                 """
-                INSERT INTO agent_runs (id, version, status, updated_at, payload_json)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO agent_runs (
+                    id, version, status, updated_at, payload_json,
+                    created_at, feature_key, model_profile
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 self._run_values(run),
             )
@@ -227,6 +253,75 @@ class SQLiteRunStore(RunStore):
             if detail is not None:
                 details.append(detail)
         return tuple(details)
+
+    def list_run_snapshots(self, query: RunListQuery) -> tuple[tuple[RunSnapshot, ...], bool]:
+        """Return a stable, indexed page for the operations read model."""
+        clauses: list[str] = []
+        parameters: list[object] = []
+        if query.statuses:
+            placeholders = ", ".join("?" for _ in query.statuses)
+            clauses.append(f"run.status IN ({placeholders})")
+            parameters.extend(status.value for status in query.statuses)
+        if query.feature_key is not None:
+            clauses.append("run.feature_key = ?")
+            parameters.append(query.feature_key)
+        if query.model_profile is not None:
+            clauses.append("run.model_profile = ?")
+            parameters.append(query.model_profile)
+        if query.cursor_created_at is not None and query.cursor_id is not None:
+            created_at = query.cursor_created_at.isoformat()
+            clauses.append("(run.created_at < ? OR (run.created_at = ? AND run.id < ?))")
+            parameters.extend((created_at, created_at, str(query.cursor_id)))
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        parameters.append(query.limit + 1)
+        statement = f"""
+            SELECT run.payload_json,
+                   run.created_at AS indexed_created_at,
+                   run.feature_key AS indexed_feature_key,
+                   run.model_profile AS indexed_model_profile,
+                   latest.phase AS latest_phase,
+                   latest.status AS latest_step_status
+            FROM agent_runs AS run
+            LEFT JOIN agent_steps AS latest
+              ON latest.id = (
+                  SELECT step.id FROM agent_steps AS step
+                  WHERE step.run_id = run.id
+                  ORDER BY step.sequence DESC LIMIT 1
+              )
+            {where}
+            ORDER BY run.created_at DESC, run.id DESC
+            LIMIT ?
+        """
+        with self._connection() as connection:
+            rows = connection.execute(statement, parameters).fetchall()
+        snapshots: list[RunSnapshot] = []
+        try:
+            for row in rows[: query.limit]:
+                run = AgentRun.model_validate_json(row["payload_json"])
+                if (
+                    row["indexed_created_at"] != run.created_at.isoformat()
+                    or row["indexed_feature_key"] != run.feature_key
+                    or row["indexed_model_profile"] != run.model_profile
+                ):
+                    raise PersistenceError("stored agent run index does not match its snapshot")
+                snapshots.append(
+                    RunSnapshot(
+                        run=run,
+                        latest_phase=(
+                            StepPhase(row["latest_phase"])
+                            if row["latest_phase"] is not None
+                            else None
+                        ),
+                        latest_step_status=(
+                            StepStatus(row["latest_step_status"])
+                            if row["latest_step_status"] is not None
+                            else None
+                        ),
+                    )
+                )
+        except ValueError as exc:
+            raise PersistenceError("stored agent run index data is invalid") from exc
+        return tuple(snapshots), len(rows) > query.limit
 
     def list_events(
         self,
@@ -365,6 +460,18 @@ class SQLiteRunStore(RunStore):
                     ready=False,
                     detail=f"schema is missing tables: {', '.join(sorted(missing))}",
                 )
+            with self._connection() as connection:
+                incomplete_index_rows = connection.execute(
+                    """
+                    SELECT COUNT(*) FROM agent_runs
+                    WHERE created_at IS NULL OR feature_key IS NULL OR model_profile IS NULL
+                    """
+                ).fetchone()[0]
+            if incomplete_index_rows:
+                return StoreHealth(
+                    ready=False,
+                    detail="agent run query index contains incomplete rows",
+                )
             return StoreHealth(ready=True, detail=f"schema version {version}")
         except (PersistenceError, sqlite3.Error) as exc:
             cause = exc.__cause__ or exc
@@ -440,14 +547,64 @@ class SQLiteRunStore(RunStore):
         )
 
     @classmethod
-    def _run_values(cls, run: AgentRun) -> tuple[str, int, str, str, str]:
+    def _run_values(cls, run: AgentRun) -> tuple[str, int, str, str, str, str, str, str]:
         return (
             str(run.id),
             run.version,
             run.status.value,
             run.updated_at.isoformat(),
             cls._dump(run),
+            run.created_at.isoformat(),
+            run.feature_key,
+            run.model_profile,
         )
+
+    @classmethod
+    def _migrate_to_v3(cls, connection: sqlite3.Connection) -> None:
+        """Backfill immutable run query columns from validated snapshots."""
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            for statement in MIGRATION_3_COLUMNS:
+                connection.execute(statement)
+            rows = connection.execute("SELECT id, payload_json FROM agent_runs").fetchall()
+            for row in rows:
+                try:
+                    run = AgentRun.model_validate_json(row["payload_json"])
+                except ValueError as exc:
+                    raise PersistenceError(
+                        f"stored agent run cannot be indexed: {row['id']}"
+                    ) from exc
+                if str(run.id) != row["id"]:
+                    raise PersistenceError("stored agent run identity does not match its row")
+                connection.execute(
+                    """
+                    UPDATE agent_runs
+                    SET created_at = ?, feature_key = ?, model_profile = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        run.created_at.isoformat(),
+                        run.feature_key,
+                        run.model_profile,
+                        row["id"],
+                    ),
+                )
+            missing = connection.execute(
+                """
+                SELECT COUNT(*) FROM agent_runs
+                WHERE created_at IS NULL OR feature_key IS NULL OR model_profile IS NULL
+                """
+            ).fetchone()[0]
+            if missing:
+                raise PersistenceError("agent run query-column backfill was incomplete")
+            for statement in MIGRATION_3_INDEXES:
+                connection.execute(statement)
+            connection.execute("PRAGMA user_version = 3")
+        except BaseException:
+            connection.rollback()
+            raise
+        else:
+            connection.commit()
 
     @classmethod
     def _append_event(

@@ -20,6 +20,7 @@ from agent_core import (
 )
 from ai_mode.adapters.system import SystemClock, UUID4Generator
 from ai_mode.configuration import Settings
+from ai_mode.operations import RunReader
 from ai_mode.persistence import SQLiteRunStore
 from ai_mode.prompts import PromptRegistry, RegistryPromptBuilder
 from ai_mode.providers import build_ollama_provider, configured_model_registry
@@ -68,6 +69,7 @@ class AppServices:
     ids: IdGenerator
     default_model_profile: str
     model_registry: ModelRegistry | None = None
+    run_reader: RunReader | None = None
     closeables: tuple[object, ...] = ()
 
     def close(self) -> None:
@@ -132,6 +134,7 @@ def build_services(settings: Settings) -> AppServices:
         clock=clock,
         ids=ids,
         model_registry=model_registry,
+        run_reader=store,
         default_model_profile=default_model_profile,
         closeables=(queue, tool_executor, provider),
     )

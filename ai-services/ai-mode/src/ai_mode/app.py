@@ -3,6 +3,7 @@
 import logging
 from importlib.metadata import PackageNotFoundError, version
 from time import monotonic
+from typing import cast
 from uuid import uuid4
 
 from flask import Flask, Response, g, jsonify, request
@@ -10,9 +11,11 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from agent_core import ConcurrentRunUpdateError
 from ai_mode.api import api
-from ai_mode.configuration import Settings
+from ai_mode.configuration import ConfigurationError, Settings
 from ai_mode.evidence import create_evidence_blueprint
 from ai_mode.observability import configure_structured_logging
+from ai_mode.operations import OperationsService, RunReader
+from ai_mode.operations_api import create_operations_blueprint
 from ai_mode.persistence import PersistenceError
 from ai_mode.services import AppServices, build_services
 from shared_contracts import (
@@ -60,6 +63,17 @@ def create_app(
     app_services = services or build_services(runtime_settings)
     app.extensions["ai_mode_services"] = app_services
     app.register_blueprint(api)
+    if runtime_settings.operations_enabled:
+        assets_path = runtime_settings.operations_assets_path.resolve()
+        if not (assets_path.is_dir() and (assets_path / "index.html").is_file()):
+            raise ConfigurationError(f"AI-mode operations assets are unavailable: {assets_path}")
+        reader = app_services.run_reader
+        if reader is None and hasattr(app_services.store, "list_run_snapshots"):
+            reader = cast(RunReader, app_services.store)
+        if reader is None:
+            raise ConfigurationError("AI-mode operations run reader is unavailable")
+        app.extensions["ai_mode_operations"] = OperationsService(reader)
+        app.register_blueprint(create_operations_blueprint(assets_path))
     if runtime_settings.evidence_access_token is not None:
         app.register_blueprint(create_evidence_blueprint(runtime_settings.evidence_access_token))
 
