@@ -18,7 +18,14 @@ from agent_core import (
     PromptBuilder,
     StructuredModelRequest,
 )
-from shared_contracts import AgentRun, Observation, Plan, ToolDefinition, ToolResult
+from shared_contracts import (
+    SUPPORTED_PROMPT_SETS,
+    AgentRun,
+    Observation,
+    Plan,
+    ToolDefinition,
+    ToolResult,
+)
 
 
 class PromptRegistryError(AgentCoreError):
@@ -116,6 +123,10 @@ class RegistryPromptBuilder(PromptBuilder):
 
     def validate_declared(self) -> None:
         """Fail startup if any supported immutable prompt asset is unavailable."""
+        if frozenset(self._PROMPT_SETS) != frozenset(SUPPORTED_PROMPT_SETS):
+            raise PromptRegistryError(
+                "prompt registry sets do not match the shared request contract"
+            )
         assets = {asset for roles in self._PROMPT_SETS.values() for asset in roles.values()}
         for prompt_id, version in sorted(assets):
             self._registry.load(prompt_id, version)

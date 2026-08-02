@@ -40,9 +40,6 @@ jobs:
       - name: Reproduce locked workspace
         run: uv sync --locked --all-packages --all-groups
 
-      - name: Check lockfile
-        run: uv lock --check
-
       - name: Run quality gate
         run: uv run --locked python scripts/check.py
 
@@ -86,11 +83,10 @@ jobs:
           uv python install
           uv sync --locked --package ai-mode
 
-      - name: Start pinned Ollama and AI-mode profiles
+      - name: Start pinned Ollama runtime
         run: |
           docker compose --profile ollama-container up --detach --wait --wait-timeout 120 ollama
           docker compose --profile ollama-container run --rm ollama-init
-          docker compose --profile release-0 up --detach --build --wait --wait-timeout 120 ai-mode
 
       - name: Run real structured-output diagnostic
         run: uv run --locked ai-mode-ollama-smoke
@@ -99,7 +95,7 @@ jobs:
         if: always()
         run: |
           docker compose ps --all
-          docker compose logs --no-color --tail 200 ai-mode ollama ollama-init
+          docker compose logs --no-color --tail 200 ollama ollama-init
 
       - name: Stop runtime
         if: always()

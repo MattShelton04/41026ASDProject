@@ -109,7 +109,7 @@ class OllamaProvider(LLMProvider):
             )
         body = self._response_object(response)
         content = self._structured_content(body)
-        return StructuredModelResult(
+        result = StructuredModelResult(
             content=content,
             provider="ollama",
             model=_required_string(body, "model", fallback=profile.model),
@@ -125,6 +125,22 @@ class OllamaProvider(LLMProvider):
                 output_tokens=_optional_nonnegative_int(body.get("eval_count")),
             ),
         )
+        LOGGER.info(
+            "Model invocation completed",
+            extra={
+                "event": "agent.model.completed",
+                "run_id": request.run_id,
+                "model": result.model,
+                "model_profile": request.model_profile,
+                "model_role": request.role,
+                "outcome": "success",
+                "duration_ms": result.metrics.total_duration_ms,
+                "prompt_tokens": result.metrics.prompt_tokens,
+                "output_tokens": result.metrics.output_tokens,
+                "repair_count": request.repair_attempt,
+            },
+        )
+        return result
 
     def health(self) -> ProviderHealth:
         """Report endpoint and configured-model readiness without throwing."""

@@ -14,6 +14,7 @@ from integration_test_feature.errors import problem_response
 from shared_contracts import (
     AGENT_RUN_ID_HEADER,
     IDEMPOTENCY_KEY_HEADER,
+    PROBLEM_DETAIL_MEDIA_TYPE,
     REQUEST_ID_HEADER,
     TRACEPARENT_HEADER,
 )
@@ -118,8 +119,8 @@ def _forward_json_response(upstream: httpx.Response) -> Response:
     """Preserve safe JSON and Problem Details media types across the backend hop."""
     response = jsonify(upstream.json())
     response.status_code = upstream.status_code
-    if upstream.headers.get("content-type", "").split(";", 1)[0] == "application/problem+json":
-        response.content_type = "application/problem+json"
+    if upstream.headers.get("content-type", "").split(";", 1)[0] == PROBLEM_DETAIL_MEDIA_TYPE:
+        response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
     return response
 
 

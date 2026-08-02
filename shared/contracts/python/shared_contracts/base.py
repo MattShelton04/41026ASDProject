@@ -4,10 +4,10 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ContractModel(BaseModel):
-    """Strict, immutable-by-convention JSON contract base.
+    """Strict immutable JSON contract base.
 
-    Assignment validation is enabled so an already validated contract cannot later be
-    mutated into an invalid value by application code.
+    State changes use explicit ``model_copy`` operations so persisted snapshots cannot be
+    mutated accidentally outside their optimistic-concurrency boundary.
     """
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)

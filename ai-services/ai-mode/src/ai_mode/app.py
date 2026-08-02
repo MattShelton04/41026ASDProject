@@ -1,8 +1,8 @@
 """Flask application factory for the shared AI-mode service."""
 
 import logging
-import re
 from importlib.metadata import PackageNotFoundError, version
+from time import monotonic
 from uuid import uuid4
 
 from flask import Flask, Response, g, jsonify, request
@@ -12,20 +12,24 @@ from agent_core import ConcurrentRunUpdateError
 from ai_mode.api import api
 from ai_mode.configuration import Settings
 from ai_mode.evidence import create_evidence_blueprint
+from ai_mode.observability import configure_structured_logging
 from ai_mode.persistence import PersistenceError
 from ai_mode.services import AppServices, build_services
 from shared_contracts import (
+    AGENT_RUN_ID_HEADER,
+    PROBLEM_DETAIL_MEDIA_TYPE,
     REQUEST_ID_HEADER,
     TRACEPARENT_HEADER,
     HealthCheck,
     HealthResponse,
     HealthStatus,
     ProblemDetail,
+    is_valid_request_id,
+    is_valid_traceparent,
+    trace_id_from_traceparent,
 )
 
 PACKAGE_NAME = "ai-mode"
-TRACEPARENT_PATTERN = re.compile(r"^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$")
-REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
 LOGGER = logging.getLogger(__name__)
 
 
@@ -46,6 +50,12 @@ def create_app(
     app = Flask(__name__)
     service_version = _get_package_version()
     runtime_settings = settings or Settings.from_env()
+    if services is None:
+        configure_structured_logging(
+            service=PACKAGE_NAME,
+            environment=runtime_settings.environment,
+            level=runtime_settings.log_level,
+        )
     app.config["MAX_CONTENT_LENGTH"] = runtime_settings.max_request_bytes
     app_services = services or build_services(runtime_settings)
     app.extensions["ai_mode_services"] = app_services
@@ -55,14 +65,15 @@ def create_app(
 
     @app.before_request
     def establish_request_id() -> None:
+        g.request_started = monotonic()
         supplied = request.headers.get(REQUEST_ID_HEADER, "").strip()
-        g.request_id = supplied if REQUEST_ID_PATTERN.fullmatch(supplied) else str(uuid4())
+        g.request_id = supplied if is_valid_request_id(supplied) else str(uuid4())
         traceparent = request.headers.get(TRACEPARENT_HEADER, "").strip().lower()
         g.traceparent = traceparent or None
 
     @app.before_request
     def validate_trace_context() -> tuple[Response, int] | None:
-        if g.traceparent is None or _valid_traceparent(g.traceparent):
+        if g.traceparent is None or is_valid_traceparent(g.traceparent):
             return None
         problem = ProblemDetail(
             title="Invalid request",
@@ -73,12 +84,28 @@ def create_app(
             request_id=g.request_id,
         )
         response = jsonify(problem.model_dump(mode="json"))
-        response.content_type = "application/problem+json"
+        response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
         return response, 400
 
     @app.after_request
     def include_request_id(response: Response) -> Response:
         response.headers[REQUEST_ID_HEADER] = g.request_id
+        status_code = response.status_code
+        LOGGER.log(
+            logging.ERROR if status_code >= 500 else logging.INFO,
+            "HTTP request completed",
+            extra={
+                "event": "http.request.completed",
+                "request_id": g.request_id,
+                "run_id": response.headers.get(AGENT_RUN_ID_HEADER),
+                "trace_id": trace_id_from_traceparent(g.traceparent),
+                "outcome": "failure" if status_code >= 400 else "success",
+                "duration_ms": max(0, int((monotonic() - g.request_started) * 1_000)),
+                "status_code": status_code,
+                "method": request.method,
+                "path": request.url_rule.rule if request.url_rule is not None else request.path,
+            },
+        )
         return response
 
     @app.get("/health/live")
@@ -159,7 +186,16 @@ def create_app(
     def unexpected_failure(exc: Exception) -> HTTPException | tuple[Response, int]:
         if isinstance(exc, HTTPException):
             return exc
-        LOGGER.exception("unhandled AI-mode request failure")
+        LOGGER.exception(
+            "Unhandled AI-mode request failure",
+            extra={
+                "event": "http.request.unhandled_error",
+                "request_id": g.get("request_id"),
+                "trace_id": trace_id_from_traceparent(g.get("traceparent")),
+                "outcome": "failure",
+                "error_code": "internal_error",
+            },
+        )
         return _problem_response(
             status=500,
             title="Internal server error",
@@ -168,13 +204,6 @@ def create_app(
         )
 
     return app
-
-
-def _valid_traceparent(value: str) -> bool:
-    if TRACEPARENT_PATTERN.fullmatch(value) is None:
-        return False
-    _, trace_id, parent_id, _ = value.split("-")
-    return trace_id != "0" * 32 and parent_id != "0" * 16
 
 
 def _problem_response(*, status: int, title: str, code: str, detail: str) -> tuple[Response, int]:
@@ -187,5 +216,5 @@ def _problem_response(*, status: int, title: str, code: str, detail: str) -> tup
         request_id=g.get("request_id"),
     )
     response = jsonify(problem.model_dump(mode="json"))
-    response.content_type = "application/problem+json"
+    response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
     return response, status

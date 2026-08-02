@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from flask import Response, jsonify, request
 
-from shared_contracts import REQUEST_ID_HEADER, ProblemDetail
+from shared_contracts import (
+    PROBLEM_DETAIL_MEDIA_TYPE,
+    REQUEST_ID_HEADER,
+    ProblemDetail,
+    is_valid_request_id,
+)
 
 
 def problem_response(status: int, code: str, detail: str) -> Response:
     """Return the shared safe error contract without coupling it to domain logic."""
     supplied_request_id = request.headers.get(REQUEST_ID_HEADER, "").strip()
-    request_id = supplied_request_id if 1 <= len(supplied_request_id) <= 200 else None
+    request_id = supplied_request_id if is_valid_request_id(supplied_request_id) else None
     problem = ProblemDetail(
         title=_title(status),
         status=status,
@@ -21,7 +26,7 @@ def problem_response(status: int, code: str, detail: str) -> Response:
     )
     response = jsonify(problem.model_dump(mode="json"))
     response.status_code = status
-    response.content_type = "application/problem+json"
+    response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
     return response
 
 

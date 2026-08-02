@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from time import monotonic
@@ -14,6 +15,10 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
 from agent_core import ToolExecutor
+from ai_mode.configuration import (
+    DEFAULT_MAX_TOOL_REQUEST_BYTES,
+    DEFAULT_MAX_TOOL_RESPONSE_BYTES,
+)
 from shared_contracts import (
     AGENT_RUN_ID_HEADER,
     IDEMPOTENCY_KEY_HEADER,
@@ -25,6 +30,8 @@ from shared_contracts import (
     ToolOutcome,
     ToolResult,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,8 +53,8 @@ class HttpToolExecutor(ToolExecutor):
         *,
         service_base_urls: Mapping[str, str],
         bindings: Iterable[HttpToolBinding],
-        max_request_bytes: int = 262_144,
-        max_response_bytes: int = 1_048_576,
+        max_request_bytes: int = DEFAULT_MAX_TOOL_REQUEST_BYTES,
+        max_response_bytes: int = DEFAULT_MAX_TOOL_RESPONSE_BYTES,
         client: httpx.Client | None = None,
     ) -> None:
         if max_request_bytes < 1 or max_response_bytes < 1:
@@ -211,13 +218,15 @@ class HttpToolExecutor(ToolExecutor):
                 "Tool response failed its registered schema",
                 evidence=status_evidence,
             )
-        return ToolResult(
+        result = ToolResult(
             call_id=call.id,
             outcome=ToolOutcome.SUCCEEDED,
             content=content,
             duration_ms=_elapsed_ms(started),
             evidence_references=status_evidence,
         )
+        _log_tool_result(call, result)
+        return result
 
     def _read_bounded(self, response: httpx.Response) -> bytes:
         content_length = response.headers.get("content-length")
@@ -270,7 +279,7 @@ class HttpToolExecutor(ToolExecutor):
         retryable: bool = False,
         evidence: tuple[str, ...] = (),
     ) -> ToolResult:
-        return ToolResult(
+        result = ToolResult(
             call_id=call.id,
             outcome=outcome,
             error=ToolError(code=code, message=message),
@@ -278,10 +287,32 @@ class HttpToolExecutor(ToolExecutor):
             retryable=retryable,
             evidence_references=evidence,
         )
+        _log_tool_result(call, result)
+        return result
 
 
 class _ResponseTooLargeError(Exception):
     pass
+
+
+def _log_tool_result(call: ToolCall, result: ToolResult) -> None:
+    LOGGER.log(
+        logging.INFO if result.outcome is ToolOutcome.SUCCEEDED else logging.WARNING,
+        "Feature tool call completed",
+        extra={
+            "event": "agent.tool.completed",
+            "request_id": call.request_id,
+            "run_id": call.run_id,
+            "step_id": call.step_id,
+            "tool_call_id": call.id,
+            "tool_name": call.tool_name,
+            "tool_version": call.tool_version,
+            "outcome": result.outcome,
+            "duration_ms": result.duration_ms,
+            "error_code": result.error.code if result.error is not None else None,
+            "retryable": result.retryable,
+        },
+    )
 
 
 def _validated_origin(service: str, base_url: str) -> str:
