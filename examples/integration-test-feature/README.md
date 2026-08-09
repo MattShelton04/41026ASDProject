@@ -49,10 +49,13 @@ The first run downloads the standard Release 0 Qwen model. Open <http://localhos
 - inspect record detail and its dependency graph without invoking a model;
 - create an idempotent record through the same service boundary;
 - inspect the live model registry; and
-- submit and poll a real multi-action Plan -> Act -> Observe -> Adapt AI-mode run.
+- submit and poll a real multi-action Plan -> Act -> Observe -> Adapt AI-mode run;
+- browse, filter, page through, and reload durable prior runs from AI-mode; and
+- explicitly reuse a selected run's safe objective and result as context for a new run.
 
 The console presents the run as a conversation-like transcript without claiming that
-one run is a durable multi-turn conversation. It visualises every persisted phase,
+one run is a durable multi-turn conversation. Follow-up context is copied into a new
+independent objective rather than implying provider-side conversation memory. It visualises every persisted phase,
 tool call/result, model invocation summary, safe progress event, run/request ID, and
 W3C trace context. The complete safe run-detail JSON remains available in an expandable
 debug panel.
