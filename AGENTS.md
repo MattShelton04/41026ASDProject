@@ -8,11 +8,13 @@
 3. Inspect `git status` before editing. Preserve unrelated and user-authored changes.
 4. Work only in the requested scope. Do not fill undecided product requirements with
    invented domain behaviour.
+5. Treat the root README and living architecture documents as current guidance. Historical
+   scaffold/review records preserve point-in-time evidence and are not current build plans.
 
 ## Ownership and boundaries
 
-- `student-N/` is owned by that student. Do not edit another student's feature without
-  explicit coordination.
+- An allocated `student-N/` slice is owned by its named student; unallocated slices remain
+  placeholders. Do not edit another student's assigned feature without explicit coordination.
 - Student backends may import `shared_contracts`; tests may import `shared_testkit`.
 - Student services must not import another student's code or `agent_core`.
 - Student backends call `ai-mode` over HTTP. `ai-mode` may call allowlisted feature tool
@@ -20,6 +22,8 @@
 - Each database file has one owning database service. Do not mount or open it elsewhere.
 - Keep shared packages domain-neutral. Feature-specific entities and business rules stay in
   their owning student slice.
+- `scripts/validate_architecture.py` makes these dependency/import rules executable and runs
+  inside the canonical quality gate. Update its tests with any approved boundary change.
 
 ## Canonical commands
 

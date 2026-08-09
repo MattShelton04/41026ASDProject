@@ -136,7 +136,8 @@ For fast application iteration with the production provider boundary, run only O
 in Compose and AI-mode from the host:
 
 ```text
-docker compose --profile ollama-container up --detach --wait ollama ollama-init
+docker compose --profile ollama-container up --detach --wait ollama
+docker compose --profile ollama-container run --rm ollama-init
 uv run flask --app ai_mode:create_app run --port 5005
 uv run ai-mode-ollama-smoke
 ```

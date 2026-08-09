@@ -11,7 +11,8 @@ Student owners should use [`feature-onboarding.md`](feature-onboarding.md) after
 topic and feature allocation are approved; it records integration and testing
 obligations without inventing domain behavior.
 
-The proposed shared showcase/debug interface is specified in
+The implemented, opt-in local showcase/debug interface and its remaining remote-access
+decisions are specified in
 [`ai-mode-operations-interface-plan.md`](ai-mode-operations-interface-plan.md). It turns
 AI-mode's persisted run snapshots and cursor events into a bounded live operations view
 without introducing a second workflow store or a mandatory monitoring stack.

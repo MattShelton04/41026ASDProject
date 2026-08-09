@@ -87,7 +87,8 @@ The assignment-aligned Compose path and the native-host alternative are document
 [`docs/release-0/ollama-operations.md`](../../docs/release-0/ollama-operations.md).
 The `ai-mode-ollama-smoke` console command performs a real provider-level structured
 output diagnostic without owning Docker lifecycle or feature behavior. It uses the same
-settings parser, logical model profile, and provider factory as the running service.
+settings parser, logical model profile, and provider factory as the running service, and
+selects a role explicitly declared by that profile so role enforcement is exercised too.
 
 ### Supported models and profiles
 
