@@ -8,9 +8,10 @@ shared package, and student slice owns its dependencies in a local `pyproject.to
 
 - Git
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
-- Docker Desktop or another Docker Engine with Compose support (needed once integration
-  containers are introduced)
-- Ollama only when working on or demonstrating local AI behaviour
+- Docker Desktop or another Docker Engine with Compose support for container builds,
+  integration checks, and the assignment-aligned runtime
+- The Ollama CLI only when using the optional native-host runtime; the canonical Compose
+  path supplies its own pinned Ollama container
 
 Do not install project dependencies globally. `uv` creates and maintains `.venv` in the
 repository root.
@@ -63,10 +64,12 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Run every required local check | `uv run python scripts/check.py` |
 | Format Python | `uv run ruff format .` |
 | Lint and apply safe fixes | `uv run ruff check --fix .` |
-| Type-check production packages | `uv run mypy shared/contracts/python/shared_contracts shared/testkit/python/shared_testkit ai-services/agent-core/src/agent_core ai-services/ai-mode/src/ai_mode` |
+| Type-check every canonical path | `uv run python scripts/check.py` (includes strict mypy over packages, the integration fixture, and typed scripts) |
 | Run tests | `uv run pytest` |
 | Run tests with coverage | `uv run pytest --cov --cov-report=term-missing` |
 | Generate contract artefacts | `uv run python scripts/generate_contracts.py` |
+| Validate repository boundaries | `uv run python scripts/validate_architecture.py` |
+| Validate the model registry | `uv run python scripts/validate_model_registry.py` |
 | Validate feature tool catalogues | `uv run python scripts/validate_tool_catalogs.py` |
 | Start the AI-mode service | `uv run flask --app ai_mode:create_app run --port 5005` |
 

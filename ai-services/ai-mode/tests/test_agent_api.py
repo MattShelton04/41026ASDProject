@@ -58,6 +58,20 @@ def test_model_registry_is_visible_and_unknown_profiles_are_rejected(app: Flask)
     }
     assert_problem_detail(rejected.get_json(), status=422, code="model_profile_not_supported")
 
+    incompatible = client.post(
+        "/api/v1/agent-runs",
+        json={
+            "feature_key": "student-1-feature",
+            "objective": "Find records",
+            "model_profile": "local-reasoning.v1",
+        },
+    )
+    assert_problem_detail(
+        incompatible.get_json(),
+        status=422,
+        code="model_profile_role_incompatible",
+    )
+
 
 def test_create_persists_before_enqueue_and_propagates_request_id(
     app: Flask, app_services: AppServices

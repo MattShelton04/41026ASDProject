@@ -62,11 +62,11 @@ def apply_human_review(
         if command.decision is ReviewDecision.APPROVE
         else ApprovalStatus.REJECTED
     )
-    decided_call = call.model_copy(update={"approval_status": approval})
+    decided_call = call.evolve(approval_status=approval)
     step_updates: dict[str, object] = {"input": {"tool_call": decided_call.model_dump(mode="json")}}
     if command.decision is ReviewDecision.REJECT:
         step_updates.update({"status": StepStatus.CANCELLED, "completed_at": now})
-    decided_step = step.model_copy(update=step_updates)
+    decided_step = step.evolve(**step_updates)
     target = RunStatus.READY if command.decision is ReviewDecision.APPROVE else RunStatus.CANCELLED
     decided_run = transition_run(detail.run, target, now=now)
     review = HumanReview(

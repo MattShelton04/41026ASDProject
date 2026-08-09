@@ -145,7 +145,7 @@ class AgentRunner:
         if run.status is RunStatus.QUEUED:
             planning = transition_run(run, RunStatus.PLANNING, now=now)
         else:
-            planning = run.model_copy(update={"version": run.version + 1, "updated_at": now})
+            planning = run.evolve(version=run.version + 1, updated_at=now)
         self._store.save(planning, expected_version=run.version, step=step)
         try:
             ensure_within_limits(planning, now=now)
@@ -243,7 +243,7 @@ class AgentRunner:
                     AgentCoreError("approved action no longer matches the active plan"),
                     code="review_action_mismatch",
                 )
-            step = step.model_copy(update={"status": StepStatus.RUNNING})
+            step = step.evolve(status=StepStatus.RUNNING)
         try:
             policy = authorize_tool(
                 definition,
@@ -258,12 +258,12 @@ class AgentRunner:
                 run, step, AgentCoreError("tool call denied"), code="tool_denied"
             )
         if policy is ToolPolicyDecision.REQUIRE_REVIEW:
-            step = step.model_copy(update={"status": StepStatus.PENDING})
+            step = step.evolve(status=StepStatus.PENDING)
             review = transition_run(run, RunStatus.REVIEW_REQUIRED, now=self._clock.now())
             self._store.save(review, expected_version=run.version, step=step)
             return review
 
-        dispatching = run.model_copy(update={"tool_call_count": run.tool_call_count + 1})
+        dispatching = run.evolve(tool_call_count=run.tool_call_count + 1)
         acting = transition_run(dispatching, RunStatus.ACTING, now=self._clock.now())
         self._store.save(acting, expected_version=run.version, step=step)
         try:
@@ -319,7 +319,7 @@ class AgentRunner:
         if result.outcome is ToolOutcome.FAILED and not result.retryable:
             error = result.error or ToolError(code="tool_failed", message="Tool execution failed")
             failed = transition_run(acting, RunStatus.FAILED, now=self._clock.now(), error=error)
-            failed_step = completed.model_copy(update={"status": StepStatus.FAILED, "error": error})
+            failed_step = completed.evolve(status=StepStatus.FAILED, error=error)
             self._store.save(failed, expected_version=acting.version, step=failed_step)
             return failed
 
@@ -372,7 +372,7 @@ class AgentRunner:
             now,
             {"observation": observation.model_dump(mode="json")},
         )
-        in_progress = run.model_copy(update={"version": run.version + 1, "updated_at": now})
+        in_progress = run.evolve(version=run.version + 1, updated_at=now)
         self._store.save(in_progress, expected_version=run.version, step=step)
         if result.outcome is ToolOutcome.SUCCEEDED and has_remaining_action:
             adaptation = Adaptation(
@@ -417,9 +417,7 @@ class AgentRunner:
             now=self._clock.now(),
             output=output,
         )
-        counted = in_progress.model_copy(
-            update={"iteration_count": in_progress.iteration_count + 1}
-        )
+        counted = in_progress.evolve(iteration_count=in_progress.iteration_count + 1)
         target, final_result, error = self._adaptation_transition(
             adaptation,
             has_remaining_action=has_remaining_action,
@@ -472,12 +470,10 @@ class AgentRunner:
         self, run: AgentRun, step: AgentStep, exc: Exception, *, code: str
     ) -> AgentRun:
         error = ToolError(code=code, message=self._safe_message(exc))
-        failed_step = step.model_copy(
-            update={
-                "status": StepStatus.FAILED,
-                "completed_at": self._clock.now(),
-                "error": error,
-            }
+        failed_step = step.evolve(
+            status=StepStatus.FAILED,
+            completed_at=self._clock.now(),
+            error=error,
         )
         failed = transition_run(run, RunStatus.FAILED, now=self._clock.now(), error=error)
         self._store.save(failed, expected_version=run.version, step=failed_step)
@@ -534,7 +530,7 @@ class AgentRunner:
         request: StructuredModelRequest, run: AgentRun
     ) -> StructuredModelRequest:
         deadline = run.created_at + timedelta(milliseconds=run.limits.time_budget_ms)
-        return request.model_copy(update={"deadline_at": deadline})
+        return request.evolve(deadline_at=deadline)
 
     @staticmethod
     def _invocation_summary[OutputT: BaseModel](
@@ -575,12 +571,10 @@ class AgentRunner:
     def _complete_step(
         step: AgentStep, *, now: datetime, output: Mapping[str, JsonValue]
     ) -> AgentStep:
-        return step.model_copy(
-            update={
-                "status": StepStatus.SUCCEEDED,
-                "completed_at": now,
-                "output": dict(output),
-            }
+        return step.evolve(
+            status=StepStatus.SUCCEEDED,
+            completed_at=now,
+            output=dict(output),
         )
 
     @staticmethod
@@ -662,22 +656,20 @@ class AgentRunner:
         reported_result: ToolResult | None = None,
     ) -> AgentRun:
         """Require review when an adapter exception leaves an effect outcome unknown."""
-        pending_call = call.model_copy(update={"approval_status": ApprovalStatus.PENDING})
+        pending_call = call.evolve(approval_status=ApprovalStatus.PENDING)
         recovery: dict[str, JsonValue] = {
             "code": "action_outcome_unknown",
             "message": "Tool execution ended without a durable successful result",
         }
         if reported_result is not None:
             recovery["reported_result"] = reported_result.model_dump(mode="json")
-        pending_step = step.model_copy(
-            update={
-                "status": StepStatus.PENDING,
-                "input": {**step.input, "tool_call": pending_call.model_dump(mode="json")},
-                "output": {
-                    **step.output,
-                    "recovery": recovery,
-                },
-            }
+        pending_step = step.evolve(
+            status=StepStatus.PENDING,
+            input={**step.input, "tool_call": pending_call.model_dump(mode="json")},
+            output={
+                **step.output,
+                "recovery": recovery,
+            },
         )
         review = transition_run(run, RunStatus.REVIEW_REQUIRED, now=self._clock.now())
         self._store.save(review, expected_version=run.version, step=pending_step)

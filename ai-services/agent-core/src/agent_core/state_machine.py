@@ -77,12 +77,10 @@ def transition_run(
     if target is not RunStatus.FAILED and error is not None:
         raise InvalidStateTransitionError("only failed runs may set an error")
 
-    return run.model_copy(
-        update={
-            "status": target,
-            "updated_at": now,
-            "version": run.version + 1,
-            "final_result": dict(final_result) if final_result is not None else None,
-            "error": error,
-        }
+    return run.evolve(
+        status=target,
+        updated_at=now,
+        version=run.version + 1,
+        final_result=dict(final_result) if final_result is not None else None,
+        error=error,
     )

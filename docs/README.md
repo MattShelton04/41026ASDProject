@@ -2,6 +2,25 @@
 
 Store maintained project documentation here throughout all three releases.
 
+## First-class documentation map
+
+- [Root README](../README.md): current repository status, team placeholders, and quick start
+- [Contributing guide](../CONTRIBUTING.md): current developer workflow and canonical commands
+- [Agent instructions](../AGENTS.md): current coding-agent ownership and quality rules
+- [Shared-platform design](architecture/shared-platform-design.md): living cross-release
+  service and contract design
+- [Agent-run state machine](architecture/agent-run-state-machine.md): normative Release 0
+  execution/recovery model
+- [Ollama operations](release-0/ollama-operations.md): canonical local runtime and
+  troubleshooting guide
+- [Feature onboarding](release-0/feature-onboarding.md): requirements for approved student
+  vertical slices
+
+The root documents and the files named above are maintained guidance. ADRs are durable
+decision records. The [initial scaffold record](architecture/repository-architecture.md),
+`architecture/reviews/`, and dated evidence retain point-in-time history; read their
+status/date rather than treating historical statements as current implementation state.
+
 - `architecture/`: individual and integrated architecture diagrams
 - `reports/`: working report content and final group technical reports
 - `release-0/`, `release-1/`, `release-2/`: release-specific plans and evidence

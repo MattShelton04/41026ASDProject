@@ -8,8 +8,8 @@ feature entities, business rules, schemas, or user experience.
 
 - Record the owner, feature name, scope, functional requirements, non-functional
   requirements, risks, and explicit out-of-scope behavior.
-- Confirm the database choice and the team's interpretation of the database-service
-  requirement with the tutor.
+- Confirm the separately owned SQLite database-service topology required for Release 0;
+  record tutor guidance if published course sources conflict.
 - Identify Create, Read, Update, and Delete user flows and the tables that require at
   least ten deterministic seed records.
 - Identify one bounded AI-assisted capability whose value and success criteria can be

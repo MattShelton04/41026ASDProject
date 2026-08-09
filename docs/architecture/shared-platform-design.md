@@ -4,15 +4,15 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed baseline for team review |
-| Date | 1 August 2026 |
+| Status | Living architecture; Release 0 shared baseline implemented, product integration pending |
+| Last verified | 9 August 2026 |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related record | `docs/architecture/repository-architecture.md` |
 
-### Implementation status (1 August 2026)
+### Implementation status (9 August 2026)
 
-The first Release 0 foundation increment now implements the strict shared agent
+The first Release 0 foundation increment implemented the strict shared agent
 contracts, deterministic state graph, limits and tool policy, persistence-independent
 ports, bounded four-phase runner, deterministic fake provider, SQLite run/step/review
 store, prompt registry, native Ollama structured-output adapter, serial worker, and
@@ -21,7 +21,7 @@ and drift-checked by the canonical quality gate. A pinned non-root AI-mode image
 profiled Ollama runtime/model initializer, native-host override, and real structured
 provider diagnostic now supply the shared Release 0 container boundary.
 
-The next domain-neutral Release 0 increment adds validated feature manifests,
+A subsequent domain-neutral Release 0 increment added validated feature manifests,
 feature-scoped/versioned tool registration, fail-fast YAML tool composition, a bounded
 HTTP executor, create-run idempotency, safe append-only progress events, and an opt-in
 redacted development evidence page. A non-product `integration-test-feature` proves
@@ -29,11 +29,20 @@ the agent/core/backend/database boundary over real HTTP and SQLite. A validated 
 registry now maps stable logical profiles to assignment-approved Ollama tags and explicit
 context/output budgets; ADR-015 records the selection and readiness policy.
 
+The current hardening increment makes repository import/dependency boundaries executable in
+the canonical gate, preserves validation during immutable state evolution, enforces aware and
+internally coherent persisted snapshots, rejects model/profile role mismatches before network
+I/O, centralises Problem Details responses, and verifies truthful feature-side idempotency
+replay status. The opt-in operations projection and browser dashboard are implemented for
+trusted local use. The canonical gate includes deterministic tests and enforces branch
+coverage of at least 90%.
+
 This does not complete the shared-foundation definition of done. Student owners must
-still supply their approved manifests and feature endpoints; the integrated edge and
-Compose topology, a product-feature integration, representative real-model evaluation,
-and release evidence remain. MCP, RAG, and multi-agent runtime behavior remains disabled
-and unclaimed.
+still supply their approved manifests and feature endpoints; the product edge and five-slice
+Compose topology, approved product-feature integration, and team-owned release evidence
+remain. The non-product fixture and real Qwen runtime have been exercised live, but they are
+not substitutes for assessed product evidence. MCP, RAG, and multi-agent runtime behavior
+remains disabled and unclaimed.
 
 This document is both a high-level design and a detailed build guide. It deliberately
 defines the stable shared platform before the project domain and five feature schemas
@@ -828,7 +837,7 @@ and Bicep under `infra/azure`.
 The Azure configuration is a demonstration architecture, not a claim that SQLite on
 Azure Files is a high-availability production design.
 
-## 17. Proposed repository structure
+## 17. Target repository structure
 
 The current standard top-level structure remains intact and is extended as follows:
 
@@ -1034,8 +1043,8 @@ The foundation is complete when:
 ## 22. Open decisions
 
 - Approved project topic and the five feature boundaries.
-- Tutor confirmation of the SQLite/PostgreSQL and separate database-service
-  interpretation.
+- Tutor confirmation of the separate SQLite database-service interpretation if published
+  course sources or implementation guidance conflict.
 - Team ownership of each shared service and review responsibility.
 - Authentication/identity needs implied by the eventual domain.
 - Retrieval document types, corpus size, and data licensing.

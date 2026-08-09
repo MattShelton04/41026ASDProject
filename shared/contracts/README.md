@@ -6,8 +6,11 @@ Feature entities and business rules must not be added here.
 The package currently defines correlation/idempotency headers, health and Problem
 Details payloads, validated feature manifests, agent runs/steps/limits/events, plans
 and adaptations, feature-owned typed tool definitions/calls/results, observations, and
-human review records. All contracts reject undocumented fields and validate assignment
-after construction.
+human review records. All contracts reject undocumented fields. Immutable updates use
+the validated `evolve(...)` operation; even Pydantic `model_copy(update=...)` is routed
+through full validation so state changes cannot bypass type or cross-field invariants.
+Persisted timestamps must be timezone-aware, and run/step/detail snapshots reject
+inconsistent lifecycle, ordering, or ownership data.
 
 The model-registry contract restricts entries to assignment-approved Qwen, Llama, and
 DeepSeek families and validates profile references plus context/output budgets.

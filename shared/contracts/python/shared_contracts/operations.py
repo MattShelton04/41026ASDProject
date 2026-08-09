@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from shared_contracts.agent import (
     AdaptationDecision,
@@ -123,8 +122,8 @@ class AgentStepEvidence(ContractModel):
     sequence: int = Field(ge=1)
     phase: StepPhase
     status: StepStatus
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
+    started_at: AwareDatetime | None = None
+    completed_at: AwareDatetime | None = None
     duration_ms: int | None = Field(default=None, ge=0)
     source: EvidenceSource
     summary: str = Field(min_length=1, max_length=500)
@@ -148,7 +147,7 @@ class HumanReviewEvidence(ContractModel):
     decision: ReviewDecision
     reviewer: str = Field(min_length=1, max_length=200)
     comment: str | None = Field(default=None, max_length=2_000)
-    reviewed_at: datetime
+    reviewed_at: AwareDatetime
 
 
 class RunCorrelation(ContractModel):
@@ -177,8 +176,8 @@ class AgentRunSummary(ContractModel):
     version: int = Field(ge=0)
     review_required: bool
     error_code: Identifier | None = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
     duration_ms: int | None = Field(default=None, ge=0)
 
 
@@ -187,7 +186,7 @@ class AgentRunPage(ContractModel):
 
     items: tuple[AgentRunSummary, ...] = Field(default=(), max_length=MAX_RUN_PAGE_SIZE)
     next_cursor: str | None = Field(default=None, max_length=MAX_RUN_CURSOR_LENGTH)
-    as_of: datetime
+    as_of: AwareDatetime
 
 
 class AgentRunEvidenceDetail(ContractModel):

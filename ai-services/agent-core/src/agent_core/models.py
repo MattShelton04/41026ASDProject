@@ -1,9 +1,7 @@
 """Strict internal models used at agent-core ports."""
 
-from pydantic import BaseModel, ConfigDict
+from shared_contracts.base import StrictModel
 
 
-class CoreModel(BaseModel):
+class CoreModel(StrictModel):
     """Reject undocumented fields and preserve port values as snapshots."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)

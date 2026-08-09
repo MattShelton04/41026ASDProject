@@ -5,13 +5,13 @@
 | Field | Value |
 |---|---|
 | Status | Release 0 local read-only foundation implemented; remote access decisions remain open |
-| Date | 2 August 2026 |
+| Last verified | 9 August 2026 |
 | Intended release | Release 0 read-only foundation; later releases extend the same model |
 | Owner | Shared platform |
 | Scope | Browser interface for discovering and inspecting live and completed AI-mode runs |
 | Related design | [Shared run observability proposal](../architecture/shared-run-observability-proposal.md), [agent run state machine](../architecture/agent-run-state-machine.md), [ADR-014](../architecture/decisions/ADR-014-append-only-safe-agent-run-events.md) |
 
-### Implementation status (2 August 2026)
+### Implementation status (9 August 2026)
 
 Milestones 1-3 now have a working local read-only implementation behind
 `AI_MODE_OPERATIONS_ENABLED=false` by default. It includes generated public contracts,
@@ -27,8 +27,8 @@ open; the dashboard stays disabled in those environments.
 
 ## 1. Purpose
 
-Build a shared web interface that makes AI-mode behavior understandable while a run is
-executing and after it completes. It has two equally important uses:
+Provide and evolve a shared web interface that makes AI-mode behavior understandable while
+a run is executing and after it completes. It has two equally important uses:
 
 1. **Showcase:** make the Plan -> Act -> Observe -> Adapt loop, deterministic guardrails,
    tool use, model timings, and human-review boundaries visible during demonstrations.
@@ -130,33 +130,30 @@ Ownership rules:
 - Feature services can supply safe evidence references but the operations interface does
   not call their databases.
 
-### 5.1 Proposed repository changes
+### 5.1 Implemented repository locations
 
 ```text
 shared/
   contracts/python/shared_contracts/operations.py
   frontend/
-    operations/ai-mode/index.html
-    css/operations.css
-    js/operations/
-      api.js
-      polling.js
-      render.js
-      state.js
+    operations/ai-mode/
+      index.html
+      app.js
+      styles.css
 ai-services/ai-mode/src/ai_mode/
   operations_api.py
   operations.py
-  persistence/run_queries.py       # extract only when sqlite.py would become unclear
+  persistence/sqlite.py
 ai-services/ai-mode/tests/
   test_operations_api.py
-  test_run_queries.py
-shared/frontend/tests/              # selected browser/component test tooling
+  test_operations.py
 ```
 
-The first frontend should use accessible HTML, shared CSS tokens, and small ES modules. Do
-not add a second frontend framework before the team has selected its common feature frontend
-conventions. If TypeScript/Vite is later selected for all frontends, migrate this shared UI
-once rather than maintaining two toolchains.
+The implemented frontend uses accessible HTML, CSS, and small framework-free JavaScript. The
+read/query implementation remains cohesive in `operations.py` and `persistence/sqlite.py`;
+extract it only when a measured maintenance boundary justifies another module. Browser E2E
+tests still await the team's single shared browser-tool choice. Do not add a second frontend
+framework before common feature conventions are selected.
 
 ## 6. Information and sensitivity model
 
@@ -176,7 +173,7 @@ mode until feature sensitivity rules are agreed.
 
 ## 7. Data contracts
 
-All proposed public models extend `ContractModel`, reject extra fields, use bounded
+All implemented public models extend `ContractModel`, reject extra fields, use bounded
 collections/strings, and generate JSON Schema/OpenAPI artifacts.
 
 ### 7.1 `AgentRunSummary`

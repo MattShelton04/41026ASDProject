@@ -13,6 +13,7 @@ from agent_core import ConcurrentRunUpdateError
 from ai_mode.api import api
 from ai_mode.configuration import ConfigurationError, Settings
 from ai_mode.evidence import create_evidence_blueprint
+from ai_mode.http import problem_response as _problem_response
 from ai_mode.observability import configure_structured_logging
 from ai_mode.operations import OperationsService, RunReader
 from ai_mode.operations_api import create_operations_blueprint
@@ -20,13 +21,11 @@ from ai_mode.persistence import PersistenceError
 from ai_mode.services import AppServices, build_services
 from shared_contracts import (
     AGENT_RUN_ID_HEADER,
-    PROBLEM_DETAIL_MEDIA_TYPE,
     REQUEST_ID_HEADER,
     TRACEPARENT_HEADER,
     HealthCheck,
     HealthResponse,
     HealthStatus,
-    ProblemDetail,
     is_valid_request_id,
     is_valid_traceparent,
     trace_id_from_traceparent,
@@ -89,17 +88,11 @@ def create_app(
     def validate_trace_context() -> tuple[Response, int] | None:
         if g.traceparent is None or is_valid_traceparent(g.traceparent):
             return None
-        problem = ProblemDetail(
-            title="Invalid request",
-            status=400,
-            detail="traceparent must use the supported W3C version 00 format",
-            code="traceparent_invalid",
-            instance=request.path,
-            request_id=g.request_id,
+        return _problem_response(
+            400,
+            "traceparent_invalid",
+            "traceparent must use the supported W3C version 00 format",
         )
-        response = jsonify(problem.model_dump(mode="json"))
-        response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
-        return response, 400
 
     @app.after_request
     def include_request_id(response: Response) -> Response:
@@ -218,17 +211,3 @@ def create_app(
         )
 
     return app
-
-
-def _problem_response(*, status: int, title: str, code: str, detail: str) -> tuple[Response, int]:
-    problem = ProblemDetail(
-        title=title,
-        status=status,
-        detail=detail,
-        code=code,
-        instance=request.path,
-        request_id=g.get("request_id"),
-    )
-    response = jsonify(problem.model_dump(mode="json"))
-    response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
-    return response, status

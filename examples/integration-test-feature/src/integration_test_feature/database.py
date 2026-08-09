@@ -256,7 +256,7 @@ def create_database_app(store: IntegrationRecordStore) -> Flask:
                 "idempotency_conflict",
                 "The idempotency key or record title conflicts with an existing operation",
             )
-        return jsonify(result), 201 if created else 200
+        return jsonify({**result, "created": created}), 201 if created else 200
 
     @app.get("/api/v1/records/by-title/<path:title>")
     def inspect_record(title: str) -> Response | tuple[Response, int]:

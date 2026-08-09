@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Status | Implemented Release 0 core baseline |
-| Date | 1 August 2026 |
+| Last verified | 9 August 2026 |
 | Scope | `agent-core` lifecycle, persistence boundaries, tool turns, and restart recovery |
 | Decision record | [ADR-010](decisions/ADR-010-deterministic-persisted-agent-state-machine.md) |
 
@@ -26,6 +26,9 @@ broader service boundaries and release roadmap remain in
   endpoints must enforce that key atomically with their business write.
 - Plans, concise decisions, safe errors, tool results, and invocation metadata are
   auditable. Hidden reasoning and exception traces are neither requested nor stored.
+- Persisted run/detail contracts enforce aware timestamps, ordered lifecycle times,
+  limit-respecting counters, terminal result/error combinations, and nested step/review
+  ownership. Immutable updates are fully revalidated rather than trusted copies.
 
 These rules provide at-least-once recovery with effect-aware deduplication. They do not
 claim impossible exactly-once delivery across independent HTTP services.

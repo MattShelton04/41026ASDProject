@@ -45,7 +45,8 @@ deployment.
 
 - `.github/workflows/`: executable integration CI plus student and cloud workflow placeholders
 - `docs/`: architecture, reports, and release-specific evidence
-- `shared/`: contracts, test utilities, integrated home page, and configuration templates
+- `shared/`: contracts, test utilities, operations assets, the eventual integrated
+  home-page location, and configuration templates
 - `student-1/` to `student-5/`: individual feature workspaces
 - `ai-services/`: agent-core and AI-mode projects plus later-release service locations
 - `scripts/`: shared quality, build, test, and deployment automation
@@ -120,6 +121,7 @@ remaining remote-access decisions are documented in
 
 ## Next decisions
 
-Before implementation begins, the team should confirm its membership with the
-tutor, select and obtain approval for an Agentic AI project topic, allocate one
-integrated feature per student, and confirm the planned SQLite and Azure choices.
+Before product-feature implementation begins, the team should confirm its membership
+with the tutor, select and obtain approval for an Agentic AI project topic, allocate
+one integrated feature per student, and confirm the per-feature SQLite topology and
+eventual Azure-or-AWS provider.

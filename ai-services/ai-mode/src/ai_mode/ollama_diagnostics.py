@@ -21,6 +21,7 @@ from agent_core import (
 from ai_mode.adapters.ollama import OllamaProvider
 from ai_mode.configuration import Settings
 from ai_mode.providers import build_ollama_provider, configured_model_registry
+from shared_contracts import ModelRegistry
 
 
 class SmokeItem(BaseModel):
@@ -43,7 +44,10 @@ class SmokeResponse(BaseModel):
 
 
 def run_smoke(
-    provider: LLMProvider, *, model_profile: str = "local-standard.v1"
+    provider: LLMProvider,
+    *,
+    model_profile: str = "local-standard.v1",
+    model_role: ModelRole = ModelRole.PLANNER,
 ) -> Mapping[str, object]:
     """Exercise health and one schema-constrained turn through the provider port."""
     health = provider.health()
@@ -51,7 +55,7 @@ def run_smoke(
         raise RuntimeError(health.detail)
     request = StructuredModelRequest(
         run_id=uuid4(),
-        role=ModelRole.REVIEWER,
+        role=model_role,
         model_profile=model_profile,
         messages=(
             ModelMessage(
@@ -93,6 +97,14 @@ def run_smoke(
     }
 
 
+def _diagnostic_role(registry: ModelRegistry, model_profile: str) -> ModelRole:
+    """Select a declared role so diagnostics also exercise profile enforcement."""
+    profile = registry.profile(model_profile)
+    if profile is None:  # configured_model_registry already validates this lookup.
+        raise ValueError(f"model profile is not registered: {model_profile}")
+    return ModelRole(profile.intended_roles[0].value)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -130,7 +142,11 @@ def main() -> int:
         )
         print(
             json.dumps(
-                run_smoke(provider, model_profile=model_profile),
+                run_smoke(
+                    provider,
+                    model_profile=model_profile,
+                    model_role=_diagnostic_role(registry, model_profile),
+                ),
                 indent=2,
                 sort_keys=True,
             )

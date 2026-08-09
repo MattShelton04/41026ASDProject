@@ -48,6 +48,7 @@ testpaths = [
     "ai-services/agent-core/tests",
     "ai-services/ai-mode/tests",
     "examples/integration-test-feature/tests",
+    "scripts/tests",
 ]
 
 [tool.coverage.run]

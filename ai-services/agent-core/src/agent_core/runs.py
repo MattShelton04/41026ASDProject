@@ -37,11 +37,9 @@ def request_cancellation(run: AgentRun, *, now: datetime) -> AgentRun:
         return run
     if run.status is RunStatus.QUEUED:
         cancelled = transition_run(run, RunStatus.CANCELLED, now=now)
-        return cancelled.model_copy(update={"cancel_requested": True})
-    return run.model_copy(
-        update={
-            "cancel_requested": True,
-            "updated_at": now,
-            "version": run.version + 1,
-        }
+        return cancelled.evolve(cancel_requested=True)
+    return run.evolve(
+        cancel_requested=True,
+        updated_at=now,
+        version=run.version + 1,
     )

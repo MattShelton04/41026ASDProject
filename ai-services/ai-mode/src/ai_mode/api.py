@@ -17,6 +17,8 @@ from agent_core import (
     apply_human_review,
     create_run,
 )
+from ai_mode.http import problem_response as _problem
+from ai_mode.http import validation_issues
 from ai_mode.persistence import IdempotencyConflictError, PersistenceError
 from ai_mode.queue import RunQueueFullError
 from ai_mode.services import AppServices
@@ -28,12 +30,10 @@ from shared_contracts import (
     MAX_EVENT_CURSOR,
     MAX_EVENT_PAGE_SIZE,
     MAX_IDEMPOTENCY_KEY_LENGTH,
-    PROBLEM_DETAIL_MEDIA_TYPE,
     AgentRunEventPage,
     AgentRunRequest,
-    FieldIssue,
     HumanReviewRequest,
-    ProblemDetail,
+    ModelRoleName,
     ReviewDecision,
 )
 
@@ -59,25 +59,27 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
     try:
         command = AgentRunRequest.model_validate(effective_payload)
     except ValidationError as exc:
-        issues = tuple(
-            FieldIssue(
-                field=".".join(str(part) for part in error["loc"]),
-                message=error["msg"],
-                code=error["type"],
-            )
-            for error in exc.errors(include_url=False)
-        )
-        return _problem(422, "validation_failed", "Request validation failed", errors=issues)
-
-    if (
-        services.model_registry is not None
-        and services.model_registry.profile(command.model_profile) is None
-    ):
         return _problem(
             422,
-            "model_profile_not_supported",
-            f"Model profile is not registered: {command.model_profile}",
+            "validation_failed",
+            "Request validation failed",
+            errors=validation_issues(exc),
         )
+
+    if services.model_registry is not None:
+        profile = services.model_registry.profile(command.model_profile)
+        if profile is None:
+            return _problem(
+                422,
+                "model_profile_not_supported",
+                f"Model profile is not registered: {command.model_profile}",
+            )
+        if not profile.supports(ModelRoleName.PLANNER, ModelRoleName.ADAPTER):
+            return _problem(
+                422,
+                "model_profile_role_incompatible",
+                "Model profile must support the planner and adapter roles",
+            )
     run = create_run(
         command,
         run_id=services.ids.new(),
@@ -186,15 +188,12 @@ def review_agent_run(run_id: UUID) -> tuple[Response, int]:
     try:
         command = HumanReviewRequest.model_validate(payload)
     except ValidationError as exc:
-        issues = tuple(
-            FieldIssue(
-                field=".".join(str(part) for part in error["loc"]),
-                message=error["msg"],
-                code=error["type"],
-            )
-            for error in exc.errors(include_url=False)
+        return _problem(
+            422,
+            "validation_failed",
+            "Review validation failed",
+            errors=validation_issues(exc),
         )
-        return _problem(422, "validation_failed", "Review validation failed", errors=issues)
     services = _services()
     detail = services.store.get(run_id)
     if detail is None:
@@ -243,36 +242,3 @@ def _signal_run(services: AppServices, run_id: UUID) -> None:
                 "error_code": "run_queue_full",
             },
         )
-
-
-def _problem(
-    status: int,
-    code: str,
-    detail: str,
-    *,
-    errors: tuple[FieldIssue, ...] = (),
-) -> tuple[Response, int]:
-    problem = ProblemDetail(
-        title=_problem_title(status),
-        status=status,
-        detail=detail,
-        code=code,
-        instance=request.path,
-        request_id=g.request_id,
-        errors=errors,
-    )
-    response = jsonify(problem.model_dump(mode="json"))
-    response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
-    return response, status
-
-
-def _problem_title(status: int) -> str:
-    return {
-        400: "Invalid JSON",
-        404: "Not found",
-        409: "Conflict",
-        413: "Request too large",
-        415: "Unsupported media type",
-        422: "Invalid request",
-        503: "Service unavailable",
-    }.get(status, "Request failed")

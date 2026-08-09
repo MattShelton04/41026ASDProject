@@ -33,7 +33,7 @@ docker compose --file docker-compose.yml --file docker-compose.integration-test.
 docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test up --detach --build --wait --wait-timeout 120 ai-mode integration-test-feature-database integration-test-feature-backend integration-test-feature-frontend
 ```
 
-The first run downloads the small Qwen model. Open <http://localhost:5190> to:
+The first run downloads the standard Release 0 Qwen model. Open <http://localhost:5190> to:
 
 - search the ten deterministic records through frontend -> backend -> database;
 - inspect record detail and its dependency graph without invoking a model;
@@ -47,12 +47,15 @@ tool call/result, model invocation summary, safe progress event, run/request ID,
 W3C trace context. The complete safe run-detail JSON remains available in an expandable
 debug panel.
 
-The longer-horizon preset uses `default.v3` and a six-minute client/run window. On the
-reference development machine, a warm `qwen2.5:3b` run completed all three planned
-tools and three Observe/Adapt iterations in about 153 seconds. Model load time was only
-about 0.2 seconds per call because Ollama `keep_alive` was effective; prompt evaluation
-and generation dominated. The platform does not yet reuse durable conversation context
-or provider KV state between calls.
+The longer-horizon preset uses `default.v3` and a six-minute client/run window. Measured
+CPU timings vary materially with prompt size: one warm three-tool run completed in about
+153 seconds, while a one-tool verification on 9 August 2026 took about 171 seconds
+(100 seconds planning and 51 seconds adapting). A small structured-output provider smoke
+on the same model took 8.3 seconds. Model load was warm in those runs; prompt evaluation
+and generation dominated. Rehearse and pre-warm real-model demonstrations, retain the
+deterministic scripted proof, and do not present these timings as satisfying the CRUD
+latency target. The platform does not yet reuse durable conversation context or provider
+KV state between calls.
 
 You can also inspect <http://localhost:5005/api/v1/model-profiles> and
 <http://localhost:5005/health/ready>. Stop the preview without deleting its named data
