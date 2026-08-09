@@ -38,7 +38,7 @@ def generate_validated[StructuredOutputT: BaseModel](
     if max_repairs not in {0, 1}:
         raise ValueError("max_repairs must be 0 or 1")
 
-    current_request = request.model_copy(update={"output_schema": output_type.model_json_schema()})
+    current_request = request.evolve(output_schema=output_type.model_json_schema())
     for attempt in range(max_repairs + 1):
         result = provider.generate_structured(current_request)
         try:
@@ -68,15 +68,13 @@ def generate_validated[StructuredOutputT: BaseModel](
                     f"{exc.errors(include_url=False, include_input=False)}"
                 ),
             )
-            current_request = current_request.model_copy(
-                update={
-                    "messages": (
-                        *current_request.messages,
-                        previous_response,
-                        repair_instruction,
-                    ),
-                    "repair_attempt": attempt + 1,
-                }
+            current_request = current_request.evolve(
+                messages=(
+                    *current_request.messages,
+                    previous_response,
+                    repair_instruction,
+                ),
+                repair_attempt=attempt + 1,
             )
             continue
         return ValidatedModelOutput(value=value, invocation=result, repair_count=attempt)

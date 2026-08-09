@@ -92,15 +92,14 @@ def _retry_model_phase(
         code="execution_interrupted",
         message="The process stopped before this model phase completed; the phase will be retried",
     )
-    recovered_step = step.model_copy(
-        update={
-            "status": StepStatus.FAILED,
-            "completed_at": now,
-            "error": interrupted,
-        }
+    recovered_step = step.evolve(
+        status=StepStatus.FAILED,
+        completed_at=now,
+        error=interrupted,
     )
-    recovered_run = detail.run.model_copy(
-        update={"version": detail.run.version + 1, "updated_at": now}
+    recovered_run = detail.run.evolve(
+        version=detail.run.version + 1,
+        updated_at=now,
     )
     return RecoveryDecision(
         run=recovered_run,
@@ -143,13 +142,11 @@ def _recover_action(
         },
     }
     if replay_is_safe:
-        pending_step = step.model_copy(
-            update={
-                "status": StepStatus.PENDING,
-                "completed_at": None,
-                "output": recovery_evidence,
-                "error": None,
-            }
+        pending_step = step.evolve(
+            status=StepStatus.PENDING,
+            completed_at=None,
+            output=recovery_evidence,
+            error=None,
         )
         ready = transition_run(detail.run, RunStatus.READY, now=now)
         return RecoveryDecision(
@@ -161,15 +158,13 @@ def _recover_action(
 
     if call.idempotency_key is None:
         raise AgentCoreError("interrupted effectful action has no idempotency key")
-    review_call = call.model_copy(update={"approval_status": ApprovalStatus.PENDING})
-    pending_step = step.model_copy(
-        update={
-            "status": StepStatus.PENDING,
-            "completed_at": None,
-            "input": {**step.input, "tool_call": review_call.model_dump(mode="json")},
-            "output": recovery_evidence,
-            "error": None,
-        }
+    review_call = call.evolve(approval_status=ApprovalStatus.PENDING)
+    pending_step = step.evolve(
+        status=StepStatus.PENDING,
+        completed_at=None,
+        input={**step.input, "tool_call": review_call.model_dump(mode="json")},
+        output=recovery_evidence,
+        error=None,
     )
     review = transition_run(detail.run, RunStatus.REVIEW_REQUIRED, now=now)
     return RecoveryDecision(

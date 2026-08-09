@@ -268,6 +268,7 @@ def test_list_projection_emits_cursor_and_uses_terminal_update_duration() -> Non
             "status": RunStatus.SUCCEEDED,
             "updated_at": NOW + timedelta(seconds=4),
             "objective": "x" * 200,
+            "final_result": {"summary": "complete"},
         }
     )
     reader = StubReader(detail.model_copy(update={"run": terminal_run}), has_more=True)

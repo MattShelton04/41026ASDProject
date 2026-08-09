@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, JsonValue, model_validator
+from pydantic import AwareDatetime, Field, JsonValue, model_validator
 
 from shared_contracts.base import ContractModel
 from shared_contracts.http import IdempotencyKey, RequestId, Traceparent
@@ -238,11 +237,22 @@ class AgentStep(ContractModel):
     sequence: int = Field(ge=1)
     phase: StepPhase
     status: StepStatus
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
+    started_at: AwareDatetime | None = None
+    completed_at: AwareDatetime | None = None
     input: JsonObject = Field(default_factory=dict, max_length=100)
     output: JsonObject = Field(default_factory=dict, max_length=100)
     error: ToolError | None = None
+
+    @model_validator(mode="after")
+    def timestamps_are_ordered(self) -> AgentStep:
+        """Reject impossible negative step durations."""
+        if (
+            self.started_at is not None
+            and self.completed_at is not None
+            and self.completed_at < self.started_at
+        ):
+            raise ValueError("completed_at must not be earlier than started_at")
+        return self
 
 
 class HumanReviewRequest(ContractModel):
@@ -263,7 +273,7 @@ class HumanReview(ContractModel):
     decision: ReviewDecision
     reviewer: str = Field(min_length=1, max_length=200)
     comment: str | None = Field(default=None, max_length=2_000)
-    reviewed_at: datetime
+    reviewed_at: AwareDatetime
 
 
 class AgentRun(ContractModel):
@@ -282,10 +292,25 @@ class AgentRun(ContractModel):
     tool_call_count: int = Field(default=0, ge=0)
     version: int = Field(default=0, ge=0)
     cancel_requested: bool = False
-    created_at: datetime
-    updated_at: datetime
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
     final_result: JsonObject | None = None
     error: ToolError | None = None
+
+    @model_validator(mode="after")
+    def snapshot_matches_lifecycle(self) -> AgentRun:
+        """Keep direct construction and persistence reloads consistent with run policy."""
+        if self.updated_at < self.created_at:
+            raise ValueError("updated_at must not be earlier than created_at")
+        if self.iteration_count > self.limits.max_iterations:
+            raise ValueError("iteration_count must not exceed max_iterations")
+        if self.tool_call_count > self.limits.max_tool_calls:
+            raise ValueError("tool_call_count must not exceed max_tool_calls")
+        if (self.status is RunStatus.SUCCEEDED) is (self.final_result is None):
+            raise ValueError("only succeeded runs require a final_result")
+        if (self.status is RunStatus.FAILED) is (self.error is None):
+            raise ValueError("only failed runs require an error")
+        return self
 
 
 class AgentRunDetail(ContractModel):
@@ -294,6 +319,28 @@ class AgentRunDetail(ContractModel):
     run: AgentRun
     steps: tuple[AgentStep, ...] = ()
     reviews: tuple[HumanReview, ...] = ()
+
+    @model_validator(mode="after")
+    def nested_records_belong_to_run(self) -> AgentRunDetail:
+        """Reject mixed-run or ambiguously ordered aggregate snapshots."""
+        step_ids = [step.id for step in self.steps]
+        sequences = [step.sequence for step in self.steps]
+        if len(step_ids) != len(set(step_ids)):
+            raise ValueError("step identifiers must be unique")
+        if len(sequences) != len(set(sequences)) or sequences != sorted(sequences):
+            raise ValueError("step sequences must be unique and ordered")
+        if any(step.run_id != self.run.id for step in self.steps):
+            raise ValueError("every step must belong to the containing run")
+        review_ids = [review.id for review in self.reviews]
+        if len(review_ids) != len(set(review_ids)):
+            raise ValueError("review identifiers must be unique")
+        known_steps = set(step_ids)
+        for review in self.reviews:
+            if review.run_id != self.run.id or review.tool_call.run_id != self.run.id:
+                raise ValueError("every review must belong to the containing run")
+            if review.step_id not in known_steps or review.tool_call.step_id != review.step_id:
+                raise ValueError("every review must reference its containing run step")
+        return self
 
 
 class AgentRunEvent(ContractModel):
@@ -304,7 +351,7 @@ class AgentRunEvent(ContractModel):
     run_version: int = Field(ge=0)
     event_type: Identifier
     status: RunStatus
-    occurred_at: datetime
+    occurred_at: AwareDatetime
     step_id: UUID | None = None
     step_phase: StepPhase | None = None
     step_status: StepStatus | None = None
