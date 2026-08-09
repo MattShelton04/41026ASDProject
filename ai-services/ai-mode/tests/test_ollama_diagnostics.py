@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from agent_core import ModelMetrics, ProviderHealth, StructuredModelResult
+from agent_core import ModelMetrics, ModelRole, ProviderHealth, StructuredModelResult
 from ai_mode import ollama_diagnostics
 from ai_mode.ollama_diagnostics import run_smoke
 from shared_testkit import ScriptedLLMProvider
@@ -31,6 +31,7 @@ def test_smoke_uses_provider_port_and_returns_machine_readable_evidence() -> Non
     assert report["status"] == "ready"
     assert report["model"] == "test-model"
     assert len(provider.requests) == 1
+    assert provider.requests[0].role is ModelRole.PLANNER
     assert provider.requests[0].temperature == 0
     assert provider.requests[0].output_schema["additionalProperties"] is False
 
@@ -85,6 +86,25 @@ def test_console_entrypoint_reports_success_and_closes_provider(
     assert exit_code == 0
     assert json.loads(capsys.readouterr().out)["status"] == "ready"
     assert provider.closed is True
+
+
+def test_console_entrypoint_selects_a_role_declared_by_the_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = CloseableScriptedProvider([_result()])
+    monkeypatch.setattr(
+        ollama_diagnostics,
+        "build_ollama_provider",
+        lambda *_args, **_kwargs: provider,
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        ["ai-mode-ollama-smoke", "--profile", "local-reasoning.v1"],
+    )
+
+    assert ollama_diagnostics.main() == 0
+
+    assert provider.requests[0].role is ModelRole.REVIEWER
 
 
 def test_console_entrypoint_returns_nonzero_with_safe_error(
