@@ -13,6 +13,7 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
     (sys.executable, "-m", "ruff", "format", "--check", "."),
     (sys.executable, "-m", "ruff", "check", "."),
     (sys.executable, "scripts/generate_contracts.py", "--check"),
+    (sys.executable, "scripts/validate_architecture.py"),
     (sys.executable, "scripts/validate_model_registry.py"),
     (sys.executable, "scripts/validate_tool_catalogs.py"),
     (
@@ -26,6 +27,7 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
         "examples/integration-test-feature/src/integration_test_feature",
         "scripts/check.py",
         "scripts/generate_contracts.py",
+        "scripts/validate_architecture.py",
         "scripts/validate_model_registry.py",
         "scripts/validate_tool_catalogs.py",
     ),
