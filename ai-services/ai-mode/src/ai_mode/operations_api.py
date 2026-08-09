@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
-from flask import Blueprint, Response, current_app, g, jsonify, request, send_from_directory
+from flask import Blueprint, Response, current_app, jsonify, request, send_from_directory
 from pydantic import TypeAdapter, ValidationError
 
+from ai_mode.http import problem_response as _problem
 from ai_mode.operations import (
     InvalidRunCursorError,
     OperationsService,
@@ -21,8 +22,6 @@ from shared_contracts import (
     AGENT_RUN_ID_HEADER,
     DEFAULT_RUN_PAGE_SIZE,
     MAX_RUN_PAGE_SIZE,
-    PROBLEM_DETAIL_MEDIA_TYPE,
-    ProblemDetail,
     RunStatus,
 )
 from shared_contracts.agent import Identifier
@@ -140,17 +139,3 @@ def _secure_static_response(response: Response) -> Response:
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     return response
-
-
-def _problem(status: int, code: str, detail: str) -> tuple[Response, int]:
-    problem = ProblemDetail(
-        title="Invalid request" if status == 400 else "Not found",
-        status=status,
-        detail=detail,
-        code=code,
-        instance=request.path,
-        request_id=g.request_id,
-    )
-    response = jsonify(problem.model_dump(mode="json"))
-    response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
-    return response, status
