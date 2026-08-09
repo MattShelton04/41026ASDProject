@@ -2,8 +2,10 @@
 
 ## Document status
 
-- Status: Initial scaffold implemented; project implementation not started
-- Date: 26 July 2026
+- Status: Historical point-in-time scaffold record; initial scaffold implemented
+- Snapshot date: 26 July 2026
+- Current status: See the [root README](../../README.md) and
+  [living shared-platform design](shared-platform-design.md)
 - Student initiating the work: Matthew Shelton
 - Initial AI-assisted engineering tool: OpenAI Codex using GPT-5.6-sol
 - Adversarial reviewer: Gemini 3.6 Flash in Antigravity
@@ -17,6 +19,11 @@ This document records the planning, architectural decisions, implementation
 boundary, and validation of the repository's initial scaffold. It began as the
 pre-implementation scaffold plan and was updated after the plan was carried
 out, preserving both the intent and evidence of the resulting structure.
+
+This is intentionally not a living implementation summary. Statements such as an empty
+Compose model or implementation not having started describe the 26 July snapshot and are
+retained as historical evidence. Current commands, services, and remaining work are recorded
+in the root README and living shared-platform design.
 
 The product topic, individual features, cloud provider, database engine, and
 detailed service architecture remain undecided. The scaffold therefore defines

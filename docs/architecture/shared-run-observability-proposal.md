@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Status | Release 0 local read-only operations baseline implemented; remote controls remain proposed |
-| Date | 2 August 2026 |
+| Last verified | 9 August 2026 |
 | Scope | Shared run discovery, live progress, traceability, audit evidence, and conversation grouping |
 | Primary audience | Shared-platform maintainers, feature owners, reviewers, and demonstrators |
 | Related design | [Shared platform design](shared-platform-design.md), [agent run state machine](agent-run-state-machine.md), and [ADR-014](decisions/ADR-014-append-only-safe-agent-run-events.md) |
@@ -14,29 +14,31 @@ The concrete Release 0 contracts, query/persistence work, UI structure, security
 test matrix, and delivery milestones are defined in the
 [AI-mode operations interface implementation plan](../release-0/ai-mode-operations-interface-plan.md).
 
-## 1. Executive recommendation
+## 1. Implemented baseline and remaining recommendation
 
-Add a small operations interface as a read-oriented projection over AI-mode's existing
-workflow store. AI-mode must remain the only owner of agent-run state. The interface
-should first use the existing resumable cursor-polling API, present safe typed phase
-artifacts as a conversation and timeline, and keep detailed evidence behind stronger
-authorization. It must not introduce a second workflow database, expose application
-logs as agent events, or store hidden model reasoning.
+The local baseline adds a small operations interface as a read-oriented projection over
+AI-mode's existing workflow store. AI-mode must remain the only owner of agent-run state.
+The interface uses the existing resumable cursor-polling API, presents safe typed phase
+artifacts as a conversation and timeline, and keeps detailed evidence behind an explicit
+local feature gate. Remote access still requires stronger authorization. The design must
+not introduce a second workflow database, expose application logs as agent events, or store
+hidden model reasoning.
 
-The recommended delivery order is:
+Delivery status and remaining order are:
 
-1. agree on access, retention, and conversation semantics;
-2. add structured correlation-aware logging and a bounded run-list read API;
-3. add the operations UI using snapshot plus cursor polling;
-4. add an optional SSE adapter only if measured polling load or demo usability warrants it;
-5. add durable conversations only if the approved product requires cross-turn context.
+1. **Complete locally:** structured correlation-aware logging and a bounded run-list API;
+2. **Complete locally:** the operations UI using snapshot plus cursor polling;
+3. **Required before remote use:** agree on identity, access, retention, and evidence scope;
+4. **Optional after measurement:** add SSE only if polling load or demo usability warrants it;
+5. **Product-dependent:** add durable conversations only if approved requirements need
+   cross-turn context.
 
 This supplies useful Release 0 debugging and evidence without prematurely building a
 general monitoring platform or Release 2 multi-agent control plane.
 
 ## 2. Current implemented capability
 
-The following findings describe the repository on 2 August 2026.
+The following findings were reverified against the repository on 9 August 2026.
 
 ### 2.1 Durable workflow and audit records
 
