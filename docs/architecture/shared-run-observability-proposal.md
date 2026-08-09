@@ -36,6 +36,13 @@ Delivery status and remaining order are:
 This supplies useful Release 0 debugging and evidence without prematurely building a
 general monitoring platform or Release 2 multi-agent control plane.
 
+The local operations client now makes this baseline materially easier to operate: viewport-
+owned panes, mobile list/detail drill-in, adaptive bounded polling, honest live elapsed/waiting
+state, cycle-aware Plan/Act/Observe/Adapt history, readable projected values, and copy controls
+for request/run/step/tool-call/trace identifiers. Application-log query remains intentionally
+deferred; full cross-service diagnosis still belongs in a collector-backed telemetry system
+reached through server-configured correlation deep links.
+
 ## 2. Current implemented capability
 
 The following findings were reverified against the repository on 9 August 2026.

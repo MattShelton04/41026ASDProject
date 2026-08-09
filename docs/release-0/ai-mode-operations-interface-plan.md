@@ -25,6 +25,23 @@ temporary frontend service or a second API. Remote identity/authorization, mutat
 telemetry deep links, and selection of the team's one browser E2E tool remain deliberately
 open; the dashboard stays disabled in those environments.
 
+A measured interface-hardening increment now constrains the desktop and laptop workspace to
+the viewport, gives the run index and detail independent scroll ownership, and uses a
+single-pane list/detail drill-in on mobile. The detail prioritizes current work, honest local
+elapsed time, repeated plan/iteration cycles, outcome, limits, and copyable correlation IDs.
+Tool values and final results use bounded readable structures; projected JSON remains a
+collapsed developer view.
+
+The increment was implemented with this focused plan:
+
+1. measure layout and request behavior against empty, active, successful, failed, cancelled,
+   short, and multi-step durable runs;
+2. replace the card-heavy information architecture and static four-phase strip;
+3. isolate and harden polling/cursor policy without changing the durable event transport;
+4. add browser-independent deterministic behavior tests using Node's built-in test runner;
+5. exercise the built image through Compose at desktop, laptop, and mobile viewports and run
+   the canonical repository gate.
+
 ## 1. Purpose
 
 Provide and evolve a shared web interface that makes AI-mode behavior understandable while
@@ -366,17 +383,21 @@ and works through Flask/Nginx without long-lived connection management.
 
 For a selected run:
 
-1. Fetch the projected detail and store its `run.version` and ETag.
-2. Fetch events after the last locally stored cursor, initially zero.
-3. Append new event metadata to the journal and advance to `next_cursor`.
-4. If any event arrived, conditionally refresh the detail using its ETag.
-5. Render only from the latest complete detail snapshot; events animate progress but do not
-   invent plan/tool content.
+1. Rehydrate a bounded event window when revisiting a saved cursor; otherwise fetch events
+   from zero for the selected run.
+2. Append de-duplicated event metadata and advance to the greatest observed or restored
+   exclusive cursor.
+3. Fetch projected detail once for the initial selection and store its `run.version` and ETag.
+4. On later polls, conditionally refresh detail only when a durable event arrived or a visible-
+   tab refresh explicitly requests reconciliation.
+5. Render authoritative evidence only from the latest complete detail snapshot; events signal
+   a durable change but do not invent plan/tool content.
 6. Continue at 800 ms while actively planning/acting/observing/adapting.
-7. Back off to two seconds while queued and five seconds while awaiting review.
-8. On transient errors, use bounded exponential backoff with jitter and show disconnected/
+7. Back off to 1.5 seconds while queued and five seconds while awaiting review.
+8. On transient errors, use bounded exponential backoff and show disconnected/
    stale state without changing the persisted run status.
-9. After `terminal=true`, perform one final detail refresh and stop.
+9. When an event page becomes terminal, perform the one event-triggered detail refresh and
+   stop; do not issue a second terminal projection request.
 10. Persist only run ID and cursor in session storage. Do not persist objectives or tool
     evidence in browser storage.
 
@@ -388,8 +409,63 @@ Additional client invariants:
 - never cancel a run because the browser closes or disconnects;
 - use one polling controller per selected run, not one interval per component.
 
-The run index refreshes its first page every five seconds while visible. Selecting a run does
-not stop index refresh, but DOM updates must preserve selection and keyboard focus.
+The run index refreshes its first page every two seconds while any loaded run is active and
+every ten seconds when the loaded page is entirely terminal or review-blocked. Hidden tabs use
+at least a 30-second list interval. Selecting a run does not stop index refresh, but keyed DOM
+reconciliation preserves selection, keyboard focus, and unchanged row elements.
+
+Every list, event, and evidence request has an eight-second client timeout. A list request is
+never overlapped by another list request; a pending refresh is coalesced and runs immediately
+after the in-flight request settles. Aborts and separate list/selection generations prevent a
+late response from a previous filter or selected run overwriting newer state. A durable event
+refreshes evidence immediately, and a selected-run status change patches its list row and
+requests a fresh first page rather than waiting for the periodic index timer.
+
+Restored event cursors are not rendered without context. On selection, the client rehydrates up
+to three bounded 200-event pages from the run's history, retains only the newest 200 unique
+events, then resumes after the saved exclusive cursor. This preserves a useful journal across
+navigation without persisting evidence in browser storage or permitting unbounded growth.
+
+### 10.1 Measured update budget (9 August 2026)
+
+The pre-change interface was measured against the persisted integration fixture:
+
+| Signal | Measured behavior | Perceived effect |
+|---|---|---|
+| Run index | fixed five-second interval; sampled API work completed in 2-3 ms | a newly created or terminal run could appear almost five seconds late despite a fast store query |
+| Selected events | 800 ms active cursor interval followed by a conditional detail request | a durable change normally appeared within about 0-800 ms plus two small HTTP round trips |
+| Model wait | planner/adapter calls persisted one running step, then emitted no event for 50-120 seconds | the detail duration and running card stayed visually frozen even though polling was healthy |
+| Terminal selection | one event request followed by two consecutive evidence requests | redundant projection work; both sampled requests revalidated as `304` |
+| Desktop 1440×900 | 5,126 px document; both panes expanded to about 5,000 px | the run list controlled page height and neither pane actually scrolled independently |
+| Laptop 1024×768 | 5,182 px document | the same body-scroll problem at the demonstration laptop size |
+| Mobile 390×844 | 7,058 px document, 4,350 px run list, 6,328 px detail | a nested-scroll run list followed by an extremely long detail document |
+
+The implementation keeps the measured 800 ms active event cadence, removes the second
+terminal detail request, and renders run/step elapsed time from persisted timestamps once per
+second. This is elapsed time, not token or workflow progress. The waiting copy names the
+persisted boundary (for example, “Waiting for planner response”) and explicitly avoids
+claiming provider progress that AI-mode cannot observe.
+
+### 10.2 Application-log recommendation
+
+Do not add the optional in-process operational-log panel in this Release 0 increment. AI-mode's
+allowlisted JSON stdout schema is already safe and correlation-rich, while a new ring-buffer
+contract, endpoint, filter UI, polling loop, byte limits, and recursive-request suppression
+would materially expand one service without making feature-service logs queryable. It would
+also place ephemeral telemetry beside durable evidence in a way that operators could easily
+misread as complete history.
+
+The recommended order remains:
+
+1. use the improved persisted event/evidence presentation and copyable request, run, step,
+   call, and trace identifiers;
+2. once an operator identity and telemetry backend are selected, configure a server-owned
+   telemetry URL template that accepts only an encoded allowlisted correlation value and show
+   that deep link from `RunCorrelation.telemetry_url`;
+3. for cross-service logs, use stdout/OTLP collection into a bounded collector and indexed
+   backend with environment-specific retention, access control, redaction, and cost limits;
+4. keep workflow events and telemetry storage separate, and never add Docker-socket access,
+   subprocess log scraping, arbitrary file reads, or an unbounded log endpoint to AI-mode.
 
 Server-Sent Events may later expose the same stored events and `Last-Event-ID` cursor. Add it
 only after measuring polling load and proxy behavior. WebSockets are not planned.
@@ -530,6 +606,12 @@ as authorization.
 - terminal final refresh, review pause, cancellation race, disconnect/backoff;
 - accessible keyboard navigation, focus retention, live-region behavior, and non-color status;
 - responsive layouts for demonstration/projector and laptop widths.
+
+Polling policy is now covered by a dependency-free ECMAScript module and Node's built-in test
+runner. The canonical pytest suite invokes those deterministic tests for adaptive cadence,
+hidden-tab behavior, generations, aborts, timeout/backoff, terminal stopping, cursor parsing,
+and duplicate/bounded events. This is not a browser E2E stack and does not decide the team's
+eventual shared Playwright/Cypress choice.
 
 ### 14.6 Integration and performance tests
 
