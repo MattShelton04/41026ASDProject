@@ -398,7 +398,9 @@ def test_mutation_replay_has_one_effect_and_reports_operation_status(tmp_path: P
 
     assert first.status_code == 201
     assert replay.status_code == 200
-    assert replay.json() == first.json()
+    assert first.json()["created"] is True
+    assert replay.json()["created"] is False
+    assert replay.json()["record"] == first.json()["record"]
     assert conflict.status_code == 409
     assert applied.json()["status"] == "applied"
     assert missing.json() == {"status": "not_applied"}
@@ -411,4 +413,5 @@ def test_mutation_replay_has_one_effect_and_reports_operation_status(tmp_path: P
         200,
         201,
     ]
+    assert sum(response.json()["created"] for response in concurrent_results) == 1
     assert len(feature_store.search("Concurrent single effect")) == 1
