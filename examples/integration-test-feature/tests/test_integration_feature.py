@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -24,8 +24,12 @@ from agent_core import (
     ToolRegistry,
     create_run,
 )
+from ai_mode import create_app as create_ai_mode_app
 from ai_mode.adapters.http_tools import HttpToolBinding, HttpToolExecutor
+from ai_mode.configuration import Settings
+from ai_mode.model_registry import load_model_registry
 from ai_mode.persistence import SQLiteRunStore
+from ai_mode.services import AppServices
 from ai_mode.tool_catalog import load_tool_catalog
 from integration_test_feature import (
     IntegrationRecordStore,
@@ -33,7 +37,10 @@ from integration_test_feature import (
     create_database_app,
 )
 from shared_contracts import (
+    AGENT_RUN_ID_HEADER,
     IDEMPOTENCY_KEY_HEADER,
+    REQUEST_ID_HEADER,
+    TRACEPARENT_HEADER,
     AgentRun,
     AgentRunRequest,
     Observation,
@@ -80,6 +87,18 @@ class _Clock:
 class _Ids:
     def new(self) -> UUID:
         return uuid4()
+
+
+class _ImmediateQueue:
+    """Execute queued work synchronously while retaining queue-call evidence."""
+
+    def __init__(self, run: Callable[[UUID], AgentRun]) -> None:
+        self._run = run
+        self.run_ids: list[UUID] = []
+
+    def enqueue(self, run_id: UUID) -> None:
+        self.run_ids.append(run_id)
+        self._run(run_id)
 
 
 class _PromptBuilder:
@@ -132,6 +151,57 @@ def _model_result(content: dict[str, object]) -> StructuredModelResult:
         provider="scripted",
         model="fake",
         metrics=ModelMetrics(total_duration_ms=1),
+    )
+
+
+def _long_horizon_provider() -> ScriptedLLMProvider:
+    return ScriptedLLMProvider(
+        [
+            _model_result(
+                {
+                    "goal": "Audit one record and its direct dependency evidence",
+                    "actions": [
+                        {
+                            "sequence": 1,
+                            "tool_name": "integration_test.records.search.v1",
+                            "arguments": {"query": "Reference record"},
+                            "purpose": "Search through the feature backend",
+                        },
+                        {
+                            "sequence": 2,
+                            "tool_name": "integration_test.records.inspect.v1",
+                            "arguments": {"title": "Reference record 03"},
+                            "purpose": "Inspect priority and summary",
+                        },
+                        {
+                            "sequence": 3,
+                            "tool_name": "integration_test.records.dependencies.v1",
+                            "arguments": {"title": "Reference record 03"},
+                            "purpose": "Verify dependency status",
+                        },
+                    ],
+                    "success_criteria": [
+                        "The target record is found",
+                        "Its priority and summary are inspected",
+                        "Every direct dependency status is reported",
+                    ],
+                    "risk_level": "low",
+                    "assumptions": [],
+                }
+            ),
+            _model_result(
+                {
+                    "decision": "complete",
+                    "justification": "All dependency evidence is available",
+                    "final_result": {
+                        "record": "Reference record 03",
+                        "priority": 3,
+                        "dependency_count": 2,
+                        "all_dependencies_active": True,
+                    },
+                }
+            ),
+        ]
     )
 
 
@@ -189,54 +259,7 @@ def test_long_horizon_agent_loop_calls_three_feature_tools(tmp_path: Path) -> No
             now=NOW,
         )
         state_store.create(run)
-        provider = ScriptedLLMProvider(
-            [
-                _model_result(
-                    {
-                        "goal": "Count seeded records",
-                        "actions": [
-                            {
-                                "sequence": 1,
-                                "tool_name": "integration_test.records.search.v1",
-                                "arguments": {"query": "Reference record"},
-                                "purpose": "Search through the feature backend",
-                            },
-                            {
-                                "sequence": 2,
-                                "tool_name": "integration_test.records.inspect.v1",
-                                "arguments": {"title": "Reference record 03"},
-                                "purpose": "Inspect priority and summary",
-                            },
-                            {
-                                "sequence": 3,
-                                "tool_name": "integration_test.records.dependencies.v1",
-                                "arguments": {"title": "Reference record 03"},
-                                "purpose": "Verify dependency status",
-                            },
-                        ],
-                        "success_criteria": [
-                            "The target record is found",
-                            "Its priority and summary are inspected",
-                            "Every direct dependency status is reported",
-                        ],
-                        "risk_level": "low",
-                        "assumptions": [],
-                    }
-                ),
-                _model_result(
-                    {
-                        "decision": "complete",
-                        "justification": "All dependency evidence is available",
-                        "final_result": {
-                            "record": "Reference record 03",
-                            "priority": 3,
-                            "dependency_count": 2,
-                            "all_dependencies_active": True,
-                        },
-                    }
-                ),
-            ]
-        )
+        provider = _long_horizon_provider()
         runner = AgentRunner(
             store=state_store,
             provider=provider,
@@ -274,6 +297,149 @@ def test_long_horizon_agent_loop_calls_three_feature_tools(tmp_path: Path) -> No
     assert result.iteration_count == 3
     assert result.tool_call_count == 3
     assert len(state_store.list_events(run.id)) == 18
+
+
+def test_public_ai_mode_api_executes_and_projects_complete_feature_run(tmp_path: Path) -> None:
+    """Prove create/read/events/index/evidence over public HTTP and real feature hops."""
+    feature_store = IntegrationRecordStore(tmp_path / "feature.sqlite3")
+    feature_store.initialize()
+    with (
+        _serve(create_database_app(feature_store)) as database_url,
+        _serve(create_backend_app(database_url)) as backend_url,
+    ):
+        definitions = _tool_definitions()
+        executor = HttpToolExecutor(
+            service_base_urls={"integration-test-feature-backend": backend_url},
+            bindings=[
+                HttpToolBinding(
+                    tool_name=registration.definition.name,
+                    tool_version=registration.definition.version,
+                    service=registration.service,
+                    method=registration.method,
+                    path=registration.path,
+                )
+                for registration in load_tool_catalog(CATALOG_PATH).tools
+            ],
+        )
+        state_store = SQLiteRunStore(tmp_path / "agent-state.sqlite3")
+        state_store.initialize()
+        provider = _long_horizon_provider()
+        runner = AgentRunner(
+            store=state_store,
+            provider=provider,
+            prompt_builder=_PromptBuilder(),
+            tools=ToolRegistry(definitions),
+            tool_executor=executor,
+            clock=_Clock(),
+            ids=_Ids(),
+        )
+        queue = _ImmediateQueue(runner.run_until_blocked)
+        model_registry = load_model_registry()
+        services = AppServices(
+            store=state_store,
+            provider=provider,
+            queue=queue,
+            clock=_Clock(),
+            ids=_Ids(),
+            default_model_profile=model_registry.default_profile,
+            model_registry=model_registry,
+            run_reader=state_store,
+        )
+        app = create_ai_mode_app(Settings(operations_enabled=True), services=services)
+        app.config.update(TESTING=True)
+        with _serve(app) as ai_mode_url, httpx.Client(base_url=ai_mode_url) as client:
+            payload = {
+                "feature_key": "student-1-integration-test",
+                "objective": (
+                    "Audit Reference record 03 by searching, inspecting, and checking "
+                    "every direct dependency"
+                ),
+                "prompt_set": "default.v3",
+                "limits": {
+                    "max_iterations": 8,
+                    "max_tool_calls": 12,
+                    "time_budget_ms": 60_000,
+                    "max_model_repairs": 1,
+                },
+            }
+            headers = {
+                "Idempotency-Key": "integration-api-lifecycle",
+                REQUEST_ID_HEADER: "integration-api-request",
+                TRACEPARENT_HEADER: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+            }
+            created = client.post("/api/v1/agent-runs", json=payload, headers=headers)
+            replay = client.post("/api/v1/agent-runs", json=payload, headers=headers)
+            run_id = created.json()["id"]
+            location = created.headers["Location"]
+            detail = client.get(location)
+            first_events = client.get(f"{location}/events", params={"after": 0, "limit": 3})
+            remaining_events = client.get(
+                f"{location}/events",
+                params={"after": first_events.json()["next_cursor"], "limit": 200},
+            )
+            index = client.get(
+                "/api/v1/agent-runs",
+                params={
+                    "feature_key": "student-1-integration-test",
+                    "status": "succeeded",
+                    "limit": 1,
+                },
+            )
+            evidence = client.get(f"/api/v1/operations/agent-runs/{run_id}")
+            not_modified = client.get(
+                f"/api/v1/operations/agent-runs/{run_id}",
+                headers={"If-None-Match": evidence.headers["ETag"]},
+            )
+            invalid_filter = client.get("/api/v1/agent-runs", params={"unexpected": "value"})
+            profiles = client.get("/api/v1/model-profiles")
+        executor.close()
+
+    assert created.status_code == 202
+    assert replay.status_code == 202
+    assert replay.json()["id"] == run_id
+    assert len(queue.run_ids) == 1
+    assert created.headers[AGENT_RUN_ID_HEADER] == run_id
+    assert created.headers[REQUEST_ID_HEADER] == "integration-api-request"
+    assert detail.status_code == 200
+    assert detail.json()["run"]["status"] == "succeeded"
+    assert detail.json()["run"]["final_result"] == {
+        "record": "Reference record 03",
+        "priority": 3,
+        "dependency_count": 2,
+        "all_dependencies_active": True,
+    }
+    assert [step["phase"] for step in detail.json()["steps"]] == [
+        "plan",
+        "act",
+        "observe",
+        "adapt",
+        "act",
+        "observe",
+        "adapt",
+        "act",
+        "observe",
+        "adapt",
+    ]
+    assert len(first_events.json()["items"]) == 3
+    assert first_events.json()["terminal"] is False
+    assert len(remaining_events.json()["items"]) == 15
+    assert remaining_events.json()["terminal"] is True
+    assert first_events.headers[AGENT_RUN_ID_HEADER] == run_id
+    assert index.status_code == 200
+    assert index.json()["items"][0]["id"] == run_id
+    assert index.json()["items"][0]["objective_preview"].startswith("Audit Reference")
+    assert evidence.status_code == 200
+    assert evidence.json()["correlation"] == {
+        "request_id": "integration-api-request",
+        "run_id": run_id,
+        "traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+        "trace_id": "0123456789abcdef0123456789abcdef",
+        "telemetry_url": None,
+    }
+    assert not_modified.status_code == 304
+    assert_problem_detail(invalid_filter.json(), status=400, code="run_filter_invalid")
+    assert profiles.status_code == 200
+    assert profiles.json()["default_profile"] == model_registry.default_profile
 
 
 def test_record_detail_and_dependency_tools_return_richer_evidence(tmp_path: Path) -> None:
@@ -343,6 +509,9 @@ def test_console_assets_expose_safe_trace_and_long_horizon_controls() -> None:
     assert 'id="conversation"' in document
     assert 'id="event-feed"' in document
     assert 'id="run-metadata"' in document
+    assert 'id="run-history"' in document
+    assert 'id="follow-up-run"' in document
+    assert 'id="ai-health"' in document
     assert "Longer-horizon dependency audit" in document
     assert "Raw safe run detail" in document
     assert "jsonRequest(`${currentLocation}/events?after=${cursor}&limit=200`)" in script
@@ -351,6 +520,11 @@ def test_console_assets_expose_safe_trace_and_long_horizon_controls() -> None:
     assert "signature === lastRenderedDetailSignature" in script
     assert 'querySelectorAll("details[open][data-state-key]")' in script
     assert "events.body.items.length > 0 || !currentRun" in script
+    assert 'feature_key: "student-1-integration-test"' in script
+    assert "loadHistoricalRun(run.id)" in script
+    assert "Continue from durable run" in script
+    assert "location = /api/health/ai" in proxy
+    assert 'add_header Cache-Control "no-store"' in proxy
     assert "proxy_set_header X-Request-ID $correlation_request_id" in proxy
 
 

@@ -14,7 +14,9 @@ priority metadata and dependency relationships, three composable read tools
 (search, inspect, and dependency evidence), an idempotent create tool, and
 operation-status lookup. Its longer-horizon component test executes a three-action
 plan over real loopback HTTP with the scripted model; Ollama and Docker are not
-required.
+required. A public-API lifecycle test additionally drives idempotent create/replay,
+run detail, paged events, filtered durable history, safe evidence caching, model registry,
+and shared Problem Details through a live AI-mode HTTP server and the real feature hops.
 
 The fixture also demonstrates two boundary conventions intended for real features:
 checked-in tool catalogues are composed by the canonical quality gate, and HTTP errors
