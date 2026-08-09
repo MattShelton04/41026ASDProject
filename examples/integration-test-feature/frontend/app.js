@@ -14,13 +14,21 @@ const historyList = document.querySelector("#run-history");
 const historySummary = document.querySelector("#history-summary");
 const historyStatus = document.querySelector("#history-status");
 const loadMoreRunsButton = document.querySelector("#load-more-runs");
+const reviewPanel = document.querySelector("#review-panel");
+const reviewTool = document.querySelector("#review-tool");
+const reviewIdempotency = document.querySelector("#review-idempotency");
+const reviewArguments = document.querySelector("#review-arguments");
+const reviewState = document.querySelector("#review-state");
+const approveReviewButton = document.querySelector("#approve-review");
+const rejectReviewButton = document.querySelector("#reject-review");
 
 const scenarios = {
   "dependency-audit": "Audit Reference record 03. First search for it, then inspect its priority and summary, then inspect every direct dependency. Complete only after reporting the record priority and every dependency title, relationship, and status.",
   "single-lookup": "Search for Reference record 03 and complete when the matching record is observed.",
+  "protected-create": () => `Create exactly one integration-test record titled Review checkpoint ${crypto.randomUUID().slice(0, 8)}. Use the protected create tool and complete only after the approved write result is observed.`,
 };
 
-const terminalStatuses = new Set(["succeeded", "failed", "cancelled", "review_required"]);
+const terminalStatuses = new Set(["succeeded", "failed", "cancelled"]);
 let currentRun = null;
 let currentLocation = null;
 let currentObjective = "";
@@ -159,6 +167,31 @@ function setRunStatus(status) {
   runStatus.className = `badge status-${status}`;
   cancelButton.disabled = status === "idle" || terminalStatuses.has(status);
   startButton.disabled = !terminalStatuses.has(status) && status !== "idle";
+}
+
+function pendingReviewCall(detail) {
+  if (detail.run.status !== "review_required") return null;
+  const pending = detail.steps.find((step) => (
+    step.phase === "act"
+    && step.status === "pending"
+    && step.input?.tool_call?.approval_status === "pending"
+  ));
+  return pending?.input.tool_call || null;
+}
+
+function renderReviewPanel(detail) {
+  const call = pendingReviewCall(detail);
+  reviewPanel.hidden = !call;
+  if (!call) {
+    reviewState.textContent = "";
+    return;
+  }
+  reviewTool.textContent = `${call.tool_name}@${call.tool_version}`;
+  reviewIdempotency.textContent = call.idempotency_key || "not supplied";
+  reviewArguments.textContent = pretty(call.arguments);
+  reviewState.textContent = "Awaiting a human decision.";
+  approveReviewButton.disabled = false;
+  rejectReviewButton.disabled = false;
 }
 
 function formatDuration(milliseconds) {
@@ -420,6 +453,7 @@ function renderRun(detail) {
   lastRenderedDetailSignature = signature;
   selectedDetail = detail;
   followUpButton.disabled = false;
+  renderReviewPanel(detail);
   renderMetadata(detail.run);
   agentOutput.textContent = pretty(detail);
   clear(conversation);
@@ -505,6 +539,11 @@ async function pollRun(generation) {
         loadHistory();
         return;
       }
+      if (currentRun?.status === "review_required") {
+        pollState.textContent = "Protected action paused for human review.";
+        loadHistory();
+        return;
+      }
     } catch (error) {
       pollState.textContent = `Polling error: ${error.message}`;
     }
@@ -522,9 +561,18 @@ async function loadProfiles() {
     for (const profile of body.profiles) {
       const model = body.models.find((item) => item.key === profile.model_key);
       const option = document.createElement("option");
+      const supportsAgentRun = ["planner", "adapter"].every((role) => profile.intended_roles.includes(role));
+      const supportsPlannerOutput = profile.maximum_output_tokens >= 1024;
+      const selectable = supportsAgentRun && supportsPlannerOutput;
       option.value = profile.key;
-      option.selected = profile.key === body.default_profile;
-      option.textContent = `${profile.key} — ${model.ollama_tag} (${profile.context_tokens} ctx)`;
+      option.disabled = !selectable;
+      option.selected = selectable && profile.key === body.default_profile;
+      const restriction = !supportsAgentRun
+        ? " — reviewer only"
+        : !supportsPlannerOutput
+          ? " — smoke diagnostic only"
+          : "";
+      option.textContent = `${profile.key} — ${model.ollama_tag} (${profile.context_tokens} ctx)${restriction}`;
       profileSelect.append(option);
     }
     agentOutput.textContent = `Ready. Default profile: ${body.default_profile}`;
@@ -536,7 +584,8 @@ async function loadProfiles() {
 }
 
 document.querySelector("#scenario").addEventListener("change", (event) => {
-  const objective = scenarios[event.target.value];
+  const preset = scenarios[event.target.value];
+  const objective = typeof preset === "function" ? preset() : preset;
   if (objective) document.querySelector("#objective").value = objective;
   if (event.target.value === "custom") document.querySelector("#objective").focus();
 });
@@ -647,6 +696,43 @@ cancelButton.addEventListener("click", async () => {
     cancelButton.disabled = false;
   }
 });
+
+async function submitReview(decision) {
+  if (!currentLocation || currentRun?.status !== "review_required") return;
+  const reviewer = document.querySelector("#reviewer").value.trim();
+  const comment = document.querySelector("#review-comment").value.trim();
+  if (!reviewer) {
+    reviewState.textContent = "Reviewer is required.";
+    document.querySelector("#reviewer").focus();
+    return;
+  }
+  approveReviewButton.disabled = true;
+  rejectReviewButton.disabled = true;
+  reviewState.textContent = `${decision === "approve" ? "Approving" : "Rejecting"} protected action…`;
+  try {
+    const { body } = await jsonRequest(`${currentLocation}/reviews`, {
+      method: "POST",
+      headers: requestHeaders(),
+      body: JSON.stringify({ decision, reviewer, comment: comment || null }),
+    });
+    renderRun(body);
+    await loadHistory();
+    if (decision === "approve") {
+      pollGeneration += 1;
+      pollState.textContent = "Approval persisted; resuming the original idempotent action…";
+      pollRun(pollGeneration);
+    } else {
+      pollState.textContent = "Protected action rejected; the run is cancelled without execution.";
+    }
+  } catch (error) {
+    reviewState.textContent = `Review failed: ${error.message}`;
+    approveReviewButton.disabled = false;
+    rejectReviewButton.disabled = false;
+  }
+}
+
+approveReviewButton.addEventListener("click", () => submitReview("approve"));
+rejectReviewButton.addEventListener("click", () => submitReview("reject"));
 
 followUpButton.addEventListener("click", () => {
   if (!selectedDetail) return;

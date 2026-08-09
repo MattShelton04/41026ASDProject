@@ -16,7 +16,9 @@ operation-status lookup. Its longer-horizon component test executes a three-acti
 plan over real loopback HTTP with the scripted model; Ollama and Docker are not
 required. A public-API lifecycle test additionally drives idempotent create/replay,
 run detail, paged events, filtered durable history, safe evidence caching, model registry,
-and shared Problem Details through a live AI-mode HTTP server and the real feature hops.
+shared Problem Details, and both protected-action review decisions through a live AI-mode
+HTTP server and the real feature hops. Approval resumes the original idempotent call exactly
+once; rejection persists an immutable review and proves the write was never applied.
 
 The fixture also demonstrates two boundary conventions intended for real features:
 checked-in tool catalogues are composed by the canonical quality gate, and HTTP errors
@@ -53,7 +55,9 @@ The first run downloads the standard Release 0 Qwen model. Open <http://localhos
 - inspect the live model registry; and
 - submit and poll a real multi-action Plan -> Act -> Observe -> Adapt AI-mode run;
 - browse, filter, page through, and reload durable prior runs from AI-mode; and
-- explicitly reuse a selected run's safe objective and result as context for a new run.
+- explicitly reuse a selected run's safe objective and result as context for a new run;
+- pause a protected write for human review, inspect its arguments and idempotency key,
+  then approve-and-resume or reject-without-executing it.
 
 The console presents the run as a conversation-like transcript without claiming that
 one run is a durable multi-turn conversation. Follow-up context is copied into a new
@@ -94,4 +98,6 @@ docker compose --file docker-compose.yml --file docker-compose.integration-test.
 ```
 
 This is a pattern and integration fixture, not a substitute for any student's
-approved frontend/backend/database feature or its full CRUD implementation.
+approved frontend/backend/database feature or its full CRUD implementation. Its review
+checkpoint exercises the already-built shared policy foundation and does not claim that the
+Release 2 multi-agent Reviewer role is complete.
