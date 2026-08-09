@@ -85,7 +85,19 @@ See the official [uv installation guide](https://docs.astral.sh/uv/getting-start
 for alternative installation methods. See [CONTRIBUTING.md](CONTRIBUTING.md) for editor setup,
 hooks, dependency changes, ownership boundaries, and the complete developer/agent workflow.
 
-For the assignment-aligned container runtime, start Docker Desktop and run:
+For day-to-day work on the assignment-aligned integration stack, start Docker Desktop and run:
+
+```text
+uv run scripts/dev.py up
+```
+
+Then open <http://localhost:5190>. Python services reload when source changes and the frontend
+is bind-mounted, so normal source edits do not require an image rebuild. Use
+`uv run scripts/dev.py rebuild` after changing dependencies, `uv.lock`, or a Dockerfile;
+`status`, `logs`, `test`, `restart`, and `down` cover the rest of the common loop. `down`
+preserves Ollama models, AI-mode run history, and example records.
+
+For the production-like Release 0 container runtime without development bind mounts, run:
 
 ```text
 docker compose --profile ollama-container up --detach --wait --wait-timeout 120 ollama
@@ -100,8 +112,9 @@ Native Ollama, routing choices, resource settings, lifecycle commands, and
 troubleshooting are documented in
 [`docs/release-0/ollama-operations.md`](docs/release-0/ollama-operations.md).
 
-To preview the non-product integration feature as a working vertical slice, add the
-integration overlay and profile:
+The helper above previews the non-product integration feature as a working vertical slice.
+To reproduce its production-like Compose commands directly, add the integration overlay and
+profile:
 
 ```text
 docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile ollama-container up --detach --wait --wait-timeout 120 ollama

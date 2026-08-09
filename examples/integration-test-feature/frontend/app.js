@@ -9,19 +9,35 @@ const pollState = document.querySelector("#poll-state");
 const eventCursor = document.querySelector("#event-cursor");
 const startButton = document.querySelector("#start-run");
 const cancelButton = document.querySelector("#cancel-run");
+const followUpButton = document.querySelector("#follow-up-run");
+const historyList = document.querySelector("#run-history");
+const historySummary = document.querySelector("#history-summary");
+const historyStatus = document.querySelector("#history-status");
+const loadMoreRunsButton = document.querySelector("#load-more-runs");
+const reviewPanel = document.querySelector("#review-panel");
+const reviewTool = document.querySelector("#review-tool");
+const reviewIdempotency = document.querySelector("#review-idempotency");
+const reviewArguments = document.querySelector("#review-arguments");
+const reviewState = document.querySelector("#review-state");
+const approveReviewButton = document.querySelector("#approve-review");
+const rejectReviewButton = document.querySelector("#reject-review");
 
 const scenarios = {
   "dependency-audit": "Audit Reference record 03. First search for it, then inspect its priority and summary, then inspect every direct dependency. Complete only after reporting the record priority and every dependency title, relationship, and status.",
   "single-lookup": "Search for Reference record 03 and complete when the matching record is observed.",
+  "protected-create": () => `Create exactly one integration-test record titled Review checkpoint ${crypto.randomUUID().slice(0, 8)}. Use the protected create tool and complete only after the approved write result is observed.`,
 };
 
-const terminalStatuses = new Set(["succeeded", "failed", "cancelled", "review_required"]);
+const terminalStatuses = new Set(["succeeded", "failed", "cancelled"]);
 let currentRun = null;
 let currentLocation = null;
 let currentObjective = "";
 let cursor = 0;
 let pollGeneration = 0;
 let lastRenderedDetailSignature = null;
+let selectedDetail = null;
+let historyItems = [];
+let historyNextCursor = null;
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -151,6 +167,150 @@ function setRunStatus(status) {
   runStatus.className = `badge status-${status}`;
   cancelButton.disabled = status === "idle" || terminalStatuses.has(status);
   startButton.disabled = !terminalStatuses.has(status) && status !== "idle";
+}
+
+function pendingReviewCall(detail) {
+  if (detail.run.status !== "review_required") return null;
+  const pending = detail.steps.find((step) => (
+    step.phase === "act"
+    && step.status === "pending"
+    && step.input?.tool_call?.approval_status === "pending"
+  ));
+  return pending?.input.tool_call || null;
+}
+
+function renderReviewPanel(detail) {
+  const call = pendingReviewCall(detail);
+  reviewPanel.hidden = !call;
+  if (!call) {
+    reviewState.textContent = "";
+    return;
+  }
+  reviewTool.textContent = `${call.tool_name}@${call.tool_version}`;
+  reviewIdempotency.textContent = call.idempotency_key || "not supplied";
+  reviewArguments.textContent = pretty(call.arguments);
+  reviewState.textContent = "Awaiting a human decision.";
+  approveReviewButton.disabled = false;
+  rejectReviewButton.disabled = false;
+}
+
+function formatDuration(milliseconds) {
+  if (milliseconds < 1000) return `${milliseconds} ms`;
+  if (milliseconds < 60000) return `${(milliseconds / 1000).toFixed(1)} s`;
+  return `${Math.floor(milliseconds / 60000)}m ${Math.round((milliseconds % 60000) / 1000)}s`;
+}
+
+function renderHistory() {
+  clear(historyList);
+  historySummary.textContent = `${historyItems.length} recent durable run${historyItems.length === 1 ? "" : "s"}`;
+  if (!historyItems.length) {
+    historyList.append(element("div", "empty-state compact-empty", "No matching runs yet."));
+  }
+  for (const run of historyItems) {
+    const card = element("button", "run-history-card");
+    card.type = "button";
+    card.dataset.runId = run.id;
+    card.classList.toggle("active", run.id === currentRun?.id);
+    card.setAttribute("aria-pressed", String(run.id === currentRun?.id));
+    const heading = element("span", "history-card-heading");
+    heading.append(
+      element("span", `badge status-${run.status}`, statusLabel(run.status)),
+      element("time", "muted", new Date(run.created_at).toLocaleString()),
+    );
+    card.append(
+      heading,
+      element("strong", "history-objective", run.objective_preview || "Objective hidden by evidence policy"),
+      element("span", "history-meta", `${run.tool_call_count} tools · ${run.iteration_count} iterations · ${formatDuration(run.duration_ms)}`),
+    );
+    card.addEventListener("click", () => loadHistoricalRun(run.id));
+    historyList.append(card);
+  }
+  loadMoreRunsButton.hidden = !historyNextCursor;
+}
+
+async function loadHistory({ append = false } = {}) {
+  if (!append) {
+    historyItems = [];
+    historyNextCursor = null;
+    historySummary.textContent = "Loading durable runs…";
+  }
+  loadMoreRunsButton.disabled = true;
+  const query = new URLSearchParams({
+    feature_key: "student-1-integration-test",
+    limit: "8",
+  });
+  if (historyStatus.value) query.append("status", historyStatus.value);
+  if (append && historyNextCursor) query.set("cursor", historyNextCursor);
+  try {
+    const { body } = await jsonRequest(`/api/ai/agent-runs?${query}`);
+    historyItems = append ? historyItems.concat(body.items) : body.items;
+    historyNextCursor = body.next_cursor;
+    renderHistory();
+  } catch (error) {
+    historySummary.textContent = `History unavailable: ${error.message}`;
+    clear(historyList);
+    historyList.append(element("div", "empty-state compact-empty", "Enable the local operations projection to browse runs."));
+  } finally {
+    loadMoreRunsButton.disabled = false;
+  }
+}
+
+function resetEventFeed(message) {
+  cursor = 0;
+  clear(eventFeed);
+  eventFeed.append(element("li", "empty-state", message));
+  eventCursor.textContent = "cursor 0";
+}
+
+async function loadHistoricalRun(runId) {
+  pollGeneration += 1;
+  const generation = pollGeneration;
+  currentLocation = `/api/ai/agent-runs/${runId}`;
+  currentObjective = "";
+  currentRun = null;
+  selectedDetail = null;
+  lastRenderedDetailSignature = null;
+  followUpButton.disabled = true;
+  resetEventFeed("Loading persisted events…");
+  pollState.textContent = "Loading durable run evidence…";
+  try {
+    const [detail, events] = await Promise.all([
+      jsonRequest(currentLocation),
+      jsonRequest(`${currentLocation}/events?after=0&limit=200`),
+    ]);
+    selectedDetail = detail.body;
+    renderRun(detail.body);
+    appendEvents(events.body.items);
+    followUpButton.disabled = false;
+    pollState.textContent = terminalStatuses.has(detail.body.run.status)
+      ? `Loaded durable ${statusLabel(detail.body.run.status)} run.`
+      : "Resuming live event polling for this durable run…";
+    renderHistory();
+    if (!events.body.terminal) pollRun(generation);
+  } catch (error) {
+    pollState.textContent = `Could not load run: ${error.message}`;
+  }
+}
+
+async function loadHealth() {
+  const checks = [
+    ["#ai-health", "/api/health/ai", "AI-mode"],
+    ["#feature-health", "/api/health/feature", "Feature boundary"],
+  ];
+  await Promise.all(checks.map(async ([selector, url, label]) => {
+    const target = document.querySelector(selector);
+    target.className = "service-pill checking";
+    target.lastChild.textContent = `${label} checking`;
+    try {
+      const { body } = await jsonRequest(url);
+      const healthy = body.status === "healthy";
+      target.className = `service-pill ${healthy ? "healthy" : "degraded"}`;
+      target.lastChild.textContent = `${label} ${body.status}`;
+    } catch {
+      target.className = "service-pill offline";
+      target.lastChild.textContent = `${label} unavailable`;
+    }
+  }));
 }
 
 function renderMetadata(run) {
@@ -291,6 +451,9 @@ function renderRun(detail) {
       .map((item) => item.dataset.stateKey),
   );
   lastRenderedDetailSignature = signature;
+  selectedDetail = detail;
+  followUpButton.disabled = false;
+  renderReviewPanel(detail);
   renderMetadata(detail.run);
   agentOutput.textContent = pretty(detail);
   clear(conversation);
@@ -373,6 +536,12 @@ async function pollRun(generation) {
       }
       if (events.body.terminal && currentRun) {
         pollState.textContent = `Run reached ${statusLabel(currentRun.status)}.`;
+        loadHistory();
+        return;
+      }
+      if (currentRun?.status === "review_required") {
+        pollState.textContent = "Protected action paused for human review.";
+        loadHistory();
         return;
       }
     } catch (error) {
@@ -392,9 +561,18 @@ async function loadProfiles() {
     for (const profile of body.profiles) {
       const model = body.models.find((item) => item.key === profile.model_key);
       const option = document.createElement("option");
+      const supportsAgentRun = ["planner", "adapter"].every((role) => profile.intended_roles.includes(role));
+      const supportsPlannerOutput = profile.maximum_output_tokens >= 1024;
+      const selectable = supportsAgentRun && supportsPlannerOutput;
       option.value = profile.key;
-      option.selected = profile.key === body.default_profile;
-      option.textContent = `${profile.key} — ${model.ollama_tag} (${profile.context_tokens} ctx)`;
+      option.disabled = !selectable;
+      option.selected = selectable && profile.key === body.default_profile;
+      const restriction = !supportsAgentRun
+        ? " — reviewer only"
+        : !supportsPlannerOutput
+          ? " — smoke diagnostic only"
+          : "";
+      option.textContent = `${profile.key} — ${model.ollama_tag} (${profile.context_tokens} ctx)${restriction}`;
       profileSelect.append(option);
     }
     agentOutput.textContent = `Ready. Default profile: ${body.default_profile}`;
@@ -406,7 +584,8 @@ async function loadProfiles() {
 }
 
 document.querySelector("#scenario").addEventListener("change", (event) => {
-  const objective = scenarios[event.target.value];
+  const preset = scenarios[event.target.value];
+  const objective = typeof preset === "function" ? preset() : preset;
   if (objective) document.querySelector("#objective").value = objective;
   if (event.target.value === "custom") document.querySelector("#objective").focus();
 });
@@ -471,13 +650,12 @@ document.querySelector("#agent-form").addEventListener("submit", async (event) =
   pollGeneration += 1;
   const generation = pollGeneration;
   currentObjective = document.querySelector("#objective").value.trim();
-  cursor = 0;
   currentRun = null;
+  selectedDetail = null;
   currentLocation = null;
   lastRenderedDetailSignature = null;
-  clear(eventFeed);
-  eventFeed.append(element("li", "empty-state", "Waiting for the first persisted event…"));
-  eventCursor.textContent = "cursor 0";
+  followUpButton.disabled = true;
+  resetEventFeed("Waiting for the first persisted event…");
   setRunStatus("queued");
   pollState.textContent = "Submitting a validated, idempotent run request…";
   try {
@@ -519,5 +697,61 @@ cancelButton.addEventListener("click", async () => {
   }
 });
 
+async function submitReview(decision) {
+  if (!currentLocation || currentRun?.status !== "review_required") return;
+  const reviewer = document.querySelector("#reviewer").value.trim();
+  const comment = document.querySelector("#review-comment").value.trim();
+  if (!reviewer) {
+    reviewState.textContent = "Reviewer is required.";
+    document.querySelector("#reviewer").focus();
+    return;
+  }
+  approveReviewButton.disabled = true;
+  rejectReviewButton.disabled = true;
+  reviewState.textContent = `${decision === "approve" ? "Approving" : "Rejecting"} protected action…`;
+  try {
+    const { body } = await jsonRequest(`${currentLocation}/reviews`, {
+      method: "POST",
+      headers: requestHeaders(),
+      body: JSON.stringify({ decision, reviewer, comment: comment || null }),
+    });
+    renderRun(body);
+    await loadHistory();
+    if (decision === "approve") {
+      pollGeneration += 1;
+      pollState.textContent = "Approval persisted; resuming the original idempotent action…";
+      pollRun(pollGeneration);
+    } else {
+      pollState.textContent = "Protected action rejected; the run is cancelled without execution.";
+    }
+  } catch (error) {
+    reviewState.textContent = `Review failed: ${error.message}`;
+    approveReviewButton.disabled = false;
+    rejectReviewButton.disabled = false;
+  }
+}
+
+approveReviewButton.addEventListener("click", () => submitReview("approve"));
+rejectReviewButton.addEventListener("click", () => submitReview("reject"));
+
+followUpButton.addEventListener("click", () => {
+  if (!selectedDetail) return;
+  const previousObjective = selectedDetail.run.objective.slice(0, 1200);
+  const previousResult = pretty(selectedDetail.run.final_result || { status: selectedDetail.run.status }).slice(0, 1400);
+  document.querySelector("#scenario").value = "custom";
+  const objective = document.querySelector("#objective");
+  objective.value = `Continue from durable run ${selectedDetail.run.id}.\nPrevious objective: ${previousObjective}\nPrevious safe result: ${previousResult}\n\nFollow-up request: `;
+  objective.focus();
+  objective.setSelectionRange(objective.value.length, objective.value.length);
+  objective.scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+document.querySelector("#refresh-history").addEventListener("click", () => loadHistory());
+document.querySelector("#refresh-health").addEventListener("click", loadHealth);
+historyStatus.addEventListener("change", () => loadHistory());
+loadMoreRunsButton.addEventListener("click", () => loadHistory({ append: true }));
+
 setRunStatus("idle");
 loadProfiles();
+loadHistory();
+loadHealth();

@@ -74,10 +74,19 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Validate the model registry | `uv run python scripts/validate_model_registry.py` |
 | Validate feature tool catalogues | `uv run python scripts/validate_tool_catalogs.py` |
 | Start the AI-mode service | `uv run flask --app ai_mode:create_app run --port 5005` |
+| Start the complete reloadable stack | `uv run scripts/dev.py up` |
+| Follow local stack logs | `uv run scripts/dev.py logs` |
+| Rebuild changed container images | `uv run scripts/dev.py rebuild` |
+| Stop the stack and preserve data | `uv run scripts/dev.py down` |
 
 The local service exposes health endpoints and the versioned `/api/v1/agent-runs`
 create/read/cancel/review surface. Its default feature-tool registry remains empty until
 approved feature backends publish their allowlisted tool contracts.
+
+The development command composes `docker-compose.yml`, `docker-compose.integration-test.yml`,
+and `docker-compose.dev.yml`. The final overlay bind-mounts source and enables Gunicorn reload
+for a short edit-refresh loop while retaining the same service-to-service HTTP and exclusive
+database-ownership boundaries used by the production-like stack.
 
 ## Dependencies and workspace projects
 
