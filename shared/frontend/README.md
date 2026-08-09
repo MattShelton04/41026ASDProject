@@ -15,6 +15,16 @@ instead of introducing a second application framework. It renders untrusted valu
 `textContent`, uses no inline script/style, stores only a run ID/cursor in session storage,
 and never stores objectives or tool evidence in browser storage.
 
+The workspace is viewport-constrained on desktop/laptop and uses a one-pane list/detail drill-in
+on mobile. Polling policy lives in `operations/ai-mode/polling.js`; the UI uses request
+timeouts, aborts, generation guards, adaptive index cadence, bounded event hydration, and local
+elapsed rendering between durable changes. Its dependency-free behavior tests use Node's
+built-in test runner, not a second browser automation stack:
+
+```text
+node --test shared/frontend/operations/ai-mode/polling.test.mjs
+```
+
 Run the deterministic server and contract tests with:
 
 ```text

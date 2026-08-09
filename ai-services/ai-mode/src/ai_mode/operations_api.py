@@ -7,7 +7,15 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
-from flask import Blueprint, Response, current_app, jsonify, request, send_from_directory
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    current_app,
+    jsonify,
+    request,
+    send_from_directory,
+)
 from pydantic import TypeAdapter, ValidationError
 
 from ai_mode.http import problem_response as _problem
@@ -27,6 +35,7 @@ from shared_contracts import (
 from shared_contracts.agent import Identifier
 
 ALLOWED_QUERY_PARAMETERS = frozenset({"status", "feature_key", "model_profile", "cursor", "limit"})
+ALLOWED_ASSETS = frozenset({"app.js", "polling.js", "styles.css"})
 IDENTIFIER_ADAPTER = TypeAdapter(Identifier)
 
 
@@ -109,6 +118,8 @@ def create_operations_blueprint(assets_path: Path) -> Blueprint:
 
     @blueprint.get("/operations/ai-mode/assets/<path:filename>")
     def dashboard_asset(filename: str) -> Response:
+        if filename not in ALLOWED_ASSETS:
+            abort(404)
         response = send_from_directory(assets_path, filename)
         response.headers["Cache-Control"] = "public, max-age=300"
         return _secure_static_response(response)

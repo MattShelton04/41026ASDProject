@@ -1,20 +1,59 @@
+import {
+  ACTIVE_STATUSES,
+  GenerationGuard,
+  MAX_HISTORY_PAGES,
+  TERMINAL_STATUSES,
+  filterForStatuses,
+  mergeEventPage,
+  nextDetailDelay,
+  nextListDelay,
+  requestJson,
+  restoreCursor,
+  shouldRefreshDetail,
+  statusesForFilter,
+} from "/operations/ai-mode/assets/polling.js";
+
 const API_ROOT = "/api/v1";
-const ACTIVE_STATUSES = new Set(["queued", "planning", "ready", "acting", "observing", "adapting"]);
-const TERMINAL_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
+const EVENT_LIMIT = 200;
+const REQUEST_TIMEOUT_MS = 8000;
+const MOBILE_QUERY = "(max-width: 720px)";
 
 const ui = Object.fromEntries([
-  "announcement", "connection-dot", "connection-state", "filters", "feature-filter",
-  "status-filter", "model-filter", "clear-filters", "count-active", "count-review",
-  "count-failed", "count-complete", "run-list", "refresh-runs", "load-more", "run-detail",
-  "empty-detail", "detail-content", "run-status", "stale-state", "run-objective",
-  "run-subtitle", "copy-link", "phase-strip", "last-updated", "run-metadata", "execution",
-  "event-cursor", "event-list", "raw-projection",
+  "announcement", "connection-dot", "connection-state", "workspace", "page-summary",
+  "quick-filters", "filters", "feature-filter", "status-filter", "model-filter",
+  "clear-filters", "count-active", "count-review", "count-failed", "count-complete",
+  "run-list", "refresh-runs", "load-more", "run-detail", "empty-detail", "detail-content",
+  "back-to-runs", "run-status", "stale-state", "run-objective", "run-subtitle", "copy-link",
+  "current-work", "current-work-symbol", "current-work-phase", "current-work-title",
+  "current-work-detail", "live-elapsed", "cycle-history", "cycle-summary", "run-overview",
+  "correlation-identifiers", "last-updated", "run-metadata", "execution", "event-cursor",
+  "event-list", "raw-projection",
 ].map((id) => [id, document.getElementById(id)]));
 
 const state = {
-  runs: [], nextCursor: null, selectedId: null, detail: null, etag: null, eventCursor: 0,
-  eventItems: [], generation: 0, detailTimer: null, listTimer: null, failures: 0,
+  runs: [],
+  nextCursor: null,
+  selectedId: null,
+  detail: null,
+  etag: null,
+  eventCursor: 0,
+  restoredCursor: 0,
+  eventItems: [],
+  quickFilter: "all",
+  detailGuard: new GenerationGuard(),
+  listGuard: new GenerationGuard(),
+  detailTimer: null,
+  listTimer: null,
+  elapsedTimer: null,
   detailController: null,
+  listController: null,
+  detailInFlight: false,
+  detailRefreshPending: false,
+  detailForcePending: false,
+  listInFlight: false,
+  listRefreshPending: false,
+  detailFailures: 0,
+  listFailures: 0,
 };
 
 function node(tag, className, text) {
@@ -27,20 +66,48 @@ function node(tag, className, text) {
 function label(value) { return String(value ?? "—").replaceAll("_", " "); }
 function pretty(value) { return JSON.stringify(value, null, 2); }
 function localTime(value) { return value ? new Date(value).toLocaleString() : "—"; }
+function shortTime(value) {
+  return value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—";
+}
+
 function duration(value) {
   if (value === null || value === undefined) return "—";
   if (value < 1000) return `${value} ms`;
-  return `${(value / 1000).toFixed(value < 10000 ? 1 : 0)} s`;
+  const seconds = value / 1000;
+  if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)} s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = Math.floor(seconds % 60);
+  return `${minutes}m ${String(remainder).padStart(2, "0")}s`;
 }
 
-async function requestJson(url, options = {}) {
-  const { headers = {}, ...requestOptions } = options;
-  const response = await fetch(url, { ...requestOptions, headers: { Accept: "application/json", ...headers } });
-  if (response.status === 304) return { response, body: null };
-  let body = null;
-  try { body = await response.json(); } catch { throw new Error(`${response.status}: response was not JSON`); }
-  if (!response.ok) throw new Error(`${response.status}: ${body.detail || body.code || "request failed"}`);
-  return { response, body };
+function elapsedSince(value, now = Date.now()) {
+  if (!value) return 0;
+  return Math.max(0, now - new Date(value).getTime());
+}
+
+function statusPresentation(status) {
+  const presentations = {
+    queued: ["○", "Queued"],
+    planning: ["●", "Planning"],
+    ready: ["●", "Ready"],
+    acting: ["●", "Acting"],
+    observing: ["●", "Observing"],
+    adapting: ["●", "Adapting"],
+    review_required: ["‖", "Review required"],
+    succeeded: ["✓", "Succeeded"],
+    failed: ["!", "Failed"],
+    cancelled: ["×", "Cancelled"],
+    pending: ["○", "Pending"],
+    running: ["●", "Running"],
+  };
+  return presentations[status] || ["·", label(status)];
+}
+
+function statusMark(status, className = "status-mark") {
+  const [symbol, text] = statusPresentation(status);
+  const mark = node("span", `${className} status-${status}`);
+  mark.append(node("span", "status-symbol", symbol), document.createTextNode(text));
+  return mark;
 }
 
 function setConnection(kind, message) {
@@ -49,293 +116,730 @@ function setConnection(kind, message) {
   ui["stale-state"].hidden = kind !== "disconnected";
 }
 
+function selectedStatuses() {
+  if (ui["status-filter"].value) return [ui["status-filter"].value];
+  return statusesForFilter(state.quickFilter);
+}
+
 function filterQuery(cursor = null) {
   const params = new URLSearchParams({ limit: "50" });
   if (ui["feature-filter"].value.trim()) params.set("feature_key", ui["feature-filter"].value.trim());
-  if (ui["status-filter"].value) params.append("status", ui["status-filter"].value);
+  for (const status of selectedStatuses()) params.append("status", status);
   if (ui["model-filter"].value.trim()) params.set("model_profile", ui["model-filter"].value.trim());
   if (cursor) params.set("cursor", cursor);
   return params;
 }
 
+function updateQuickFilters() {
+  for (const button of ui["quick-filters"].querySelectorAll("button[data-filter]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.filter === state.quickFilter && !ui["status-filter"].value));
+  }
+}
+
 function syncFilterUrl() {
   const url = new URL(window.location.href);
-  for (const key of ["feature_key", "status", "model_profile"]) url.searchParams.delete(key);
+  for (const key of ["feature_key", "status", "model_profile", "view"]) url.searchParams.delete(key);
+  if (state.quickFilter !== "all" && !ui["status-filter"].value) url.searchParams.set("view", state.quickFilter);
   const filters = filterQuery();
   filters.delete("limit");
-  for (const [key, value] of filters) url.searchParams.append(key, value);
+  for (const [key, value] of filters) {
+    if (key !== "status" || ui["status-filter"].value) url.searchParams.append(key, value);
+  }
   history.replaceState(null, "", url);
 }
 
+function scheduleList(delay = nextListDelay(state.runs, state.listFailures, document.hidden)) {
+  clearTimeout(state.listTimer);
+  state.listTimer = setTimeout(() => loadRuns(), delay);
+}
+
 async function loadRuns({ append = false } = {}) {
+  if (state.listInFlight) {
+    if (!append) state.listRefreshPending = true;
+    return;
+  }
+  state.listInFlight = true;
+  state.listRefreshPending = false;
+  const generation = state.listGuard.current;
+  const cursor = append ? state.nextCursor : null;
+  const controller = new AbortController();
+  state.listController = controller;
   try {
-    const cursor = append ? state.nextCursor : null;
-    const { body } = await requestJson(`${API_ROOT}/agent-runs?${filterQuery(cursor)}`);
+    const { body } = await requestJson(fetch, `${API_ROOT}/agent-runs?${filterQuery(cursor)}`, {
+      signal: controller.signal,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+    });
+    if (!state.listGuard.isCurrent(generation)) return;
     const byId = new Map((append ? state.runs : []).map((run) => [run.id, run]));
     for (const run of body.items) byId.set(run.id, run);
     state.runs = [...byId.values()];
     state.nextCursor = body.next_cursor;
-    renderRunList();
-    setConnection("connected", "Live · persisted state");
-    state.failures = 0;
+    state.listFailures = 0;
+    renderRunList({ removeStale: !append });
+    if (!state.selectedId) setConnection("connected", "Persisted state connected");
   } catch (error) {
+    if (error.name === "AbortError" || !state.listGuard.isCurrent(generation)) return;
+    state.listFailures += 1;
     setConnection("disconnected", `Run index unavailable · ${error.message}`);
     if (!state.runs.length) ui["run-list"].replaceChildren(node("li", "empty", error.message));
+  } finally {
+    if (state.listController === controller) state.listController = null;
+    state.listInFlight = false;
+    if (state.listRefreshPending) {
+      state.listRefreshPending = false;
+      scheduleList(0);
+    } else {
+      scheduleList();
+    }
   }
 }
 
-function renderRunList() {
+function invalidateRunIndex() {
+  state.listGuard.advance();
+  state.listController?.abort();
+  state.listRefreshPending = true;
+  scheduleList(0);
+}
+
+function createRunItem(runId) {
+  const item = node("li", "run-item");
+  item.dataset.runId = runId;
+  const button = node("button");
+  button.type = "button";
+  button.dataset.runId = runId;
+  const top = node("div", "run-item-top");
+  top.append(node("span", "run-item-status"), node("span", "run-item-time muted"));
+  button.append(top, node("p", "run-objective"), node("div", "run-facts"));
+  button.addEventListener("click", () => selectRun(runId));
+  item.append(button);
+  return item;
+}
+
+function updateRunItem(item, run) {
+  const button = item.querySelector("button");
+  button.setAttribute("aria-current", String(run.id === state.selectedId));
+  const statusTarget = item.querySelector(".run-item-status");
+  statusTarget.replaceChildren(statusMark(run.status));
+  const timeTarget = item.querySelector(".run-item-time");
+  timeTarget.dataset.runLive = run.id;
+  timeTarget.textContent = duration(run.duration_ms);
+  item.querySelector(".run-objective").textContent = run.objective_preview || "Objective hidden by policy";
+  const facts = item.querySelector(".run-facts");
+  facts.replaceChildren(
+    node("span", "feature-key", run.feature_key),
+    node("span", "", run.latest_phase ? label(run.latest_phase) : "not started"),
+    node("span", "", `${run.iteration_count} iter · ${run.tool_call_count} calls`),
+  );
+  item.className = `run-item run-${run.status}`;
+}
+
+function renderRunList({ removeStale = true } = {}) {
   const focusedRunId = document.activeElement?.dataset?.runId;
-  ui["run-list"].replaceChildren();
-  if (!state.runs.length) ui["run-list"].append(node("li", "empty", "No runs match these filters."));
+  const existing = new Map(
+    [...ui["run-list"].querySelectorAll(":scope > .run-item")].map((item) => [item.dataset.runId, item]),
+  );
+  ui["run-list"].querySelector(":scope > .empty")?.remove();
+  const renderedIds = new Set();
   for (const run of state.runs) {
-    const item = node("li", "run-item");
-    const button = node("button");
-    button.type = "button";
-    button.dataset.runId = run.id;
-    button.setAttribute("aria-current", String(run.id === state.selectedId));
-    const top = node("div", "run-item-top");
-    top.append(node("span", `status-badge status-${run.status}`, label(run.status)), node("span", "mono muted", `v${run.version}`));
-    const objective = node("p", "run-objective", run.objective_preview || "Objective hidden by policy");
-    const facts = node("div", "run-facts");
-    facts.append(node("span", "", run.feature_key), node("span", "", label(run.latest_phase || "not started")), node("span", "", duration(run.duration_ms)));
-    button.append(top, objective, facts);
-    button.addEventListener("click", () => selectRun(run.id));
-    item.append(button);
+    const item = existing.get(run.id) || createRunItem(run.id);
+    updateRunItem(item, run);
     ui["run-list"].append(item);
+    renderedIds.add(run.id);
   }
+  if (removeStale) {
+    for (const [runId, item] of existing) if (!renderedIds.has(runId)) item.remove();
+  }
+  if (!state.runs.length) ui["run-list"].append(node("li", "empty", "No runs match these filters."));
   ui["load-more"].hidden = !state.nextCursor;
-  ui["count-active"].textContent = String(state.runs.filter((run) => ACTIVE_STATUSES.has(run.status)).length);
-  ui["count-review"].textContent = String(state.runs.filter((run) => run.status === "review_required").length);
-  ui["count-failed"].textContent = String(state.runs.filter((run) => run.status === "failed").length);
-  ui["count-complete"].textContent = String(state.runs.filter((run) => run.status === "succeeded").length);
+  const counts = {
+    active: state.runs.filter((run) => ACTIVE_STATUSES.has(run.status)).length,
+    review: state.runs.filter((run) => run.status === "review_required").length,
+    failed: state.runs.filter((run) => run.status === "failed").length,
+    complete: state.runs.filter((run) => run.status === "succeeded").length,
+  };
+  ui["count-active"].textContent = counts.active;
+  ui["count-review"].textContent = counts.review;
+  ui["count-failed"].textContent = counts.failed;
+  ui["count-complete"].textContent = counts.complete;
+  ui["page-summary"].textContent = `${state.runs.length} loaded · ${counts.active ? "refreshing every 2 s" : "idle refresh every 10 s"}`;
   if (focusedRunId) ui["run-list"].querySelector(`[data-run-id="${focusedRunId}"]`)?.focus();
+  updateLiveElapsed();
 }
 
 async function selectRun(runId) {
-  state.generation += 1;
+  const generation = state.detailGuard.advance();
   state.detailController?.abort();
-  state.detailController = new AbortController();
   state.selectedId = runId;
   state.detail = null;
   state.etag = null;
-  state.eventCursor = Number(sessionStorage.getItem(`ai-mode-operations:${runId}:cursor`) || "0");
   state.eventItems = [];
+  state.eventCursor = 0;
+  state.restoredCursor = restoreCursor(sessionStorage.getItem(`ai-mode-operations:${runId}:cursor`));
+  state.detailFailures = 0;
+  state.detailRefreshPending = false;
   clearTimeout(state.detailTimer);
   const url = new URL(window.location.href);
   url.searchParams.set("run", runId);
   history.replaceState(null, "", url);
+  ui.workspace.classList.add("show-detail");
   renderRunList();
   ui["empty-detail"].hidden = true;
   ui["detail-content"].hidden = false;
   ui["run-objective"].textContent = "Loading durable evidence…";
-  ui["event-list"].replaceChildren(node("li", "empty", `Reconnecting after cursor #${state.eventCursor}`));
-  await refreshSelected(state.generation, true);
+  ui["run-subtitle"].textContent = runId;
+  ui["current-work-title"].textContent = "Loading current work…";
+  ui["event-list"].replaceChildren(node("li", "empty", "Restoring the bounded event journal…"));
+  await refreshSelected(generation, { forceDetail: true, hydrate: true });
 }
 
-async function refreshSelected(generation, forceDetail = false) {
-  if (!state.selectedId || generation !== state.generation) return;
-  try {
-    const eventUrl = `${API_ROOT}/agent-runs/${state.selectedId}/events?after=${state.eventCursor}&limit=200`;
-    const events = await requestJson(eventUrl, { signal: state.detailController.signal });
-    if (generation !== state.generation) return;
-    appendEvents(events.body.items);
-    if (forceDetail || events.body.items.length || !state.detail) await loadDetail(generation);
-    if (events.body.terminal && state.detail) {
-      await loadDetail(generation, true);
-      setConnection("connected", `Run ${label(state.detail.run.status)} · polling complete`);
-      return;
-    }
-    state.failures = 0;
-    setConnection("connected", "Live · cursor polling");
-  } catch (error) {
-    if (error.name === "AbortError" || generation !== state.generation) return;
-    state.failures += 1;
-    setConnection("disconnected", `Disconnected · ${error.message}`);
+async function fetchEventPage(after, controller) {
+  return requestJson(
+    fetch,
+    `${API_ROOT}/agent-runs/${state.selectedId}/events?after=${after}&limit=${EVENT_LIMIT}`,
+    { signal: controller.signal, timeoutMs: REQUEST_TIMEOUT_MS },
+  );
+}
+
+function acceptEvents(items) {
+  const merged = mergeEventPage(state.eventItems, items);
+  state.eventItems = merged.items;
+  state.eventCursor = Math.max(state.eventCursor, merged.cursor);
+  if (state.selectedId) {
+    sessionStorage.setItem(`ai-mode-operations:${state.selectedId}:cursor`, String(state.eventCursor));
   }
-  if (generation !== state.generation) return;
-  const base = state.detail?.run.status === "review_required" ? 5000 : state.detail?.run.status === "queued" ? 2000 : 800;
-  const backoff = Math.min(15000, base * (2 ** Math.min(state.failures, 4)));
-  const hiddenMultiplier = document.hidden ? 4 : 1;
-  state.detailTimer = setTimeout(() => refreshSelected(generation), backoff * hiddenMultiplier);
-}
-
-async function loadDetail(generation, finalRefresh = false) {
-  const headers = {};
-  if (state.etag && !finalRefresh) headers["If-None-Match"] = state.etag;
-  const { response, body } = await requestJson(`${API_ROOT}/operations/agent-runs/${state.selectedId}`, { headers, signal: state.detailController.signal });
-  if (generation !== state.generation || response.status === 304) return;
-  state.etag = response.headers.get("ETag");
-  state.detail = body;
-  renderDetail();
-}
-
-function appendEvents(items) {
-  if (!items.length) return;
-  const known = new Set(state.eventItems.map((item) => item.id));
-  for (const item of items) if (!known.has(item.id)) state.eventItems.push(item);
-  state.eventItems.sort((a, b) => a.id - b.id);
-  state.eventItems = state.eventItems.slice(-200);
-  state.eventCursor = Math.max(state.eventCursor, ...items.map((item) => item.id));
-  sessionStorage.setItem(`ai-mode-operations:${state.selectedId}:cursor`, String(state.eventCursor));
   renderEvents();
 }
 
-function renderEvents() {
-  ui["event-list"].replaceChildren();
-  if (!state.eventItems.length) ui["event-list"].append(node("li", "empty", "No new events after the restored cursor."));
-  for (const event of state.eventItems) {
-    const item = node("li");
-    item.append(node("span", `event-status status-${event.status}`, label(event.status)), node("strong", "", label(event.event_type)), node("span", "mono muted", `event #${event.id} · run v${event.run_version}`), node("time", "", localTime(event.occurred_at)));
-    ui["event-list"].append(item);
+async function hydrateEventHistory(controller, generation) {
+  let after = 0;
+  let eventCount = 0;
+  let terminal = false;
+  for (let pageNumber = 0; pageNumber < MAX_HISTORY_PAGES; pageNumber += 1) {
+    const { body } = await fetchEventPage(after, controller);
+    if (!state.detailGuard.isCurrent(generation)) return { eventCount: 0, terminal: false };
+    acceptEvents(body.items);
+    eventCount += body.items.length;
+    terminal = body.terminal;
+    const advanced = body.next_cursor > after;
+    after = body.next_cursor;
+    if (!advanced || body.items.length < EVENT_LIMIT || terminal || after >= state.restoredCursor) break;
   }
-  ui["event-cursor"].textContent = `#${state.eventCursor}`;
+  state.eventCursor = Math.max(state.eventCursor, state.restoredCursor);
+  sessionStorage.setItem(`ai-mode-operations:${state.selectedId}:cursor`, String(state.eventCursor));
+  renderEvents();
+  return { eventCount, terminal };
+}
+
+function scheduleDetail(generation, delay) {
+  clearTimeout(state.detailTimer);
+  if (delay === null) return;
+  state.detailTimer = setTimeout(() => refreshSelected(generation), delay);
+}
+
+async function refreshSelected(generation, { forceDetail = false, hydrate = false } = {}) {
+  if (!state.selectedId || !state.detailGuard.isCurrent(generation)) return;
+  if (state.detailInFlight) {
+    state.detailRefreshPending = true;
+    state.detailForcePending ||= forceDetail;
+    return;
+  }
+  state.detailInFlight = true;
+  const controller = new AbortController();
+  state.detailController = controller;
+  try {
+    let eventCount;
+    let terminal;
+    if (hydrate) {
+      ({ eventCount, terminal } = await hydrateEventHistory(controller, generation));
+    } else {
+      const { body } = await fetchEventPage(state.eventCursor, controller);
+      if (!state.detailGuard.isCurrent(generation)) return;
+      acceptEvents(body.items);
+      eventCount = body.items.length;
+      terminal = body.terminal;
+    }
+    if (shouldRefreshDetail({ force: forceDetail, eventCount, hasDetail: Boolean(state.detail) })) {
+      await loadDetail(generation, controller);
+    }
+    if (!state.detailGuard.isCurrent(generation)) return;
+    if (state.detail && (terminal || TERMINAL_STATUSES.has(state.detail.run.status))) {
+      state.detailFailures = 0;
+      setConnection("connected", `Run ${label(state.detail.run.status)} · up to date`);
+      scheduleDetail(generation, null);
+      return;
+    }
+    state.detailFailures = 0;
+    setConnection("connected", "Following durable events");
+  } catch (error) {
+    if (error.name === "AbortError" || !state.detailGuard.isCurrent(generation)) return;
+    state.detailFailures += 1;
+    setConnection("disconnected", `Disconnected · ${error.message}`);
+  } finally {
+    if (state.detailController === controller) state.detailController = null;
+    state.detailInFlight = false;
+  }
+  if (!state.detailGuard.isCurrent(generation)) return;
+  if (state.detailRefreshPending) {
+    const pendingForce = state.detailForcePending;
+    state.detailRefreshPending = false;
+    state.detailForcePending = false;
+    clearTimeout(state.detailTimer);
+    state.detailTimer = setTimeout(
+      () => refreshSelected(generation, { forceDetail: pendingForce }),
+      0,
+    );
+    return;
+  }
+  scheduleDetail(
+    generation,
+    nextDetailDelay(state.detail?.run.status, state.detailFailures, document.hidden),
+  );
+}
+
+async function loadDetail(generation, controller) {
+  const headers = {};
+  if (state.etag) headers["If-None-Match"] = state.etag;
+  const { response, body } = await requestJson(
+    fetch,
+    `${API_ROOT}/operations/agent-runs/${state.selectedId}`,
+    { headers, signal: controller.signal, timeoutMs: REQUEST_TIMEOUT_MS },
+  );
+  if (!state.detailGuard.isCurrent(generation) || response.status === 304) return;
+  const previousStatus = state.detail?.run.status || state.runs.find((run) => run.id === state.selectedId)?.status;
+  state.etag = response.headers.get("ETag");
+  state.detail = body;
+  const runIndex = state.runs.findIndex((run) => run.id === body.run.id);
+  if (runIndex >= 0) state.runs[runIndex] = body.run;
+  else state.runs.unshift(body.run);
+  renderRunList();
+  renderDetail();
+  if (previousStatus && previousStatus !== body.run.status) {
+    state.listRefreshPending = true;
+    scheduleList(0);
+  }
 }
 
 function addDefinition(target, entries) {
-  const list = target.tagName === "DL" ? target : node("dl", "metadata-grid");
-  for (const [key, value] of entries) {
-    const wrapper = node("div");
-    wrapper.append(node("dt", "", key), node("dd", "mono", String(value ?? "—")));
-    list.append(wrapper);
+  for (const [key, value, className = ""] of entries) {
+    const wrapper = node("div", className);
+    wrapper.append(node("dt", "", key), node("dd", "", String(value ?? "—")));
+    target.append(wrapper);
   }
-  if (list !== target) target.append(list);
 }
 
-function evidenceBlock(title) {
-  const block = node("div", "evidence-block");
-  block.append(node("h5", "", title));
-  return block;
+function currentStep(steps) {
+  return [...steps].reverse().find((step) => ["running", "pending"].includes(step.status)) || steps.at(-1) || null;
+}
+
+function waitingCopy(run, step) {
+  if (run.status === "queued") return ["Waiting for the worker.", "No phase step is durable yet."];
+  if (run.status === "review_required") return ["Waiting for authorized review.", "No operation will resume without a valid review decision."];
+  if (TERMINAL_STATUSES.has(run.status)) {
+    const outcome = run.status === "succeeded" ? "Run completed successfully." : run.status === "failed" ? "Run stopped with a safe failure." : "Run was cancelled.";
+    return [outcome, `Durable workflow version ${run.version}.`];
+  }
+  const copy = {
+    plan: ["Waiting for planner response.", "The planner call has no token-level progress signal."],
+    act: ["Waiting for tool response.", "The allowlisted tool call is in flight."],
+    observe: ["Recording tool observations.", "Deterministic evidence is being persisted."],
+    adapt: ["Waiting for adapter response.", "The adapter is deciding from persisted evidence."],
+  };
+  return copy[step?.phase] || ["Preparing the next safe action.", "The durable run state is active."];
+}
+
+function renderCurrentWork(run, steps) {
+  const step = currentStep(steps);
+  const [title, detail] = waitingCopy(run, step);
+  const phase = step?.phase || run.latest_phase || run.status;
+  const [symbol] = statusPresentation(run.status);
+  ui["current-work-symbol"].textContent = symbol;
+  ui["current-work-phase"].textContent = label(phase);
+  ui["current-work-title"].textContent = title;
+  ui["current-work-detail"].replaceChildren(document.createTextNode(detail));
+  if (step?.started_at && ["running", "pending"].includes(step.status)) {
+    const elapsed = node("span", "step-live-elapsed");
+    elapsed.dataset.stepStarted = step.started_at;
+    ui["current-work-detail"].append(document.createTextNode(" · "), elapsed);
+  }
+  ui["current-work"].className = `current-work current-${run.status}`;
+}
+
+function groupCycles(steps) {
+  const groups = [];
+  let planNumber = 0;
+  let iterationNumber = 0;
+  let currentIteration = null;
+  for (const step of steps) {
+    if (step.phase === "plan") {
+      planNumber += 1;
+      currentIteration = null;
+      groups.push({ kind: "plan", number: planNumber, steps: [step] });
+    } else if (step.phase === "act") {
+      iterationNumber += 1;
+      currentIteration = { kind: "iteration", number: iterationNumber, steps: [step] };
+      groups.push(currentIteration);
+    } else if (currentIteration) {
+      currentIteration.steps.push(step);
+    } else {
+      groups.push({ kind: "phase", number: groups.length + 1, steps: [step] });
+    }
+  }
+  return { groups, planNumber, iterationNumber };
+}
+
+function renderCycles(steps) {
+  ui["cycle-history"].replaceChildren();
+  const { groups, planNumber, iterationNumber } = groupCycles(steps);
+  if (!groups.length) ui["cycle-history"].append(node("li", "cycle-empty", "No durable phase yet"));
+  for (const group of groups) {
+    const item = node("li", `cycle-group cycle-${group.kind}`);
+    item.append(node("span", "cycle-label", group.kind === "plan" ? `Plan ${group.number}` : group.kind === "iteration" ? `Iteration ${group.number}` : "Phase"));
+    const phases = node("span", "cycle-phases");
+    for (const step of group.steps) {
+      const [symbol] = statusPresentation(step.status);
+      const phase = node("span", `cycle-phase status-${step.status}`, `${symbol} ${label(step.phase)}`);
+      if (["running", "pending"].includes(step.status)) phase.setAttribute("aria-current", "step");
+      phases.append(phase);
+    }
+    item.append(phases);
+    ui["cycle-history"].append(item);
+  }
+  const replans = Math.max(0, planNumber - 1);
+  ui["cycle-summary"].textContent = `${planNumber} plan${planNumber === 1 ? "" : "s"} · ${iterationNumber} iteration${iterationNumber === 1 ? "" : "s"}${replans ? ` · ${replans} replan${replans === 1 ? "" : "s"}` : ""}`;
+}
+
+function outcomeLabel(run, finalResult, error) {
+  if (run.status === "succeeded") return finalResult ? "Result available" : "Succeeded";
+  if (run.status === "failed") return label(error?.code || run.error_code || "failed");
+  if (run.status === "cancelled") return "Cancelled";
+  if (run.status === "review_required") return "Review needed";
+  return "In progress";
+}
+
+function copyButton(labelText, value) {
+  const button = node("button", "copy-id quiet-button");
+  button.type = "button";
+  button.dataset.copyValue = value;
+  button.setAttribute("aria-label", `Copy ${labelText}`);
+  button.append(node("span", "copy-label", labelText), node("code", "", value), node("span", "copy-action", "Copy"));
+  return button;
+}
+
+function renderCorrelation(correlation) {
+  ui["correlation-identifiers"].replaceChildren(
+    copyButton("Run", String(correlation.run_id)),
+    copyButton("Request", correlation.request_id),
+  );
+  if (correlation.trace_id) ui["correlation-identifiers"].append(copyButton("Trace", correlation.trace_id));
+  if (correlation.telemetry_url) {
+    const link = node("a", "telemetry-link", "Open telemetry");
+    link.href = correlation.telemetry_url;
+    link.rel = "noreferrer";
+    ui["correlation-identifiers"].append(link);
+  }
 }
 
 function renderDetail() {
-  const { run, objective, limits, cancel_requested: cancelRequested, final_result: finalResult, error, steps, reviews, correlation } = state.detail;
-  ui["run-status"].textContent = label(run.status);
-  ui["run-status"].className = `status-badge status-${run.status}`;
+  const {
+    run, objective, limits, cancel_requested: cancelRequested, final_result: finalResult,
+    error, steps, reviews, correlation,
+  } = state.detail;
+  ui["run-status"].replaceChildren(...statusMark(run.status).childNodes);
+  ui["run-status"].className = `status-mark status-${run.status}`;
   ui["run-objective"].textContent = objective || run.objective_preview || "Objective hidden by policy";
-  ui["run-subtitle"].textContent = `${run.feature_key} · ${run.id}`;
+  ui["run-subtitle"].textContent = `${run.feature_key} · created ${localTime(run.created_at)}`;
   ui["last-updated"].textContent = `Updated ${localTime(run.updated_at)}`;
-  ui["run-metadata"].replaceChildren();
-  addDefinition(ui["run-metadata"], [
-    ["Run ID", run.id], ["Request ID", correlation.request_id], ["Trace ID", correlation.trace_id],
-    ["Model profile", run.model_profile], ["Prompt set", run.prompt_set], ["Version", run.version],
+  renderCurrentWork(run, steps);
+  renderCycles(steps);
+
+  ui["run-overview"].replaceChildren();
+  addDefinition(ui["run-overview"], [
+    ["Current phase", label(currentStep(steps)?.phase || run.latest_phase || "not started")],
+    ["Elapsed", duration(run.duration_ms), "overview-elapsed"],
+    ["Feature", run.feature_key],
+    ["Model", run.model_profile],
     ["Iterations", `${run.iteration_count} / ${limits.max_iterations}`],
     ["Tool calls", `${run.tool_call_count} / ${limits.max_tool_calls}`],
-    ["Time budget", duration(limits.time_budget_ms)], ["Model repairs", limits.max_model_repairs],
-    ["Cancel requested", cancelRequested ? "yes" : "no"],
-    ["Created", localTime(run.created_at)], ["Duration", duration(run.duration_ms)],
+    ["Outcome", outcomeLabel(run, finalResult, error), `overview-outcome status-${run.status}`],
   ]);
-  renderPhases(steps);
+  ui["run-overview"].querySelector(".overview-elapsed dd").dataset.overviewElapsed = "true";
+  renderCorrelation(correlation);
+
+  ui["run-metadata"].replaceChildren();
+  addDefinition(ui["run-metadata"], [
+    ["Prompt set", run.prompt_set], ["Run version", run.version],
+    ["Time budget", duration(limits.time_budget_ms)], ["Model repairs", limits.max_model_repairs],
+    ["Cancellation requested", cancelRequested ? "Yes" : "No"],
+    ["Created", localTime(run.created_at)], ["Updated", localTime(run.updated_at)],
+    ["Terminal duration", TERMINAL_STATUSES.has(run.status) ? duration(run.duration_ms) : "Still running"],
+  ]);
   renderExecution(steps, reviews, finalResult, error, run);
   ui["raw-projection"].textContent = pretty(state.detail);
   ui.announcement.textContent = `Run ${run.id} updated to ${label(run.status)}, version ${run.version}.`;
+  updateLiveElapsed();
 }
 
-function renderPhases(steps) {
-  const complete = new Set(steps.filter((step) => step.status === "succeeded").map((step) => step.phase));
-  const active = [...steps].reverse().find((step) => ["running", "pending"].includes(step.status))?.phase;
-  for (const item of ui["phase-strip"].querySelectorAll("[data-phase]")) {
-    item.classList.toggle("complete", complete.has(item.dataset.phase));
-    item.classList.toggle("active", active === item.dataset.phase);
+function renderValue(value) {
+  if (value === null || value === undefined) return node("span", "muted", "None");
+  if (Array.isArray(value)) {
+    const list = node("ol", "data-array");
+    for (const item of value) {
+      const listItem = node("li");
+      listItem.append(renderValue(item));
+      list.append(listItem);
+    }
+    return list;
   }
+  if (typeof value === "object") {
+    const list = node("dl", "data-object");
+    for (const [key, item] of Object.entries(value)) {
+      const wrapper = node("div");
+      wrapper.append(node("dt", "", label(key)), node("dd", ""));
+      wrapper.querySelector("dd").append(renderValue(item));
+      list.append(wrapper);
+    }
+    return list;
+  }
+  return node("span", typeof value === "string" ? "" : "mono", String(value));
+}
+
+function metric(labelText, value) {
+  const item = node("div");
+  item.append(node("dt", "", labelText), node("dd", "", value));
+  return item;
+}
+
+function evidenceSummary(step) {
+  if (step.plan) return `${step.plan.actions.length} planned action${step.plan.actions.length === 1 ? "" : "s"}`;
+  if (step.tool) return `${step.tool.tool_name} · ${label(step.tool.outcome || step.tool.approval_status)}`;
+  if (step.observation) return `${step.observation.facts.length} persisted fact${step.observation.facts.length === 1 ? "" : "s"}`;
+  if (step.adaptation) return `Decision: ${label(step.adaptation.decision)}`;
+  return step.model_invocation ? "Model invocation evidence" : "Step evidence";
+}
+
+function renderStep(step, isLatest) {
+  const card = node("article", `step-row source-${step.source} step-${step.status}`);
+  const rail = node("div", "step-rail", String(step.sequence));
+  const content = node("div", "step-content");
+  const heading = node("header", "step-heading");
+  const title = node("div");
+  title.append(node("span", "source-label", step.source), node("h4", "", `${label(step.phase)} · ${label(step.status)}`));
+  const meta = node("div", "step-meta");
+  meta.append(node("span", "", duration(step.duration_ms)), copyButton("Step", String(step.id)));
+  heading.append(title, meta);
+  content.append(heading, node("p", "step-summary", step.summary));
+
+  const details = node("details", "evidence-details");
+  details.open = isLatest || ["failed", "running", "pending"].includes(step.status);
+  details.append(node("summary", "", evidenceSummary(step)));
+  const body = node("div", "evidence-body");
+  if (step.plan) {
+    body.append(node("h5", "", "Plan goal"), node("p", "", step.plan.goal));
+    const actions = node("ol", "action-list");
+    for (const action of step.plan.actions) {
+      const item = node("li");
+      item.append(node("strong", "", action.tool_name), node("span", "", action.purpose));
+      actions.append(item);
+    }
+    body.append(node("h5", "", "Ordered actions"), actions);
+    if (step.plan.success_criteria.length) {
+      const criteria = node("ul", "plain-list");
+      for (const criterion of step.plan.success_criteria) criteria.append(node("li", "", criterion));
+      body.append(node("h5", "", "Success criteria"), criteria);
+    }
+  }
+  if (step.tool) {
+    const tool = step.tool;
+    const toolHeader = node("div", "tool-heading");
+    toolHeader.append(node("h5", "", `${tool.tool_name}@${tool.tool_version}`), copyButton("Call", String(tool.call_id)));
+    body.append(toolHeader);
+    const facts = node("dl", "inline-facts");
+    facts.append(
+      metric("Approval", label(tool.approval_status)), metric("Outcome", label(tool.outcome)),
+      metric("Duration", duration(tool.duration_ms)), metric("Retryable", tool.retryable ?? "—"),
+    );
+    body.append(facts);
+    if (tool.redacted_arguments) body.append(node("h5", "", "Request"), renderValue(tool.redacted_arguments));
+    if (tool.redacted_result) body.append(node("h5", "", "Result"), renderValue(tool.redacted_result));
+    if (tool.error_code) body.append(node("p", "safe-error", `Error: ${label(tool.error_code)}`));
+  }
+  if (step.observation) {
+    const observation = step.observation;
+    const facts = node("ul", "plain-list");
+    for (const fact of observation.facts) facts.append(node("li", "", fact));
+    body.append(node("h5", "", "Observed facts"), facts);
+    const criteria = node("dl", "inline-facts");
+    criteria.append(
+      metric("Satisfied", observation.satisfied_criteria.length),
+      metric("Unsatisfied", observation.unsatisfied_criteria.length),
+      metric("Unassessed", observation.unassessed_criteria.length),
+    );
+    body.append(criteria);
+  }
+  if (step.adaptation) {
+    body.append(node("h5", "", `Decision · ${label(step.adaptation.decision)}`), node("p", "", step.adaptation.justification));
+    if (step.adaptation.redacted_final_result) body.append(node("h5", "", "Proposed final result"), renderValue(step.adaptation.redacted_final_result));
+  }
+  if (step.model_invocation) {
+    const model = step.model_invocation;
+    const metrics = node("dl", "model-metrics");
+    metrics.append(
+      metric("Provider / model", `${model.provider} · ${model.model}`),
+      metric("Prompt", `${model.prompt_id}@${model.prompt_version}`),
+      metric("Total", duration(model.metrics.total_duration_ms)),
+      metric("Prompt evaluation", duration(model.metrics.prompt_eval_duration_ms)),
+      metric("Generation", duration(model.metrics.eval_duration_ms)),
+      metric("Tokens", `${model.metrics.prompt_tokens ?? "?"} in · ${model.metrics.output_tokens ?? "?"} out`),
+      metric("Repairs", String(model.repair_count)),
+    );
+    body.append(node("h5", "", "Model evidence"), metrics);
+  }
+  if (step.error) body.append(node("p", "safe-error", `${step.error.code}: ${step.error.message}`));
+  details.append(body);
+  content.append(details);
+  card.append(rail, content);
+  return card;
 }
 
 function renderExecution(steps, reviews, finalResult, error, run) {
   ui.execution.replaceChildren();
   if (!steps.length) ui.execution.append(node("p", "empty", "The run is queued; no phase step is durable yet."));
-  for (const step of steps) ui.execution.append(renderStep(step));
+  steps.forEach((step, index) => ui.execution.append(renderStep(step, index === steps.length - 1)));
   for (const review of reviews) {
-    const card = node("article", "step-card source-human");
-    const heading = node("div", "step-heading");
-    const title = node("div");
-    title.append(node("span", "source-label", "human"), node("h4", "", `${label(review.decision)} · ${review.tool_name}`));
-    heading.append(title, node("span", "mono muted", localTime(review.reviewed_at)));
-    card.append(heading, node("p", "", `${review.reviewer}${review.comment ? ` · ${review.comment}` : ""}`));
+    const card = node("article", "review-row");
+    card.append(
+      node("span", "review-symbol", "‖"),
+      node("h4", "", `${label(review.decision)} · ${review.tool_name}`),
+      node("p", "", `${review.reviewer}${review.comment ? ` · ${review.comment}` : ""}`),
+      copyButton("Call", String(review.call_id)),
+    );
     ui.execution.append(card);
   }
   if (finalResult) {
-    const card = node("article", "step-card source-orchestration");
-    card.append(node("span", "source-label", "orchestration"), node("h4", "", "Final result"), node("pre", "", pretty(finalResult)));
-    ui.execution.append(card);
+    const result = node("section", "outcome-block status-succeeded");
+    result.append(node("h4", "", "✓ Final result"), renderValue(finalResult));
+    ui.execution.append(result);
   } else if (error || run.error_code) {
-    const card = node("article", "step-card source-orchestration");
-    card.append(node("span", "source-label", "safe error"), node("h4", "", label(error?.code || run.error_code)));
-    if (error?.message) card.append(node("p", "", error.message));
-    ui.execution.append(card);
+    const failure = node("section", "outcome-block status-failed");
+    failure.append(node("h4", "", `! ${label(error?.code || run.error_code)}`));
+    if (error?.message) failure.append(node("p", "", error.message));
+    ui.execution.append(failure);
+  } else if (run.status === "cancelled") {
+    const cancelled = node("section", "outcome-block status-cancelled");
+    cancelled.append(node("h4", "", "× Run cancelled"), node("p", "", "No final result was produced."));
+    ui.execution.append(cancelled);
   }
 }
 
-function renderStep(step) {
-  const card = node("article", `step-card source-${step.source}`);
-  const heading = node("div", "step-heading");
-  const title = node("div");
-  title.append(node("span", "source-label", `${step.source} · step ${step.sequence}`), node("h4", "", `${label(step.phase)} · ${label(step.status)}`));
-  heading.append(title, node("span", "mono muted", duration(step.duration_ms)));
-  card.append(heading, node("p", "muted", step.summary));
-  if (step.plan) {
-    const block = evidenceBlock("Plan");
-    block.append(node("p", "", step.plan.goal));
-    const actions = node("ol", "compact-list");
-    for (const action of step.plan.actions) actions.append(node("li", "", `${action.tool_name} — ${action.purpose}`));
-    block.append(actions);
-    card.append(block);
+function renderEvents() {
+  ui["event-list"].replaceChildren();
+  if (!state.eventItems.length) ui["event-list"].append(node("li", "empty", "No retained events are available for this run."));
+  for (const event of [...state.eventItems].reverse()) {
+    const item = node("li", "event-item");
+    item.append(
+      statusMark(event.status, "event-status"),
+      node("strong", "", label(event.event_type)),
+      node("span", "muted", `${shortTime(event.occurred_at)} · run v${event.run_version} · event #${event.id}`),
+    );
+    ui["event-list"].append(item);
   }
-  if (step.tool) {
-    const block = evidenceBlock(`Tool · ${step.tool.tool_name}@${step.tool.tool_version}`);
-    addDefinition(block, [["Call ID", step.tool.call_id], ["Approval", label(step.tool.approval_status)], ["Outcome", label(step.tool.outcome)], ["Duration", duration(step.tool.duration_ms)], ["Retryable", step.tool.retryable]]);
-    if (step.tool.redacted_arguments) block.append(node("pre", "", pretty(step.tool.redacted_arguments)));
-    if (step.tool.redacted_result) block.append(node("pre", "", pretty(step.tool.redacted_result)));
-    card.append(block);
-  }
-  if (step.observation) {
-    const block = evidenceBlock("Observation");
-    const facts = node("ul", "compact-list");
-    for (const fact of step.observation.facts) facts.append(node("li", "", fact));
-    block.append(facts);
-    card.append(block);
-  }
-  if (step.adaptation) {
-    const block = evidenceBlock(`Adaptation · ${label(step.adaptation.decision)}`);
-    block.append(node("p", "", step.adaptation.justification));
-    if (step.adaptation.redacted_final_result) block.append(node("pre", "", pretty(step.adaptation.redacted_final_result)));
-    card.append(block);
-  }
-  if (step.model_invocation) {
-    const model = step.model_invocation;
-    const block = evidenceBlock("Model invocation");
-    const metrics = node("div", "metrics");
-    metrics.append(node("span", "", `${model.provider} · ${model.model}`), node("span", "", `${model.prompt_id}@${model.prompt_version}`), node("span", "", duration(model.metrics.total_duration_ms)), node("span", "", `${model.metrics.prompt_tokens ?? "?"} input tokens`), node("span", "", `${model.metrics.output_tokens ?? "?"} output tokens`), node("span", "", `${model.repair_count} repairs`));
-    block.append(metrics);
-    card.append(block);
-  }
-  if (step.error) card.append(node("p", "status-failed", `${step.error.code}: ${step.error.message}`));
-  return card;
+  ui["event-cursor"].textContent = `cursor #${state.eventCursor}`;
 }
 
-ui.filters.addEventListener("submit", (event) => { event.preventDefault(); syncFilterUrl(); loadRuns(); });
-ui["clear-filters"].addEventListener("click", () => { ui.filters.reset(); syncFilterUrl(); loadRuns(); });
-ui["refresh-runs"].addEventListener("click", () => loadRuns());
+function updateLiveElapsed() {
+  const now = Date.now();
+  for (const run of state.runs) {
+    const target = ui["run-list"].querySelector(`[data-run-live="${run.id}"]`);
+    if (!target) continue;
+    target.textContent = ACTIVE_STATUSES.has(run.status) ? duration(elapsedSince(run.created_at, now)) : duration(run.duration_ms);
+  }
+  if (!state.detail) return;
+  const runElapsed = TERMINAL_STATUSES.has(state.detail.run.status)
+    ? state.detail.run.duration_ms
+    : elapsedSince(state.detail.run.created_at, now);
+  ui["live-elapsed"].textContent = duration(runElapsed);
+  const overviewElapsed = ui["run-overview"].querySelector("[data-overview-elapsed]");
+  if (overviewElapsed) overviewElapsed.textContent = duration(runElapsed);
+  const stepElapsed = ui["current-work-detail"].querySelector("[data-step-started]");
+  if (stepElapsed) stepElapsed.textContent = `${duration(elapsedSince(stepElapsed.dataset.stepStarted, now))} in this step`;
+}
+
+async function copyValue(value, successMessage) {
+  await navigator.clipboard.writeText(value);
+  ui.announcement.textContent = successMessage;
+}
+
+ui.filters.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (ui["status-filter"].value) state.quickFilter = "all";
+  updateQuickFilters();
+  syncFilterUrl();
+  invalidateRunIndex();
+});
+ui["status-filter"].addEventListener("change", () => {
+  if (ui["status-filter"].value) state.quickFilter = "all";
+  updateQuickFilters();
+});
+ui["quick-filters"].addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-filter]");
+  if (!button) return;
+  state.quickFilter = button.dataset.filter;
+  ui["status-filter"].value = "";
+  updateQuickFilters();
+  syncFilterUrl();
+  invalidateRunIndex();
+});
+ui["clear-filters"].addEventListener("click", () => {
+  ui.filters.reset();
+  state.quickFilter = "all";
+  updateQuickFilters();
+  syncFilterUrl();
+  invalidateRunIndex();
+});
+ui["refresh-runs"].addEventListener("click", () => {
+  state.listRefreshPending = true;
+  scheduleList(0);
+});
 ui["load-more"].addEventListener("click", () => loadRuns({ append: true }));
-ui["copy-link"].addEventListener("click", async () => {
-  await navigator.clipboard.writeText(window.location.href);
-  ui.announcement.textContent = "Run deep link copied.";
+ui["copy-link"].addEventListener("click", () => copyValue(window.location.href, "Run deep link copied."));
+ui["correlation-identifiers"].addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-copy-value]");
+  if (button) copyValue(button.dataset.copyValue, `${button.querySelector(".copy-label").textContent} identifier copied.`);
+});
+ui.execution.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-copy-value]");
+  if (button) copyValue(button.dataset.copyValue, `${button.querySelector(".copy-label").textContent} identifier copied.`);
+});
+ui["back-to-runs"].addEventListener("click", () => {
+  ui.workspace.classList.remove("show-detail");
+  ui["run-list"].querySelector(`[data-run-id="${state.selectedId}"]`)?.focus();
 });
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    loadRuns();
-    if (state.selectedId) { clearTimeout(state.detailTimer); refreshSelected(state.generation, true); }
+  scheduleList(document.hidden ? nextListDelay(state.runs, state.listFailures, true) : 0);
+  if (!document.hidden && state.selectedId) {
+    clearTimeout(state.detailTimer);
+    if (state.detailInFlight) {
+      state.detailRefreshPending = true;
+      state.detailForcePending = true;
+    } else {
+      refreshSelected(state.detailGuard.current, { forceDetail: true });
+    }
   }
 });
 
 async function start() {
   const initial = new URL(window.location.href).searchParams;
   ui["feature-filter"].value = initial.get("feature_key") || "";
-  ui["status-filter"].value = initial.get("status") || "";
   ui["model-filter"].value = initial.get("model_profile") || "";
+  const initialStatuses = initial.getAll("status");
+  const view = initial.get("view");
+  state.quickFilter = view && statusesForFilter(view).length ? view : filterForStatuses(initialStatuses);
+  ui["status-filter"].value = initialStatuses.length === 1 ? initialStatuses[0] : "";
+  updateQuickFilters();
+  state.elapsedTimer = setInterval(updateLiveElapsed, 1000);
   await loadRuns();
-  const runId = new URL(window.location.href).searchParams.get("run");
+  const runId = initial.get("run");
   if (runId && /^[0-9a-f-]{36}$/i.test(runId)) await selectRun(runId);
-  state.listTimer = setInterval(() => { if (!document.hidden) loadRuns(); }, 5000);
 }
 
 start();

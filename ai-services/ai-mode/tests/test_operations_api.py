@@ -31,6 +31,8 @@ def test_enabled_dashboard_serves_hardened_assets(app_services: AppServices) -> 
 
     page = client.get("/operations/ai-mode/")
     script = client.get("/operations/ai-mode/assets/app.js")
+    polling = client.get("/operations/ai-mode/assets/polling.js")
+    test_asset = client.get("/operations/ai-mode/assets/polling.test.mjs")
 
     assert page.status_code == 200
     assert b"AI-mode operations" in page.data
@@ -39,6 +41,10 @@ def test_enabled_dashboard_serves_hardened_assets(app_services: AppServices) -> 
     assert script.status_code == 200
     assert script.headers["X-Content-Type-Options"] == "nosniff"
     assert b"innerHTML" not in script.data
+    assert polling.status_code == 200
+    assert polling.headers["X-Content-Type-Options"] == "nosniff"
+    assert b"RequestTimeoutError" in polling.data
+    assert test_asset.status_code == 404
 
 
 def test_enabled_run_index_filters_and_returns_projected_detail(
