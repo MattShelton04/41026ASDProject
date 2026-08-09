@@ -61,6 +61,10 @@ class ModelProfile(ContractModel):
             raise ValueError("intended roles must be unique")
         return self
 
+    def supports(self, *roles: ModelRoleName) -> bool:
+        """Return whether every requested runtime role is declared by this profile."""
+        return set(roles).issubset(self.intended_roles)
+
 
 class ModelRegistry(ContractModel):
     """Versioned catalogue returned by AI-mode and loaded at composition time."""

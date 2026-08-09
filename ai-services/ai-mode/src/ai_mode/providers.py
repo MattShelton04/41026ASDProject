@@ -1,5 +1,6 @@
 """Central composition of logical model profiles and concrete providers."""
 
+from agent_core import ModelRole
 from ai_mode.adapters.ollama import OllamaModelProfile, OllamaProvider
 from ai_mode.configuration import ConfigurationError, Settings
 from ai_mode.model_registry import load_model_registry
@@ -36,6 +37,7 @@ def build_ollama_provider(
             keep_alive=settings.ollama_keep_alive or profile.keep_alive,
             context_tokens=profile.context_tokens,
             maximum_output_tokens=profile.maximum_output_tokens,
+            intended_roles=frozenset(ModelRole(role.value) for role in profile.intended_roles),
         )
     return OllamaProvider(
         base_url=settings.ollama_base_url,

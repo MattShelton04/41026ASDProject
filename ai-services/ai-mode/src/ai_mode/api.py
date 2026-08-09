@@ -33,6 +33,7 @@ from shared_contracts import (
     AgentRunRequest,
     FieldIssue,
     HumanReviewRequest,
+    ModelRoleName,
     ProblemDetail,
     ReviewDecision,
 )
@@ -69,15 +70,20 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
         )
         return _problem(422, "validation_failed", "Request validation failed", errors=issues)
 
-    if (
-        services.model_registry is not None
-        and services.model_registry.profile(command.model_profile) is None
-    ):
-        return _problem(
-            422,
-            "model_profile_not_supported",
-            f"Model profile is not registered: {command.model_profile}",
-        )
+    if services.model_registry is not None:
+        profile = services.model_registry.profile(command.model_profile)
+        if profile is None:
+            return _problem(
+                422,
+                "model_profile_not_supported",
+                f"Model profile is not registered: {command.model_profile}",
+            )
+        if not profile.supports(ModelRoleName.PLANNER, ModelRoleName.ADAPTER):
+            return _problem(
+                422,
+                "model_profile_role_incompatible",
+                "Model profile must support the planner and adapter roles",
+            )
     run = create_run(
         command,
         run_id=services.ids.new(),

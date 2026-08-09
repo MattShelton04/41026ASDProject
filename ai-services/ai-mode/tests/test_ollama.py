@@ -14,11 +14,14 @@ from ai_mode.adapters.ollama import OllamaModelProfile, OllamaProvider
 
 
 def _request(
-    profile: str = "local-small.v1", *, deadline_at: datetime | None = None
+    profile: str = "local-small.v1",
+    *,
+    role: ModelRole = ModelRole.PLANNER,
+    deadline_at: datetime | None = None,
 ) -> StructuredModelRequest:
     return StructuredModelRequest(
         run_id=uuid4(),
-        role=ModelRole.PLANNER,
+        role=role,
         model_profile=profile,
         messages=(ModelMessage(role="system", content="Return JSON."),),
         output_schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
@@ -133,6 +136,38 @@ def test_unknown_profile_fails_without_network_io() -> None:
         provider.generate_structured(_request("unknown.v1"))
 
     assert raised.value.code == "model_profile_not_found"
+    assert raised.value.retryable is False
+    assert calls == 0
+
+
+def test_profile_role_mismatch_fails_without_network_io() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500)
+
+    provider = OllamaProvider(
+        base_url="http://ignored.test",
+        profiles={
+            "local-small.v1": OllamaModelProfile(
+                model="qwen2.5:0.5b",
+                intended_roles=frozenset({ModelRole.PLANNER}),
+            )
+        },
+        timeout_seconds=5,
+        max_response_bytes=100_000,
+        client=httpx.Client(
+            base_url="http://ollama.test",
+            transport=httpx.MockTransport(handler),
+        ),
+    )
+
+    with pytest.raises(ModelProviderError) as raised:
+        provider.generate_structured(_request(role=ModelRole.REVIEWER))
+
+    assert raised.value.code == "model_role_not_supported"
     assert raised.value.retryable is False
     assert calls == 0
 

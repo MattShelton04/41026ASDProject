@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from shared_contracts import ModelRegistry
+from shared_contracts import ModelRegistry, ModelRoleName
 
 
 def _registry() -> dict[str, object]:
@@ -43,6 +43,14 @@ def test_registry_resolves_models_and_profiles() -> None:
     assert registry.profile("local-small.v1") is not None
     assert registry.model("qwen-test") is not None
     assert registry.profile("missing") is None
+
+
+def test_profile_reports_supported_role_sets() -> None:
+    profile = ModelRegistry.model_validate(_registry()).profiles[0]
+
+    assert profile.supports(ModelRoleName.PLANNER)
+    assert profile.supports(ModelRoleName.PLANNER, ModelRoleName.ADAPTER)
+    assert not profile.supports(ModelRoleName.REVIEWER)
 
 
 @pytest.mark.parametrize(

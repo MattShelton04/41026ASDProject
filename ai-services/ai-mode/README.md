@@ -104,8 +104,10 @@ tags. It includes one assignment-approved model from each permitted family:
 
 Runtime contexts are intentionally below advertised maxima because context allocation
 affects memory. Select a registered profile in `AgentRunRequest.model_profile`; omitting
-it uses the service's configured default. For Compose, `OLLAMA_MODEL` controls the model
-initializer and must name the concrete tag corresponding to
+it uses the service's configured default. Intended roles are enforced rather than being
+descriptive metadata: Release 0 runs require planner and adapter support, and every
+provider call rejects a mismatched role before network I/O. For Compose, `OLLAMA_MODEL`
+controls the model initializer and must name the concrete tag corresponding to
 `AI_MODE_DEFAULT_MODEL_PROFILE`. Pull optional profile models explicitly before use.
 
 The registry YAML is deliberate source configuration and can be replaced as a whole

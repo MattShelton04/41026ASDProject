@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from hashlib import sha256
 from threading import Lock
@@ -17,6 +17,7 @@ from agent_core import (
     LLMProvider,
     ModelMetrics,
     ModelProviderError,
+    ModelRole,
     ProviderHealth,
     StructuredModelRequest,
     StructuredModelResult,
@@ -34,6 +35,7 @@ class OllamaModelProfile:
     context_tokens: int = 8_192
     maximum_output_tokens: int = 1_024
     digest: str | None = None
+    intended_roles: frozenset[ModelRole] = field(default_factory=lambda: frozenset(ModelRole))
 
 
 class OllamaProvider(LLMProvider):
@@ -74,6 +76,15 @@ class OllamaProvider(LLMProvider):
             raise ModelProviderError(
                 f"unknown model profile: {request.model_profile}",
                 code="model_profile_not_found",
+                retryable=False,
+            )
+        if request.role not in profile.intended_roles:
+            raise ModelProviderError(
+                (
+                    f"model profile {request.model_profile} does not support "
+                    f"the {request.role.value} role"
+                ),
+                code="model_role_not_supported",
                 retryable=False,
             )
         if request.max_output_tokens > profile.maximum_output_tokens:
