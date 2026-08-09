@@ -32,7 +32,14 @@ uv sync --locked --all-packages --all-groups
 uv run python scripts/check.py
 uv run pytest
 uv run flask --app ai_mode:create_app run --port 5005
+uv run scripts/dev.py up
 ```
+
+Use `uv run scripts/dev.py up` for the complete local Docker workflow. Source-only Python and
+frontend changes reload through `docker-compose.dev.yml`; use `uv run scripts/dev.py rebuild`
+after dependency, lockfile, or Dockerfile changes. Use `status`, `logs`, `test`, `restart`, and
+`down` rather than reconstructing long Compose commands. Ordinary `down` preserves named
+volumes and therefore local model data, AI-mode run history, and fixture records.
 
 Use `uv add --package <project-name> <dependency>` to change dependencies, and commit the
 resulting `pyproject.toml` and `uv.lock` together. Do not hand-edit `uv.lock`.

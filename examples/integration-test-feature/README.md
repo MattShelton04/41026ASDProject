@@ -28,6 +28,16 @@ closed.
 With Docker Desktop running, start the fixture, AI-mode, and the pinned Ollama runtime:
 
 ```text
+uv run scripts/dev.py up
+```
+
+This development path bind-mounts the frontend and Python source, reloads Gunicorn after
+Python edits, and preserves all named volumes on `uv run scripts/dev.py down`. Run
+`uv run scripts/dev.py rebuild` only when dependencies, the lockfile, or Dockerfiles change.
+
+The equivalent production-like Compose sequence without development mounts is:
+
+```text
 docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile ollama-container up --detach --wait --wait-timeout 120 ollama
 docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile ollama-container run --rm ollama-init
 docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test up --detach --build --wait --wait-timeout 120 ai-mode integration-test-feature-database integration-test-feature-backend integration-test-feature-frontend

@@ -1,0 +1,48 @@
+services:
+  ai-mode:
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:5005
+      - --workers=1
+      - --threads=4
+      - --timeout=180
+      - --graceful-timeout=30
+      - --access-logfile=-
+      - --error-logfile=-
+      - --reload
+      - --reload-extra-file=/etc/ai-mode/integration-test-tools.yaml
+      - ai_mode:create_app()
+    volumes:
+      - ./ai-services/agent-core/src:/app/ai-services/agent-core/src:ro
+      - ./ai-services/ai-mode/src:/app/ai-services/ai-mode/src:ro
+      - ./shared/contracts/python:/app/shared/contracts/python:ro
+      - ./shared/frontend:/app/shared/frontend:ro
+
+  integration-test-feature-database:
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:5102
+      - --workers=1
+      - --threads=4
+      - --reload
+      - integration_test_feature.database:create_app()
+    volumes:
+      - ./examples/integration-test-feature/src:/app/examples/integration-test-feature/src:ro
+      - ./shared/contracts/python:/app/shared/contracts/python:ro
+
+  integration-test-feature-backend:
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:5101
+      - --workers=1
+      - --threads=4
+      - --reload
+      - integration_test_feature.backend:create_app()
+    volumes:
+      - ./examples/integration-test-feature/src:/app/examples/integration-test-feature/src:ro
+      - ./shared/contracts/python:/app/shared/contracts/python:ro
+
+  integration-test-feature-frontend:
+    volumes:
+      - ./examples/integration-test-feature/frontend:/usr/share/nginx/html:ro
+      - ./examples/integration-test-feature/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
