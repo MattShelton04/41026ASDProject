@@ -10,25 +10,43 @@
   <body>
     <a class="skip-link" href="#run-detail">Skip to run detail</a>
     <header class="topbar">
-      <div>
-        <p class="eyebrow">Shared platform · Release 0</p>
-        <h1>AI-mode operations</h1>
+      <div class="product-title">
+        <span class="product-mark" aria-hidden="true">AI</span>
+        <div>
+          <h1>AI-mode operations</h1>
+          <p>Durable agent workflow evidence</p>
+        </div>
       </div>
       <div class="connection" role="status" aria-live="polite">
-        <span id="connection-dot" class="connection-dot"></span>
+        <span id="connection-dot" class="connection-dot" aria-hidden="true"></span>
         <span id="connection-state">Connecting…</span>
       </div>
     </header>
 
-    <main class="workspace">
+    <main id="workspace" class="workspace">
       <aside class="run-browser" aria-label="Agent run browser">
+        <div class="run-browser-toolbar">
+          <div>
+            <h2>Runs</h2>
+            <p id="page-summary" class="muted">Loading persisted work…</p>
+          </div>
+          <button id="refresh-runs" class="quiet-button" type="button">Refresh</button>
+        </div>
+
+        <div id="quick-filters" class="quick-filters" role="group" aria-label="Quick run filters">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="active" aria-pressed="false"><span aria-hidden="true">●</span> Active</button>
+          <button type="button" data-filter="review" aria-pressed="false"><span aria-hidden="true">‖</span> Review</button>
+          <button type="button" data-filter="failed" aria-pressed="false"><span aria-hidden="true">!</span> Failed</button>
+        </div>
+
         <form id="filters" class="filters">
           <label>
-            Feature
+            <span>Feature</span>
             <input id="feature-filter" name="feature_key" maxlength="100" placeholder="All features">
           </label>
           <label>
-            Status
+            <span>Status</span>
             <select id="status-filter" name="status">
               <option value="">All statuses</option>
               <option value="queued">Queued</option>
@@ -44,89 +62,106 @@
             </select>
           </label>
           <label>
-            Model profile
+            <span>Model</span>
             <input id="model-filter" name="model_profile" maxlength="100" placeholder="All profiles">
           </label>
           <div class="filter-actions">
             <button type="submit">Apply</button>
-            <button id="clear-filters" class="secondary" type="button">Clear</button>
+            <button id="clear-filters" class="quiet-button" type="button">Clear</button>
           </div>
         </form>
 
-        <section class="page-counts" aria-label="Visible run counts">
-          <div><strong id="count-active">0</strong><span>active</span></div>
-          <div><strong id="count-review">0</strong><span>review</span></div>
-          <div><strong id="count-failed">0</strong><span>failed</span></div>
-          <div><strong id="count-complete">0</strong><span>complete</span></div>
+        <section class="page-counts" aria-label="Counts in the loaded filtered page">
+          <span><strong id="count-active">0</strong> active</span>
+          <span><strong id="count-review">0</strong> review</span>
+          <span><strong id="count-failed">0</strong> failed</span>
+          <span><strong id="count-complete">0</strong> succeeded</span>
         </section>
-        <p class="count-note">Counts describe the loaded filtered page.</p>
 
-        <div class="run-list-heading">
-          <h2>Runs</h2>
-          <button id="refresh-runs" class="icon-button" type="button">Refresh</button>
-        </div>
-        <ol id="run-list" class="run-list" aria-live="polite">
+        <ol id="run-list" class="run-list" aria-label="Persisted agent runs">
           <li class="empty">Loading persisted runs…</li>
         </ol>
-        <button id="load-more" class="load-more" type="button" hidden>Load older runs</button>
+        <button id="load-more" class="load-more quiet-button" type="button" hidden>Load older runs</button>
       </aside>
 
-      <section id="run-detail" class="run-detail" tabindex="-1">
-        <div id="empty-detail" class="hero-empty">
-          <p class="eyebrow">Durable workflow evidence</p>
-          <h2>Select a run to look under the hood</h2>
-          <p>Inspect attributed phases, model and tool timings, redacted values, safe errors,
-            and correlation identifiers without opening AI-mode's SQLite database.</p>
+      <section id="run-detail" class="run-detail" tabindex="-1" aria-label="Selected run detail">
+        <div id="empty-detail" class="empty-detail">
+          <h2>No run selected</h2>
+          <p>Choose a run to inspect its current work, durable cycles, outcome, and safe evidence.</p>
         </div>
 
         <div id="detail-content" hidden>
           <header class="detail-header">
-            <div>
+            <button id="back-to-runs" class="mobile-back quiet-button" type="button">← Runs</button>
+            <div class="detail-title">
               <div class="title-line">
-                <span id="run-status" class="status-badge"></span>
-                <span id="stale-state" class="stale-state" hidden>stale</span>
+                <span id="run-status" class="status-mark"></span>
+                <span id="stale-state" class="stale-state" hidden>Connection stale</span>
               </div>
               <h2 id="run-objective">Agent run</h2>
-              <p id="run-subtitle" class="mono muted"></p>
+              <p id="run-subtitle" class="muted"></p>
             </div>
-            <button id="copy-link" class="secondary" type="button">Copy deep link</button>
+            <button id="copy-link" class="quiet-button" type="button">Copy link</button>
           </header>
 
-          <ol id="phase-strip" class="phase-strip" aria-label="Agent loop phases">
-            <li data-phase="plan">Plan</li>
-            <li data-phase="act">Act</li>
-            <li data-phase="observe">Observe</li>
-            <li data-phase="adapt">Adapt</li>
-          </ol>
-
-          <section class="metadata-panel" aria-labelledby="metadata-title">
-            <div class="section-heading">
-              <div><p class="eyebrow">Snapshot</p><h3 id="metadata-title">Run metadata</h3></div>
-              <span id="last-updated" class="muted"></span>
+          <section id="current-work" class="current-work" aria-labelledby="current-work-title">
+            <div class="current-work-label">
+              <span id="current-work-symbol" aria-hidden="true">●</span>
+              <span id="current-work-phase">Queued</span>
             </div>
-            <dl id="run-metadata" class="metadata-grid"></dl>
+            <div>
+              <h3 id="current-work-title">Waiting for the worker.</h3>
+              <p id="current-work-detail" class="muted">No phase step is durable yet.</p>
+            </div>
+            <div class="elapsed-readout">
+              <strong id="live-elapsed">0 s</strong>
+              <span>run elapsed</span>
+            </div>
           </section>
 
-          <div class="detail-columns">
-            <section aria-labelledby="execution-title">
-              <div class="section-heading">
-                <div><p class="eyebrow">Attributed evidence</p><h3 id="execution-title">Execution</h3></div>
-              </div>
-              <div id="execution" class="execution"></div>
-            </section>
+          <section class="cycle-panel" aria-labelledby="cycle-title">
+            <div class="section-heading">
+              <h3 id="cycle-title">Plan and iteration history</h3>
+              <span id="cycle-summary" class="muted"></span>
+            </div>
+            <ol id="cycle-history" class="cycle-history"></ol>
+          </section>
 
-            <aside class="event-panel" aria-labelledby="events-title">
-              <div class="section-heading">
-                <div><p class="eyebrow">Cursor journal</p><h3 id="events-title">Live events</h3></div>
-                <span id="event-cursor" class="mono muted">#0</span>
+          <section class="run-overview" aria-label="Run overview">
+            <dl id="run-overview"></dl>
+          </section>
+
+          <section class="correlation" aria-labelledby="correlation-title">
+            <div class="section-heading">
+              <h3 id="correlation-title">Correlation</h3>
+              <span class="muted">Copy an identifier to trace the exact operation.</span>
+            </div>
+            <div id="correlation-identifiers" class="identifier-list"></div>
+          </section>
+
+          <details class="metadata-panel">
+            <summary>Run metadata and limits <span id="last-updated" class="muted"></span></summary>
+            <dl id="run-metadata" class="metadata-grid"></dl>
+          </details>
+
+          <section class="execution-panel" aria-labelledby="execution-title">
+            <div class="section-heading">
+              <div>
+                <h3 id="execution-title">Execution evidence</h3>
+                <p class="muted">Persisted facts only; source labels distinguish model, tool, and orchestration work.</p>
               </div>
-              <ol id="event-list" class="event-list"></ol>
-            </aside>
-          </div>
+            </div>
+            <div id="execution" class="execution"></div>
+          </section>
+
+          <details class="event-panel">
+            <summary>Durable event journal <span id="event-cursor" class="mono muted">cursor #0</span></summary>
+            <ol id="event-list" class="event-list"></ol>
+          </details>
 
           <details class="raw-panel">
-            <summary>Projected JSON</summary>
-            <p class="muted">This is the allowlisted operations projection, not raw provider output.</p>
+            <summary>Developer projection (JSON)</summary>
+            <p class="muted">Allowlisted, redacted operations projection—not prompts or raw provider output.</p>
             <pre id="raw-projection"></pre>
           </details>
         </div>

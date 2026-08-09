@@ -77,6 +77,19 @@ On PowerShell, set `$env:AI_MODE_OPERATIONS_ENABLED='true'` before the Flask com
 dashboard and its list/evidence endpoints are not registered when the flag is false. Remote
 deployment remains disabled until the team defines authenticated operator and feature scopes.
 
+The run index refreshes every two seconds while active work is loaded and every ten seconds
+when the page is terminal; hidden tabs back off further. Selected active runs keep the measured
+800 ms durable-event cadence. All client requests time out after eight seconds, obsolete work
+is aborted/version-checked, and list refreshes never overlap. The interface derives elapsed run
+and running-step time locally from persisted timestamps and labels planner, adapter, and tool
+waiting honestly without inventing progress. Revisited runs rehydrate a bounded, de-duplicated
+event journal before resuming their saved cursor.
+
+Application logs remain stdout-only. The dashboard prioritizes persisted evidence and copyable
+correlation identifiers; a future authenticated deployment should deep-link to a proper
+collector-backed telemetry service rather than expose arbitrary or recursively polled log text
+from AI-mode.
+
 Run locally with:
 
 ```text

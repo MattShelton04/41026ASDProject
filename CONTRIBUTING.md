@@ -8,6 +8,8 @@ shared package, and student slice owns its dependencies in a local `pyproject.to
 
 - Git
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
+- Node.js 20 or newer for the dependency-free operations-interface behavior tests; no npm
+  install or browser test stack is required
 - Docker Desktop or another Docker Engine with Compose support for container builds,
   integration checks, and the assignment-aligned runtime
 - The Ollama CLI only when using the optional native-host runtime; the canonical Compose
