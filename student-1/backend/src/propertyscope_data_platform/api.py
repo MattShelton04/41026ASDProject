@@ -437,7 +437,7 @@ def create_blueprint(
         )
         upstream = ai_mode.create_run(
             {
-                "feature_key": "propertyscope-data-platform",
+                "feature_key": "student-1-propertyscope-data-platform",
                 "objective": objective,
                 "prompt_set": "default.v3",
                 "model_profile": "local-standard.v1",

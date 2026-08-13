@@ -211,7 +211,7 @@ def test_release_diagnosis_uses_supported_prompt_contract() -> None:
             return httpx.Response(200, json={"release": {"id": release_id}})
         body = cast(dict[str, Any], json.loads(request.content))
         assert body["prompt_set"] == "default.v3"
-        assert body["feature_key"] == "propertyscope-data-platform"
+        assert body["feature_key"] == "student-1-propertyscope-data-platform"
         return httpx.Response(201, json={"run": {"id": "70000000-0000-0000-0000-000000000001"}})
 
     transport = httpx.MockTransport(upstream)
