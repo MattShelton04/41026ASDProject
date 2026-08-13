@@ -20,3 +20,8 @@ services:
       PROPERTYSCOPE_SOURCE_CREDENTIAL_FILE: ${PROPERTYSCOPE_SOURCE_CREDENTIAL_FILE:-}
     mem_limit: ${PROPERTYSCOPE_RUNNER_MEMORY_LIMIT:-8g}
     cpus: ${PROPERTYSCOPE_RUNNER_CPU_LIMIT:-6.0}
+
+  propertyscope-backend:
+    profiles: [full-data]
+    environment:
+      PROPERTYSCOPE_FULL_DATA_ENABLED: "true"

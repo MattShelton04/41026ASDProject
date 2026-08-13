@@ -711,7 +711,8 @@ class PropertyScopeStore:
                 """UPDATE ops.run_task SET status='pending',lease_owner=NULL,lease_token=NULL,
                 lease_expires_at=NULL,heartbeat_at=NULL,attempt_number=attempt_number+1,
                 version=version+1,updated_at=%s
-                WHERE ingestion_run_id=%s AND status IN ('claimed','running','retry_wait')""",
+                WHERE ingestion_run_id=%s
+                AND status IN ('claimed','running','retry_wait','cancelled')""",
                 (now, run_id),
             )
             row = connection.execute(

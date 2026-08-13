@@ -29,6 +29,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
     assert "/properties/{property_ref}/report-section" in document["paths"]
     assert "/dataset-releases/{release_id}/publish" in document["paths"]
     assert "/dataset-releases/{release_id}/records" in document["paths"]
+    assert "/runtime-capabilities" in document["paths"]
 
 
 def test_release_manifest_fixtures_encode_success_and_failure() -> None:

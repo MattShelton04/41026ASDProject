@@ -218,6 +218,13 @@ test("operator UI exposes working submit controls, backfills and durable histori
   assert.match(source, /link\("Run history"/);
 });
 
+test("live acquisition controls use truthful runtime capability evidence", async () => {
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  assert.match(app, /request\("runtime-capabilities"\)/);
+  assert.match(app, /Live schools capture requires --full-data/);
+  assert.match(app, /liveOption\.disabled = !liveAvailable/);
+});
+
 test("AI diagnosis history is loaded from the durable shared service projection", async () => {
   const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
   assert.match(source, /request\("agent-runs\?limit=50"\)/);

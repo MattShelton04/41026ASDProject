@@ -33,6 +33,7 @@ def create_blueprint(
     consumers: ConsumerImportClient,
     *,
     artifact_root: Path,
+    full_data_enabled: bool = False,
 ) -> Blueprint:
     """Create Feature 1's public API without any persistence imports."""
     api = Blueprint("propertyscope-data-platform", __name__)
@@ -51,6 +52,17 @@ def create_blueprint(
     @api.get(f"{BASE}/overview")
     def overview() -> Response:
         return forward(store.request("GET", f"{INTERNAL}/overview", headers=request.headers))
+
+    @api.get(f"{BASE}/runtime-capabilities")
+    def runtime_capabilities() -> Response:
+        return jsonify(
+            {
+                "full_data_enabled": full_data_enabled,
+                "connected_live_profiles": ["schools-master"] if full_data_enabled else [],
+                "catalogued_profiles": ["gnaf-nsw", "psi-sales", "bocsar-sparse"],
+                "showcase_available": True,
+            }
+        )
 
     @api.route(f"{BASE}/sources", methods=["GET", "POST"])
     def sources() -> Response:
@@ -114,7 +126,10 @@ def create_blueprint(
                 "Only full_refresh and reprocess_cached are supported",
             )
         scope, scope_error = validate_job_scope(
-            job_data, body.get("scope", job_data["scope_json"]), run_mode=mode
+            job_data,
+            body.get("scope", job_data["scope_json"]),
+            run_mode=mode,
+            full_data_enabled=full_data_enabled,
         )
         if scope_error is not None:
             return scope_error
@@ -168,6 +183,7 @@ def create_blueprint(
             job_response.json()["job"],
             body.get("scope", job_response.json()["job"]["scope_json"]),
             run_mode=mode,
+            full_data_enabled=full_data_enabled,
         )
         if scope_error is not None:
             return scope_error
@@ -780,7 +796,11 @@ def approved_tool_call(ai_mode: AiModeClient, tool_name: str, arguments: Mapping
 
 
 def validate_job_scope(
-    job: Mapping[str, Any], raw_scope: Any, *, run_mode: str
+    job: Mapping[str, Any],
+    raw_scope: Any,
+    *,
+    run_mode: str,
+    full_data_enabled: bool = False,
 ) -> tuple[dict[str, Any] | None, Response | None]:
     """Bound operator scope overrides and expose unavailable live transports before launch."""
     if not isinstance(raw_scope, dict):
@@ -815,6 +835,12 @@ def validate_job_scope(
             return None, problem(422, "invalid_scope", "PSI source year is outside the range")
         if years != sorted(set(years)):
             return None, problem(422, "invalid_scope", "PSI source years must be unique and sorted")
+    if run_mode == "full_refresh" and profile == "full-data" and not full_data_enabled:
+        return None, problem(
+            422,
+            "full_data_runtime_disabled",
+            "Start the explicit full-data runtime before launching live acquisition",
+        )
     if (
         run_mode == "full_refresh"
         and profile == "full-data"

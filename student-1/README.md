@@ -36,3 +36,9 @@ its media/byte/row limits, parses it into the canonical schools contract and sen
 same artifact, serial loader, candidate and quality path. G-NAF, PSI and BOCSAR remain catalogued
 until their source-scale streaming transports are connected; full-data runs for those profiles
 fail closed and never silently substitute fixture records.
+
+Every release detail page includes a release-scoped dataset preview. Preview queries use fixed
+registered projections, cap pages at 100 records and never mix candidate and accepted
+generations. The default runtime reports live acquisition as disabled; `--full-data` enables the
+official schools option explicitly so the browser never offers a live control that its runner
+cannot execute.

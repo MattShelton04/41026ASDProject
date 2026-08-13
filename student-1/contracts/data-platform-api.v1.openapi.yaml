@@ -6,6 +6,11 @@ info:
 servers:
   - url: /api/data-platform/v1
 paths:
+  /runtime-capabilities:
+    get:
+      operationId: getRuntimeCapabilities
+      description: Reports whether this stack can execute registered live acquisition profiles.
+      responses: {'200': {description: Runtime acquisition capabilities}}
   /sources:
     get:
       operationId: listSources

@@ -132,6 +132,28 @@ def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> N
     assert run_update_parameters[1] is False
 
 
+def test_resume_requeues_cancelled_unfinished_task_from_interrupted_run() -> None:
+    run_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            None,
+            {"id": run_id, "status": "queued", "run_mode": "full_refresh", "parent_run_id": None},
+        ]
+    )
+    store = ConnectedStore(connection)
+    store.get_run = lambda _: {  # type: ignore[method-assign]
+        "id": str(run_id),
+        "status": "interrupted",
+        "run_mode": "full_refresh",
+        "parent_run_id": None,
+    }
+
+    run = store.resume_run(run_id)
+
+    assert run["status"] == "queued"
+    assert "'cancelled'" in connection.queries[0]
+
+
 def test_run_projection_truthfully_describes_retry_execution() -> None:
     assert (
         _run_projection({"parent_run_id": None, "run_mode": "full_refresh"})["execution_semantics"]

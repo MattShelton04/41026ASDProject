@@ -636,6 +636,8 @@ function operationStep(number, title, description) {
 }
 
 async function openPlanDialog(job, capabilities = null, { intent = "run" } = {}) {
+  let runtime = { full_data_enabled: false, connected_live_profiles: [] };
+  try { runtime = (await request("runtime-capabilities")).body; } catch { /* normal showcase controls remain available */ }
   const wrapper = el("div", "stack");
   const isBackfill = intent === "backfill";
   const psi = isPsiJob(job);
@@ -658,10 +660,12 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   const testOption = el("option", "", "Small deterministic test records"); testOption.value = "test";
   append(scopeProfile, showcaseOption, testOption);
   if (schools) {
-    const liveOption = el("option", "", "Live official Data.NSW schools CSV"); liveOption.value = "full-data";
+    const liveAvailable = runtime.full_data_enabled && runtime.connected_live_profiles?.includes("schools-master");
+    const liveOption = el("option", "", liveAvailable ? "Live official Data.NSW schools CSV" : "Live schools capture requires --full-data"); liveOption.value = "full-data"; liveOption.disabled = !liveAvailable;
     append(scopeProfile, liveOption);
   }
   scopeProfile.value = ["test", "showcase", "full-data"].includes(job.scope_json?.profile)
+    && [...scopeProfile.options].some((option) => option.value === job.scope_json.profile && !option.disabled)
     ? job.scope_json.profile
     : "showcase";
   append(profileLabel, scopeProfile, el("small", "field-help", schools

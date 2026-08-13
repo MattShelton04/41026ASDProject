@@ -21,6 +21,7 @@ def create_app(
     store_client: DataStoreClient | None = None,
     ai_mode_client: AiModeClient | None = None,
     consumer_client: ConsumerImportClient | None = None,
+    full_data_enabled: bool | None = None,
 ) -> Flask:
     """Create the credential-free Feature 1 backend."""
     store = store_client or DataStoreClient(
@@ -46,6 +47,11 @@ def create_app(
     app.config["MAX_CONTENT_LENGTH"] = int(
         os.environ.get("PROPERTYSCOPE_MAX_REQUEST_BYTES", "262144")
     )
+    live_runtime = (
+        os.environ.get("PROPERTYSCOPE_FULL_DATA_ENABLED", "false").lower() in {"1", "true", "yes"}
+        if full_data_enabled is None
+        else full_data_enabled
+    )
     app.register_blueprint(
         create_blueprint(
             store,
@@ -54,6 +60,7 @@ def create_app(
             artifact_root=Path(
                 os.environ.get("PROPERTYSCOPE_ARTIFACT_ROOT", "/var/lib/propertyscope/artifacts")
             ),
+            full_data_enabled=live_runtime,
         )
     )
     worker_token = os.environ.get("PROPERTYSCOPE_RUNNER_TOKEN", "local-runner-only")
