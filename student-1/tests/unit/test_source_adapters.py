@@ -36,6 +36,15 @@ def test_schools_accepts_current_real_master_headers() -> None:
     assert record.status == "Open"
 
 
+def test_schools_accepts_nsw_lord_howe_island_coordinates() -> None:
+    payload = (
+        b"School_code,School_name,Level_of_schooling,Town_suburb,LGA,Latitude,Longitude\n"
+        b"1921,Lord Howe Island Central School,Central Schools,Lord Howe Island,,"
+        b"-31.530072,159.069032\n"
+    )
+    assert parse_schools_csv(payload, maximum_rows=2)[0].school_code == "1921"
+
+
 def test_full_data_schools_download_invokes_real_parser_with_bounds(tmp_path: Path) -> None:
     payload = (
         b"School_code,School_name,Level_of_schooling,Town_suburb,LGA,Latitude,Longitude\n"

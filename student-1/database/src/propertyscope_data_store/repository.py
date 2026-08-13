@@ -369,7 +369,7 @@ class PropertyScopeStore:
         attempt_number = 1
         if parent_run_id is not None:
             parent = self.get_run(parent_run_id)
-            if parent["job_definition_id"] != job_id:
+            if parent["job_definition_id"] != str(job_id):
                 raise ConflictError("retry parent belongs to a different job")
             if mode == "full_refresh" and parent["status"] not in {"failed", "cancelled"}:
                 raise ConflictError("full pipeline retry requires a failed or cancelled parent")

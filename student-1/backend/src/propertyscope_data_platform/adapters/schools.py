@@ -35,7 +35,9 @@ def parse_schools_csv(content: bytes, *, maximum_rows: int) -> tuple[SchoolRecor
         locality = _optional(source, "Town_suburb", "locality", "Town/Suburb") or "NOT PUBLISHED"
         latitude = float(_field(source, "Latitude", "latitude"))
         longitude = float(_field(source, "Longitude", "longitude"))
-        if not -38 <= latitude <= -27 or not 140 <= longitude <= 154:
+        # Include NSW-administered Lord Howe Island (around 159E) while still
+        # rejecting coordinates outside the state's published school footprint.
+        if not -38 <= latitude <= -27 or not 140 <= longitude <= 160:
             raise ValueError("school coordinates fall outside NSW bounds")
         rows.append(
             SchoolRecord(
