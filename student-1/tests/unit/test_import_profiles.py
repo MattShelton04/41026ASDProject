@@ -127,7 +127,7 @@ def test_bocsar_requires_sparse_observation_and_explicit_coverage_contracts() ->
 
 
 def test_profile_mismatch_and_duplicate_natural_keys_fail_before_copy() -> None:
-    record = {"source_key": "fixture-001"}
+    record: dict[str, object] = {"source_key": "fixture-001"}
     with pytest.raises(ImportProfileError, match="does not match"):
         prepare_import(_artifact("property-fixture", [record]), profile="schools-master")
     with pytest.raises(ImportProfileError, match="natural keys"):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 import jsonschema
 import pytest
@@ -14,8 +15,10 @@ ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS = ROOT / "contracts"
 
 
-def _json(name: str) -> object:
-    return json.loads((CONTRACTS / name).read_text("utf-8"))
+def _json(name: str) -> dict[str, Any]:
+    document = json.loads((CONTRACTS / name).read_text("utf-8"))
+    assert isinstance(document, dict)
+    return cast(dict[str, Any], document)
 
 
 def test_openapi_document_is_versioned_and_parseable() -> None:
