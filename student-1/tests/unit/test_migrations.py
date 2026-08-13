@@ -1,0 +1,55 @@
+from __future__ import annotations
+
+import hashlib
+from importlib.resources import files
+from typing import Any, cast
+
+import pytest
+
+from propertyscope_data_store.migrations import MIGRATION_PACKAGE, migrate
+
+
+class ExistingMigrationConnection:
+    def __init__(self, *, tampered: str | None = None) -> None:
+        root = files(MIGRATION_PACKAGE)
+        self.checksums = {
+            resource.name: hashlib.sha256(resource.read_bytes()).hexdigest()
+            for resource in root.iterdir()
+            if resource.name.endswith(".sql")
+        }
+        if tampered:
+            self.checksums[tampered] = "0" * 64
+        self.current: dict[str, str] | None = None
+        self.committed = False
+
+    def execute(
+        self, query: str, parameters: tuple[object, ...] | None = None
+    ) -> ExistingMigrationConnection:
+        if "SELECT checksum" in query:
+            assert parameters is not None
+            self.current = {"checksum": self.checksums[str(parameters[0])]}
+        else:
+            self.current = None
+        return self
+
+    def fetchone(self) -> dict[str, str] | None:
+        return self.current
+
+    def commit(self) -> None:
+        self.committed = True
+
+
+def test_existing_dict_row_migration_history_restarts_cleanly() -> None:
+    connection = ExistingMigrationConnection()
+
+    migrate(cast(Any, connection))
+
+    assert connection.committed is True
+
+
+def test_changed_applied_migration_is_rejected() -> None:
+    first = sorted(ExistingMigrationConnection().checksums)[0]
+    connection = ExistingMigrationConnection(tampered=first)
+
+    with pytest.raises(RuntimeError, match="migration checksum changed"):
+        migrate(cast(Any, connection))

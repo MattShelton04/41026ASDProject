@@ -33,7 +33,8 @@ def migrate(connection: Connection[Any]) -> None:
             (resource.name,),
         ).fetchone()
         if existing is not None:
-            if existing[0] != checksum:
+            existing_checksum = existing["checksum"] if isinstance(existing, dict) else existing[0]
+            if existing_checksum != checksum:
                 raise RuntimeError(f"migration checksum changed: {resource.name}")
             continue
         connection.execute(sql)
