@@ -252,8 +252,7 @@ def test_gnaf_streaming_join_preserves_units_and_declared_crs(tmp_path: Path) ->
         )
         archive.writestr(
             "Standard/NSW_STREET_LOCALITY_psv.psv",
-            "STREET_LOCALITY_PID|STREET_NAME|STREET_TYPE_CODE|LOCALITY_PID\n"
-            "S1|GEORGE|ST|L1\n",
+            "STREET_LOCALITY_PID|STREET_NAME|STREET_TYPE_CODE|LOCALITY_PID\nS1|GEORGE|ST|L1\n",
         )
         archive.writestr(
             "Standard/NSW_ADDRESS_DETAIL_psv.psv",
@@ -263,12 +262,9 @@ def test_gnaf_streaming_join_preserves_units_and_declared_crs(tmp_path: Path) ->
         )
         archive.writestr(
             "Standard/NSW_ADDRESS_DEFAULT_GEOCODE_psv.psv",
-            "ADDRESS_DETAIL_PID|GEOCODE_TYPE_CODE|LONGITUDE|LATITUDE\n"
-            "A1|PC|151.2|-33.86\n",
+            "ADDRESS_DETAIL_PID|GEOCODE_TYPE_CODE|LONGITUDE|LATITUDE\nA1|PC|151.2|-33.86\n",
         )
-    record = parse_gnaf_archive_path(
-        path, declared_crs="GDA2020", maximum_records=10
-    )[0]
+    record = parse_gnaf_archive_path(path, declared_crs="GDA2020", maximum_records=10)[0]
     assert record.gnaf_pid == "A1"
     assert record.address_display == "UNIT 12/100A GEORGE ST, SYDNEY NSW 2000"
     assert record.source_crs == 7844

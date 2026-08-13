@@ -11,6 +11,7 @@ import {
   humanise,
   isPsiJob,
   isSchoolsJob,
+  liveProfileLabel,
   newRequestId,
   nextPollDelay,
   parseJsonField,
@@ -641,8 +642,8 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   const wrapper = el("div", "stack");
   const isBackfill = intent === "backfill";
   const psi = isPsiJob(job);
-  const schools = isSchoolsJob(job);
   const importProfile = job.import_profile_key || job.import_profile;
+  const gnaf = importProfile === "gnaf-nsw";
   const liveAvailable = runtime.full_data_enabled
     && runtime.connected_live_profiles?.includes(importProfile);
   const currentYear = new Date().getFullYear();
@@ -663,9 +664,7 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   const testOption = el("option", "", "Small deterministic test records"); testOption.value = "test";
   append(scopeProfile, showcaseOption, testOption);
   if (runtime.implemented_live_profiles?.includes(importProfile)) {
-    const liveLabel = schools ? "Live official Data.NSW schools CSV"
-      : psi ? "Live NSW Valuer-General yearly archive"
-        : "Live official BOCSAR archive";
+    const liveLabel = liveProfileLabel(importProfile);
     const liveOption = el("option", "", liveAvailable ? liveLabel : `${liveLabel} requires --full-data`); liveOption.value = "full-data"; liveOption.disabled = !liveAvailable;
     append(scopeProfile, liveOption);
   }
@@ -679,6 +678,7 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   append(wrapper, profileLabel);
   let firstYear = null;
   let lastYear = null;
+  let maximumRecords = null;
   if (psi) {
     const scopeFields = el("div", "scope-fields");
     const startingYear = Number(job.scope_json?.source_year || job.scope_json?.years?.[0] || currentYear);
@@ -696,6 +696,19 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
     }
     append(wrapper, scopeFields);
   }
+  if (gnaf) {
+    const limitLabel = el("label", "field");
+    append(limitLabel, el("span", "", "Maximum addresses"));
+    maximumRecords = el("input");
+    maximumRecords.type = "number";
+    maximumRecords.name = "maximum_records";
+    maximumRecords.min = "1";
+    maximumRecords.max = String(Math.min(Number(job.max_rows || 50000), 50000));
+    maximumRecords.required = true;
+    maximumRecords.value = String(job.scope_json?.maximum_records || 5000);
+    append(limitLabel, maximumRecords, el("small", "field-help", "The live bulk archive is streamed once, but only this bounded number of addresses enters the candidate release."));
+    append(wrapper, limitLabel);
+  }
   const advanced = el("details", "technical scope-editor");
   const scope = el("textarea"); scope.value = JSON.stringify(job.scope_json || {}, null, 2); scope.setAttribute("aria-label", "Advanced bounded scope JSON");
   append(advanced, el("summary", "", "Advanced scope JSON"), el("p", "", "Safe registered overrides only. PSI year controls above take precedence."), scope);
@@ -703,6 +716,14 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   const requestedScope = () => {
     const value = parseJsonField(scope.value, "Scope");
     value.profile = scopeProfile.value;
+    if (gnaf) {
+      const requested = Number(maximumRecords.value);
+      const maximum = Number(maximumRecords.max);
+      if (!Number.isInteger(requested) || requested < 1 || requested > maximum) {
+        throw new Error(`Maximum addresses must be between 1 and ${maximum}.`);
+      }
+      value.maximum_records = requested;
+    }
     if (!psi) return value;
     const years = psiYearRange(firstYear.value, lastYear?.value || firstYear.value, { maximum: currentYear + 1 });
     delete value.source_year;

@@ -81,9 +81,7 @@ def parse_gnaf_archive_path(
         raise ValueError("G-NAF maximum_records must be positive")
     with ZipFile(path) as archive:
         manifest = inspect_gnaf_archive(archive, declared_crs=declared_crs)
-        members = {
-            suffix: _member(manifest.members, suffix) for suffix in REQUIRED_MEMBER_SUFFIXES
-        }
+        members = {suffix: _member(manifest.members, suffix) for suffix in REQUIRED_MEMBER_SUFFIXES}
         for member in members.values():
             if archive.getinfo(member).file_size > maximum_member_bytes:
                 raise ValueError("G-NAF member exceeds the uncompressed byte limit")
@@ -164,16 +162,19 @@ def _canonical_address(
     source_crs: int,
 ) -> GnafAddress:
     flat_type = address.get("FLAT_TYPE_CODE") or None
-    unit = "".join(
-        filter(
-            None,
-            (
-                address.get("FLAT_NUMBER_PREFIX"),
-                address.get("FLAT_NUMBER"),
-                address.get("FLAT_NUMBER_SUFFIX"),
-            ),
+    unit = (
+        "".join(
+            filter(
+                None,
+                (
+                    address.get("FLAT_NUMBER_PREFIX"),
+                    address.get("FLAT_NUMBER"),
+                    address.get("FLAT_NUMBER_SUFFIX"),
+                ),
+            )
         )
-    ) or None
+        or None
+    )
     number_first = _integer(address.get("NUMBER_FIRST"))
     number_last = _integer(address.get("NUMBER_LAST"))
     street_name = street.get("STREET_NAME", "").strip()

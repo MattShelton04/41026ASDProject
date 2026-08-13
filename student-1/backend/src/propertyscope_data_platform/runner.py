@@ -36,8 +36,7 @@ BOCSAR_URLS = {
 }
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip"
 GNAF_CKAN_URL = (
-    "https://data.gov.au/data/api/3/action/package_show"
-    "?id=19432f89-dc3a-4ef3-b943-5326ef1dbecc"
+    "https://data.gov.au/data/api/3/action/package_show?id=19432f89-dc3a-4ef3-b943-5326ef1dbecc"
 )
 LIVE_CANONICAL_RECORD_LIMIT = 50_000
 logger = logging.getLogger(__name__)
@@ -413,9 +412,7 @@ class AcquisitionRunner:
             stream = self.settings.gnaf_archive_path.open("rb")
             try:
                 raw_artifact = self.artifacts.put(
-                    self._heartbeat_chunks(
-                        task, iter(lambda: stream.read(1024 * 1024), b"")
-                    ),
+                    self._heartbeat_chunks(task, iter(lambda: stream.read(1024 * 1024), b"")),
                     max_bytes=maximum_bytes,
                     media_type="application/zip",
                 )
@@ -533,9 +530,7 @@ class AcquisitionRunner:
         url = str(selected["url"])
         return url, "GDA2020" if "gda2020" in url.lower() else "GDA94"
 
-    def _heartbeat_chunks(
-        self, task: dict[str, Any], chunks: Iterable[bytes]
-    ) -> Iterable[bytes]:
+    def _heartbeat_chunks(self, task: dict[str, Any], chunks: Iterable[bytes]) -> Iterable[bytes]:
         last_heartbeat = time.monotonic()
         interval = max(1.0, self.settings.lease_seconds / 3)
         for chunk in chunks:

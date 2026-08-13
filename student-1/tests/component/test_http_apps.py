@@ -384,13 +384,13 @@ def test_job_plan_rejects_catalogued_source_without_live_transport() -> None:
             json={
                 "job": {
                     "id": job_id,
-                    "adapter_key": "gnaf-bulk",
-                    "import_profile_key": "gnaf-nsw",
+                    "adapter_key": "psi-yearly-zip",
+                    "import_profile_key": "psi-sales",
                     "scope_json": {"profile": "showcase"},
                     "max_objects": 10,
-                    "max_bytes": 2_500_000_000,
-                    "max_rows": 6_500_000,
-                    "timeout_seconds": 86_400,
+                    "max_bytes": 800_000_000,
+                    "max_rows": 500_000,
+                    "timeout_seconds": 7_200,
                 }
             },
         )
@@ -405,7 +405,10 @@ def test_job_plan_rejects_catalogued_source_without_live_transport() -> None:
     )
     response = app.test_client().post(
         f"/api/data-platform/v1/jobs/{job_id}/plans",
-        json={"run_mode": "full_refresh", "scope": {"profile": "full-data"}},
+        json={
+            "run_mode": "full_refresh",
+            "scope": {"profile": "full-data", "years": [2025]},
+        },
     )
 
     assert response.status_code == 422

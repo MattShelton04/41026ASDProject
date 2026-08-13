@@ -102,14 +102,17 @@ preserves Ollama models, AI-mode run history, PropertyScope data/artifacts, and 
 
 The default PropertyScope stack uses deterministic showcase data and never launches live or
 source-scale acquisition. The explicit full-data path uses a separate Compose project and
-therefore a separate PostgreSQL volume. Its connected live proof is the bounded NSW government
-schools master CSV; other large source profiles fail closed until their streaming transports are
-implemented:
+therefore a separate PostgreSQL volume. It connects bounded official schools, BOCSAR and G-NAF
+acquisition; PSI is host-verified but remains disabled because its publisher currently rejects
+Docker-network requests. Live requests fail closed and never substitute synthetic data:
 
 ```text
 uv run scripts/dev.py up --full-data
 uv run scripts/dev.py down --full-data
 ```
+
+See [student-1/README.md](student-1/README.md) for the operator workflow, release-scoped dataset
+preview, optional local G-NAF cache, real-source status and shared AI-mode boundary.
 
 For the production-like Release 0 container runtime without development bind mounts, run:
 

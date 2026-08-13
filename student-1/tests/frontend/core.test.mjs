@@ -11,6 +11,7 @@ import {
   formatBytes,
   isPsiJob,
   isSchoolsJob,
+  liveProfileLabel,
   nextPollDelay,
   parseJsonField,
   psiYearRange,
@@ -111,6 +112,8 @@ test("job source detection and explicit year partitions are bounded", () => {
   assert.equal(isPsiJob({ adapter_key: "schools-csv" }), false);
   assert.equal(isSchoolsJob({ import_profile_key: "schools-master" }), true);
   assert.equal(isSchoolsJob({ adapter_key: "gnaf-bulk" }), false);
+  assert.equal(liveProfileLabel("gnaf-nsw"), "Live official Geoscape G-NAF bulk archive");
+  assert.equal(liveProfileLabel("bocsar-sparse"), "Live official BOCSAR archive");
   assert.deepEqual(psiYearRange("2024", "2026", { maximum: 2027 }), [2024, 2025, 2026]);
   assert.throws(() => psiYearRange(2027, 2024, { maximum: 2027 }), /valid range/);
   assert.throws(() => psiYearRange(1989, 2024, { maximum: 2027 }), /1990/);
@@ -224,6 +227,7 @@ test("live acquisition controls use truthful runtime capability evidence", async
   assert.match(app, /requires --full-data/);
   assert.match(app, /implemented_live_profiles/);
   assert.match(app, /liveOption\.disabled = !liveAvailable/);
+  assert.match(app, /Maximum addresses/);
 });
 
 test("AI diagnosis history is loaded from the durable shared service projection", async () => {
