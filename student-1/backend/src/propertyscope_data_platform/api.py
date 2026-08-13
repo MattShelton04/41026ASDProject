@@ -925,9 +925,7 @@ def ensure_import_operation(
                 "source_definition_id": run["source_definition_id"],
                 "ingestion_run_id": str(run_id),
                 "target_feature": job["target_feature"],
-                "release_version": (
-                    f"candidate-{artifact['content_sha256'][:16]}-{str(run_id)[:8]}"
-                ),
+                "release_version": (f"release-{artifact['content_sha256'][:16]}-{str(run_id)[:8]}"),
                 "schema_version": artifact["schema_version"],
                 "coverage": run["requested_scope_json"],
                 "record_count": 0,
@@ -935,9 +933,7 @@ def ensure_import_operation(
                 "artifact_record_id": artifact["id"],
                 "manifest": {
                     "schema_version": artifact["schema_version"],
-                    "release_id": (
-                        f"candidate-{artifact['content_sha256'][:16]}-{str(run_id)[:8]}"
-                    ),
+                    "release_id": (f"release-{artifact['content_sha256'][:16]}-{str(run_id)[:8]}"),
                     "dataset_id": job["dataset_id"],
                     "owner_feature": "student-1-propertyscope-data-platform",
                     "publisher": "PropertyScope registered ingestion",

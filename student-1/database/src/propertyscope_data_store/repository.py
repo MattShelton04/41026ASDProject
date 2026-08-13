@@ -1126,8 +1126,12 @@ class PropertyScopeStore:
             row = connection.execute(
                 """UPDATE ops.dataset_release SET status=%s,review_comment=%s,
                 accepted_at=CASE WHEN %s='accepted' THEN %s ELSE accepted_at END,
+                manifest_json=CASE WHEN %s='accepted' THEN jsonb_set(
+                    manifest_json,'{known_limitations}',to_jsonb(ARRAY[
+                        'Bounded accepted release; use only within the declared coverage'
+                    ]::text[]),true) ELSE manifest_json END,
                 updated_at=%s,version=version+1 WHERE id=%s AND version=%s RETURNING *""",
-                (target, comment, target, now, now, release_id, expected_version),
+                (target, comment, target, now, target, now, release_id, expected_version),
             ).fetchone()
             if row is None:
                 raise ConflictError("release version does not match")
