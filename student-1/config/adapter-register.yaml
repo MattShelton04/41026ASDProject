@@ -28,3 +28,42 @@ adapters:
     limits:
       {max_objects: 4, max_bytes: 50000000, max_rows: 100000, deadline_seconds: 900,
        max_parallelism: 1}
+  - schema_version: propertyscope.adapter-descriptor.v1
+    key: schools-csv
+    version: 1.0.0
+    publisher: NSW Department of Education
+    supported_refresh_strategies: [full_snapshot]
+    supported_modes: [full_refresh, reprocess_cached]
+    partition_dimensions: []
+    expected_media_types: [text/csv]
+    allowed_hosts: [data.nsw.gov.au]
+    required_secrets: []
+    limits:
+      {max_objects: 2, max_bytes: 25000000, max_rows: 5000, deadline_seconds: 300,
+       max_parallelism: 1}
+  - schema_version: propertyscope.adapter-descriptor.v1
+    key: gnaf-bulk
+    version: 1.0.0
+    publisher: Geoscape Australia
+    supported_refresh_strategies: [full_snapshot]
+    supported_modes: [full_refresh, reprocess_cached]
+    partition_dimensions: [state]
+    expected_media_types: [application/zip]
+    allowed_hosts: [data.gov.au]
+    required_secrets: []
+    limits:
+      {max_objects: 10, max_bytes: 2500000000, max_rows: 6500000,
+       deadline_seconds: 86400, max_parallelism: 1}
+  - schema_version: propertyscope.adapter-descriptor.v1
+    key: psi-bulk
+    version: 1.0.0
+    publisher: NSW Valuer General
+    supported_refresh_strategies: [append_only_partitioned]
+    supported_modes: [full_refresh, reprocess_cached]
+    partition_dimensions: [year]
+    expected_media_types: [application/zip]
+    allowed_hosts: [www.valuergeneral.nsw.gov.au, valuation.property.nsw.gov.au]
+    required_secrets: []
+    limits:
+      {max_objects: 40, max_bytes: 5000000000, max_rows: 10000000,
+       deadline_seconds: 86400, max_parallelism: 1}

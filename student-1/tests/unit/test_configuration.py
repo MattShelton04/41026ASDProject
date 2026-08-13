@@ -17,7 +17,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_checked_in_profiles_load_in_stable_order() -> None:
     registry = load_job_profiles(ROOT / "config" / "job-profiles")
-    assert registry.keys() == ("bocsar-crime-quarterly", "fixture-property-full")
+    assert registry.keys() == (
+        "bocsar-crime-quarterly",
+        "fixture-property-full",
+        "gnaf-nsw-address-registry",
+        "nsw-government-schools-master",
+        "nsw-psi-sales-year",
+    )
     fixture = registry.get_profile("fixture-property-full")
     assert fixture.limits.max_parallelism == 1
     assert set(fixture.scope_profiles) == {"test", "showcase"}
