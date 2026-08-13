@@ -44,6 +44,49 @@ def test_backend_proxies_property_search_and_preserves_expected_negative() -> No
     assert response.get_json()["supported"] is False
 
 
+def test_backend_proxies_bounded_release_record_preview() -> None:
+    release_id = "60000000-0000-0000-0000-000000000004"
+
+    def database(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == f"/internal/data-platform/v1/releases/{release_id}/records"
+        assert request.url.params["limit"] == "25"
+        assert request.url.params["offset"] == "50"
+        return httpx.Response(
+            200,
+            json={
+                "release": {"id": release_id, "status": "candidate"},
+                "profile": "schools-master",
+                "columns": ["school_code", "school_name"],
+                "items": [{"school_code": "1001", "school_name": "Example Public School"}],
+                "count": 1,
+                "total": 2210,
+                "limit": 25,
+                "offset": 50,
+                "next_offset": 75,
+            },
+        )
+
+    store = DataStoreClient(
+        "http://database",
+        "secret",
+        client=httpx.Client(transport=httpx.MockTransport(database)),
+    )
+    app = create_backend_app(
+        store_client=store,
+        ai_mode_client=AiModeClient(
+            "http://ai",
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
+        ),
+    )
+
+    response = app.test_client().get(
+        f"/api/data-platform/v1/dataset-releases/{release_id}/records?limit=25&offset=50"
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["total"] == 2210
+
+
 def test_backend_protects_runner_and_publication() -> None:
     transport = httpx.MockTransport(lambda _: httpx.Response(500, json={"code": "unexpected"}))
     app = create_backend_app(

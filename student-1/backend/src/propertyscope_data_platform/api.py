@@ -331,6 +331,18 @@ def create_blueprint(
         response.headers["Digest"] = f"sha-256={artifact['content_sha256']}"
         return response
 
+    @api.get(f"{BASE}/dataset-releases/<uuid:release_id>/records")
+    def release_records(release_id: uuid.UUID) -> Response:
+        """Expose only the database service's bounded, registered release projection."""
+        return forward(
+            store.request(
+                "GET",
+                f"{INTERNAL}/releases/{release_id}/records",
+                headers=request.headers,
+                params=request.args,
+            )
+        )
+
     @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/submit-review")
     def release_review(release_id: uuid.UUID) -> Response:
         body = json_body()

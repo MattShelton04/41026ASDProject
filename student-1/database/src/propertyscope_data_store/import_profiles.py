@@ -104,9 +104,11 @@ def execute_import(
             accepted=accepted,
         )
         cursor.execute(
-            """UPDATE ops.dataset_release SET record_count=%s,updated_at=now(),version=version+1
+            """UPDATE ops.dataset_release SET record_count=%s,
+            manifest_json=jsonb_set(manifest_json,'{record_count}',to_jsonb(%s::bigint),true),
+            updated_at=now(),version=version+1
             WHERE id=%s AND ingestion_run_id=%s AND status IN ('draft','candidate')""",
-            (accepted, release_id, run_id),
+            (accepted, accepted, release_id, run_id),
         )
         if cursor.rowcount != 1:
             raise ImportProfileError("candidate release is not mutable for this import")

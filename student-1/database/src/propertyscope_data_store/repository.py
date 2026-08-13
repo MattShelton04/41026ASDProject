@@ -25,6 +25,119 @@ TERMINAL_RUN_STATES = frozenset({"succeeded", "failed", "cancelled"})
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_IMPORT_STATES = frozenset({"succeeded", "failed", "cancelled"})
 
+PREVIEW_SPECS: dict[str, tuple[str, str, tuple[str, ...]]] = {
+    "gnaf-nsw": (
+        """SELECT gnaf_pid,property_ref,address_display,locality,postcode,source_status,
+        geocode_type,source_crs,ST_AsGeoJSON(geom)::jsonb AS geometry
+        FROM warehouse.gnaf_address WHERE dataset_release_id=%s
+        ORDER BY locality,postcode,address_display,gnaf_pid LIMIT %s OFFSET %s""",
+        "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
+        (
+            "gnaf_pid",
+            "property_ref",
+            "address_display",
+            "locality",
+            "postcode",
+            "source_status",
+            "geocode_type",
+            "source_crs",
+            "geometry",
+        ),
+    ),
+    "psi-sales": (
+        """SELECT source_business_key,source_revision,source_era,district_code,property_id,
+        dealing_id,contract_date::text,settlement_date::text,price_aud,
+        area_square_metres::text,property_ref,match_tier,match_confidence::float8,
+        geographic_precision FROM warehouse.psi_sale WHERE dataset_release_id=%s
+        ORDER BY contract_date NULLS LAST,source_business_key,source_revision LIMIT %s OFFSET %s""",
+        "SELECT count(*) AS count FROM warehouse.psi_sale WHERE dataset_release_id=%s",
+        (
+            "source_business_key",
+            "source_revision",
+            "source_era",
+            "district_code",
+            "property_id",
+            "dealing_id",
+            "contract_date",
+            "settlement_date",
+            "price_aud",
+            "area_square_metres",
+            "property_ref",
+            "match_tier",
+            "match_confidence",
+            "geographic_precision",
+        ),
+    ),
+    "bocsar-sparse": (
+        """SELECT observation.geography_kind,observation.geography_value,
+        observation.source_category_key,observation.offence_label,
+        observation.subcategory_label,observation.month::text,observation.count,
+        coverage.first_month::text,coverage.last_month::text,coverage.month_count,
+        coverage.blank_means_observed_zero FROM warehouse.bocsar_observation observation
+        LEFT JOIN warehouse.bocsar_coverage coverage
+          ON coverage.dataset_release_id=observation.dataset_release_id
+         AND coverage.geography_kind=observation.geography_kind
+         AND coverage.geography_value=observation.geography_value
+         AND coverage.source_category_key=observation.source_category_key
+        WHERE observation.dataset_release_id=%s
+        ORDER BY observation.geography_kind,observation.geography_value,
+        observation.source_category_key,observation.month LIMIT %s OFFSET %s""",
+        "SELECT count(*) AS count FROM warehouse.bocsar_observation WHERE dataset_release_id=%s",
+        (
+            "geography_kind",
+            "geography_value",
+            "source_category_key",
+            "offence_label",
+            "subcategory_label",
+            "month",
+            "count",
+            "first_month",
+            "last_month",
+            "month_count",
+            "blank_means_observed_zero",
+        ),
+    ),
+    "schools-master": (
+        """SELECT school_code,school_name,school_type,status,locality_original,
+        locality_normalised,lga_name,ST_AsGeoJSON(geom)::jsonb AS geometry
+        FROM warehouse.school WHERE dataset_release_id=%s
+        ORDER BY school_name,school_code LIMIT %s OFFSET %s""",
+        "SELECT count(*) AS count FROM warehouse.school WHERE dataset_release_id=%s",
+        (
+            "school_code",
+            "school_name",
+            "school_type",
+            "status",
+            "locality_original",
+            "locality_normalised",
+            "lga_name",
+            "geometry",
+        ),
+    ),
+    "property-fixture": (
+        """SELECT DISTINCT property.property_ref,property.address_display,property.locality,
+        property.postcode,property.state,property.resolution_status,
+        ST_AsGeoJSON(property.geom)::jsonb AS geometry
+        FROM registry.property property JOIN registry.property_identifier identifier
+          ON identifier.property_ref=property.property_ref
+        WHERE identifier.source_release_id=%s AND identifier.is_current
+        ORDER BY property.address_display,property.property_ref LIMIT %s OFFSET %s""",
+        """SELECT count(DISTINCT property.property_ref) AS count
+        FROM registry.property property JOIN registry.property_identifier identifier
+          ON identifier.property_ref=property.property_ref
+        WHERE identifier.source_release_id=%s AND identifier.is_current""",
+        (
+            "property_ref",
+            "address_display",
+            "locality",
+            "postcode",
+            "state",
+            "resolution_status",
+            "geometry",
+        ),
+    ),
+}
+
 
 class PropertyScopeStore:
     """Exclusive persistence facade for Feature 1 PostgreSQL/PostGIS."""
@@ -865,6 +978,42 @@ class PropertyScopeStore:
             "SELECT * FROM ops.publication_receipt WHERE dataset_release_id=%s ORDER BY created_at",
             (release_id,),
         )
+
+    def preview_release_records(
+        self, release_id: uuid.UUID, *, limit: int, offset: int
+    ) -> JsonObject:
+        """Return a bounded, allowlisted projection of one isolated release generation."""
+        context = self._required(
+            """SELECT release.id,release.dataset_id,release.release_version,release.status,
+            release.record_count,job.import_profile_key FROM ops.dataset_release release
+            JOIN ops.ingestion_run run ON run.id=release.ingestion_run_id
+            JOIN ops.job_definition job ON job.id=run.job_definition_id
+            WHERE release.id=%s""",
+            (release_id,),
+        )
+        profile = str(context["import_profile_key"])
+        spec = PREVIEW_SPECS.get(profile)
+        if spec is None:
+            raise ConflictError("release import profile does not support bounded preview")
+        query, count_query, columns = spec
+        items = self._fetch_all(query, (release_id, limit, offset))
+        total_row = self._required(count_query, (release_id,))
+        return {
+            "release": {
+                key: context[key]
+                for key in ("id", "dataset_id", "release_version", "status", "record_count")
+            },
+            "profile": profile,
+            "columns": list(columns),
+            "items": items,
+            "count": len(items),
+            "total": int(total_row["count"]),
+            "limit": limit,
+            "offset": offset,
+            "next_offset": offset + len(items)
+            if offset + len(items) < int(total_row["count"])
+            else None,
+        }
 
     def record_publication_receipt(
         self, release_id: uuid.UUID, values: Mapping[str, Any]

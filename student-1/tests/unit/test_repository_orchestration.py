@@ -311,3 +311,43 @@ def test_property_search_requires_an_accepted_identity_generation() -> None:
     assert "JOIN serving.accepted_generation accepted" in store.query
     assert "accepted.dataset_release_id=identifier.source_release_id" in store.query
     assert "identifier.is_current" in store.query
+
+
+class PreviewStore(PropertyScopeStore):
+    def __init__(self) -> None:
+        self.required_calls = 0
+        self.preview_query = ""
+        self.preview_parameters: Sequence[Any] = ()
+
+    def _required(self, query: str, params: Sequence[Any]) -> dict[str, Any]:
+        del query, params
+        self.required_calls += 1
+        if self.required_calls == 1:
+            return {
+                "id": str(uuid.uuid4()),
+                "dataset_id": "nsw-government-schools",
+                "release_version": "2026-08",
+                "status": "candidate",
+                "record_count": 2210,
+                "import_profile_key": "schools-master",
+            }
+        return {"count": 2210}
+
+    def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+        self.preview_query = " ".join(query.split())
+        self.preview_parameters = params
+        return [{"school_code": "1001", "school_name": "Example Public School"}]
+
+
+def test_release_preview_uses_fixed_profile_projection_and_bounds() -> None:
+    release_id = uuid.uuid4()
+    store = PreviewStore()
+
+    preview = store.preview_release_records(release_id, limit=25, offset=50)
+
+    assert "FROM warehouse.school" in store.preview_query
+    assert "dataset_release_id=%s" in store.preview_query
+    assert store.preview_parameters == (release_id, 25, 50)
+    assert preview["profile"] == "schools-master"
+    assert preview["total"] == 2210
+    assert preview["next_offset"] == 51

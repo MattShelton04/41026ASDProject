@@ -859,9 +859,10 @@ async function renderReleaseDetail(id) {
   const receipts = body.receipts || [];
   let manifest = release.manifest_json || body.manifest;
   if (!manifest) { try { manifest = (await request(`dataset-releases/${id}/manifest`)).body; } catch { manifest = null; } }
-  const [qualityResult, acceptedResult] = await Promise.allSettled([
+  const [qualityResult, acceptedResult, previewResult] = await Promise.allSettled([
     request(`ingestion-runs/${release.ingestion_run_id}/quality-results?limit=100`),
     request("dataset-releases?status=accepted&limit=100"),
+    request(`dataset-releases/${id}/records?limit=25&offset=0`),
   ]);
   const qualityResults = qualityResult.status === "fulfilled" ? collection(qualityResult.value.body) : [];
   const acceptedReleases = acceptedResult.status === "fulfilled" ? collection(acceptedResult.value.body) : [];
@@ -903,10 +904,72 @@ async function renderReleaseDetail(id) {
   append(side, panel("Publication receipts", "Consumer-owned import outcomes", receiptBody));
   append(layout, panel("Release evidence", "Candidate and accepted state remain distinct", releaseBody), side);
   append(view, layout);
+  if (previewResult.status === "fulfilled") append(view, releasePreviewPanel(id, previewResult.value.body));
+  else append(view, panel("Dataset preview", "Bounded release-scoped records", el("div", "notice warning", "Preview is unavailable for this release profile. Release evidence and quality controls remain available.")));
   append(view, renderReleaseReviewEvidence(release, predecessor, qualityResults, {
     qualityUnavailable: qualityResult.status === "rejected",
     predecessorUnavailable: acceptedResult.status === "rejected",
   }));
+}
+
+function previewValue(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "object") {
+    const encoded = JSON.stringify(value);
+    return encoded.length > 80 ? technicalDetails(value, "Inspect value") : el("code", "mono", encoded);
+  }
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+function releasePreviewPanel(releaseId, initialPage) {
+  const host = el("section", "panel");
+  const heading = el("div", "panel-heading");
+  const headingCopy = el("div");
+  append(headingCopy, el("h2", "", "Dataset preview"), el("p", "", "Bounded rows from this exact candidate or accepted generation"));
+  append(heading, headingCopy);
+  const body = el("div", "panel-body");
+  append(host, heading, body);
+
+  const renderPage = (page) => {
+    body.replaceChildren();
+    const release = page.release || {};
+    append(body, el("div", "notice", `${humanise(release.status)} generation · ${formatNumber(page.total)} previewable ${humanise(page.profile)} records. No other release is mixed into this view.`));
+    if (!page.items?.length) {
+      append(body, emptyState("No preview rows", "This release has no rows in its registered warehouse projection."));
+      return;
+    }
+    const columns = page.columns || Object.keys(page.items[0]);
+    append(body, makeTable(columns.map((column) => ({ label: humanise(column) })), page.items, (item) => {
+      const row = el("tr");
+      columns.forEach((column, index) => {
+        const value = previewValue(item[column]);
+        append(row, cell(index === 0 && !(value instanceof Node) ? primaryCell(value) : value, index === 0 ? "primary-cell" : ""));
+      });
+      return row;
+    }));
+    const controls = el("div", "dialog-actions");
+    const previous = button("Previous page", "button secondary");
+    const next = button("Next page", "button secondary");
+    previous.disabled = page.offset <= 0;
+    next.disabled = page.next_offset === null || page.next_offset === undefined;
+    const load = async (offset, control) => {
+      control.disabled = true;
+      try {
+        const result = await request(`dataset-releases/${releaseId}/records${queryString({ limit: page.limit || 25, offset })}`);
+        renderPage(result.body);
+      } catch (error) {
+        body.prepend(el("div", "notice warning", `${error.message} Request ID ${error.requestId}`));
+        control.disabled = false;
+      }
+    };
+    previous.addEventListener("click", () => load(Math.max(0, page.offset - page.limit), previous));
+    next.addEventListener("click", () => load(page.next_offset, next));
+    append(controls, el("span", "field-help", `Showing ${formatNumber(page.offset + 1)}–${formatNumber(page.offset + page.count)} of ${formatNumber(page.total)}`), previous, next);
+    append(body, controls);
+  };
+  renderPage(initialPage);
+  return host;
 }
 
 function renderReleaseReviewEvidence(release, predecessor, qualityResults, availability) {

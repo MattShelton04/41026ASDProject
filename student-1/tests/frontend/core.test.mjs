@@ -199,6 +199,14 @@ test("release CRUD and report-section routes are represented in the browser clie
   assert.match(source, /badge\(item\.coverage_status\)/);
 });
 
+test("release details render bounded paginated dataset records", async () => {
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  assert.match(app, /dataset-releases\/\$\{id\}\/records\?limit=25&offset=0/);
+  assert.match(app, /function releasePreviewPanel/);
+  assert.match(app, /No other release is mixed into this view/);
+  assert.match(app, /Next page/);
+});
+
 test("operator UI exposes working submit controls, backfills and durable histories", async () => {
   const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
   assert.match(source, /search\.type = "submit"/);
