@@ -4,6 +4,55 @@ services:
     base_url: http://propertyscope-backend:5201
 tools:
   - definition:
+      name: data.sources.v1
+      version: v1
+      feature_key: student-1-propertyscope-data-platform
+      description: List a bounded set of registered sources with safe status and latest accepted evidence.
+      input_schema:
+        type: object
+        properties:
+          status: {enum: [draft, active, disabled, retired]}
+          limit: {type: integer, minimum: 1, maximum: 50, default: 25}
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          items: {type: array, maxItems: 50, items: {type: object}}
+          count: {type: integer, minimum: 0, maximum: 50}
+        required: [items, count]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-data-platform-backend
+    method: POST
+    path: /api/data-platform/v1/tools/sources.list.v1
+  - definition:
+      name: data.runs.v1
+      version: v1
+      feature_key: student-1-propertyscope-data-platform
+      description: List bounded ingestion run summaries filtered by registered source, job, or status.
+      input_schema:
+        type: object
+        properties:
+          source_key: {type: string, pattern: "^[a-z0-9][a-z0-9._-]*$"}
+          status: {type: string, pattern: "^[a-z_]+$"}
+          limit: {type: integer, minimum: 1, maximum: 50, default: 25}
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          items: {type: array, maxItems: 50, items: {type: object}}
+          count: {type: integer, minimum: 0, maximum: 50}
+        required: [items, count]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-data-platform-backend
+    method: POST
+    path: /api/data-platform/v1/tools/runs.list.v1
+  - definition:
       name: data.release_inspect.v1
       version: v1
       feature_key: student-1-propertyscope-data-platform
@@ -54,6 +103,56 @@ tools:
     method: POST
     path: /api/data-platform/v1/tools/runs.inspect.v1
   - definition:
+      name: data.release_compare.v1
+      version: v1
+      feature_key: student-1-propertyscope-data-platform
+      description: Compare two exact release IDs using bounded schema, coverage, count, hash, and quality evidence.
+      input_schema:
+        type: object
+        properties:
+          candidate_release_id: {type: string, minLength: 1, maxLength: 150}
+          predecessor_release_id: {type: string, minLength: 1, maxLength: 150}
+        required: [candidate_release_id, predecessor_release_id]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          candidate: {type: object}
+          predecessor: {type: object}
+          differences: {type: array, maxItems: 100, items: {type: object}}
+        required: [candidate, predecessor, differences]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-data-platform-backend
+    method: POST
+    path: /api/data-platform/v1/tools/releases.compare.v1
+  - definition:
+      name: data.coverage.v1
+      version: v1
+      feature_key: student-1-propertyscope-data-platform
+      description: Inspect accepted, partial, stale, unavailable, or unsupported dataset coverage for a locality.
+      input_schema:
+        type: object
+        properties:
+          locality: {type: string, minLength: 1, maxLength: 100}
+          postcode: {type: string, pattern: "^\\d{4}$"}
+        required: [locality]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          items: {type: array, maxItems: 50, items: {type: object}}
+        required: [items]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-data-platform-backend
+    method: POST
+    path: /api/data-platform/v1/tools/coverage.inspect.v1
+  - definition:
       name: property.search.v1
       version: v1
       feature_key: student-1-propertyscope-data-platform
@@ -78,6 +177,29 @@ tools:
     service: propertyscope-data-platform-backend
     method: POST
     path: /api/data-platform/v1/tools/properties.search.v1
+  - definition:
+      name: property.inspect.v1
+      version: v1
+      feature_key: student-1-propertyscope-data-platform
+      description: Inspect one exact property reference with match, source release, map point, and domain coverage evidence.
+      input_schema:
+        type: object
+        properties:
+          property_ref: {type: string, format: uuid}
+        required: [property_ref]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          property: {type: object}
+        required: [property]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-data-platform-backend
+    method: POST
+    path: /api/data-platform/v1/tools/properties.inspect.v1
   - definition:
       name: data.run_retry.v1
       version: v1

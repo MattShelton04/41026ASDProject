@@ -7,6 +7,9 @@ import jsonschema
 import pytest
 import yaml
 
+from ai_mode.tool_catalog import load_tool_catalog
+from shared_contracts.feature import load_feature_manifest
+
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS = ROOT / "contracts"
 
@@ -43,3 +46,10 @@ def test_adapter_descriptors_match_published_schema() -> None:
     register = yaml.safe_load((ROOT / "config" / "adapter-register.yaml").read_text("utf-8"))
     for descriptor in register["adapters"]:
         jsonschema.validate(descriptor, schema)
+
+
+def test_tool_catalog_exactly_covers_declared_ai_capabilities() -> None:
+    manifest = load_feature_manifest(ROOT / "feature.yaml")
+    catalog = load_tool_catalog(ROOT / "tool-catalog.yaml")
+    names = {registration.definition.name for registration in catalog.tools}
+    assert names == set(manifest.ai_capabilities)
