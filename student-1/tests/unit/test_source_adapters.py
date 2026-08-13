@@ -74,6 +74,20 @@ def test_full_data_never_silently_substitutes_unconnected_sources(tmp_path: Path
         runner._live_document({}, stage="acquire", profile="gnaf-nsw")
 
 
+def test_full_data_scope_never_falls_back_when_runtime_is_not_opted_in(tmp_path: Path) -> None:
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30, False)
+    )
+    with pytest.raises(RuntimeError, match="explicit full-data runtime profile"):
+        runner._execute(
+            {
+                "stage": "acquire",
+                "import_profile_key": "schools-master",
+                "partition_json": {"profile": "full-data"},
+            }
+        )
+
+
 def test_bocsar_preserves_leading_zero_and_sparse_zero() -> None:
     payload = b"Postcode,Offence,Subcategory,Jan 2025,Feb 2025\n0077,Theft,Other,,3\n"
     observations, coverage = parse_bocsar_csv(payload, geography_kind="postcode", maximum_rows=2)

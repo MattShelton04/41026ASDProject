@@ -151,6 +151,13 @@ export function isPsiJob(job) {
   return identity.includes("psi");
 }
 
+export function isSchoolsJob(job) {
+  const identity = [job?.profile_key, job?.adapter_key, job?.import_profile_key, job?.dataset_id]
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ");
+  return identity.includes("school");
+}
+
 export function actionAvailability(status) {
   const state = String(status || "").toLowerCase();
   return {

@@ -23,6 +23,11 @@ paths:
   /jobs:
     get: {operationId: listJobs, responses: {'200': {$ref: '#/components/responses/Page'}}}
     post: {operationId: createJob, responses: {'201': {description: Job created}, '400': {$ref: '#/components/responses/Problem'}}}
+  /jobs/{job_id}:
+    parameters: [{$ref: '#/components/parameters/JobId'}]
+    get: {operationId: getJob, responses: {'200': {description: Job detail}, '404': {$ref: '#/components/responses/Problem'}}}
+    put: {operationId: updateJob, responses: {'200': {description: Job updated}, '409': {$ref: '#/components/responses/Problem'}}}
+    delete: {operationId: deleteJob, responses: {'204': {description: Deleted}, '409': {$ref: '#/components/responses/Problem'}}}
   /jobs/{job_id}/plans:
     post:
       operationId: planRun
@@ -37,6 +42,28 @@ paths:
       responses: {'201': {description: Run queued}, '200': {description: Existing idempotent run}, '409': {$ref: '#/components/responses/Problem'}}
   /ingestion-runs/{run_id}:
     get: {operationId: getRun, parameters: [{$ref: '#/components/parameters/RunId'}], responses: {'200': {description: Run evidence}, '404': {$ref: '#/components/responses/Problem'}}}
+  /ingestion-runs:
+    get: {operationId: listRuns, responses: {'200': {$ref: '#/components/responses/Page'}}}
+  /agent-runs:
+    get:
+      operationId: listFeatureAgentRuns
+      description: Proxies only durable AI-mode runs scoped to the PropertyScope feature key.
+      parameters:
+        - {name: status, in: query, schema: {type: string}}
+        - {name: model_profile, in: query, schema: {type: string}}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses: {'200': {$ref: '#/components/responses/Page'}, '503': {$ref: '#/components/responses/Problem'}}
+  /agent-runs/{agent_run_id}:
+    get:
+      operationId: getFeatureAgentRun
+      parameters: [{$ref: '#/components/parameters/AgentRunId'}]
+      responses: {'200': {description: Durable AI-mode run detail}, '404': {$ref: '#/components/responses/Problem'}, '503': {$ref: '#/components/responses/Problem'}}
+  /agent-runs/{agent_run_id}/events:
+    get:
+      operationId: listFeatureAgentRunEvents
+      parameters: [{$ref: '#/components/parameters/AgentRunId'}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {$ref: '#/components/responses/Page'}, '404': {$ref: '#/components/responses/Problem'}, '503': {$ref: '#/components/responses/Problem'}}
   /dataset-releases/{release_id}/manifest:
     get: {operationId: getReleaseManifest, parameters: [{$ref: '#/components/parameters/ReleaseId'}], responses: {'200': {description: Release manifest, content: {application/json: {schema: {$ref: './release-manifest.v1.schema.json'}}}}, '404': {$ref: '#/components/responses/Problem'}}}
   /dataset-releases/{release_id}/artifact:
@@ -91,6 +118,7 @@ components:
     JobId: {name: job_id, in: path, required: true, schema: {type: string, format: uuid}}
     RunId: {name: run_id, in: path, required: true, schema: {type: string, format: uuid}}
     ReleaseId: {name: release_id, in: path, required: true, schema: {type: string, maxLength: 150}}
+    AgentRunId: {name: agent_run_id, in: path, required: true, schema: {type: string, format: uuid}}
     PropertyRef: {name: property_ref, in: path, required: true, schema: {type: string, format: uuid}}
   schemas:
     SourceDefinition:
@@ -111,13 +139,10 @@ components:
     RunRequest:
       type: object
       additionalProperties: false
-      required: [mode, scope_profile, idempotency_key]
+      required: [run_mode, scope]
       properties:
-        mode: {enum: [full_refresh, reprocess_cached]}
-        scope_profile: {type: string, pattern: '^[a-z0-9][a-z0-9._-]*$'}
+        run_mode: {enum: [full_refresh, reprocess_cached]}
         scope: {type: object, maxProperties: 20}
-        idempotency_key: {type: string, minLength: 8, maxLength: 200}
-        force_reacquire: {type: boolean, default: false}
     Problem:
       type: object
       required: [type, title, status, detail, request_id]

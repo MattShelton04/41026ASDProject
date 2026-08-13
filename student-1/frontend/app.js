@@ -10,6 +10,7 @@ import {
   formatNumber,
   humanise,
   isPsiJob,
+  isSchoolsJob,
   newRequestId,
   nextPollDelay,
   parseJsonField,
@@ -638,6 +639,7 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   const wrapper = el("div", "stack");
   const isBackfill = intent === "backfill";
   const psi = isPsiJob(job);
+  const schools = isSchoolsJob(job);
   const currentYear = new Date().getFullYear();
   append(wrapper, el("div", `notice ${isBackfill ? "warning" : ""}`, isBackfill
     ? "Backfill creates a new full-refresh run for an explicit bounded scope. Accepted data is not replaced until a candidate passes review and publication."
@@ -649,6 +651,23 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   if (isBackfill) mode.disabled = true;
   append(modeLabel, mode);
   append(wrapper, modeLabel);
+  const profileLabel = el("label", "field");
+  append(profileLabel, el("span", "", "Acquisition data"));
+  const scopeProfile = el("select"); scopeProfile.name = "scope_profile";
+  const showcaseOption = el("option", "", "Deterministic showcase records"); showcaseOption.value = "showcase";
+  const testOption = el("option", "", "Small deterministic test records"); testOption.value = "test";
+  append(scopeProfile, showcaseOption, testOption);
+  if (schools) {
+    const liveOption = el("option", "", "Live official Data.NSW schools CSV"); liveOption.value = "full-data";
+    append(scopeProfile, liveOption);
+  }
+  scopeProfile.value = ["test", "showcase", "full-data"].includes(job.scope_json?.profile)
+    ? job.scope_json.profile
+    : "showcase";
+  append(profileLabel, scopeProfile, el("small", "field-help", schools
+    ? "Live acquisition is available only in the explicit --full-data stack and is never substituted with generated records."
+    : "This source currently supports bounded deterministic records; unavailable live transports fail before launch."));
+  append(wrapper, profileLabel);
   let firstYear = null;
   let lastYear = null;
   if (psi) {
@@ -674,6 +693,7 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   append(wrapper, advanced);
   const requestedScope = () => {
     const value = parseJsonField(scope.value, "Scope");
+    value.profile = scopeProfile.value;
     if (!psi) return value;
     const years = psiYearRange(firstYear.value, lastYear?.value || firstYear.value, { maximum: currentYear + 1 });
     delete value.source_year;
@@ -689,7 +709,7 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
     try {
       const payload = { run_mode: mode.value, scope: requestedScope() };
       const result = await request(`jobs/${job.id}/plans`, { method: "POST", body: payload });
-      const scopeSummary = psi ? `${payload.scope.years.length} PSI year partition${payload.scope.years.length === 1 ? "" : "s"}: ${payload.scope.years.join(", ")}` : "Registered bounded scope";
+      const scopeSummary = psi ? `${payload.scope.years.length} PSI year partition${payload.scope.years.length === 1 ? "" : "s"}: ${payload.scope.years.join(", ")}` : payload.scope.profile === "full-data" ? "Live registered source" : "Deterministic bounded scope";
       evidence.replaceChildren(el("div", "notice", `Plan validated · ${scopeSummary}. Review task, cache/network work and limits before launch.`), technicalDetails(result.body, "Plan evidence"));
     } catch (error) { evidence.replaceChildren(el("div", "notice negative", `${error.message} Request ID ${error.requestId}`)); }
     finally { preview.disabled = false; }
@@ -697,8 +717,7 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   const confirmed = await confirmAction({ title: `${isBackfill ? "Backfill" : "Run"} ${job.name}?`, description: "A durable run will be created with a new idempotency key. The runner processes it independently.", label: isBackfill ? "Start backfill" : "Launch run", tone: "primary", extra: wrapper });
   if (!confirmed) return;
   try {
-    const idempotencyKey = newRequestId();
-    const body = await mutate(`jobs/${job.id}/runs`, { body: { run_mode: mode.value, scope: requestedScope(), idempotency_key: idempotencyKey }, success: isBackfill ? "Backfill requested" : "Run requested" });
+    const body = await mutate(`jobs/${job.id}/runs`, { body: { run_mode: mode.value, scope: requestedScope() }, success: isBackfill ? "Backfill requested" : "Run requested" });
     const run = entity(body, "run");
     location.hash = `#runs/${run.id}`;
   } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }

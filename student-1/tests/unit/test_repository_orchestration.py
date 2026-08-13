@@ -151,6 +151,37 @@ def test_run_projection_truthfully_describes_retry_execution() -> None:
     )
 
 
+def test_terminal_run_counts_rows_once_from_the_import_stage() -> None:
+    run_id = uuid.uuid4()
+    task_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            {
+                "id": task_id,
+                "ingestion_run_id": run_id,
+                "stage": "build_release",
+                "status": "succeeded",
+            },
+            {"cancel_requested_at": None},
+            {"count": 0},
+            None,
+        ]
+    )
+
+    ConnectedStore(connection).complete_task(
+        task_id,
+        worker_id="runner-1",
+        lease_token="lease-1",
+        rows_in=1,
+        rows_out=1,
+    )
+
+    terminal_update = connection.queries[3]
+    assert "stage='acquire'" in terminal_update
+    assert "stage='import'" in terminal_update
+    assert "sum(rows_out)" not in terminal_update
+
+
 class ArtifactStore(PropertyScopeStore):
     def __init__(self, existing: dict[str, Any] | None) -> None:
         self.existing = existing
@@ -260,3 +291,23 @@ def test_collection_rejects_unbounded_search_query() -> None:
 
     assert response.status_code == 422
     assert response.get_json()["code"] == "invalid_request"
+
+
+class PropertyQueryStore(PropertyScopeStore):
+    def __init__(self) -> None:
+        self.query = ""
+
+    def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+        del params
+        self.query = " ".join(query.split())
+        return []
+
+
+def test_property_search_requires_an_accepted_identity_generation() -> None:
+    store = PropertyQueryStore()
+
+    store.search_properties("11 example street", state="NSW", limit=25)
+
+    assert "JOIN serving.accepted_generation accepted" in store.query
+    assert "accepted.dataset_release_id=identifier.source_release_id" in store.query
+    assert "identifier.is_current" in store.query

@@ -128,7 +128,12 @@ class AcquisitionRunner:
             )
         if stage in {"discover", "acquire"}:
             profile = str(task.get("import_profile_key", "property-fixture"))
-            if self.settings.full_data_enabled and profile != "property-fixture":
+            live_requested = scope.get("profile") == "full-data"
+            if live_requested and not self.settings.full_data_enabled:
+                raise RuntimeError(
+                    "Full-data acquisition requires the explicit full-data runtime profile"
+                )
+            if live_requested and profile != "property-fixture":
                 document, records = self._live_document(task, stage=stage, profile=profile)
             else:
                 records = _canonical_records(profile) if stage == "acquire" else []
@@ -182,7 +187,7 @@ class AcquisitionRunner:
             )
             response.raise_for_status()
             return 1, 1
-        return 10, 10
+        return 0, 0
 
     def _live_document(
         self, task: dict[str, Any], *, stage: str, profile: str

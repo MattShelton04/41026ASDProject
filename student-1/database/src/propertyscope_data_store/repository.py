@@ -989,8 +989,15 @@ class PropertyScopeStore:
             SELECT property_ref,address_display,locality,postcode,state,resolution_status,
                    ST_X(geom) AS longitude,ST_Y(geom) AS latitude,
                    greatest(similarity(address_search,%s), CASE WHEN address_search=%s THEN 1 ELSE 0 END) AS score
-            FROM registry.property
-            WHERE state=%s AND (address_search ILIKE '%%' || %s || '%%' OR address_search %% %s)
+            FROM registry.property property
+            WHERE state=%s
+              AND EXISTS (
+                  SELECT 1 FROM registry.property_identifier identifier
+                  JOIN serving.accepted_generation accepted
+                    ON accepted.dataset_release_id=identifier.source_release_id
+                  WHERE identifier.property_ref=property.property_ref AND identifier.is_current
+              )
+              AND (address_search ILIKE '%%' || %s || '%%' OR address_search %% %s)
             ORDER BY CASE WHEN address_search=%s THEN 0 WHEN address_search LIKE %s || '%%' THEN 1 ELSE 2 END,
                      score DESC,address_display LIMIT %s
             """,
@@ -1367,9 +1374,14 @@ class PropertyScopeStore:
                 if remaining is not None and int(remaining["count"]) == 0:
                     connection.execute(
                         """UPDATE ops.ingestion_run SET status='succeeded',finished_at=%s,
-                        rows_accepted=(SELECT COALESCE(sum(rows_out),0) FROM ops.run_task WHERE ingestion_run_id=%s)
+                        rows_discovered=(SELECT COALESCE(max(rows_out),0) FROM ops.run_task
+                            WHERE ingestion_run_id=%s AND stage='acquire'),
+                        rows_staged=(SELECT COALESCE(max(rows_in),0) FROM ops.run_task
+                            WHERE ingestion_run_id=%s AND stage='import'),
+                        rows_accepted=(SELECT COALESCE(max(rows_out),0) FROM ops.run_task
+                            WHERE ingestion_run_id=%s AND stage='import')
                         WHERE id=%s AND status NOT IN ('failed','cancelled')""",
-                        (now, run_id, run_id),
+                        (now, run_id, run_id, run_id, run_id),
                     )
                 else:
                     stage_status = {

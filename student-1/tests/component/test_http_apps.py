@@ -252,6 +252,79 @@ def test_agent_history_is_scoped_to_propertyscope_feature() -> None:
     assert response.get_json()["items"] == []
 
 
+def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> None:
+    job_id = "20000000-0000-0000-0000-000000000004"
+
+    def database(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        return httpx.Response(
+            200,
+            json={
+                "job": {
+                    "id": job_id,
+                    "adapter_key": "schools-csv",
+                    "import_profile_key": "schools-master",
+                    "scope_json": {"profile": "showcase"},
+                    "max_objects": 2,
+                    "max_bytes": 25_000_000,
+                    "max_rows": 5_000,
+                    "timeout_seconds": 300,
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+    response = app.test_client().post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={"run_mode": "full_refresh", "scope": {"profile": "full-data"}},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["network_required"] is True
+
+
+def test_job_plan_rejects_catalogued_source_without_live_transport() -> None:
+    job_id = "20000000-0000-0000-0000-000000000001"
+
+    def database(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "job": {
+                    "id": job_id,
+                    "adapter_key": "gnaf-bulk",
+                    "import_profile_key": "gnaf-nsw",
+                    "scope_json": {"profile": "showcase"},
+                    "max_objects": 10,
+                    "max_bytes": 2_500_000_000,
+                    "max_rows": 6_500_000,
+                    "timeout_seconds": 86_400,
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+    response = app.test_client().post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={"run_mode": "full_refresh", "scope": {"profile": "full-data"}},
+    )
+
+    assert response.status_code == 422
+    assert response.get_json()["code"] == "live_transport_unavailable"
+
+
 def test_protected_tool_rejects_forged_agent_run_header() -> None:
     run_id = "70000000-0000-0000-0000-000000000001"
     source_run_id = "30000000-0000-0000-0000-000000000003"

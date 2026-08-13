@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -112,14 +113,19 @@ def create_blueprint(
                 "capability_unsupported",
                 "Only full_refresh and reprocess_cached are supported",
             )
-        scope = body.get("scope", job_data["scope_json"])
+        scope, scope_error = validate_job_scope(
+            job_data, body.get("scope", job_data["scope_json"]), run_mode=mode
+        )
+        if scope_error is not None:
+            return scope_error
+        assert scope is not None
         return jsonify(
             {
                 "valid": True,
                 "job_id": str(job_id),
                 "run_mode": mode,
                 "scope": scope,
-                "network_required": mode == "full_refresh" and job_data["adapter_key"] != "fixture",
+                "network_required": mode == "full_refresh" and scope.get("profile") == "full-data",
                 "tasks": [
                     {"sequence": index + 1, "stage": stage, "logical_key": f"{index:02d}/{stage}"}
                     for index, stage in enumerate(
@@ -148,6 +154,24 @@ def create_blueprint(
         key = request.headers.get("Idempotency-Key", "").strip()
         if not key:
             return problem(422, "idempotency_key_required", "Idempotency-Key is required")
+        job_response = store.request("GET", f"{INTERNAL}/jobs/{job_id}", headers=request.headers)
+        if job_response.status_code >= 400:
+            return forward(job_response)
+        mode = str(body.get("run_mode", "full_refresh"))
+        if mode not in {"full_refresh", "reprocess_cached"}:
+            return problem(
+                422,
+                "capability_unsupported",
+                "Only full_refresh and reprocess_cached are supported",
+            )
+        scope, scope_error = validate_job_scope(
+            job_response.json()["job"],
+            body.get("scope", job_response.json()["job"]["scope_json"]),
+            run_mode=mode,
+        )
+        if scope_error is not None:
+            return scope_error
+        body["scope"] = scope
         body["idempotency_key"] = key
         body["request_id"] = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         return forward(
@@ -741,6 +765,55 @@ def approved_tool_call(ai_mode: AiModeClient, tool_name: str, arguments: Mapping
         for review in reviews
         if isinstance(review, dict)
     )
+
+
+def validate_job_scope(
+    job: Mapping[str, Any], raw_scope: Any, *, run_mode: str
+) -> tuple[dict[str, Any] | None, Response | None]:
+    """Bound operator scope overrides and expose unavailable live transports before launch."""
+    if not isinstance(raw_scope, dict):
+        return None, problem(422, "invalid_scope", "Run scope must be a JSON object")
+    if len(raw_scope) > 20:
+        return None, problem(422, "invalid_scope", "Run scope has too many fields")
+    scope = dict(raw_scope)
+    profile = scope.get("profile", "showcase")
+    if profile not in {"test", "showcase", "full-data"}:
+        return None, problem(422, "invalid_scope", "Scope profile is not registered")
+    scope["profile"] = profile
+    maximum_records = scope.get("maximum_records")
+    if maximum_records is not None and (
+        not isinstance(maximum_records, int)
+        or isinstance(maximum_records, bool)
+        or maximum_records < 1
+        or maximum_records > int(job["max_rows"])
+    ):
+        return None, problem(422, "invalid_scope", "maximum_records exceeds the job limit")
+    if str(job.get("import_profile_key")) == "psi-sales":
+        years = scope.get("years")
+        if not isinstance(years, list) or not years or len(years) > 40:
+            return None, problem(422, "invalid_scope", "PSI scope requires 1 to 40 source years")
+        maximum_year = datetime.now(UTC).year + 1
+        if any(
+            not isinstance(year, int)
+            or isinstance(year, bool)
+            or year < 1990
+            or year > maximum_year
+            for year in years
+        ):
+            return None, problem(422, "invalid_scope", "PSI source year is outside the range")
+        if years != sorted(set(years)):
+            return None, problem(422, "invalid_scope", "PSI source years must be unique and sorted")
+    if (
+        run_mode == "full_refresh"
+        and profile == "full-data"
+        and str(job.get("import_profile_key")) not in {"schools-master", "property-fixture"}
+    ):
+        return None, problem(
+            422,
+            "live_transport_unavailable",
+            "This source is catalogued but its live acquisition transport is not connected",
+        )
+    return scope, None
 
 
 def proxy_collection(store: DataStoreClient, path: str) -> Response:
