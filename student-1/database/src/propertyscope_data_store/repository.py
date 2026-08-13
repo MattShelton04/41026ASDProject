@@ -506,6 +506,17 @@ class PropertyScopeStore:
                     started_at=COALESCE(started_at,%s),heartbeat_at=%s WHERE id=%s""",
                     (now, now, row["ingestion_run_id"]),
                 )
+                context = connection.execute(
+                    """SELECT run.profile_key,run.run_mode,run.requested_scope_json,
+                    job.adapter_key,job.import_profile_key,job.import_profile_version,
+                    job.dataset_id,job.target_feature,job.source_definition_id,
+                    job.max_bytes,job.max_rows,job.timeout_seconds
+                    FROM ops.ingestion_run run JOIN ops.job_definition job
+                    ON job.id=run.job_definition_id WHERE run.id=%s""",
+                    (row["ingestion_run_id"],),
+                ).fetchone()
+                if context:
+                    row.update(context)
             connection.commit()
         return _dict(row) if row else None
 

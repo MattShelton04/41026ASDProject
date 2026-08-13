@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pytest
 
+from propertyscope_data_platform.runner import _canonical_records
 from propertyscope_data_store.import_profiles import (
     CANONICAL_SCHEMA_VERSION,
     ImportProfileError,
@@ -162,3 +163,15 @@ def test_loader_verifies_artifact_then_delegates_registered_copy_profile(tmp_pat
     assert counts == {"rows_in": 1, "rows_staged": 1, "rows_accepted": 1, "rows_rejected": 0}
     assert result["staging_method"] == "postgresql-copy"
     assert result["accepted_generation_unchanged"] is True
+
+
+@pytest.mark.parametrize(
+    "profile",
+    ["property-fixture", "gnaf-nsw", "psi-sales", "bocsar-sparse", "schools-master"],
+)
+def test_runner_showcase_records_use_the_database_canonical_contract(profile: str) -> None:
+    records = _canonical_records(profile)
+
+    prepared = prepare_import(_artifact(profile, records), profile=profile)
+
+    assert len(prepared.rows) == 10

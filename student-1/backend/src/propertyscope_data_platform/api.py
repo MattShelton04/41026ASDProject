@@ -668,6 +668,20 @@ def create_blueprint(
             methods=["POST"],
         )
 
+    @api.post(f"{INTERNAL}/worker/runs/<uuid:run_id>/imports")
+    def worker_import(run_id: uuid.UUID) -> Response:
+        return ensure_import_operation(store, run_id, json_body())
+
+    @api.get(f"{INTERNAL}/worker/imports/<uuid:operation_id>")
+    def worker_import_get(operation_id: uuid.UUID) -> Response:
+        return forward(
+            store.request("GET", f"{INTERNAL}/imports/{operation_id}", headers=request.headers)
+        )
+
+    @api.post(f"{INTERNAL}/worker/runs/<uuid:run_id>/finalize-release")
+    def worker_finalize_release(run_id: uuid.UUID) -> Response:
+        return finalize_candidate_release(store, run_id)
+
     return api
 
 
@@ -679,6 +693,143 @@ def proxy_collection(store: DataStoreClient, path: str) -> Response:
             headers=request.headers,
             params=request.args,
             json=json_body() if request.method == "POST" else None,
+        )
+    )
+
+
+def ensure_import_operation(
+    store: DataStoreClient, run_id: uuid.UUID, body: Mapping[str, Any]
+) -> Response:
+    """Idempotently connect one verified canonical artifact to the serial loader."""
+    task_id = required_uuid(body, "run_task_id")
+    run_response = store.request("GET", f"{INTERNAL}/runs/{run_id}", headers=request.headers)
+    if run_response.status_code >= 400:
+        return forward(run_response)
+    run = run_response.json()["run"]
+    job_response = store.request(
+        "GET", f"{INTERNAL}/jobs/{run['job_definition_id']}", headers=request.headers
+    )
+    artifacts_response = store.request(
+        "GET",
+        f"{INTERNAL}/runs/{run_id}/artifacts",
+        headers=request.headers,
+        params={"limit": 100},
+    )
+    if job_response.status_code >= 400:
+        return forward(job_response)
+    if artifacts_response.status_code >= 400:
+        return forward(artifacts_response)
+    job = job_response.json()["job"]
+    artifact = next(
+        (
+            item
+            for item in reversed(artifacts_response.json().get("items", []))
+            if item["artifact_kind"] == "canonical_import"
+        ),
+        None,
+    )
+    if artifact is None:
+        return problem(409, "canonical_artifact_missing", "Verified canonical artifact is missing")
+    releases_response = store.request(
+        "GET", f"{INTERNAL}/releases", headers=request.headers, params={"limit": 100}
+    )
+    release = next(
+        (
+            item
+            for item in releases_response.json().get("items", [])
+            if item["ingestion_run_id"] == str(run_id)
+        ),
+        None,
+    )
+    if release is None:
+        release_response = store.request(
+            "POST",
+            f"{INTERNAL}/releases",
+            headers=request.headers,
+            json={
+                "dataset_id": job["dataset_id"],
+                "source_definition_id": run["source_definition_id"],
+                "ingestion_run_id": str(run_id),
+                "target_feature": job["target_feature"],
+                "release_version": f"candidate-{artifact['content_sha256'][:16]}",
+                "schema_version": artifact["schema_version"],
+                "coverage": run["requested_scope_json"],
+                "record_count": 0,
+                "content_sha256": artifact["content_sha256"],
+                "artifact_record_id": artifact["id"],
+                "manifest": {
+                    "schema_version": artifact["schema_version"],
+                    "release_id": f"candidate-{artifact['content_sha256'][:16]}",
+                    "dataset_id": job["dataset_id"],
+                    "owner_feature": "student-1-propertyscope-data-platform",
+                    "publisher": "PropertyScope registered ingestion",
+                    "source_release": run["profile_key"],
+                    "content_sha256": artifact["content_sha256"],
+                    "record_count": 0,
+                    "geographies": ["NSW"],
+                    "measures": ["registered-source-record"],
+                    "redistribution_policy": "metadata-only",
+                    "known_limitations": ["Candidate evidence; not accepted product data"],
+                },
+                "status": "draft",
+            },
+        )
+        if release_response.status_code >= 400:
+            return forward(release_response)
+        release = release_response.json()["release"]
+    operation_response = store.request(
+        "POST",
+        f"{INTERNAL}/imports",
+        headers=request.headers,
+        json={
+            "ingestion_run_id": str(run_id),
+            "run_task_id": str(task_id),
+            "candidate_release_id": release["id"],
+            "import_profile_key": job["import_profile_key"],
+            "import_profile_version": job["import_profile_version"],
+            "artifact_record_id": artifact["id"],
+            "idempotency_key": f"import:{run_id}:{job['import_profile_key']}",
+        },
+    )
+    if operation_response.status_code >= 400:
+        return forward(operation_response)
+    operation = operation_response.json()["operation"]
+    if operation["status"] in {"planned", "interrupted"}:
+        operation_response = store.request(
+            "POST",
+            f"{INTERNAL}/imports/{operation['id']}/execute",
+            headers=request.headers,
+            json={},
+        )
+    return forward(operation_response)
+
+
+def finalize_candidate_release(store: DataStoreClient, run_id: uuid.UUID) -> Response:
+    releases = store.request(
+        "GET", f"{INTERNAL}/releases", headers=request.headers, params={"limit": 100}
+    )
+    release = next(
+        (
+            item
+            for item in releases.json().get("items", [])
+            if item["ingestion_run_id"] == str(run_id)
+        ),
+        None,
+    )
+    if release is None:
+        return problem(409, "candidate_release_missing", "Candidate release is missing")
+    if release["status"] == "candidate":
+        return jsonify({"release": release, "replayed": True})
+    return forward(
+        store.request(
+            "POST",
+            f"{INTERNAL}/releases/{release['id']}/transition",
+            headers=request.headers,
+            json={
+                "version": release["version"],
+                "target": "candidate",
+                "comment": "Registered import and quality checks completed",
+            },
         )
     )
 
