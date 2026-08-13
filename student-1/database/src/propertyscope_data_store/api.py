@@ -45,6 +45,10 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     def counts() -> Response:
         return jsonify({"tables": store.counts()})
 
+    @api.get("/internal/data-platform/v1/schema/fingerprint")
+    def fingerprint() -> Response:
+        return jsonify({"algorithm": "sha256", "fingerprint": store.fingerprint()})
+
     @api.get("/internal/data-platform/v1/sources")
     def sources_list() -> Response:
         limit, offset = pagination()

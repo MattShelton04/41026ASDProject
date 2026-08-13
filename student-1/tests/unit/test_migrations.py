@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import pytest
 
-from propertyscope_data_store.migrations import MIGRATION_PACKAGE, migrate
+from propertyscope_data_store.migrations import MIGRATION_PACKAGE, migrate, schema_fingerprint
 
 
 class ExistingMigrationConnection:
@@ -53,3 +53,26 @@ def test_changed_applied_migration_is_rejected() -> None:
 
     with pytest.raises(RuntimeError, match="migration checksum changed"):
         migrate(cast(Any, connection))
+
+
+class SchemaConnection:
+    def __init__(self) -> None:
+        self.rows: list[tuple[str, ...]] = []
+
+    def execute(self, query: str) -> SchemaConnection:
+        self.rows = (
+            [("ops", "run_task", "id", "uuid", "NO", "")]
+            if "information_schema.columns" in query
+            else [("ops", "run_task", "run_task_pkey", "CREATE UNIQUE INDEX ...")]
+        )
+        return self
+
+    def fetchall(self) -> list[tuple[str, ...]]:
+        return self.rows
+
+
+def test_schema_fingerprint_covers_columns_and_indexes() -> None:
+    value = schema_fingerprint(cast(Any, SchemaConnection()))
+
+    assert len(value) == 64
+    assert value == schema_fingerprint(cast(Any, SchemaConnection()))

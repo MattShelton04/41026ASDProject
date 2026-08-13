@@ -56,5 +56,13 @@ def schema_fingerprint(connection: Connection[Any]) -> str:
         ORDER BY table_schema, table_name, ordinal_position
         """
     ).fetchall()
-    payload = "\n".join("|".join(str(value) for value in row) for row in rows)
+    indexes = connection.execute(
+        """
+        SELECT schemaname, tablename, indexname, indexdef
+        FROM pg_indexes
+        WHERE schemaname IN ('ops', 'registry', 'warehouse', 'serving', 'stage')
+        ORDER BY schemaname, tablename, indexname
+        """
+    ).fetchall()
+    payload = "\n".join("|".join(str(value) for value in row) for row in (*rows, *indexes))
     return sha256(payload.encode()).hexdigest()

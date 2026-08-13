@@ -85,6 +85,9 @@ jobs:
       - name: Verify every persistent showcase table has ten records
         run: |
           docker compose exec -T propertyscope-database-api python -c "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:5202/internal/data-platform/v1/schema/counts',headers={'X-PropertyScope-Internal-Token':'propertyscope-local-development-only'}); counts=json.load(urllib.request.urlopen(request))['tables']; assert counts and min(counts.values()) >= 10, counts"
+      - name: Capture deterministic database schema fingerprint
+        run: |
+          docker compose exec -T propertyscope-database-api python -c "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:5202/internal/data-platform/v1/schema/fingerprint',headers={'X-PropertyScope-Internal-Token':'propertyscope-local-development-only'}); value=json.load(urllib.request.urlopen(request)); assert value['algorithm']=='sha256' and len(value['fingerprint'])==64, value"
       - name: Capture service logs
         if: failure()
         run: docker compose --profile release-0 logs --no-color --tail 300

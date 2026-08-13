@@ -101,6 +101,11 @@ class PropertyScopeStore:
                 result[table] = int(row["count"]) if row else 0
         return result
 
+    def fingerprint(self) -> str:
+        """Expose the deterministic migrated schema fingerprint for release evidence."""
+        with self.connection() as connection:
+            return schema_fingerprint(connection)
+
     # Sources and jobs are the two complete operator CRUD aggregates.
     def list_sources(self, *, status: str | None, limit: int, offset: int) -> list[JsonObject]:
         query = "SELECT * FROM ops.source_definition"
