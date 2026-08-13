@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 from werkzeug.datastructures import Headers
+
+from propertyscope_data_platform.domain import (
+    ConsumerPublicationRequest,
+    PublicationReceiptResult,
+    SafeError,
+)
 
 PROPAGATED_HEADERS = ("X-Request-ID", "X-Agent-Run-ID", "traceparent", "Idempotency-Key")
 
@@ -94,3 +102,96 @@ class AiModeClient:
             raise DependencyUnavailableError(
                 "AI mode is unavailable; direct data operations remain usable"
             ) from exc
+
+
+@dataclass(frozen=True)
+class ConsumerEndpoint:
+    """One code-owned consumer route; release data can never select a URL or path."""
+
+    base_url: str
+    import_path: str
+
+    def __post_init__(self) -> None:
+        if not self.base_url.startswith(("http://", "https://")):
+            raise ValueError("consumer base_url must be an HTTP origin")
+        if not self.import_path.startswith("/api/") or any(
+            marker in self.import_path for marker in ("?", "#", "..", "\\")
+        ):
+            raise ValueError("consumer import_path must be a fixed API path")
+
+
+class ConsumerImportClient:
+    """Call only fixed target-feature import routes and return typed safe receipts."""
+
+    def __init__(
+        self,
+        endpoints: Mapping[str, ConsumerEndpoint],
+        *,
+        client: httpx.Client | None = None,
+    ) -> None:
+        self._endpoints = dict(endpoints)
+        self._client = client or httpx.Client(timeout=10, follow_redirects=False)
+
+    def publish(
+        self,
+        target_feature: str,
+        publication: ConsumerPublicationRequest,
+        headers: Mapping[str, str] | Headers,
+    ) -> PublicationReceiptResult:
+        endpoint = self._endpoints.get(target_feature)
+        if endpoint is None:
+            raise ValueError(f"target feature is not registered for publication: {target_feature}")
+        safe_headers = {
+            key: value for key, value in headers.items() if key in PROPAGATED_HEADERS
+        }
+        safe_headers["Idempotency-Key"] = publication.idempotency_key
+        try:
+            response = self._client.post(
+                f"{endpoint.base_url.rstrip('/')}{endpoint.import_path}",
+                headers=safe_headers,
+                json=publication.model_dump(mode="json"),
+            )
+        except httpx.TransportError:
+            return self._failed(publication, "consumer_unavailable", "Consumer is unavailable")
+        try:
+            payload = response.json()
+            if response.status_code < 400:
+                result = PublicationReceiptResult.model_validate(payload)
+                if (
+                    result.schema_version != publication.schema_version
+                    or result.content_sha256 != publication.content_sha256
+                ):
+                    return self._failed(
+                        publication,
+                        "consumer_evidence_mismatch",
+                        "Consumer receipt does not match the published release",
+                    )
+                return result
+            code = (
+                str(payload.get("code", "consumer_rejected"))
+                if isinstance(payload, dict)
+                else "consumer_rejected"
+            )
+        except (ValueError, ValidationError):
+            code = "consumer_response_invalid"
+        message = (
+            "Consumer rejected the release"
+            if response.status_code < 500
+            else "Consumer import failed"
+        )
+        return self._failed(publication, code, message)
+
+    @staticmethod
+    def _failed(
+        publication: ConsumerPublicationRequest, code: str, message: str
+    ) -> PublicationReceiptResult:
+        return PublicationReceiptResult(
+            consumer_operation_id=publication.idempotency_key,
+            status="failed" if code != "consumer_rejected" else "rejected",
+            schema_version=publication.schema_version,
+            content_sha256=publication.content_sha256,
+            rows_received=0,
+            rows_accepted=0,
+            rows_rejected=0,
+            error=SafeError(code=code, message=message, retryable=code == "consumer_unavailable"),
+        )

@@ -23,7 +23,7 @@ adapters:
     expected_media_types:
       - application/zip
       - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-    allowed_hosts: [bocsar.nsw.gov.au]
+    allowed_hosts: [bocsar.nsw.gov.au, bocsarblob.blob.core.windows.net]
     required_secrets: []
     limits:
       {max_objects: 4, max_bytes: 50000000, max_rows: 100000, deadline_seconds: 900,

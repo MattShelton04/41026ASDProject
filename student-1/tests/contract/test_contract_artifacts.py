@@ -23,6 +23,8 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
     assert document["openapi"] == "3.1.0"
     assert "/properties/search" in document["paths"]
     assert "/jobs/{job_id}/runs" in document["paths"]
+    assert "/properties/{property_ref}/report-section" in document["paths"]
+    assert "/dataset-releases/{release_id}/publish" in document["paths"]
 
 
 def test_release_manifest_fixtures_encode_success_and_failure() -> None:

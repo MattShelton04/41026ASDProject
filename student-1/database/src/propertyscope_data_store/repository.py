@@ -17,6 +17,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 from propertyscope_data_store.errors import ConflictError, LeaseConflictError, NotFoundError
+from propertyscope_data_store.import_profiles import ImportResult, PreparedImport, execute_import
 from propertyscope_data_store.migrations import migrate, schema_fingerprint
 
 JsonObject = dict[str, Any]
@@ -584,6 +585,16 @@ class PropertyScopeStore:
     def get_release(self, release_id: uuid.UUID) -> JsonObject:
         return self._required("SELECT * FROM ops.dataset_release WHERE id=%s", (release_id,))
 
+    def release_artifact(self, release_id: uuid.UUID) -> JsonObject:
+        return self._required(
+            """SELECT artifact.*,source.redistribution_policy,release.status AS release_status
+            FROM ops.dataset_release release
+            JOIN ops.artifact_record artifact ON artifact.id=release.artifact_record_id
+            JOIN ops.source_definition source ON source.id=release.source_definition_id
+            WHERE release.id=%s""",
+            (release_id,),
+        )
+
     def create_release(self, values: Mapping[str, Any]) -> JsonObject:
         now = datetime.now(UTC)
         try:
@@ -665,6 +676,66 @@ class PropertyScopeStore:
             "SELECT * FROM ops.publication_receipt WHERE dataset_release_id=%s ORDER BY created_at",
             (release_id,),
         )
+
+    def record_publication_receipt(
+        self, release_id: uuid.UUID, values: Mapping[str, Any]
+    ) -> tuple[JsonObject, bool]:
+        """Persist one immutable consumer result before any accepted-pointer change."""
+        self.get_release(release_id)
+        existing = self._fetch_one(
+            """SELECT * FROM ops.publication_receipt
+            WHERE target_feature=%s AND consumer_operation_id=%s""",
+            (values["target_feature"], values["consumer_operation_id"]),
+        )
+        if existing:
+            expected = (
+                str(release_id),
+                values["status"],
+                values["schema_version"],
+                values["content_sha256"],
+                int(values["rows_received"]),
+                int(values["rows_accepted"]),
+                int(values["rows_rejected"]),
+            )
+            actual = (
+                str(existing["dataset_release_id"]),
+                existing["status"],
+                existing["schema_version"],
+                existing["content_sha256"],
+                int(existing["rows_received"]),
+                int(existing["rows_accepted"]),
+                int(existing["rows_rejected"]),
+            )
+            if expected != actual:
+                raise ConflictError("publication idempotency key arguments do not match")
+            return existing, False
+        now = datetime.now(UTC)
+        with self.connection() as connection:
+            row = connection.execute(
+                """INSERT INTO ops.publication_receipt (
+                    id,dataset_release_id,target_feature,consumer_operation_id,status,
+                    schema_version,content_sha256,rows_received,rows_accepted,rows_rejected,
+                    error_json,request_id,created_at,completed_at
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                (
+                    uuid.uuid4(),
+                    release_id,
+                    values["target_feature"],
+                    values["consumer_operation_id"],
+                    values["status"],
+                    values["schema_version"],
+                    values["content_sha256"],
+                    int(values["rows_received"]),
+                    int(values["rows_accepted"]),
+                    int(values["rows_rejected"]),
+                    _json(values["error"]) if values.get("error") else None,
+                    values["request_id"],
+                    now,
+                    None if values["status"] == "pending" else now,
+                ),
+            ).fetchone()
+            connection.commit()
+        return _dict(row), True
 
     def transition_release(
         self, release_id: uuid.UUID, *, expected_version: int, target: str, comment: str
@@ -854,6 +925,13 @@ class PropertyScopeStore:
             ON artifact.id=operation.artifact_record_id WHERE operation.id=%s""",
             (operation_id,),
         )
+
+    def execute_import_profile(
+        self, work: Mapping[str, Any], prepared: PreparedImport
+    ) -> ImportResult:
+        """Execute one registered COPY/import profile inside the credential boundary."""
+        with self.connection() as connection:
+            return execute_import(connection, work, prepared)
 
     def enqueue_import(self, operation_id: uuid.UUID) -> JsonObject:
         with self.connection() as connection:

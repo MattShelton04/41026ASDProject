@@ -4,22 +4,35 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import httpx
 from flask import Blueprint, Response, jsonify, request
 
+from propertyscope_data_platform.artifacts import ArtifactError, LocalArtifactStore
 from propertyscope_data_platform.clients import (
     AiModeClient,
+    ConsumerImportClient,
     DataStoreClient,
     DependencyUnavailableError,
+)
+from propertyscope_data_platform.domain import (
+    ConsumerPublicationRequest,
+    PublicationReceiptResult,
 )
 
 BASE = "/api/data-platform/v1"
 INTERNAL = "/internal/data-platform/v1"
 
 
-def create_blueprint(store: DataStoreClient, ai_mode: AiModeClient) -> Blueprint:
+def create_blueprint(
+    store: DataStoreClient,
+    ai_mode: AiModeClient,
+    consumers: ConsumerImportClient,
+    *,
+    artifact_root: Path,
+) -> Blueprint:
     """Create Feature 1's public API without any persistence imports."""
     api = Blueprint("propertyscope-data-platform", __name__)
 
@@ -260,6 +273,40 @@ def create_blueprint(store: DataStoreClient, ai_mode: AiModeClient) -> Blueprint
             return forward(upstream)
         return jsonify(upstream.json()["release"]["manifest_json"])
 
+    @api.get(f"{BASE}/dataset-releases/<uuid:release_id>/artifact")
+    def release_artifact(release_id: uuid.UUID) -> Response:
+        upstream = store.request(
+            "GET", f"{INTERNAL}/releases/{release_id}/artifact", headers=request.headers
+        )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        artifact = upstream.json()["artifact"]
+        if artifact["release_status"] not in {"awaiting_review", "accepted", "superseded"}:
+            return problem(409, "artifact_not_publishable", "Release artifact is not publishable")
+        if artifact["redistribution_policy"] not in {
+            "fixture-redistributable",
+            "committed-synthetic-fixture",
+            "bounded-derived-release",
+            "approved-bounded-extract",
+        }:
+            return problem(
+                403,
+                "redistribution_not_permitted",
+                "This source licence permits metadata evidence only",
+            )
+        if artifact["artifact_kind"] != "release_export" or int(artifact["bytes"]) > 50_000_000:
+            return problem(413, "artifact_not_bounded", "Release artifact exceeds export policy")
+        try:
+            data = LocalArtifactStore(artifact_root).read_verified(
+                artifact["storage_key"], artifact["content_sha256"], max_bytes=50_000_000
+            )
+        except ArtifactError:
+            return problem(503, "artifact_unavailable", "Verified release artifact is unavailable")
+        response = Response(data, content_type=artifact["media_type"])
+        response.headers["Content-Disposition"] = f'attachment; filename="{release_id}.json"'
+        response.headers["Digest"] = f"sha-256={artifact['content_sha256']}"
+        return response
+
     @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/submit-review")
     def release_review(release_id: uuid.UUID) -> Response:
         body = json_body()
@@ -272,7 +319,10 @@ def create_blueprint(store: DataStoreClient, ai_mode: AiModeClient) -> Blueprint
             return problem(
                 422, "human_approval_required", "Publication requires explicit human approval"
             )
-        return transition(store, release_id, "accepted", body)
+        key = request.headers.get("Idempotency-Key", "").strip()
+        if not key:
+            return problem(422, "idempotency_key_required", "Idempotency-Key is required")
+        return publish_release(store, consumers, release_id, body, key)
 
     @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/reject")
     def release_reject(release_id: uuid.UUID) -> Response:
@@ -318,6 +368,61 @@ def create_blueprint(store: DataStoreClient, ai_mode: AiModeClient) -> Blueprint
             )
         )
 
+    @api.get(f"{BASE}/properties/<uuid:property_ref>/report-section")
+    def property_report_section(property_ref: uuid.UUID) -> Response:
+        """Return bounded canonical evidence for the Feature 5 report composer."""
+        upstream = store.request(
+            "GET", f"{INTERNAL}/properties/{property_ref}", headers=request.headers
+        )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        snapshot = upstream.json()
+        property_item = snapshot["property"]
+        identifiers = snapshot.get("identifiers", [])
+        gnaf_identifier = next(
+            (
+                item
+                for item in identifiers
+                if str(item.get("scheme", "")).lower() in {"gnaf_pid", "gnaf"}
+            ),
+            None,
+        )
+        release_evidence = [
+            {
+                "dataset_id": item["dataset_id"],
+                "target_feature": item["target_feature"],
+                "dataset_release_id": item.get("dataset_release_id"),
+                "release_version": item.get("release_version"),
+                "schema_version": item.get("schema_version"),
+                "coverage_status": item["coverage_status"],
+                "coverage_scope": item["coverage_scope"],
+                "accepted_at": item.get("accepted_at"),
+                "checked_at": item["checked_at"],
+            }
+            for item in snapshot.get("coverage", [])[:25]
+        ]
+        return jsonify(
+            {
+                "schema_version": "propertyscope.report-section.v1",
+                "property_ref": str(property_ref),
+                "address_display": property_item["address_display"],
+                "identity": {
+                    "gnaf_pid": gnaf_identifier.get("identifier_value")
+                    if gnaf_identifier
+                    else None,
+                    "resolution_status": property_item["resolution_status"],
+                    "locality": property_item["locality"],
+                    "postcode": property_item["postcode"],
+                    "state": property_item["state"],
+                    "longitude": property_item.get("longitude"),
+                    "latitude": property_item.get("latitude"),
+                    "geometry": property_item.get("geometry"),
+                },
+                "release_evidence": release_evidence,
+                "evidence_count": len(release_evidence),
+            }
+        )
+
     @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/agent-runs")
     def release_agent_run(release_id: uuid.UUID) -> Response:
         release_response = store.request(
@@ -334,7 +439,7 @@ def create_blueprint(store: DataStoreClient, ai_mode: AiModeClient) -> Blueprint
             {
                 "feature_key": "propertyscope-data-platform",
                 "objective": objective,
-                "prompt_set": "data-platform.release-diagnosis.v1",
+                "prompt_set": "default.v3",
                 "model_profile": "local-standard.v1",
                 "limits": {
                     "max_iterations": 6,
@@ -526,25 +631,14 @@ def create_blueprint(store: DataStoreClient, ai_mode: AiModeClient) -> Blueprint
                 "Protected publication requires an approved agent run and idempotency key",
             )
         release_id = required_uuid(body, "release_id")
-        current = store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
-        if current.status_code >= 400:
-            return forward(current)
-        release = current.json()["release"]
-        if release["status"] == "accepted":
-            return jsonify({"status": "accepted", "receipt_id": None, "replayed": True})
-        published = store.request(
-            "POST",
-            f"{INTERNAL}/releases/{release_id}/transition",
-            headers=request.headers,
-            json={
-                "version": release["version"],
-                "target": "accepted",
-                "comment": f"Approved agent operation {key}",
-            },
+        return publish_release(
+            store,
+            consumers,
+            release_id,
+            {"comment": f"Approved agent operation {key}"},
+            key,
+            tool_output=True,
         )
-        if published.status_code >= 400:
-            return forward(published)
-        return jsonify({"status": "accepted", "receipt_id": None, "replayed": False})
 
     # Private runner boundary simply brokers the same atomic store operations.
     @api.post(f"{INTERNAL}/worker/tasks/claim")
@@ -614,6 +708,116 @@ def transition(
             headers=request.headers,
             json={"version": version, "target": target, "comment": comment.strip()},
         )
+    )
+
+
+def publish_release(
+    store: DataStoreClient,
+    consumers: ConsumerImportClient,
+    release_id: uuid.UUID,
+    body: Mapping[str, Any],
+    idempotency_key: str,
+    *,
+    tool_output: bool = False,
+) -> Response:
+    """Record the final consumer receipt before atomically activating a release."""
+    current_response = store.request(
+        "GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers
+    )
+    if current_response.status_code >= 400:
+        return forward(current_response)
+    envelope = current_response.json()
+    release = envelope["release"]
+    prior_receipt = next(
+        (
+            item
+            for item in envelope.get("receipts", [])
+            if item["consumer_operation_id"] == idempotency_key
+        ),
+        None,
+    )
+    if release["status"] == "accepted" and prior_receipt:
+        if tool_output:
+            return jsonify(
+                {"status": "accepted", "receipt_id": prior_receipt["id"], "replayed": True}
+            )
+        return jsonify({"release": release, "receipt": prior_receipt, "replayed": True})
+    if release["status"] != "awaiting_review":
+        return problem(
+            409,
+            "release_not_publishable",
+            "Only a quality-checked release awaiting review can be published",
+        )
+    version = body.get("version", release["version"])
+    comment = body.get("comment")
+    if not isinstance(version, int) or version != release["version"]:
+        return problem(409, "release_version_conflict", "Release version does not match")
+    if not isinstance(comment, str) or not comment.strip():
+        return problem(422, "invalid_request", "A non-empty publication comment is required")
+    publication = ConsumerPublicationRequest(
+        release_id=release_id,
+        dataset_id=release["dataset_id"],
+        schema_version=release["schema_version"],
+        content_sha256=release["content_sha256"],
+        record_count=release["record_count"],
+        manifest=release["manifest_json"],
+        artifact_path=f"{BASE}/dataset-releases/{release_id}/artifact",
+        idempotency_key=idempotency_key,
+    )
+    if release["target_feature"] == "feature-1":
+        result = PublicationReceiptResult(
+            consumer_operation_id=idempotency_key,
+            status="accepted",
+            schema_version=release["schema_version"],
+            content_sha256=release["content_sha256"],
+            rows_received=release["record_count"],
+            rows_accepted=release["record_count"],
+            rows_rejected=0,
+        )
+    else:
+        result = consumers.publish(release["target_feature"], publication, request.headers)
+    recorded = store.request(
+        "POST",
+        f"{INTERNAL}/releases/{release_id}/receipts",
+        headers=request.headers,
+        json={
+            "target_feature": release["target_feature"],
+            **result.model_dump(mode="json"),
+            "request_id": request.headers.get("X-Request-ID", str(uuid.uuid4())),
+        },
+    )
+    if recorded.status_code >= 400:
+        return forward(recorded)
+    receipt_envelope = recorded.json()
+    receipt = receipt_envelope["receipt"]
+    if result.status != "accepted":
+        return problem(
+            424,
+            "consumer_publication_failed",
+            "Consumer did not accept the release; the prior accepted release remains live",
+        )
+    published = store.request(
+        "POST",
+        f"{INTERNAL}/releases/{release_id}/transition",
+        headers=request.headers,
+        json={"version": version, "target": "accepted", "comment": comment.strip()},
+    )
+    if published.status_code >= 400:
+        return forward(published)
+    if tool_output:
+        return jsonify(
+            {
+                "status": "accepted",
+                "receipt_id": receipt["id"],
+                "replayed": not receipt_envelope["created"],
+            }
+        )
+    return jsonify(
+        {
+            "release": published.json()["release"],
+            "receipt": receipt,
+            "replayed": not receipt_envelope["created"],
+        }
     )
 
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import signal
 import uuid
@@ -12,18 +11,8 @@ from threading import Event
 from typing import Any
 
 from propertyscope_data_store.configuration import StoreSettings
+from propertyscope_data_store.import_profiles import REGISTERED_PROFILES, prepare_import
 from propertyscope_data_store.repository import PropertyScopeStore
-
-REGISTERED_PROFILES = frozenset(
-    {
-        "fixture-json",
-        "gnaf-nsw",
-        "psi-one-year",
-        "bocsar-sparse",
-        "schools-master",
-        *(f"import-profile-{index}" for index in range(1, 11)),
-    }
-)
 
 
 class DatabaseLoader:
@@ -51,14 +40,14 @@ class DatabaseLoader:
                 operation_id, worker_id=self.worker_id, lease_token=token, lease_seconds=60
             )
             work = self.store.import_work(operation_id)
-            counts = self._execute(work)
+            counts, result = self._execute(work)
             self.store.finish_import(
                 operation_id,
                 worker_id=self.worker_id,
                 lease_token=token,
                 status="succeeded",
                 counts=counts,
-                result={"profile": work["import_profile_key"], "verified": True},
+                result=result,
                 error=None,
             )
         except Exception as exc:
@@ -76,7 +65,7 @@ class DatabaseLoader:
     def stop(self) -> None:
         self.stop_event.set()
 
-    def _execute(self, work: dict[str, Any]) -> dict[str, int]:
+    def _execute(self, work: dict[str, Any]) -> tuple[dict[str, int], dict[str, Any]]:
         profile = str(work["import_profile_key"])
         if profile not in REGISTERED_PROFILES:
             raise RuntimeError("import profile is not registered")
@@ -87,18 +76,24 @@ class DatabaseLoader:
             raise RuntimeError("artifact size does not match registered metadata")
         if hashlib.sha256(data).hexdigest() != work["content_sha256"]:
             raise RuntimeError("artifact checksum does not match registered metadata")
-        rows = 0
-        if work["media_type"] == "application/json":
-            document = json.loads(data)
-            if isinstance(document, dict) and isinstance(document.get("records"), list):
-                rows = len(document["records"])
-            elif isinstance(document, list):
-                rows = len(document)
-            else:
-                raise RuntimeError("JSON artifact does not contain a registered row collection")
-        else:
-            rows = max(data.count(b"\n") - 1, 0)
-        return {"rows_in": rows, "rows_staged": rows, "rows_accepted": rows, "rows_rejected": 0}
+        if work["media_type"] != "application/json":
+            raise RuntimeError("registered import requires canonical application/json")
+        prepared = prepare_import(data, profile=profile)
+        imported = self.store.execute_import_profile(work, prepared)
+        counts = {
+            "rows_in": imported.rows_in,
+            "rows_staged": imported.rows_staged,
+            "rows_accepted": imported.rows_accepted,
+            "rows_rejected": imported.rows_rejected,
+        }
+        return counts, {
+            "profile": profile,
+            "verified": True,
+            "staging_method": "postgresql-copy",
+            "candidate_generation": str(work["candidate_release_id"]),
+            "quality_checks": imported.quality_checks,
+            "accepted_generation_unchanged": True,
+        }
 
     def _artifact_path(self, storage_key: str) -> Path:
         if not storage_key.startswith("sha256/") or ".." in Path(storage_key).parts:
@@ -114,7 +109,7 @@ def _safe_loader_message(exc: Exception) -> str:
         "not registered",
         "size does not match",
         "checksum does not match",
-        "row collection",
+        "canonical import",
         "unavailable",
     )
     return (

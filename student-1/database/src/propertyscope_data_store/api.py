@@ -225,6 +225,10 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             }
         )
 
+    @api.get("/internal/data-platform/v1/releases/<uuid:release_id>/artifact")
+    def releases_artifact(release_id: uuid.UUID) -> Response:
+        return jsonify({"artifact": store.release_artifact(release_id)})
+
     @api.put("/internal/data-platform/v1/releases/<uuid:release_id>")
     def releases_update(release_id: uuid.UUID) -> Response:
         return jsonify({"release": store.update_release(release_id, payload())})
@@ -244,6 +248,11 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             comment=required_text(body, "comment"),
         )
         return jsonify({"release": release})
+
+    @api.post("/internal/data-platform/v1/releases/<uuid:release_id>/receipts")
+    def releases_receipt(release_id: uuid.UUID) -> tuple[Response, int]:
+        receipt, created = store.record_publication_receipt(release_id, payload())
+        return jsonify({"receipt": receipt, "created": created}), 201 if created else 200
 
     @api.get("/internal/data-platform/v1/properties/search")
     def property_search() -> Response:

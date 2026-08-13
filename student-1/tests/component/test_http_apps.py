@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, cast
 
@@ -7,7 +8,12 @@ import httpx
 import yaml
 
 from propertyscope_data_platform.app import create_app as create_backend_app
-from propertyscope_data_platform.clients import AiModeClient, DataStoreClient
+from propertyscope_data_platform.clients import (
+    AiModeClient,
+    ConsumerEndpoint,
+    ConsumerImportClient,
+    DataStoreClient,
+)
 
 
 def test_backend_proxies_property_search_and_preserves_expected_negative() -> None:
@@ -56,6 +62,134 @@ def test_backend_protects_runner_and_publication() -> None:
     assert response.content_type == "application/problem+json"
 
 
+def test_publication_records_consumer_receipt_before_pointer_transition() -> None:
+    release_id = "60000000-0000-0000-0000-000000000011"
+    digest = "a" * 64
+    events: list[str] = []
+    release = {
+        "id": release_id,
+        "dataset_id": "bocsar-crime",
+        "target_feature": "feature-3",
+        "schema_version": "crime-series.v1",
+        "content_sha256": digest,
+        "record_count": 3,
+        "manifest_json": {"schema_version": "crime-series.v1"},
+        "status": "awaiting_review",
+        "version": 2,
+    }
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json={"release": release, "receipts": []})
+        if request.url.path.endswith("/receipts"):
+            events.append("receipt")
+            body = cast(dict[str, Any], json.loads(request.content))
+            return httpx.Response(
+                201,
+                json={"receipt": {"id": "receipt-1", **body}, "created": True},
+            )
+        events.append("transition")
+        return httpx.Response(200, json={"release": {**release, "status": "accepted"}})
+
+    def consumer(_: httpx.Request) -> httpx.Response:
+        events.append("consumer")
+        return httpx.Response(
+            200,
+            json={
+                "consumer_operation_id": "publish-release-11",
+                "status": "accepted",
+                "schema_version": "crime-series.v1",
+                "content_sha256": digest,
+                "rows_received": 3,
+                "rows_accepted": 3,
+                "rows_rejected": 0,
+                "error": None,
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai",
+            client=httpx.Client(
+                transport=httpx.MockTransport(lambda _: httpx.Response(503))
+            ),
+        ),
+        consumer_client=ConsumerImportClient(
+            {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},
+            client=httpx.Client(transport=httpx.MockTransport(consumer)),
+        ),
+    )
+    response = app.test_client().post(
+        f"/api/data-platform/v1/dataset-releases/{release_id}/publish",
+        headers={"Idempotency-Key": "publish-release-11"},
+        json={"version": 2, "comment": "Reviewed", "approved": True},
+    )
+    assert response.status_code == 200
+    assert events == ["consumer", "receipt", "transition"]
+    assert response.get_json()["receipt"]["id"] == "receipt-1"
+
+
+def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
+    release_id = "60000000-0000-0000-0000-000000000012"
+    digest = "b" * 64
+    events: list[str] = []
+    release = {
+        "id": release_id,
+        "dataset_id": "bocsar-crime",
+        "target_feature": "feature-3",
+        "schema_version": "crime-series.v1",
+        "content_sha256": digest,
+        "record_count": 3,
+        "manifest_json": {},
+        "status": "awaiting_review",
+        "version": 1,
+    }
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json={"release": release, "receipts": []})
+        assert request.url.path.endswith("/receipts")
+        events.append("receipt")
+        body = cast(dict[str, Any], json.loads(request.content))
+        assert body["status"] == "rejected"
+        return httpx.Response(
+            201, json={"receipt": {"id": "receipt-2", **body}, "created": True}
+        )
+
+    consumer = httpx.MockTransport(
+        lambda _: httpx.Response(422, json={"code": "consumer_rejected"})
+    )
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database",
+            "secret",
+            client=httpx.Client(transport=httpx.MockTransport(database)),
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai",
+            client=httpx.Client(
+                transport=httpx.MockTransport(lambda _: httpx.Response(503))
+            ),
+        ),
+        consumer_client=ConsumerImportClient(
+            {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},
+            client=httpx.Client(transport=consumer),
+        ),
+    )
+    response = app.test_client().post(
+        f"/api/data-platform/v1/dataset-releases/{release_id}/publish",
+        headers={"Idempotency-Key": "publish-release-12"},
+        json={"version": 1, "comment": "Reviewed", "approved": True},
+    )
+    assert response.status_code == 424
+    assert events == ["receipt"]
+    assert response.get_json()["code"] == "consumer_publication_failed"
+
+
 def test_ai_unavailable_does_not_break_readiness() -> None:
     def database(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"status": "healthy"})
@@ -73,6 +207,87 @@ def test_ai_unavailable_does_not_break_readiness() -> None:
     response = app.test_client().get("/health/ready")
     assert response.status_code == 200
     assert response.get_json()["dependencies"]["database"] is True
+
+
+def test_release_diagnosis_uses_supported_prompt_contract() -> None:
+    release_id = "60000000-0000-0000-0000-000000000011"
+
+    def upstream(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "database":
+            return httpx.Response(200, json={"release": {"id": release_id}})
+        body = cast(dict[str, Any], json.loads(request.content))
+        assert body["prompt_set"] == "default.v3"
+        assert body["feature_key"] == "propertyscope-data-platform"
+        return httpx.Response(201, json={"run": {"id": "70000000-0000-0000-0000-000000000001"}})
+
+    transport = httpx.MockTransport(upstream)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+    response = app.test_client().post(
+        f"/api/data-platform/v1/dataset-releases/{release_id}/agent-runs"
+    )
+    assert response.status_code == 201
+
+
+def test_report_section_projects_bounded_identity_and_release_evidence() -> None:
+    property_ref = "a0000000-0000-0000-0000-000000000001"
+
+    def database(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "property": {
+                    "address_display": "1 Example Street, Sydney NSW 2000",
+                    "resolution_status": "resolved",
+                    "locality": "Sydney",
+                    "postcode": "2000",
+                    "state": "NSW",
+                    "longitude": 151.2,
+                    "latitude": -33.8,
+                    "geometry": {"type": "Point", "coordinates": [151.2, -33.8]},
+                },
+                "identifiers": [
+                    {"scheme": "GNAF_PID", "identifier_value": "GANSW123"}
+                ],
+                "coverage": [
+                    {
+                        "dataset_id": "bocsar-crime",
+                        "target_feature": "feature-3",
+                        "dataset_release_id": "60000000-0000-0000-0000-000000000003",
+                        "release_version": "2026-Q2",
+                        "schema_version": "1.0.0",
+                        "coverage_status": "supported",
+                        "coverage_scope": {"postcode": "2000"},
+                        "accepted_at": "2026-08-03T00:00:00Z",
+                        "checked_at": "2026-08-03T00:00:00Z",
+                    }
+                ],
+            },
+        )
+
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database",
+            "secret",
+            client=httpx.Client(transport=httpx.MockTransport(database)),
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai",
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
+        ),
+    )
+    response = app.test_client().get(
+        f"/api/data-platform/v1/properties/{property_ref}/report-section"
+    )
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["schema_version"] == "propertyscope.report-section.v1"
+    assert body["identity"]["gnaf_pid"] == "GANSW123"
+    assert body["release_evidence"][0]["dataset_id"] == "bocsar-crime"
 
 
 def test_every_catalog_tool_binds_to_a_real_backend_route() -> None:

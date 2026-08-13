@@ -256,6 +256,42 @@ class SafeError(DomainModel):
     details: dict[str, Any] = Field(default_factory=dict)
 
 
+class ConsumerPublicationRequest(DomainModel):
+    release_id: UUID
+    dataset_id: Identifier
+    schema_version: Identifier
+    content_sha256: Sha256
+    record_count: int = Field(ge=0)
+    manifest: dict[str, Any]
+    artifact_path: str = Field(
+        pattern=r"^/api/data-platform/v1/dataset-releases/[0-9a-f-]+/artifact$"
+    )
+    idempotency_key: str = Field(min_length=8, max_length=200)
+
+
+class PublicationReceiptResult(DomainModel):
+    consumer_operation_id: str = Field(min_length=1, max_length=200)
+    status: Literal["accepted", "rejected", "failed"]
+    schema_version: Identifier
+    content_sha256: Sha256
+    rows_received: int = Field(ge=0)
+    rows_accepted: int = Field(ge=0)
+    rows_rejected: int = Field(ge=0)
+    error: SafeError | None = None
+
+    @model_validator(mode="after")
+    def coherent_counts_and_error(self) -> PublicationReceiptResult:
+        if self.rows_accepted + self.rows_rejected > self.rows_received:
+            raise ValueError("receipt accepted/rejected counts cannot exceed rows received")
+        if self.status == "accepted" and (
+            self.error is not None or self.rows_accepted != self.rows_received
+        ):
+            raise ValueError("accepted receipt must accept every received row without an error")
+        if self.status != "accepted" and self.error is None:
+            raise ValueError("non-accepted receipt requires a safe error")
+        return self
+
+
 class WorkerClaimRequest(DomainModel):
     worker_id: Identifier
     lease_seconds: int = Field(ge=10, le=900)
