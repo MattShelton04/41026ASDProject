@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any, cast
+
 import httpx
+import yaml
 
 from propertyscope_data_platform.app import create_app as create_backend_app
 from propertyscope_data_platform.clients import AiModeClient, DataStoreClient
@@ -31,7 +35,7 @@ def test_backend_proxies_property_search_and_preserves_expected_negative() -> No
         "/api/data-platform/v1/properties/search?q=10%20Example%20Street&state=VIC"
     )
     assert response.status_code == 200
-    assert response.json["supported"] is False
+    assert response.get_json()["supported"] is False
 
 
 def test_backend_protects_runner_and_publication() -> None:
@@ -68,4 +72,24 @@ def test_ai_unavailable_does_not_break_readiness() -> None:
     )
     response = app.test_client().get("/health/ready")
     assert response.status_code == 200
-    assert response.json["dependencies"]["database"] is True
+    assert response.get_json()["dependencies"]["database"] is True
+
+
+def test_every_catalog_tool_binds_to_a_real_backend_route() -> None:
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, json={}))
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+    catalog = cast(
+        dict[str, Any],
+        yaml.safe_load(
+            (Path(__file__).resolve().parents[2] / "tool-catalog.yaml").read_text(encoding="utf-8")
+        ),
+    )
+    rules = {rule.rule: set(rule.methods or ()) for rule in app.url_map.iter_rules()}
+    for binding in catalog["tools"]:
+        assert binding["path"] in rules
+        assert binding["method"] in rules[binding["path"]]

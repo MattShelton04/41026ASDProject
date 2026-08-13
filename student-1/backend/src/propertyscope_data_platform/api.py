@@ -360,83 +360,193 @@ def create_blueprint(store: DataStoreClient, ai_mode: AiModeClient) -> Blueprint
             suffix = "?" + request.query_string.decode("ascii", errors="ignore")
         return forward(ai_mode.get(f"/api/v1/agent-runs/{run_id}/events{suffix}", request.headers))
 
-    # AI tool endpoints: bounded IDs and stored evidence only.
-    @api.post(f"{BASE}/tools/data.sources.v1")
+    # AI tools bind exactly to the checked catalogue paths and output schemas.
+    @api.post(f"{BASE}/tools/sources.list.v1")
     def tool_sources() -> Response:
-        return forward(
-            store.request(
-                "GET", f"{INTERNAL}/sources", headers=request.headers, params={"limit": 50}
-            )
+        body = json_body()
+        params: dict[str, Any] = {"limit": min(int(body.get("limit", 25)), 50)}
+        if body.get("status"):
+            params["status"] = str(body["status"])
+        return tool_envelope(
+            store.request("GET", f"{INTERNAL}/sources", headers=request.headers, params=params)
         )
 
-    @api.post(f"{BASE}/tools/data.runs.v1")
+    @api.post(f"{BASE}/tools/runs.list.v1")
     def tool_runs() -> Response:
-        return forward(
-            store.request("GET", f"{INTERNAL}/runs", headers=request.headers, params={"limit": 50})
+        body = json_body()
+        params: dict[str, Any] = {"limit": min(int(body.get("limit", 25)), 50)}
+        if body.get("status"):
+            params["status"] = str(body["status"])
+        return tool_envelope(
+            store.request("GET", f"{INTERNAL}/runs", headers=request.headers, params=params)
         )
 
-    @api.post(f"{BASE}/tools/data.run_inspect.v1")
+    @api.post(f"{BASE}/tools/runs.inspect.v1")
     def tool_run() -> Response:
         run_id = required_uuid(json_body(), "run_id")
-        return forward(store.request("GET", f"{INTERNAL}/runs/{run_id}", headers=request.headers))
+        run_response = store.request("GET", f"{INTERNAL}/runs/{run_id}", headers=request.headers)
+        if run_response.status_code >= 400:
+            return forward(run_response)
+        tasks = store.request(
+            "GET",
+            f"{INTERNAL}/runs/{run_id}/tasks",
+            headers=request.headers,
+            params={"limit": 100},
+        )
+        quality = store.request(
+            "GET",
+            f"{INTERNAL}/runs/{run_id}/quality-results",
+            headers=request.headers,
+            params={"limit": 100},
+        )
+        return jsonify(
+            {
+                "run": run_response.json()["run"],
+                "tasks": tasks.json().get("items", []),
+                "quality_results": quality.json().get("items", []),
+            }
+        )
 
-    @api.post(f"{BASE}/tools/data.release_inspect.v1")
+    @api.post(f"{BASE}/tools/releases.inspect.v1")
     def tool_release() -> Response:
-        release_id = required_uuid(json_body(), "release_id")
-        return forward(
-            store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
-        )
+        return release_inspection(store, required_uuid(json_body(), "release_id"))
 
-    @api.post(f"{BASE}/tools/data.coverage.v1")
+    @api.post(f"{BASE}/tools/releases.compare.v1")
+    def tool_release_compare() -> Response:
+        body = json_body()
+        candidate = store.request(
+            "GET",
+            f"{INTERNAL}/releases/{required_uuid(body, 'candidate_release_id')}",
+            headers=request.headers,
+        )
+        predecessor = store.request(
+            "GET",
+            f"{INTERNAL}/releases/{required_uuid(body, 'predecessor_release_id')}",
+            headers=request.headers,
+        )
+        if candidate.status_code >= 400:
+            return forward(candidate)
+        if predecessor.status_code >= 400:
+            return forward(predecessor)
+        left, right = candidate.json()["release"], predecessor.json()["release"]
+        fields = ("schema_version", "record_count", "content_sha256", "coverage_json", "status")
+        differences = [
+            {"field": field, "candidate": left.get(field), "predecessor": right.get(field)}
+            for field in fields
+            if left.get(field) != right.get(field)
+        ]
+        return jsonify({"candidate": left, "predecessor": right, "differences": differences})
+
+    @api.post(f"{BASE}/tools/coverage.inspect.v1")
     def tool_coverage() -> Response:
-        property_ref = required_uuid(json_body(), "property_ref")
-        return forward(
-            store.request(
-                "GET", f"{INTERNAL}/properties/{property_ref}/coverage", headers=request.headers
-            )
+        body = json_body()
+        locality = str(body.get("locality", "")).strip()
+        if not locality:
+            return problem(422, "invalid_request", "locality is required")
+        search = store.request(
+            "GET",
+            f"{INTERNAL}/properties/search",
+            headers=request.headers,
+            params={"q": locality, "state": "NSW", "limit": 25},
         )
+        if search.status_code >= 400:
+            return forward(search)
+        evidence: dict[tuple[str, str], dict[str, Any]] = {}
+        for item in search.json().get("items", []):
+            if body.get("postcode") and item.get("postcode") != body["postcode"]:
+                continue
+            response = store.request(
+                "GET",
+                f"{INTERNAL}/properties/{item['property_ref']}/coverage",
+                headers=request.headers,
+            )
+            for row in response.json().get("items", []):
+                evidence[(row["dataset_id"], row["target_feature"])] = row
+        return jsonify({"items": list(evidence.values())[:50]})
 
-    @api.post(f"{BASE}/tools/property.search.v1")
+    @api.post(f"{BASE}/tools/properties.search.v1")
     def tool_property_search() -> Response:
         body = json_body()
-        return forward(
-            store.request(
-                "GET",
-                f"{INTERNAL}/properties/search",
-                headers=request.headers,
-                params={
-                    "q": body.get("query", ""),
-                    "state": body.get("state", "NSW"),
-                    "limit": body.get("limit", 10),
-                },
-            )
+        response = store.request(
+            "GET",
+            f"{INTERNAL}/properties/search",
+            headers=request.headers,
+            params={"q": body.get("query", ""), "state": "NSW", "limit": body.get("limit", 10)},
         )
+        if response.status_code >= 400:
+            return forward(response)
+        data = response.json()
+        return jsonify({"items": data.get("items", []), "count": data.get("count", 0)})
 
-    @api.post(f"{BASE}/tools/property.inspect.v1")
+    @api.post(f"{BASE}/tools/properties.inspect.v1")
     def tool_property_inspect() -> Response:
         property_ref = required_uuid(json_body(), "property_ref")
         return forward(
             store.request("GET", f"{INTERNAL}/properties/{property_ref}", headers=request.headers)
         )
 
-    @api.post(f"{BASE}/tools/data.run_retry.v1")
+    @api.post(f"{BASE}/tools/runs.retry.v1")
     def tool_retry() -> Response:
         body = json_body()
-        if not request.headers.get("Idempotency-Key"):
+        key = str(body.get("idempotency_key", "")).strip()
+        if not key or not request.headers.get("X-Agent-Run-ID"):
             return problem(
-                422, "idempotency_key_required", "Protected retry requires Idempotency-Key"
+                422,
+                "human_approval_required",
+                "Protected retry requires an approved agent run and idempotency key",
             )
         run_id = required_uuid(body, "run_id")
-        return run_retry(run_id)
+        original = store.request("GET", f"{INTERNAL}/runs/{run_id}", headers=request.headers)
+        if original.status_code >= 400:
+            return forward(original)
+        source_run = original.json()["run"]
+        created = store.request(
+            "POST",
+            f"{INTERNAL}/jobs/{source_run['job_definition_id']}/runs",
+            headers=request.headers,
+            json={
+                "run_mode": "full_refresh",
+                "scope": source_run["requested_scope_json"],
+                "parent_run_id": str(run_id),
+                "idempotency_key": key,
+                "request_id": request.headers.get("X-Request-ID", str(uuid.uuid4())),
+            },
+        )
+        if created.status_code >= 400:
+            return forward(created)
+        result = created.json()
+        return jsonify({"child_run_id": result["run"]["id"], "replayed": not result["created"]})
 
-    @api.post(f"{BASE}/tools/data.release_publish.v1")
+    @api.post(f"{BASE}/tools/releases.publish.v1")
     def tool_publish() -> Response:
         body = json_body()
-        if not bool(body.get("approved", False)):
+        key = str(body.get("idempotency_key", "")).strip()
+        if not key or not request.headers.get("X-Agent-Run-ID"):
             return problem(
-                422, "human_approval_required", "Protected publication requires review approval"
+                422,
+                "human_approval_required",
+                "Protected publication requires an approved agent run and idempotency key",
             )
-        return transition(store, required_uuid(body, "release_id"), "accepted", body)
+        release_id = required_uuid(body, "release_id")
+        current = store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
+        if current.status_code >= 400:
+            return forward(current)
+        release = current.json()["release"]
+        if release["status"] == "accepted":
+            return jsonify({"status": "accepted", "receipt_id": None, "replayed": True})
+        published = store.request(
+            "POST",
+            f"{INTERNAL}/releases/{release_id}/transition",
+            headers=request.headers,
+            json={
+                "version": release["version"],
+                "target": "accepted",
+                "comment": f"Approved agent operation {key}",
+            },
+        )
+        if published.status_code >= 400:
+            return forward(published)
+        return jsonify({"status": "accepted", "receipt_id": None, "replayed": False})
 
     # Private runner boundary simply brokers the same atomic store operations.
     @api.post(f"{INTERNAL}/worker/tasks/claim")
@@ -523,6 +633,51 @@ def required_uuid(body: Mapping[str, Any], name: str) -> uuid.UUID:
         return uuid.UUID(str(body.get(name, "")))
     except ValueError as exc:
         raise ValueError(f"{name} must be a UUID") from exc
+
+
+def tool_envelope(upstream: httpx.Response) -> Response:
+    """Strip internal pagination fields to match bounded tool output contracts."""
+    if upstream.status_code >= 400:
+        return forward(upstream)
+    data = upstream.json()
+    return jsonify({"items": data.get("items", []), "count": data.get("count", 0)})
+
+
+def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Response:
+    """Compose release, quality, and accepted predecessor evidence without SQL access."""
+    response = store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
+    if response.status_code >= 400:
+        return forward(response)
+    release = response.json()["release"]
+    quality_response = store.request(
+        "GET",
+        f"{INTERNAL}/runs/{release['ingestion_run_id']}/quality-results",
+        headers=request.headers,
+        params={"limit": 100},
+    )
+    releases_response = store.request(
+        "GET",
+        f"{INTERNAL}/releases",
+        headers=request.headers,
+        params={"status": "accepted", "limit": 100},
+    )
+    predecessor = next(
+        (
+            item
+            for item in releases_response.json().get("items", [])
+            if item["dataset_id"] == release["dataset_id"]
+            and item["target_feature"] == release["target_feature"]
+            and item["id"] != release["id"]
+        ),
+        None,
+    )
+    return jsonify(
+        {
+            "release": release,
+            "quality_results": quality_response.json().get("items", []),
+            "accepted_predecessor": predecessor,
+        }
+    )
 
 
 def forward(upstream: httpx.Response) -> Response:
