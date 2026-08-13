@@ -769,7 +769,7 @@ async function renderRunDetail(id, { polling = false } = {}) {
       try { const created = await mutate(`ingestion-runs/${id}/${key}`, { success: `${label} requested` }); const child = entity(created, "run"); if (child?.id && child.id !== id) location.hash = `#runs/${child.id}`; else renderRunDetail(id); } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }
     }));
     if (availability.resume) runAction("resume", "Resume", "Continue the existing non-terminal run from durable task evidence.");
-    if (availability.retry) runAction("retry", "Retry failed", "Create a linked child run containing only eligible failed work.");
+    if (availability.retry) runAction("retry", "Retry failed", "Create a linked full-pipeline retry with the failed run retained as its parent evidence.");
     if (availability.reprocess) runAction("reprocess-cached", "Reprocess cached", "Create a linked child run using verified cached artifacts and current transforms.");
     if (availability.cancel) runAction("cancel", "Cancel", "Request cooperative cancellation. Completed evidence will remain available.", "danger");
     if (availability.diagnose) actions.push(button("Diagnose with AI", "button primary", () => { location.hash = "#ai"; }));

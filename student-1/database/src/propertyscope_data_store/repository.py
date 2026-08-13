@@ -367,6 +367,7 @@ class PropertyScopeStore:
         if existing:
             return _run_projection(existing), False
         attempt_number = 1
+        parent: JsonObject | None = None
         if parent_run_id is not None:
             parent = self.get_run(parent_run_id)
             if parent["job_definition_id"] != str(job_id):
@@ -375,6 +376,16 @@ class PropertyScopeStore:
                 raise ConflictError("full pipeline retry requires a failed or cancelled parent")
             if mode == "reprocess_cached" and parent["status"] not in TERMINAL_RUN_STATES:
                 raise ConflictError("cached reprocessing requires a terminal parent")
+            if (
+                mode == "reprocess_cached"
+                and self._fetch_one(
+                    """SELECT id FROM ops.artifact_record WHERE ingestion_run_id=%s
+                AND artifact_kind='canonical_import' ORDER BY created_at DESC LIMIT 1""",
+                    (parent_run_id,),
+                )
+                is None
+            ):
+                raise ConflictError("cached reprocessing requires a verified canonical artifact")
             attempt_number = int(parent["attempt_number"]) + 1
         now = datetime.now(UTC)
         run_id = uuid.uuid4()
@@ -406,6 +417,7 @@ class PropertyScopeStore:
                         now,
                     ),
                 ).fetchone()
+                task_ids: dict[str, uuid.UUID] = {}
                 for stage_index, stage in enumerate(
                     (
                         "discover",
@@ -417,23 +429,56 @@ class PropertyScopeStore:
                         "build_release",
                     )
                 ):
+                    task_id = uuid.uuid4()
+                    task_ids[stage] = task_id
+                    cached_prerequisite = mode == "reprocess_cached" and stage in {
+                        "discover",
+                        "acquire",
+                        "validate_artifact",
+                    }
                     connection.execute(
                         """
                         INSERT INTO ops.run_task (
                             id,ingestion_run_id,logical_key,partition_json,stage,status,
-                            attempt_number,rows_in,rows_out,created_at,updated_at,version
-                        ) VALUES (%s,%s,%s,%s,%s,'pending',1,0,0,%s,%s,1)
+                            attempt_number,finished_at,rows_in,rows_out,created_at,updated_at,version
+                        ) VALUES (%s,%s,%s,%s,%s,%s,1,%s,0,0,%s,%s,1)
                         """,
                         (
-                            uuid.uuid4(),
+                            task_id,
                             run_id,
                             f"{stage_index:02d}/{stage}",
                             _json(scope),
                             stage,
+                            "skipped" if cached_prerequisite else "pending",
+                            now if cached_prerequisite else None,
                             now,
                             now,
                         ),
                     )
+                if mode == "reprocess_cached" and parent_run_id is not None:
+                    for kind, stage, logical_key in (
+                        ("source_snapshot", "discover", "00/discover"),
+                        ("canonical_import", "acquire", "01/acquire"),
+                    ):
+                        connection.execute(
+                            """INSERT INTO ops.artifact_record (
+                            id,ingestion_run_id,run_task_id,logical_key,artifact_kind,storage_key,
+                            source_uri_redacted,content_sha256,media_type,bytes,etag,
+                            source_last_modified,schema_version,retention_class,created_at
+                            ) SELECT %s,%s,%s,%s,artifact_kind,storage_key,source_uri_redacted,
+                            content_sha256,media_type,bytes,etag,source_last_modified,schema_version,
+                            retention_class,%s FROM ops.artifact_record WHERE ingestion_run_id=%s
+                            AND artifact_kind=%s ORDER BY created_at DESC LIMIT 1""",
+                            (
+                                uuid.uuid4(),
+                                run_id,
+                                task_ids[stage],
+                                logical_key,
+                                now,
+                                parent_run_id,
+                                kind,
+                            ),
+                        )
                 connection.commit()
             except errors.UniqueViolation:
                 connection.rollback()
