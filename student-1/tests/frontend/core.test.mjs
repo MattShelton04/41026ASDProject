@@ -11,6 +11,7 @@ import {
   formatBytes,
   isPsiJob,
   isSchoolsJob,
+  liveProfileLabel,
   nextPollDelay,
   parseJsonField,
   psiYearRange,
@@ -111,6 +112,8 @@ test("job source detection and explicit year partitions are bounded", () => {
   assert.equal(isPsiJob({ adapter_key: "schools-csv" }), false);
   assert.equal(isSchoolsJob({ import_profile_key: "schools-master" }), true);
   assert.equal(isSchoolsJob({ adapter_key: "gnaf-bulk" }), false);
+  assert.equal(liveProfileLabel("gnaf-nsw"), "Live official Geoscape G-NAF bulk archive");
+  assert.equal(liveProfileLabel("bocsar-sparse"), "Live official BOCSAR archive");
   assert.deepEqual(psiYearRange("2024", "2026", { maximum: 2027 }), [2024, 2025, 2026]);
   assert.throws(() => psiYearRange(2027, 2024, { maximum: 2027 }), /valid range/);
   assert.throws(() => psiYearRange(1989, 2024, { maximum: 2027 }), /1990/);
@@ -199,6 +202,14 @@ test("release CRUD and report-section routes are represented in the browser clie
   assert.match(source, /badge\(item\.coverage_status\)/);
 });
 
+test("release details render bounded paginated dataset records", async () => {
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  assert.match(app, /dataset-releases\/\$\{id\}\/records\?limit=25&offset=0/);
+  assert.match(app, /function releasePreviewPanel/);
+  assert.match(app, /No other release is mixed into this view/);
+  assert.match(app, /Next page/);
+});
+
 test("operator UI exposes working submit controls, backfills and durable histories", async () => {
   const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
   assert.match(source, /search\.type = "submit"/);
@@ -208,6 +219,15 @@ test("operator UI exposes working submit controls, backfills and durable histori
   assert.match(source, /PSI source year/);
   assert.match(source, /Preview deterministic plan/);
   assert.match(source, /link\("Run history"/);
+});
+
+test("live acquisition controls use truthful runtime capability evidence", async () => {
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  assert.match(app, /request\("runtime-capabilities"\)/);
+  assert.match(app, /requires --full-data/);
+  assert.match(app, /implemented_live_profiles/);
+  assert.match(app, /liveOption\.disabled = !liveAvailable/);
+  assert.match(app, /Maximum addresses/);
 });
 
 test("AI diagnosis history is loaded from the durable shared service projection", async () => {

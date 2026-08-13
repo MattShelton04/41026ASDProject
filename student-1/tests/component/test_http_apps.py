@@ -44,6 +44,49 @@ def test_backend_proxies_property_search_and_preserves_expected_negative() -> No
     assert response.get_json()["supported"] is False
 
 
+def test_backend_proxies_bounded_release_record_preview() -> None:
+    release_id = "60000000-0000-0000-0000-000000000004"
+
+    def database(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == f"/internal/data-platform/v1/releases/{release_id}/records"
+        assert request.url.params["limit"] == "25"
+        assert request.url.params["offset"] == "50"
+        return httpx.Response(
+            200,
+            json={
+                "release": {"id": release_id, "status": "candidate"},
+                "profile": "schools-master",
+                "columns": ["school_code", "school_name"],
+                "items": [{"school_code": "1001", "school_name": "Example Public School"}],
+                "count": 1,
+                "total": 2210,
+                "limit": 25,
+                "offset": 50,
+                "next_offset": 75,
+            },
+        )
+
+    store = DataStoreClient(
+        "http://database",
+        "secret",
+        client=httpx.Client(transport=httpx.MockTransport(database)),
+    )
+    app = create_backend_app(
+        store_client=store,
+        ai_mode_client=AiModeClient(
+            "http://ai",
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
+        ),
+    )
+
+    response = app.test_client().get(
+        f"/api/data-platform/v1/dataset-releases/{release_id}/records?limit=25&offset=50"
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["total"] == 2210
+
+
 def test_backend_protects_runner_and_publication() -> None:
     transport = httpx.MockTransport(lambda _: httpx.Response(500, json={"code": "unexpected"}))
     app = create_backend_app(
@@ -279,6 +322,7 @@ def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> N
             "http://database", "secret", client=httpx.Client(transport=transport)
         ),
         ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+        full_data_enabled=True,
     )
     response = app.test_client().post(
         f"/api/data-platform/v1/jobs/{job_id}/plans",
@@ -287,6 +331,48 @@ def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> N
 
     assert response.status_code == 200
     assert response.get_json()["network_required"] is True
+
+
+def test_default_runtime_reports_and_rejects_disabled_live_acquisition() -> None:
+    job_id = "20000000-0000-0000-0000-000000000004"
+
+    def database(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "job": {
+                    "id": job_id,
+                    "adapter_key": "schools-csv",
+                    "import_profile_key": "schools-master",
+                    "scope_json": {"profile": "showcase"},
+                    "max_objects": 2,
+                    "max_bytes": 25_000_000,
+                    "max_rows": 5_000,
+                    "timeout_seconds": 300,
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+        full_data_enabled=False,
+    )
+    client = app.test_client()
+
+    capabilities = client.get("/api/data-platform/v1/runtime-capabilities")
+    plan = client.post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={"run_mode": "full_refresh", "scope": {"profile": "full-data"}},
+    )
+
+    assert capabilities.get_json()["full_data_enabled"] is False
+    assert capabilities.get_json()["connected_live_profiles"] == []
+    assert plan.status_code == 422
+    assert plan.get_json()["code"] == "full_data_runtime_disabled"
 
 
 def test_job_plan_rejects_catalogued_source_without_live_transport() -> None:
@@ -298,13 +384,13 @@ def test_job_plan_rejects_catalogued_source_without_live_transport() -> None:
             json={
                 "job": {
                     "id": job_id,
-                    "adapter_key": "gnaf-bulk",
-                    "import_profile_key": "gnaf-nsw",
+                    "adapter_key": "psi-yearly-zip",
+                    "import_profile_key": "psi-sales",
                     "scope_json": {"profile": "showcase"},
                     "max_objects": 10,
-                    "max_bytes": 2_500_000_000,
-                    "max_rows": 6_500_000,
-                    "timeout_seconds": 86_400,
+                    "max_bytes": 800_000_000,
+                    "max_rows": 500_000,
+                    "timeout_seconds": 7_200,
                 }
             },
         )
@@ -315,10 +401,14 @@ def test_job_plan_rejects_catalogued_source_without_live_transport() -> None:
             "http://database", "secret", client=httpx.Client(transport=transport)
         ),
         ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+        full_data_enabled=True,
     )
     response = app.test_client().post(
         f"/api/data-platform/v1/jobs/{job_id}/plans",
-        json={"run_mode": "full_refresh", "scope": {"profile": "full-data"}},
+        json={
+            "run_mode": "full_refresh",
+            "scope": {"profile": "full-data", "years": [2025]},
+        },
     )
 
     assert response.status_code == 422

@@ -11,6 +11,7 @@ import {
   humanise,
   isPsiJob,
   isSchoolsJob,
+  liveProfileLabel,
   newRequestId,
   nextPollDelay,
   parseJsonField,
@@ -636,10 +637,15 @@ function operationStep(number, title, description) {
 }
 
 async function openPlanDialog(job, capabilities = null, { intent = "run" } = {}) {
+  let runtime = { full_data_enabled: false, connected_live_profiles: [] };
+  try { runtime = (await request("runtime-capabilities")).body; } catch { /* normal showcase controls remain available */ }
   const wrapper = el("div", "stack");
   const isBackfill = intent === "backfill";
   const psi = isPsiJob(job);
-  const schools = isSchoolsJob(job);
+  const importProfile = job.import_profile_key || job.import_profile;
+  const gnaf = importProfile === "gnaf-nsw";
+  const liveAvailable = runtime.full_data_enabled
+    && runtime.connected_live_profiles?.includes(importProfile);
   const currentYear = new Date().getFullYear();
   append(wrapper, el("div", `notice ${isBackfill ? "warning" : ""}`, isBackfill
     ? "Backfill creates a new full-refresh run for an explicit bounded scope. Accepted data is not replaced until a candidate passes review and publication."
@@ -657,19 +663,22 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   const showcaseOption = el("option", "", "Deterministic showcase records"); showcaseOption.value = "showcase";
   const testOption = el("option", "", "Small deterministic test records"); testOption.value = "test";
   append(scopeProfile, showcaseOption, testOption);
-  if (schools) {
-    const liveOption = el("option", "", "Live official Data.NSW schools CSV"); liveOption.value = "full-data";
+  if (runtime.implemented_live_profiles?.includes(importProfile)) {
+    const liveLabel = liveProfileLabel(importProfile);
+    const liveOption = el("option", "", liveAvailable ? liveLabel : `${liveLabel} requires --full-data`); liveOption.value = "full-data"; liveOption.disabled = !liveAvailable;
     append(scopeProfile, liveOption);
   }
   scopeProfile.value = ["test", "showcase", "full-data"].includes(job.scope_json?.profile)
+    && [...scopeProfile.options].some((option) => option.value === job.scope_json.profile && !option.disabled)
     ? job.scope_json.profile
     : "showcase";
-  append(profileLabel, scopeProfile, el("small", "field-help", schools
-    ? "Live acquisition is available only in the explicit --full-data stack and is never substituted with generated records."
-    : "This source currently supports bounded deterministic records; unavailable live transports fail before launch."));
+  append(profileLabel, scopeProfile, el("small", "field-help", liveAvailable
+    ? "Live acquisition uses the registered upstream source with enforced archive, byte, and record limits."
+    : "Live acquisition is available only for connected sources in the explicit --full-data stack; fixtures are never substituted silently."));
   append(wrapper, profileLabel);
   let firstYear = null;
   let lastYear = null;
+  let maximumRecords = null;
   if (psi) {
     const scopeFields = el("div", "scope-fields");
     const startingYear = Number(job.scope_json?.source_year || job.scope_json?.years?.[0] || currentYear);
@@ -687,6 +696,19 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
     }
     append(wrapper, scopeFields);
   }
+  if (gnaf) {
+    const limitLabel = el("label", "field");
+    append(limitLabel, el("span", "", "Maximum addresses"));
+    maximumRecords = el("input");
+    maximumRecords.type = "number";
+    maximumRecords.name = "maximum_records";
+    maximumRecords.min = "1";
+    maximumRecords.max = String(Math.min(Number(job.max_rows || 50000), 50000));
+    maximumRecords.required = true;
+    maximumRecords.value = String(job.scope_json?.maximum_records || 5000);
+    append(limitLabel, maximumRecords, el("small", "field-help", "The live bulk archive is streamed once, but only this bounded number of addresses enters the candidate release."));
+    append(wrapper, limitLabel);
+  }
   const advanced = el("details", "technical scope-editor");
   const scope = el("textarea"); scope.value = JSON.stringify(job.scope_json || {}, null, 2); scope.setAttribute("aria-label", "Advanced bounded scope JSON");
   append(advanced, el("summary", "", "Advanced scope JSON"), el("p", "", "Safe registered overrides only. PSI year controls above take precedence."), scope);
@@ -694,6 +716,14 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   const requestedScope = () => {
     const value = parseJsonField(scope.value, "Scope");
     value.profile = scopeProfile.value;
+    if (gnaf) {
+      const requested = Number(maximumRecords.value);
+      const maximum = Number(maximumRecords.max);
+      if (!Number.isInteger(requested) || requested < 1 || requested > maximum) {
+        throw new Error(`Maximum addresses must be between 1 and ${maximum}.`);
+      }
+      value.maximum_records = requested;
+    }
     if (!psi) return value;
     const years = psiYearRange(firstYear.value, lastYear?.value || firstYear.value, { maximum: currentYear + 1 });
     delete value.source_year;
@@ -859,9 +889,10 @@ async function renderReleaseDetail(id) {
   const receipts = body.receipts || [];
   let manifest = release.manifest_json || body.manifest;
   if (!manifest) { try { manifest = (await request(`dataset-releases/${id}/manifest`)).body; } catch { manifest = null; } }
-  const [qualityResult, acceptedResult] = await Promise.allSettled([
+  const [qualityResult, acceptedResult, previewResult] = await Promise.allSettled([
     request(`ingestion-runs/${release.ingestion_run_id}/quality-results?limit=100`),
     request("dataset-releases?status=accepted&limit=100"),
+    request(`dataset-releases/${id}/records?limit=25&offset=0`),
   ]);
   const qualityResults = qualityResult.status === "fulfilled" ? collection(qualityResult.value.body) : [];
   const acceptedReleases = acceptedResult.status === "fulfilled" ? collection(acceptedResult.value.body) : [];
@@ -903,10 +934,72 @@ async function renderReleaseDetail(id) {
   append(side, panel("Publication receipts", "Consumer-owned import outcomes", receiptBody));
   append(layout, panel("Release evidence", "Candidate and accepted state remain distinct", releaseBody), side);
   append(view, layout);
+  if (previewResult.status === "fulfilled") append(view, releasePreviewPanel(id, previewResult.value.body));
+  else append(view, panel("Dataset preview", "Bounded release-scoped records", el("div", "notice warning", "Preview is unavailable for this release profile. Release evidence and quality controls remain available.")));
   append(view, renderReleaseReviewEvidence(release, predecessor, qualityResults, {
     qualityUnavailable: qualityResult.status === "rejected",
     predecessorUnavailable: acceptedResult.status === "rejected",
   }));
+}
+
+function previewValue(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "object") {
+    const encoded = JSON.stringify(value);
+    return encoded.length > 80 ? technicalDetails(value, "Inspect value") : el("code", "mono", encoded);
+  }
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+function releasePreviewPanel(releaseId, initialPage) {
+  const host = el("section", "panel");
+  const heading = el("div", "panel-heading");
+  const headingCopy = el("div");
+  append(headingCopy, el("h2", "", "Dataset preview"), el("p", "", "Bounded rows from this exact candidate or accepted generation"));
+  append(heading, headingCopy);
+  const body = el("div", "panel-body");
+  append(host, heading, body);
+
+  const renderPage = (page) => {
+    body.replaceChildren();
+    const release = page.release || {};
+    append(body, el("div", "notice", `${humanise(release.status)} generation · ${formatNumber(page.total)} previewable ${humanise(page.profile)} records. No other release is mixed into this view.`));
+    if (!page.items?.length) {
+      append(body, emptyState("No preview rows", "This release has no rows in its registered warehouse projection."));
+      return;
+    }
+    const columns = page.columns || Object.keys(page.items[0]);
+    append(body, makeTable(columns.map((column) => ({ label: humanise(column) })), page.items, (item) => {
+      const row = el("tr");
+      columns.forEach((column, index) => {
+        const value = previewValue(item[column]);
+        append(row, cell(index === 0 && !(value instanceof Node) ? primaryCell(value) : value, index === 0 ? "primary-cell" : ""));
+      });
+      return row;
+    }));
+    const controls = el("div", "dialog-actions");
+    const previous = button("Previous page", "button secondary");
+    const next = button("Next page", "button secondary");
+    previous.disabled = page.offset <= 0;
+    next.disabled = page.next_offset === null || page.next_offset === undefined;
+    const load = async (offset, control) => {
+      control.disabled = true;
+      try {
+        const result = await request(`dataset-releases/${releaseId}/records${queryString({ limit: page.limit || 25, offset })}`);
+        renderPage(result.body);
+      } catch (error) {
+        body.prepend(el("div", "notice warning", `${error.message} Request ID ${error.requestId}`));
+        control.disabled = false;
+      }
+    };
+    previous.addEventListener("click", () => load(Math.max(0, page.offset - page.limit), previous));
+    next.addEventListener("click", () => load(page.next_offset, next));
+    append(controls, el("span", "field-help", `Showing ${formatNumber(page.offset + 1)}–${formatNumber(page.offset + page.count)} of ${formatNumber(page.total)}`), previous, next);
+    append(body, controls);
+  };
+  renderPage(initialPage);
+  return host;
 }
 
 function renderReleaseReviewEvidence(release, predecessor, qualityResults, availability) {

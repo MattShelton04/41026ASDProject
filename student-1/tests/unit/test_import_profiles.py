@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 from pathlib import Path
 from typing import Any, cast
@@ -12,6 +13,7 @@ from propertyscope_data_store.import_profiles import (
     CANONICAL_SCHEMA_VERSION,
     ImportProfileError,
     ImportResult,
+    execute_import,
     prepare_import,
 )
 from propertyscope_data_store.loader import DatabaseLoader
@@ -191,3 +193,9 @@ def test_runner_showcase_records_use_the_database_canonical_contract(profile: st
     prepared = prepare_import(_artifact(profile, records), profile=profile)
 
     assert len(prepared.rows) == 10
+
+
+def test_import_updates_manifest_and_release_row_counts_together() -> None:
+    source = inspect.getsource(execute_import)
+    assert "manifest_json=jsonb_set" in source
+    assert "'{record_count}'" in source

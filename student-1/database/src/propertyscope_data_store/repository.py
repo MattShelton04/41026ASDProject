@@ -25,6 +25,119 @@ TERMINAL_RUN_STATES = frozenset({"succeeded", "failed", "cancelled"})
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_IMPORT_STATES = frozenset({"succeeded", "failed", "cancelled"})
 
+PREVIEW_SPECS: dict[str, tuple[str, str, tuple[str, ...]]] = {
+    "gnaf-nsw": (
+        """SELECT gnaf_pid,property_ref,address_display,locality,postcode,source_status,
+        geocode_type,source_crs,ST_AsGeoJSON(geom)::jsonb AS geometry
+        FROM warehouse.gnaf_address WHERE dataset_release_id=%s
+        ORDER BY locality,postcode,address_display,gnaf_pid LIMIT %s OFFSET %s""",
+        "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
+        (
+            "gnaf_pid",
+            "property_ref",
+            "address_display",
+            "locality",
+            "postcode",
+            "source_status",
+            "geocode_type",
+            "source_crs",
+            "geometry",
+        ),
+    ),
+    "psi-sales": (
+        """SELECT source_business_key,source_revision,source_era,district_code,property_id,
+        dealing_id,contract_date::text,settlement_date::text,price_aud,
+        area_square_metres::text,property_ref,match_tier,match_confidence::float8,
+        geographic_precision FROM warehouse.psi_sale WHERE dataset_release_id=%s
+        ORDER BY contract_date NULLS LAST,source_business_key,source_revision LIMIT %s OFFSET %s""",
+        "SELECT count(*) AS count FROM warehouse.psi_sale WHERE dataset_release_id=%s",
+        (
+            "source_business_key",
+            "source_revision",
+            "source_era",
+            "district_code",
+            "property_id",
+            "dealing_id",
+            "contract_date",
+            "settlement_date",
+            "price_aud",
+            "area_square_metres",
+            "property_ref",
+            "match_tier",
+            "match_confidence",
+            "geographic_precision",
+        ),
+    ),
+    "bocsar-sparse": (
+        """SELECT observation.geography_kind,observation.geography_value,
+        observation.source_category_key,observation.offence_label,
+        observation.subcategory_label,observation.month::text,observation.count,
+        coverage.first_month::text,coverage.last_month::text,coverage.month_count,
+        coverage.blank_means_observed_zero FROM warehouse.bocsar_observation observation
+        LEFT JOIN warehouse.bocsar_coverage coverage
+          ON coverage.dataset_release_id=observation.dataset_release_id
+         AND coverage.geography_kind=observation.geography_kind
+         AND coverage.geography_value=observation.geography_value
+         AND coverage.source_category_key=observation.source_category_key
+        WHERE observation.dataset_release_id=%s
+        ORDER BY observation.geography_kind,observation.geography_value,
+        observation.source_category_key,observation.month LIMIT %s OFFSET %s""",
+        "SELECT count(*) AS count FROM warehouse.bocsar_observation WHERE dataset_release_id=%s",
+        (
+            "geography_kind",
+            "geography_value",
+            "source_category_key",
+            "offence_label",
+            "subcategory_label",
+            "month",
+            "count",
+            "first_month",
+            "last_month",
+            "month_count",
+            "blank_means_observed_zero",
+        ),
+    ),
+    "schools-master": (
+        """SELECT school_code,school_name,school_type,status,locality_original,
+        locality_normalised,lga_name,ST_AsGeoJSON(geom)::jsonb AS geometry
+        FROM warehouse.school WHERE dataset_release_id=%s
+        ORDER BY school_name,school_code LIMIT %s OFFSET %s""",
+        "SELECT count(*) AS count FROM warehouse.school WHERE dataset_release_id=%s",
+        (
+            "school_code",
+            "school_name",
+            "school_type",
+            "status",
+            "locality_original",
+            "locality_normalised",
+            "lga_name",
+            "geometry",
+        ),
+    ),
+    "property-fixture": (
+        """SELECT DISTINCT property.property_ref,property.address_display,property.locality,
+        property.postcode,property.state,property.resolution_status,
+        ST_AsGeoJSON(property.geom)::jsonb AS geometry
+        FROM registry.property property JOIN registry.property_identifier identifier
+          ON identifier.property_ref=property.property_ref
+        WHERE identifier.source_release_id=%s AND identifier.is_current
+        ORDER BY property.address_display,property.property_ref LIMIT %s OFFSET %s""",
+        """SELECT count(DISTINCT property.property_ref) AS count
+        FROM registry.property property JOIN registry.property_identifier identifier
+          ON identifier.property_ref=property.property_ref
+        WHERE identifier.source_release_id=%s AND identifier.is_current""",
+        (
+            "property_ref",
+            "address_display",
+            "locality",
+            "postcode",
+            "state",
+            "resolution_status",
+            "geometry",
+        ),
+    ),
+}
+
 
 class PropertyScopeStore:
     """Exclusive persistence facade for Feature 1 PostgreSQL/PostGIS."""
@@ -59,8 +172,16 @@ class PropertyScopeStore:
     def ready(self) -> bool:
         try:
             with self.connection() as connection:
-                row = connection.execute("SELECT postgis_version() AS version").fetchone()
-            return row is not None and bool(row["version"])
+                row = connection.execute(
+                    """SELECT postgis_version() AS version,
+                    to_regclass('ops.run_task') AS run_task,
+                    to_regclass('ops.import_operation') AS import_operation,
+                    to_regclass('warehouse.gnaf_address') AS gnaf_address"""
+                ).fetchone()
+            return row is not None and all(
+                bool(row[field])
+                for field in ("version", "run_task", "import_operation", "gnaf_address")
+            )
         except Exception:
             return False
 
@@ -598,7 +719,8 @@ class PropertyScopeStore:
                 """UPDATE ops.run_task SET status='pending',lease_owner=NULL,lease_token=NULL,
                 lease_expires_at=NULL,heartbeat_at=NULL,attempt_number=attempt_number+1,
                 version=version+1,updated_at=%s
-                WHERE ingestion_run_id=%s AND status IN ('claimed','running','retry_wait')""",
+                WHERE ingestion_run_id=%s
+                AND status IN ('claimed','running','retry_wait','cancelled')""",
                 (now, run_id),
             )
             row = connection.execute(
@@ -866,6 +988,42 @@ class PropertyScopeStore:
             (release_id,),
         )
 
+    def preview_release_records(
+        self, release_id: uuid.UUID, *, limit: int, offset: int
+    ) -> JsonObject:
+        """Return a bounded, allowlisted projection of one isolated release generation."""
+        context = self._required(
+            """SELECT release.id,release.dataset_id,release.release_version,release.status,
+            release.record_count,job.import_profile_key FROM ops.dataset_release release
+            JOIN ops.ingestion_run run ON run.id=release.ingestion_run_id
+            JOIN ops.job_definition job ON job.id=run.job_definition_id
+            WHERE release.id=%s""",
+            (release_id,),
+        )
+        profile = str(context["import_profile_key"])
+        spec = PREVIEW_SPECS.get(profile)
+        if spec is None:
+            raise ConflictError("release import profile does not support bounded preview")
+        query, count_query, columns = spec
+        items = self._fetch_all(query, (release_id, limit, offset))
+        total_row = self._required(count_query, (release_id,))
+        return {
+            "release": {
+                key: context[key]
+                for key in ("id", "dataset_id", "release_version", "status", "record_count")
+            },
+            "profile": profile,
+            "columns": list(columns),
+            "items": items,
+            "count": len(items),
+            "total": int(total_row["count"]),
+            "limit": limit,
+            "offset": offset,
+            "next_offset": offset + len(items)
+            if offset + len(items) < int(total_row["count"])
+            else None,
+        }
+
     def record_publication_receipt(
         self, release_id: uuid.UUID, values: Mapping[str, Any]
     ) -> tuple[JsonObject, bool]:
@@ -960,15 +1118,25 @@ class PropertyScopeStore:
                         "UPDATE ops.dataset_release SET status='superseded',updated_at=%s,version=version+1 WHERE id=%s",
                         (now, predecessor["id"]),
                     )
+                    connection.execute(
+                        """UPDATE serving.property_coverage SET coverage_status='stale',
+                        checked_at=%s WHERE dataset_release_id=%s""",
+                        (now, predecessor["id"]),
+                    )
             row = connection.execute(
                 """UPDATE ops.dataset_release SET status=%s,review_comment=%s,
                 accepted_at=CASE WHEN %s='accepted' THEN %s ELSE accepted_at END,
+                manifest_json=CASE WHEN %s='accepted' THEN jsonb_set(
+                    manifest_json,'{known_limitations}',to_jsonb(ARRAY[
+                        'Bounded accepted release; use only within the declared coverage'
+                    ]::text[]),true) ELSE manifest_json END,
                 updated_at=%s,version=version+1 WHERE id=%s AND version=%s RETURNING *""",
-                (target, comment, target, now, now, release_id, expected_version),
+                (target, comment, target, now, target, now, release_id, expected_version),
             ).fetchone()
             if row is None:
                 raise ConflictError("release version does not match")
             if target == "accepted":
+                self._publish_gnaf_property_spine(connection, release_id, now)
                 connection.execute(
                     """INSERT INTO serving.accepted_generation
                     (dataset_id,target_feature,dataset_release_id,activated_at,activated_by,version)
@@ -980,6 +1148,75 @@ class PropertyScopeStore:
                 )
             connection.commit()
         return _dict(row)
+
+    def _publish_gnaf_property_spine(
+        self, connection: Connection[Any], release_id: uuid.UUID, now: datetime
+    ) -> None:
+        """Materialise only an accepted G-NAF generation into stable property identities."""
+        connection.execute(
+            """INSERT INTO registry.property (
+                property_ref,address_display,flat_type,unit_number,street_number_first,
+                street_number_suffix,street_number_last,street_name,street_type,locality,
+                postcode,state,address_search,geom,resolution_status,created_at,updated_at,version
+            ) SELECT md5('propertyscope-gnaf:' || gnaf_pid)::uuid,address_display,flat_type,
+                unit_number,street_number_first,street_number_suffix,street_number_last,
+                COALESCE(street_name,address_display),street_type,locality,postcode,'NSW',
+                lower(regexp_replace(address_display,'\\s+',' ','g')),geom,
+                CASE WHEN source_status='CURRENT' THEN 'verified' ELSE 'retired' END,
+                %s,%s,1
+            FROM warehouse.gnaf_address WHERE dataset_release_id=%s
+            ON CONFLICT (property_ref) DO UPDATE SET
+                address_display=excluded.address_display,flat_type=excluded.flat_type,
+                unit_number=excluded.unit_number,street_number_first=excluded.street_number_first,
+                street_number_suffix=excluded.street_number_suffix,
+                street_number_last=excluded.street_number_last,street_name=excluded.street_name,
+                street_type=excluded.street_type,locality=excluded.locality,
+                postcode=excluded.postcode,address_search=excluded.address_search,geom=excluded.geom,
+                resolution_status=excluded.resolution_status,updated_at=excluded.updated_at,
+                version=registry.property.version+1""",
+            (now, now, release_id),
+        )
+        connection.execute(
+            """UPDATE registry.property_identifier identifier SET is_current=false,valid_to=%s::date
+            FROM warehouse.gnaf_address address
+            WHERE address.dataset_release_id=%s AND identifier.scheme='gnaf_pid'
+              AND identifier.identifier_value=address.gnaf_pid AND identifier.is_current
+              AND identifier.source_release_id<>%s""",
+            (now, release_id, release_id),
+        )
+        connection.execute(
+            """INSERT INTO registry.property_identifier (
+                id,property_ref,scheme,identifier_value,source_release_id,is_current,
+                valid_from,valid_to,match_method,match_confidence,evidence_json,created_at
+            ) SELECT md5('propertyscope-gnaf-identifier:' || %s::text || ':' || gnaf_pid)::uuid,
+                md5('propertyscope-gnaf:' || gnaf_pid)::uuid,'gnaf_pid',gnaf_pid,%s,true,
+                %s::date,NULL,'source-authoritative',1,
+                jsonb_build_object('geocode_type',geocode_type,'source_crs',source_crs),%s
+            FROM warehouse.gnaf_address WHERE dataset_release_id=%s
+            ON CONFLICT (scheme,identifier_value,source_release_id) DO UPDATE SET is_current=true""",
+            (release_id, release_id, now, now, release_id),
+        )
+        connection.execute(
+            """UPDATE warehouse.gnaf_address SET property_ref=md5(
+                'propertyscope-gnaf:' || gnaf_pid)::uuid WHERE dataset_release_id=%s""",
+            (release_id,),
+        )
+        connection.execute(
+            """INSERT INTO serving.property_coverage (
+                property_ref,dataset_id,target_feature,dataset_release_id,coverage_status,
+                coverage_scope,checked_at
+            ) SELECT md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid,
+                release.dataset_id,release.target_feature,release.id,'supported',
+                release.coverage_json,%s
+            FROM warehouse.gnaf_address address JOIN ops.dataset_release release
+              ON release.id=address.dataset_release_id
+            WHERE address.dataset_release_id=%s
+            ON CONFLICT (property_ref,dataset_id,target_feature) DO UPDATE SET
+                dataset_release_id=excluded.dataset_release_id,
+                coverage_status=excluded.coverage_status,
+                coverage_scope=excluded.coverage_scope,checked_at=excluded.checked_at""",
+            (now, release_id),
+        )
 
     # Property discovery reads only accepted serving evidence.
     def search_properties(self, query: str, *, state: str, limit: int) -> list[JsonObject]:

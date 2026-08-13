@@ -165,6 +165,7 @@ services:
       PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
       AI_MODE_BASE_URL: http://ai-mode:5005
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
+      PROPERTYSCOPE_FULL_DATA_ENABLED: "false"
     depends_on:
       propertyscope-database-api:
         condition: service_healthy

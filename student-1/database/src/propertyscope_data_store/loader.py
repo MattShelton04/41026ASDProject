@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import signal
 import uuid
@@ -13,6 +14,8 @@ from typing import Any
 from propertyscope_data_store.configuration import StoreSettings
 from propertyscope_data_store.import_profiles import REGISTERED_PROFILES, prepare_import
 from propertyscope_data_store.repository import PropertyScopeStore
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseLoader:
@@ -26,7 +29,12 @@ class DatabaseLoader:
 
     def run_forever(self) -> None:
         while not self.stop_event.is_set():
-            if not self.run_once():
+            try:
+                worked = self.run_once()
+            except Exception:
+                logger.exception("Import claim failed; polling will resume")
+                worked = False
+            if not worked:
                 self.stop_event.wait(1.0)
 
     def run_once(self) -> bool:

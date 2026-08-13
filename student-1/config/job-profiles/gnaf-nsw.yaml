@@ -12,7 +12,7 @@ target: {feature: feature-1, contract: propertyscope.property-snapshot.v1}
 scope_profiles:
   test: {state: NSW, maximum_records: 20}
   showcase: {state: NSW, localities: [PARRAMATTA, MOSMAN, WOLLONGONG], maximum_records: 5000}
-  full-data: {state: NSW, maximum_records: 6500000}
+  full-data: {state: NSW, maximum_records: 50000}
 quality_policy: gnaf-nsw.v1
 limits:
   {max_objects: 10, max_bytes: 2500000000, max_rows: 6500000,

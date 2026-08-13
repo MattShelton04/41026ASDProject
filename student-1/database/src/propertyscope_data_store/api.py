@@ -248,6 +248,11 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     def releases_artifact(release_id: uuid.UUID) -> Response:
         return jsonify({"artifact": store.release_artifact(release_id)})
 
+    @api.get("/internal/data-platform/v1/releases/<uuid:release_id>/records")
+    def releases_records(release_id: uuid.UUID) -> Response:
+        limit, offset = pagination()
+        return jsonify(store.preview_release_records(release_id, limit=limit, offset=offset))
+
     @api.put("/internal/data-platform/v1/releases/<uuid:release_id>")
     def releases_update(release_id: uuid.UUID) -> Response:
         return jsonify({"release": store.update_release(release_id, payload())})

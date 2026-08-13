@@ -33,6 +33,7 @@ def create_blueprint(
     consumers: ConsumerImportClient,
     *,
     artifact_root: Path,
+    full_data_enabled: bool = False,
 ) -> Blueprint:
     """Create Feature 1's public API without any persistence imports."""
     api = Blueprint("propertyscope-data-platform", __name__)
@@ -51,6 +52,21 @@ def create_blueprint(
     @api.get(f"{BASE}/overview")
     def overview() -> Response:
         return forward(store.request("GET", f"{INTERNAL}/overview", headers=request.headers))
+
+    @api.get(f"{BASE}/runtime-capabilities")
+    def runtime_capabilities() -> Response:
+        return jsonify(
+            {
+                "full_data_enabled": full_data_enabled,
+                "implemented_live_profiles": ["schools-master", "bocsar-sparse", "gnaf-nsw"],
+                "host_verified_profiles": ["psi-sales"],
+                "connected_live_profiles": ["schools-master", "bocsar-sparse", "gnaf-nsw"]
+                if full_data_enabled
+                else [],
+                "catalogued_profiles": ["psi-sales"],
+                "showcase_available": True,
+            }
+        )
 
     @api.route(f"{BASE}/sources", methods=["GET", "POST"])
     def sources() -> Response:
@@ -114,7 +130,10 @@ def create_blueprint(
                 "Only full_refresh and reprocess_cached are supported",
             )
         scope, scope_error = validate_job_scope(
-            job_data, body.get("scope", job_data["scope_json"]), run_mode=mode
+            job_data,
+            body.get("scope", job_data["scope_json"]),
+            run_mode=mode,
+            full_data_enabled=full_data_enabled,
         )
         if scope_error is not None:
             return scope_error
@@ -168,6 +187,7 @@ def create_blueprint(
             job_response.json()["job"],
             body.get("scope", job_response.json()["job"]["scope_json"]),
             run_mode=mode,
+            full_data_enabled=full_data_enabled,
         )
         if scope_error is not None:
             return scope_error
@@ -330,6 +350,18 @@ def create_blueprint(
         response.headers["Content-Disposition"] = f'attachment; filename="{release_id}.json"'
         response.headers["Digest"] = f"sha-256={artifact['content_sha256']}"
         return response
+
+    @api.get(f"{BASE}/dataset-releases/<uuid:release_id>/records")
+    def release_records(release_id: uuid.UUID) -> Response:
+        """Expose only the database service's bounded, registered release projection."""
+        return forward(
+            store.request(
+                "GET",
+                f"{INTERNAL}/releases/{release_id}/records",
+                headers=request.headers,
+                params=request.args,
+            )
+        )
 
     @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/submit-review")
     def release_review(release_id: uuid.UUID) -> Response:
@@ -768,7 +800,11 @@ def approved_tool_call(ai_mode: AiModeClient, tool_name: str, arguments: Mapping
 
 
 def validate_job_scope(
-    job: Mapping[str, Any], raw_scope: Any, *, run_mode: str
+    job: Mapping[str, Any],
+    raw_scope: Any,
+    *,
+    run_mode: str,
+    full_data_enabled: bool = False,
 ) -> tuple[dict[str, Any] | None, Response | None]:
     """Bound operator scope overrides and expose unavailable live transports before launch."""
     if not isinstance(raw_scope, dict):
@@ -803,10 +839,17 @@ def validate_job_scope(
             return None, problem(422, "invalid_scope", "PSI source year is outside the range")
         if years != sorted(set(years)):
             return None, problem(422, "invalid_scope", "PSI source years must be unique and sorted")
+    if run_mode == "full_refresh" and profile == "full-data" and not full_data_enabled:
+        return None, problem(
+            422,
+            "full_data_runtime_disabled",
+            "Start the explicit full-data runtime before launching live acquisition",
+        )
     if (
         run_mode == "full_refresh"
         and profile == "full-data"
-        and str(job.get("import_profile_key")) not in {"schools-master", "property-fixture"}
+        and str(job.get("import_profile_key"))
+        not in {"schools-master", "bocsar-sparse", "gnaf-nsw", "property-fixture"}
     ):
         return None, problem(
             422,
@@ -882,9 +925,7 @@ def ensure_import_operation(
                 "source_definition_id": run["source_definition_id"],
                 "ingestion_run_id": str(run_id),
                 "target_feature": job["target_feature"],
-                "release_version": (
-                    f"candidate-{artifact['content_sha256'][:16]}-{str(run_id)[:8]}"
-                ),
+                "release_version": (f"release-{artifact['content_sha256'][:16]}-{str(run_id)[:8]}"),
                 "schema_version": artifact["schema_version"],
                 "coverage": run["requested_scope_json"],
                 "record_count": 0,
@@ -892,9 +933,7 @@ def ensure_import_operation(
                 "artifact_record_id": artifact["id"],
                 "manifest": {
                     "schema_version": artifact["schema_version"],
-                    "release_id": (
-                        f"candidate-{artifact['content_sha256'][:16]}-{str(run_id)[:8]}"
-                    ),
+                    "release_id": (f"release-{artifact['content_sha256'][:16]}-{str(run_id)[:8]}"),
                     "dataset_id": job["dataset_id"],
                     "owner_feature": "student-1-propertyscope-data-platform",
                     "publisher": "PropertyScope registered ingestion",

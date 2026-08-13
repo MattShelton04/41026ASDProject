@@ -12,6 +12,7 @@ target: {feature: feature-3, contract: propertyscope.crime-series.v1}
 scope_profiles:
   test: {geography_kind: postcode, geography_values: ["2000", "2007"], start_month: 2025-01, end_month: 2025-12}
   showcase: {geography_kind: postcode, geography_values: ["2000", "2007", "2010"], start_month: 2021-01, end_month: 2025-12}
+  full-data: {geography_kind: postcode, geography_values: ["2000", "2007", "2010"], start_month: 2021-01, end_month: 2026-12, maximum_records: 50000}
 quality_policy: crime-quarterly.v1
 limits: {max_objects: 4, max_bytes: 50000000, max_rows: 100000, deadline_seconds: 900, max_parallelism: 1}
 publication: human_review

@@ -158,6 +158,16 @@ export function isSchoolsJob(job) {
   return identity.includes("school");
 }
 
+export function liveProfileLabel(importProfile) {
+  const labels = {
+    "schools-master": "Live official Data.NSW schools CSV",
+    "bocsar-sparse": "Live official BOCSAR archive",
+    "gnaf-nsw": "Live official Geoscape G-NAF bulk archive",
+    "psi-sales": "Live NSW Valuer-General yearly archive",
+  };
+  return labels[String(importProfile || "")] || "Live registered source";
+}
+
 export function actionAvailability(status) {
   const state = String(status || "").toLowerCase();
   return {

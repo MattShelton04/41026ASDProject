@@ -76,3 +76,13 @@ def test_schema_fingerprint_covers_columns_and_indexes() -> None:
 
     assert len(value) == 64
     assert value == schema_fingerprint(cast(Any, SchemaConnection()))
+
+
+def test_accepted_release_manifest_migration_removes_candidate_only_wording() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE).joinpath("013_accepted_release_manifest.sql").read_text("utf-8")
+    )
+
+    assert "WHERE status = 'accepted'" in migration
+    assert "Bounded accepted release" in migration
+    assert "Candidate evidence; not accepted product data" in migration

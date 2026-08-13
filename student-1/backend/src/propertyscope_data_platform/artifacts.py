@@ -67,6 +67,23 @@ class LocalArtifactStore:
             raise ArtifactError("artifact checksum failed")
         return data
 
+    def verified_path(
+        self, storage_key: str, expected_sha256: str, *, expected_bytes: int, max_bytes: int
+    ) -> Path:
+        """Verify a large artifact without materialising it in memory, then return its path."""
+        path = self._resolve(storage_key)
+        if not path.is_file():
+            raise ArtifactError("artifact does not exist")
+        if expected_bytes > max_bytes or path.stat().st_size != expected_bytes:
+            raise ArtifactError("artifact size does not match registered metadata")
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        if digest.hexdigest() != expected_sha256:
+            raise ArtifactError("artifact checksum failed")
+        return path
+
     def _resolve(self, storage_key: str) -> Path:
         if not storage_key.startswith("sha256/") or ".." in Path(storage_key).parts:
             raise ArtifactError("storage key is not content-addressed")
