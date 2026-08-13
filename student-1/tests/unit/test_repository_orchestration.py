@@ -141,7 +141,7 @@ def test_resume_requeues_cancelled_unfinished_task_from_interrupted_run() -> Non
         ]
     )
     store = ConnectedStore(connection)
-    store.get_run = lambda _: {  # type: ignore[method-assign]
+    store.get_run = lambda run_id: {  # type: ignore[method-assign]
         "id": str(run_id),
         "status": "interrupted",
         "run_mode": "full_refresh",

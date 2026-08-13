@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+from pathlib import Path
 
 import pytest
 
 from propertyscope_data_platform.artifacts import ArtifactError, LocalArtifactStore
 
 
-def test_verified_path_streams_and_validates_registered_metadata(tmp_path) -> None:
+def test_verified_path_streams_and_validates_registered_metadata(tmp_path: Path) -> None:
     store = LocalArtifactStore(tmp_path)
     payload = b"official-source-bytes" * 100
     artifact = store.put(
@@ -25,7 +26,7 @@ def test_verified_path_streams_and_validates_registered_metadata(tmp_path) -> No
     assert artifact.sha256 == hashlib.sha256(payload).hexdigest()
 
 
-def test_verified_path_rejects_size_checksum_and_missing_artifacts(tmp_path) -> None:
+def test_verified_path_rejects_size_checksum_and_missing_artifacts(tmp_path: Path) -> None:
     store = LocalArtifactStore(tmp_path)
     artifact = store.put((b"payload",), max_bytes=7, media_type="application/octet-stream")
 
