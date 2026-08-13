@@ -54,6 +54,7 @@ uploads/
 *.log
 logs/
 cache/
+.propertyscope-source-cache/
 tmp/
 temp/
 *.tmp

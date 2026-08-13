@@ -20,7 +20,7 @@ sources:
     licence_id: gnaf-end-user-licence
     licence_url: https://data.gov.au/data/dataset/geocoded-national-address-file-g-naf
     redistribution_policy: licence-controlled
-    catalogue_status: catalogued
+    catalogue_status: executable_live
     target_features: [feature-1]
   - key: nsw-psi-sales
     display_name: NSW Valuer General property sales information

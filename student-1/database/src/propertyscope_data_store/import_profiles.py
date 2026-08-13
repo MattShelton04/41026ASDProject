@@ -246,6 +246,13 @@ def _gnaf(row: object, index: int) -> dict[str, Any]:
         "gnaf_pid": _text(source, "gnaf_pid", index),
         "property_ref": property_ref,
         "address_display": _text(source, "address_display", index),
+        "flat_type": _optional_text(source, "flat_type", index),
+        "unit_number": _optional_text(source, "unit_number", index),
+        "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
+        "street_number_suffix": _optional_text(source, "street_number_suffix", index),
+        "street_number_last": _optional_integer(source, "street_number_last", index, minimum=0),
+        "street_name": _optional_text(source, "street_name", index),
+        "street_type": _optional_text(source, "street_type", index),
         "locality": _text(source, "locality", index).upper(),
         "postcode": _postcode(source, index),
         "source_status": _text(source, "source_status", index),
@@ -477,13 +484,20 @@ _PROFILE_INSERT_SQL = {
     "gnaf-nsw": """
         INSERT INTO warehouse.gnaf_address (
             dataset_release_id,gnaf_pid,property_ref,address_display,locality,postcode,
-            source_status,geocode_type,source_crs,geom,source_row_sha256,
+            flat_type,unit_number,street_number_first,street_number_suffix,
+            street_number_last,street_name,street_type,source_status,geocode_type,source_crs,
+            geom,source_row_sha256,
             normalisation_version,artifact_record_id,ingestion_run_id,created_at
         ) SELECT %s,payload->>'gnaf_pid',NULLIF(payload->>'property_ref','')::uuid,
             payload->>'address_display',payload->>'locality',payload->>'postcode',
+            NULLIF(payload->>'flat_type',''),NULLIF(payload->>'unit_number',''),
+            NULLIF(payload->>'street_number_first','')::integer,
+            NULLIF(payload->>'street_number_suffix',''),
+            NULLIF(payload->>'street_number_last','')::integer,
+            NULLIF(payload->>'street_name',''),NULLIF(payload->>'street_type',''),
             payload->>'source_status',payload->>'geocode_type',(payload->>'source_crs')::integer,
-            ST_SetSRID(ST_MakePoint((payload->>'longitude')::double precision,
-                (payload->>'latitude')::double precision),4326),
+            ST_Transform(ST_SetSRID(ST_MakePoint((payload->>'longitude')::double precision,
+                (payload->>'latitude')::double precision),(payload->>'source_crs')::integer),4326),
             payload->>'source_row_sha256','1.0.0',%s,%s,now()
         FROM propertyscope_import_stage ORDER BY ordinal
         ON CONFLICT (dataset_release_id,gnaf_pid) DO NOTHING

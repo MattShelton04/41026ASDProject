@@ -10,7 +10,11 @@ import httpx
 import pytest
 
 from propertyscope_data_platform.adapters.bocsar import parse_bocsar_archive, parse_bocsar_csv
-from propertyscope_data_platform.adapters.gnaf import inspect_gnaf_archive, select_geocode
+from propertyscope_data_platform.adapters.gnaf import (
+    inspect_gnaf_archive,
+    parse_gnaf_archive_path,
+    select_geocode,
+)
 from propertyscope_data_platform.adapters.psi import parse_psi_archive, parse_psi_b_record
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
 from propertyscope_data_platform.runner import AcquisitionRunner, RunnerSettings
@@ -72,7 +76,7 @@ def test_full_data_never_silently_substitutes_unconnected_sources(tmp_path: Path
         RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30, True)
     )
     with pytest.raises(RuntimeError, match="no connected live transport"):
-        runner._live_document({}, stage="acquire", profile="gnaf-nsw")
+        runner._live_document({}, stage="acquire", profile="spatial-features")
 
 
 def test_full_data_scope_never_falls_back_when_runtime_is_not_opted_in(tmp_path: Path) -> None:
@@ -213,7 +217,7 @@ def test_gnaf_requires_members_and_selects_preferred_geocode() -> None:
     with ZipFile(stream, "w") as archive:
         for suffix in (
             "NSW_ADDRESS_DETAIL_psv.psv",
-            "NSW_DEFAULT_GEOCODE_psv.psv",
+            "NSW_ADDRESS_DEFAULT_GEOCODE_psv.psv",
             "NSW_LOCALITY_psv.psv",
             "NSW_STREET_LOCALITY_psv.psv",
         ):
@@ -237,6 +241,37 @@ def test_gnaf_requires_members_and_selects_preferred_geocode() -> None:
         )
     )
     assert selected is not None and selected["GEOCODE_PID"] == "1"
+
+
+def test_gnaf_streaming_join_preserves_units_and_declared_crs(tmp_path: Path) -> None:
+    path = tmp_path / "gnaf.zip"
+    with ZipFile(path, "w") as archive:
+        archive.writestr(
+            "Standard/NSW_LOCALITY_psv.psv",
+            "LOCALITY_PID|LOCALITY_NAME|PRIMARY_POSTCODE\nL1|Sydney|2000\n",
+        )
+        archive.writestr(
+            "Standard/NSW_STREET_LOCALITY_psv.psv",
+            "STREET_LOCALITY_PID|STREET_NAME|STREET_TYPE_CODE|LOCALITY_PID\n"
+            "S1|GEORGE|ST|L1\n",
+        )
+        archive.writestr(
+            "Standard/NSW_ADDRESS_DETAIL_psv.psv",
+            "ADDRESS_DETAIL_PID|DATE_RETIRED|FLAT_TYPE_CODE|FLAT_NUMBER|NUMBER_FIRST|"
+            "NUMBER_FIRST_SUFFIX|NUMBER_LAST|NUMBER_LAST_SUFFIX|STREET_LOCALITY_PID|"
+            "LOCALITY_PID|POSTCODE\nA1||UNIT|12|100|A|||S1|L1|2000\n",
+        )
+        archive.writestr(
+            "Standard/NSW_ADDRESS_DEFAULT_GEOCODE_psv.psv",
+            "ADDRESS_DETAIL_PID|GEOCODE_TYPE_CODE|LONGITUDE|LATITUDE\n"
+            "A1|PC|151.2|-33.86\n",
+        )
+    record = parse_gnaf_archive_path(
+        path, declared_crs="GDA2020", maximum_records=10
+    )[0]
+    assert record.gnaf_pid == "A1"
+    assert record.address_display == "UNIT 12/100A GEORGE ST, SYDNEY NSW 2000"
+    assert record.source_crs == 7844
 
 
 def test_source_parsers_enforce_bounds() -> None:

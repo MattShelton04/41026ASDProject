@@ -9,6 +9,7 @@ import re
 import signal
 import time
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -19,6 +20,7 @@ from urllib.parse import urlparse
 import httpx
 
 from propertyscope_data_platform.adapters.bocsar import parse_bocsar_archive
+from propertyscope_data_platform.adapters.gnaf import parse_gnaf_archive_path
 from propertyscope_data_platform.adapters.psi import parse_psi_archive
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
 from propertyscope_data_platform.artifacts import LocalArtifactStore
@@ -33,6 +35,10 @@ BOCSAR_URLS = {
     "postcode": "https://bocsarblob.blob.core.windows.net/bocsar-open-data/PostcodeData.zip",
 }
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip"
+GNAF_CKAN_URL = (
+    "https://data.gov.au/data/api/3/action/package_show"
+    "?id=19432f89-dc3a-4ef3-b943-5326ef1dbecc"
+)
 LIVE_CANONICAL_RECORD_LIMIT = 50_000
 logger = logging.getLogger(__name__)
 
@@ -46,6 +52,8 @@ class RunnerSettings:
     poll_seconds: float
     lease_seconds: int
     full_data_enabled: bool = False
+    gnaf_archive_path: Path | None = None
+    gnaf_archive_crs: str = "GDA94"
 
     @classmethod
     def from_environment(cls) -> RunnerSettings:
@@ -62,6 +70,8 @@ class RunnerSettings:
             lease_seconds=int(os.environ.get("PROPERTYSCOPE_RUNNER_LEASE_SECONDS", "30")),
             full_data_enabled=os.environ.get("PROPERTYSCOPE_FULL_DATA_ENABLED", "false").lower()
             in {"1", "true", "yes"},
+            gnaf_archive_path=_optional_path(os.environ.get("PROPERTYSCOPE_GNAF_ARCHIVE_PATH")),
+            gnaf_archive_crs=os.environ.get("PROPERTYSCOPE_GNAF_CRS", "GDA94").upper(),
         )
 
 
@@ -210,7 +220,7 @@ class AcquisitionRunner:
         self, task: dict[str, Any], *, stage: str, profile: str
     ) -> tuple[dict[str, object], list[dict[str, object]]]:
         """Acquire a registered real source or fail instead of substituting fixtures."""
-        if profile not in {"schools-master", "bocsar-sparse", "psi-sales"}:
+        if profile not in {"schools-master", "bocsar-sparse", "psi-sales", "gnaf-nsw"}:
             raise RuntimeError("This registered profile has no connected live transport")
         scope = task.get("partition_json") or {}
         if not isinstance(scope, dict):
@@ -230,6 +240,8 @@ class AcquisitionRunner:
             return self._live_bocsar(task, scope)
         if profile == "psi-sales":
             return self._live_psi(task, scope)
+        if profile == "gnaf-nsw":
+            return self._live_gnaf(task, scope)
         maximum_bytes = min(int(task.get("max_bytes", 25_000_000)), 25_000_000)
         content = self._download_registered(SCHOOLS_MASTER_URL, maximum_bytes=maximum_bytes)
         parsed = parse_schools_csv(content, maximum_rows=int(task.get("max_rows", 5_000)))
@@ -270,6 +282,15 @@ class AcquisitionRunner:
             if kind not in BOCSAR_URLS:
                 raise RuntimeError("BOCSAR geography_kind must be postcode or suburb")
             return [_source_object(f"bocsar-{kind}", BOCSAR_URLS[kind], "application/zip")]
+        if profile == "gnaf-nsw":
+            url, crs = self._gnaf_source()
+            return [
+                {
+                    **_source_object("gnaf-nsw-bulk", url, "application/zip"),
+                    "coordinate_reference_system": crs,
+                    "cached": url.startswith("file-cache://"),
+                }
+            ]
         years = scope.get("years")
         if not isinstance(years, list) or not years:
             raise RuntimeError("PSI live scope requires source years")
@@ -382,6 +403,146 @@ class AcquisitionRunner:
                 )
             remaining = _record_limit(task, scope) - len(records)
         return _live_canonical_document("psi-sales", source_urls, records), records
+
+    def _live_gnaf(
+        self, task: dict[str, Any], scope: dict[str, object]
+    ) -> tuple[dict[str, object], list[dict[str, object]]]:
+        source_url, declared_crs = self._gnaf_source()
+        maximum_bytes = min(int(task.get("max_bytes", 2_500_000_000)), 2_500_000_000)
+        if self.settings.gnaf_archive_path and self.settings.gnaf_archive_path.is_file():
+            stream = self.settings.gnaf_archive_path.open("rb")
+            try:
+                raw_artifact = self.artifacts.put(
+                    self._heartbeat_chunks(
+                        task, iter(lambda: stream.read(1024 * 1024), b"")
+                    ),
+                    max_bytes=maximum_bytes,
+                    media_type="application/zip",
+                )
+            finally:
+                stream.close()
+        else:
+            headers = {"Accept": "application/zip", "User-Agent": "PropertyScope/1.0"}
+            with (
+                httpx.Client(timeout=None, follow_redirects=False) as source_client,
+                source_client.stream("GET", source_url, headers=headers) as response,
+            ):
+                response.raise_for_status()
+                if response.url.host != "data.gov.au":
+                    raise RuntimeError("G-NAF download left the registered host")
+                raw_artifact = self.artifacts.put(
+                    self._heartbeat_chunks(task, response.iter_bytes()),
+                    max_bytes=maximum_bytes,
+                    media_type="application/zip",
+                )
+        raw_path = self.artifacts.verified_path(
+            raw_artifact.storage_key,
+            raw_artifact.sha256,
+            expected_bytes=raw_artifact.bytes,
+            max_bytes=maximum_bytes,
+        )
+        registration = self.client.post(
+            f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task['id']}/artifacts",
+            headers=self._headers(),
+            json={
+                "ingestion_run_id": task["ingestion_run_id"],
+                "logical_key": f"{task['logical_key']}/raw-gnaf",
+                "artifact_kind": "source_payload",
+                "storage_key": raw_artifact.storage_key,
+                "content_sha256": raw_artifact.sha256,
+                "media_type": raw_artifact.media_type,
+                "bytes": raw_artifact.bytes,
+                "schema_version": "geoscape.gnaf.psv.zip",
+                "retention_class": "source-cache",
+            },
+        )
+        registration.raise_for_status()
+        raw_localities = scope.get("localities")
+        localities = (
+            frozenset(str(value).strip().upper() for value in raw_localities)
+            if isinstance(raw_localities, list) and raw_localities
+            else None
+        )
+        parsed = parse_gnaf_archive_path(
+            raw_path,
+            declared_crs=declared_crs,
+            maximum_records=_record_limit(task, scope),
+            localities=localities,
+        )
+        records: list[dict[str, object]] = [
+            {
+                "gnaf_pid": item.gnaf_pid,
+                "property_ref": None,
+                "address_display": item.address_display,
+                "flat_type": item.flat_type,
+                "unit_number": item.unit_number,
+                "street_number_first": item.street_number_first,
+                "street_number_suffix": item.street_number_suffix,
+                "street_number_last": item.street_number_last,
+                "street_name": item.street_name,
+                "street_type": item.street_type,
+                "locality": item.locality,
+                "postcode": item.postcode,
+                "source_status": item.source_status,
+                "geocode_type": item.geocode_type,
+                "source_crs": item.source_crs,
+                "latitude": item.latitude,
+                "longitude": item.longitude,
+            }
+            for item in parsed
+        ]
+        document = _live_canonical_document("gnaf-nsw", source_url, records)
+        document["source"] = {
+            "source_url": source_url,
+            "real_source": True,
+            "coordinate_reference_system": declared_crs,
+            "raw_content_sha256": raw_artifact.sha256,
+            "raw_bytes": raw_artifact.bytes,
+            "raw_storage_key": raw_artifact.storage_key,
+        }
+        return document, records
+
+    def _gnaf_source(self) -> tuple[str, str]:
+        if self.settings.gnaf_archive_path and self.settings.gnaf_archive_path.is_file():
+            if self.settings.gnaf_archive_crs not in {"GDA94", "GDA2020"}:
+                raise RuntimeError("Cached G-NAF CRS must be GDA94 or GDA2020")
+            return "file-cache://gnaf.zip", self.settings.gnaf_archive_crs
+        response = self.client.get(
+            GNAF_CKAN_URL, headers={"Accept": "application/json", "User-Agent": "PropertyScope/1.0"}
+        )
+        response.raise_for_status()
+        resources = response.json().get("result", {}).get("resources", [])
+        candidates = [
+            item
+            for item in resources
+            if isinstance(item, dict)
+            and str(item.get("url", "")).startswith("https://data.gov.au/")
+            and str(item.get("url", "")).lower().endswith(".zip")
+            and "psv" in str(item.get("url", "")).lower()
+            and any(crs in str(item.get("url", "")).lower() for crs in ("gda2020", "gda94"))
+        ]
+        if not candidates:
+            raise RuntimeError("G-NAF CKAN package has no registered PSV resource")
+        selected = max(
+            candidates,
+            key=lambda item: (
+                str(item.get("last_modified", "")),
+                "gda2020" in str(item.get("url", "")).lower(),
+            ),
+        )
+        url = str(selected["url"])
+        return url, "GDA2020" if "gda2020" in url.lower() else "GDA94"
+
+    def _heartbeat_chunks(
+        self, task: dict[str, Any], chunks: Iterable[bytes]
+    ) -> Iterable[bytes]:
+        last_heartbeat = time.monotonic()
+        interval = max(1.0, self.settings.lease_seconds / 3)
+        for chunk in chunks:
+            if time.monotonic() - last_heartbeat >= interval:
+                self._heartbeat(str(task["id"]), str(task["lease_token"]))
+                last_heartbeat = time.monotonic()
+            yield chunk
 
     def _download_registered(self, url: str, *, maximum_bytes: int) -> bytes:
         parsed = urlparse(url)
@@ -549,6 +710,10 @@ def _live_canonical_document(
         "source": {"source_url": source_url, "real_source": True},
         "records": records,
     }
+
+
+def _optional_path(value: str | None) -> Path | None:
+    return Path(value).resolve() if value and value.strip() else None
 
 
 def _canonical_records(profile: str) -> list[dict[str, object]]:

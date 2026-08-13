@@ -1118,6 +1118,11 @@ class PropertyScopeStore:
                         "UPDATE ops.dataset_release SET status='superseded',updated_at=%s,version=version+1 WHERE id=%s",
                         (now, predecessor["id"]),
                     )
+                    connection.execute(
+                        """UPDATE serving.property_coverage SET coverage_status='stale',
+                        checked_at=%s WHERE dataset_release_id=%s""",
+                        (now, predecessor["id"]),
+                    )
             row = connection.execute(
                 """UPDATE ops.dataset_release SET status=%s,review_comment=%s,
                 accepted_at=CASE WHEN %s='accepted' THEN %s ELSE accepted_at END,
@@ -1127,6 +1132,7 @@ class PropertyScopeStore:
             if row is None:
                 raise ConflictError("release version does not match")
             if target == "accepted":
+                self._publish_gnaf_property_spine(connection, release_id, now)
                 connection.execute(
                     """INSERT INTO serving.accepted_generation
                     (dataset_id,target_feature,dataset_release_id,activated_at,activated_by,version)
@@ -1138,6 +1144,75 @@ class PropertyScopeStore:
                 )
             connection.commit()
         return _dict(row)
+
+    def _publish_gnaf_property_spine(
+        self, connection: Connection[Any], release_id: uuid.UUID, now: datetime
+    ) -> None:
+        """Materialise only an accepted G-NAF generation into stable property identities."""
+        connection.execute(
+            """INSERT INTO registry.property (
+                property_ref,address_display,flat_type,unit_number,street_number_first,
+                street_number_suffix,street_number_last,street_name,street_type,locality,
+                postcode,state,address_search,geom,resolution_status,created_at,updated_at,version
+            ) SELECT md5('propertyscope-gnaf:' || gnaf_pid)::uuid,address_display,flat_type,
+                unit_number,street_number_first,street_number_suffix,street_number_last,
+                COALESCE(street_name,address_display),street_type,locality,postcode,'NSW',
+                lower(regexp_replace(address_display,'\\s+',' ','g')),geom,
+                CASE WHEN source_status='CURRENT' THEN 'verified' ELSE 'retired' END,
+                %s,%s,1
+            FROM warehouse.gnaf_address WHERE dataset_release_id=%s
+            ON CONFLICT (property_ref) DO UPDATE SET
+                address_display=excluded.address_display,flat_type=excluded.flat_type,
+                unit_number=excluded.unit_number,street_number_first=excluded.street_number_first,
+                street_number_suffix=excluded.street_number_suffix,
+                street_number_last=excluded.street_number_last,street_name=excluded.street_name,
+                street_type=excluded.street_type,locality=excluded.locality,
+                postcode=excluded.postcode,address_search=excluded.address_search,geom=excluded.geom,
+                resolution_status=excluded.resolution_status,updated_at=excluded.updated_at,
+                version=registry.property.version+1""",
+            (now, now, release_id),
+        )
+        connection.execute(
+            """UPDATE registry.property_identifier identifier SET is_current=false,valid_to=%s::date
+            FROM warehouse.gnaf_address address
+            WHERE address.dataset_release_id=%s AND identifier.scheme='gnaf_pid'
+              AND identifier.identifier_value=address.gnaf_pid AND identifier.is_current
+              AND identifier.source_release_id<>%s""",
+            (now, release_id, release_id),
+        )
+        connection.execute(
+            """INSERT INTO registry.property_identifier (
+                id,property_ref,scheme,identifier_value,source_release_id,is_current,
+                valid_from,valid_to,match_method,match_confidence,evidence_json,created_at
+            ) SELECT md5('propertyscope-gnaf-identifier:' || %s::text || ':' || gnaf_pid)::uuid,
+                md5('propertyscope-gnaf:' || gnaf_pid)::uuid,'gnaf_pid',gnaf_pid,%s,true,
+                %s::date,NULL,'source-authoritative',1,
+                jsonb_build_object('geocode_type',geocode_type,'source_crs',source_crs),%s
+            FROM warehouse.gnaf_address WHERE dataset_release_id=%s
+            ON CONFLICT (scheme,identifier_value,source_release_id) DO UPDATE SET is_current=true""",
+            (release_id, release_id, now, now, release_id),
+        )
+        connection.execute(
+            """UPDATE warehouse.gnaf_address SET property_ref=md5(
+                'propertyscope-gnaf:' || gnaf_pid)::uuid WHERE dataset_release_id=%s""",
+            (release_id,),
+        )
+        connection.execute(
+            """INSERT INTO serving.property_coverage (
+                property_ref,dataset_id,target_feature,dataset_release_id,coverage_status,
+                coverage_scope,checked_at
+            ) SELECT md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid,
+                release.dataset_id,release.target_feature,release.id,'supported',
+                release.coverage_json,%s
+            FROM warehouse.gnaf_address address JOIN ops.dataset_release release
+              ON release.id=address.dataset_release_id
+            WHERE address.dataset_release_id=%s
+            ON CONFLICT (property_ref,dataset_id,target_feature) DO UPDATE SET
+                dataset_release_id=excluded.dataset_release_id,
+                coverage_status=excluded.coverage_status,
+                coverage_scope=excluded.coverage_scope,checked_at=excluded.checked_at""",
+            (now, release_id),
+        )
 
     # Property discovery reads only accepted serving evidence.
     def search_properties(self, query: str, *, state: str, limit: int) -> list[JsonObject]:
