@@ -1,0 +1,14 @@
+{
+  "schema_version": "crime-series.v1",
+  "release_id": "crime-nsw-r0-invalid",
+  "dataset_id": "bocsar-crime-monthly",
+  "owner_feature": "feature-3",
+  "publisher": "NSW Bureau of Crime Statistics and Research",
+  "source_release": "2025-Q4",
+  "content_sha256": "not-a-sha256",
+  "record_count": 6,
+  "geographies": ["2000"],
+  "measures": ["count"],
+  "redistribution_policy": "approved-bounded-extract",
+  "known_limitations": []
+}

@@ -1,0 +1,17 @@
+schema_version: propertyscope.job-profile.v1
+key: fixture-property-full
+version: 1.0.0
+display_name: Deterministic property fixture full refresh
+source_key: fixture-property
+adapter: {key: fixture-snapshot, version: 1.0.0}
+refresh_strategy: full_snapshot
+supported_modes: [full_refresh, reprocess_cached]
+release_builder: {key: property-snapshot, version: 1.0.0}
+import_profile: {key: property-fixture, version: 1.0.0}
+target: {feature: feature-1, contract: propertyscope.property-snapshot.v1}
+scope_profiles:
+  test: {localities: [PARRAMATTA, MOSMAN], maximum_records: 20}
+  showcase: {localities: [PARRAMATTA, MOSMAN, WOLLONGONG], maximum_records: 100}
+quality_policy: property-fixture.v1
+limits: {max_objects: 2, max_bytes: 1000000, max_rows: 1000, deadline_seconds: 60, max_parallelism: 1}
+publication: human_review

@@ -1,0 +1,18 @@
+schema_version: 1
+feature_key: student-1-propertyscope-data-platform
+display_name: PropertyScope Data Platform and Property Discovery
+owner: student-1
+frontend_base_path: /propertyscope/data
+backend_base_path: /api/data-platform/v1
+health_path: /health/ready
+ai_capabilities:
+  - data.sources.v1
+  - data.runs.v1
+  - data.run_inspect.v1
+  - data.release_inspect.v1
+  - data.release_compare.v1
+  - data.coverage.v1
+  - property.search.v1
+  - property.inspect.v1
+  - data.run_retry.v1
+  - data.release_publish.v1

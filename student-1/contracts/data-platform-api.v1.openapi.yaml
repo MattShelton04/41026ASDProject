@@ -1,0 +1,99 @@
+openapi: 3.1.0
+info:
+  title: PropertyScope Data Platform API
+  version: 1.0.0
+  description: Bounded control-plane, release evidence, and property discovery contracts.
+servers:
+  - url: /api/data-platform/v1
+paths:
+  /sources:
+    get:
+      operationId: listSources
+      parameters: [{$ref: '#/components/parameters/Limit'}, {$ref: '#/components/parameters/Cursor'}]
+      responses: {'200': {$ref: '#/components/responses/Page'}}
+    post:
+      operationId: createSource
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SourceDefinition'}}}}
+      responses: {'201': {description: Source created}, '400': {$ref: '#/components/responses/Problem'}}
+  /sources/{source_id}:
+    parameters: [{$ref: '#/components/parameters/SourceId'}]
+    get: {operationId: getSource, responses: {'200': {description: Source detail}, '404': {$ref: '#/components/responses/Problem'}}}
+    put: {operationId: updateSource, responses: {'200': {description: Source updated}, '409': {$ref: '#/components/responses/Problem'}}}
+    delete: {operationId: deleteSource, responses: {'204': {description: Deleted}, '409': {$ref: '#/components/responses/Problem'}}}
+  /jobs:
+    get: {operationId: listJobs, responses: {'200': {$ref: '#/components/responses/Page'}}}
+    post: {operationId: createJob, responses: {'201': {description: Job created}, '400': {$ref: '#/components/responses/Problem'}}}
+  /jobs/{job_id}/plans:
+    post:
+      operationId: planRun
+      parameters: [{$ref: '#/components/parameters/JobId'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RunRequest'}}}}
+      responses: {'200': {description: Deterministic plan}, '422': {$ref: '#/components/responses/Problem'}}
+  /jobs/{job_id}/runs:
+    post:
+      operationId: createRun
+      parameters: [{$ref: '#/components/parameters/JobId'}, {$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RunRequest'}}}}
+      responses: {'201': {description: Run queued}, '200': {description: Existing idempotent run}, '409': {$ref: '#/components/responses/Problem'}}
+  /ingestion-runs/{run_id}:
+    get: {operationId: getRun, parameters: [{$ref: '#/components/parameters/RunId'}], responses: {'200': {description: Run evidence}, '404': {$ref: '#/components/responses/Problem'}}}
+  /dataset-releases/{release_id}/manifest:
+    get: {operationId: getReleaseManifest, parameters: [{$ref: '#/components/parameters/ReleaseId'}], responses: {'200': {description: Release manifest, content: {application/json: {schema: {$ref: './release-manifest.v1.schema.json'}}}}, '404': {$ref: '#/components/responses/Problem'}}}
+  /properties/search:
+    get:
+      operationId: searchProperties
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, minLength: 2, maxLength: 200}}
+        - {name: state, in: query, schema: {const: NSW, default: NSW}}
+        - {$ref: '#/components/parameters/Limit'}
+      responses: {'200': {$ref: '#/components/responses/Page'}, '400': {$ref: '#/components/responses/Problem'}}
+  /properties/{property_ref}:
+    get: {operationId: getProperty, parameters: [{$ref: '#/components/parameters/PropertyRef'}], responses: {'200': {description: Property evidence}, '404': {$ref: '#/components/responses/Problem'}}}
+components:
+  parameters:
+    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
+    Cursor: {name: cursor, in: query, schema: {type: string, maxLength: 500}}
+    IdempotencyKey: {name: Idempotency-Key, in: header, required: true, schema: {type: string, minLength: 8, maxLength: 200}}
+    SourceId: {name: source_id, in: path, required: true, schema: {type: string, format: uuid}}
+    JobId: {name: job_id, in: path, required: true, schema: {type: string, format: uuid}}
+    RunId: {name: run_id, in: path, required: true, schema: {type: string, format: uuid}}
+    ReleaseId: {name: release_id, in: path, required: true, schema: {type: string, maxLength: 150}}
+    PropertyRef: {name: property_ref, in: path, required: true, schema: {type: string, format: uuid}}
+  schemas:
+    SourceDefinition:
+      type: object
+      additionalProperties: false
+      required: [name, publisher, source_url, adapter_key, cadence, licence_id, licence_url, redistribution_policy, target_features]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 500}
+        publisher: {type: string, minLength: 1, maxLength: 500}
+        source_url: {type: string, format: uri}
+        adapter_key: {type: string, pattern: '^[a-z0-9][a-z0-9._-]*$'}
+        cadence: {type: string}
+        licence_id: {type: string}
+        licence_url: {type: string, format: uri}
+        redistribution_policy: {type: string}
+        target_features: {type: array, minItems: 1, maxItems: 5, uniqueItems: true, items: {type: string}}
+        notes: {type: string, maxLength: 2000}
+    RunRequest:
+      type: object
+      additionalProperties: false
+      required: [mode, scope_profile, idempotency_key]
+      properties:
+        mode: {enum: [full_refresh, reprocess_cached]}
+        scope_profile: {type: string, pattern: '^[a-z0-9][a-z0-9._-]*$'}
+        scope: {type: object, maxProperties: 20}
+        idempotency_key: {type: string, minLength: 8, maxLength: 200}
+        force_reacquire: {type: boolean, default: false}
+    Problem:
+      type: object
+      required: [type, title, status, detail, request_id]
+      properties:
+        type: {type: string, format: uri-reference}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        detail: {type: string}
+        request_id: {type: string}
+  responses:
+    Page: {description: Bounded page, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, maxItems: 100}, next_cursor: {type: [string, 'null']}}}}}}
+    Problem: {description: RFC 9457 Problem Details, content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}}

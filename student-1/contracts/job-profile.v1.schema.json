@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://propertyscope.local/contracts/job-profile.v1.schema.json",
+  "title": "PropertyScope registered job profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "key", "version", "display_name", "source_key", "adapter", "refresh_strategy", "supported_modes", "release_builder", "import_profile", "target", "scope_profiles", "quality_policy", "limits", "publication"],
+  "properties": {
+    "schema_version": {"const": "propertyscope.job-profile.v1"},
+    "key": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "display_name": {"type": "string", "minLength": 1},
+    "source_key": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+    "adapter": {"$ref": "#/$defs/versionedKey"},
+    "refresh_strategy": {"enum": ["full_snapshot", "append_only_partitioned", "partitioned_snapshot", "manual_versioned_import"]},
+    "supported_modes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["full_refresh", "reprocess_cached"]}},
+    "release_builder": {"$ref": "#/$defs/versionedKey"},
+    "import_profile": {"$ref": "#/$defs/versionedKey"},
+    "target": {"type": "object", "additionalProperties": false, "required": ["feature", "contract"], "properties": {"feature": {"type": "string"}, "contract": {"type": "string"}}},
+    "scope_profiles": {"type": "object", "minProperties": 1, "maxProperties": 20, "additionalProperties": {"type": "object"}},
+    "quality_policy": {"type": "string"},
+    "limits": {"type": "object", "additionalProperties": false, "required": ["max_objects", "max_bytes", "max_rows", "deadline_seconds", "max_parallelism"], "properties": {"max_objects": {"type": "integer", "minimum": 1}, "max_bytes": {"type": "integer", "minimum": 1}, "max_rows": {"type": "integer", "minimum": 1}, "deadline_seconds": {"type": "integer", "minimum": 1}, "max_parallelism": {"type": "integer", "minimum": 1, "maximum": 16}}},
+    "publication": {"const": "human_review"}
+  },
+  "$defs": {"versionedKey": {"type": "object", "additionalProperties": false, "required": ["key", "version"], "properties": {"key": {"type": "string"}, "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"}}}}
+}
