@@ -239,16 +239,14 @@ def create_blueprint(store: DataStoreClient, ai_mode: AiModeClient) -> Blueprint
             )
         )
 
-    @api.get(f"{BASE}/dataset-releases")
+    @api.route(f"{BASE}/dataset-releases", methods=["GET", "POST"])
     def releases() -> Response:
-        return forward(
-            store.request(
-                "GET", f"{INTERNAL}/releases", headers=request.headers, params=request.args
-            )
-        )
+        return proxy_collection(store, f"{INTERNAL}/releases")
 
-    @api.get(f"{BASE}/dataset-releases/<uuid:release_id>")
+    @api.route(f"{BASE}/dataset-releases/<uuid:release_id>", methods=["GET", "PUT", "DELETE"])
     def release(release_id: uuid.UUID) -> Response:
+        if request.method != "GET":
+            return proxy_item(store, f"{INTERNAL}/releases/{release_id}")
         return forward(
             store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
         )

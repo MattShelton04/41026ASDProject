@@ -212,6 +212,10 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         items = store.list_releases(status=request.args.get("status"), limit=limit, offset=offset)
         return jsonify(envelope(items, limit=limit, offset=offset))
 
+    @api.post("/internal/data-platform/v1/releases")
+    def releases_create() -> tuple[Response, int]:
+        return jsonify({"release": store.create_release(payload())}), 201
+
     @api.get("/internal/data-platform/v1/releases/<uuid:release_id>")
     def releases_get(release_id: uuid.UUID) -> Response:
         return jsonify(
@@ -220,6 +224,15 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
                 "receipts": store.release_receipts(release_id),
             }
         )
+
+    @api.put("/internal/data-platform/v1/releases/<uuid:release_id>")
+    def releases_update(release_id: uuid.UUID) -> Response:
+        return jsonify({"release": store.update_release(release_id, payload())})
+
+    @api.delete("/internal/data-platform/v1/releases/<uuid:release_id>")
+    def releases_delete(release_id: uuid.UUID) -> tuple[str, int]:
+        store.delete_release(release_id)
+        return "", 204
 
     @api.post("/internal/data-platform/v1/releases/<uuid:release_id>/transition")
     def releases_transition(release_id: uuid.UUID) -> Response:

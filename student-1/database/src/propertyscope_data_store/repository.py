@@ -584,6 +584,81 @@ class PropertyScopeStore:
     def get_release(self, release_id: uuid.UUID) -> JsonObject:
         return self._required("SELECT * FROM ops.dataset_release WHERE id=%s", (release_id,))
 
+    def create_release(self, values: Mapping[str, Any]) -> JsonObject:
+        now = datetime.now(UTC)
+        try:
+            with self.connection() as connection:
+                row = connection.execute(
+                    """INSERT INTO ops.dataset_release (
+                    id,dataset_id,source_definition_id,ingestion_run_id,target_feature,
+                    release_version,schema_version,coverage_json,record_count,content_sha256,
+                    artifact_record_id,manifest_json,status,review_comment,created_at,updated_at,version
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1) RETURNING *""",
+                    (
+                        uuid.UUID(str(values.get("id", uuid.uuid4()))),
+                        values["dataset_id"],
+                        uuid.UUID(str(values["source_definition_id"])),
+                        uuid.UUID(str(values["ingestion_run_id"])),
+                        values["target_feature"],
+                        values["release_version"],
+                        values["schema_version"],
+                        _json(values.get("coverage", {})),
+                        int(values.get("record_count", 0)),
+                        values["content_sha256"],
+                        uuid.UUID(str(values["artifact_record_id"])),
+                        _json(values.get("manifest", {})),
+                        values.get("status", "draft"),
+                        values.get("review_comment"),
+                        now,
+                        now,
+                    ),
+                ).fetchone()
+                connection.commit()
+        except errors.UniqueViolation as exc:
+            raise ConflictError("release version already exists for this dataset") from exc
+        except errors.ForeignKeyViolation as exc:
+            raise NotFoundError("source, run, or artifact does not exist") from exc
+        return _dict(row)
+
+    def update_release(self, release_id: uuid.UUID, values: Mapping[str, Any]) -> JsonObject:
+        current = self.get_release(release_id)
+        if current["status"] not in {"draft", "candidate"}:
+            raise ConflictError("accepted or terminal release evidence cannot be edited")
+        with self.connection() as connection:
+            row = connection.execute(
+                """UPDATE ops.dataset_release SET release_version=%s,schema_version=%s,
+                coverage_json=%s,record_count=%s,content_sha256=%s,manifest_json=%s,
+                review_comment=%s,updated_at=%s,version=version+1 WHERE id=%s AND version=%s
+                AND status IN ('draft','candidate') RETURNING *""",
+                (
+                    values.get("release_version", current["release_version"]),
+                    values.get("schema_version", current["schema_version"]),
+                    _json(values.get("coverage", current["coverage_json"])),
+                    int(values.get("record_count", current["record_count"])),
+                    values.get("content_sha256", current["content_sha256"]),
+                    _json(values.get("manifest", current["manifest_json"])),
+                    values.get("review_comment", current["review_comment"]),
+                    datetime.now(UTC),
+                    release_id,
+                    int(values["version"]),
+                ),
+            ).fetchone()
+            connection.commit()
+        if row is None:
+            raise ConflictError("release version does not match")
+        return _dict(row)
+
+    def delete_release(self, release_id: uuid.UUID) -> None:
+        release = self.get_release(release_id)
+        if release["status"] not in {"draft", "rejected"}:
+            raise ConflictError("only draft or rejected local releases can be deleted")
+        try:
+            self._delete("ops", "dataset_release", release_id)
+        except errors.ForeignKeyViolation as exc:
+            raise ConflictError(
+                "release has retained quality, receipt, or registry evidence"
+            ) from exc
+
     def release_receipts(self, release_id: uuid.UUID) -> list[JsonObject]:
         self.get_release(release_id)
         return self._fetch_all(
