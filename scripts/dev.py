@@ -15,20 +15,33 @@ COMPOSE_FILES = (
     "docker-compose.integration-test.yml",
     "docker-compose.dev.yml",
 )
+FULL_DATA_COMPOSE_FILE = "docker-compose.full-data.yml"
 PROFILES = ("release-0", "ollama-container", "integration-test")
 APPLICATION_SERVICES = (
     "ai-mode",
     "integration-test-feature-database",
     "integration-test-feature-backend",
     "integration-test-feature-frontend",
+    "propertyscope-database-api",
+    "propertyscope-database-loader",
+    "propertyscope-backend",
+    "propertyscope-runner",
+    "propertyscope-frontend",
 )
+BUILD_SERVICES = APPLICATION_SERVICES
+FULL_DATA_PROJECT_NAME = "41026-asd-propertyscope-full-data"
 
 
-def _compose_command(*arguments: str) -> tuple[str, ...]:
+def _compose_command(*arguments: str, full_data: bool = False) -> tuple[str, ...]:
     command = ["docker", "compose"]
+    if full_data:
+        command.extend(("--project-name", FULL_DATA_PROJECT_NAME))
     for filename in COMPOSE_FILES:
         command.extend(("--file", filename))
-    for profile in PROFILES:
+    if full_data:
+        command.extend(("--file", FULL_DATA_COMPOSE_FILE))
+    profiles = (*PROFILES, "full-data") if full_data else PROFILES
+    for profile in profiles:
         command.extend(("--profile", profile))
     command.extend(arguments)
     return tuple(command)
@@ -43,11 +56,15 @@ def _ensure_docker() -> None:
     _run(("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"))
 
 
-def _up(*, pull_model: bool) -> None:
+def _up(*, pull_model: bool, full_data: bool) -> None:
     _ensure_docker()
-    _run(_compose_command("up", "--detach", "--wait", "--wait-timeout", "120", "ollama"))
+    _run(
+        _compose_command(
+            "up", "--detach", "--wait", "--wait-timeout", "120", "ollama", full_data=full_data
+        )
+    )
     if pull_model:
-        _run(_compose_command("run", "--rm", "ollama-init"))
+        _run(_compose_command("run", "--rm", "ollama-init", full_data=full_data))
     _run(
         _compose_command(
             "up",
@@ -56,16 +73,20 @@ def _up(*, pull_model: bool) -> None:
             "--wait-timeout",
             "180",
             *APPLICATION_SERVICES,
+            full_data=full_data,
         )
     )
     print("\nIntegration console: http://localhost:5190")
     print("AI-mode health:     http://localhost:5005/health/ready")
+    print("PropertyScope:      http://localhost:5200")
+    if full_data:
+        print("Full-data mode:     enabled in an isolated Compose project")
 
 
-def _rebuild(services: Sequence[str]) -> None:
+def _rebuild(services: Sequence[str], *, full_data: bool) -> None:
     _ensure_docker()
     selected = tuple(services) or APPLICATION_SERVICES
-    _run(_compose_command("build", *selected))
+    _run(_compose_command("build", *selected, full_data=full_data))
     _run(
         _compose_command(
             "up",
@@ -75,6 +96,7 @@ def _rebuild(services: Sequence[str]) -> None:
             "--wait-timeout",
             "180",
             *selected,
+            full_data=full_data,
         )
     )
 
@@ -84,6 +106,14 @@ def _parser() -> argparse.ArgumentParser:
         description="Run the assignment-aligned local stack with fast source reloads."
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    parser.set_defaults(full_data=False)
+
+    def add_full_data_option(command: argparse.ArgumentParser) -> None:
+        command.add_argument(
+            "--full-data",
+            action="store_true",
+            help="Use the isolated, opt-in source-scale PropertyScope profile",
+        )
 
     up = commands.add_parser("up", help="Start the complete development stack")
     up.add_argument(
@@ -91,6 +121,7 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip the idempotent Ollama model preparation step",
     )
+    add_full_data_option(up)
 
     rebuild = commands.add_parser(
         "rebuild",
@@ -99,14 +130,21 @@ def _parser() -> argparse.ArgumentParser:
     rebuild.add_argument(
         "services",
         nargs="*",
-        choices=APPLICATION_SERVICES,
+        choices=BUILD_SERVICES,
         help="Optional application services to rebuild (all by default)",
     )
+    add_full_data_option(rebuild)
 
-    commands.add_parser("restart", help="Recreate application containers without rebuilding")
-    commands.add_parser("down", help="Stop containers while preserving durable volumes")
-    commands.add_parser("status", help="Show current service and health state")
-    commands.add_parser("config", help="Validate the merged Compose configuration")
+    restart = commands.add_parser(
+        "restart", help="Recreate application containers without rebuilding"
+    )
+    add_full_data_option(restart)
+    down = commands.add_parser("down", help="Stop containers while preserving durable volumes")
+    add_full_data_option(down)
+    status = commands.add_parser("status", help="Show current service and health state")
+    add_full_data_option(status)
+    config_command = commands.add_parser("config", help="Validate the merged Compose configuration")
+    add_full_data_option(config_command)
 
     logs = commands.add_parser("logs", help="Follow recent application logs")
     logs.add_argument(
@@ -115,6 +153,7 @@ def _parser() -> argparse.ArgumentParser:
         choices=("ollama", *APPLICATION_SERVICES),
         help="Optional services to follow (all application services by default)",
     )
+    add_full_data_option(logs)
 
     commands.add_parser("test", help="Run the deterministic integration-feature tests")
     commands.add_parser("check", help="Run the complete canonical quality gate")
@@ -126,9 +165,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
         if arguments.command == "up":
-            _up(pull_model=not arguments.skip_model_pull)
+            _up(pull_model=not arguments.skip_model_pull, full_data=arguments.full_data)
         elif arguments.command == "rebuild":
-            _rebuild(arguments.services)
+            _rebuild(arguments.services, full_data=arguments.full_data)
         elif arguments.command == "restart":
             _ensure_docker()
             _run(
@@ -140,21 +179,31 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "--wait-timeout",
                     "180",
                     *APPLICATION_SERVICES,
+                    full_data=arguments.full_data,
                 )
             )
         elif arguments.command == "down":
             _ensure_docker()
-            _run(_compose_command("down", "--remove-orphans"))
+            _run(_compose_command("down", "--remove-orphans", full_data=arguments.full_data))
         elif arguments.command == "status":
             _ensure_docker()
-            _run(_compose_command("ps"))
+            _run(_compose_command("ps", full_data=arguments.full_data))
         elif arguments.command == "config":
             _ensure_docker()
-            _run(_compose_command("config", "--quiet"))
+            _run(_compose_command("config", "--quiet", full_data=arguments.full_data))
         elif arguments.command == "logs":
             _ensure_docker()
             selected = tuple(arguments.services) or APPLICATION_SERVICES
-            _run(_compose_command("logs", "--follow", "--tail", "200", *selected))
+            _run(
+                _compose_command(
+                    "logs",
+                    "--follow",
+                    "--tail",
+                    "200",
+                    *selected,
+                    full_data=arguments.full_data,
+                )
+            )
         elif arguments.command == "test":
             _run(
                 (
@@ -162,6 +211,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "-m",
                     "pytest",
                     "examples/integration-test-feature/tests",
+                    "student-1/tests",
                 )
             )
         elif arguments.command == "check":

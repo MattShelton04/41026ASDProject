@@ -1,7 +1,12 @@
 # Shared frontend
 
-This directory owns domain-neutral browser assets for the eventual unified entry point. It
+This directory owns domain-neutral browser assets for the unified entry point. It
 must not absorb student feature behavior or call feature databases directly.
+
+The root page links to the approved PropertyScope Feature 1 browser surfaces and the shared
+AI-mode evidence interface. Other feature links remain absent until those slices are allocated
+and approved. The page contains navigation only; it does not proxy database access or embed
+feature business logic.
 
 ## AI-mode operations
 

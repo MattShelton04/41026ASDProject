@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 SHARED_CONTRACTS = "shared-contracts"
@@ -17,6 +19,16 @@ SHARED_TESTKIT = "shared-testkit"
 AGENT_CORE = "agent-core"
 AI_MODE = "ai-mode"
 INTEGRATION_FIXTURE = "integration-test-feature"
+PROPERTYSCOPE_DATABASE_IMPORT = "propertyscope_data_store"
+POSTGRES_CLIENT_IMPORTS = frozenset({"asyncpg", "psycopg", "psycopg2", "sqlalchemy"})
+PROPERTYSCOPE_DATABASE_CREDENTIAL = "PROPERTYSCOPE_DATABASE_URL"
+PROPERTYSCOPE_POSTGRES_VOLUMES = frozenset(
+    {"propertyscope_postgres_data", "propertyscope_postgres_full_data"}
+)
+PROPERTYSCOPE_ARTIFACT_VOLUME = "propertyscope_artifacts"
+PROPERTYSCOPE_DATABASE_SERVICES = frozenset(
+    {"propertyscope-database-api", "propertyscope-database-loader"}
+)
 
 ALLOWED_WORKSPACE_DEPENDENCIES: Mapping[str, frozenset[str]] = {
     SHARED_CONTRACTS: frozenset(),
@@ -66,6 +78,7 @@ def validate_repository(root: Path = REPOSITORY_ROOT) -> tuple[ArchitectureViola
     violations = [
         *_validate_declared_dependencies(root, projects),
         *_validate_python_imports(root, projects),
+        *_validate_compose_boundaries(root),
     ]
     return tuple(sorted(violations))
 
@@ -169,6 +182,186 @@ def _validate_python_imports(
                         line,
                         f"{project.name} production code must not import {module}",
                     )
+                elif not is_test:
+                    yield from _validate_propertyscope_import(root, project, path, module, line)
+
+
+def _validate_propertyscope_import(
+    root: Path,
+    project: WorkspaceProject,
+    path: Path,
+    module: str,
+    line: int,
+) -> Iterable[ArchitectureViolation]:
+    if project.student_owner is None:
+        return
+    relative = path.relative_to(project.path)
+    inside_propertyscope_database = bool(
+        project.student_owner == "student-1" and relative.parts and relative.parts[0] == "database"
+    )
+    top_level = module.partition(".")[0]
+    if not inside_propertyscope_database and top_level in POSTGRES_CLIENT_IMPORTS:
+        yield ArchitectureViolation(
+            _relative(root, path),
+            line,
+            f"Only Feature 1 database/ may import PostgreSQL client {module}",
+        )
+    if (
+        project.student_owner == "student-1"
+        and not inside_propertyscope_database
+        and top_level == PROPERTYSCOPE_DATABASE_IMPORT
+    ):
+        yield ArchitectureViolation(
+            _relative(root, path),
+            line,
+            "Feature 1 backend/runner must call its database service over HTTP, not import it",
+        )
+
+
+def _validate_compose_boundaries(root: Path) -> Iterable[ArchitectureViolation]:
+    compose_path = root / "docker-compose.yml"
+    if not compose_path.is_file():
+        return
+    try:
+        document = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        yield ArchitectureViolation(
+            _relative(root, compose_path), 0, f"could not inspect Compose boundaries: {exc}"
+        )
+        return
+    if not isinstance(document, dict):
+        yield ArchitectureViolation(_relative(root, compose_path), 0, "Compose root must be a map")
+        return
+    services = document.get("services", {})
+    if not isinstance(services, dict):
+        yield ArchitectureViolation(
+            _relative(root, compose_path), 0, "Compose services must be a map"
+        )
+        return
+    if not PROPERTYSCOPE_DATABASE_SERVICES.issubset(services):
+        # Feature 1 has not been integrated in older/minimal fixture repositories.
+        return
+
+    for service_name, raw_service in services.items():
+        if not isinstance(service_name, str) or not isinstance(raw_service, dict):
+            continue
+        environment = _compose_environment(raw_service.get("environment"))
+        has_database_url = PROPERTYSCOPE_DATABASE_CREDENTIAL in environment
+        if has_database_url != (service_name in PROPERTYSCOPE_DATABASE_SERVICES):
+            expectation = (
+                "must receive"
+                if service_name in PROPERTYSCOPE_DATABASE_SERVICES
+                else "must not receive"
+            )
+            yield ArchitectureViolation(
+                _relative(root, compose_path),
+                0,
+                f"Compose service {service_name} {expectation} {PROPERTYSCOPE_DATABASE_CREDENTIAL}",
+            )
+
+        mounts = _compose_mounts(raw_service.get("volumes"))
+        for volume in PROPERTYSCOPE_POSTGRES_VOLUMES.intersection(mounts):
+            if service_name != "propertyscope-postgres":
+                yield ArchitectureViolation(
+                    _relative(root, compose_path),
+                    0,
+                    f"Compose service {service_name} must not mount PostgreSQL volume {volume}",
+                )
+        artifact_mode = mounts.get(PROPERTYSCOPE_ARTIFACT_VOLUME)
+        if service_name == "propertyscope-runner" and artifact_mode != "rw":
+            yield ArchitectureViolation(
+                _relative(root, compose_path),
+                0,
+                "Compose service propertyscope-runner must mount "
+                "propertyscope_artifacts read/write",
+            )
+        if service_name == "propertyscope-database-loader" and artifact_mode != "ro":
+            yield ArchitectureViolation(
+                _relative(root, compose_path),
+                0,
+                "Compose service propertyscope-database-loader must mount "
+                "propertyscope_artifacts read-only",
+            )
+        if artifact_mode == "rw" and service_name not in {"propertyscope-runner"}:
+            yield ArchitectureViolation(
+                _relative(root, compose_path),
+                0,
+                f"Compose service {service_name} must not write propertyscope_artifacts",
+            )
+
+        if _enables_full_data(environment):
+            profiles = raw_service.get("profiles", [])
+            if not isinstance(profiles, list) or "full-data" not in profiles:
+                yield ArchitectureViolation(
+                    _relative(root, compose_path),
+                    0,
+                    f"Compose service {service_name} enables full data without "
+                    "the full-data profile",
+                )
+
+    full_data_path = root / "docker-compose.full-data.yml"
+    if full_data_path.is_file():
+        yield from _validate_full_data_overlay(root, full_data_path)
+
+
+def _validate_full_data_overlay(root: Path, path: Path) -> Iterable[ArchitectureViolation]:
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        yield ArchitectureViolation(
+            _relative(root, path), 0, f"could not inspect full-data Compose overlay: {exc}"
+        )
+        return
+    services = document.get("services", {}) if isinstance(document, dict) else {}
+    if not isinstance(services, dict):
+        yield ArchitectureViolation(_relative(root, path), 0, "Compose services must be a map")
+        return
+    for service_name, raw_service in services.items():
+        if not isinstance(service_name, str) or not isinstance(raw_service, dict):
+            continue
+        environment = _compose_environment(raw_service.get("environment"))
+        if not _enables_full_data(environment):
+            continue
+        profiles = raw_service.get("profiles", [])
+        if not isinstance(profiles, list) or "full-data" not in profiles:
+            yield ArchitectureViolation(
+                _relative(root, path),
+                0,
+                f"Compose service {service_name} enables full data without the full-data profile",
+            )
+
+
+def _compose_environment(raw: object) -> dict[str, object]:
+    if isinstance(raw, dict):
+        return {str(key): value for key, value in raw.items()}
+    if isinstance(raw, list):
+        return {
+            entry.partition("=")[0]: entry.partition("=")[2]
+            for entry in raw
+            if isinstance(entry, str)
+        }
+    return {}
+
+
+def _compose_mounts(raw: object) -> dict[str, str]:
+    mounts: dict[str, str] = {}
+    if not isinstance(raw, list):
+        return mounts
+    for item in raw:
+        if isinstance(item, str):
+            parts = item.split(":")
+            if len(parts) >= 2:
+                mounts[parts[0]] = parts[2] if len(parts) >= 3 else "rw"
+        elif isinstance(item, dict) and item.get("type") == "volume":
+            source = item.get("source")
+            if isinstance(source, str):
+                mounts[source] = "ro" if item.get("read_only") is True else "rw"
+    return mounts
+
+
+def _enables_full_data(environment: Mapping[str, object]) -> bool:
+    value = environment.get("PROPERTYSCOPE_FULL_DATA_ENABLED")
+    return isinstance(value, (str, bool)) and str(value).lower() in {"1", "true", "yes"}
 
 
 def _allowed_workspace_dependencies(
@@ -240,7 +433,7 @@ def _relative(root: Path, path: Path) -> str:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Validate documented workspace dependency and Python import boundaries."
+        description="Validate documented dependency, import, credential, and volume boundaries."
     )
     parser.add_argument(
         "--root",
@@ -264,7 +457,7 @@ def main() -> int:
         for violation in violations:
             print(f"- {violation}")
         return 1
-    print("Validated workspace dependency and Python import boundaries")
+    print("Validated workspace dependency, import, credential, and volume boundaries")
     return 0
 
 

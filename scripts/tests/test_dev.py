@@ -27,7 +27,7 @@ def test_up_prepares_model_and_starts_complete_stack(
     assert captured_commands[0][:2] == ("docker", "info")
     assert captured_commands[1][-1] == "ollama"
     assert captured_commands[2][-3:] == ("run", "--rm", "ollama-init")
-    assert captured_commands[3][-4:] == dev.APPLICATION_SERVICES
+    assert captured_commands[3][-len(dev.APPLICATION_SERVICES) :] == dev.APPLICATION_SERVICES
     for filename in dev.COMPOSE_FILES:
         assert filename in captured_commands[3]
 
@@ -48,9 +48,9 @@ def test_rebuild_defaults_to_all_application_services(
 
     build = captured_commands[1]
     recreate = captured_commands[2]
-    assert build[-5:] == ("build", *dev.APPLICATION_SERVICES)
+    assert build[-(len(dev.BUILD_SERVICES) + 1) :] == ("build", *dev.BUILD_SERVICES)
     assert "--force-recreate" in recreate
-    assert recreate[-4:] == dev.APPLICATION_SERVICES
+    assert recreate[-len(dev.BUILD_SERVICES) :] == dev.BUILD_SERVICES
 
 
 def test_down_preserves_named_volumes(captured_commands: list[tuple[str, ...]]) -> None:
@@ -59,3 +59,24 @@ def test_down_preserves_named_volumes(captured_commands: list[tuple[str, ...]]) 
     command = captured_commands[-1]
     assert command[-2:] == ("down", "--remove-orphans")
     assert "--volumes" not in command
+
+
+def test_full_data_is_explicit_and_uses_isolated_project(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["up", "--full-data", "--skip-model-pull"]) == 0
+
+    application_up = captured_commands[-1]
+    assert dev.FULL_DATA_COMPOSE_FILE in application_up
+    assert application_up[2:4] == ("--project-name", dev.FULL_DATA_PROJECT_NAME)
+    assert "full-data" in application_up
+
+
+def test_default_stack_does_not_enable_full_data(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["config"]) == 0
+
+    command = captured_commands[-1]
+    assert dev.FULL_DATA_COMPOSE_FILE not in command
+    assert "full-data" not in command

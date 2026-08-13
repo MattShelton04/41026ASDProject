@@ -18,9 +18,10 @@ Architecture sources, decisions, and exported diagrams belong here.
   persistence and cursor-polling decision.
 - `decisions/ADR-015-validated-model-registry.md` records supported-model metadata,
   logical profiles, operational limits, and readiness selection.
-- `decisions/ADR-016-propertyscope-feature-1-postgresql-postgis.md` proposes a
-  Feature 1-only PostgreSQL/PostGIS exception for PropertyScope's verified statewide
-  data scale. It does not change the shared SQLite baseline until tutor/team approval.
+- `decisions/ADR-016-propertyscope-feature-1-postgresql-postgis.md` records the implemented
+  Feature 1-only PostgreSQL/PostGIS exception for PropertyScope's verified statewide data
+  scale. The repository owner authorised implementation; formal tutor/team approval evidence
+  must still be linked before the team makes assessed-release claims.
 - `reviews/` retains external/adversarial review inputs. Findings are not
   authoritative until verified and dispositioned in the architecture record.
 - Future artefacts should cover individual microservices, the integrated application,

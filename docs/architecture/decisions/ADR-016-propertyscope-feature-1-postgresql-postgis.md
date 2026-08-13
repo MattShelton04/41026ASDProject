@@ -1,6 +1,6 @@
 # ADR-016: Use PostgreSQL/PostGIS for the PropertyScope Feature 1 database service
 
-- Status: Proposed — requires written tutor and team approval
+- Status: Accepted for implementation — tutor/team approval evidence remains to be linked
 - Date: 9 August 2026
 - Owner: PropertyScope Feature 1 / shared architecture review
 - Supersedes: the SQLite default described as ADR-007 for Feature 1 only, if accepted
@@ -55,9 +55,10 @@ database services. AI-mode keeps its existing independent workflow store.
 - Migrations must rebuild from empty and produce a checked schema fingerprint. Manual DDL
   and direct reuse of the earlier database are prohibited.
 
-The shared architecture diagram, Compose topology, architecture validator and tests must
-be updated together when this ADR is accepted. Until then, this remains a proposal and no
-boundary change is authorised.
+The shared architecture, Compose topology, architecture validator and tests are updated
+together with the implementation. The repository owner authorised implementation on
+13 August 2026; the team must still link the formal tutor/team approval evidence before
+claiming the exception in assessed release evidence.
 
 ## Data and release implications
 
@@ -121,7 +122,9 @@ tutor decision before implementation and uses one database path thereafter.
 
 ## Approval and validation record
 
-Before changing the shared baseline, record:
+Implementation authorisation was confirmed by the repository owner on 13 August 2026. This
+records authority to build the branch, not evidence of tutor approval. Before release, link
+the written tutor/team record and retain the following validation evidence:
 
 1. written tutor approval for one Feature 1-owned PostgreSQL/PostGIS database service;
 2. team approval of the database, publication and property-identity boundaries;

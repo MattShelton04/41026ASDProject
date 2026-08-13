@@ -106,3 +106,130 @@ def test_forbidden_workspace_dependency_is_rejected(tmp_path: Path) -> None:
     assert len(violations) == 1
     assert violations[0].line == 0
     assert "must not depend on workspace project agent-core" in violations[0].message
+
+
+def test_feature_one_backend_cannot_import_postgres_or_database_package(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    source = root / "student-1" / "backend" / "src" / "propertyscope_data_platform" / "app.py"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        "import psycopg\nfrom propertyscope_data_store import repository\n",
+        encoding="utf-8",
+    )
+
+    violations = validate_repository(root)
+
+    assert len(violations) == 2
+    assert "Only Feature 1 database/ may import PostgreSQL client psycopg" in violations[0].message
+    assert "must call its database service over HTTP" in violations[1].message
+
+
+def test_feature_one_database_may_import_postgres_client(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    source = root / "student-1" / "database" / "src" / "propertyscope_data_store" / "app.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("import psycopg\n", encoding="utf-8")
+
+    assert validate_repository(root) == ()
+
+
+def test_other_student_must_not_import_postgres_client(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    source = root / "student-2" / "database" / "repository.py"
+    source.parent.mkdir()
+    source.write_text("import psycopg\n", encoding="utf-8")
+
+    violations = validate_repository(root)
+
+    assert len(violations) == 1
+    assert "Only Feature 1 database/ may import PostgreSQL client psycopg" in violations[0].message
+
+
+def test_propertyscope_compose_trust_boundary_passes(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    (root / "docker-compose.yml").write_text(_valid_propertyscope_compose(), encoding="utf-8")
+
+    assert validate_repository(root) == ()
+
+
+def test_propertyscope_compose_rejects_credential_and_volume_leaks(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    compose = (
+        _valid_propertyscope_compose()
+        .replace(
+            "propertyscope-runner:\n    volumes:",
+            "propertyscope-runner:\n    environment:\n"
+            "      PROPERTYSCOPE_DATABASE_URL: leaked\n    volumes:",
+        )
+        .replace(
+            "propertyscope_artifacts:/artifacts:rw",
+            "propertyscope_postgres_data:/postgres:rw",
+        )
+    )
+    (root / "docker-compose.yml").write_text(compose, encoding="utf-8")
+
+    messages = [violation.message for violation in validate_repository(root)]
+
+    assert any("runner must not receive PROPERTYSCOPE_DATABASE_URL" in item for item in messages)
+    assert any("runner must not mount PostgreSQL volume" in item for item in messages)
+    assert any("runner must mount propertyscope_artifacts read/write" in item for item in messages)
+
+
+def test_propertyscope_compose_requires_full_data_profile(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    compose = _valid_propertyscope_compose().replace(
+        "propertyscope-runner:\n    volumes:",
+        "propertyscope-runner:\n    environment:\n"
+        "      PROPERTYSCOPE_FULL_DATA_ENABLED: 'true'\n    volumes:",
+    )
+    (root / "docker-compose.yml").write_text(compose, encoding="utf-8")
+
+    violations = validate_repository(root)
+
+    assert any(
+        "enables full data without the full-data profile" in item.message for item in violations
+    )
+
+
+def test_propertyscope_full_data_overlay_requires_profile(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    (root / "docker-compose.yml").write_text(_valid_propertyscope_compose(), encoding="utf-8")
+    (root / "docker-compose.full-data.yml").write_text(
+        "services:\n"
+        "  propertyscope-runner:\n"
+        "    environment:\n"
+        "      PROPERTYSCOPE_FULL_DATA_ENABLED: 'true'\n",
+        encoding="utf-8",
+    )
+
+    violations = validate_repository(root)
+
+    assert any(
+        violation.path == "docker-compose.full-data.yml"
+        and "without the full-data profile" in violation.message
+        for violation in violations
+    )
+
+
+def _valid_propertyscope_compose() -> str:
+    return """\
+services:
+  propertyscope-postgres:
+    volumes:
+      - propertyscope_postgres_data:/var/lib/postgresql/data
+  propertyscope-database-api:
+    environment:
+      PROPERTYSCOPE_DATABASE_URL: postgresql://database
+  propertyscope-database-loader:
+    environment:
+      PROPERTYSCOPE_DATABASE_URL: postgresql://database
+    volumes:
+      - propertyscope_artifacts:/artifacts:ro
+  propertyscope-backend: {}
+  propertyscope-runner:
+    volumes:
+      - propertyscope_artifacts:/artifacts:rw
+volumes:
+  propertyscope_postgres_data:
+  propertyscope_artifacts:
+"""

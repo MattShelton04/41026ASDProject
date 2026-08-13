@@ -1,0 +1,22 @@
+# Explicit opt-in overlay for retained, source-scale PropertyScope data.
+# Invoke only through `uv run scripts/dev.py <command> --full-data`.
+services:
+  propertyscope-database-api:
+    profiles: [full-data]
+    environment:
+      PROPERTYSCOPE_AUTO_SEED: "false"
+    mem_limit: ${PROPERTYSCOPE_DATABASE_MEMORY_LIMIT:-4g}
+    cpus: ${PROPERTYSCOPE_DATABASE_CPU_LIMIT:-4.0}
+
+  propertyscope-database-loader:
+    profiles: [full-data]
+    mem_limit: ${PROPERTYSCOPE_LOADER_MEMORY_LIMIT:-8g}
+    cpus: ${PROPERTYSCOPE_LOADER_CPU_LIMIT:-6.0}
+
+  propertyscope-runner:
+    profiles: [full-data]
+    environment:
+      PROPERTYSCOPE_FULL_DATA_ENABLED: "true"
+      PROPERTYSCOPE_SOURCE_CREDENTIAL_FILE: ${PROPERTYSCOPE_SOURCE_CREDENTIAL_FILE:-}
+    mem_limit: ${PROPERTYSCOPE_RUNNER_MEMORY_LIMIT:-8g}
+    cpus: ${PROPERTYSCOPE_RUNNER_CPU_LIMIT:-6.0}

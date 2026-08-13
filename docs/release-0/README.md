@@ -11,10 +11,11 @@ Student owners should use [`feature-onboarding.md`](feature-onboarding.md) after
 topic and feature allocation are approved; it records integration and testing
 obligations without inventing domain behavior.
 
-The proposed PropertyScope data-platform/property-discovery slice is chunked into
+The PropertyScope data-platform/property-discovery slice is chunked into
 schemas, APIs, ingestion/release contracts, AI tools, tests, milestones, and evidence in
 [`propertyscope-feature-1-implementation-plan.md`](propertyscope-feature-1-implementation-plan.md).
-It remains subject to team and tutor approval.
+Implementation is authorised on this branch; the formal tutor/team approval evidence for its
+Feature 1-only PostgreSQL/PostGIS exception remains a release gate.
 
 The implemented, opt-in local showcase/debug interface and its remaining remote-access
 decisions are specified in

@@ -4,13 +4,22 @@
 
 | Field | Value |
 |---|---|
-| Status | Living architecture; Release 0 shared baseline implemented, product integration pending |
-| Last verified | 9 August 2026 |
+| Status | Living architecture; Release 0 shared baseline and PropertyScope Feature 1 integrated |
+| Last verified | 13 August 2026 |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related record | `docs/architecture/repository-architecture.md` |
 
-### Implementation status (9 August 2026)
+### Implementation status (13 August 2026)
+
+PropertyScope Feature 1 now supplies the first assessed product slice. Its frontend, control
+API, acquisition runner, database API, serial loader and PostgreSQL/PostGIS service are wired
+through the root Compose model. ADR-016 is implemented as a narrow exception: only the
+database API/loader receive the PostgreSQL URL; only PostgreSQL mounts its database volume;
+the runner writes the Feature 1 artifact volume and the loader reads it. Architecture checks
+enforce those imports, credentials and mounts. Default development/CI uses bounded fixture
+data, while the source-scale profile is explicit and isolated. Formal tutor/team approval
+evidence for the exception remains a release gate.
 
 The first Release 0 foundation increment implemented the strict shared agent
 contracts, deterministic state graph, limits and tool policy, persistence-independent
@@ -37,12 +46,12 @@ replay status. The opt-in operations projection and browser dashboard are implem
 trusted local use. The canonical gate includes deterministic tests and enforces branch
 coverage of at least 90%.
 
-This does not complete the shared-foundation definition of done. Student owners must
-still supply their approved manifests and feature endpoints; the product edge and five-slice
-Compose topology, approved product-feature integration, and team-owned release evidence
-remain. The non-product fixture and real Qwen runtime have been exercised live, but they are
-not substitutes for assessed product evidence. MCP, RAG, and multi-agent runtime behavior
-remains disabled and unclaimed.
+This does not complete the five-feature shared-foundation definition of done. Owners must
+still supply approved manifests and endpoints for Features 2–5; the product edge, complete
+five-slice topology, approval records, and team-owned release evidence remain. The
+non-product fixture and real Qwen runtime remain useful shared-boundary evidence, not
+substitutes for assessed product evidence. MCP, RAG, and multi-agent runtime behavior remains
+disabled and unclaimed.
 
 This document is both a high-level design and a detailed build guide. It deliberately
 defines the stable shared platform before the project domain and five feature schemas
@@ -104,11 +113,11 @@ The main architectural constraints are:
 
 ### 2.2 Recorded interpretations
 
-1. **Database choice.** Section 5.3 allows SQLite or PostgreSQL, but the release
-   deliverables and cloud tables repeatedly name SQLite. This design therefore uses a
-   separately owned SQLite database service per feature. A repository port prevents
-   domain logic from depending on SQLite and leaves a tutor-approved PostgreSQL
-   migration possible.
+1. **Database choice.** Section 5.3 allows SQLite or PostgreSQL, but the release deliverables
+   and cloud tables repeatedly name SQLite. Features 2–5 therefore retain independently owned
+   stores following the shared SQLite baseline. ADR-016 records the Feature 1-only
+   PostgreSQL/PostGIS exception needed for verified statewide scale. Its database API/loader
+   form the sole credential-owning trust boundary; all callers continue to use HTTP.
 2. **Database microservice.** SQLite is embedded rather than a network database server.
    To satisfy the course topology, each database container owns its SQLite file and
    exposes a narrow internal API. No other container mounts or opens that file.
