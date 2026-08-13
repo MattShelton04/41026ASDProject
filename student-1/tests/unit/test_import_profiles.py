@@ -134,6 +134,22 @@ def test_profile_mismatch_and_duplicate_natural_keys_fail_before_copy() -> None:
         prepare_import(_artifact("property-fixture", [record, record]), profile="property-fixture")
 
 
+def test_schools_import_accepts_nsw_lord_howe_island() -> None:
+    record: dict[str, object] = {
+        "school_code": "1921",
+        "school_name": "Lord Howe Island Central School",
+        "school_type": "Central Schools",
+        "status": "Open",
+        "locality_original": "Lord Howe Island",
+        "locality_normalised": "LORD HOWE ISLAND",
+        "lga_name": None,
+        "latitude": -31.530072,
+        "longitude": 159.069032,
+    }
+    prepared = prepare_import(_artifact("schools-master", [record]), profile="schools-master")
+    assert prepared.rows[0]["school_code"] == "1921"
+
+
 class _Store:
     def execute_import_profile(self, work: dict[str, Any], prepared: Any) -> ImportResult:
         assert prepared.profile == "property-fixture"

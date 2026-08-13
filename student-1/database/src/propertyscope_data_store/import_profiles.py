@@ -427,7 +427,8 @@ def _coordinates(row: Mapping[str, Any], index: int) -> tuple[float, float]:
         longitude = float(row["longitude"])
     except (KeyError, TypeError, ValueError) as exc:
         raise ImportProfileError(f"record {index} coordinates must be numeric") from exc
-    if not -38 <= latitude <= -27 or not 140 <= longitude <= 154:
+    # NSW public-school coverage includes Lord Howe Island at roughly 159E.
+    if not -38 <= latitude <= -27 or not 140 <= longitude <= 160:
         raise ImportProfileError(f"record {index} coordinates fall outside NSW bounds")
     return latitude, longitude
 
