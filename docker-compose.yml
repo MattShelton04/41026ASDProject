@@ -20,6 +20,7 @@ services:
       AI_MODE_ENVIRONMENT: compose
       AI_MODE_LOG_LEVEL: ${AI_MODE_LOG_LEVEL:-INFO}
       AI_MODE_OPERATIONS_ENABLED: ${AI_MODE_OPERATIONS_ENABLED:-false}
+      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml
       AI_MODE_REQUIRE_OLLAMA_READY: "true"
       AI_MODE_DEFAULT_MODEL_PROFILE: ${AI_MODE_DEFAULT_MODEL_PROFILE:-local-standard.v1}
       OLLAMA_BASE_URL: http://ollama:11434
@@ -32,6 +33,7 @@ services:
       - 127.0.0.1:${AI_MODE_PORT:-5005}:5005
     volumes:
       - ai_mode_state:/var/lib/ai-mode
+      - ./student-1/tool-catalog.yaml:/etc/ai-mode/propertyscope-tools.yaml:ro
     networks:
       - shared_platform
     mem_limit: ${AI_MODE_MEMORY_LIMIT:-512m}

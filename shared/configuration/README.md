@@ -8,8 +8,10 @@ accepts the course guide's `/v1` URL and normalizes that suffix. Release-gated s
 flags remain false until their applicable local release and must remain false in the
 Release 2 cloud deployment.
 
-Feature HTTP tools are disabled unless `AI_MODE_TOOL_CATALOG_PATH` names a validated
-startup catalogue. Do not place credentials in that file and do not expose arbitrary
+Feature HTTP tools are disabled unless `AI_MODE_TOOL_CATALOG_PATH` names one validated
+catalogue or `AI_MODE_TOOL_CATALOG_PATHS` names an ordered comma-separated set of catalogues.
+The settings are mutually exclusive, and duplicate services/tools fail startup. Each file is
+a strict startup catalogue. Do not place credentials in those files or expose arbitrary
 caller/model URLs. `AI_MODE_EVIDENCE_ACCESS_TOKEN` is a local secret; leaving it unset
 removes the development evidence route entirely.
 

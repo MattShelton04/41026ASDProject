@@ -2,7 +2,7 @@ services:
   ai-mode:
     environment:
       AI_MODE_OPERATIONS_ENABLED: "true"
-      AI_MODE_TOOL_CATALOG_PATH: /etc/ai-mode/integration-test-tools.yaml
+      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/integration-test-tools.yaml
     volumes:
       - ./examples/integration-test-feature/tool-catalog.yaml:/etc/ai-mode/integration-test-tools.yaml:ro
 
