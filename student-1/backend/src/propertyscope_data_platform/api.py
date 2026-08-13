@@ -430,9 +430,34 @@ def create_blueprint(
         )
         if release_response.status_code >= 400:
             return forward(release_response)
+        release_data = release_response.json()["release"]
+        predecessor_id = "none"
+        if release_data.get("dataset_id") and release_data.get("target_feature"):
+            accepted_response = store.request(
+                "GET",
+                f"{INTERNAL}/releases",
+                headers=request.headers,
+                params={"status": "accepted", "limit": 100},
+            )
+            predecessor = next(
+                (
+                    item
+                    for item in accepted_response.json().get("items", [])
+                    if item["dataset_id"] == release_data["dataset_id"]
+                    and item["target_feature"] == release_data["target_feature"]
+                    and item["id"] != str(release_id)
+                ),
+                None,
+            )
+            if predecessor:
+                predecessor_id = predecessor["id"]
         supplied_objective = str(json_body(optional=True).get("objective", "")).strip()
-        objective = f"Release under investigation: {release_id}. " + (
-            supplied_objective[:3800]
+        objective = (
+            f"Release under investigation: {release_id}. "
+            f"Accepted predecessor release: {predecessor_id}. Use only these exact identifiers; "
+            "never send placeholders to tools. "
+        ) + (
+            supplied_objective[:3500]
             if supplied_objective
             else "Compare its accepted predecessor, preserve accepted data, and propose "
             "only a reviewed safe recovery."
