@@ -1,0 +1,571 @@
+"""Public/control, private worker, and AI tool HTTP surface."""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import Mapping
+from typing import Any
+
+import httpx
+from flask import Blueprint, Response, jsonify, request
+
+from propertyscope_data_platform.clients import (
+    AiModeClient,
+    DataStoreClient,
+    DependencyUnavailableError,
+)
+
+BASE = "/api/data-platform/v1"
+INTERNAL = "/internal/data-platform/v1"
+
+
+def create_blueprint(store: DataStoreClient, ai_mode: AiModeClient) -> Blueprint:
+    """Create Feature 1's public API without any persistence imports."""
+    api = Blueprint("propertyscope-data-platform", __name__)
+
+    @api.get("/health/live")
+    def live() -> tuple[Response, int]:
+        return jsonify({"status": "healthy", "service": "propertyscope-data-platform"}), 200
+
+    @api.get("/health/ready")
+    def ready() -> tuple[Response, int]:
+        healthy = store.ready()
+        return jsonify(
+            {"status": "healthy" if healthy else "unhealthy", "dependencies": {"database": healthy}}
+        ), 200 if healthy else 503
+
+    @api.get(f"{BASE}/overview")
+    def overview() -> Response:
+        return forward(store.request("GET", f"{INTERNAL}/overview", headers=request.headers))
+
+    @api.route(f"{BASE}/sources", methods=["GET", "POST"])
+    def sources() -> Response:
+        return proxy_collection(store, f"{INTERNAL}/sources")
+
+    @api.route(f"{BASE}/sources/<uuid:source_id>", methods=["GET", "PUT", "DELETE"])
+    def source(source_id: uuid.UUID) -> Response:
+        return proxy_item(store, f"{INTERNAL}/sources/{source_id}")
+
+    @api.route(f"{BASE}/jobs", methods=["GET", "POST"])
+    def jobs() -> Response:
+        return proxy_collection(store, f"{INTERNAL}/jobs")
+
+    @api.route(f"{BASE}/jobs/<uuid:job_id>", methods=["GET", "PUT", "DELETE"])
+    def job(job_id: uuid.UUID) -> Response:
+        return proxy_item(store, f"{INTERNAL}/jobs/{job_id}")
+
+    @api.get(f"{BASE}/jobs/<uuid:job_id>/capabilities")
+    def job_capabilities(job_id: uuid.UUID) -> Response:
+        response = store.request("GET", f"{INTERNAL}/jobs/{job_id}", headers=request.headers)
+        if response.status_code >= 400:
+            return forward(response)
+        job_data = response.json()["job"]
+        return jsonify(
+            {
+                "job_id": str(job_id),
+                "profile_key": job_data["profile_key"],
+                "refresh_strategy": job_data["refresh_strategy"],
+                "supported_modes": ["full_refresh", "reprocess_cached"],
+                "limits": {
+                    name: job_data[name]
+                    for name in (
+                        "max_objects",
+                        "max_bytes",
+                        "max_rows",
+                        "timeout_seconds",
+                        "max_parallelism",
+                    )
+                },
+                "registered": {
+                    "adapter": job_data["adapter_key"],
+                    "release_builder": job_data["release_builder_key"],
+                    "import_profile": job_data["import_profile_key"],
+                    "quality_policy": job_data["quality_policy_key"],
+                },
+            }
+        )
+
+    @api.post(f"{BASE}/jobs/<uuid:job_id>/plans")
+    def job_plan(job_id: uuid.UUID) -> Response:
+        body = json_body()
+        response = store.request("GET", f"{INTERNAL}/jobs/{job_id}", headers=request.headers)
+        if response.status_code >= 400:
+            return forward(response)
+        job_data = response.json()["job"]
+        mode = str(body.get("run_mode", "full_refresh"))
+        if mode not in {"full_refresh", "reprocess_cached"}:
+            return problem(
+                422,
+                "capability_unsupported",
+                "Only full_refresh and reprocess_cached are supported",
+            )
+        scope = body.get("scope", job_data["scope_json"])
+        return jsonify(
+            {
+                "valid": True,
+                "job_id": str(job_id),
+                "run_mode": mode,
+                "scope": scope,
+                "network_required": mode == "full_refresh" and job_data["adapter_key"] != "fixture",
+                "tasks": [
+                    {"sequence": index + 1, "stage": stage, "logical_key": f"{index:02d}/{stage}"}
+                    for index, stage in enumerate(
+                        (
+                            "discover",
+                            "acquire",
+                            "validate_artifact",
+                            "import",
+                            "normalise",
+                            "quality",
+                            "build_release",
+                        )
+                    )
+                ],
+                "hard_limits": {
+                    name: job_data[name]
+                    for name in ("max_objects", "max_bytes", "max_rows", "timeout_seconds")
+                },
+                "accepted_watermark_unchanged_until_publication": True,
+            }
+        )
+
+    @api.post(f"{BASE}/jobs/<uuid:job_id>/runs")
+    def run_create(job_id: uuid.UUID) -> Response:
+        body = json_body()
+        key = request.headers.get("Idempotency-Key", "").strip()
+        if not key:
+            return problem(422, "idempotency_key_required", "Idempotency-Key is required")
+        body["idempotency_key"] = key
+        body["request_id"] = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        return forward(
+            store.request(
+                "POST", f"{INTERNAL}/jobs/{job_id}/runs", headers=request.headers, json=body
+            )
+        )
+
+    @api.get(f"{BASE}/ingestion-runs")
+    def runs() -> Response:
+        return forward(
+            store.request("GET", f"{INTERNAL}/runs", headers=request.headers, params=request.args)
+        )
+
+    @api.get(f"{BASE}/ingestion-runs/<uuid:run_id>")
+    def run(run_id: uuid.UUID) -> Response:
+        return forward(store.request("GET", f"{INTERNAL}/runs/{run_id}", headers=request.headers))
+
+    for child in ("tasks", "artifacts", "quality-results"):
+        endpoint = child.replace("-", "_")
+
+        def run_child(run_id: uuid.UUID, child: str = child) -> Response:
+            return forward(
+                store.request(
+                    "GET",
+                    f"{INTERNAL}/runs/{run_id}/{child}",
+                    headers=request.headers,
+                    params=request.args,
+                )
+            )
+
+        api.add_url_rule(
+            f"{BASE}/ingestion-runs/<uuid:run_id>/{child}", endpoint, run_child, methods=["GET"]
+        )
+
+    for action in ("cancel", "resume"):
+
+        def run_action(run_id: uuid.UUID, action: str = action) -> Response:
+            return forward(
+                store.request(
+                    "POST",
+                    f"{INTERNAL}/runs/{run_id}/{action}",
+                    headers=request.headers,
+                    json=json_body(optional=True),
+                )
+            )
+
+        api.add_url_rule(
+            f"{BASE}/ingestion-runs/<uuid:run_id>/{action}",
+            f"run_{action}",
+            run_action,
+            methods=["POST"],
+        )
+
+    @api.post(f"{BASE}/ingestion-runs/<uuid:run_id>/retry")
+    def run_retry(run_id: uuid.UUID) -> Response:
+        original = store.request("GET", f"{INTERNAL}/runs/{run_id}", headers=request.headers)
+        if original.status_code >= 400:
+            return forward(original)
+        run_data = original.json()["run"]
+        key = request.headers.get("Idempotency-Key", "").strip()
+        if not key:
+            return problem(422, "idempotency_key_required", "Idempotency-Key is required")
+        body = {
+            "run_mode": "full_refresh",
+            "scope": run_data["requested_scope_json"],
+            "parent_run_id": str(run_id),
+            "idempotency_key": key,
+            "request_id": request.headers.get("X-Request-ID", str(uuid.uuid4())),
+        }
+        return forward(
+            store.request(
+                "POST",
+                f"{INTERNAL}/jobs/{run_data['job_definition_id']}/runs",
+                headers=request.headers,
+                json=body,
+            )
+        )
+
+    @api.post(f"{BASE}/ingestion-runs/<uuid:run_id>/reprocess-cached")
+    def run_reprocess(run_id: uuid.UUID) -> Response:
+        original = store.request("GET", f"{INTERNAL}/runs/{run_id}", headers=request.headers)
+        if original.status_code >= 400:
+            return forward(original)
+        run_data = original.json()["run"]
+        key = request.headers.get("Idempotency-Key", "").strip()
+        if not key:
+            return problem(422, "idempotency_key_required", "Idempotency-Key is required")
+        body = {
+            "run_mode": "reprocess_cached",
+            "scope": run_data["requested_scope_json"],
+            "parent_run_id": str(run_id),
+            "idempotency_key": key,
+            "request_id": request.headers.get("X-Request-ID", str(uuid.uuid4())),
+        }
+        return forward(
+            store.request(
+                "POST",
+                f"{INTERNAL}/jobs/{run_data['job_definition_id']}/runs",
+                headers=request.headers,
+                json=body,
+            )
+        )
+
+    @api.get(f"{BASE}/dataset-releases")
+    def releases() -> Response:
+        return forward(
+            store.request(
+                "GET", f"{INTERNAL}/releases", headers=request.headers, params=request.args
+            )
+        )
+
+    @api.get(f"{BASE}/dataset-releases/<uuid:release_id>")
+    def release(release_id: uuid.UUID) -> Response:
+        return forward(
+            store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
+        )
+
+    @api.get(f"{BASE}/dataset-releases/<uuid:release_id>/manifest")
+    def release_manifest(release_id: uuid.UUID) -> Response:
+        upstream = store.request(
+            "GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers
+        )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        return jsonify(upstream.json()["release"]["manifest_json"])
+
+    @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/submit-review")
+    def release_review(release_id: uuid.UUID) -> Response:
+        body = json_body()
+        return transition(store, release_id, "awaiting_review", body)
+
+    @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/publish")
+    def release_publish(release_id: uuid.UUID) -> Response:
+        body = json_body()
+        if not bool(body.get("approved", False)):
+            return problem(
+                422, "human_approval_required", "Publication requires explicit human approval"
+            )
+        return transition(store, release_id, "accepted", body)
+
+    @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/reject")
+    def release_reject(release_id: uuid.UUID) -> Response:
+        return transition(store, release_id, "rejected", json_body())
+
+    @api.get(f"{BASE}/properties/search")
+    def properties_search() -> Response:
+        return forward(
+            store.request(
+                "GET", f"{INTERNAL}/properties/search", headers=request.headers, params=request.args
+            )
+        )
+
+    @api.get(f"{BASE}/properties/<uuid:property_ref>")
+    def property_detail(property_ref: uuid.UUID) -> Response:
+        return forward(
+            store.request("GET", f"{INTERNAL}/properties/{property_ref}", headers=request.headers)
+        )
+
+    @api.get(f"{BASE}/properties/<uuid:property_ref>/map-context")
+    def property_map(property_ref: uuid.UUID) -> Response:
+        upstream = store.request(
+            "GET", f"{INTERNAL}/properties/{property_ref}", headers=request.headers
+        )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        item = upstream.json()["property"]
+        return jsonify(
+            {
+                "property_ref": str(property_ref),
+                "address_display": item["address_display"],
+                "longitude": item["longitude"],
+                "latitude": item["latitude"],
+                "geometry": item["geometry"],
+            }
+        )
+
+    @api.get(f"{BASE}/properties/<uuid:property_ref>/coverage")
+    def property_coverage(property_ref: uuid.UUID) -> Response:
+        return forward(
+            store.request(
+                "GET", f"{INTERNAL}/properties/{property_ref}/coverage", headers=request.headers
+            )
+        )
+
+    @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/agent-runs")
+    def release_agent_run(release_id: uuid.UUID) -> Response:
+        release_response = store.request(
+            "GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers
+        )
+        if release_response.status_code >= 400:
+            return forward(release_response)
+        objective = json_body(optional=True).get(
+            "objective",
+            f"Diagnose release {release_id}, compare its accepted predecessor, preserve accepted "
+            "data, and propose only a reviewed safe recovery.",
+        )
+        upstream = ai_mode.create_run(
+            {
+                "feature_key": "propertyscope-data-platform",
+                "objective": objective,
+                "prompt_set": "data-platform.release-diagnosis.v1",
+                "model_profile": "local-standard.v1",
+                "limits": {
+                    "max_iterations": 6,
+                    "max_tool_calls": 12,
+                    "time_budget_ms": 120000,
+                    "max_model_repairs": 1,
+                },
+            },
+            request.headers,
+        )
+        return forward(upstream)
+
+    @api.get(f"{BASE}/agent-runs/<uuid:run_id>")
+    def agent_run(run_id: uuid.UUID) -> Response:
+        return forward(ai_mode.get(f"/api/v1/agent-runs/{run_id}", request.headers))
+
+    @api.get(f"{BASE}/agent-runs/<uuid:run_id>/events")
+    def agent_events(run_id: uuid.UUID) -> Response:
+        suffix = ""
+        if request.query_string:
+            suffix = "?" + request.query_string.decode("ascii", errors="ignore")
+        return forward(ai_mode.get(f"/api/v1/agent-runs/{run_id}/events{suffix}", request.headers))
+
+    # AI tool endpoints: bounded IDs and stored evidence only.
+    @api.post(f"{BASE}/tools/data.sources.v1")
+    def tool_sources() -> Response:
+        return forward(
+            store.request(
+                "GET", f"{INTERNAL}/sources", headers=request.headers, params={"limit": 50}
+            )
+        )
+
+    @api.post(f"{BASE}/tools/data.runs.v1")
+    def tool_runs() -> Response:
+        return forward(
+            store.request("GET", f"{INTERNAL}/runs", headers=request.headers, params={"limit": 50})
+        )
+
+    @api.post(f"{BASE}/tools/data.run_inspect.v1")
+    def tool_run() -> Response:
+        run_id = required_uuid(json_body(), "run_id")
+        return forward(store.request("GET", f"{INTERNAL}/runs/{run_id}", headers=request.headers))
+
+    @api.post(f"{BASE}/tools/data.release_inspect.v1")
+    def tool_release() -> Response:
+        release_id = required_uuid(json_body(), "release_id")
+        return forward(
+            store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
+        )
+
+    @api.post(f"{BASE}/tools/data.coverage.v1")
+    def tool_coverage() -> Response:
+        property_ref = required_uuid(json_body(), "property_ref")
+        return forward(
+            store.request(
+                "GET", f"{INTERNAL}/properties/{property_ref}/coverage", headers=request.headers
+            )
+        )
+
+    @api.post(f"{BASE}/tools/property.search.v1")
+    def tool_property_search() -> Response:
+        body = json_body()
+        return forward(
+            store.request(
+                "GET",
+                f"{INTERNAL}/properties/search",
+                headers=request.headers,
+                params={
+                    "q": body.get("query", ""),
+                    "state": body.get("state", "NSW"),
+                    "limit": body.get("limit", 10),
+                },
+            )
+        )
+
+    @api.post(f"{BASE}/tools/property.inspect.v1")
+    def tool_property_inspect() -> Response:
+        property_ref = required_uuid(json_body(), "property_ref")
+        return forward(
+            store.request("GET", f"{INTERNAL}/properties/{property_ref}", headers=request.headers)
+        )
+
+    @api.post(f"{BASE}/tools/data.run_retry.v1")
+    def tool_retry() -> Response:
+        body = json_body()
+        if not request.headers.get("Idempotency-Key"):
+            return problem(
+                422, "idempotency_key_required", "Protected retry requires Idempotency-Key"
+            )
+        run_id = required_uuid(body, "run_id")
+        return run_retry(run_id)
+
+    @api.post(f"{BASE}/tools/data.release_publish.v1")
+    def tool_publish() -> Response:
+        body = json_body()
+        if not bool(body.get("approved", False)):
+            return problem(
+                422, "human_approval_required", "Protected publication requires review approval"
+            )
+        return transition(store, required_uuid(body, "release_id"), "accepted", body)
+
+    # Private runner boundary simply brokers the same atomic store operations.
+    @api.post(f"{INTERNAL}/worker/tasks/claim")
+    def worker_claim() -> Response:
+        return forward(
+            store.request(
+                "POST", f"{INTERNAL}/worker/tasks/claim", headers=request.headers, json=json_body()
+            )
+        )
+
+    for action in ("heartbeat", "complete", "fail", "artifacts"):
+
+        def worker_action(task_id: uuid.UUID, action: str = action) -> Response:
+            return forward(
+                store.request(
+                    "POST",
+                    f"{INTERNAL}/worker/tasks/{task_id}/{action}",
+                    headers=request.headers,
+                    json=json_body(),
+                )
+            )
+
+        api.add_url_rule(
+            f"{INTERNAL}/worker/tasks/<uuid:task_id>/{action}",
+            f"worker_{action}",
+            worker_action,
+            methods=["POST"],
+        )
+
+    return api
+
+
+def proxy_collection(store: DataStoreClient, path: str) -> Response:
+    return forward(
+        store.request(
+            request.method,
+            path,
+            headers=request.headers,
+            params=request.args,
+            json=json_body() if request.method == "POST" else None,
+        )
+    )
+
+
+def proxy_item(store: DataStoreClient, path: str) -> Response:
+    return forward(
+        store.request(
+            request.method,
+            path,
+            headers=request.headers,
+            json=json_body() if request.method == "PUT" else None,
+        )
+    )
+
+
+def transition(
+    store: DataStoreClient, release_id: uuid.UUID, target: str, body: Mapping[str, Any]
+) -> Response:
+    version = body.get("version")
+    comment = body.get("comment") or body.get("reason")
+    if not isinstance(version, int) or not isinstance(comment, str) or not comment.strip():
+        return problem(422, "invalid_request", "version and a non-empty comment are required")
+    return forward(
+        store.request(
+            "POST",
+            f"{INTERNAL}/releases/{release_id}/transition",
+            headers=request.headers,
+            json={"version": version, "target": target, "comment": comment.strip()},
+        )
+    )
+
+
+def json_body(*, optional: bool = False) -> dict[str, Any]:
+    if optional and not request.data:
+        return {}
+    value: Any = request.get_json(silent=True)
+    if not isinstance(value, dict):
+        return {}
+    return value
+
+
+def required_uuid(body: Mapping[str, Any], name: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(str(body.get(name, "")))
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a UUID") from exc
+
+
+def forward(upstream: httpx.Response) -> Response:
+    try:
+        data = upstream.json()
+    except ValueError:
+        data = {"status": upstream.status_code}
+    response = jsonify(data)
+    response.status_code = upstream.status_code
+    if upstream.headers.get("content-type", "").split(";", 1)[0] == "application/problem+json":
+        response.content_type = "application/problem+json"
+    for name in ("Location", "X-Request-ID", "X-Agent-Run-ID"):
+        if name in upstream.headers:
+            response.headers[name] = upstream.headers[name]
+    return response
+
+
+def problem(status: int, code: str, detail: str) -> Response:
+    response = jsonify(
+        {
+            "type": f"https://propertyscope.local/problems/{code}",
+            "title": code.replace("_", " ").title(),
+            "status": status,
+            "detail": detail,
+            "code": code,
+            "request_id": request.headers.get("X-Request-ID", "unknown"),
+        }
+    )
+    response.status_code = status
+    response.content_type = "application/problem+json"
+    return response
+
+
+def register_error_handlers(app: Any) -> None:
+    app.register_error_handler(
+        DependencyUnavailableError, lambda error: problem(503, "dependency_unavailable", str(error))
+    )
+    app.register_error_handler(
+        ValueError, lambda error: problem(422, "invalid_request", str(error))
+    )
+    app.register_error_handler(
+        404, lambda _: problem(404, "route_not_found", "Route does not exist")
+    )
+    app.register_error_handler(
+        405, lambda _: problem(405, "method_not_allowed", "Method is not allowed")
+    )

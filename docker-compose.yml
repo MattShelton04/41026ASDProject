@@ -161,6 +161,7 @@ services:
     environment:
       PROPERTYSCOPE_DATABASE_API_URL: http://propertyscope-database-api:5202
       PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
+      PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
       AI_MODE_BASE_URL: http://ai-mode:5005
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
     depends_on:
@@ -188,8 +189,7 @@ services:
     restart: unless-stopped
     environment:
       PROPERTYSCOPE_BACKEND_URL: http://propertyscope-backend:5201
-      PROPERTYSCOPE_DATABASE_API_URL: http://propertyscope-database-api:5202
-      PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
+      PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
       PROPERTYSCOPE_FULL_DATA_ENABLED: "false"
     depends_on:
