@@ -114,9 +114,7 @@ def test_publication_records_consumer_receipt_before_pointer_transition() -> Non
         ),
         ai_mode_client=AiModeClient(
             "http://ai",
-            client=httpx.Client(
-                transport=httpx.MockTransport(lambda _: httpx.Response(503))
-            ),
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
         ),
         consumer_client=ConsumerImportClient(
             {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},
@@ -156,9 +154,7 @@ def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
         events.append("receipt")
         body = cast(dict[str, Any], json.loads(request.content))
         assert body["status"] == "rejected"
-        return httpx.Response(
-            201, json={"receipt": {"id": "receipt-2", **body}, "created": True}
-        )
+        return httpx.Response(201, json={"receipt": {"id": "receipt-2", **body}, "created": True})
 
     consumer = httpx.MockTransport(
         lambda _: httpx.Response(422, json={"code": "consumer_rejected"})
@@ -171,9 +167,7 @@ def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
         ),
         ai_mode_client=AiModeClient(
             "http://ai",
-            client=httpx.Client(
-                transport=httpx.MockTransport(lambda _: httpx.Response(503))
-            ),
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
         ),
         consumer_client=ConsumerImportClient(
             {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},
@@ -250,9 +244,7 @@ def test_report_section_projects_bounded_identity_and_release_evidence() -> None
                     "latitude": -33.8,
                     "geometry": {"type": "Point", "coordinates": [151.2, -33.8]},
                 },
-                "identifiers": [
-                    {"scheme": "GNAF_PID", "identifier_value": "GANSW123"}
-                ],
+                "identifiers": [{"scheme": "GNAF_PID", "identifier_value": "GANSW123"}],
                 "coverage": [
                     {
                         "dataset_id": "bocsar-crime",

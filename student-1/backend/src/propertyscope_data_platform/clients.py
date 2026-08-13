@@ -141,9 +141,7 @@ class ConsumerImportClient:
         endpoint = self._endpoints.get(target_feature)
         if endpoint is None:
             raise ValueError(f"target feature is not registered for publication: {target_feature}")
-        safe_headers = {
-            key: value for key, value in headers.items() if key in PROPAGATED_HEADERS
-        }
+        safe_headers = {key: value for key, value in headers.items() if key in PROPAGATED_HEADERS}
         safe_headers["Idempotency-Key"] = publication.idempotency_key
         try:
             response = self._client.post(
