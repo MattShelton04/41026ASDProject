@@ -1187,57 +1187,55 @@ class PropertyScopeStore:
         return _dict(row)
 
     def register_artifact(self, values: Mapping[str, Any]) -> tuple[JsonObject, bool]:
+        lineage_query = """SELECT * FROM ops.artifact_record WHERE ingestion_run_id=%s
+            AND logical_key=%s AND artifact_kind=%s"""
+        lineage_params = (
+            uuid.UUID(str(values["ingestion_run_id"])),
+            values["logical_key"],
+            values["artifact_kind"],
+        )
         existing = self._fetch_one(
-            """SELECT * FROM ops.artifact_record WHERE ingestion_run_id=%s
-            AND logical_key=%s AND artifact_kind=%s""",
-            (
-                uuid.UUID(str(values["ingestion_run_id"])),
-                values["logical_key"],
-                values["artifact_kind"],
-            ),
+            lineage_query,
+            lineage_params,
         )
         if existing:
-            expected = (
-                values["content_sha256"],
-                values["storage_key"],
-                values["media_type"],
-                int(values["bytes"]),
-            )
-            actual = (
-                existing["content_sha256"],
-                existing["storage_key"],
-                existing["media_type"],
-                int(existing["bytes"]),
-            )
-            if expected != actual:
-                raise ConflictError("artifact idempotency key arguments do not match")
+            _validate_artifact_replay(existing, values)
             return existing, False
-        with self.connection() as connection:
-            row = connection.execute(
-                """INSERT INTO ops.artifact_record (
-                    id,ingestion_run_id,run_task_id,logical_key,artifact_kind,storage_key,
-                    source_uri_redacted,content_sha256,media_type,bytes,etag,source_last_modified,
-                    schema_version,retention_class,created_at
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
-                (
-                    uuid.uuid4(),
-                    uuid.UUID(str(values["ingestion_run_id"])),
-                    uuid.UUID(str(values["run_task_id"])) if values.get("run_task_id") else None,
-                    values["logical_key"],
-                    values["artifact_kind"],
-                    values["storage_key"],
-                    values.get("source_uri_redacted"),
-                    values["content_sha256"],
-                    values["media_type"],
-                    int(values["bytes"]),
-                    values.get("etag"),
-                    values.get("source_last_modified"),
-                    values.get("schema_version"),
-                    values["retention_class"],
-                    datetime.now(UTC),
-                ),
-            ).fetchone()
-            connection.commit()
+        try:
+            with self.connection() as connection:
+                row = connection.execute(
+                    """INSERT INTO ops.artifact_record (
+                        id,ingestion_run_id,run_task_id,logical_key,artifact_kind,storage_key,
+                        source_uri_redacted,content_sha256,media_type,bytes,etag,source_last_modified,
+                        schema_version,retention_class,created_at
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                    (
+                        uuid.uuid4(),
+                        uuid.UUID(str(values["ingestion_run_id"])),
+                        uuid.UUID(str(values["run_task_id"]))
+                        if values.get("run_task_id")
+                        else None,
+                        values["logical_key"],
+                        values["artifact_kind"],
+                        values["storage_key"],
+                        values.get("source_uri_redacted"),
+                        values["content_sha256"],
+                        values["media_type"],
+                        int(values["bytes"]),
+                        values.get("etag"),
+                        values.get("source_last_modified"),
+                        values.get("schema_version"),
+                        values["retention_class"],
+                        datetime.now(UTC),
+                    ),
+                ).fetchone()
+                connection.commit()
+        except errors.UniqueViolation:
+            # A concurrent delivery can win the lineage key between the optimistic
+            # read and insert. Return it only when the replay arguments are identical.
+            existing = self._required(lineage_query, lineage_params)
+            _validate_artifact_replay(existing, values)
+            return existing, False
         return _dict(row), True
 
     def _finish_task(
@@ -1388,6 +1386,23 @@ def _run_projection(run: JsonObject) -> JsonObject:
     else:
         projected["execution_semantics"] = "full_pipeline_retry"
     return projected
+
+
+def _validate_artifact_replay(existing: Mapping[str, Any], values: Mapping[str, Any]) -> None:
+    expected = (
+        values["content_sha256"],
+        values["storage_key"],
+        values["media_type"],
+        int(values["bytes"]),
+    )
+    actual = (
+        existing["content_sha256"],
+        existing["storage_key"],
+        existing["media_type"],
+        int(existing["bytes"]),
+    )
+    if expected != actual:
+        raise ConflictError("artifact idempotency key arguments do not match")
 
 
 def _cancellation_error() -> JsonObject:
