@@ -430,10 +430,12 @@ def create_blueprint(
         )
         if release_response.status_code >= 400:
             return forward(release_response)
-        objective = json_body(optional=True).get(
-            "objective",
-            f"Diagnose release {release_id}, compare its accepted predecessor, preserve accepted "
-            "data, and propose only a reviewed safe recovery.",
+        supplied_objective = str(json_body(optional=True).get("objective", "")).strip()
+        objective = f"Release under investigation: {release_id}. " + (
+            supplied_objective[:3800]
+            if supplied_objective
+            else "Compare its accepted predecessor, preserve accepted data, and propose "
+            "only a reviewed safe recovery."
         )
         upstream = ai_mode.create_run(
             {
