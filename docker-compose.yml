@@ -19,7 +19,8 @@ services:
       AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS: ${AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS:-1}
       AI_MODE_ENVIRONMENT: compose
       AI_MODE_LOG_LEVEL: ${AI_MODE_LOG_LEVEL:-INFO}
-      AI_MODE_OPERATIONS_ENABLED: ${AI_MODE_OPERATIONS_ENABLED:-false}
+      # Feature 1 consumes the durable, redacted run index for diagnosis history.
+      AI_MODE_OPERATIONS_ENABLED: ${AI_MODE_OPERATIONS_ENABLED:-true}
       AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml
       AI_MODE_REQUIRE_OLLAMA_READY: "true"
       AI_MODE_DEFAULT_MODEL_PROFILE: ${AI_MODE_DEFAULT_MODEL_PROFILE:-local-standard.v1}

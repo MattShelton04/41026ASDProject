@@ -28,3 +28,11 @@ Version-controlled source/job configuration lives in `config/`, HTTP and release
 `contracts/`, and persistence-neutral Pydantic/domain policy in
 `backend/src/propertyscope_data_platform/`. Checked-in fixture data is synthetic and explicitly
 licensed; live and licensed source artifacts remain outside Git.
+
+The default stack deliberately exercises every import profile with deterministic synthetic
+records. The opt-in `--full-data` runner currently has one connected live transport: the NSW
+Department of Education schools master CSV. It downloads the official bounded extract, verifies
+its media/byte/row limits, parses it into the canonical schools contract and sends it through the
+same artifact, serial loader, candidate and quality path. G-NAF, PSI and BOCSAR remain catalogued
+until their source-scale streaming transports are connected; full-data runs for those profiles
+fail closed and never silently substitute fixture records.

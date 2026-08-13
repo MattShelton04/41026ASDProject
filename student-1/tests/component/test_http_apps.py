@@ -229,6 +229,29 @@ def test_release_diagnosis_uses_supported_prompt_contract() -> None:
     assert response.status_code == 201
 
 
+def test_agent_history_is_scoped_to_propertyscope_feature() -> None:
+    def upstream(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "ai"
+        assert request.url.path == "/api/v1/agent-runs"
+        assert request.url.params["feature_key"] == "student-1-propertyscope-data-platform"
+        assert request.url.params["limit"] == "25"
+        return httpx.Response(200, json={"items": [], "next_cursor": None})
+
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database",
+            "secret",
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai", client=httpx.Client(transport=httpx.MockTransport(upstream))
+        ),
+    )
+    response = app.test_client().get("/api/data-platform/v1/agent-runs?limit=25")
+    assert response.status_code == 200
+    assert response.get_json()["items"] == []
+
+
 def test_report_section_projects_bounded_identity_and_release_evidence() -> None:
     property_ref = "a0000000-0000-0000-0000-000000000001"
 

@@ -11,10 +11,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
+from propertyscope_data_platform.adapters.schools import parse_schools_csv
 from propertyscope_data_platform.artifacts import LocalArtifactStore
+
+SCHOOLS_MASTER_URL = (
+    "https://data.nsw.gov.au/data/dataset/"
+    "78c10ea3-8d04-4c9c-b255-bbf8547e37e7/resource/"
+    "3e6d5f6a-055c-440d-a690-fc0537c31095/download/master_dataset.csv"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +33,7 @@ class RunnerSettings:
     worker_id: str
     poll_seconds: float
     lease_seconds: int
+    full_data_enabled: bool = False
 
     @classmethod
     def from_environment(cls) -> RunnerSettings:
@@ -39,6 +48,8 @@ class RunnerSettings:
             worker_id=os.environ.get("PROPERTYSCOPE_RUNNER_ID", f"runner-{uuid.uuid4().hex[:8]}"),
             poll_seconds=float(os.environ.get("PROPERTYSCOPE_RUNNER_POLL_SECONDS", "1")),
             lease_seconds=int(os.environ.get("PROPERTYSCOPE_RUNNER_LEASE_SECONDS", "30")),
+            full_data_enabled=os.environ.get("PROPERTYSCOPE_FULL_DATA_ENABLED", "false").lower()
+            in {"1", "true", "yes"},
         )
 
 
@@ -117,21 +128,24 @@ class AcquisitionRunner:
             )
         if stage in {"discover", "acquire"}:
             profile = str(task.get("import_profile_key", "property-fixture"))
-            records = _canonical_records(profile) if stage == "acquire" else []
-            document = (
-                {
-                    "schema_version": "propertyscope.canonical-import.v1",
-                    "profile": profile,
-                    "records": records,
-                }
-                if stage == "acquire"
-                else {
-                    "schema_version": "propertyscope.source-snapshot.v1",
-                    "adapter_key": task.get("adapter_key", "fixture-snapshot"),
-                    "scope": scope,
-                    "objects": [{"logical_key": "bounded-fixture", "complete": True}],
-                }
-            )
+            if self.settings.full_data_enabled and profile != "property-fixture":
+                document, records = self._live_document(task, stage=stage, profile=profile)
+            else:
+                records = _canonical_records(profile) if stage == "acquire" else []
+                document = (
+                    {
+                        "schema_version": "propertyscope.canonical-import.v1",
+                        "profile": profile,
+                        "records": records,
+                    }
+                    if stage == "acquire"
+                    else {
+                        "schema_version": "propertyscope.source-snapshot.v1",
+                        "adapter_key": task.get("adapter_key", "fixture-snapshot"),
+                        "scope": scope,
+                        "objects": [{"logical_key": "bounded-fixture", "complete": True}],
+                    }
+                )
             canonical = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
             artifact = self.artifacts.put(
                 (canonical,),
@@ -169,6 +183,84 @@ class AcquisitionRunner:
             response.raise_for_status()
             return 1, 1
         return 10, 10
+
+    def _live_document(
+        self, task: dict[str, Any], *, stage: str, profile: str
+    ) -> tuple[dict[str, object], list[dict[str, object]]]:
+        """Acquire a registered real source or fail instead of substituting fixtures."""
+        if profile != "schools-master":
+            raise RuntimeError(
+                "This registered profile has no connected live transport; use showcase data"
+            )
+        if stage == "discover":
+            return (
+                {
+                    "schema_version": "propertyscope.source-snapshot.v1",
+                    "adapter_key": "schools-csv",
+                    "scope": task.get("partition_json") or {},
+                    "objects": [
+                        {
+                            "logical_key": "nsw-government-schools-master",
+                            "source_url": SCHOOLS_MASTER_URL,
+                            "media_type": "text/csv",
+                            "complete": True,
+                        }
+                    ],
+                },
+                [],
+            )
+        maximum_bytes = min(int(task.get("max_bytes", 25_000_000)), 25_000_000)
+        content = self._download_registered(SCHOOLS_MASTER_URL, maximum_bytes=maximum_bytes)
+        parsed = parse_schools_csv(content, maximum_rows=int(task.get("max_rows", 5_000)))
+        records: list[dict[str, object]] = [
+            {
+                "school_code": record.school_code,
+                "school_name": record.school_name,
+                "school_type": record.school_type,
+                "status": record.status,
+                "locality_original": record.locality_original,
+                "locality_normalised": record.locality_normalised,
+                "lga_name": record.lga_name,
+                "latitude": record.latitude,
+                "longitude": record.longitude,
+            }
+            for record in parsed
+        ]
+        return (
+            {
+                "schema_version": "propertyscope.canonical-import.v1",
+                "profile": profile,
+                "source": {
+                    "publisher": "NSW Department of Education",
+                    "source_url": SCHOOLS_MASTER_URL,
+                    "media_type": "text/csv",
+                    "real_source": True,
+                },
+                "records": records,
+            },
+            records,
+        )
+
+    def _download_registered(self, url: str, *, maximum_bytes: int) -> bytes:
+        parsed = urlparse(url)
+        if parsed.scheme != "https" or parsed.hostname != "data.nsw.gov.au":
+            raise RuntimeError("Source URL is outside the registered HTTPS allowlist")
+        chunks: list[bytes] = []
+        total = 0
+        with self.client.stream("GET", url, headers={"Accept": "text/csv"}) as response:
+            response.raise_for_status()
+            media_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
+            if media_type not in {"text/csv", "application/csv", "application/octet-stream"}:
+                raise RuntimeError("Registered source returned an unexpected media type")
+            declared = response.headers.get("content-length")
+            if declared and int(declared) > maximum_bytes:
+                raise RuntimeError("Registered source exceeds the configured byte limit")
+            for chunk in response.iter_bytes():
+                total += len(chunk)
+                if total > maximum_bytes:
+                    raise RuntimeError("Registered source exceeds the configured byte limit")
+                chunks.append(chunk)
+        return b"".join(chunks)
 
     def _execute_import(self, task: dict[str, Any]) -> tuple[int, int]:
         response = self.client.post(

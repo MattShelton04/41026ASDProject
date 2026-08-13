@@ -20,7 +20,7 @@ sources:
     licence_id: gnaf-end-user-licence
     licence_url: https://data.gov.au/data/dataset/geocoded-national-address-file-g-naf
     redistribution_policy: licence-controlled
-    catalogue_status: executable_live
+    catalogue_status: catalogued
     target_features: [feature-1]
   - key: nsw-psi-sales
     display_name: NSW Valuer General property sales information
@@ -31,7 +31,7 @@ sources:
     licence_id: nsw-psi-terms
     licence_url: https://www.nsw.gov.au/departments-and-agencies/valuer-general
     redistribution_policy: bounded-derived-release
-    catalogue_status: executable_live
+    catalogue_status: catalogued
     target_features: [feature-2]
   - key: bocsar-crime
     display_name: BOCSAR recorded crime data
@@ -42,7 +42,7 @@ sources:
     licence_id: nsw-open-data
     licence_url: https://data.nsw.gov.au/data/policy
     redistribution_policy: approved-bounded-extract
-    catalogue_status: executable_live
+    catalogue_status: catalogued
     target_features: [feature-3]
   - key: nsw-government-schools
     display_name: NSW government school locations and attributes

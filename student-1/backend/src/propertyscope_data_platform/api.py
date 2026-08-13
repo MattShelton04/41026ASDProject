@@ -483,6 +483,17 @@ def create_blueprint(
     def agent_run(run_id: uuid.UUID) -> Response:
         return forward(ai_mode.get(f"/api/v1/agent-runs/{run_id}", request.headers))
 
+    @api.get(f"{BASE}/agent-runs")
+    def agent_runs() -> Response:
+        params: dict[str, str | list[str]] = {
+            "feature_key": "student-1-propertyscope-data-platform"
+        }
+        for name in ("status", "model_profile", "cursor", "limit"):
+            values = request.args.getlist(name)
+            if values:
+                params[name] = values if name == "status" else values[-1]
+        return forward(ai_mode.get("/api/v1/agent-runs", request.headers, params=params))
+
     @api.get(f"{BASE}/agent-runs/<uuid:run_id>/events")
     def agent_events(run_id: uuid.UUID) -> Response:
         suffix = ""

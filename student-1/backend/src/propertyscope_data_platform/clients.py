@@ -92,11 +92,18 @@ class AiModeClient:
                 "AI mode is unavailable; direct data operations remain usable"
             ) from exc
 
-    def get(self, path: str, headers: Mapping[str, str] | Headers) -> httpx.Response:
+    def get(
+        self,
+        path: str,
+        headers: Mapping[str, str] | Headers,
+        *,
+        params: Mapping[str, Any] | None = None,
+    ) -> httpx.Response:
         try:
             return self._client.get(
                 f"{self._origin}{path}",
                 headers={key: value for key, value in headers.items() if key in PROPAGATED_HEADERS},
+                params=params,
             )
         except httpx.TransportError as exc:
             raise DependencyUnavailableError(

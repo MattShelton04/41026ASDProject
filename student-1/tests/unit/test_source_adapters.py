@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
+from typing import cast
 from zipfile import ZipFile
 
+import httpx
 import pytest
 
 from propertyscope_data_platform.adapters.bocsar import parse_bocsar_csv
 from propertyscope_data_platform.adapters.gnaf import inspect_gnaf_archive, select_geocode
 from propertyscope_data_platform.adapters.psi import parse_psi_b_record
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
+from propertyscope_data_platform.runner import AcquisitionRunner, RunnerSettings
 
 
 def test_schools_preserves_and_normalises_locality() -> None:
@@ -20,6 +24,45 @@ def test_schools_preserves_and_normalises_locality() -> None:
     record = parse_schools_csv(payload, maximum_rows=2)[0]
     assert record.locality_original == "North Sydney"
     assert record.locality_normalised == "NORTH SYDNEY"
+
+
+def test_schools_accepts_current_real_master_headers() -> None:
+    payload = (
+        b"School_code,School_name,Level_of_schooling,Town_suburb,LGA,Latitude,Longitude\n"
+        b"1001,Example Public School,Primary Schools,Sydney,City of Sydney,-33.86,151.20\n"
+    )
+    record = parse_schools_csv(payload, maximum_rows=2)[0]
+    assert record.school_type == "Primary Schools"
+    assert record.status == "Open"
+
+
+def test_full_data_schools_download_invokes_real_parser_with_bounds(tmp_path: Path) -> None:
+    payload = (
+        b"School_code,School_name,Level_of_schooling,Town_suburb,LGA,Latitude,Longitude\n"
+        b"1001,Example Public School,Primary Schools,Sydney,City of Sydney,-33.86,151.20\n"
+    )
+
+    def source(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "data.nsw.gov.au"
+        return httpx.Response(200, content=payload, headers={"Content-Type": "text/csv"})
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30, True),
+        client=httpx.Client(transport=httpx.MockTransport(source)),
+    )
+    document, records = runner._live_document(
+        {"max_bytes": 1_000_000, "max_rows": 10}, stage="acquire", profile="schools-master"
+    )
+    assert cast(dict[str, object], document["source"])["real_source"] is True
+    assert records[0]["school_code"] == "1001"
+
+
+def test_full_data_never_silently_substitutes_unconnected_sources(tmp_path: Path) -> None:
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30, True)
+    )
+    with pytest.raises(RuntimeError, match="no connected live transport"):
+        runner._live_document({}, stage="acquire", profile="gnaf-nsw")
 
 
 def test_bocsar_preserves_leading_zero_and_sparse_zero() -> None:

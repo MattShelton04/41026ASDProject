@@ -41,8 +41,10 @@ def parse_schools_csv(content: bytes, *, maximum_rows: int) -> tuple[SchoolRecor
             SchoolRecord(
                 school_code=code,
                 school_name=_field(source, "School_name", "school_name"),
-                school_type=_field(source, "School_type", "school_type"),
-                status=_field(source, "Operational_status", "status"),
+                school_type=_field(source, "School_type", "school_type", "Level_of_schooling"),
+                # The current NSW master extract contains only operating schools and
+                # no longer publishes the legacy Operational_status column.
+                status=_optional(source, "Operational_status", "status") or "Open",
                 locality_original=locality,
                 locality_normalised=" ".join(locality.upper().split()),
                 lga_name=_optional(source, "LGA", "lga_name"),
