@@ -54,7 +54,7 @@ testpaths = [
 
 [tool.coverage.run]
 branch = true
-source = ["agent_core", "ai_mode", "integration_test_feature", "propertyscope_data_platform", "propertyscope_data_store", "shared_contracts", "shared_testkit"]
+source = ["agent_core", "ai_mode", "integration_test_feature", "shared_contracts", "shared_testkit"]
 
 [tool.coverage.report]
 exclude_also = [
