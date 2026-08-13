@@ -446,7 +446,7 @@ def create_blueprint(
                 "limits": {
                     "max_iterations": 6,
                     "max_tool_calls": 12,
-                    "time_budget_ms": 120000,
+                    "time_budget_ms": 300000,
                     "max_model_repairs": 1,
                 },
             },
