@@ -1,0 +1,69 @@
+schema_version: propertyscope.adapter-register.v1
+adapters:
+  - schema_version: propertyscope.adapter-descriptor.v1
+    key: fixture-snapshot
+    version: 1.0.0
+    publisher: PropertyScope project
+    supported_refresh_strategies: [full_snapshot]
+    supported_modes: [full_refresh, reprocess_cached]
+    partition_dimensions: [locality]
+    expected_media_types: [text/csv]
+    allowed_hosts: []
+    required_secrets: []
+    limits:
+      {max_objects: 2, max_bytes: 1000000, max_rows: 1000, deadline_seconds: 60,
+       max_parallelism: 1}
+  - schema_version: propertyscope.adapter-descriptor.v1
+    key: bocsar-bulk
+    version: 1.0.0
+    publisher: NSW Bureau of Crime Statistics and Research
+    supported_refresh_strategies: [full_snapshot]
+    supported_modes: [full_refresh, reprocess_cached]
+    partition_dimensions: [geography_kind]
+    expected_media_types:
+      - application/zip
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+    allowed_hosts: [bocsar.nsw.gov.au, bocsarblob.blob.core.windows.net]
+    required_secrets: []
+    limits:
+      {max_objects: 4, max_bytes: 50000000, max_rows: 100000, deadline_seconds: 900,
+       max_parallelism: 1}
+  - schema_version: propertyscope.adapter-descriptor.v1
+    key: schools-csv
+    version: 1.0.0
+    publisher: NSW Department of Education
+    supported_refresh_strategies: [full_snapshot]
+    supported_modes: [full_refresh, reprocess_cached]
+    partition_dimensions: []
+    expected_media_types: [text/csv]
+    allowed_hosts: [data.nsw.gov.au]
+    required_secrets: []
+    limits:
+      {max_objects: 2, max_bytes: 25000000, max_rows: 5000, deadline_seconds: 300,
+       max_parallelism: 1}
+  - schema_version: propertyscope.adapter-descriptor.v1
+    key: gnaf-bulk
+    version: 1.0.0
+    publisher: Geoscape Australia
+    supported_refresh_strategies: [full_snapshot]
+    supported_modes: [full_refresh, reprocess_cached]
+    partition_dimensions: [state]
+    expected_media_types: [application/zip]
+    allowed_hosts: [data.gov.au]
+    required_secrets: []
+    limits:
+      {max_objects: 10, max_bytes: 2500000000, max_rows: 6500000,
+       deadline_seconds: 86400, max_parallelism: 1}
+  - schema_version: propertyscope.adapter-descriptor.v1
+    key: psi-bulk
+    version: 1.0.0
+    publisher: NSW Valuer General
+    supported_refresh_strategies: [append_only_partitioned]
+    supported_modes: [full_refresh, reprocess_cached]
+    partition_dimensions: [year]
+    expected_media_types: [application/zip]
+    allowed_hosts: [www.valuergeneral.nsw.gov.au, valuation.property.nsw.gov.au]
+    required_secrets: []
+    limits:
+      {max_objects: 40, max_bytes: 5000000000, max_rows: 10000000,
+       deadline_seconds: 86400, max_parallelism: 1}

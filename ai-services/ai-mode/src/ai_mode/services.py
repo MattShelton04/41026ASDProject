@@ -25,7 +25,7 @@ from ai_mode.persistence import SQLiteRunStore
 from ai_mode.prompts import PromptRegistry, RegistryPromptBuilder
 from ai_mode.providers import build_ollama_provider, configured_model_registry
 from ai_mode.queue import SerialRunQueue
-from ai_mode.tool_catalog import build_tool_runtime, load_tool_catalog
+from ai_mode.tool_catalog import build_tool_runtime, load_tool_catalogs
 from shared_contracts import (
     ModelRegistry,
     ToolCall,
@@ -96,12 +96,13 @@ def build_services(settings: Settings) -> AppServices:
     registry = PromptRegistry(prompt_root)
     prompt_builder = RegistryPromptBuilder(registry)
     prompt_builder.validate_declared()
-    if settings.tool_catalog_path is None:
+    catalog_paths = settings.configured_tool_catalog_paths
+    if not catalog_paths:
         tools = ToolRegistry(())
         tool_executor: ToolExecutor = UnconfiguredToolExecutor()
     else:
         tools, tool_executor = build_tool_runtime(
-            load_tool_catalog(settings.tool_catalog_path),
+            load_tool_catalogs(catalog_paths),
             max_request_bytes=settings.max_tool_request_bytes,
             max_response_bytes=settings.max_tool_response_bytes,
         )

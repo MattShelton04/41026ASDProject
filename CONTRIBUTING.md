@@ -86,7 +86,10 @@ approved feature backends publish their allowlisted tool contracts.
 The development command composes `docker-compose.yml`, `docker-compose.integration-test.yml`,
 and `docker-compose.dev.yml`. The final overlay bind-mounts source and enables Gunicorn reload
 for a short edit-refresh loop while retaining the same service-to-service HTTP and exclusive
-database-ownership boundaries used by the production-like stack.
+database-ownership boundaries used by the production-like stack. PropertyScope source-scale
+work requires the explicit `--full-data` option. It adds `docker-compose.full-data.yml` under
+an isolated Compose project; ordinary `up` cannot silently enable live acquisition or reuse
+the full-data PostgreSQL volume.
 
 ## Dependencies and workspace projects
 
@@ -119,7 +122,10 @@ test helpers, the edge, and AI services.
 At runtime a student backend starts an agent run over HTTP. The shared orchestrator can call
 that feature's allowlisted backend tools; the backend applies its own business rules and talks
 to its own database service. Neither imports the other's implementation, and no service opens
-another service's SQLite file.
+another service's database. ADR-016 grants Feature 1 one PostgreSQL/PostGIS exception: only
+its database API and serial loader receive the database URL. Its backend and runner continue
+to use HTTP, the PostgreSQL volume is mounted only by PostgreSQL, and its verified artifact
+volume is writable only by the runner and read-only at the loader boundary.
 
 ## Pull requests and commits
 

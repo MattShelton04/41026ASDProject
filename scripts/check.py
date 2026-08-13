@@ -25,6 +25,8 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
         "ai-services/agent-core/src/agent_core",
         "ai-services/ai-mode/src/ai_mode",
         "examples/integration-test-feature/src/integration_test_feature",
+        "student-1/backend/src/propertyscope_data_platform",
+        "student-1/database/src/propertyscope_data_store",
         "scripts/check.py",
         "scripts/dev.py",
         "scripts/generate_contracts.py",

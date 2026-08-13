@@ -1,0 +1,57 @@
+schema_version: propertyscope.source-register.v1
+sources:
+  - key: fixture-property
+    display_name: Deterministic synthetic property snapshot
+    publisher: PropertyScope project
+    adapter_key: fixture-snapshot
+    source_url: https://example.invalid/propertyscope/fixtures/property.csv
+    cadence: on-demand
+    licence_id: synthetic-test-data
+    licence_url: https://creativecommons.org/publicdomain/zero/1.0/
+    redistribution_policy: committed-synthetic-fixture
+    catalogue_status: fixture_backed
+    target_features: [feature-1]
+  - key: gnaf-nsw
+    display_name: G-NAF Open NSW
+    publisher: Geoscape Australia
+    adapter_key: gnaf-bulk
+    source_url: https://data.gov.au/data/dataset/geocoded-national-address-file-g-naf
+    cadence: quarterly
+    licence_id: gnaf-end-user-licence
+    licence_url: https://data.gov.au/data/dataset/geocoded-national-address-file-g-naf
+    redistribution_policy: licence-controlled
+    catalogue_status: catalogued
+    target_features: [feature-1]
+  - key: nsw-psi-sales
+    display_name: NSW Valuer General property sales information
+    publisher: NSW Valuer General
+    adapter_key: psi-bulk
+    source_url: https://valuation.property.nsw.gov.au/embed/propertySalesInformation
+    cadence: weekly-and-annual
+    licence_id: nsw-psi-terms
+    licence_url: https://www.nsw.gov.au/departments-and-agencies/valuer-general
+    redistribution_policy: bounded-derived-release
+    catalogue_status: catalogued
+    target_features: [feature-2]
+  - key: bocsar-crime
+    display_name: BOCSAR recorded crime data
+    publisher: NSW Bureau of Crime Statistics and Research
+    adapter_key: bocsar-bulk
+    source_url: https://bocsar.nsw.gov.au/statistics-dashboards/open-datasets.html
+    cadence: source-release-driven
+    licence_id: nsw-open-data
+    licence_url: https://data.nsw.gov.au/data/policy
+    redistribution_policy: approved-bounded-extract
+    catalogue_status: catalogued
+    target_features: [feature-3]
+  - key: nsw-government-schools
+    display_name: NSW government school locations and attributes
+    publisher: NSW Department of Education
+    adapter_key: schools-csv
+    source_url: https://data.nsw.gov.au/data/dataset/nsw-education-data-hub
+    cadence: source-release-driven
+    licence_id: nsw-open-data
+    licence_url: https://data.nsw.gov.au/data/policy
+    redistribution_policy: approved-bounded-extract
+    catalogue_status: executable_live
+    target_features: [feature-3]

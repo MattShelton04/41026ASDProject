@@ -1,0 +1,17 @@
+schema_version: propertyscope.job-profile.v1
+key: bocsar-crime-quarterly
+version: 1.0.0
+display_name: BOCSAR crime quarterly release
+source_key: bocsar-crime
+adapter: {key: bocsar-bulk, version: 1.0.0}
+refresh_strategy: full_snapshot
+supported_modes: [full_refresh, reprocess_cached]
+release_builder: {key: crime-series, version: 1.0.0}
+import_profile: {key: bocsar-sparse, version: 1.0.0}
+target: {feature: feature-3, contract: propertyscope.crime-series.v1}
+scope_profiles:
+  test: {geography_kind: postcode, geography_values: ["2000", "2007"], start_month: 2025-01, end_month: 2025-12}
+  showcase: {geography_kind: postcode, geography_values: ["2000", "2007", "2010"], start_month: 2021-01, end_month: 2025-12}
+quality_policy: crime-quarterly.v1
+limits: {max_objects: 4, max_bytes: 50000000, max_rows: 100000, deadline_seconds: 900, max_parallelism: 1}
+publication: human_review

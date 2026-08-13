@@ -19,19 +19,22 @@ services:
       AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS: ${AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS:-1}
       AI_MODE_ENVIRONMENT: compose
       AI_MODE_LOG_LEVEL: ${AI_MODE_LOG_LEVEL:-INFO}
-      AI_MODE_OPERATIONS_ENABLED: ${AI_MODE_OPERATIONS_ENABLED:-false}
+      # Feature 1 consumes the durable, redacted run index for diagnosis history.
+      AI_MODE_OPERATIONS_ENABLED: ${AI_MODE_OPERATIONS_ENABLED:-true}
+      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml
       AI_MODE_REQUIRE_OLLAMA_READY: "true"
       AI_MODE_DEFAULT_MODEL_PROFILE: ${AI_MODE_DEFAULT_MODEL_PROFILE:-local-standard.v1}
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
       OLLAMA_HEALTH_TIMEOUT_SECONDS: ${OLLAMA_HEALTH_TIMEOUT_SECONDS:-2}
-      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-120}
+      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-300}
     extra_hosts:
       - host.docker.internal:host-gateway
     ports:
       - 127.0.0.1:${AI_MODE_PORT:-5005}:5005
     volumes:
       - ai_mode_state:/var/lib/ai-mode
+      - ./student-1/tool-catalog.yaml:/etc/ai-mode/propertyscope-tools.yaml:ro
     networks:
       - shared_platform
     mem_limit: ${AI_MODE_MEMORY_LIMIT:-512m}
@@ -76,6 +79,151 @@ services:
     networks:
       - shared_platform
 
+  propertyscope-postgres:
+    profiles: [release-0]
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PROPERTYSCOPE_POSTGRES_DB:-propertyscope}
+      POSTGRES_USER: ${PROPERTYSCOPE_POSTGRES_USER:-propertyscope}
+      POSTGRES_PASSWORD: ${PROPERTYSCOPE_POSTGRES_PASSWORD:-propertyscope-local-only}
+    volumes:
+      - propertyscope_postgres_data:/var/lib/postgresql/data
+    networks: [shared_platform]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    stop_grace_period: 60s
+
+  propertyscope-database-api:
+    profiles: [release-0]
+    build:
+      context: .
+      dockerfile: student-1/Dockerfile
+      target: database-api
+    image: 41026-asd/propertyscope-database-api:dev
+    init: true
+    restart: unless-stopped
+    environment: &propertyscope-database-environment
+      PROPERTYSCOPE_DATABASE_URL: postgresql://${PROPERTYSCOPE_POSTGRES_USER:-propertyscope}:${PROPERTYSCOPE_POSTGRES_PASSWORD:-propertyscope-local-only}@propertyscope-postgres:5432/${PROPERTYSCOPE_POSTGRES_DB:-propertyscope}
+      PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
+      PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
+      PROPERTYSCOPE_AUTO_MIGRATE: "true"
+      PROPERTYSCOPE_AUTO_SEED: "true"
+    depends_on:
+      propertyscope-postgres:
+        condition: service_healthy
+    volumes:
+      - propertyscope_artifacts:/var/lib/propertyscope/artifacts:ro
+    networks: [shared_platform]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5202/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    stop_grace_period: 35s
+
+  propertyscope-database-loader:
+    profiles: [release-0]
+    build:
+      context: .
+      dockerfile: student-1/Dockerfile
+      target: database-loader
+    image: 41026-asd/propertyscope-database-loader:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      <<: *propertyscope-database-environment
+      PROPERTYSCOPE_AUTO_MIGRATE: "false"
+      PROPERTYSCOPE_AUTO_SEED: "false"
+    depends_on:
+      propertyscope-database-api:
+        condition: service_healthy
+    volumes:
+      - propertyscope_artifacts:/var/lib/propertyscope/artifacts:ro
+    networks: [shared_platform]
+    stop_grace_period: 35s
+
+  propertyscope-backend:
+    profiles: [release-0]
+    build:
+      context: .
+      dockerfile: student-1/Dockerfile
+      target: backend
+    image: 41026-asd/propertyscope-backend:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      PROPERTYSCOPE_DATABASE_API_URL: http://propertyscope-database-api:5202
+      PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
+      PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
+      AI_MODE_BASE_URL: http://ai-mode:5005
+      PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
+    depends_on:
+      propertyscope-database-api:
+        condition: service_healthy
+    volumes:
+      - propertyscope_artifacts:/var/lib/propertyscope/artifacts:ro
+    networks: [shared_platform]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5201/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    stop_grace_period: 35s
+
+  propertyscope-runner:
+    profiles: [release-0]
+    build:
+      context: .
+      dockerfile: student-1/Dockerfile
+      target: runner
+    image: 41026-asd/propertyscope-runner:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      PROPERTYSCOPE_BACKEND_URL: http://propertyscope-backend:5201
+      PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
+      PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
+      PROPERTYSCOPE_FULL_DATA_ENABLED: "false"
+    depends_on:
+      propertyscope-backend:
+        condition: service_healthy
+      propertyscope-database-api:
+        condition: service_healthy
+    volumes:
+      - propertyscope_artifacts:/var/lib/propertyscope/artifacts:rw
+    networks: [shared_platform]
+    stop_grace_period: 35s
+
+  propertyscope-frontend:
+    profiles: [release-0]
+    build:
+      context: .
+      dockerfile: student-1/Dockerfile
+      target: frontend
+    image: 41026-asd/propertyscope-frontend:dev
+    init: true
+    restart: unless-stopped
+    depends_on:
+      propertyscope-backend:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${PROPERTYSCOPE_PORT:-5200}:8080
+    networks: [shared_platform]
+    healthcheck:
+      test: [CMD, wget, --quiet, --tries=1, --spider, http://127.0.0.1:8080/]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 networks:
   shared_platform:
     name: 41026-asd-shared-platform
@@ -83,3 +231,5 @@ networks:
 volumes:
   ai_mode_state:
   ollama_models:
+  propertyscope_artifacts:
+  propertyscope_postgres_data:

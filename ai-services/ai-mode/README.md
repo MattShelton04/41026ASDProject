@@ -57,7 +57,8 @@ HTTP 400 responses remain terminal request errors.
 | `AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS` | `1` |
 | `AI_MODE_ENVIRONMENT` | `local` |
 | `AI_MODE_LOG_LEVEL` | `INFO` |
-| `AI_MODE_TOOL_CATALOG_PATH` | unset (no tools registered) |
+| `AI_MODE_TOOL_CATALOG_PATH` | unset; legacy single-catalog path |
+| `AI_MODE_TOOL_CATALOG_PATHS` | unset; ordered comma-separated catalog paths |
 | `AI_MODE_EVIDENCE_ACCESS_TOKEN` | unset (view absent) |
 | `AI_MODE_OPERATIONS_ENABLED` | `false` (dashboard and operations API absent) |
 | `AI_MODE_OPERATIONS_ASSETS_PATH` | repository `shared/frontend/operations/ai-mode` path |
@@ -165,8 +166,11 @@ correlation; this baseline does not claim to create OpenTelemetry child spans.
 
 ## Feature tool integration
 
-The default tool registry remains empty, but `AI_MODE_TOOL_CATALOG_PATH` can point to a
-strict YAML startup catalogue. It binds immutable feature-owned definitions to fixed
+The default tool registry remains empty. `AI_MODE_TOOL_CATALOG_PATH` can point to one
+catalogue for compatibility, while `AI_MODE_TOOL_CATALOG_PATHS` composes an ordered,
+comma-separated set of feature catalogues. Configure only one variable. Cross-file duplicate
+service identities or tool bindings fail startup. Each file is a strict YAML startup
+catalogue. It binds immutable feature-owned definitions to fixed
 service identities, methods, and paths. A run sees only its feature's definitions plus
 explicitly approved shared tools. The HTTP adapter does not accept model-provided URLs,
 does not follow redirects, bounds both directions, validates media type and output

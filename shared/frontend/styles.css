@@ -1,0 +1,82 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #17332d;
+  background: #f4f7f3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+header,
+main {
+  width: min(70rem, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+header {
+  padding-block: 5rem 2rem;
+}
+
+.eyebrow {
+  color: #267061;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin-block: 0.3rem;
+  font-size: clamp(2.3rem, 7vw, 5rem);
+  letter-spacing: -0.04em;
+}
+
+nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
+}
+
+a {
+  display: grid;
+  gap: 0.6rem;
+  min-height: 10rem;
+  padding: 1.4rem;
+  color: inherit;
+  border: 1px solid #b7cbc4;
+  border-radius: 1rem;
+  background: #ffffff;
+  text-decoration: none;
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+
+a:hover,
+a:focus-visible {
+  border-color: #267061;
+  outline: 3px solid transparent;
+  transform: translateY(-2px);
+}
+
+a strong {
+  font-size: 1.25rem;
+}
+
+a span,
+.notice {
+  color: #49645d;
+  line-height: 1.5;
+}
+
+.support {
+  background: #e9f2ef;
+}
+
+.notice {
+  margin-block: 2rem;
+}

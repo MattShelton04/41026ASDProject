@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Literal
 
@@ -77,6 +78,26 @@ def load_tool_catalog(path: Path) -> ToolCatalog:
         return ToolCatalog.model_validate(payload)
     except ValueError as exc:
         raise ToolCatalogError(f"invalid tool catalogue {path}: {exc}") from exc
+
+
+def compose_tool_catalogs(catalogs: Iterable[ToolCatalog]) -> ToolCatalog:
+    """Combine validated catalogues while rejecting all cross-file identity conflicts."""
+    selected = tuple(catalogs)
+    try:
+        return ToolCatalog(
+            services=tuple(endpoint for catalog in selected for endpoint in catalog.services),
+            tools=tuple(registration for catalog in selected for registration in catalog.tools),
+            shared_tools=tuple(
+                tool_name for catalog in selected for tool_name in catalog.shared_tools
+            ),
+        )
+    except ValueError as exc:
+        raise ToolCatalogError(f"tool catalogue composition failed: {exc}") from exc
+
+
+def load_tool_catalogs(paths: Iterable[Path]) -> ToolCatalog:
+    """Load and compose an ordered set of feature-owned catalogue files."""
+    return compose_tool_catalogs(load_tool_catalog(path) for path in paths)
 
 
 def build_tool_runtime(

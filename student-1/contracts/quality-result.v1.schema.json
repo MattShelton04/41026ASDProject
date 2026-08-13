@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://propertyscope.local/contracts/quality-result.v1.schema.json",
+  "title": "PropertyScope quality result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "rule_key", "rule_version", "dimension", "severity", "status", "observed_value", "message"],
+  "properties": {
+    "schema_version": {"const": "propertyscope.quality-result.v1"},
+    "rule_key": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+    "rule_version": {"type": "string"},
+    "dimension": {"enum": ["schema", "conformance", "completeness", "validity", "uniqueness", "consistency", "timeliness", "freshness", "coverage", "referential", "match_quality", "distribution", "drift", "lineage", "reproducibility"]},
+    "severity": {"enum": ["info", "warning", "blocking"]},
+    "status": {"enum": ["pass", "warn", "fail", "skipped_with_reason"]},
+    "observed_value": {},
+    "expected_value": {},
+    "message": {"type": "string", "minLength": 1, "maxLength": 1000},
+    "sample": {"type": "array", "maxItems": 20}
+  }
+}

@@ -2,16 +2,18 @@
 
 Shared repository for the Spring 2026 group project.
 
-The project topic and individual features are still to be decided. The repository now
-contains a reproducible Python workspace, strict shared contracts/test utilities, a
+The project is PropertyScope NSW. Feature 1, owned by Matthew Shelton, provides its data
+operations and property-discovery platform. The repository contains a reproducible Python
+workspace, strict shared contracts/test utilities, a
 framework-independent bounded agent state machine, and an AI-mode foundation with
 SQLite workflow persistence, versioned prompts, native Ollama integration, health and
 agent-run APIs, a serial background worker, feature-scoped HTTP tools, resumable safe
 events, request idempotency, and human-review gating. The non-product
 `examples/integration-test-feature` proves the shared boundaries over real HTTP and
 SQLite and provides a browser integration console at `http://localhost:5190` when its
-Compose profile is enabled. Approved student feature business logic and feature-owned production endpoints
-have not begun.
+Compose profile is enabled. Feature 1 is integrated through independently deployed frontend,
+backend, runner, database API/loader and PostgreSQL/PostGIS containers; Features 2–5 remain
+unallocated placeholders.
 
 ## Team
 
@@ -20,7 +22,7 @@ published course specification and registration requirements.
 
 | Student | Name | Student ID | UTS email | Feature |
 |---|---|---|---|---|
-| 1 | Matthew Shelton | 24763373 | matthew.n.shelton@student.uts.edu.au | To be decided |
+| 1 | Matthew Shelton | 24763373 | matthew.n.shelton@student.uts.edu.au | PropertyScope Data Platform and Property Discovery |
 | 2 | To be confirmed | To be confirmed | To be confirmed | To be decided |
 | 3 | To be confirmed | To be confirmed | To be confirmed | To be decided |
 | 4 | To be confirmed | To be confirmed | To be confirmed | To be decided |
@@ -50,8 +52,8 @@ deployment.
 - `student-1/` to `student-5/`: individual feature workspaces
 - `ai-services/`: agent-core and AI-mode projects plus later-release service locations
 - `scripts/`: shared quality, build, test, and deployment automation
-- `docker-compose.yml`: Release 0 AI-mode and profiled Ollama integration; student
-  services are added after feature allocation
+- `docker-compose.yml`: Release 0 AI-mode, profiled Ollama, the bounded PropertyScope Feature
+  1 stack, and its exclusive PostgreSQL/PostGIS and artifact-volume boundaries
 - `CONTRIBUTING.md`: environment setup, commands, ownership, and pull request workflow
 - `AGENTS.md`: durable repository instructions for coding agents
 - `docs/architecture/repository-architecture.md`: scaffold plan, architectural
@@ -91,11 +93,23 @@ For day-to-day work on the assignment-aligned integration stack, start Docker De
 uv run scripts/dev.py up
 ```
 
-Then open <http://localhost:5190>. Python services reload when source changes and the frontend
-is bind-mounted, so normal source edits do not require an image rebuild. Use
+Then open PropertyScope at <http://localhost:5200> or the non-product integration fixture at
+<http://localhost:5190>. Python services reload when source changes and the frontends are
+bind-mounted, so normal source edits do not require an image rebuild. Use
 `uv run scripts/dev.py rebuild` after changing dependencies, `uv.lock`, or a Dockerfile;
 `status`, `logs`, `test`, `restart`, and `down` cover the rest of the common loop. `down`
-preserves Ollama models, AI-mode run history, and example records.
+preserves Ollama models, AI-mode run history, PropertyScope data/artifacts, and example records.
+
+The default PropertyScope stack uses deterministic showcase data and never launches live or
+source-scale acquisition. The explicit full-data path uses a separate Compose project and
+therefore a separate PostgreSQL volume. Its connected live proof is the bounded NSW government
+schools master CSV; other large source profiles fail closed until their streaming transports are
+implemented:
+
+```text
+uv run scripts/dev.py up --full-data
+uv run scripts/dev.py down --full-data
+```
 
 For the production-like Release 0 container runtime without development bind mounts, run:
 
@@ -132,9 +146,9 @@ the dashboard plus its list/evidence API routes when disabled. The implementatio
 remaining remote-access decisions are documented in
 [`docs/release-0/ai-mode-operations-interface-plan.md`](docs/release-0/ai-mode-operations-interface-plan.md).
 
-## Next decisions
+## Remaining allocation decisions
 
-Before product-feature implementation begins, the team should confirm its membership
-with the tutor, select and obtain approval for an Agentic AI project topic, allocate
-one integrated feature per student, and confirm the per-feature SQLite topology and
-eventual Azure-or-AWS provider.
+The team should confirm its membership and project approval with the tutor, allocate Features
+2–5, link the formal approval evidence for Feature 1's PostgreSQL/PostGIS exception, and
+confirm the eventual Azure-or-AWS provider. Features 2–5 retain independent stores and never
+receive Feature 1 database credentials.

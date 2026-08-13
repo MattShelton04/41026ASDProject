@@ -1,5 +1,7 @@
 """Tests for strict, side-effect-free service configuration."""
 
+from pathlib import Path
+
 import pytest
 
 from ai_mode.configuration import (
@@ -75,3 +77,40 @@ def test_operations_interface_is_explicitly_enabled() -> None:
     settings = Settings.from_env({"AI_MODE_OPERATIONS_ENABLED": "true"})
 
     assert settings.operations_enabled is True
+
+
+def test_multiple_tool_catalog_paths_are_ordered_and_trimmed() -> None:
+    settings = Settings.from_env(
+        {"AI_MODE_TOOL_CATALOG_PATHS": "feature-one.yaml, fixtures/tools.yaml"}
+    )
+
+    assert settings.configured_tool_catalog_paths == (
+        Path("feature-one.yaml"),
+        Path("fixtures/tools.yaml"),
+    )
+
+
+def test_legacy_single_tool_catalog_path_remains_supported() -> None:
+    settings = Settings.from_env({"AI_MODE_TOOL_CATALOG_PATH": "feature.yaml"})
+
+    assert settings.tool_catalog_path == Path("feature.yaml")
+    assert settings.configured_tool_catalog_paths == (Path("feature.yaml"),)
+
+
+@pytest.mark.parametrize(
+    ("values", "message"),
+    [
+        (
+            {
+                "AI_MODE_TOOL_CATALOG_PATH": "one.yaml",
+                "AI_MODE_TOOL_CATALOG_PATHS": "two.yaml,three.yaml",
+            },
+            "set only one",
+        ),
+        ({"AI_MODE_TOOL_CATALOG_PATHS": "one.yaml,"}, "empty path"),
+        ({"AI_MODE_TOOL_CATALOG_PATHS": "one.yaml,one.yaml"}, "duplicates"),
+    ],
+)
+def test_invalid_multi_catalog_settings_fail_fast(values: dict[str, str], message: str) -> None:
+    with pytest.raises(ConfigurationError, match=message):
+        Settings.from_env(values)

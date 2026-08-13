@@ -46,6 +46,7 @@ class Settings:
     queue_capacity: int = DEFAULT_QUEUE_CAPACITY
     queue_reconcile_interval_seconds: float = DEFAULT_QUEUE_RECONCILE_INTERVAL_SECONDS
     tool_catalog_path: Path | None = None
+    tool_catalog_paths: tuple[Path, ...] = ()
     model_registry_path: Path | None = None
     default_model_profile: str | None = None
     evidence_access_token: str | None = None
@@ -106,6 +107,12 @@ class Settings:
         if keep_alive_value is not None and not keep_alive:
             raise ConfigurationError("OLLAMA_KEEP_ALIVE cannot be empty")
         catalog_value = values.get("AI_MODE_TOOL_CATALOG_PATH", "").strip()
+        catalog_values = values.get("AI_MODE_TOOL_CATALOG_PATHS", "").strip()
+        if catalog_value and catalog_values:
+            raise ConfigurationError(
+                "set only one of AI_MODE_TOOL_CATALOG_PATH or AI_MODE_TOOL_CATALOG_PATHS"
+            )
+        catalog_paths = _catalog_paths(catalog_values)
         registry_value = values.get("AI_MODE_MODEL_REGISTRY_PATH", "").strip()
         default_profile = values.get("AI_MODE_DEFAULT_MODEL_PROFILE", "").strip() or None
         if default_profile is not None and not _identifier(default_profile):
@@ -152,6 +159,7 @@ class Settings:
             queue_capacity=queue_capacity,
             queue_reconcile_interval_seconds=reconcile_interval,
             tool_catalog_path=Path(catalog_value) if catalog_value else None,
+            tool_catalog_paths=catalog_paths,
             model_registry_path=Path(registry_value) if registry_value else None,
             default_model_profile=default_profile,
             evidence_access_token=evidence_token,
@@ -165,6 +173,27 @@ class Settings:
             environment=environment,
             log_level=log_level,
         )
+
+    @property
+    def configured_tool_catalog_paths(self) -> tuple[Path, ...]:
+        """Return the multi-catalog setting or its legacy single-path equivalent."""
+        if self.tool_catalog_paths:
+            return self.tool_catalog_paths
+        if self.tool_catalog_path is not None:
+            return (self.tool_catalog_path,)
+        return ()
+
+
+def _catalog_paths(value: str) -> tuple[Path, ...]:
+    if not value:
+        return ()
+    raw_paths = value.split(",")
+    if any(not raw_path.strip() for raw_path in raw_paths):
+        raise ConfigurationError("AI_MODE_TOOL_CATALOG_PATHS contains an empty path")
+    paths = tuple(Path(raw_path.strip()) for raw_path in raw_paths)
+    if len(paths) != len(set(paths)):
+        raise ConfigurationError("AI_MODE_TOOL_CATALOG_PATHS must not contain duplicates")
+    return paths
 
 
 def _positive_float(value: str, label: str) -> float:
