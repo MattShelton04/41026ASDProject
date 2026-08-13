@@ -298,21 +298,20 @@ const JOB_FIELDS = [
   { name: "source_definition_id", label: "Source ID", required: true, wide: true },
   { name: "name", label: "Job name", required: true },
   { name: "profile_key", label: "Registered profile", required: true },
+  { name: "profile_version", label: "Profile version", required: true },
   { name: "adapter_key", label: "Registered adapter", required: true },
-  { name: "adapter_version", label: "Adapter version", required: true },
   { name: "release_builder_key", label: "Release builder", required: true },
-  { name: "release_builder_version", label: "Builder version", required: true },
   { name: "import_profile_key", label: "Import profile", required: true },
   { name: "import_profile_version", label: "Import profile version", required: true },
   { name: "target_feature", label: "Target feature", required: true },
-  { name: "target_contract", label: "Dataset contract", required: true },
+  { name: "dataset_id", label: "Dataset ID", required: true },
   { name: "refresh_strategy", label: "Refresh strategy", options: ["full_snapshot", "append_only_partitioned", "partitioned_snapshot", "manual_versioned_import"], required: true },
-  { name: "supported_modes", label: "Supported run modes", type: "json_array", wide: true, required: true },
   { name: "default_run_mode", label: "Default run mode", options: ["full_refresh", "reprocess_cached"], required: true },
-  { name: "scope_profile", label: "Registered scope profile", required: true },
+  { name: "scope_json", label: "Bounded default scope", type: "json", wide: true },
   { name: "quality_policy_key", label: "Quality policy", required: true },
+  { name: "quality_policy_version", label: "Quality policy version", required: true },
   { name: "max_parallelism", label: "Maximum parallel tasks", type: "number", min: 1, required: true },
-  { name: "deadline_seconds", label: "Time limit (seconds)", type: "number", min: 1, required: true },
+  { name: "timeout_seconds", label: "Time limit (seconds)", type: "number", min: 1, required: true },
   { name: "max_objects", label: "Object limit", type: "number", min: 1, required: true },
   { name: "max_bytes", label: "Byte limit", type: "number", min: 1, required: true },
   { name: "max_rows", label: "Row limit", type: "number", min: 1, required: true },
@@ -329,18 +328,13 @@ async function openEntityDialog(kind, item = null) {
   const fieldValue = (name) => {
     const aliases = {
       adapter_key: item?.adapter?.key,
-      adapter_version: item?.adapter?.version,
-      release_builder_key: item?.release_builder?.key,
-      release_builder_version: item?.release_builder?.version,
       import_profile_key: item?.import_profile?.key,
       import_profile_version: item?.import_profile?.version,
       target_feature: item?.target?.feature,
-      target_contract: item?.target?.contract ?? item?.dataset_id,
       target_features: item?.target_features_json,
-      supported_modes: item?.supported_modes_json,
       quality_policy_key: item?.quality_policy,
       max_parallelism: item?.limits?.max_parallelism,
-      deadline_seconds: item?.limits?.deadline_seconds ?? item?.timeout_seconds,
+      timeout_seconds: item?.limits?.deadline_seconds,
       max_objects: item?.limits?.max_objects,
       max_bytes: item?.limits?.max_bytes,
       max_rows: item?.limits?.max_rows,
@@ -369,21 +363,6 @@ async function openEntityDialog(kind, item = null) {
       } catch { throw new Error(`${definition.label} must be a JSON list of text values.`); }
     }
     for (const definition of fields.filter((field) => field.type === "number")) data[definition.name] = Number(data[definition.name]);
-    if (!isSource) {
-      data.adapter = { key: data.adapter_key, version: data.adapter_version };
-      data.release_builder = { key: data.release_builder_key, version: data.release_builder_version };
-      data.import_profile = { key: data.import_profile_key, version: data.import_profile_version };
-      data.target = { feature: data.target_feature, contract: data.target_contract };
-      data.quality_policy = data.quality_policy_key;
-      data.limits = {
-        max_parallelism: data.max_parallelism,
-        deadline_seconds: data.deadline_seconds,
-        max_objects: data.max_objects,
-        max_bytes: data.max_bytes,
-        max_rows: data.max_rows,
-      };
-      for (const key of ["adapter_key", "adapter_version", "release_builder_key", "release_builder_version", "import_profile_key", "import_profile_version", "target_feature", "target_contract", "quality_policy_key", "max_parallelism", "deadline_seconds", "max_objects", "max_bytes", "max_rows"]) delete data[key];
-    }
     if (item?.version !== undefined) data.version = item.version;
     const path = isSource ? "sources" : "jobs";
     const method = item ? "PUT" : "POST";
@@ -427,12 +406,16 @@ async function mutate(path, { method = "POST", body = {}, success = "Action comp
 async function renderOverview() {
   loading("Loading operations overview");
   const results = await Promise.allSettled([
-    request("sources?limit=100"), request("ingestion-runs?limit=25"), request("dataset-releases?limit=100"), request("coverage"),
+    request("sources?limit=100"), request("ingestion-runs?limit=25"), request("dataset-releases?limit=100"), request("overview"),
   ]);
   const sources = results[0].status === "fulfilled" ? collection(results[0].value.body) : [];
   const runs = results[1].status === "fulfilled" ? collection(results[1].value.body) : [];
   const releases = results[2].status === "fulfilled" ? collection(results[2].value.body) : [];
-  const coverage = results[3].status === "fulfilled" ? coverageRows(results[3].value.body) : [];
+  const coverage = releases.filter((release) => release.status === "accepted").map((release) => ({
+    dataset: release.dataset_id,
+    locality: release.coverage_json?.locality || release.coverage_json?.state || "NSW",
+    status: release.coverage_json?.complete === false ? "partial" : "accepted",
+  }));
   const failures = results.filter((result) => result.status === "rejected");
   clearView();
   append(view, pageHeading("Data operations", "Know what is live, fresh and trustworthy", "Monitor acquisition, quality and publication without confusing service health with data readiness.", [button("Plan a run", "button primary", () => { location.hash = "#jobs"; })]));
@@ -563,19 +546,19 @@ async function openPlanDialog(job, capabilities = null) {
   const modeLabel = el("label", "field");
   append(modeLabel, el("span", "", "Run mode"));
   const mode = el("select"); mode.name = "run_mode";
-  for (const value of capabilities?.run_modes || job.supported_modes || ["full_refresh", "reprocess_cached"]) { const option = el("option", "", humanise(value)); option.value = value; option.selected = value === job.default_run_mode; append(mode, option); }
+  for (const value of capabilities?.supported_modes || capabilities?.run_modes || ["full_refresh", "reprocess_cached"]) { const option = el("option", "", humanise(value)); option.value = value; option.selected = value === job.default_run_mode; append(mode, option); }
   append(modeLabel, mode);
   append(wrapper, modeLabel);
   const scopeLabel = el("label", "field");
   append(scopeLabel, el("span", "", "Bounded scope (JSON object)"));
-  const scope = el("textarea"); scope.value = "{}"; append(scopeLabel, scope); append(wrapper, scopeLabel);
+  const scope = el("textarea"); scope.value = JSON.stringify(job.scope_json || {}, null, 2); append(scopeLabel, scope); append(wrapper, scopeLabel);
   const preview = button("Preview deterministic plan", "button secondary");
   const evidence = el("div");
   append(wrapper, preview, evidence);
   preview.addEventListener("click", async () => {
     preview.disabled = true; evidence.replaceChildren(el("p", "", "Validating limits and proposed work…"));
     try {
-      const payload = { mode: mode.value, scope_profile: job.scope_profile, scope: parseJsonField(scope.value, "Scope"), idempotency_key: newRequestId(), force_reacquire: false };
+      const payload = { run_mode: mode.value, scope: parseJsonField(scope.value, "Scope") };
       const result = await request(`jobs/${job.id}/plans`, { method: "POST", body: payload });
       evidence.replaceChildren(el("div", "notice", "Plan validated. Review task, cache/network work and limits before launch."), technicalDetails(result.body, "Plan evidence"));
     } catch (error) { evidence.replaceChildren(el("div", "notice negative", `${error.message} Request ID ${error.requestId}`)); }
@@ -585,7 +568,7 @@ async function openPlanDialog(job, capabilities = null) {
   if (!confirmed) return;
   try {
     const idempotencyKey = newRequestId();
-    const body = await mutate(`jobs/${job.id}/runs`, { body: { mode: mode.value, scope_profile: job.scope_profile, scope: parseJsonField(scope.value, "Scope"), idempotency_key: idempotencyKey, force_reacquire: false }, success: "Run requested" });
+    const body = await mutate(`jobs/${job.id}/runs`, { body: { run_mode: mode.value, scope: parseJsonField(scope.value, "Scope"), idempotency_key: idempotencyKey }, success: "Run requested" });
     const run = entity(body, "run");
     location.hash = `#runs/${run.id}`;
   } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }
@@ -717,8 +700,18 @@ async function renderReleaseDetail(id) {
   if (!manifest) { try { manifest = (await request(`dataset-releases/${id}/manifest`)).body; } catch { manifest = null; } }
   clearView();
   const actions = [];
-  if (["validated", "candidate"].includes(release.status)) actions.push(button("Submit for review", "button secondary", async () => { const ok = await confirmAction({ title: "Submit candidate for review?", description: "Blocking failures cannot be bypassed. The candidate remains isolated until publication succeeds.", label: "Submit review", tone: "primary" }); if (ok) { await mutate(`dataset-releases/${id}/submit-review`, { success: "Candidate submitted" }); renderRoute(); } }));
-  if (["review", "review_required", "awaiting_review"].includes(release.status)) actions.push(button("Publish", "button primary", async () => { const ok = await confirmAction({ title: "Publish this release?", description: "This protected action starts the idempotent consumer import handshake. The prior accepted release stays live unless the consumer accepts this release.", label: "Publish release", tone: "primary" }); if (ok) { await mutate(`dataset-releases/${id}/publish`, { success: "Publication requested" }); renderRoute(); } }));
+  if (["validated", "candidate"].includes(release.status)) actions.push(button("Submit for review", "button secondary", async () => {
+    const comment = el("textarea"); comment.placeholder = "Reviewer context (required)";
+    const ok = await confirmAction({ title: "Submit candidate for review?", description: "Blocking failures cannot be bypassed. The candidate remains isolated until publication succeeds.", label: "Submit review", tone: "primary", extra: comment });
+    if (ok && comment.value.trim()) { await mutate(`dataset-releases/${id}/submit-review`, { body: { version: release.version, comment: comment.value.trim() }, success: "Candidate submitted" }); renderRoute(); }
+    else if (ok) showToast("A review comment is required.");
+  }));
+  if (["review", "review_required", "awaiting_review"].includes(release.status)) actions.push(button("Publish", "button primary", async () => {
+    const comment = el("textarea"); comment.placeholder = "Approval evidence (required)";
+    const ok = await confirmAction({ title: "Publish this release?", description: "This protected action starts the idempotent consumer import handshake. The prior accepted release stays live unless the consumer accepts this release.", label: "Publish release", tone: "primary", extra: comment });
+    if (ok && comment.value.trim()) { await mutate(`dataset-releases/${id}/publish`, { body: { approved: true, version: release.version, comment: comment.value.trim() }, success: "Publication requested" }); renderRoute(); }
+    else if (ok) showToast("Approval evidence is required.");
+  }));
   if (["candidate", "review", "review_required", "awaiting_review"].includes(release.status)) actions.push(button("Reject", "button danger", async () => { const reason = el("textarea"); reason.placeholder = "Reason for rejection (required)"; const ok = await confirmAction({ title: "Reject this candidate?", description: "The decision and reason become durable evidence. Accepted data is unchanged.", label: "Reject candidate", extra: reason }); if (ok && reason.value.trim()) { await mutate(`dataset-releases/${id}/reject`, { body: { reason: reason.value.trim(), version: release.version }, success: "Candidate rejected" }); renderRoute(); } }));
   actions.push(button("Diagnose with AI", "button secondary", () => { location.hash = `#ai/release:${id}`; }));
   append(view, pageHeading("Dataset release", `${release.dataset_id} ${release.release_version}`, `${release.target_feature} · ${formatNumber(release.record_count)} records`, actions));
@@ -770,8 +763,12 @@ async function renderEvidenceExplorer(kind, id) {
 async function renderCoverage() {
   loading("Loading coverage matrix");
   try {
-    const result = await request("coverage");
-    const rows = coverageRows(result.body);
+    const result = await request("dataset-releases?limit=100");
+    const rows = [];
+    for (const release of collection(result.body).filter((item) => ["accepted", "superseded"].includes(item.status))) {
+      const coverage = release.coverage_json || {};
+      rows.push({ dataset_id: release.dataset_id, locality: coverage.locality || coverage.area || coverage.state || "NSW", coverage_status: coverage.status || (coverage.complete === false ? "partial" : "supported"), target_feature: release.target_feature, release_version: release.release_version, accepted_at: release.accepted_at, description: coverage.profile });
+    }
     clearView();
     append(view, pageHeading("Availability evidence", "Coverage matrix", "Accepted, partial, stale and unavailable are explicit data states—not inferred from a running service."));
     if (!rows.length) { append(view, emptyState("No coverage evidence", "Coverage is published only after a release has been accepted.")); return; }
@@ -926,7 +923,7 @@ async function pollAgent(id, host, cursor = 0, failures = 0) {
 
 async function checkHealth() {
   try {
-    await request("health", { timeoutMs: 4000 });
+    await request("/health/ready", { timeoutMs: 4000 });
     serviceState.className = "service-state online";
     serviceState.lastElementChild.textContent = "Data service available";
   } catch {
