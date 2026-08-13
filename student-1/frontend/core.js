@@ -168,3 +168,23 @@ export function coverageRows(payload) {
   }
   return rows;
 }
+
+export function releaseComparison(candidate, predecessor) {
+  if (!candidate || !predecessor) return [];
+  return [
+    ["Schema version", candidate.schema_version, predecessor.schema_version],
+    ["Record count", candidate.record_count, predecessor.record_count],
+    ["Content checksum", candidate.content_sha256, predecessor.content_sha256],
+    ["Coverage", candidate.coverage_json, predecessor.coverage_json],
+  ].map(([field, candidateValue, predecessorValue]) => ({
+    field,
+    candidate: candidateValue,
+    predecessor: predecessorValue,
+    changed: JSON.stringify(candidateValue) !== JSON.stringify(predecessorValue),
+  }));
+}
+
+export function reportReleaseRows(payload) {
+  if (!payload || typeof payload !== "object") return [];
+  return Array.isArray(payload.release_evidence) ? payload.release_evidence : [];
+}

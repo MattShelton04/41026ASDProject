@@ -13,6 +13,8 @@ import {
   nextPollDelay,
   parseJsonField,
   queryString,
+  releaseComparison,
+  reportReleaseRows,
   requestJson,
   stateLabel,
   statusTone,
@@ -271,8 +273,10 @@ function formField(definition, value = "") {
   }
   input.name = definition.name;
   input.required = Boolean(definition.required);
+  input.disabled = Boolean(definition.disabled);
   if (definition.min !== undefined) input.min = definition.min;
   if (definition.max !== undefined) input.max = definition.max;
+  if (definition.pattern) input.pattern = definition.pattern;
   if (definition.type === "json") input.value = JSON.stringify(value || {}, null, 2);
   else if (definition.type === "json_array") input.value = JSON.stringify(value || [], null, 2);
   else input.value = value ?? "";
@@ -317,6 +321,21 @@ const JOB_FIELDS = [
   { name: "max_rows", label: "Row limit", type: "number", min: 1, required: true },
   { name: "status", label: "Lifecycle status", options: ["draft", "active", "disabled", "retired"], required: true },
   { name: "schedule_text", label: "Schedule note", wide: true, help: "Descriptive only in Release 0" },
+];
+
+const RELEASE_FIELDS = [
+  { name: "dataset_id", label: "Dataset ID", required: true, createOnly: true },
+  { name: "source_definition_id", label: "Source definition ID", required: true, createOnly: true },
+  { name: "ingestion_run_id", label: "Ingestion run ID", required: true, createOnly: true },
+  { name: "target_feature", label: "Target feature", required: true, createOnly: true },
+  { name: "release_version", label: "Release version", required: true },
+  { name: "schema_version", label: "Schema version", required: true },
+  { name: "coverage", label: "Coverage evidence", type: "json", wide: true },
+  { name: "record_count", label: "Record count", type: "number", min: 0, required: true },
+  { name: "content_sha256", label: "Content SHA-256", required: true, wide: true, pattern: "[0-9a-f]{64}" },
+  { name: "artifact_record_id", label: "Artifact record ID", required: true, createOnly: true },
+  { name: "manifest", label: "Bounded manifest", type: "json", wide: true },
+  { name: "review_comment", label: "Review note", type: "textarea", wide: true },
 ];
 
 async function openEntityDialog(kind, item = null) {
@@ -369,6 +388,49 @@ async function openEntityDialog(kind, item = null) {
     const result = await request(`${path}${item ? `/${encodeURIComponent(item.id)}` : ""}`, { method, body: data });
     showToast(`${humanise(kind)} ${item ? "updated" : "created"}. Request ID ${result.requestId}`);
     await renderRoute();
+  } catch (error) {
+    showToast(`${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`);
+  }
+}
+
+async function openReleaseDialog(item = null) {
+  document.querySelector("#entity-kicker").textContent = "Dataset release";
+  document.querySelector("#entity-title").textContent = `${item ? "Edit" : "Create"} draft release`;
+  const fieldHost = document.querySelector("#entity-fields");
+  const valueFor = (name) => {
+    if (name === "coverage") return item?.coverage_json;
+    if (name === "manifest") return item?.manifest_json;
+    return item?.[name];
+  };
+  fieldHost.replaceChildren(...RELEASE_FIELDS.map((definition) => formField(
+    { ...definition, disabled: Boolean(item && definition.createOnly) },
+    valueFor(definition.name),
+  )));
+  document.querySelector("#entity-error").textContent = "";
+  entityDialog.returnValue = "";
+  entityDialog.showModal();
+  entityDialog.querySelector("input:not(:disabled), select:not(:disabled), textarea:not(:disabled)")?.focus();
+  const returnValue = await new Promise((resolve) => {
+    const closed = () => { entityDialog.removeEventListener("close", closed); resolve(entityDialog.returnValue); };
+    entityDialog.addEventListener("close", closed);
+  });
+  if (returnValue !== "save") return;
+  const data = Object.fromEntries(new FormData(entityForm));
+  try {
+    data.coverage = parseJsonField(data.coverage, "Coverage evidence");
+    data.manifest = parseJsonField(data.manifest, "Manifest");
+    data.record_count = Number(data.record_count);
+    data.review_comment = data.review_comment?.trim() || null;
+    if (item) data.version = item.version;
+    else data.status = "draft";
+    const result = await request(`dataset-releases${item ? `/${encodeURIComponent(item.id)}` : ""}`, {
+      method: item ? "PUT" : "POST",
+      body: data,
+    });
+    showToast(`Draft release ${item ? "updated" : "created"}. Request ID ${result.requestId}`);
+    const saved = entity(result.body, "release");
+    if (!item && saved?.id) location.hash = `#releases/${saved.id}`;
+    else await renderRoute();
   } catch (error) {
     showToast(`${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`);
   }
@@ -678,17 +740,21 @@ async function renderReleases(id = "") {
   loading("Loading release evidence");
   try {
     if (id) return await renderReleaseDetail(id);
-    const { body } = await request("dataset-releases?limit=100");
+    const params = new URLSearchParams(location.hash.split("?")[1] || "");
+    const filters = { q: params.get("q") || "", status: params.get("status") || "" };
+    const { body } = await request(`dataset-releases${queryString({ status: filters.status, limit: 100 })}`);
     const releases = collection(body);
+    const visibleReleases = filters.q ? releases.filter((release) => [release.dataset_id, release.release_version, release.target_feature].some((value) => String(value || "").toLowerCase().includes(filters.q.toLowerCase()))) : releases;
     clearView();
-    append(view, pageHeading("Publication control", "Dataset releases", "Compare candidate and accepted evidence, then publish only after quality and human review."));
-    if (!releases.length) { append(view, emptyState("No dataset releases", "Completed ingestion runs can create isolated candidate releases.")); return; }
-    const table = makeTable([{ label: "Dataset / release" }, { label: "Target" }, { label: "Records" }, { label: "Status" }, { label: "Accepted" }, { label: "Checksum" }], releases, (release) => {
+    append(view, pageHeading("Publication control", "Dataset releases", "Create and maintain draft metadata, compare candidates with accepted evidence, then publish only after quality and human review.", [button("Create draft release", "button primary", () => openReleaseDialog())]));
+    append(view, filterToolbar({ ...filters, statuses: ["", "draft", "candidate", "awaiting_review", "accepted", "rejected", "superseded"], placeholder: "Dataset, version or target", onApply: (values) => { location.hash = `#releases${queryString(values)}`; renderRoute(); } }));
+    if (!visibleReleases.length) { append(view, emptyState("No dataset releases", filters.q || filters.status ? "Try clearing the current filters." : "Completed ingestion runs can create isolated candidate releases.")); return; }
+    const table = makeTable([{ label: "Dataset / release" }, { label: "Target" }, { label: "Records" }, { label: "Status" }, { label: "Accepted" }, { label: "Checksum" }], visibleReleases, (release) => {
       const row = el("tr");
       append(row, cell(link(release.dataset_id || "Dataset", `#releases/${release.id}`), "primary-cell"), cell(release.target_feature), cell(formatNumber(release.record_count), "numeric"), cell(badge(release.status)), cell(formatDate(release.accepted_at)), cell(String(release.content_sha256 || "—").slice(0, 12), "mono"));
       return row;
     });
-    append(view, panel(`${releases.length} releases`, "Candidates are isolated from accepted generations", table));
+    append(view, panel(`${visibleReleases.length} releases`, "Candidates are isolated from accepted generations", table));
   } catch (error) { if (!id) { clearView(); append(view, errorState(error, renderRoute)); } else throw error; }
 }
 
@@ -698,8 +764,23 @@ async function renderReleaseDetail(id) {
   const receipts = body.receipts || [];
   let manifest = release.manifest_json || body.manifest;
   if (!manifest) { try { manifest = (await request(`dataset-releases/${id}/manifest`)).body; } catch { manifest = null; } }
+  const [qualityResult, acceptedResult] = await Promise.allSettled([
+    request(`ingestion-runs/${release.ingestion_run_id}/quality-results?limit=100`),
+    request("dataset-releases?status=accepted&limit=100"),
+  ]);
+  const qualityResults = qualityResult.status === "fulfilled" ? collection(qualityResult.value.body) : [];
+  const acceptedReleases = acceptedResult.status === "fulfilled" ? collection(acceptedResult.value.body) : [];
+  const predecessor = acceptedReleases.find((candidate) => candidate.id === release.supersedes_release_id)
+    || acceptedReleases.find((candidate) => candidate.id !== release.id && candidate.dataset_id === release.dataset_id && candidate.target_feature === release.target_feature)
+    || null;
   clearView();
   const actions = [];
+  if (["draft", "candidate"].includes(release.status)) actions.push(button("Edit metadata", "button secondary", () => openReleaseDialog(release)));
+  if (["draft", "rejected"].includes(release.status)) actions.push(button("Delete", "button danger", async () => {
+    const ok = await confirmAction({ title: `Delete ${release.release_version}?`, description: "Only unreferenced draft or rejected local releases can be deleted. Retained quality, receipt and registry evidence remains protected.", label: "Delete release" });
+    if (!ok) return;
+    try { await mutate(`dataset-releases/${id}`, { method: "DELETE", body: undefined, success: "Release deleted" }); location.hash = "#releases"; } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }
+  }));
   if (["validated", "candidate"].includes(release.status)) actions.push(button("Submit for review", "button secondary", async () => {
     const comment = el("textarea"); comment.placeholder = "Reviewer context (required)";
     const ok = await confirmAction({ title: "Submit candidate for review?", description: "Blocking failures cannot be bypassed. The candidate remains isolated until publication succeeds.", label: "Submit review", tone: "primary", extra: comment });
@@ -718,7 +799,7 @@ async function renderReleaseDetail(id) {
   if (!["accepted", "superseded"].includes(release.status)) append(view, el("div", "notice warning", "This is candidate evidence. The previously accepted release remains live until the publication handshake succeeds."));
   const layout = el("div", "detail-layout");
   const releaseBody = el("div");
-  append(releaseBody, detailList([["Status", badge(release.status)], ["Schema", release.schema_version], ["Content hash", el("code", "mono", release.content_sha256)], ["Created", formatDate(release.created_at)], ["Accepted", formatDate(release.accepted_at)], ["Supersedes", release.supersedes_release_id ? link(release.supersedes_release_id, `#releases/${release.supersedes_release_id}`) : "None"]]), technicalDetails(release));
+  append(releaseBody, detailList([["Status", badge(release.status)], ["Schema", release.schema_version], ["Content hash", el("code", "mono", release.content_sha256)], ["Review note", release.review_comment || "No review note recorded"], ["Created", formatDate(release.created_at)], ["Accepted", formatDate(release.accepted_at)], ["Supersedes", release.supersedes_release_id ? link(release.supersedes_release_id, `#releases/${release.supersedes_release_id}`) : "None"]]), technicalDetails(release));
   const side = el("div", "stack");
   append(side, panel("Manifest", "Bounded reproducibility evidence", manifest ? technicalDetails(manifest, "Inspect manifest") : el("p", "", "Manifest unavailable.")));
   const receiptBody = el("div");
@@ -727,6 +808,45 @@ async function renderReleaseDetail(id) {
   append(side, panel("Publication receipts", "Consumer-owned import outcomes", receiptBody));
   append(layout, panel("Release evidence", "Candidate and accepted state remain distinct", releaseBody), side);
   append(view, layout);
+  append(view, renderReleaseReviewEvidence(release, predecessor, qualityResults, {
+    qualityUnavailable: qualityResult.status === "rejected",
+    predecessorUnavailable: acceptedResult.status === "rejected",
+  }));
+}
+
+function renderReleaseReviewEvidence(release, predecessor, qualityResults, availability) {
+  const section = el("section", "dashboard-grid");
+  const comparisonBody = el("div");
+  if (availability.predecessorUnavailable) append(comparisonBody, el("div", "notice warning", "Accepted predecessor evidence is temporarily unavailable. Publication controls remain governed by the backend."));
+  else if (!predecessor) append(comparisonBody, el("p", "", "No accepted predecessor exists for this dataset and target."));
+  else {
+    append(comparisonBody, el("div", "notice", `Comparing candidate ${release.release_version} with accepted predecessor ${predecessor.release_version}.`));
+    append(comparisonBody, makeTable(
+      [{ label: "Evidence" }, { label: "Candidate" }, { label: "Accepted predecessor" }, { label: "Change" }],
+      releaseComparison(release, predecessor),
+      (item) => {
+        const row = el("tr");
+        const renderValue = (value) => typeof value === "object" ? JSON.stringify(value) : String(value ?? "—");
+        append(row, cell(item.field, "primary-cell"), cell(renderValue(item.candidate)), cell(renderValue(item.predecessor)), cell(badge(item.changed ? "warning" : "complete")));
+        return row;
+      },
+    ));
+  }
+
+  const qualityBody = el("div");
+  if (availability.qualityUnavailable) append(qualityBody, el("div", "notice warning", "Quality evidence is temporarily unavailable. No failure is inferred from this dependency state."));
+  else if (!qualityResults.length) append(qualityBody, el("p", "", "No quality results are linked to this release run."));
+  else append(qualityBody, makeTable(
+    [{ label: "Rule" }, { label: "Severity" }, { label: "Outcome" }, { label: "Message" }, { label: "Sample" }],
+    qualityResults,
+    (item) => {
+      const row = el("tr");
+      append(row, cell(primaryCell(item.rule_key, item.dimension)), cell(badge(item.severity)), cell(badge(item.status)), cell(item.message), cell(item.sample_json ? technicalDetails(item.sample_json, "Bounded sample") : "—"));
+      return row;
+    },
+  ));
+  append(section, panel("Candidate comparison", "Accepted and candidate versions shown together", comparisonBody), panel("Quality review", `${qualityResults.length} linked deterministic checks`, qualityBody));
+  return section;
 }
 
 async function resolveRunScopedEvidence(kind, id) {
@@ -829,10 +949,11 @@ async function selectProperty(summary, host, selectedButton, list) {
   selectedButton.setAttribute("aria-current", "true");
   host.replaceChildren(panel("Property evidence", "Loading accepted snapshot…", el("div", "loading-state", "Loading…")));
   try {
-    const [detailResult, mapResult, coverageResult] = await Promise.all([
+    const [detailResult, mapResult, coverageResult, reportResult] = await Promise.all([
       request(`properties/${encodeURIComponent(summary.property_ref)}`),
       request(`properties/${encodeURIComponent(summary.property_ref)}/map-context`),
       request(`properties/${encodeURIComponent(summary.property_ref)}/coverage`),
+      request(`properties/${encodeURIComponent(summary.property_ref)}/report-section`).catch((error) => ({ error })),
     ]);
     const property = entity(detailResult.body, "property");
     const map = entity(mapResult.body);
@@ -847,9 +968,48 @@ async function selectProperty(summary, host, selectedButton, list) {
     const cards = el("div", "coverage-grid");
     for (const item of coverage) { const card = el("div", `coverage-card ${statusTone(item.status || item.coverage_status || item.state)}`); append(card, el("strong", "", item.dataset || item.dataset_id || item.feature || item.target_feature || "Dataset"), el("span", "", `${humanise(item.status || item.coverage_status || item.state)}${item.release_version ? ` · ${item.release_version}` : ""}${item.limitation ? ` · ${item.limitation}` : ""}`)); append(cards, card); }
     if (coverage.length) append(body, el("h3", "", "Feature coverage"), cards);
+    append(body, renderPropertyReportSection(reportResult));
     append(body, technicalDetails({ identifiers: detailResult.body.identifiers || [], aliases: detailResult.body.aliases || [], map }, "Identifiers, aliases and coordinate evidence"));
     host.replaceChildren(panel("Property evidence", "Accepted snapshot and provenance", body));
   } catch (error) { host.replaceChildren(errorState(error, () => selectProperty(summary, host, selectedButton, list))); }
+}
+
+function renderPropertyReportSection(result) {
+  const section = el("section", "panel report-section");
+  const heading = el("div", "panel-heading");
+  const copy = el("div");
+  append(copy, el("h3", "", "Dossier report evidence"), el("p", "", "Bounded identity and accepted-release facts for Feature 5"));
+  append(heading, copy);
+  append(section, heading);
+  const body = el("div", "panel-body");
+  if (result?.error) {
+    append(body, el("div", "notice warning", `Report-section evidence is temporarily unavailable. Property discovery remains usable.${result.error.requestId ? ` Request ID ${result.error.requestId}` : ""}`));
+    append(section, body);
+    return section;
+  }
+  const report = result?.body || {};
+  const identity = report.identity || {};
+  append(body, detailList([
+    ["Property reference", el("code", "mono", report.property_ref || "Not supplied")],
+    ["Address", report.address_display || "Not supplied"],
+    ["G-NAF PID", identity.gnaf_pid || "Not supplied"],
+    ["Principal address", identity.principal_address === true ? "Yes" : identity.principal_address === false ? "No" : "Not supplied"],
+    ["Generated", formatDate(report.generated_at)],
+  ]));
+  const releases = reportReleaseRows(report);
+  if (!releases.length) append(body, el("p", "", "No accepted release evidence is available for this report section."));
+  else append(body, makeTable(
+    [{ label: "Dataset" }, { label: "Target feature" }, { label: "Release" }, { label: "Status" }, { label: "Accepted" }, { label: "Coverage" }],
+    releases,
+    (item) => {
+      const row = el("tr");
+      append(row, cell(item.dataset_id || "—", "primary-cell"), cell(item.target_feature || "—"), cell(item.release_label || "—"), cell(badge(item.release_status)), cell(formatDate(item.accepted_at)), cell(item.coverage_json ? technicalDetails(item.coverage_json, "Inspect") : "—"));
+      return row;
+    },
+  ));
+  if (identity.geometry) append(body, technicalDetails(identity.geometry, "Report coordinate evidence"));
+  append(section, body);
+  return section;
 }
 
 async function renderAi(context = "") {

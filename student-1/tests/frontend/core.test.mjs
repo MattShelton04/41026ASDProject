@@ -12,6 +12,8 @@ import {
   nextPollDelay,
   parseJsonField,
   queryString,
+  releaseComparison,
+  reportReleaseRows,
   requestJson,
   stateLabel,
 } from "../../frontend/core.js";
@@ -63,6 +65,17 @@ test("Problem Details are safe errors with request IDs", async () => {
       && error.message === "Definition is already referenced."
       && error.requestId === "req-conflict",
   );
+});
+
+test("successful no-content deletion does not attempt to parse a body", async () => {
+  const result = await requestJson(async () => ({
+    ok: true,
+    status: 204,
+    headers: { get: () => "delete-request" },
+    json: async () => { throw new Error("must not parse"); },
+  }), "/api/data-platform/v1/dataset-releases/release-1", { method: "DELETE" });
+  assert.equal(result.body, null);
+  assert.equal(result.requestId, "delete-request");
 });
 
 test("timeouts abort transport and return a bounded safe error", async () => {
@@ -139,4 +152,31 @@ test("formatting pairs states with text and handles byte boundaries", () => {
   assert.deepEqual(stateLabel("stale"), { text: "Stale", tone: "warning", symbol: "△" });
   assert.equal(formatBytes(1024), "1.00 KB");
   assert.equal(formatBytes(10 * 1024 * 1024), "10.0 MB");
+});
+
+test("release comparison keeps candidate and accepted evidence visibly distinct", () => {
+  const rows = releaseComparison(
+    { schema_version: "v2", record_count: 98, content_sha256: "candidate", coverage_json: { complete: false } },
+    { schema_version: "v1", record_count: 100, content_sha256: "accepted", coverage_json: { complete: true } },
+  );
+  assert.deepEqual(rows.map((row) => row.field), ["Schema version", "Record count", "Content checksum", "Coverage"]);
+  assert.equal(rows.every((row) => row.changed), true);
+  assert.deepEqual(releaseComparison({}, null), []);
+});
+
+test("report-section release evidence is bounded and defensively normalized", () => {
+  const releases = [{ dataset_id: "crime", release_status: "accepted" }];
+  assert.deepEqual(reportReleaseRows({ property_ref: "property-1", release_evidence: releases }), releases);
+  assert.deepEqual(reportReleaseRows({ property_ref: "property-1" }), []);
+  assert.deepEqual(reportReleaseRows(null), []);
+});
+
+test("release CRUD and report-section routes are represented in the browser client", async () => {
+  const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  assert.match(source, /Create draft release/);
+  assert.match(source, /method: item \? "PUT" : "POST"/);
+  assert.match(source, /method: "DELETE"/);
+  assert.match(source, /properties\/\$\{encodeURIComponent\(summary\.property_ref\)\}\/report-section/);
+  assert.match(source, /Candidate comparison/);
+  assert.match(source, /Quality review/);
 });
