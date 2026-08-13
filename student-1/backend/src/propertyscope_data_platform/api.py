@@ -630,7 +630,7 @@ def create_blueprint(
     def tool_retry() -> Response:
         body = json_body()
         key = str(body.get("idempotency_key", "")).strip()
-        if not key or not request.headers.get("X-Agent-Run-ID"):
+        if not key or not approved_tool_call(ai_mode, "data.run_retry.v1", body):
             return problem(
                 422,
                 "human_approval_required",
@@ -662,7 +662,7 @@ def create_blueprint(
     def tool_publish() -> Response:
         body = json_body()
         key = str(body.get("idempotency_key", "")).strip()
-        if not key or not request.headers.get("X-Agent-Run-ID"):
+        if not key or not approved_tool_call(ai_mode, "data.release_publish.v1", body):
             return problem(
                 422,
                 "human_approval_required",
@@ -721,6 +721,26 @@ def create_blueprint(
         return finalize_candidate_release(store, run_id)
 
     return api
+
+
+def approved_tool_call(ai_mode: AiModeClient, tool_name: str, arguments: Mapping[str, Any]) -> bool:
+    """Verify a protected callback against AI-mode's durable human-review evidence."""
+    raw_run_id = request.headers.get("X-Agent-Run-ID", "").strip()
+    try:
+        run_id = uuid.UUID(raw_run_id)
+    except ValueError:
+        return False
+    response = ai_mode.get(f"/api/v1/agent-runs/{run_id}", request.headers)
+    if response.status_code != 200:
+        return False
+    reviews = response.json().get("reviews", [])
+    return any(
+        review.get("decision") == "approve"
+        and review.get("tool_call", {}).get("tool_name") == tool_name
+        and review.get("tool_call", {}).get("arguments") == dict(arguments)
+        for review in reviews
+        if isinstance(review, dict)
+    )
 
 
 def proxy_collection(store: DataStoreClient, path: str) -> Response:

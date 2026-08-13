@@ -32,7 +32,7 @@ def parse_schools_csv(content: bytes, *, maximum_rows: int) -> tuple[SchoolRecor
         if code in seen:
             raise ValueError("school_code must be unique")
         seen.add(code)
-        locality = _field(source, "Town_suburb", "locality", "Town/Suburb")
+        locality = _optional(source, "Town_suburb", "locality", "Town/Suburb") or "NOT PUBLISHED"
         latitude = float(_field(source, "Latitude", "latitude"))
         longitude = float(_field(source, "Longitude", "longitude"))
         if not -38 <= latitude <= -27 or not 140 <= longitude <= 154:

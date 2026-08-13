@@ -252,6 +252,35 @@ def test_agent_history_is_scoped_to_propertyscope_feature() -> None:
     assert response.get_json()["items"] == []
 
 
+def test_protected_tool_rejects_forged_agent_run_header() -> None:
+    run_id = "70000000-0000-0000-0000-000000000001"
+    source_run_id = "30000000-0000-0000-0000-000000000003"
+
+    def upstream(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "ai":
+            return httpx.Response(404, json={"code": "agent_run_not_found"})
+        raise AssertionError("database must not be called without durable approval evidence")
+
+    transport = httpx.MockTransport(upstream)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+    response = app.test_client().post(
+        "/api/data-platform/v1/tools/runs.retry.v1",
+        headers={"X-Agent-Run-ID": run_id},
+        json={
+            "run_id": source_run_id,
+            "profile_key": "fixture-property-full",
+            "idempotency_key": "approved-retry-1",
+        },
+    )
+    assert response.status_code == 422
+    assert response.get_json()["code"] == "human_approval_required"
+
+
 def test_report_section_projects_bounded_identity_and_release_evidence() -> None:
     property_ref = "a0000000-0000-0000-0000-000000000001"
 
