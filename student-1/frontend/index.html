@@ -66,13 +66,13 @@
       <form id="entity-form" method="dialog">
         <div class="dialog-heading">
           <div><p class="eyebrow" id="entity-kicker">Definition</p><h2 id="entity-title">Edit</h2></div>
-          <button class="close-button" value="cancel" aria-label="Close dialog">×</button>
+          <button class="close-button" type="submit" value="cancel" formnovalidate aria-label="Close dialog">×</button>
         </div>
         <div id="entity-fields" class="form-grid"></div>
         <p id="entity-error" class="form-error" role="alert"></p>
         <div class="dialog-actions">
-          <button class="button secondary" value="cancel">Cancel</button>
-          <button id="entity-save" class="button primary" value="save">Save changes</button>
+          <button class="button secondary" type="submit" value="cancel" formnovalidate>Cancel</button>
+          <button id="entity-save" class="button primary" type="submit" value="save">Save changes</button>
         </div>
       </form>
     </dialog>
@@ -81,14 +81,14 @@
       <form id="action-form" method="dialog">
         <div class="dialog-heading">
           <div><p class="eyebrow">Confirm action</p><h2 id="action-title">Continue?</h2></div>
-          <button class="close-button" value="cancel" aria-label="Close dialog">×</button>
+          <button class="close-button" type="submit" value="cancel" formnovalidate aria-label="Close dialog">×</button>
         </div>
         <p id="action-description" class="dialog-copy"></p>
         <div id="action-extra"></div>
         <p id="action-error" class="form-error" role="alert"></p>
         <div class="dialog-actions">
-          <button class="button secondary" value="cancel">Go back</button>
-          <button id="action-confirm" class="button danger" value="confirm">Confirm</button>
+          <button class="button secondary" type="submit" value="cancel" formnovalidate>Go back</button>
+          <button id="action-confirm" class="button danger" type="submit" value="confirm">Confirm</button>
         </div>
       </form>
     </dialog>

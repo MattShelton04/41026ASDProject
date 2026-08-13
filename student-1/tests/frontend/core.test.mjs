@@ -9,8 +9,10 @@ import {
   coverageRows,
   entity,
   formatBytes,
+  isPsiJob,
   nextPollDelay,
   parseJsonField,
+  psiYearRange,
   queryString,
   releaseComparison,
   reportReleaseRows,
@@ -103,6 +105,14 @@ test("JSON form fields reject arrays and invalid input", () => {
   assert.throws(() => parseJsonField("not json", "Scope"), /Scope must be a JSON object/);
 });
 
+test("PSI job detection and explicit year partitions are bounded", () => {
+  assert.equal(isPsiJob({ profile_key: "nsw-psi-sales-year" }), true);
+  assert.equal(isPsiJob({ adapter_key: "schools-csv" }), false);
+  assert.deepEqual(psiYearRange("2024", "2026", { maximum: 2027 }), [2024, 2025, 2026]);
+  assert.throws(() => psiYearRange(2027, 2024, { maximum: 2027 }), /valid range/);
+  assert.throws(() => psiYearRange(1989, 2024, { maximum: 2027 }), /1990/);
+});
+
 test("run action policy exposes only state-safe controls", () => {
   assert.deepEqual(actionAvailability("running"), { cancel: true, resume: false, retry: false, reprocess: false, diagnose: false });
   assert.deepEqual(actionAvailability("interrupted"), { cancel: false, resume: true, retry: false, reprocess: false, diagnose: true });
@@ -128,6 +138,9 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.match(html, /id="live-region"[^>]+aria-live="polite"/);
   assert.match(html, /<dialog id="entity-dialog"/);
   assert.match(html, /<dialog id="action-dialog"/);
+  assert.match(html, /value="cancel" formnovalidate/);
+  assert.match(html, /id="entity-save"[^>]+type="submit"/);
+  assert.match(html, /id="action-confirm"[^>]+type="submit"/);
   assert.doesNotMatch(html, /<script(?![^>]+src=)/);
   assert.doesNotMatch(html, /style="/);
 });
@@ -179,4 +192,25 @@ test("release CRUD and report-section routes are represented in the browser clie
   assert.match(source, /properties\/\$\{encodeURIComponent\(summary\.property_ref\)\}\/report-section/);
   assert.match(source, /Candidate comparison/);
   assert.match(source, /Quality review/);
+  assert.match(source, /item\.release_version \|\| item\.dataset_release_id/);
+  assert.match(source, /badge\(item\.coverage_status\)/);
+});
+
+test("operator UI exposes working submit controls, backfills and durable histories", async () => {
+  const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  assert.match(source, /search\.type = "submit"/);
+  assert.match(source, /apply\.type = "submit"/);
+  assert.match(source, /button\("Run now"/);
+  assert.match(source, /button\("Backfill"/);
+  assert.match(source, /PSI source year/);
+  assert.match(source, /Preview deterministic plan/);
+  assert.match(source, /link\("Run history"/);
+});
+
+test("AI diagnosis history is loaded from the durable shared service projection", async () => {
+  const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  assert.match(source, /request\("agent-runs\?limit=50"\)/);
+  assert.match(source, /panel\("Diagnosis history"/);
+  assert.match(source, /`#ai\/\$\{run\.id\}`/);
+  assert.match(source, /selectedAgentRun/);
 });

@@ -9,9 +9,11 @@ import {
   formatDate,
   formatNumber,
   humanise,
+  isPsiJob,
   newRequestId,
   nextPollDelay,
   parseJsonField,
+  psiYearRange,
   queryString,
   releaseComparison,
   reportReleaseRows,
@@ -246,7 +248,9 @@ function filterToolbar({ search = "", status = "", statuses = [], placeholder = 
     append(statusLabel, select);
     append(fields, statusLabel);
   }
-  append(form, fields, button("Apply filters", "button secondary"));
+  const apply = button("Apply filters", "button secondary");
+  apply.type = "submit";
+  append(form, fields, apply);
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     onApply(Object.fromEntries(new FormData(form)));
@@ -551,6 +555,13 @@ async function renderEntityList(kind) {
     const table = makeTable(columns, items, (item) => {
       const row = el("tr");
       const actions = el("div", "button-row");
+      if (!isSource) {
+        const runNow = button("Run now", "button primary small", () => openPlanDialog(item, null, { intent: "run" }));
+        const backfill = button("Backfill", "button secondary small", () => openPlanDialog(item, null, { intent: "backfill" }));
+        runNow.disabled = item.status !== "active";
+        backfill.disabled = item.status !== "active";
+        append(actions, runNow, backfill, link("History", `#runs${queryString({ job: item.id })}`, "button secondary small"));
+      }
       append(actions, link("View", `#${kind}/${item.id}`, "button secondary small"), button("Edit", "button secondary small", () => openEntityDialog(isSource ? "source" : "job", item)), button("Delete", "button small danger", async () => {
         const confirmed = await confirmAction({ title: `Delete ${item.name}?`, description: "Only unused draft/test definitions can be deleted. Existing provenance remains protected.", label: "Delete definition" });
         if (!confirmed) return;
@@ -576,7 +587,13 @@ async function renderEntityDetail(kind, id) {
     }
     clearView();
     const actions = [button("Edit", "button secondary", () => openEntityDialog(singular, item))];
-    if (kind === "jobs") actions.unshift(button("Plan run", "button primary", () => openPlanDialog(item, capabilities)));
+    if (kind === "jobs") {
+      const runNow = button("Run now", "button primary", () => openPlanDialog(item, capabilities, { intent: "run" }));
+      const backfill = button("Backfill data", "button secondary", () => openPlanDialog(item, capabilities, { intent: "backfill" }));
+      runNow.disabled = item.status !== "active";
+      backfill.disabled = item.status !== "active";
+      actions.unshift(runNow, backfill, link("Run history", `#runs${queryString({ job: item.id })}`, "button secondary"));
+    }
     append(view, pageHeading(kind === "sources" ? "Source definition" : "Job definition", item.name || humanise(singular), `${kind === "sources" ? item.publisher || "Attributed source" : item.dataset_id || item.target?.contract || "Bounded ingestion"} · Version ${item.version ?? "—"}`, actions));
     const left = el("div");
     const entries = kind === "sources" ? [
@@ -595,6 +612,13 @@ async function renderEntityDetail(kind, id) {
         const metric = el("div"); append(metric, el("span", "", label), el("strong", "", value)); append(limits, metric);
       }
       append(right, panel("Hard execution limits", "Validated before launch", limits));
+      const workflow = el("div", "operation-guide");
+      append(workflow,
+        operationStep("1", "Choose scope", isPsiJob(item) ? "Select one source year or a bounded year range." : "Review the registered job scope."),
+        operationStep("2", "Preview plan", "Validate tasks, network access and hard limits before creating a run."),
+        operationStep("3", "Monitor and recover", "Follow durable tasks, then retry failed work or reprocess verified cache."),
+      );
+      append(right, panel("Operator workflow", "Run, backfill and recovery stay evidence-led", workflow));
       if (capabilities) append(right, panel("Registered capabilities", "Resolved adapter and builder behavior", technicalDetails(capabilities, "Inspect capability contract")));
     }
     const layout = el("div", "detail-layout");
@@ -603,34 +627,78 @@ async function renderEntityDetail(kind, id) {
   } catch (error) { clearView(); append(view, errorState(error, renderRoute)); }
 }
 
-async function openPlanDialog(job, capabilities = null) {
+function operationStep(number, title, description) {
+  const item = el("div", "operation-step");
+  append(item, el("span", "operation-number", number), el("div"));
+  append(item.lastElementChild, el("strong", "", title), el("p", "", description));
+  return item;
+}
+
+async function openPlanDialog(job, capabilities = null, { intent = "run" } = {}) {
   const wrapper = el("div", "stack");
+  const isBackfill = intent === "backfill";
+  const psi = isPsiJob(job);
+  const currentYear = new Date().getFullYear();
+  append(wrapper, el("div", `notice ${isBackfill ? "warning" : ""}`, isBackfill
+    ? "Backfill creates a new full-refresh run for an explicit bounded scope. Accepted data is not replaced until a candidate passes review and publication."
+    : "Run now creates a durable run from this registered job. Preview the deterministic task plan before launch."));
   const modeLabel = el("label", "field");
   append(modeLabel, el("span", "", "Run mode"));
   const mode = el("select"); mode.name = "run_mode";
-  for (const value of capabilities?.supported_modes || capabilities?.run_modes || ["full_refresh", "reprocess_cached"]) { const option = el("option", "", humanise(value)); option.value = value; option.selected = value === job.default_run_mode; append(mode, option); }
+  for (const value of capabilities?.supported_modes || capabilities?.run_modes || ["full_refresh", "reprocess_cached"]) { const option = el("option", "", humanise(value)); option.value = value; option.selected = isBackfill ? value === "full_refresh" : value === job.default_run_mode; append(mode, option); }
+  if (isBackfill) mode.disabled = true;
   append(modeLabel, mode);
   append(wrapper, modeLabel);
-  const scopeLabel = el("label", "field");
-  append(scopeLabel, el("span", "", "Bounded scope (JSON object)"));
-  const scope = el("textarea"); scope.value = JSON.stringify(job.scope_json || {}, null, 2); append(scopeLabel, scope); append(wrapper, scopeLabel);
+  let firstYear = null;
+  let lastYear = null;
+  if (psi) {
+    const scopeFields = el("div", "scope-fields");
+    const startingYear = Number(job.scope_json?.source_year || job.scope_json?.years?.[0] || currentYear);
+    const firstLabel = el("label", "field");
+    append(firstLabel, el("span", "", isBackfill ? "First source year" : "PSI source year"));
+    firstYear = el("input"); firstYear.type = "number"; firstYear.name = "psi_start_year"; firstYear.min = "1990"; firstYear.max = String(currentYear + 1); firstYear.required = true; firstYear.value = String(isBackfill ? Math.max(1990, startingYear - 1) : startingYear);
+    append(firstLabel, firstYear, el("small", "field-help", "PSI years are explicit source partitions, not an opaque incremental cursor."));
+    append(scopeFields, firstLabel);
+    if (isBackfill) {
+      const lastLabel = el("label", "field");
+      append(lastLabel, el("span", "", "Last source year"));
+      lastYear = el("input"); lastYear.type = "number"; lastYear.name = "psi_end_year"; lastYear.min = "1990"; lastYear.max = String(currentYear + 1); lastYear.required = true; lastYear.value = String(startingYear);
+      append(lastLabel, lastYear, el("small", "field-help", "The inclusive range is expanded into a reviewable list of yearly partitions."));
+      append(scopeFields, lastLabel);
+    }
+    append(wrapper, scopeFields);
+  }
+  const advanced = el("details", "technical scope-editor");
+  const scope = el("textarea"); scope.value = JSON.stringify(job.scope_json || {}, null, 2); scope.setAttribute("aria-label", "Advanced bounded scope JSON");
+  append(advanced, el("summary", "", "Advanced scope JSON"), el("p", "", "Safe registered overrides only. PSI year controls above take precedence."), scope);
+  append(wrapper, advanced);
+  const requestedScope = () => {
+    const value = parseJsonField(scope.value, "Scope");
+    if (!psi) return value;
+    const years = psiYearRange(firstYear.value, lastYear?.value || firstYear.value, { maximum: currentYear + 1 });
+    delete value.source_year;
+    value.years = years;
+    value.partition_type = "source_year";
+    return value;
+  };
   const preview = button("Preview deterministic plan", "button secondary");
   const evidence = el("div");
   append(wrapper, preview, evidence);
   preview.addEventListener("click", async () => {
     preview.disabled = true; evidence.replaceChildren(el("p", "", "Validating limits and proposed work…"));
     try {
-      const payload = { run_mode: mode.value, scope: parseJsonField(scope.value, "Scope") };
+      const payload = { run_mode: mode.value, scope: requestedScope() };
       const result = await request(`jobs/${job.id}/plans`, { method: "POST", body: payload });
-      evidence.replaceChildren(el("div", "notice", "Plan validated. Review task, cache/network work and limits before launch."), technicalDetails(result.body, "Plan evidence"));
+      const scopeSummary = psi ? `${payload.scope.years.length} PSI year partition${payload.scope.years.length === 1 ? "" : "s"}: ${payload.scope.years.join(", ")}` : "Registered bounded scope";
+      evidence.replaceChildren(el("div", "notice", `Plan validated · ${scopeSummary}. Review task, cache/network work and limits before launch.`), technicalDetails(result.body, "Plan evidence"));
     } catch (error) { evidence.replaceChildren(el("div", "notice negative", `${error.message} Request ID ${error.requestId}`)); }
     finally { preview.disabled = false; }
   });
-  const confirmed = await confirmAction({ title: `Launch ${job.name}?`, description: "A durable run will be created with a new idempotency key. The runner processes it independently.", label: "Launch run", tone: "primary", extra: wrapper });
+  const confirmed = await confirmAction({ title: `${isBackfill ? "Backfill" : "Run"} ${job.name}?`, description: "A durable run will be created with a new idempotency key. The runner processes it independently.", label: isBackfill ? "Start backfill" : "Launch run", tone: "primary", extra: wrapper });
   if (!confirmed) return;
   try {
     const idempotencyKey = newRequestId();
-    const body = await mutate(`jobs/${job.id}/runs`, { body: { run_mode: mode.value, scope: parseJsonField(scope.value, "Scope"), idempotency_key: idempotencyKey }, success: "Run requested" });
+    const body = await mutate(`jobs/${job.id}/runs`, { body: { run_mode: mode.value, scope: requestedScope(), idempotency_key: idempotencyKey }, success: isBackfill ? "Backfill requested" : "Run requested" });
     const run = entity(body, "run");
     location.hash = `#runs/${run.id}`;
   } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }
@@ -638,14 +706,22 @@ async function openPlanDialog(job, capabilities = null) {
 
 async function renderRuns() {
   const params = new URLSearchParams(location.hash.split("?")[1] || "");
-  const filters = { q: params.get("q") || "", status: params.get("status") || "" };
+  const filters = { q: params.get("q") || "", status: params.get("status") || "", job: params.get("job") || "" };
   loading("Loading run history");
   try {
-    const { body } = await request(`ingestion-runs${queryString({ ...filters, limit: 100 })}`);
-    const runs = collection(body);
+    const { body } = await request(`ingestion-runs${queryString({ status: filters.status, limit: 100 })}`);
+    const allRuns = collection(body);
+    const search = filters.q.toLowerCase();
+    const runs = allRuns.filter((run) => (!filters.job || run.job_definition_id === filters.job)
+      && (!search || [run.id, run.job_name, run.request_id, run.dataset_id].some((value) => String(value || "").toLowerCase().includes(search))));
     clearView();
-    append(view, pageHeading("Durable orchestration", "Ingestion runs", "Inspect task attempts, checkpoint movement and accepted watermarks. Recovery always creates explicit evidence."));
-    append(view, filterToolbar({ ...filters, statuses: RUN_FILTERS, placeholder: "Run, job or request ID", onApply: (values) => { location.hash = `#runs${queryString(values)}`; renderRoute(); } }));
+    append(view, pageHeading("Durable orchestration", "Ingestion runs", "Inspect task attempts, checkpoint movement and accepted watermarks. Recovery always creates explicit evidence.", [link("Run a job", "#jobs", "button primary")]));
+    if (filters.job) {
+      const jobFilter = el("div", "notice notice-actions");
+      append(jobFilter, el("span", "", `Showing history for job ${filters.job}.`), link("Clear job filter", "#runs", "button secondary small"));
+      append(view, jobFilter);
+    }
+    append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: RUN_FILTERS, placeholder: "Run, job or request ID", onApply: (values) => { location.hash = `#runs${queryString({ ...values, job: filters.job })}`; renderRoute(); } }));
     if (!runs.length) { append(view, emptyState("No runs found", "Launch a validated job plan or adjust the current filters.", link("Open jobs", "#jobs", "button primary"))); return; }
     const table = makeTable([{ label: "Run" }, { label: "Mode" }, { label: "Progress" }, { label: "Rows accepted" }, { label: "Requested" }, { label: "Request ID" }], runs, (run) => {
       const row = el("tr");
@@ -696,7 +772,7 @@ async function renderRunDetail(id, { polling = false } = {}) {
     if (availability.retry) runAction("retry", "Retry failed", "Create a linked child run containing only eligible failed work.");
     if (availability.reprocess) runAction("reprocess-cached", "Reprocess cached", "Create a linked child run using verified cached artifacts and current transforms.");
     if (availability.cancel) runAction("cancel", "Cancel", "Request cooperative cancellation. Completed evidence will remain available.", "danger");
-    if (availability.diagnose) actions.push(button("Diagnose with AI", "button primary", () => { location.hash = `#ai/${id}`; }));
+    if (availability.diagnose) actions.push(button("Diagnose with AI", "button primary", () => { location.hash = "#ai"; }));
     append(view, pageHeading("Run evidence", run.job_name || `Run ${String(id).slice(0, 8)}`, `${humanise(run.run_mode)} · ${formatDate(run.requested_at)}`, actions));
     if (run.error_json) append(view, el("div", "notice negative", `${run.error_json.message || run.error_json.detail || "The run recorded a classified failure."} The previously accepted release remains unchanged.`));
     const metrics = el("div", "metric-strip");
@@ -906,8 +982,9 @@ async function renderProperties() {
   const hero = el("section", "discovery-hero");
   append(hero, el("p", "eyebrow", "Property discovery"), el("h1", "", "Trace an NSW address to the evidence behind it"), el("p", "", "Search the accepted property registry, inspect match provenance and see which buyer features have usable data."));
   const form = el("form", "search-box");
-  const input = el("input"); input.type = "search"; input.name = "q"; input.placeholder = "Try 1 Farrer Place, Sydney NSW 2000"; input.autocomplete = "street-address"; input.maxLength = 250; input.required = true;
-  append(form, input, button("Search", "button primary"));
+  const input = el("input"); input.type = "search"; input.name = "q"; input.placeholder = "Try 11 Example Street, Sydney NSW 2000"; input.autocomplete = "street-address"; input.maxLength = 250; input.required = true;
+  const search = button("Search", "button primary"); search.type = "submit";
+  append(form, input, search);
   append(hero, form);
   append(hero, el("p", "search-help", "NSW only · Maximum 25 matches · Search works without AI"));
   append(view, hero);
@@ -993,8 +1070,9 @@ function renderPropertyReportSection(result) {
     ["Property reference", el("code", "mono", report.property_ref || "Not supplied")],
     ["Address", report.address_display || "Not supplied"],
     ["G-NAF PID", identity.gnaf_pid || "Not supplied"],
-    ["Principal address", identity.principal_address === true ? "Yes" : identity.principal_address === false ? "No" : "Not supplied"],
-    ["Generated", formatDate(report.generated_at)],
+    ["Resolution", humanise(identity.resolution_status)],
+    ["Locality", identity.locality || "Not supplied"],
+    ["Evidence entries", formatNumber(report.evidence_count)],
   ]));
   const releases = reportReleaseRows(report);
   if (!releases.length) append(body, el("p", "", "No accepted release evidence is available for this report section."));
@@ -1003,7 +1081,7 @@ function renderPropertyReportSection(result) {
     releases,
     (item) => {
       const row = el("tr");
-      append(row, cell(item.dataset_id || "—", "primary-cell"), cell(item.target_feature || "—"), cell(item.release_label || "—"), cell(badge(item.release_status)), cell(formatDate(item.accepted_at)), cell(item.coverage_json ? technicalDetails(item.coverage_json, "Inspect") : "—"));
+      append(row, cell(item.dataset_id || "—", "primary-cell"), cell(item.target_feature || "—"), cell(item.release_version || item.dataset_release_id || "—"), cell(badge(item.coverage_status)), cell(formatDate(item.accepted_at || item.checked_at)), cell(item.coverage_scope ? technicalDetails(item.coverage_scope, "Inspect") : "—"));
       return row;
     },
   ));
@@ -1015,11 +1093,42 @@ function renderPropertyReportSection(result) {
 async function renderAi(context = "") {
   loading("Loading diagnosis workspace");
   try {
-    const releasesResult = await request("dataset-releases?limit=100");
+    const [releasesResult, historyResult] = await Promise.all([
+      request("dataset-releases?limit=100"),
+      request("agent-runs?limit=50").catch((error) => ({ error, body: { items: [] } })),
+    ]);
     const releases = collection(releasesResult.body);
+    const history = collection(historyResult.body);
+    const selectedAgentRun = context && !context.startsWith("release:") ? context : "";
     clearView();
-    append(view, pageHeading("Assisted investigation", "AI diagnosis", "The model inspects bounded stored evidence and pauses before protected retry or publish actions."));
+    append(view, pageHeading("Assisted investigation", "AI diagnosis", "The model inspects bounded stored evidence and pauses before protected retry or publish actions.", selectedAgentRun ? [link("New diagnosis", "#ai", "button primary")] : []));
     append(view, el("div", "notice", "Direct operations and property discovery do not depend on Ollama. If the model is unavailable, all stored evidence remains accessible."));
+    if (historyResult.error) append(view, el("div", "notice warning", `Diagnosis history is temporarily unavailable.${historyResult.error.requestId ? ` Request ID ${historyResult.error.requestId}` : ""}`));
+    else if (!history.length) append(view, emptyState("No diagnosis history", "Start the first bounded diagnosis below. The run will remain available after navigation or reload."));
+    else {
+      const historyTable = makeTable(
+        [{ label: "Diagnosis" }, { label: "Status" }, { label: "Latest phase" }, { label: "Tool calls" }, { label: "Started" }, { label: "Open" }],
+        history,
+        (run) => {
+          const row = el("tr");
+          append(row,
+            cell(primaryCell(run.objective_preview || "Bounded diagnosis", run.id)),
+            cell(badge(run.status)),
+            cell(humanise(run.latest_phase)),
+            cell(formatNumber(run.tool_call_count), "numeric"),
+            cell(formatDate(run.created_at)),
+            cell(link(run.id === selectedAgentRun ? "Viewing" : "View trace", `#ai/${run.id}`, "button secondary small"), "actions-cell"),
+          );
+          return row;
+        },
+      );
+      append(view, panel("Diagnosis history", `${history.length} durable AI-mode runs · newest first`, historyTable));
+    }
+    const traceHost = el("div");
+    if (selectedAgentRun) {
+      append(view, traceHost);
+      await pollAgent(selectedAgentRun, traceHost);
+    }
     const formBody = el("div");
     const form = el("form", "form-grid");
     const releaseLabel = el("label", "wide"); append(releaseLabel, el("span", "", "Candidate release"));
@@ -1030,19 +1139,18 @@ async function renderAi(context = "") {
     const objectiveLabel = el("label", "wide"); append(objectiveLabel, el("span", "", "Diagnosis objective"));
     const objective = el("textarea"); objective.value = "Diagnose why this candidate is not publishable, determine whether existing buyer analytics remain usable, and prepare the safest recovery action."; objective.maxLength = 2000; objective.required = true; append(objectiveLabel, objective); append(form, objectiveLabel);
     const submit = button("Start bounded diagnosis", "button primary"); submit.type = "submit"; append(form, submit); append(formBody, form);
-    const traceHost = el("div");
-    append(view, panel("Start diagnosis", "Plan → Act → Observe → Adapt with human review", formBody), traceHost);
+    append(view, panel("Start diagnosis", "Plan → Act → Observe → Adapt with human review", formBody));
     if (!releases.length) { form.replaceChildren(el("p", "", "No release candidates are available to diagnose.")); return; }
     form.addEventListener("submit", async (event) => {
       event.preventDefault(); submit.disabled = true;
-      traceHost.replaceChildren(panel("Agent trace", "Creating a durable AI-mode run…", el("div", "loading-state", "Connecting to AI-mode…")));
+      formBody.prepend(el("div", "notice", "Creating a durable AI-mode run…"));
       try {
         const result = await mutate(`dataset-releases/${releaseSelect.value}/agent-runs`, { body: { objective: objective.value.trim() }, success: "Diagnosis started" });
         const run = entity(result, "agent_run");
-        await pollAgent(run.id || result.id, traceHost);
+        location.hash = `#ai/${run.id || result.id}`;
       } catch (error) {
         const message = error.status === 503 ? "Ollama is unavailable. Direct evidence and recovery controls remain usable; retry diagnosis when the model service is ready." : error.message;
-        traceHost.replaceChildren(el("div", "notice warning", `${message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`));
+        formBody.prepend(el("div", "notice warning", `${message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`));
         submit.disabled = false;
       }
     });

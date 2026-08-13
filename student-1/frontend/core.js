@@ -135,6 +135,22 @@ export function parseJsonField(value, label) {
   }
 }
 
+export function psiYearRange(startValue, endValue, { minimum = 1990, maximum = new Date().getFullYear() + 1 } = {}) {
+  const start = Number(startValue);
+  const end = Number(endValue);
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < minimum || end > maximum || start > end) {
+    throw new Error(`PSI years must be a valid range from ${minimum} to ${maximum}.`);
+  }
+  return Array.from({ length: end - start + 1 }, (_unused, index) => start + index);
+}
+
+export function isPsiJob(job) {
+  const identity = [job?.profile_key, job?.adapter_key, job?.import_profile_key, job?.dataset_id]
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ");
+  return identity.includes("psi");
+}
+
 export function actionAvailability(status) {
   const state = String(status || "").toLowerCase();
   return {
