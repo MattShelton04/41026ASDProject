@@ -221,7 +221,8 @@ test("operator UI exposes working submit controls, backfills and durable histori
 test("live acquisition controls use truthful runtime capability evidence", async () => {
   const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
   assert.match(app, /request\("runtime-capabilities"\)/);
-  assert.match(app, /Live schools capture requires --full-data/);
+  assert.match(app, /requires --full-data/);
+  assert.match(app, /implemented_live_profiles/);
   assert.match(app, /liveOption\.disabled = !liveAvailable/);
 });
 

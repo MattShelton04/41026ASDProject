@@ -42,7 +42,7 @@ sources:
     licence_id: nsw-open-data
     licence_url: https://data.nsw.gov.au/data/policy
     redistribution_policy: approved-bounded-extract
-    catalogue_status: catalogued
+    catalogue_status: executable_live
     target_features: [feature-3]
   - key: nsw-government-schools
     display_name: NSW government school locations and attributes

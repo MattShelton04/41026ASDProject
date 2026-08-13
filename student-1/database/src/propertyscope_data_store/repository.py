@@ -172,8 +172,16 @@ class PropertyScopeStore:
     def ready(self) -> bool:
         try:
             with self.connection() as connection:
-                row = connection.execute("SELECT postgis_version() AS version").fetchone()
-            return row is not None and bool(row["version"])
+                row = connection.execute(
+                    """SELECT postgis_version() AS version,
+                    to_regclass('ops.run_task') AS run_task,
+                    to_regclass('ops.import_operation') AS import_operation,
+                    to_regclass('warehouse.gnaf_address') AS gnaf_address"""
+                ).fetchone()
+            return row is not None and all(
+                bool(row[field])
+                for field in ("version", "run_task", "import_operation", "gnaf_address")
+            )
         except Exception:
             return False
 

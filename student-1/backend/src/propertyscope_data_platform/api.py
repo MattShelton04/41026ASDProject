@@ -58,8 +58,12 @@ def create_blueprint(
         return jsonify(
             {
                 "full_data_enabled": full_data_enabled,
-                "connected_live_profiles": ["schools-master"] if full_data_enabled else [],
-                "catalogued_profiles": ["gnaf-nsw", "psi-sales", "bocsar-sparse"],
+                "implemented_live_profiles": ["schools-master", "bocsar-sparse"],
+                "host_verified_profiles": ["psi-sales"],
+                "connected_live_profiles": ["schools-master", "bocsar-sparse"]
+                if full_data_enabled
+                else [],
+                "catalogued_profiles": ["gnaf-nsw", "psi-sales"],
                 "showcase_available": True,
             }
         )
@@ -844,7 +848,8 @@ def validate_job_scope(
     if (
         run_mode == "full_refresh"
         and profile == "full-data"
-        and str(job.get("import_profile_key")) not in {"schools-master", "property-fixture"}
+        and str(job.get("import_profile_key"))
+        not in {"schools-master", "bocsar-sparse", "property-fixture"}
     ):
         return None, problem(
             422,

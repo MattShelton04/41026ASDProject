@@ -642,6 +642,9 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   const isBackfill = intent === "backfill";
   const psi = isPsiJob(job);
   const schools = isSchoolsJob(job);
+  const importProfile = job.import_profile_key || job.import_profile;
+  const liveAvailable = runtime.full_data_enabled
+    && runtime.connected_live_profiles?.includes(importProfile);
   const currentYear = new Date().getFullYear();
   append(wrapper, el("div", `notice ${isBackfill ? "warning" : ""}`, isBackfill
     ? "Backfill creates a new full-refresh run for an explicit bounded scope. Accepted data is not replaced until a candidate passes review and publication."
@@ -659,18 +662,20 @@ async function openPlanDialog(job, capabilities = null, { intent = "run" } = {})
   const showcaseOption = el("option", "", "Deterministic showcase records"); showcaseOption.value = "showcase";
   const testOption = el("option", "", "Small deterministic test records"); testOption.value = "test";
   append(scopeProfile, showcaseOption, testOption);
-  if (schools) {
-    const liveAvailable = runtime.full_data_enabled && runtime.connected_live_profiles?.includes("schools-master");
-    const liveOption = el("option", "", liveAvailable ? "Live official Data.NSW schools CSV" : "Live schools capture requires --full-data"); liveOption.value = "full-data"; liveOption.disabled = !liveAvailable;
+  if (runtime.implemented_live_profiles?.includes(importProfile)) {
+    const liveLabel = schools ? "Live official Data.NSW schools CSV"
+      : psi ? "Live NSW Valuer-General yearly archive"
+        : "Live official BOCSAR archive";
+    const liveOption = el("option", "", liveAvailable ? liveLabel : `${liveLabel} requires --full-data`); liveOption.value = "full-data"; liveOption.disabled = !liveAvailable;
     append(scopeProfile, liveOption);
   }
   scopeProfile.value = ["test", "showcase", "full-data"].includes(job.scope_json?.profile)
     && [...scopeProfile.options].some((option) => option.value === job.scope_json.profile && !option.disabled)
     ? job.scope_json.profile
     : "showcase";
-  append(profileLabel, scopeProfile, el("small", "field-help", schools
-    ? "Live acquisition is available only in the explicit --full-data stack and is never substituted with generated records."
-    : "This source currently supports bounded deterministic records; unavailable live transports fail before launch."));
+  append(profileLabel, scopeProfile, el("small", "field-help", liveAvailable
+    ? "Live acquisition uses the registered upstream source with enforced archive, byte, and record limits."
+    : "Live acquisition is available only for connected sources in the explicit --full-data stack; fixtures are never substituted silently."));
   append(wrapper, profileLabel);
   let firstYear = null;
   let lastYear = null;
