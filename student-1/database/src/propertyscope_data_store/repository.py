@@ -107,12 +107,22 @@ class PropertyScopeStore:
             return schema_fingerprint(connection)
 
     # Sources and jobs are the two complete operator CRUD aggregates.
-    def list_sources(self, *, status: str | None, limit: int, offset: int) -> list[JsonObject]:
+    def list_sources(
+        self, *, status: str | None, query_text: str | None, limit: int, offset: int
+    ) -> list[JsonObject]:
         query = "SELECT * FROM ops.source_definition"
         params: list[Any] = []
+        predicates: list[str] = []
         if status:
-            query += " WHERE status = %s"
+            predicates.append("status = %s")
             params.append(status)
+        if query_text:
+            predicates.append(
+                "POSITION(lower(%s) IN lower(concat_ws(' ',name,publisher,adapter_key,cadence,notes))) > 0"
+            )
+            params.append(query_text)
+        if predicates:
+            query += " WHERE " + " AND ".join(predicates)
         query += " ORDER BY name LIMIT %s OFFSET %s"
         params.extend((limit, offset))
         return self._fetch_all(query, params)
@@ -212,15 +222,25 @@ class PropertyScopeStore:
         except errors.ForeignKeyViolation as exc:
             raise ConflictError("source has retained job or release evidence") from exc
 
-    def list_jobs(self, *, status: str | None, limit: int, offset: int) -> list[JsonObject]:
+    def list_jobs(
+        self, *, status: str | None, query_text: str | None, limit: int, offset: int
+    ) -> list[JsonObject]:
         query = """
             SELECT job.*, source.name AS source_name FROM ops.job_definition job
             JOIN ops.source_definition source ON source.id = job.source_definition_id
         """
         params: list[Any] = []
+        predicates: list[str] = []
         if status:
-            query += " WHERE job.status = %s"
+            predicates.append("job.status = %s")
             params.append(status)
+        if query_text:
+            predicates.append(
+                "POSITION(lower(%s) IN lower(concat_ws(' ',job.name,source.name,job.dataset_id,job.profile_key,job.adapter_key))) > 0"
+            )
+            params.append(query_text)
+        if predicates:
+            query += " WHERE " + " AND ".join(predicates)
         query += " ORDER BY job.name LIMIT %s OFFSET %s"
         params.extend((limit, offset))
         return self._fetch_all(query, params)
@@ -345,7 +365,17 @@ class PropertyScopeStore:
             (job_id, idempotency_key),
         )
         if existing:
-            return existing, False
+            return _run_projection(existing), False
+        attempt_number = 1
+        if parent_run_id is not None:
+            parent = self.get_run(parent_run_id)
+            if parent["job_definition_id"] != job_id:
+                raise ConflictError("retry parent belongs to a different job")
+            if mode == "full_refresh" and parent["status"] not in {"failed", "cancelled"}:
+                raise ConflictError("full pipeline retry requires a failed or cancelled parent")
+            if mode == "reprocess_cached" and parent["status"] not in TERMINAL_RUN_STATES:
+                raise ConflictError("cached reprocessing requires a terminal parent")
+            attempt_number = int(parent["attempt_number"]) + 1
         now = datetime.now(UTC)
         run_id = uuid.uuid4()
         with self.connection() as connection:
@@ -357,7 +387,7 @@ class PropertyScopeStore:
                         release_builder_version,import_profile_version,normalisation_version,
                         profile_key,run_mode,requested_scope_json,attempt_number,parent_run_id,
                         requested_at,status,request_id,idempotency_key,created_at
-                    ) VALUES (%s,%s,%s,'1.0.0','1.0.0',%s,'1.0.0',%s,%s,%s,1,%s,%s,'queued',%s,%s,%s)
+                    ) VALUES (%s,%s,%s,'1.0.0','1.0.0',%s,'1.0.0',%s,%s,%s,%s,%s,%s,'queued',%s,%s,%s)
                     RETURNING *
                     """,
                     (
@@ -368,6 +398,7 @@ class PropertyScopeStore:
                         job["profile_key"],
                         mode,
                         _json(scope),
+                        attempt_number,
                         parent_run_id,
                         now,
                         request_id,
@@ -410,10 +441,12 @@ class PropertyScopeStore:
                     "SELECT * FROM ops.ingestion_run WHERE job_definition_id=%s AND idempotency_key=%s",
                     (job_id, idempotency_key),
                 )
-                return existing, False
-        return _dict(row), True
+                return _run_projection(existing), False
+        return _run_projection(_dict(row)), True
 
-    def list_runs(self, *, status: str | None, limit: int, offset: int) -> list[JsonObject]:
+    def list_runs(
+        self, *, status: str | None, query_text: str | None, limit: int, offset: int
+    ) -> list[JsonObject]:
         query = """
             SELECT run.*, job.name AS job_name, source.name AS source_name
             FROM ops.ingestion_run run
@@ -421,15 +454,25 @@ class PropertyScopeStore:
             JOIN ops.source_definition source ON source.id=run.source_definition_id
         """
         params: list[Any] = []
+        predicates: list[str] = []
         if status:
-            query += " WHERE run.status=%s"
+            predicates.append("run.status=%s")
             params.append(status)
+        if query_text:
+            predicates.append(
+                "POSITION(lower(%s) IN lower(concat_ws(' ',run.id::text,run.request_id,run.profile_key,run.status,job.name,source.name))) > 0"
+            )
+            params.append(query_text)
+        if predicates:
+            query += " WHERE " + " AND ".join(predicates)
         query += " ORDER BY run.requested_at DESC LIMIT %s OFFSET %s"
         params.extend((limit, offset))
-        return self._fetch_all(query, params)
+        return [_run_projection(item) for item in self._fetch_all(query, params)]
 
     def get_run(self, run_id: uuid.UUID) -> JsonObject:
-        return self._required("SELECT * FROM ops.ingestion_run WHERE id=%s", (run_id,))
+        return _run_projection(
+            self._required("SELECT * FROM ops.ingestion_run WHERE id=%s", (run_id,))
+        )
 
     def run_tasks(self, run_id: uuid.UUID, *, limit: int, offset: int) -> list[JsonObject]:
         self.get_run(run_id)
@@ -453,16 +496,52 @@ class PropertyScopeStore:
         )
 
     def request_cancel(self, run_id: uuid.UUID) -> JsonObject:
-        run = self.get_run(run_id)
-        if run["status"] in TERMINAL_RUN_STATES:
-            raise ConflictError("terminal run cannot be cancelled")
+        now = datetime.now(UTC)
         with self.connection() as connection:
+            run = connection.execute(
+                "SELECT * FROM ops.ingestion_run WHERE id=%s FOR UPDATE", (run_id,)
+            ).fetchone()
+            if run is None:
+                raise NotFoundError("record does not exist")
+            if run["status"] in TERMINAL_RUN_STATES:
+                raise ConflictError("terminal run cannot be cancelled")
+            connection.execute(
+                """UPDATE ops.run_task SET status='cancelled',finished_at=%s,updated_at=%s,
+                lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
+                error_json=COALESCE(error_json,%s),version=version+1
+                WHERE ingestion_run_id=%s AND status IN ('pending','retry_wait')""",
+                (now, now, _json(_cancellation_error()), run_id),
+            )
+            active = connection.execute(
+                """SELECT count(*) AS count FROM ops.run_task
+                WHERE ingestion_run_id=%s AND status IN ('claimed','running')""",
+                (run_id,),
+            ).fetchone()
+            terminal = active is None or int(active["count"]) == 0
             row = connection.execute(
-                "UPDATE ops.ingestion_run SET cancel_requested_at=COALESCE(cancel_requested_at,%s) WHERE id=%s RETURNING *",
-                (datetime.now(UTC), run_id),
+                """UPDATE ops.ingestion_run SET cancel_requested_at=COALESCE(cancel_requested_at,%s),
+                status=CASE WHEN %s THEN 'cancelled' ELSE status END,
+                finished_at=CASE WHEN %s THEN %s ELSE finished_at END,
+                error_json=CASE WHEN %s THEN %s ELSE error_json END,
+                lease_owner=CASE WHEN %s THEN NULL ELSE lease_owner END,
+                lease_token=CASE WHEN %s THEN NULL ELSE lease_token END,
+                lease_expires_at=CASE WHEN %s THEN NULL ELSE lease_expires_at END
+                WHERE id=%s RETURNING *""",
+                (
+                    now,
+                    terminal,
+                    terminal,
+                    now,
+                    terminal,
+                    _json(_cancellation_error()),
+                    terminal,
+                    terminal,
+                    terminal,
+                    run_id,
+                ),
             ).fetchone()
             connection.commit()
-        return _dict(row)
+        return _run_projection(_dict(row))
 
     def resume_run(self, run_id: uuid.UUID) -> JsonObject:
         run = self.get_run(run_id)
@@ -472,30 +551,79 @@ class PropertyScopeStore:
         with self.connection() as connection:
             connection.execute(
                 """UPDATE ops.run_task SET status='pending',lease_owner=NULL,lease_token=NULL,
-                lease_expires_at=NULL,heartbeat_at=NULL,version=version+1,updated_at=%s
+                lease_expires_at=NULL,heartbeat_at=NULL,attempt_number=attempt_number+1,
+                version=version+1,updated_at=%s
                 WHERE ingestion_run_id=%s AND status IN ('claimed','running','retry_wait')""",
                 (now, run_id),
             )
             row = connection.execute(
                 """UPDATE ops.ingestion_run SET status='queued',lease_owner=NULL,lease_token=NULL,
-                lease_expires_at=NULL,heartbeat_at=NULL,finished_at=NULL WHERE id=%s RETURNING *""",
+                lease_expires_at=NULL,heartbeat_at=NULL,finished_at=NULL,error_json=NULL,
+                cancel_requested_at=NULL WHERE id=%s RETURNING *""",
                 (run_id,),
             ).fetchone()
             connection.commit()
-        return _dict(row)
+        return _run_projection(_dict(row))
 
     def claim_task(self, *, worker_id: str, lease_seconds: int) -> JsonObject | None:
         now = datetime.now(UTC)
         expires = now + timedelta(seconds=lease_seconds)
         token = uuid.uuid4().hex
         with self.connection() as connection:
+            # A cancelled worker may disappear before acknowledging the request. Expired
+            # work is terminally cancelled; a live lease remains cooperatively cancellable.
+            connection.execute(
+                """UPDATE ops.run_task task SET status='cancelled',finished_at=%s,updated_at=%s,
+                lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
+                error_json=COALESCE(task.error_json,%s),version=task.version+1
+                FROM ops.ingestion_run run WHERE run.id=task.ingestion_run_id
+                AND run.cancel_requested_at IS NOT NULL AND task.status IN ('claimed','running')
+                AND task.lease_expires_at<=%s""",
+                (now, now, _json(_cancellation_error()), now),
+            )
+            connection.execute(
+                """UPDATE ops.run_task task SET status='cancelled',finished_at=%s,updated_at=%s,
+                lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
+                error_json=COALESCE(task.error_json,%s),version=task.version+1
+                FROM ops.ingestion_run run WHERE run.id=task.ingestion_run_id
+                AND run.cancel_requested_at IS NOT NULL AND task.status IN ('pending','retry_wait')""",
+                (now, now, _json(_cancellation_error())),
+            )
+            connection.execute(
+                """UPDATE ops.ingestion_run run SET status='cancelled',finished_at=%s,
+                error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL
+                WHERE run.cancel_requested_at IS NOT NULL
+                AND run.status NOT IN ('succeeded','failed','cancelled')
+                AND NOT EXISTS (SELECT 1 FROM ops.run_task task WHERE task.ingestion_run_id=run.id
+                    AND task.status IN ('claimed','running'))""",
+                (now, _json(_cancellation_error())),
+            )
+            # Lease expiry is a durable interruption, never implicit work stealing. The
+            # operator must explicitly resume so retained checkpoints remain inspectable.
+            connection.execute(
+                """UPDATE ops.ingestion_run run SET status='interrupted',finished_at=NULL,
+                error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL
+                FROM ops.run_task task WHERE task.ingestion_run_id=run.id
+                AND task.status IN ('claimed','running') AND task.lease_expires_at<=%s
+                AND run.cancel_requested_at IS NULL
+                AND run.status NOT IN ('succeeded','failed','cancelled','interrupted')""",
+                (_json(_lease_expired_error()), now),
+            )
             row = connection.execute(
                 """
                 WITH candidate AS (
                     SELECT task.id FROM ops.run_task task
                     JOIN ops.ingestion_run run ON run.id=task.ingestion_run_id
-                    WHERE task.status='pending' AND run.status NOT IN ('succeeded','failed','cancelled')
+                    WHERE task.status='pending'
+                      AND run.status IN ('queued','planning','discovering','acquiring','staging',
+                        'normalising','validating','building_release')
                       AND run.cancel_requested_at IS NULL
+                      AND NOT EXISTS (
+                        SELECT 1 FROM ops.run_task predecessor
+                        WHERE predecessor.ingestion_run_id=task.ingestion_run_id
+                          AND predecessor.logical_key<task.logical_key
+                          AND predecessor.status NOT IN ('succeeded','skipped')
+                      )
                     ORDER BY task.created_at,task.logical_key FOR UPDATE SKIP LOCKED LIMIT 1
                 )
                 UPDATE ops.run_task task SET status='claimed',lease_owner=%s,lease_token=%s,
@@ -1060,10 +1188,29 @@ class PropertyScopeStore:
 
     def register_artifact(self, values: Mapping[str, Any]) -> tuple[JsonObject, bool]:
         existing = self._fetch_one(
-            "SELECT * FROM ops.artifact_record WHERE content_sha256=%s AND artifact_kind=%s",
-            (values["content_sha256"], values["artifact_kind"]),
+            """SELECT * FROM ops.artifact_record WHERE ingestion_run_id=%s
+            AND logical_key=%s AND artifact_kind=%s""",
+            (
+                uuid.UUID(str(values["ingestion_run_id"])),
+                values["logical_key"],
+                values["artifact_kind"],
+            ),
         )
         if existing:
+            expected = (
+                values["content_sha256"],
+                values["storage_key"],
+                values["media_type"],
+                int(values["bytes"]),
+            )
+            actual = (
+                existing["content_sha256"],
+                existing["storage_key"],
+                existing["media_type"],
+                int(existing["bytes"]),
+            )
+            if expected != actual:
+                raise ConflictError("artifact idempotency key arguments do not match")
             return existing, False
         with self.connection() as connection:
             row = connection.execute(
@@ -1129,7 +1276,39 @@ class PropertyScopeStore:
             if row is None:
                 raise LeaseConflictError("task lease is stale or owned by another worker")
             run_id = row["ingestion_run_id"]
-            if status == "failed":
+            cancellation = connection.execute(
+                "SELECT cancel_requested_at FROM ops.ingestion_run WHERE id=%s FOR UPDATE",
+                (run_id,),
+            ).fetchone()
+            if cancellation and cancellation["cancel_requested_at"] is not None:
+                connection.execute(
+                    """UPDATE ops.run_task SET status='cancelled',finished_at=%s,updated_at=%s,
+                    error_json=COALESCE(error_json,%s),version=version+1
+                    WHERE ingestion_run_id=%s AND status IN ('pending','retry_wait')""",
+                    (now, now, _json(_cancellation_error()), run_id),
+                )
+                connection.execute(
+                    """UPDATE ops.ingestion_run SET status='cancelled',finished_at=%s,error_json=%s,
+                    lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL WHERE id=%s""",
+                    (now, _json(_cancellation_error()), run_id),
+                )
+            elif status == "retry_wait":
+                connection.execute(
+                    """UPDATE ops.ingestion_run SET status='interrupted',finished_at=NULL,error_json=%s,
+                    lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL WHERE id=%s
+                    AND status NOT IN ('succeeded','failed','cancelled')""",
+                    (
+                        _json(
+                            {
+                                "code": "task_retry_wait",
+                                "message": "Retryable task failed; explicit resume is required",
+                                "retryable": True,
+                            }
+                        ),
+                        run_id,
+                    ),
+                )
+            elif status == "failed":
                 connection.execute(
                     """UPDATE ops.ingestion_run SET status='failed',finished_at=%s,error_json=%s,
                     lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL WHERE id=%s
@@ -1197,6 +1376,30 @@ class PropertyScopeStore:
 
 def _json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _run_projection(run: JsonObject) -> JsonObject:
+    """Add explicit retry semantics without pretending a child can reuse parent artifacts."""
+    projected = dict(run)
+    if projected.get("parent_run_id") is None:
+        projected["execution_semantics"] = "new_pipeline_run"
+    elif projected.get("run_mode") == "reprocess_cached":
+        projected["execution_semantics"] = "cached_artifact_reprocess"
+    else:
+        projected["execution_semantics"] = "full_pipeline_retry"
+    return projected
+
+
+def _cancellation_error() -> JsonObject:
+    return {"code": "operator_cancelled", "message": "Run cancelled by operator"}
+
+
+def _lease_expired_error() -> JsonObject:
+    return {
+        "code": "task_lease_expired",
+        "message": "Worker heartbeat expired; explicit resume is required",
+        "retryable": True,
+    }
 
 
 def _dict(row: Mapping[str, Any] | None) -> JsonObject:

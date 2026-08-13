@@ -52,7 +52,12 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     @api.get("/internal/data-platform/v1/sources")
     def sources_list() -> Response:
         limit, offset = pagination()
-        items = store.list_sources(status=request.args.get("status"), limit=limit, offset=offset)
+        items = store.list_sources(
+            status=request.args.get("status"),
+            query_text=optional_query_text(),
+            limit=limit,
+            offset=offset,
+        )
         return jsonify(envelope(items, limit=limit, offset=offset))
 
     @api.post("/internal/data-platform/v1/sources")
@@ -75,7 +80,12 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     @api.get("/internal/data-platform/v1/jobs")
     def jobs_list() -> Response:
         limit, offset = pagination()
-        items = store.list_jobs(status=request.args.get("status"), limit=limit, offset=offset)
+        items = store.list_jobs(
+            status=request.args.get("status"),
+            query_text=optional_query_text(),
+            limit=limit,
+            offset=offset,
+        )
         return jsonify(envelope(items, limit=limit, offset=offset))
 
     @api.post("/internal/data-platform/v1/jobs")
@@ -98,7 +108,12 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     @api.get("/internal/data-platform/v1/runs")
     def runs_list() -> Response:
         limit, offset = pagination()
-        items = store.list_runs(status=request.args.get("status"), limit=limit, offset=offset)
+        items = store.list_runs(
+            status=request.args.get("status"),
+            query_text=optional_query_text(),
+            limit=limit,
+            offset=offset,
+        )
         return jsonify(envelope(items, limit=limit, offset=offset))
 
     @api.post("/internal/data-platform/v1/jobs/<uuid:job_id>/runs")
@@ -391,6 +406,13 @@ def query_integer(name: str, *, minimum: int, maximum: int, default: int) -> int
     if not minimum <= value <= maximum:
         raise ValidationError(f"{name} must be between {minimum} and {maximum}")
     return value
+
+
+def optional_query_text() -> str | None:
+    value = request.args.get("q", "").strip()
+    if len(value) > 200:
+        raise ValidationError("q must be at most 200 characters")
+    return value or None
 
 
 def bounded_integer(
