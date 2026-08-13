@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -97,11 +98,32 @@ test("run action policy exposes only state-safe controls", () => {
 
 test("polling stops for terminal states and backs off when hidden", () => {
   assert.equal(nextPollDelay("running"), 1200);
+  assert.equal(nextPollDelay("acquiring"), 1200);
+  assert.equal(nextPollDelay("building_release"), 1200);
   assert.equal(nextPollDelay("queued"), 2000);
   assert.equal(nextPollDelay("running", 2), 4800);
   assert.equal(nextPollDelay("running", 0, true), 10000);
   assert.equal(nextPollDelay("succeeded"), null);
   assert.equal(nextPollDelay("failed"), null);
+});
+
+test("the application shell exposes keyboard landmarks, live status and native dialogs", async () => {
+  const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
+  assert.match(html, /href="#main-content">Skip to main content/);
+  assert.match(html, /<nav>/);
+  assert.match(html, /<main id="main-content" tabindex="-1">/);
+  assert.match(html, /id="live-region"[^>]+aria-live="polite"/);
+  assert.match(html, /<dialog id="entity-dialog"/);
+  assert.match(html, /<dialog id="action-dialog"/);
+  assert.doesNotMatch(html, /<script(?![^>]+src=)/);
+  assert.doesNotMatch(html, /style="/);
+});
+
+test("the frontend proxy keeps browser traffic on the public backend boundary", async () => {
+  const nginx = await readFile(new URL("../../frontend/nginx.conf", import.meta.url), "utf8");
+  assert.match(nginx, /location \/api\/data-platform\//);
+  assert.match(nginx, /proxy_pass http:\/\/propertyscope-backend:5201/);
+  assert.doesNotMatch(nginx, /propertyscope-database/);
 });
 
 test("coverage matrices flatten into accessible table rows", () => {
