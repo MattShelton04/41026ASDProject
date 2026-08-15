@@ -93,6 +93,10 @@ For day-to-day work on the assignment-aligned integration stack, start Docker De
 uv run scripts/dev.py up
 ```
 
+The helper automatically uses the NVIDIA Compose override when Docker advertises that
+runtime, and otherwise keeps the portable CPU path. Use `--cpu-only` to opt out or `--gpu`
+to require acceleration and fail fast when it is unavailable.
+
 Then open the unified PropertyScope home at <http://localhost:5100>, Feature 1 at
 <http://localhost:5200>, or the non-product integration fixture at <http://localhost:5190>.
 The shared home also exposes live implemented-service status at

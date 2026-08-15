@@ -13,6 +13,7 @@ import {
   isPsiJob,
   isSchoolsJob,
   liveProfileLabel,
+  nextAgentPollDelay,
   nextPollDelay,
   parseJsonField,
   psiYearRange,
@@ -144,6 +145,16 @@ test("polling stops for terminal states and backs off when hidden", () => {
   assert.equal(nextPollDelay("running", 0, true), 10000);
   assert.equal(nextPollDelay("succeeded"), null);
   assert.equal(nextPollDelay("failed"), null);
+});
+
+test("agent polling follows active and review states without refreshing terminal runs", () => {
+  assert.equal(nextAgentPollDelay("planning"), 800);
+  assert.equal(nextAgentPollDelay("queued"), 1500);
+  assert.equal(nextAgentPollDelay("review_required"), 5000);
+  assert.equal(nextAgentPollDelay("acting", 2), 3200);
+  assert.equal(nextAgentPollDelay("observing", 0, true), 5000);
+  assert.equal(nextAgentPollDelay("succeeded"), null);
+  assert.equal(nextAgentPollDelay("failed"), null);
 });
 
 test("generation guards reject late route and polling work", () => {
@@ -308,6 +319,9 @@ test("AI diagnosis history is loaded from the durable shared service projection"
   assert.match(source, /OBJECTIVES = Object\.freeze/);
   assert.doesNotMatch(source, /el\("textarea"\)/);
   assert.match(source, /\?run=\$\{encodeURIComponent\(runId\)\}/);
+  assert.match(source, /nextAgentPollDelay/);
+  assert.match(source, /recordedSteps\?\.length \? recordedSteps : events/);
+  assert.match(source, /aria-live/);
 });
 
 test("evidence explorers require an exact run and preserve unknown states", async () => {

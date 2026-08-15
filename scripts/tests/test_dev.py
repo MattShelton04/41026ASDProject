@@ -16,6 +16,7 @@ def captured_commands(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
         commands.append(tuple(command))
 
     monkeypatch.setattr(dev, "_run", capture)
+    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: False)
     return commands
 
 
@@ -41,6 +42,26 @@ def test_up_can_skip_already_prepared_model(
 
     assert len(captured_commands) == 3
     assert all("ollama-init" not in command for command in captured_commands)
+
+
+def test_up_automatically_uses_available_nvidia_runtime(
+    captured_commands: list[tuple[str, ...]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: True)
+
+    assert dev.main(["up", "--skip-model-pull"]) == 0
+
+    assert all(dev.GPU_COMPOSE_FILE in command for command in captured_commands[1:])
+
+
+def test_up_can_explicitly_keep_portable_cpu_runtime(
+    captured_commands: list[tuple[str, ...]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: True)
+
+    assert dev.main(["up", "--skip-model-pull", "--cpu-only"]) == 0
+
+    assert all(dev.GPU_COMPOSE_FILE not in command for command in captured_commands)
 
 
 def test_rebuild_defaults_to_all_application_services(

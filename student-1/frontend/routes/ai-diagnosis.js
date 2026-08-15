@@ -1,6 +1,8 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js";
+import { nextAgentPollDelay } from "../core/polling.js";
+import { parseRoute } from "../core/router.js";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
@@ -12,7 +14,7 @@ const OBJECTIVES = Object.freeze({
   consumer: "Inspect this candidate's publication receipts and accepted predecessor, identify retryable consumer failures, and propose a recovery without publishing or mutating data.",
 });
 
-export function createAiDiagnosisRoutes({ view, request, loading, mutate, rerender }) {
+export function createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender }) {
   async function renderAi(context = "") {
     loading("Loading diagnosis workspace");
     try {
@@ -31,7 +33,11 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, rerend
       else if (!history.length) append(view, emptyState("No diagnosis history", "Start the first bounded investigation below. Its durable evidence will remain available after navigation or reload."));
       else append(view, diagnosisHistory(history, selectedAgentRun));
       if (selectedAgentRun) {
-        const traceHost = el("div"); append(view, traceHost); await renderAgentTrace(selectedAgentRun, traceHost);
+        const traceHost = el("div");
+        traceHost.dataset.agentTrace = selectedAgentRun;
+        traceHost.setAttribute("aria-live", "polite");
+        append(view, traceHost);
+        await renderAgentTrace(selectedAgentRun, traceHost);
       }
       append(view, await diagnosisForm(candidates, context));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
@@ -40,7 +46,14 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, rerend
   function diagnosisHistory(history, selectedAgentRun) {
     return panel("Diagnosis history", `${history.length} recorded investigations · newest first`, makeTable(
       [{ label: "Diagnosis" }, { label: "State" }, { label: "Latest phase" }, { label: "Tool calls" }, { label: "Started" }, { label: "Evidence" }], history,
-      (run) => { const row = el("tr"); append(row, cell(primaryCell(run.objective_preview || "Bounded diagnosis", run.id)), cell(badge(run.status)), cell(humanise(run.latest_phase)), cell(formatNumber(run.tool_call_count), "numeric"), cell(formatDate(run.created_at)), cell(link(run.id === selectedAgentRun ? "Viewing trace" : "View trace", `#ai/${run.id}`, "button secondary small"), "actions-cell")); return row; },
+      (run) => {
+        const row = el("tr"); row.dataset.agentRunId = run.id;
+        const status = cell(badge(run.status)); status.dataset.agentField = "status";
+        const phase = cell(humanise(run.latest_phase)); phase.dataset.agentField = "phase";
+        const tools = cell(formatNumber(run.tool_call_count), "numeric"); tools.dataset.agentField = "tools";
+        append(row, cell(primaryCell(run.objective_preview || "Bounded diagnosis", run.id)), status, phase, tools, cell(formatDate(run.created_at)), cell(link(run.id === selectedAgentRun ? "Viewing trace" : "View trace", `#ai/${run.id}`, "button secondary small"), "actions-cell"));
+        return row;
+      },
     ));
   }
 
@@ -73,19 +86,23 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, rerend
     return host;
   }
 
-  async function renderAgentTrace(id, host) {
+  async function renderAgentTrace(id, host, failures = 0) {
+    const generation = generationGuard.current();
+    host.setAttribute("aria-busy", "true");
     const [detailResult, eventsResult] = await Promise.allSettled([
       request(`agent-runs/${id}`), request(`agent-runs/${id}/events${queryString({ after: 0, limit: 100 })}`),
     ]);
+    if (!generationGuard.isCurrent(generation)) return;
     const detailError = detailResult.status === "rejected" ? detailResult.reason : null;
     const eventsError = eventsResult.status === "rejected" ? eventsResult.reason : null;
-    const run = detailResult.status === "fulfilled" ? entity(detailResult.value.body, "agent_run") : { id, status: "unknown" };
+    const run = detailResult.status === "fulfilled" ? entity(detailResult.value.body, "agent_run") : { id, status: host.dataset.agentStatus || "unknown" };
     const events = eventsResult.status === "fulfilled" ? collection(eventsResult.value.body) : [];
     const body = el("div", "stack");
     append(body, detailList([["State", badge(run.status)], ["Agent run", el("code", "mono", run.id || id)], ["Request ID", el("code", "mono", run.request_id || detailResult.value?.requestId || "Not available")], ["Execution", "Read-only evidence gathering; protected actions require a separate human review"]]));
     if (detailError) append(body, el("div", "notice warning", `Latest run summary is unavailable. Previously recorded events remain below.${problemSuffix(detailError)}`));
     if (eventsError) append(body, el("div", "notice warning", `Durable event retrieval failed; no prior observation has been replaced by a negative conclusion.${problemSuffix(eventsError)}`));
-    const steps = run.steps || detailResult.value?.body?.steps || events;
+    const recordedSteps = Array.isArray(run.steps) ? run.steps : detailResult.value?.body?.steps;
+    const steps = recordedSteps?.length ? recordedSteps : events;
     if (!steps.length) append(body, emptyState("No durable events yet", "The run exists, but no Plan, Act, Observe or Adapt event is currently available."));
     else {
       const timeline = el("ol", "timeline");
@@ -96,9 +113,41 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, rerend
     if (run.final_result) append(body, panel("Recovery proposal", "Model output is evidence for review, not approval or execution", technicalDetails(run.final_result, "Inspect proposal and cited evidence")));
     const controls = el("div", "dialog-actions"); append(controls, sharedRunLink(id, "Open durable run detail"), button("Refresh evidence", "button secondary", () => renderAgentTrace(id, host))); append(body, controls);
     host.replaceChildren(panel("Plan · Act · Observe · Adapt", "Durable events from this exact Agent activity run", body));
+    host.setAttribute("aria-busy", "false");
+    host.dataset.agentStatus = run.status;
+    updateHistorySummary(id, run);
+    state.lastAgentStatus = run.status;
+    scheduleAgentPoll(id, host, run.status, detailError || eventsError ? failures + 1 : 0);
   }
 
-  return { renderAi };
+  function updateHistorySummary(id, run) {
+    const row = [...view.querySelectorAll("[data-agent-run-id]")].find((item) => item.dataset.agentRunId === id);
+    if (!row) return;
+    row.querySelector('[data-agent-field="status"]')?.replaceChildren(badge(run.status));
+    const phase = row.querySelector('[data-agent-field="phase"]');
+    if (phase) phase.textContent = humanise(run.latest_phase);
+    const tools = row.querySelector('[data-agent-field="tools"]');
+    if (tools) tools.textContent = formatNumber(run.tool_call_count);
+  }
+
+  function scheduleAgentPoll(id, host, status, failures = 0) {
+    clearTimeout(state.pollTimer);
+    const delay = nextAgentPollDelay(status, failures, document.hidden);
+    if (delay === null) return;
+    const generation = generationGuard.current();
+    state.pollTimer = setTimeout(() => {
+      const current = parseRoute(location.hash);
+      if (generationGuard.isCurrent(generation) && current.route === "ai" && current.id === id) renderAgentTrace(id, host, failures);
+    }, delay);
+  }
+
+  function resumeAgentTrace(id) {
+    const host = [...view.querySelectorAll("[data-agent-trace]")].find((item) => item.dataset.agentTrace === id);
+    if (host) renderAgentTrace(id, host);
+    else renderAi(id);
+  }
+
+  return { renderAi, resumeAgentTrace };
 }
 
 function option(value, label) { const item = el("option", "", label); item.value = value; return item; }

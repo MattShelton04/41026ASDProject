@@ -16,6 +16,7 @@ COMPOSE_FILES = (
     "docker-compose.dev.yml",
 )
 FULL_DATA_COMPOSE_FILE = "docker-compose.full-data.yml"
+GPU_COMPOSE_FILE = "docker-compose.gpu.yml"
 PROFILES = ("release-0", "ollama-container", "integration-test")
 APPLICATION_SERVICES = (
     "propertyscope-shared-frontend",
@@ -33,7 +34,9 @@ BUILD_SERVICES = APPLICATION_SERVICES
 FULL_DATA_PROJECT_NAME = "41026-asd-propertyscope-full-data"
 
 
-def _compose_command(*arguments: str, full_data: bool = False) -> tuple[str, ...]:
+def _compose_command(
+    *arguments: str, full_data: bool = False, gpu: bool = False
+) -> tuple[str, ...]:
     command = ["docker", "compose"]
     if full_data:
         command.extend(("--project-name", FULL_DATA_PROJECT_NAME))
@@ -41,6 +44,8 @@ def _compose_command(*arguments: str, full_data: bool = False) -> tuple[str, ...
         command.extend(("--file", filename))
     if full_data:
         command.extend(("--file", FULL_DATA_COMPOSE_FILE))
+    if gpu:
+        command.extend(("--file", GPU_COMPOSE_FILE))
     profiles = (*PROFILES, "full-data") if full_data else PROFILES
     for profile in profiles:
         command.extend(("--profile", profile))
@@ -57,15 +62,45 @@ def _ensure_docker() -> None:
     _run(("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"))
 
 
-def _up(*, pull_model: bool, full_data: bool) -> None:
+def _nvidia_runtime_available() -> bool:
+    """Return whether this Docker daemon advertises the NVIDIA runtime."""
+    try:
+        completed = subprocess.run(
+            ("docker", "info", "--format", "{{json .Runtimes}}"),
+            cwd=REPOSITORY_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return False
+    return '"nvidia"' in completed.stdout.lower()
+
+
+def _up(*, pull_model: bool, full_data: bool, cpu_only: bool, require_gpu: bool) -> None:
     _ensure_docker()
+    nvidia_available = _nvidia_runtime_available()
+    if require_gpu and not nvidia_available:
+        raise RuntimeError(
+            "--gpu was requested, but Docker does not advertise the NVIDIA runtime. "
+            "Use --cpu-only or repair Docker GPU support."
+        )
+    gpu = not cpu_only and nvidia_available
+    print(f"Ollama acceleration: {'NVIDIA GPU' if gpu else 'CPU'}", flush=True)
     _run(
         _compose_command(
-            "up", "--detach", "--wait", "--wait-timeout", "120", "ollama", full_data=full_data
+            "up",
+            "--detach",
+            "--wait",
+            "--wait-timeout",
+            "120",
+            "ollama",
+            full_data=full_data,
+            gpu=gpu,
         )
     )
     if pull_model:
-        _run(_compose_command("run", "--rm", "ollama-init", full_data=full_data))
+        _run(_compose_command("run", "--rm", "ollama-init", full_data=full_data, gpu=gpu))
     _run(
         _compose_command(
             "up",
@@ -75,6 +110,7 @@ def _up(*, pull_model: bool, full_data: bool) -> None:
             "180",
             *APPLICATION_SERVICES,
             full_data=full_data,
+            gpu=gpu,
         )
     )
     print("\nIntegration console: http://localhost:5190")
@@ -123,6 +159,17 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip the idempotent Ollama model preparation step",
     )
+    acceleration = up.add_mutually_exclusive_group()
+    acceleration.add_argument(
+        "--cpu-only",
+        action="store_true",
+        help="Disable automatic NVIDIA acceleration for Ollama",
+    )
+    acceleration.add_argument(
+        "--gpu",
+        action="store_true",
+        help="Require NVIDIA acceleration and fail if Docker cannot provide it",
+    )
     add_full_data_option(up)
 
     rebuild = commands.add_parser(
@@ -167,7 +214,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
         if arguments.command == "up":
-            _up(pull_model=not arguments.skip_model_pull, full_data=arguments.full_data)
+            _up(
+                pull_model=not arguments.skip_model_pull,
+                full_data=arguments.full_data,
+                cpu_only=arguments.cpu_only,
+                require_gpu=arguments.gpu,
+            )
         elif arguments.command == "rebuild":
             _rebuild(arguments.services, full_data=arguments.full_data)
         elif arguments.command == "restart":
@@ -227,6 +279,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except subprocess.CalledProcessError as exc:
         print(f"Development command failed with exit code {exc.returncode}.", file=sys.stderr)
         return exc.returncode
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     return 0
 
 

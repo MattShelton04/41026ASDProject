@@ -2,7 +2,7 @@ import { API_BASE, newRequestId, requestJson } from "./core/api.js";
 import { append, el } from "./core/dom.js";
 import { humanise } from "./core/formats.js";
 import { parseJsonField } from "./core/forms.js";
-import { ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
+import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
 import { parseRoute } from "./core/router.js";
 import { waitForDialog } from "./components/dialogs.js";
 import { formField } from "./components/forms.js";
@@ -30,7 +30,7 @@ const toast = document.querySelector("#toast");
 const productHomeUrl = window.PROPERTYSCOPE_HOME_URL || "http://localhost:5100/";
 for (const item of document.querySelectorAll("[data-product-home]")) item.href = productHomeUrl;
 
-const state = { pollTimer: null, lastRunStatus: "", requests: new Map() };
+const state = { pollTimer: null, lastRunStatus: "", lastAgentStatus: "", requests: new Map() };
 const generationGuard = createGenerationGuard();
 
 function announce(message) {
@@ -167,7 +167,7 @@ const { renderRuns, renderRunDetail } = createRunRoutes({ view, request, mutate,
 const { renderProperties } = createPropertyRoutes({ view, request, announce });
 const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, mutate, showToast, rerender: renderRoute });
 const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request, loading, rerender: renderRoute });
-const { renderAi } = createAiDiagnosisRoutes({ view, request, loading, mutate, rerender: renderRoute });
+const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender: renderRoute });
 
 async function checkHealth() {
   try { await request("/health/ready", { timeoutMs: 4000 }); serviceState.className = "service-state online"; serviceState.lastElementChild.textContent = "Data service available"; }
@@ -175,7 +175,7 @@ async function checkHealth() {
 }
 
 async function renderRoute() {
-  generationGuard.next(); clearTimeout(state.pollTimer); state.lastRunStatus = "";
+  generationGuard.next(); clearTimeout(state.pollTimer); state.lastRunStatus = ""; state.lastAgentStatus = "";
   const { route, id } = parseRoute(location.hash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
   try {
     if (route === "overview") await renderOverview({ view, request });
@@ -196,6 +196,11 @@ navToggle.addEventListener("click", () => { const open = sidebar.classList.toggl
 sidebar.addEventListener("click", (event) => { if (event.target.closest("a")) closeNavigation(); });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && sidebar.classList.contains("open")) closeNavigation({ restoreFocus: true }); });
 window.addEventListener("hashchange", renderRoute);
-document.addEventListener("visibilitychange", () => { const current = parseRoute(location.hash); if (!document.hidden && current.route === "runs" && current.id && ACTIVE_RUN_STATES.has(state.lastRunStatus)) renderRunDetail(current.id, { polling: true }); });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  const current = parseRoute(location.hash);
+  if (current.route === "runs" && current.id && ACTIVE_RUN_STATES.has(state.lastRunStatus)) renderRunDetail(current.id, { polling: true });
+  else if (current.route === "ai" && current.id && ACTIVE_AGENT_STATES.has(state.lastAgentStatus)) resumeAgentTrace(current.id);
+});
 
 checkHealth(); renderRoute(); setInterval(checkHealth, 30000);
