@@ -5,6 +5,18 @@ microservices; AI mode with Ollama and an approved LLM; the shared
 Plan -> Act -> Observe -> Adapt loop; Docker Compose; student CI; local testing;
 and the first report and showcase evidence.
 
+The currently integrated shared/Feature 1 baseline includes:
+
+- the product-facing shared home, mobile navigation and address hand-off;
+- live shared system status with separate API, store and local-model readiness;
+- bounded accepted-data and durable agent-run evidence references;
+- an explicit implemented/enabled/planned capability roadmap;
+- complete Property records exploration and data-operations routes; and
+- durable failed-candidate diagnosis, human review and accepted-predecessor preservation.
+
+These shared views consume only public HTTP projections. Features 2–5 remain honest planned
+capabilities until their independently owned frontends, backends and stores are integrated.
+
 See [`ollama-operations.md`](ollama-operations.md) for the canonical Docker Desktop /
 Compose runtime, native developer alternative, routing, smoke test, and troubleshooting.
 Student owners should use [`feature-onboarding.md`](feature-onboarding.md) after their
@@ -22,3 +34,12 @@ decisions are specified in
 [`ai-mode-operations-interface-plan.md`](ai-mode-operations-interface-plan.md). It turns
 AI-mode's persisted run snapshots and cursor events into a bounded live operations view
 without introducing a second workflow store or a mandatory monitoring stack.
+
+Before capturing submission evidence, run:
+
+```text
+uv run python scripts/check.py
+uv run scripts/dev.py test
+node --test student-1/tests/frontend/*.test.mjs shared/frontend/*.test.mjs shared/frontend/operations/ai-mode/*.test.mjs
+docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --file docker-compose.dev.yml --profile release-0 --profile ollama-container --profile integration-test config --quiet
+```

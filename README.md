@@ -47,8 +47,8 @@ deployment.
 
 - `.github/workflows/`: executable integration CI plus student and cloud workflow placeholders
 - `docs/`: architecture, reports, and release-specific evidence
-- `shared/`: contracts, test utilities, operations assets, the eventual integrated
-  home-page location, and configuration templates
+- `shared/`: contracts, test utilities, the integrated product home/status/evidence surfaces,
+  shared agent activity, design assets, and configuration templates
 - `student-1/` to `student-5/`: individual feature workspaces
 - `ai-services/`: agent-core and AI-mode projects plus later-release service locations
 - `scripts/`: shared quality, build, test, and deployment automation
@@ -95,6 +95,10 @@ uv run scripts/dev.py up
 
 Then open the unified PropertyScope home at <http://localhost:5100>, Feature 1 at
 <http://localhost:5200>, or the non-product integration fixture at <http://localhost:5190>.
+The shared home also exposes live implemented-service status at
+<http://localhost:5100/#system-status>, bounded evidence references at
+<http://localhost:5100/#evidence>, and the honest deployment capability roadmap at
+<http://localhost:5100/#release-roadmap>.
 Python services reload when source changes and the frontends are
 bind-mounted, so normal source edits do not require an image rebuild. Use
 `uv run scripts/dev.py rebuild` after changing dependencies, `uv.lock`, or a Dockerfile;

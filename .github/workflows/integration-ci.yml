@@ -37,11 +37,19 @@ jobs:
       - name: Install Python
         run: uv python install
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Reproduce locked workspace
         run: uv sync --locked --all-packages --all-groups
 
       - name: Run quality gate
         run: uv run --locked python scripts/check.py
+
+      - name: Run shared and Feature 1 frontend behavior tests
+        run: node --test student-1/tests/frontend/*.test.mjs shared/frontend/*.test.mjs shared/frontend/operations/ai-mode/*.test.mjs
 
       - name: Validate integrated, GPU, and native-Ollama Compose models
         run: |

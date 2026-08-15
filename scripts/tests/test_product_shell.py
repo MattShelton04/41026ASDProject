@@ -44,6 +44,26 @@ def test_shared_home_routes_only_live_product_and_operator_surfaces() -> None:
     assert page.count("data-planned=") == 4
 
 
+def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -> None:
+    page = _read("shared/frontend/index.html")
+    script = _read("shared/frontend/app.js")
+    status = _read("shared/frontend/routes/status.js")
+    evidence = _read("shared/frontend/routes/evidence.js")
+    roadmap = _read("shared/frontend/routes/roadmap.js")
+    nginx = _read("shared/frontend/nginx.conf")
+
+    for route in ("system-status", "evidence", "release-roadmap"):
+        assert f'href="#{route}"' in page
+        assert route in script
+
+    assert "Shared operations" in status
+    assert "Accepted data references" in evidence
+    assert "Deployment capability manifest" in roadmap
+    assert "proxy_pass http://propertyscope-backend:5201" in nginx
+    assert "proxy_pass http://ai-mode:5005" in nginx
+    assert "database" not in evidence.lower()
+
+
 def test_property_data_and_agent_operations_link_back_to_product_home() -> None:
     feature_page = _read("student-1/frontend/index.html")
     operations_page = _read("shared/frontend/operations/ai-mode/index.html")

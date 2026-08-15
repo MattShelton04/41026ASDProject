@@ -7,23 +7,29 @@
     <meta name="description" content="PropertyScope NSW — evidence-first NSW property research">
     <title>PropertyScope NSW</title>
     <link rel="stylesheet" href="styles.css">
-    <script defer src="app.js"></script>
+    <script type="module" src="app.js"></script>
   </head>
   <body>
     <a class="ps-skip-link" href="#main-content">Skip to main content</a>
 
     <header class="topbar">
       <div class="ps-container topbar__inner">
-        <a class="brand" href="#top" aria-label="PropertyScope NSW home">
+        <a class="brand" href="#home" aria-label="PropertyScope NSW home" data-shell-route="home">
           <span class="brand__mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-8 4 8 4 8-4-8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg>
           </span>
           <span class="brand__copy"><strong>PropertyScope NSW</strong><span>Evidence-first property research</span></span>
         </a>
-        <nav class="topbar__nav" aria-label="Primary navigation">
+        <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">
+          <span class="ps-sr-only">Toggle navigation</span>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <nav class="topbar__nav" id="primary-navigation" aria-label="Primary navigation">
+          <a href="#home" data-shell-route="home">Home</a>
           <a data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Explore properties</a>
-          <a href="#research-areas">Research areas</a>
-          <a href="#operations">Operator tools</a>
+          <a href="#system-status" data-shell-route="system-status">Status</a>
+          <a href="#evidence" data-shell-route="evidence">Evidence</a>
+          <a href="#release-roadmap" data-shell-route="release-roadmap">Roadmap</a>
         </nav>
       </div>
     </header>
@@ -156,6 +162,7 @@
           <div class="ps-grid operations-grid">
             <article class="ps-card operation-card"><div class="ps-card__body"><div class="operation-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg></div><p class="ps-card__eyebrow">Property data service</p><h3>Data operations</h3><p>Manage registered sources and jobs, inspect runs, compare candidate and accepted data, and review quality, artifacts and coverage.</p><a class="ps-button" data-config-link="dataOperations" href="http://localhost:5200/#overview">Open data operations</a></div></article>
             <article class="ps-card operation-card"><div class="ps-card__body"><div class="operation-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5m0 7h5l2-4 3 8 2-4h4"/></svg></div><p class="ps-card__eyebrow">Shared platform service</p><h3>Agent activity</h3><p>Inspect durable planning, tool observations, failures and review gates for bounded automated work across participating services.</p><a class="ps-button" data-config-link="agentRuns" href="http://localhost:5005/operations/ai-mode/">Open agent activity</a></div></article>
+            <article class="ps-card operation-card"><div class="ps-card__body"><div class="operation-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 18V6m5 12V9m5 9v-6m5 6V4"/></svg></div><p class="ps-card__eyebrow">Shared platform overview</p><h3>Status and evidence</h3><p>Check implemented-service readiness, open accepted data and agent references, and understand which capabilities are deliberately gated.</p><div class="operation-card__links"><a class="ps-button" href="#system-status">View status</a><a class="ps-button ps-button--quiet" href="#evidence">Open evidence index</a></div></div></article>
           </div>
           <div class="disclaimer">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg>
@@ -168,9 +175,10 @@
     <footer class="footer">
       <div class="ps-container footer__inner">
         <div><strong>PropertyScope NSW</strong><p>Property evidence with visible sources, coverage and uncertainty.</p></div>
-        <p><a data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Explore properties</a> · <a href="#research-areas">Research areas</a> · <a href="#operations">Operator tools</a></p>
+        <p><a data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Explore properties</a> · <a href="#system-status">Status</a> · <a href="#evidence">Evidence</a> · <a href="#release-roadmap">Roadmap</a></p>
       </div>
     </footer>
     <div class="ps-toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="ps-sr-only" id="route-announcement" role="status" aria-live="polite"></div>
   </body>
 </html>
