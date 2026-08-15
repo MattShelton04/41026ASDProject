@@ -1,40 +1,58 @@
-# Shared frontend
+# Shared frontend and design system
 
-This directory owns domain-neutral browser assets for the unified entry point. It
-must not absorb student feature behavior or call feature databases directly.
+This directory owns only domain-neutral browser concerns for the integrated PropertyScope
+application: the unified entry point, navigation, release/capability labelling, common design
+tokens and shared interaction primitives. Feature-specific behavior remains inside the
+independently buildable `student-N/frontend/` services.
 
-The root page links to the approved PropertyScope Feature 1 browser surfaces and the shared
-AI-mode evidence interface. Other feature links remain absent until those slices are allocated
-and approved. The page contains navigation only; it does not proxy database access or embed
-feature business logic.
+## Files
 
-## AI-mode operations
+- `index.html` — unified entry point covering all five features and shared operational surfaces.
+- `app.js` — tiny configuration/search/planned-capability behavior; no domain data access.
+- `styles.css` — shell-specific composition.
+- `Dockerfile` and `nginx.conf` — unprivileged static shell container with health and security headers.
+- `design-system/tokens.css` — colour, typography, spacing, radius, shadow and evidence-state tokens.
+- `design-system/base.css` — reset, typography, focus, skip-link and reduced-motion foundations.
+- `design-system/components.css` — shared buttons, badges, cards, grids, search shell and toast.
+- `design-system/README.md` — adoption contract, import order, evidence vocabulary and ownership rules.
+- `design-system/CHANGELOG.md` — versioned record of shared visual/API changes.
+- `operations/ai-mode/` — existing read-only AI-mode run evidence interface, intentionally retained.
 
-`operations/ai-mode/` is the read-only Release 0 showcase and debugging interface for durable
-AI-mode runs. AI-mode currently serves these assets at `/operations/ai-mode/` only when
-`AI_MODE_OPERATIONS_ENABLED=true`; the future shared edge can proxy the same stable paths
-without changing the client. The browser calls only the versioned AI-mode HTTP API.
+## Runtime links
 
-The implementation intentionally uses accessible HTML, CSS, and small JavaScript modules
-instead of introducing a second application framework. It renders untrusted values with
-`textContent`, uses no inline script/style, stores only a run ID/cursor in session storage,
-and never stores objectives or tool evidence in browser storage.
-
-The workspace is viewport-constrained on desktop/laptop and uses a one-pane list/detail drill-in
-on mobile. Polling policy lives in `operations/ai-mode/polling.js`; the UI uses request
-timeouts, aborts, generation guards, adaptive index cadence, bounded event hydration, and local
-elapsed rendering between durable changes. Its dependency-free behavior tests use Node's
-built-in test runner, not a second browser automation stack:
+Defaults target the current local services:
 
 ```text
-node --test shared/frontend/operations/ai-mode/polling.test.mjs
+Property discovery  http://localhost:5200/#properties
+Data operations     http://localhost:5200/#overview
+Agent runs          http://localhost:5005/operations/ai-mode/
 ```
 
-Run the deterministic server and contract tests with:
+A future edge/container may override them before `app.js` loads:
 
-```text
-uv run pytest ai-services/ai-mode/tests shared/contracts/tests
+```html
+<script>
+  window.PROPERTYSCOPE_CONFIG = {
+    propertyDiscovery: "/features/data-platform/#properties",
+    dataOperations: "/features/data-platform/#overview",
+    agentRuns: "/operations/ai-mode/",
+    prototype: "/docs/prototype/propertyscope-v2/standalone.html"
+  };
+</script>
 ```
 
-The repository has not selected its common browser E2E stack. Add dashboard browser tests to
-that one shared stack when it is chosen; do not introduce both Playwright and Cypress.
+The shell deliberately labels Features 2–5 and release-gated AI capabilities as planned. It does
+not infer service health from a static page or claim future functionality is running.
+
+## Optional local shared-shell container
+
+The redesign pack also supplies `docker-compose.shared-shell.yml` at the repository root. After
+the main Release 0 profile has created the shared network, run:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.shared-shell.yml --profile release-0 up --build -d
+```
+
+Open `http://localhost:5100`. This sidecar overlay deliberately does not edit the team's primary
+`docker-compose.yml`; merge it into the main topology only after the team agrees on the final edge
+routing and same-origin proxy paths.
