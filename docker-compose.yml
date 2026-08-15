@@ -1,6 +1,23 @@
 name: 41026-asd-project
 
 services:
+  propertyscope-shared-frontend:
+    profiles: [release-0]
+    build:
+      context: .
+      dockerfile: shared/frontend/Dockerfile
+    image: 41026-asd/propertyscope-shared-frontend:dev
+    init: true
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:${PROPERTYSCOPE_SHARED_PORT:-5100}:8080
+    networks: [shared_platform]
+    healthcheck:
+      test: [CMD, wget, --quiet, --tries=1, --spider, http://127.0.0.1:8080/healthz]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   ai-mode:
     profiles: [release-0]
     build:

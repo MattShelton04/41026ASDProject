@@ -51,7 +51,7 @@ jobs:
           docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test config --quiet
 
   container:
-    name: Build AI-mode container
+    name: Build shared Release 0 containers
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -59,8 +59,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Build the locked non-root AI-mode image
-        run: docker compose --profile release-0 build ai-mode
+      - name: Build the locked non-root shared images
+        run: docker compose --profile release-0 build ai-mode propertyscope-shared-frontend
 
   ollama-smoke:
     name: Optional real Ollama diagnostic

@@ -1,4 +1,9 @@
 services:
+  propertyscope-shared-frontend:
+    volumes:
+      - ./shared/frontend:/usr/share/nginx/html:ro
+      - ./shared/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
   ai-mode:
     command:
       - gunicorn
@@ -83,4 +88,5 @@ services:
   propertyscope-frontend:
     volumes:
       - ./student-1/frontend:/usr/share/nginx/html:ro
+      - ./shared/frontend/design-system:/usr/share/nginx/html/design-system:ro
       - ./student-1/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro

@@ -18,6 +18,7 @@ COMPOSE_FILES = (
 FULL_DATA_COMPOSE_FILE = "docker-compose.full-data.yml"
 PROFILES = ("release-0", "ollama-container", "integration-test")
 APPLICATION_SERVICES = (
+    "propertyscope-shared-frontend",
     "ai-mode",
     "integration-test-feature-database",
     "integration-test-feature-backend",
@@ -78,6 +79,7 @@ def _up(*, pull_model: bool, full_data: bool) -> None:
     )
     print("\nIntegration console: http://localhost:5190")
     print("AI-mode health:     http://localhost:5005/health/ready")
+    print("PropertyScope home: http://localhost:5100")
     print("PropertyScope:      http://localhost:5200")
     if full_data:
         print("Full-data mode:     enabled in an isolated Compose project")

@@ -5,6 +5,7 @@ on:
     paths:
       - "student-1/**"
       - "shared/contracts/**"
+      - "shared/frontend/**"
       - "scripts/**"
       - "docker-compose*.yml"
       - "pyproject.toml"
@@ -14,6 +15,7 @@ on:
     paths:
       - "student-1/**"
       - "shared/contracts/**"
+      - "shared/frontend/**"
       - "scripts/**"
       - "docker-compose*.yml"
       - "pyproject.toml"
@@ -72,12 +74,13 @@ jobs:
           docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --file docker-compose.dev.yml --file docker-compose.full-data.yml --profile release-0 --profile integration-test --profile full-data config --quiet
       - name: Build Feature 1 targets
         run: |
-          docker compose --profile release-0 build propertyscope-database-api propertyscope-database-loader propertyscope-backend propertyscope-runner propertyscope-frontend
+          docker compose --profile release-0 build propertyscope-shared-frontend propertyscope-database-api propertyscope-database-loader propertyscope-backend propertyscope-runner propertyscope-frontend
       - name: Start bounded fixture stack
         run: |
-          docker compose --profile release-0 up --detach --wait --wait-timeout 180 propertyscope-database-api propertyscope-database-loader propertyscope-backend propertyscope-runner propertyscope-frontend
+          docker compose --profile release-0 up --detach --wait --wait-timeout 180 propertyscope-shared-frontend propertyscope-database-api propertyscope-database-loader propertyscope-backend propertyscope-runner propertyscope-frontend
       - name: Verify browser and service health
         run: |
+          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/
           curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5200/
           curl --fail --retry 10 --retry-all-errors 'http://127.0.0.1:5200/api/data-platform/v1/properties/search?q=Example&state=NSW&limit=10'
           docker compose exec -T propertyscope-database-api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5202/health/ready', timeout=2)"

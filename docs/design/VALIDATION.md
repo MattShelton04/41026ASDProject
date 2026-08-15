@@ -64,7 +64,7 @@ The validator checks:
 - presence of every route in the single-file offline prototype;
 - all local Markdown links in the pack; and
 - required overlay, design-system, prototype, script and storyboard deliverables; and
-- syntax/shape of the optional shared-shell Compose sidecar.
+- syntax/shape of the shared-shell Compose service definition supplied by the redesign pack.
 
 **Result: pass.** The exact output is retained at `scripts/validation-output.txt`.
 
@@ -185,7 +185,7 @@ complete. The JavaScript portion and dependency-light Python subsets were still 
 
 Docker is not installed, so the following were not proven in this environment:
 
-- Compose configuration merge/build execution, including the optional shared-shell sidecar;
+- Compose configuration merge/build execution, including the shared-shell service;
 - Flask service startup and health endpoints;
 - PostgreSQL/PostGIS migrations and persistence;
 - frontend-to-backend-to-database calls;

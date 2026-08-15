@@ -36,12 +36,14 @@ from shared_contracts.agent import Identifier
 
 ALLOWED_QUERY_PARAMETERS = frozenset({"status", "feature_key", "model_profile", "cursor", "limit"})
 ALLOWED_ASSETS = frozenset({"app.js", "polling.js", "styles.css"})
+ALLOWED_DESIGN_SYSTEM_ASSETS = frozenset({"tokens.css"})
 IDENTIFIER_ADAPTER = TypeAdapter(Identifier)
 
 
 def create_operations_blueprint(assets_path: Path) -> Blueprint:
     """Create the interface only after its feature flag and assets are validated."""
     blueprint = Blueprint("ai_mode_operations", __name__)
+    design_system_path = assets_path.parent.parent / "design-system"
 
     @blueprint.get("/api/v1/agent-runs")
     def list_agent_runs() -> tuple[Response, int]:
@@ -121,6 +123,14 @@ def create_operations_blueprint(assets_path: Path) -> Blueprint:
         if filename not in ALLOWED_ASSETS:
             abort(404)
         response = send_from_directory(assets_path, filename)
+        response.headers["Cache-Control"] = "public, max-age=300"
+        return _secure_static_response(response)
+
+    @blueprint.get("/operations/ai-mode/design-system/<path:filename>")
+    def dashboard_design_system_asset(filename: str) -> Response:
+        if filename not in ALLOWED_DESIGN_SYSTEM_ASSETS:
+            abort(404)
+        response = send_from_directory(design_system_path, filename)
         response.headers["Cache-Control"] = "public, max-age=300"
         return _secure_static_response(response)
 

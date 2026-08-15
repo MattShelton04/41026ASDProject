@@ -1,21 +1,22 @@
 :root {
-  --bg: #08100f;
-  --surface: #0d1715;
-  --surface-raised: #121e1b;
-  --surface-hover: #172723;
-  --line: #263934;
-  --line-strong: #3d5a52;
-  --text: #e8f0ed;
-  --muted: #96aaa4;
-  --subtle: #71857f;
-  --accent: #65d6b3;
-  --blue: #7dc4e4;
+  /* Dark operational composition sourced from the shared PropertyScope token palette. */
+  --bg: var(--ps-ink-950);
+  --surface: var(--ps-ink-900);
+  --surface-raised: var(--ps-ink-800);
+  --surface-hover: var(--ps-ink-700);
+  --line: rgb(186 199 201 / 24%);
+  --line-strong: rgb(186 199 201 / 42%);
+  --text: var(--ps-ink-50);
+  --muted: var(--ps-ink-300);
+  --subtle: var(--ps-ink-400);
+  --accent: var(--ps-ocean-300);
+  --blue: #8bc6e8;
   --amber: #e8c775;
   --red: #ef9292;
-  --purple: #b6a2e2;
-  --radius: 8px;
+  --purple: #c5b4e8;
+  --radius: var(--ps-radius-sm);
   --topbar-height: 64px;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--ps-font-sans);
   color-scheme: dark;
 }
 

@@ -109,3 +109,14 @@ diagnosis history in AI-mode's own database. It never reads PropertyScope Postgr
 Formal tutor/team approval evidence for the ADR-016 PostgreSQL/PostGIS exception still needs to be
 linked before final submission; the implementation and executable architecture checks do not
 invent that governance evidence.
+
+## Frontend structure
+
+The production browser remains framework-free and calls only the Feature 1 backend. Cross-cutting
+behavior is split under `frontend/core/` (API/Problem Details, routing, formatting/evidence,
+forms and polling guards), reusable DOM primitives live under `frontend/components/`, and migrated
+screens live under `frontend/routes/`. Overview, sources/jobs, run planning and runs/run detail are
+route-owned; `app.js` remains the transition composition root for releases, evidence, discovery and
+AI diagnosis until those routes move in the same behavior-preserving sequence. The independently
+built frontend image copies shared design-system v0.1 assets, while the development overlay mounts
+the same source files for reload.

@@ -30,6 +30,8 @@ def test_up_prepares_model_and_starts_complete_stack(
     assert captured_commands[3][-len(dev.APPLICATION_SERVICES) :] == dev.APPLICATION_SERVICES
     for filename in dev.COMPOSE_FILES:
         assert filename in captured_commands[3]
+    assert "propertyscope-shared-frontend" in captured_commands[3]
+    assert "docker-compose.shared-shell.yml" not in dev.COMPOSE_FILES
 
 
 def test_up_can_skip_already_prepared_model(

@@ -84,7 +84,8 @@ create/read/cancel/review surface. Its default feature-tool registry remains emp
 approved feature backends publish their allowlisted tool contracts.
 
 The development command composes `docker-compose.yml`, `docker-compose.integration-test.yml`,
-and `docker-compose.dev.yml`. The final overlay bind-mounts source and enables Gunicorn reload
+and `docker-compose.dev.yml`. The root model includes the independently built shared shell, and the
+final overlay bind-mounts frontend/source files and enables Gunicorn reload
 for a short edit-refresh loop while retaining the same service-to-service HTTP and exclusive
 database-ownership boundaries used by the production-like stack. PropertyScope source-scale
 work requires the explicit `--full-data` option. It adds `docker-compose.full-data.yml` under

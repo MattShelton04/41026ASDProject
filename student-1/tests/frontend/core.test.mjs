@@ -6,6 +6,7 @@ import {
   ApiError,
   actionAvailability,
   collection,
+  createGenerationGuard,
   coverageRows,
   entity,
   formatBytes,
@@ -19,6 +20,8 @@ import {
   releaseComparison,
   reportReleaseRows,
   requestJson,
+  parseRoute,
+  routeQuery,
   stateLabel,
 } from "../../frontend/core.js";
 
@@ -100,6 +103,12 @@ test("query construction excludes empty values and remains encoded", () => {
   assert.equal(queryString({ q: "1 Farrer Place", state: "NSW", status: "" }), "?q=1+Farrer+Place&state=NSW");
 });
 
+test("hash routing is isolated, bounded, and preserves encoded query values", () => {
+  assert.deepEqual(parseRoute("#runs/run%201"), { route: "runs", id: "run 1", action: "" });
+  assert.deepEqual(parseRoute("#not-a-route"), { route: "overview", id: "", action: "" });
+  assert.equal(routeQuery("#sources?q=crime+data&status=active").get("q"), "crime data");
+});
+
 test("JSON form fields reject arrays and invalid input", () => {
   assert.deepEqual(parseJsonField('{"locality":"Sydney"}', "Scope"), { locality: "Sydney" });
   assert.deepEqual(parseJsonField("", "Scope"), {});
@@ -134,6 +143,15 @@ test("polling stops for terminal states and backs off when hidden", () => {
   assert.equal(nextPollDelay("running", 0, true), 10000);
   assert.equal(nextPollDelay("succeeded"), null);
   assert.equal(nextPollDelay("failed"), null);
+});
+
+test("generation guards reject late route and polling work", () => {
+  const guard = createGenerationGuard();
+  const first = guard.next();
+  assert.equal(guard.isCurrent(first), true);
+  guard.next();
+  assert.equal(guard.isCurrent(first), false);
+  assert.equal(guard.current(), 2);
 });
 
 test("the application shell exposes keyboard landmarks, live status and native dialogs", async () => {
@@ -211,7 +229,13 @@ test("release details render bounded paginated dataset records", async () => {
 });
 
 test("operator UI exposes working submit controls, backfills and durable histories", async () => {
-  const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  const source = [
+    await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
+    await readFile(new URL("../../frontend/components/forms.js", import.meta.url), "utf8"),
+    await readFile(new URL("../../frontend/routes/entities.js", import.meta.url), "utf8"),
+    await readFile(new URL("../../frontend/routes/run-plan.js", import.meta.url), "utf8"),
+    await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8"),
+  ].join("\n");
   assert.match(source, /search\.type = "submit"/);
   assert.match(source, /apply\.type = "submit"/);
   assert.match(source, /button\("Run now"/);
@@ -221,8 +245,21 @@ test("operator UI exposes working submit controls, backfills and durable histori
   assert.match(source, /link\("Run history"/);
 });
 
+test("production frontend imports focused core and component modules", async () => {
+  const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  for (const modulePath of [
+    "./core/api.js", "./core/dom.js", "./core/formats.js", "./core/forms.js",
+    "./core/polling.js", "./core/router.js", "./components/forms.js",
+    "./components/layout.js", "./components/states.js", "./components/tables.js",
+  ]) assert.match(source, new RegExp(modulePath.replaceAll(".", "\\.")));
+  assert.doesNotMatch(source, /from "\.\/core\.js"/);
+});
+
 test("live acquisition controls use truthful runtime capability evidence", async () => {
-  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  const app = [
+    await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
+    await readFile(new URL("../../frontend/routes/run-plan.js", import.meta.url), "utf8"),
+  ].join("\n");
   assert.match(app, /request\("runtime-capabilities"\)/);
   assert.match(app, /requires --full-data/);
   assert.match(app, /implemented_live_profiles/);

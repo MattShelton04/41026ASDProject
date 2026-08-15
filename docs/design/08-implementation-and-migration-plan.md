@@ -14,6 +14,16 @@ Use a **strangler-style selective redesign**:
 Do not combine a visual redesign, backend contract rewrite, database migration and framework change in
 one pull request.
 
+### Implementation checkpoint — 15 August 2026
+
+- The shared shell now participates in the canonical root Compose and `scripts/dev.py` workflow as
+  an independently built service; the temporary manual sidecar overlay has been retired.
+- Feature 1 consumes shared design-system v0.1 assets and has extracted API, routing, formatting,
+  forms, polling/generation guards, DOM/component primitives, Overview, Sources/Jobs, run planning,
+  and Runs into focused modules without changing its backend contracts.
+- Release/evidence/discovery/AI route extraction remains the next move-then-improve sequence; do not
+  reintroduce cross-cutting behavior into `app.js` while completing it.
+
 ## 2. Repository branch strategy
 
 Recommended branch/PR sequence:
