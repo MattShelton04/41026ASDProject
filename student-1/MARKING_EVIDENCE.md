@@ -15,7 +15,7 @@ intentional: the system does not publish new product data without human review.
 | --- | --- | --- | --- |
 | NSW government schools | 2,210 of 2,210 source rows accepted, zero rejected. Example: school `1001`, Abbotsford Public School, open primary school, Canada Bay, point `151.131206,-33.852728`. | One registered CSV; 25 MB; 5,000 rows; 300 seconds. The current 1,277,226-byte source fits and the run captures the complete file. | Run `7b29bd18-f37d-4395-9acc-8ccbdf4a1c29`; release `21adaaec-a39d-499e-b381-be9883e807fc`; SHA-256 `90d31de45fd8ba586d1e5d35d8776657b774d5fc677e89fcc033bc307a727375`; 4.85 seconds. |
 | BOCSAR postcode crime | 6,827 canonical rows accepted, zero rejected: 6,641 non-zero observations and 186 explicit coverage rows. Example: postcode `2000`, Abduction and kidnapping, February 2021, count 1; the source declares 60 observed months from January 2021 to December 2025 and blanks mean observed zero. | Registered postcode or suburb ZIP; 50 MB; 100,000 parsed wide rows; 50,000 canonical rows per run; 900 seconds. Evidence scope was postcodes `2000`, `2007`, `2010`, January 2021–December 2026. | Run `d8e8593a-4ece-485a-8532-68fe9eb13b68`; release `adda5962-5869-4288-b7d4-49c81bdca35f`; SHA-256 `ed95068d5953fc14a169641b702ad1d9ba9eafc400a03eb15d2480d8e863eb62`; 4.46 seconds. |
-| NSW Valuer General PSI sales | The complete parser finds **230,480 unique rows** in the official 2025 annual archive; the former 50,000 run was therefore truncated and is retained only as defect evidence. The official 10 August 2026 weekly archive contains 2,964 unique rows; example key `001:2962123:1`. | Complete mode resolves annual partitions 1990–previous year plus every Monday archive in the current year. Explicit subsets are also supported. Canonical NDJSON and database COPY stream without a record cap; 750 MB archive/expansion guards, a 20 GB artifact capacity and 100 million-row capacity fail instead of returning partial success. Annual/weekly retransmissions use stable natural-key uniqueness; pre-2001 canonical row hashes provide stable identity. | Direct parser measurement on 15 August 2026: 2025 ZIP 15,425,614 bytes, 230,480 rows/keys, source SHA-256 `6368968e1a9d509b8224d747fb6c76d852d4da9a7ac8afd2bca0bbb8a4aaaa87`; weekly ZIP 213,986 bytes, 2,964 rows/keys. A fresh source-scale run is recorded after rebuilt-stack verification below. |
+| NSW Valuer General PSI sales | **6,667,588 unique sales accepted** from 7,079,728 parsed rows across every official annual archive (1990–2025) and all 32 current-year weekly archives through 10 August 2026. The 412,140 retransmissions (5.82%) were deduplicated and zero rows were rejected. The complete 2025 annual partition alone contains 230,480 rows; weekly 10 August contains 2,964, including key `001:2962123:1`. | Complete mode resolves annual partitions 1990–previous year plus every Monday archive in the current year. Explicit annual or weekly jobs remain available. Canonical NDJSON and database COPY stream without a truncation setting; 750 MB per-archive expansion guards, a 20 GB artifact capacity and 100 million-row capacity abort corrupt/unsafe work atomically. Stable natural keys collapse annual/weekly retransmissions, and legacy row hashes preserve pre/current-format identity. | Complete run `c4bdc07b-abbd-4fc5-baba-3ad2f643044a`; candidate release `005622b4-104c-4555-8226-497cddf91430`; two passing blocking checks; 19m14s. Its 2,893,661,012-byte canonical artifact has SHA-256 `6954720f21055df0bdd0e55e47a27a4c9d3491df1079b5bfb26f96b3dae0d748`. Cached reprocess `e0edd96f-afa8-4138-a222-c4f152a60122` skipped acquisition and reproduced exactly 7,079,728 staged / 6,667,588 accepted in candidate `f0728fdd-8fa7-403a-98e4-de53179b40fb`. The 68 ZIP-verified source archives total 405,050,795 compressed bytes. |
 | Geoscape G-NAF NSW addresses | 5,000 rows accepted, zero rejected, reaching the selected UI bound. Example: PID `GANSW711351856`, 20 Heysen Street, Abbotsbury NSW 2176, current `GG` geocode, declared EPSG:4283 transformed to point `150.86966825,-33.86735306`. | UI selection 1–50,000 addresses; source job maximum 2.5 GB, 6.5 million parsed rows and 24 hours. Evidence used the official February 2026 GDA94 archive (1,700,877,251 bytes); without a cache, discovery selects the latest registered Data.gov.au PSV resource. | Run `5329239a-34e8-44ca-baf4-88c171625b03`; release `4f2361b6-abea-4b9a-a09c-425497491528`; SHA-256 `2ae01855dba886e03c0834d791c7381503023beb5afa0339a8c06cc503096469`; 4 minutes 38 seconds including archive verification and parsing. Source SHA-256 `52786da19fb2e0a9c2b13446763434fec7db107de27bc81a40b5984eaf78c426`. |
 | Deterministic property fixture | Exactly 10 stable `fixture-001`…`fixture-010` records per run. This is the offline critical path and minimum-ten-record marking fixture, not a substitute for any requested official source. | No network; 50 MB/100,000 registered safety limits; the implementation emits exactly 10 deterministic rows. | Covered by unit, component, integration and frontend tests in the canonical quality gate. |
 
@@ -32,6 +32,10 @@ Start the isolated official-source environment with:
 uv run scripts/dev.py up --full-data
 ```
 
+For a from-scratch PSI history before startup, run `uv run scripts/dev.py sync-psi --all`. The
+host-side synchroniser validates every official ZIP and writes atomically to the read-only app cache;
+this avoids the publisher's Cloudflare challenge for Linux container TLS fingerprints.
+
 Schools and BOCSAR stream their registered HTTPS resources directly. G-NAF discovers the current
 Data.gov.au CKAN resource and streams it, or verifies and uses
 `.propertyscope-source-cache/gnaf.zip` when repeated 1.7 GB downloads are undesirable. PSI annual
@@ -40,11 +44,11 @@ years, mounts the directory read-only, advertises only those years, and the API 
 year before creating work.
 
 The cache requirement is an evidenced upstream limitation, not synthetic fallback. On 15 August
-2026, both host and Docker requests to the registered Valuer General yearly URL returned HTTP 403
-from Cloudflare, and the replacement portal returned HTTP 500. The official 2025 archive retained
-from the earlier prototype was therefore checksum-verified and used unchanged. Source URLs remain
-in the run evidence. If the publisher transport becomes available again, the runner's registered
-network path remains implemented and tested.
+2026, ordinary requests from the Linux runner received a Cloudflare 403 challenge. The supported
+host synchroniser acquired all 68 registered archives using validated bounded Range responses,
+ZIP-tested each file and atomically installed 405,050,795 bytes into the read-only cache. Source
+URLs and checksums remain in run evidence; the runner's direct registered network path is also
+implemented and deterministically tested.
 
 All downloads are allowlisted HTTPS, redirect-restricted, byte-bounded, serial and checksummed.
 Parsing is deterministic. Source, network, clock and filesystem boundaries are injected or
@@ -91,6 +95,14 @@ overlay automatically, with explicit `--cpu-only` and `--gpu` controls.
 - Live PSI silently stopped at 50,000 rows, while the loader separately rejected more than 100,000
   JSON rows and the runner limited canonical artifacts to 50 MB. Complete annual/weekly acquisition
   now streams canonical NDJSON into PostgreSQL COPY, and stable keys collapse retransmissions.
+- The 2008 archive legitimately contains 6,662 direct DAT members, above the original 5,000-member
+  corruption guard. Source-wide ZIP and expansion checks now admit the documented archive shape.
+- The official 2001 yearly archive contains legacy-layout `ARCHIVE` rows even though current weekly
+  layout also begins in 2001. Per-record layout detection recovered 911 real sales previously
+  collapsed by misread keys; the exact source row is retained as a regression test.
+- Source-scale loader failures originally exposed only a safe public error. Internal structured
+  tracebacks now identify the exact row/field while public responses remain non-sensitive, and
+  transient control-plane disconnects are retried without abandoning durable database work.
 
 ## Marking alignment
 

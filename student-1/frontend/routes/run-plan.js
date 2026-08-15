@@ -73,6 +73,17 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
       append(lastLabel, lastYear, el("small", "field-help", "Complete mode uses annual archives from 1990 through last year, then every published Monday archive in the current year."));
       append(scopeFields, lastLabel);
       append(wrapper, scopeFields);
+      const syncPsiMode = () => {
+        const complete = scopeProfile.value === "full-data";
+        firstYear.disabled = complete;
+        lastYear.disabled = complete;
+        if (complete) {
+          firstYear.value = "1990";
+          lastYear.value = String(currentYear - 1);
+        }
+      };
+      scopeProfile.addEventListener("change", syncPsiMode);
+      syncPsiMode();
     }
     if (gnaf) {
       const limitLabel = el("label", "field");
@@ -89,8 +100,8 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
     }
 
     const advanced = el("details", "technical scope-editor");
-    const scope = el("textarea"); scope.value = JSON.stringify(job.scope_json || {}, null, 2); scope.setAttribute("aria-label", "Advanced bounded scope JSON");
-    append(advanced, el("summary", "", "Advanced scope JSON"), el("p", "", "Safe registered overrides only. PSI year controls above take precedence."), scope);
+    const scope = el("textarea"); scope.value = JSON.stringify(job.scope_json || {}, null, 2); scope.setAttribute("aria-label", "Advanced partition JSON");
+    append(advanced, el("summary", "", "Advanced partition JSON"), el("p", "", "Registered partition overrides only. Complete PSI mode always selects all annual and current weekly partitions."), scope);
     append(wrapper, advanced);
     const requestedScope = () => {
       const value = parseJsonField(scope.value, "Scope");

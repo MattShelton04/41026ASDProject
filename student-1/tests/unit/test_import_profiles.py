@@ -227,3 +227,29 @@ def test_source_scale_ndjson_validation_streams_without_a_row_limit() -> None:
     )
 
     assert sum(1 for _ in iter_ndjson_import(lines, profile="psi-sales")) == 100_001
+
+
+@pytest.mark.parametrize("area_unit", ["", "   ", None])
+def test_psi_optional_text_normalises_official_blank_values(area_unit: object) -> None:
+    record: dict[str, object] = {
+        "source_business_key": "001:P1:1",
+        "source_revision": 1,
+        "source_era": "post-2001",
+        "district_code": "001",
+        "property_id": "P1",
+        "dealing_id": "D1",
+        "contract_date": "2025-01-01",
+        "settlement_date": "2025-02-01",
+        "price_aud": 900000,
+        "area_original": "500",
+        "area_unit": area_unit,
+        "area_square_metres": "500",
+        "property_ref": None,
+        "match_tier": "MISS",
+        "match_confidence": "0",
+        "geographic_precision": "unmatched",
+    }
+
+    prepared = prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
+
+    assert prepared.rows[0]["area_unit"] is None

@@ -100,7 +100,7 @@ def parse_psi_archive(
     *,
     source_year: int,
     maximum_records: int | None = None,
-    maximum_members: int = 5000,
+    maximum_members: int = 100_000,
     maximum_uncompressed_bytes: int = 750_000_000,
 ) -> tuple[PsiSale, ...]:
     """Parse a registered annual PSI archive across its historical format eras."""
@@ -122,7 +122,7 @@ def iter_psi_archive(
     *,
     source_year: int,
     maximum_records: int | None = None,
-    maximum_members: int = 5000,
+    maximum_members: int = 100_000,
     maximum_uncompressed_bytes: int = 750_000_000,
 ) -> Iterator[PsiSale]:
     """Yield every unique sale in an annual or standalone weekly PSI archive.
@@ -206,7 +206,12 @@ def _b_records(raw: bytes) -> Iterator[tuple[str, ...]]:
 
 def _parse_source_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiSale | None:
     padded = fields + ("",) * max(0, 25 - len(fields))
-    if source_year < 2001:
+    # The official 2001 annual archive contains legacy ARCHIVE/VALNET rows even
+    # though current-format weekly publication also begins in 2001. Detect the
+    # wire layout per record: legacy rows carry DD/MM/YYYY at [10], where the
+    # current layout carries a postcode. Property IDs are not assumed numeric.
+    legacy_layout = source_year < 2001 or "/" in padded[10]
+    if legacy_layout:
         district, property_id = padded[1], padded[4]
         if not district and not property_id:
             return None

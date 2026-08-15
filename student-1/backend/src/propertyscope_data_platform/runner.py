@@ -125,6 +125,7 @@ class AcquisitionRunner:
             )
             result.raise_for_status()
         except Exception as exc:
+            logger.exception("Run task %s (%s) failed", task_id, task.get("stage"))
             safe_code = (
                 "quality_gate_failed"
                 if str(task.get("stage")) == "quality"
@@ -326,14 +327,17 @@ class AcquisitionRunner:
             if cached is not None:
                 source["cache_key"] = f"psi/{year}.zip"
             objects.append(source)
-        objects.extend(
-            _source_object(
+        for week in _psi_weeks(scope):
+            source = _source_object(
                 f"psi-week-{week.isoformat()}",
                 PSI_WEEKLY_URL.format(date=week.strftime("%Y%m%d")),
                 "application/zip",
             )
-            for week in _psi_weeks(scope)
-        )
+            cached_week = self._psi_week_archive(week)
+            source["cached"] = cached_week is not None
+            if cached_week is not None:
+                source["cache_key"] = f"psi/weekly/{week.strftime('%Y%m%d')}.zip"
+            objects.append(source)
         return objects
 
     def _live_bocsar(
@@ -433,7 +437,7 @@ class AcquisitionRunner:
             (
                 week.year,
                 PSI_WEEKLY_URL.format(date=week.strftime("%Y%m%d")),
-                None,
+                self._psi_week_archive(week),
             )
             for week in _psi_weeks(scope)
         )
@@ -463,6 +467,13 @@ class AcquisitionRunner:
         if root is None:
             return None
         candidate = root / f"{year}.zip"
+        return candidate if candidate.is_file() else None
+
+    def _psi_week_archive(self, week: date) -> Path | None:
+        root = self.settings.psi_archive_root
+        if root is None:
+            return None
+        candidate = root / "weekly" / f"{week.strftime('%Y%m%d')}.zip"
         return candidate if candidate.is_file() else None
 
     def _live_gnaf(
@@ -646,7 +657,7 @@ class AcquisitionRunner:
         chunks: list[bytes] = []
         offset = 0
         expected_total: int | None = None
-        chunk_size = 256 * 1024
+        chunk_size = 4 * 1024 * 1024
         while expected_total is None or offset < expected_total:
             end = min(offset + chunk_size - 1, maximum_bytes - 1)
             response: httpx.Response | None = None
@@ -683,7 +694,8 @@ class AcquisitionRunner:
         return b"".join(chunks)
 
     def _execute_import(self, task: dict[str, Any]) -> tuple[int, int]:
-        response = self.client.post(
+        response = self._control_request(
+            "POST",
             f"{self.settings.backend_url}/internal/data-platform/v1/worker/runs/"
             f"{task['ingestion_run_id']}/imports",
             headers=self._headers(),
@@ -697,7 +709,8 @@ class AcquisitionRunner:
                 raise RuntimeError("Registered import did not complete inside the task deadline")
             self.stop_event.wait(min(self.settings.poll_seconds, 1.0))
             self._heartbeat(str(task["id"]), str(task["lease_token"]))
-            response = self.client.get(
+            response = self._control_request(
+                "GET",
                 f"{self.settings.backend_url}/internal/data-platform/v1/worker/imports/"
                 f"{operation['id']}",
                 headers=self._headers(),
@@ -709,7 +722,8 @@ class AcquisitionRunner:
         return int(operation["rows_in"]), int(operation["rows_accepted"])
 
     def _heartbeat(self, task_id: str, lease_token: str) -> None:
-        response = self.client.post(
+        response = self._control_request(
+            "POST",
             f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task_id}/heartbeat",
             headers=self._headers(),
             json={
@@ -719,6 +733,17 @@ class AcquisitionRunner:
             },
         )
         response.raise_for_status()
+
+    def _control_request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        """Retry brief control-plane disconnects without losing durable work."""
+        for attempt in range(5):
+            try:
+                return self.client.request(method, url, **kwargs)
+            except httpx.TransportError:
+                if attempt == 4:
+                    raise
+                self.stop_event.wait(min(2**attempt, 5))
+        raise AssertionError("unreachable")
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -744,6 +769,8 @@ def _psi_years(scope: dict[str, object]) -> list[int]:
     if scope.get("all_history") is True:
         return list(range(1990, datetime.now(UTC).year))
     years = scope.get("years")
+    if years is None and isinstance(scope.get("weeks"), list) and scope.get("weeks"):
+        return []
     if not isinstance(years, list) or any(not isinstance(year, int) for year in years):
         raise RuntimeError("PSI live scope requires integer source years or all_history")
     return years

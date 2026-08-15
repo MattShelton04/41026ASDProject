@@ -24,6 +24,7 @@ def create_app(
     full_data_enabled: bool | None = None,
     psi_transport_enabled: bool | None = None,
     psi_cached_years: tuple[int, ...] | None = None,
+    psi_cached_weeks: tuple[str, ...] | None = None,
 ) -> Flask:
     """Create the credential-free Feature 1 backend."""
     store = store_client or DataStoreClient(
@@ -73,6 +74,19 @@ def create_app(
         if psi_cached_years is None
         else psi_cached_years
     )
+    cached_weeks = (
+        tuple(
+            sorted(
+                {
+                    value.strip()
+                    for value in os.environ.get("PROPERTYSCOPE_PSI_CACHED_WEEKS", "").split(",")
+                    if value.strip()
+                }
+            )
+        )
+        if psi_cached_weeks is None
+        else psi_cached_weeks
+    )
     app.register_blueprint(
         create_blueprint(
             store,
@@ -84,6 +98,7 @@ def create_app(
             full_data_enabled=live_runtime,
             psi_transport_enabled=psi_transport,
             psi_cached_years=cached_years,
+            psi_cached_weeks=cached_weeks,
         )
     )
     worker_token = os.environ.get("PROPERTYSCOPE_RUNNER_TOKEN", "local-runner-only")

@@ -73,6 +73,7 @@ volumes are preserved.
 Real acquisition is isolated in a separate Compose project and PostgreSQL volume:
 
 ```text
+uv run scripts/dev.py sync-psi --all
 uv run scripts/dev.py up --full-data
 ```
 
@@ -103,6 +104,12 @@ archives from 1990 through the previous year and every Monday weekly partition i
 explicit subsets remain available. Canonical NDJSON and PostgreSQL COPY stream without a record cap.
 The 100-million-row, 20 GB and per-archive expansion ceilings are corruption/capacity alarms that
 fail the candidate atomically rather than returning a partial dataset.
+
+For a true from-scratch PSI build, `uv run scripts/dev.py sync-psi --all` acquires and ZIP-verifies
+every annual archive plus the current-year Monday archives on the host, where the publisher does not
+issue the Cloudflare Linux-container challenge. It writes atomically into the Git-ignored cache that
+the application mounts read-only. Targeted alternatives are `--year 2025`, `--week 2026-08-10`, and
+`--current-weekly`; rerunning retains already verified archives.
 
 Every release detail page includes a release-scoped dataset preview. Preview queries use fixed
 registered projections, cap pages at 100 records and never mix candidate and accepted

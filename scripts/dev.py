@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import io
 import os
+import re
 import shlex
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from tempfile import NamedTemporaryFile
+from zipfile import BadZipFile, ZipFile
+
+import httpx
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILES = (
@@ -33,6 +41,9 @@ APPLICATION_SERVICES = (
 )
 BUILD_SERVICES = APPLICATION_SERVICES
 FULL_DATA_PROJECT_NAME = "41026-asd-propertyscope-full-data"
+PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{partition}.zip"
+PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{partition}.zip"
+PSI_ARCHIVE_BYTE_LIMIT = 750_000_000
 
 
 def _compose_command(
@@ -87,13 +98,129 @@ def _psi_cache_years() -> tuple[int, ...]:
     )
 
 
+def _psi_cache_weeks() -> tuple[str, ...]:
+    weekly = REPOSITORY_ROOT / ".propertyscope-source-cache" / "psi" / "weekly"
+    return tuple(
+        sorted(
+            f"{match.group(1)[:4]}-{match.group(1)[4:6]}-{match.group(1)[6:]}"
+            for path in weekly.glob("*.zip")
+            if (match := re.fullmatch(r"(\d{8})\.zip", path.name)) is not None
+        )
+    )
+
+
+def _current_psi_weeks(today: date | None = None) -> tuple[date, ...]:
+    resolved = today or datetime.now(UTC).date()
+    cursor = date(resolved.year, 1, 1)
+    cursor += timedelta(days=(7 - cursor.weekday()) % 7)
+    weeks: list[date] = []
+    while cursor <= resolved:
+        weeks.append(cursor)
+        cursor += timedelta(days=7)
+    return tuple(weeks)
+
+
+def _download_psi_archive(client: httpx.Client, url: str) -> bytes:
+    """Acquire one official PSI archive, including the publisher's Range-only path."""
+    response = client.get(
+        url, headers={"Accept": "application/zip", "User-Agent": "PropertyScope/1.0"}
+    )
+    if response.status_code != 403:
+        response.raise_for_status()
+        if len(response.content) > PSI_ARCHIVE_BYTE_LIMIT:
+            raise RuntimeError("PSI archive exceeds the 750 MB compressed safety limit")
+        return response.content
+    chunks: list[bytes] = []
+    offset = 0
+    expected_total: int | None = None
+    chunk_size = 4 * 1024 * 1024
+    while expected_total is None or offset < expected_total:
+        end = min(offset + chunk_size - 1, PSI_ARCHIVE_BYTE_LIMIT - 1)
+        ranged = client.get(
+            url,
+            headers={
+                "Accept": "application/zip",
+                "Range": f"bytes={offset}-{end}",
+                "User-Agent": "PropertyScope/1.0",
+            },
+        )
+        if ranged.status_code != 206:
+            ranged.raise_for_status()
+            raise RuntimeError("PSI publisher rejected bounded Range acquisition")
+        match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", ranged.headers.get("content-range", ""))
+        if match is None or int(match.group(1)) != offset:
+            raise RuntimeError("PSI publisher returned an invalid content range")
+        range_end, total = int(match.group(2)), int(match.group(3))
+        if total > PSI_ARCHIVE_BYTE_LIMIT or len(ranged.content) != range_end - offset + 1:
+            raise RuntimeError("PSI archive exceeds the compressed safety limit")
+        if expected_total is not None and total != expected_total:
+            raise RuntimeError("PSI archive changed during acquisition")
+        expected_total = total
+        chunks.append(ranged.content)
+        offset = range_end + 1
+    return b"".join(chunks)
+
+
+def _sync_psi(*, years: Sequence[int], weeks: Sequence[date]) -> None:
+    root = REPOSITORY_ROOT / ".propertyscope-source-cache" / "psi"
+    targets = [
+        (PSI_YEARLY_URL.format(partition=year), root / f"{year}.zip") for year in sorted(set(years))
+    ]
+    targets.extend(
+        (
+            PSI_WEEKLY_URL.format(partition=week.strftime("%Y%m%d")),
+            root / "weekly" / f"{week.strftime('%Y%m%d')}.zip",
+        )
+        for week in sorted(set(weeks))
+    )
+    if not targets:
+        raise RuntimeError("Select --all, --year, --week, or --current-weekly")
+    with httpx.Client(timeout=None, follow_redirects=False) as client:
+        for url, destination in targets:
+            if destination.is_file():
+                try:
+                    with ZipFile(destination) as archive:
+                        archive.testzip()
+                    print(
+                        f"PSI cache retained: {destination.relative_to(REPOSITORY_ROOT)}",
+                        flush=True,
+                    )
+                    continue
+                except BadZipFile:
+                    pass
+            print(f"PSI source: {url}", flush=True)
+            content = _download_psi_archive(client, url)
+            try:
+                with ZipFile(io.BytesIO(content)) as archive:
+                    if not archive.namelist() or archive.testzip() is not None:
+                        raise RuntimeError("PSI publisher returned a corrupt ZIP archive")
+            except BadZipFile as exc:
+                raise RuntimeError("PSI publisher did not return a ZIP archive") from exc
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with NamedTemporaryFile(dir=destination.parent, delete=False) as temporary:
+                temporary.write(content)
+                temporary.flush()
+                os.fsync(temporary.fileno())
+                temporary_path = Path(temporary.name)
+            os.replace(temporary_path, destination)
+            print(
+                f"PSI cached: {destination.relative_to(REPOSITORY_ROOT)} "
+                f"({len(content):,} bytes, sha256 {hashlib.sha256(content).hexdigest()})",
+                flush=True,
+            )
+
+
 def _compose_environment(*, full_data: bool) -> Mapping[str, str] | None:
-    years = _psi_cache_years() if full_data else ()
-    if not years:
+    if not full_data:
         return None
+    years = _psi_cache_years()
+    weeks = _psi_cache_weeks()
     environment = os.environ.copy()
     environment.setdefault("PROPERTYSCOPE_PSI_TRANSPORT_ENABLED", "true")
-    environment.setdefault("PROPERTYSCOPE_PSI_CACHED_YEARS", ",".join(map(str, years)))
+    if years:
+        environment.setdefault("PROPERTYSCOPE_PSI_CACHED_YEARS", ",".join(map(str, years)))
+    if weeks:
+        environment.setdefault("PROPERTYSCOPE_PSI_CACHED_WEEKS", ",".join(weeks))
     return environment
 
 
@@ -239,6 +366,21 @@ def _parser() -> argparse.ArgumentParser:
 
     commands.add_parser("test", help="Run the deterministic integration-feature tests")
     commands.add_parser("check", help="Run the complete canonical quality gate")
+    sync_psi = commands.add_parser(
+        "sync-psi", help="Acquire official PSI annual/weekly archives into the read-only app cache"
+    )
+    sync_psi.add_argument(
+        "--all",
+        action="store_true",
+        help="Acquire annual history from 1990 plus every current-year Monday archive",
+    )
+    sync_psi.add_argument("--year", type=int, action="append", default=[], help="Annual archive")
+    sync_psi.add_argument(
+        "--week", action="append", default=[], metavar="YYYY-MM-DD", help="Weekly archive"
+    )
+    sync_psi.add_argument(
+        "--current-weekly", action="store_true", help="Acquire all Monday archives this year"
+    )
     return parser
 
 
@@ -305,6 +447,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif arguments.command == "check":
             _run((sys.executable, "scripts/check.py"))
+        elif arguments.command == "sync-psi":
+            current_year = datetime.now(UTC).year
+            years = list(arguments.year)
+            weeks: list[date] = []
+            try:
+                weeks.extend(date.fromisoformat(value) for value in arguments.week)
+            except ValueError as exc:
+                raise RuntimeError("--week must use YYYY-MM-DD") from exc
+            if arguments.all:
+                years.extend(range(1990, current_year))
+                weeks.extend(_current_psi_weeks())
+            elif arguments.current_weekly:
+                weeks.extend(_current_psi_weeks())
+            if any(year < 1990 or year > current_year for year in years):
+                raise RuntimeError("--year must be between 1990 and the current year")
+            if any(week.weekday() != 0 for week in weeks):
+                raise RuntimeError("--week must be a Monday publication date")
+            _sync_psi(years=years, weeks=weeks)
     except FileNotFoundError:
         print(
             "Docker or uv is not available on PATH. See README.md for prerequisites.",

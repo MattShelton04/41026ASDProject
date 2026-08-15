@@ -117,6 +117,7 @@ and acquires missing annual/current-weekly partitions with validated bounded req
 history streams every record from 1990 onward and never substitutes synthetic data:
 
 ```text
+uv run scripts/dev.py sync-psi --all
 uv run scripts/dev.py up --full-data
 uv run scripts/dev.py down --full-data
 ```

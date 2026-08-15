@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +36,7 @@ def create_blueprint(
     full_data_enabled: bool = False,
     psi_transport_enabled: bool = False,
     psi_cached_years: tuple[int, ...] = (),
+    psi_cached_weeks: tuple[str, ...] = (),
 ) -> Blueprint:
     """Create Feature 1's public API without any persistence imports."""
     api = Blueprint("propertyscope-data-platform", __name__)
@@ -73,6 +74,7 @@ def create_blueprint(
                 "connected_live_profiles": connected if full_data_enabled else [],
                 "cached_live_profiles": ["psi-sales"] if psi_cached_years else [],
                 "cached_source_years": {"psi-sales": list(psi_cached_years)},
+                "cached_source_weeks": {"psi-sales": list(psi_cached_weeks)},
                 "catalogued_profiles": ["psi-sales"],
                 "showcase_available": True,
             }
@@ -150,14 +152,11 @@ def create_blueprint(
         if scope_error is not None:
             return scope_error
         assert scope is not None
-        cached_psi = (
-            scope.get("profile") == "full-data"
-            and str(job_data.get("import_profile_key")) == "psi-sales"
-            and scope.get("all_history") is not True
-            and scope.get("include_current_weekly") is not True
-            and not scope.get("weeks")
-            and bool(scope.get("years"))
-            and set(scope.get("years", [])).issubset(psi_cached_years)
+        cached_psi = _psi_scope_is_cached(
+            job_data,
+            scope,
+            cached_years=psi_cached_years,
+            cached_weeks=psi_cached_weeks,
         )
         return jsonify(
             {
@@ -825,6 +824,33 @@ def approved_tool_call(ai_mode: AiModeClient, tool_name: str, arguments: Mapping
     )
 
 
+def _psi_scope_is_cached(
+    job: Mapping[str, Any],
+    scope: Mapping[str, Any],
+    *,
+    cached_years: tuple[int, ...],
+    cached_weeks: tuple[str, ...],
+) -> bool:
+    if scope.get("profile") != "full-data" or str(job.get("import_profile_key")) != "psi-sales":
+        return False
+    today = datetime.now(UTC).date()
+    required_years = set(scope.get("years", []))
+    if scope.get("all_history") is True:
+        required_years.update(range(1990, today.year))
+    required_weeks = set(scope.get("weeks", []))
+    if scope.get("include_current_weekly") is True:
+        cursor = date(today.year, 1, 1)
+        cursor += timedelta(days=(7 - cursor.weekday()) % 7)
+        while cursor <= today:
+            required_weeks.add(cursor.isoformat())
+            cursor += timedelta(days=7)
+    return (
+        bool(required_years or required_weeks)
+        and required_years.issubset(cached_years)
+        and required_weeks.issubset(cached_weeks)
+    )
+
+
 def validate_job_scope(
     job: Mapping[str, Any],
     raw_scope: Any,
@@ -855,11 +881,16 @@ def validate_job_scope(
     if str(job.get("import_profile_key")) == "psi-sales":
         years = scope.get("years")
         all_history = scope.get("all_history") is True
-        if not all_history and (not isinstance(years, list) or not years or len(years) > 100):
+        weekly_only = isinstance(scope.get("weeks"), list) and bool(scope.get("weeks"))
+        if (
+            not all_history
+            and not weekly_only
+            and (not isinstance(years, list) or not years or len(years) > 100)
+        ):
             return None, problem(
                 422, "invalid_scope", "PSI scope requires source years or complete history"
             )
-        checked_years: list[Any] = [] if all_history else list(years or [])
+        checked_years: list[Any] = [] if all_history or not isinstance(years, list) else list(years)
         maximum_year = datetime.now(UTC).year + 1
         if any(
             not isinstance(year, int)

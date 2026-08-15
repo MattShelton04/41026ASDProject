@@ -63,6 +63,7 @@ class DatabaseLoader:
                 error=None,
             )
         except Exception as exc:
+            logger.exception("Registered import %s failed", operation_id)
             self.store.finish_import(
                 operation_id,
                 worker_id=self.worker_id,

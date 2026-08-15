@@ -95,10 +95,10 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
         for (const [label, value] of [["Rows", formatNumber(item.max_rows ?? item.limits?.max_rows)], ["Bytes", formatBytes(item.max_bytes ?? item.limits?.max_bytes)], ["Objects", formatNumber(item.max_objects ?? item.limits?.max_objects)], ["Time", `${formatNumber(item.timeout_seconds ?? item.limits?.deadline_seconds)}s`]]) {
           const metric = el("div"); append(metric, el("span", "", label), el("strong", "", value)); append(limits, metric);
         }
-        append(right, panel("Processing limits", "Checked before the run starts", limits));
+        append(right, panel("Failure safety ceilings", "Oversized or corrupt work aborts; successful data is never truncated", limits));
         const workflow = el("div", "operation-guide");
         append(workflow,
-          operationStep("1", "Choose scope", isPsiJob(item) ? "Select one source year or a bounded year range." : "Review the registered job scope."),
+          operationStep("1", "Choose scope", isPsiJob(item) ? "Run complete history plus current weekly updates, or select explicit annual/weekly partitions." : "Review the registered job scope."),
           operationStep("2", "Preview plan", "Validate tasks, network access and hard limits before creating a run."),
           operationStep("3", "Monitor and recover", "Follow durable tasks, then retry failed work or reprocess verified cache."),
         );

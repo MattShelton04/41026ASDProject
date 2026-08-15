@@ -183,6 +183,63 @@ def test_psi_archive_parses_pre_2001_root_dat_and_deduplicates_retransmission() 
     assert sales[0].area_square_metres == 15000
 
 
+def test_psi_archive_detects_legacy_rows_inside_official_2001_archive() -> None:
+    row = (
+        "B;014;ARCHIVE;2026840000000;361622;;8;LORRAINE AV;BERKELEY VALE;2261;"
+        "06/02/2001;142000;LOT 52 DP 775484;4.433;H;;EX;A;;;;\n"
+    )
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("Archive Sales 2001/ARCHIVE_SALES_2001.DAT", row)
+
+    sale = next(iter_psi_archive(stream.getvalue(), source_year=2001))
+
+    assert sale.source_era == "pre-2001"
+    assert sale.property_id == "361622"
+    assert sale.contract_date == date(2001, 2, 6)
+    assert sale.price_aud == 142000
+    assert sale.area_unit == "H"
+    assert sale.area_square_metres == 44330
+
+
+def test_runner_retries_transient_control_plane_disconnect(tmp_path: Path) -> None:
+    attempts = 0
+
+    def control(_: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise httpx.ReadError("connection reset")
+        return httpx.Response(200, json={"ok": True})
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.0, 30, True),
+        client=httpx.Client(transport=httpx.MockTransport(control)),
+    )
+
+    response = runner._control_request("GET", "http://backend/health")
+
+    assert response.status_code == 200
+    assert attempts == 2
+
+
+def test_psi_archive_accepts_historical_years_with_many_direct_dat_members() -> None:
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        for index in range(5_001):
+            archive.writestr(f"2008/week-{index}/empty-{index}.DAT", "")
+        archive.writestr(
+            "2008/week-final/001_SALES_DATA.DAT",
+            "B;001;P1;1;20250101;;1;10;ROAD;SYDNEY;2000;500;M;20250101;"
+            "20250201;800000;R;R;;;X;;;D1\n",
+        )
+
+    sales = tuple(iter_psi_archive(stream.getvalue(), source_year=2008))
+
+    assert len(sales) == 1
+    assert sales[0].source_business_key == "001:P1:1"
+
+
 def test_psi_downloader_uses_verified_ranges_after_publisher_403(tmp_path: Path) -> None:
     archive = io.BytesIO()
     with ZipFile(archive, "w") as stream:

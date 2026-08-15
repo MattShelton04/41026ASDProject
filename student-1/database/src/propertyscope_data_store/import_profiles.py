@@ -416,7 +416,7 @@ def _text(row: Mapping[str, Any], field: str, index: int) -> str:
 
 def _optional_text(row: Mapping[str, Any], field: str, index: int) -> str | None:
     value = row.get(field)
-    if value is None or value == "":
+    if value is None or (isinstance(value, str) and not value.strip()):
         return None
     return _text(row, field, index)
 
