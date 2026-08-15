@@ -1,0 +1,314 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-15T02:54:23.716688+00:00",
+  "target_root": "C:\\git\\41026ASDProject",
+  "pack_root": "C:\\Users\\mattt\\Downloads\\propertyscope-redesign-pack\\propertyscope-redesign-pack",
+  "mode": "all",
+  "created_directories": [
+    "docs/design",
+    "docs/design-assets",
+    "docs/design-assets/storyboards",
+    "docs/prototype",
+    "docs/prototype/propertyscope-v2",
+    "shared/frontend/design-system"
+  ],
+  "operations": [
+    {
+      "path": "docker-compose.shared-shell.yml",
+      "action": "add",
+      "source_sha256": "03cfaf47ea2b66251706c45f05c2327342d542b0c101d02e04222c4cdb97ec53",
+      "previous_sha256": null,
+      "applied_sha256": "03cfaf47ea2b66251706c45f05c2327342d542b0c101d02e04222c4cdb97ec53"
+    },
+    {
+      "path": "docs/design-assets/README.md",
+      "action": "add",
+      "source_sha256": "cac386a506620525a6cb8473a1fd6c7c456b254a67c1bfc1563837a6702051c1",
+      "previous_sha256": null,
+      "applied_sha256": "cac386a506620525a6cb8473a1fd6c7c456b254a67c1bfc1563837a6702051c1"
+    },
+    {
+      "path": "docs/design-assets/desktop-contact-sheet.jpg",
+      "action": "add",
+      "source_sha256": "baedea13e6806c418bcc29274184f90271a9eab4c16cbd43b467bb19e589b5b6",
+      "previous_sha256": null,
+      "applied_sha256": "baedea13e6806c418bcc29274184f90271a9eab4c16cbd43b467bb19e589b5b6"
+    },
+    {
+      "path": "docs/design-assets/mobile-contact-sheet.jpg",
+      "action": "add",
+      "source_sha256": "459fa6d2e38b62dd95ff9491d487ad7e330233c25665e91efb054bca4fda9f8c",
+      "previous_sha256": null,
+      "applied_sha256": "459fa6d2e38b62dd95ff9491d487ad7e330233c25665e91efb054bca4fda9f8c"
+    },
+    {
+      "path": "docs/design-assets/shared-shell-desktop.png",
+      "action": "add",
+      "source_sha256": "fe6fb83642d79e8ba1ac1c3cdbf4e7101696485b8d19351d880230aaedfb6f55",
+      "previous_sha256": null,
+      "applied_sha256": "fe6fb83642d79e8ba1ac1c3cdbf4e7101696485b8d19351d880230aaedfb6f55"
+    },
+    {
+      "path": "docs/design-assets/shared-shell-mobile.png",
+      "action": "add",
+      "source_sha256": "9c3cc495e9abf4cc19a376cb56632fa19d83a420983f08b83b60d9f221a4e846",
+      "previous_sha256": null,
+      "applied_sha256": "9c3cc495e9abf4cc19a376cb56632fa19d83a420983f08b83b60d9f221a4e846"
+    },
+    {
+      "path": "docs/design-assets/storyboards/01-buyer-research-journey.jpg",
+      "action": "add",
+      "source_sha256": "1d9e2e1d3dbdcf5196ee9dd0d50ccdb382061c290ec5ed68e1d1db1d478142a0",
+      "previous_sha256": null,
+      "applied_sha256": "1d9e2e1d3dbdcf5196ee9dd0d50ccdb382061c290ec5ed68e1d1db1d478142a0"
+    },
+    {
+      "path": "docs/design-assets/storyboards/02-data-release-recovery.jpg",
+      "action": "add",
+      "source_sha256": "9ef9a740db129318f3d1382dae8489932fb0637748f5b8935508476db725eb1c",
+      "previous_sha256": null,
+      "applied_sha256": "9ef9a740db129318f3d1382dae8489932fb0637748f5b8935508476db725eb1c"
+    },
+    {
+      "path": "docs/design-assets/storyboards/03-feature-landscape.jpg",
+      "action": "add",
+      "source_sha256": "98c35e92b3b2974ee2bb60d939ba7d6b535d4da8de361d0972f81436930981b9",
+      "previous_sha256": null,
+      "applied_sha256": "98c35e92b3b2974ee2bb60d939ba7d6b535d4da8de361d0972f81436930981b9"
+    },
+    {
+      "path": "docs/design-assets/storyboards/04-screen-system-and-design.jpg",
+      "action": "add",
+      "source_sha256": "1ea5e6f11dce626991d8e950cc59504574b45d49773f9d454325f460330fe139",
+      "previous_sha256": null,
+      "applied_sha256": "1ea5e6f11dce626991d8e950cc59504574b45d49773f9d454325f460330fe139"
+    },
+    {
+      "path": "docs/design-assets/storyboards/05-responsive-mobile-storyboard.jpg",
+      "action": "add",
+      "source_sha256": "25d678a23bef7cc31eb68aedfcb7a741204947b3b90010ab30ce14dafc6d9e4e",
+      "previous_sha256": null,
+      "applied_sha256": "25d678a23bef7cc31eb68aedfcb7a741204947b3b90010ab30ce14dafc6d9e4e"
+    },
+    {
+      "path": "docs/design-assets/storyboards/index.html",
+      "action": "add",
+      "source_sha256": "69dade563a32c24e397dd2c7ed745aaaea8a69d8ad83b09432736538ed27c87d",
+      "previous_sha256": null,
+      "applied_sha256": "69dade563a32c24e397dd2c7ed745aaaea8a69d8ad83b09432736538ed27c87d"
+    },
+    {
+      "path": "docs/design/00-executive-audit.md",
+      "action": "add",
+      "source_sha256": "7fdca50fcfef89d63e27ebe41ae3c514f8692a656b173a0f6de54d7071e942ea",
+      "previous_sha256": null,
+      "applied_sha256": "7fdca50fcfef89d63e27ebe41ae3c514f8692a656b173a0f6de54d7071e942ea"
+    },
+    {
+      "path": "docs/design/01-product-ux-blueprint.md",
+      "action": "add",
+      "source_sha256": "183eaacad8482661433f8adaa7b0c2d3452f009c1ad6ae67ff277afa1004a219",
+      "previous_sha256": null,
+      "applied_sha256": "183eaacad8482661433f8adaa7b0c2d3452f009c1ad6ae67ff277afa1004a219"
+    },
+    {
+      "path": "docs/design/02-design-system.md",
+      "action": "add",
+      "source_sha256": "5b73faafec0e245858b8ad69ff1c3774d9ecbcd290e5a602591b0a7615cdf689",
+      "previous_sha256": null,
+      "applied_sha256": "5b73faafec0e245858b8ad69ff1c3774d9ecbcd290e5a602591b0a7615cdf689"
+    },
+    {
+      "path": "docs/design/03-shared-platform-redesign.md",
+      "action": "add",
+      "source_sha256": "4c499303e9a96c86138cd134740303e58371d50e0ab742b3d2eddab5c54d985a",
+      "previous_sha256": null,
+      "applied_sha256": "4c499303e9a96c86138cd134740303e58371d50e0ab742b3d2eddab5c54d985a"
+    },
+    {
+      "path": "docs/design/04-feature-1-redesign.md",
+      "action": "add",
+      "source_sha256": "85faf600ef7c6f3e555f1e5352b3295c27f8a212d1b6ad1d8e0d4954bc0a03d6",
+      "previous_sha256": null,
+      "applied_sha256": "85faf600ef7c6f3e555f1e5352b3295c27f8a212d1b6ad1d8e0d4954bc0a03d6"
+    },
+    {
+      "path": "docs/design/05-features-2-to-5-scope.md",
+      "action": "add",
+      "source_sha256": "a36f20cff0b25b1ea88726d166730ba819102cc6047af74eaa3162aefb504b3f",
+      "previous_sha256": null,
+      "applied_sha256": "a36f20cff0b25b1ea88726d166730ba819102cc6047af74eaa3162aefb504b3f"
+    },
+    {
+      "path": "docs/design/06-release-roadmap-and-assessment.md",
+      "action": "add",
+      "source_sha256": "3d47dd5c57a27fb13d2248f4d4159199a5143da33f77006316d4ee99c0c53b35",
+      "previous_sha256": null,
+      "applied_sha256": "3d47dd5c57a27fb13d2248f4d4159199a5143da33f77006316d4ee99c0c53b35"
+    },
+    {
+      "path": "docs/design/07-screen-inventory.md",
+      "action": "add",
+      "source_sha256": "48077e0ed8cfedb44fe449a41cbfcb30d5a323f10ab030845acaa7a84b7587c1",
+      "previous_sha256": null,
+      "applied_sha256": "48077e0ed8cfedb44fe449a41cbfcb30d5a323f10ab030845acaa7a84b7587c1"
+    },
+    {
+      "path": "docs/design/08-implementation-and-migration-plan.md",
+      "action": "add",
+      "source_sha256": "750d2e05d1fc7b510ffe918602ee135b17d8d5cf42564a37ff6a9a45c290515f",
+      "previous_sha256": null,
+      "applied_sha256": "750d2e05d1fc7b510ffe918602ee135b17d8d5cf42564a37ff6a9a45c290515f"
+    },
+    {
+      "path": "docs/design/09-api-to-ui-mapping.md",
+      "action": "add",
+      "source_sha256": "4848f8940bb3a8e32498606dbce2aedf8c22d020f0ee3668fd7af7b7bdd44caf",
+      "previous_sha256": null,
+      "applied_sha256": "4848f8940bb3a8e32498606dbce2aedf8c22d020f0ee3668fd7af7b7bdd44caf"
+    },
+    {
+      "path": "docs/design/README.md",
+      "action": "add",
+      "source_sha256": "18021a13804e2fded24c9aa8469763c20f497cfdd571054104bb83f9dae581c5",
+      "previous_sha256": null,
+      "applied_sha256": "18021a13804e2fded24c9aa8469763c20f497cfdd571054104bb83f9dae581c5"
+    },
+    {
+      "path": "docs/design/VALIDATION.md",
+      "action": "add",
+      "source_sha256": "9a7647915a10ea16a90252ae66bf16c6dd7d96bb307a5b60a1f45e3ed90853b7",
+      "previous_sha256": null,
+      "applied_sha256": "9a7647915a10ea16a90252ae66bf16c6dd7d96bb307a5b60a1f45e3ed90853b7"
+    },
+    {
+      "path": "docs/prototype/propertyscope-v2/app.js",
+      "action": "add",
+      "source_sha256": "ba03719d6d9aeffb64c18a5b08baf4a8bced7dc3bdf3d8ea17f918e76182cf43",
+      "previous_sha256": null,
+      "applied_sha256": "ba03719d6d9aeffb64c18a5b08baf4a8bced7dc3bdf3d8ea17f918e76182cf43"
+    },
+    {
+      "path": "docs/prototype/propertyscope-v2/components.js",
+      "action": "add",
+      "source_sha256": "f7d9028ecdbc25f4cafbea0c0a8ced4ce02bc35735a660dc20cb50a5c3770e68",
+      "previous_sha256": null,
+      "applied_sha256": "f7d9028ecdbc25f4cafbea0c0a8ced4ce02bc35735a660dc20cb50a5c3770e68"
+    },
+    {
+      "path": "docs/prototype/propertyscope-v2/data.js",
+      "action": "add",
+      "source_sha256": "22cf3574c86d1ef8ac23c47b288b64b8a366d3013cdc1bb3085d21c5e58c48a8",
+      "previous_sha256": null,
+      "applied_sha256": "22cf3574c86d1ef8ac23c47b288b64b8a366d3013cdc1bb3085d21c5e58c48a8"
+    },
+    {
+      "path": "docs/prototype/propertyscope-v2/index.html",
+      "action": "add",
+      "source_sha256": "8298c9673115cce0ab3d336fd2f9091520216c514de2470c5ed4bbf04d2d59ce",
+      "previous_sha256": null,
+      "applied_sha256": "8298c9673115cce0ab3d336fd2f9091520216c514de2470c5ed4bbf04d2d59ce"
+    },
+    {
+      "path": "docs/prototype/propertyscope-v2/screens.js",
+      "action": "add",
+      "source_sha256": "fc13a411f6051dc140994235b7d622983ad40eae5da41bf3ef4305954134da2d",
+      "previous_sha256": null,
+      "applied_sha256": "fc13a411f6051dc140994235b7d622983ad40eae5da41bf3ef4305954134da2d"
+    },
+    {
+      "path": "docs/prototype/propertyscope-v2/standalone.html",
+      "action": "add",
+      "source_sha256": "0a73eb8380540a1624ecefa7d395e7b9e04c35a69220e71cbf235ac00097e5f7",
+      "previous_sha256": null,
+      "applied_sha256": "0a73eb8380540a1624ecefa7d395e7b9e04c35a69220e71cbf235ac00097e5f7"
+    },
+    {
+      "path": "docs/prototype/propertyscope-v2/styles.css",
+      "action": "add",
+      "source_sha256": "cdd579a865047c67b2cc0e51f708c7bcdd8962d7aadd04de0e8d462442c3d2ee",
+      "previous_sha256": null,
+      "applied_sha256": "cdd579a865047c67b2cc0e51f708c7bcdd8962d7aadd04de0e8d462442c3d2ee"
+    },
+    {
+      "path": "shared/frontend/Dockerfile",
+      "action": "add",
+      "source_sha256": "0f9493e039d349f2f2600d5ecdcdbedab2b2d734880f7da7671507833124f691",
+      "previous_sha256": null,
+      "applied_sha256": "0f9493e039d349f2f2600d5ecdcdbedab2b2d734880f7da7671507833124f691"
+    },
+    {
+      "path": "shared/frontend/README.md",
+      "action": "replace",
+      "source_sha256": "a46c4552b1225ee2bacca8b429f11cc8085ec8a44297b05275278a679405ce1c",
+      "previous_sha256": "aaccbce4e921c8aa8c127606d09e085ac5e9d5f5bfaf033365d4513c4cb1e95b",
+      "applied_sha256": "a46c4552b1225ee2bacca8b429f11cc8085ec8a44297b05275278a679405ce1c",
+      "backup_path": "files/shared/frontend/README.md"
+    },
+    {
+      "path": "shared/frontend/app.js",
+      "action": "add",
+      "source_sha256": "c7f0fccf285cb0123cb79a13615ff878492d71e476b9e4b3191fcccb43976a15",
+      "previous_sha256": null,
+      "applied_sha256": "c7f0fccf285cb0123cb79a13615ff878492d71e476b9e4b3191fcccb43976a15"
+    },
+    {
+      "path": "shared/frontend/design-system/CHANGELOG.md",
+      "action": "add",
+      "source_sha256": "00e01941e9568d82e1cb20c59619bb57bce21338f469af9987eb37fabfa24712",
+      "previous_sha256": null,
+      "applied_sha256": "00e01941e9568d82e1cb20c59619bb57bce21338f469af9987eb37fabfa24712"
+    },
+    {
+      "path": "shared/frontend/design-system/README.md",
+      "action": "add",
+      "source_sha256": "75653648aa96e412b167afc9ddf742acd51b40c1d0fcb3d3e896c27d204e54a1",
+      "previous_sha256": null,
+      "applied_sha256": "75653648aa96e412b167afc9ddf742acd51b40c1d0fcb3d3e896c27d204e54a1"
+    },
+    {
+      "path": "shared/frontend/design-system/base.css",
+      "action": "add",
+      "source_sha256": "76aa500bda9a1e8d7795e2ecd7d9ca1960c624c67a51a1319e8395e4d53a1ac5",
+      "previous_sha256": null,
+      "applied_sha256": "76aa500bda9a1e8d7795e2ecd7d9ca1960c624c67a51a1319e8395e4d53a1ac5"
+    },
+    {
+      "path": "shared/frontend/design-system/components.css",
+      "action": "add",
+      "source_sha256": "4a8283328e954714943a3b47cd2843e087014f6cd34d7d4f14c4bce1facfaaed",
+      "previous_sha256": null,
+      "applied_sha256": "4a8283328e954714943a3b47cd2843e087014f6cd34d7d4f14c4bce1facfaaed"
+    },
+    {
+      "path": "shared/frontend/design-system/tokens.css",
+      "action": "add",
+      "source_sha256": "122b2ab27b2106472d8177427720dd5d5f4a14cae147907508e40d4658cfada6",
+      "previous_sha256": null,
+      "applied_sha256": "122b2ab27b2106472d8177427720dd5d5f4a14cae147907508e40d4658cfada6"
+    },
+    {
+      "path": "shared/frontend/index.html",
+      "action": "replace",
+      "source_sha256": "06fe0c9a9636efe1a803ebd9c9e4b1d17b4c91c78a3854a925c7de208e293d97",
+      "previous_sha256": "a537b65240ea6d79f07d5d085bb1695d6e2add9ebce6204941f02116c1578335",
+      "applied_sha256": "06fe0c9a9636efe1a803ebd9c9e4b1d17b4c91c78a3854a925c7de208e293d97",
+      "backup_path": "files/shared/frontend/index.html"
+    },
+    {
+      "path": "shared/frontend/nginx.conf",
+      "action": "add",
+      "source_sha256": "08543b2cfc1b20840f78d5cb97954d4fbd5010858e54594942592c30324ce500",
+      "previous_sha256": null,
+      "applied_sha256": "08543b2cfc1b20840f78d5cb97954d4fbd5010858e54594942592c30324ce500"
+    },
+    {
+      "path": "shared/frontend/styles.css",
+      "action": "replace",
+      "source_sha256": "1782f0eaffb3f26387075ea4cd556617adc8ecad19ee89dbae520d89ae3d208a",
+      "previous_sha256": "6d39e3584f10b280e0bcf3e3ea5035d55b30b24f06207bb68e4e4446c4efd181",
+      "applied_sha256": "1782f0eaffb3f26387075ea4cd556617adc8ecad19ee89dbae520d89ae3d208a",
+      "backup_path": "files/shared/frontend/styles.css"
+    }
+  ]
+}

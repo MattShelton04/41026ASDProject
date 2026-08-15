@@ -1,0 +1,63 @@
+* { box-sizing: border-box; }
+html { min-width: 320px; min-height: 100%; scroll-behavior: smooth; }
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--ps-ink-900);
+  background:
+    radial-gradient(circle at 82% -12%, rgba(114, 196, 193, 0.18), transparent 35rem),
+    var(--ps-canvas);
+  font-family: var(--ps-font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+button, input, select, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+a { color: inherit; }
+img, svg { display: block; max-width: 100%; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible, [tabindex]:focus-visible, summary:focus-visible {
+  outline: 3px solid rgba(21, 148, 149, 0.38);
+  outline-offset: 2px;
+}
+::selection { color: var(--ps-ink-950); background: var(--ps-ocean-200); }
+
+h1, h2, h3, p { margin-top: 0; }
+h1, h2, h3 { color: var(--ps-ink-950); font-family: var(--ps-font-display); text-wrap: balance; }
+h1 { font-size: clamp(2.55rem, 7vw, 5.5rem); line-height: .98; letter-spacing: -.055em; }
+h2 { font-size: clamp(1.7rem, 3vw, 2.5rem); line-height: 1.08; letter-spacing: -.035em; }
+h3 { font-size: 1.05rem; line-height: 1.25; letter-spacing: -.012em; }
+p { color: var(--ps-ink-700); }
+code, .mono { font-family: var(--ps-font-mono); }
+
+.ps-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.ps-skip-link {
+  position: fixed;
+  z-index: 1000;
+  top: -5rem;
+  left: 1rem;
+  padding: .7rem 1rem;
+  border-radius: 0 0 var(--ps-radius-sm) var(--ps-radius-sm);
+  background: var(--ps-paper);
+  box-shadow: var(--ps-shadow-md);
+  color: var(--ps-ocean-800);
+  font-weight: 760;
+  text-decoration: none;
+}
+.ps-skip-link:focus { top: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}

@@ -1,0 +1,100 @@
+:root {
+  color-scheme: light;
+
+  /* Typography */
+  --ps-font-sans: Inter, "Avenir Next", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --ps-font-display: "Avenir Next", "Segoe UI", var(--ps-font-sans);
+  --ps-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* Ink and surfaces */
+  --ps-ink-950: #10262e;
+  --ps-ink-900: #17333d;
+  --ps-ink-800: #23444e;
+  --ps-ink-700: #385a63;
+  --ps-ink-600: #557078;
+  --ps-ink-500: #71868c;
+  --ps-ink-400: #96a7aa;
+  --ps-ink-300: #bac7c9;
+  --ps-ink-200: #d5dede;
+  --ps-ink-150: #e2e9e8;
+  --ps-ink-100: #edf2f1;
+  --ps-ink-50: #f6f8f7;
+
+  /* Product accents: NSW-inspired, deliberately not government branding */
+  --ps-ocean-800: #075a5d;
+  --ps-ocean-700: #086d70;
+  --ps-ocean-600: #087f81;
+  --ps-ocean-500: #159495;
+  --ps-ocean-300: #72c4c1;
+  --ps-ocean-200: #a9dcda;
+  --ps-ocean-100: #d8efed;
+  --ps-ocean-50: #eef8f7;
+
+  --ps-eucalypt-700: #496c5f;
+  --ps-eucalypt-500: #66877b;
+  --ps-eucalypt-200: #c9d8d1;
+  --ps-eucalypt-100: #e5ece8;
+
+  --ps-sand-700: #7d6847;
+  --ps-sand-500: #a28b67;
+  --ps-sand-300: #d0bea1;
+  --ps-sand-200: #e3d7c3;
+  --ps-sand-100: #f0e8db;
+  --ps-sand-50: #f8f4ed;
+
+  --ps-coral-700: #a84f3d;
+  --ps-coral-500: #d67359;
+  --ps-coral-100: #f9e3dd;
+  --ps-amber-700: #8a5a0a;
+  --ps-amber-100: #fbefd7;
+  --ps-red-700: #9c3f45;
+  --ps-red-100: #f8e2e4;
+  --ps-blue-700: #275f89;
+  --ps-blue-100: #e1eef7;
+
+  --ps-canvas: #f3f6f5;
+  --ps-paper: #ffffff;
+  --ps-paper-warm: #fffdf9;
+  --ps-line: rgba(23, 51, 61, 0.13);
+  --ps-line-strong: rgba(23, 51, 61, 0.22);
+  --ps-line-inverse: rgba(255, 255, 255, 0.15);
+
+  /* Semantic evidence states */
+  --ps-confirmed: var(--ps-ocean-700);
+  --ps-confirmed-bg: var(--ps-ocean-50);
+  --ps-partial: var(--ps-amber-700);
+  --ps-partial-bg: var(--ps-amber-100);
+  --ps-conflicting: var(--ps-coral-700);
+  --ps-conflicting-bg: var(--ps-coral-100);
+  --ps-unknown: var(--ps-ink-600);
+  --ps-unknown-bg: var(--ps-ink-100);
+  --ps-danger: var(--ps-red-700);
+  --ps-danger-bg: var(--ps-red-100);
+  --ps-info: var(--ps-blue-700);
+  --ps-info-bg: var(--ps-blue-100);
+
+  /* Shape, elevation and rhythm */
+  --ps-shadow-xs: 0 1px 2px rgba(13, 38, 47, 0.05);
+  --ps-shadow-sm: 0 3px 10px rgba(13, 38, 47, 0.07);
+  --ps-shadow-md: 0 12px 32px rgba(13, 38, 47, 0.10);
+  --ps-shadow-lg: 0 24px 64px rgba(13, 38, 47, 0.16);
+  --ps-radius-xs: 5px;
+  --ps-radius-sm: 8px;
+  --ps-radius-md: 12px;
+  --ps-radius-lg: 18px;
+  --ps-radius-xl: 26px;
+  --ps-radius-pill: 999px;
+  --ps-space-1: 0.25rem;
+  --ps-space-2: 0.5rem;
+  --ps-space-3: 0.75rem;
+  --ps-space-4: 1rem;
+  --ps-space-5: 1.25rem;
+  --ps-space-6: 1.5rem;
+  --ps-space-8: 2rem;
+  --ps-space-10: 2.5rem;
+  --ps-space-12: 3rem;
+  --ps-space-16: 4rem;
+  --ps-content-max: 1240px;
+  --ps-duration: 160ms;
+  --ps-ease: cubic-bezier(.2, .8, .2, 1);
+}
