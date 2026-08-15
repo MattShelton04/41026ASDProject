@@ -89,7 +89,10 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
       if (availability.retry) runAction("retry", "Retry failed", "Create a linked full-pipeline retry with the failed run retained as its parent evidence.");
       if (availability.reprocess) runAction("reprocess-cached", "Reprocess cached", "Create a linked child run using verified cached artifacts and current transforms.");
       if (availability.cancel) runAction("cancel", "Cancel", "Request cooperative cancellation. Completed evidence will remain available.", "danger");
-      if (availability.diagnose) actions.push(button("Diagnose failure", "button primary", () => { location.hash = linkedRelease ? `#ai/release:${linkedRelease.id}` : "#ai"; }));
+      if (availability.diagnose) {
+        const failed = run.status === "failed";
+        actions.push(button(failed ? "Diagnose failure" : "Ask AI about run", `button ${failed ? "primary" : "secondary"}`, () => { location.hash = linkedRelease ? `#ai/release:${linkedRelease.id}` : "#ai"; }));
+      }
       append(view, pageHeading("Processing run", run.job_name || `Run ${String(id).slice(0, 8)}`, `${humanise(run.run_mode)} · started ${formatDate(run.requested_at)}`, actions));
       if (run.error_json) append(view, el("div", "notice negative", `${run.error_json.message || run.error_json.detail || "The run recorded a classified failure."} The previously accepted release remains unchanged.`));
       const metrics = el("div", "metric-strip");

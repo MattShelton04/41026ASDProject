@@ -13,6 +13,7 @@ import {
   isPsiJob,
   isSchoolsJob,
   liveProfileLabel,
+  nextAgentPollDelay,
   nextPollDelay,
   parseJsonField,
   psiYearRange,
@@ -146,6 +147,16 @@ test("polling stops for terminal states and backs off when hidden", () => {
   assert.equal(nextPollDelay("failed"), null);
 });
 
+test("agent polling follows active and review states without refreshing terminal runs", () => {
+  assert.equal(nextAgentPollDelay("planning"), 800);
+  assert.equal(nextAgentPollDelay("queued"), 1500);
+  assert.equal(nextAgentPollDelay("review_required"), 5000);
+  assert.equal(nextAgentPollDelay("acting", 2), 3200);
+  assert.equal(nextAgentPollDelay("observing", 0, true), 5000);
+  assert.equal(nextAgentPollDelay("succeeded"), null);
+  assert.equal(nextAgentPollDelay("failed"), null);
+});
+
 test("generation guards reject late route and polling work", () => {
   const guard = createGenerationGuard();
   const first = guard.next();
@@ -251,7 +262,8 @@ test("operator UI exposes working submit controls, backfills and durable histori
   assert.match(source, /apply\.type = "submit"/);
   assert.match(source, /button\("Run now"/);
   assert.match(source, /button\("Backfill"/);
-  assert.match(source, /PSI source year/);
+  assert.match(source, /First annual archive/);
+  assert.match(source, /Complete PSI history/);
   assert.match(source, /Preview deterministic plan/);
   assert.match(source, /link\("Run history"/);
   assert.match(source, /`#ai\/release:\$\{linkedRelease\.id\}`/);
@@ -297,6 +309,8 @@ test("live acquisition controls use truthful runtime capability evidence", async
   assert.match(app, /implemented_live_profiles/);
   assert.match(app, /liveOption\.disabled = !liveAvailable/);
   assert.match(app, /Maximum addresses/);
+  assert.match(app, /cached_source_years/);
+  assert.match(app, /Detected official archive years/);
 });
 
 test("AI diagnosis history is loaded from the durable shared service projection", async () => {
@@ -308,6 +322,9 @@ test("AI diagnosis history is loaded from the durable shared service projection"
   assert.match(source, /OBJECTIVES = Object\.freeze/);
   assert.doesNotMatch(source, /el\("textarea"\)/);
   assert.match(source, /\?run=\$\{encodeURIComponent\(runId\)\}/);
+  assert.match(source, /nextAgentPollDelay/);
+  assert.match(source, /recordedSteps\?\.length \? recordedSteps : events/);
+  assert.match(source, /aria-live/);
 });
 
 test("evidence explorers require an exact run and preserve unknown states", async () => {

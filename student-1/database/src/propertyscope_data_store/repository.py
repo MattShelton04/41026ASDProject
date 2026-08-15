@@ -17,7 +17,12 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 from propertyscope_data_store.errors import ConflictError, LeaseConflictError, NotFoundError
-from propertyscope_data_store.import_profiles import ImportResult, PreparedImport, execute_import
+from propertyscope_data_store.import_profiles import (
+    ImportResult,
+    PreparedImport,
+    execute_import,
+    execute_stream_import,
+)
 from propertyscope_data_store.migrations import migrate, schema_fingerprint
 
 JsonObject = dict[str, Any]
@@ -1365,6 +1370,13 @@ class PropertyScopeStore:
         """Execute one registered COPY/import profile inside the credential boundary."""
         with self.connection() as connection:
             return execute_import(connection, work, prepared)
+
+    def execute_stream_import_profile(
+        self, work: Mapping[str, Any], *, profile: str, rows: Any
+    ) -> ImportResult:
+        """Execute a source-scale streaming COPY inside the credential boundary."""
+        with self.connection() as connection:
+            return execute_stream_import(connection, work, profile=profile, rows=rows)
 
     def enqueue_import(self, operation_id: uuid.UUID) -> JsonObject:
         with self.connection() as connection:

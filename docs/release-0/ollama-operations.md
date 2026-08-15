@@ -30,10 +30,13 @@ The first container start downloads the pinned Ollama runtime image and
 `qwen2.5:3b`. The model and AI-mode SQLite state use named volumes and survive a
 normal `down`/`up` cycle.
 
-### Optional NVIDIA GPU acceleration
+### Automatic NVIDIA GPU acceleration
 
-The portable base Compose topology is deliberately CPU-compatible. Containers do not
-automatically inherit a host GPU. On Windows, NVIDIA acceleration requires
+The portable base Compose topology is deliberately CPU-compatible. The canonical
+`uv run scripts/dev.py up` helper detects whether Docker advertises the NVIDIA runtime
+and merges `docker-compose.gpu.yml` automatically when it does. Use `--cpu-only` for an
+intentional CPU run, or `--gpu` when acceleration is required and startup should fail
+fast if it is unavailable. On Windows, NVIDIA acceleration requires
 [Docker Desktop's WSL 2 GPU path](https://docs.docker.com/desktop/features/gpu/), a
 supported NVIDIA GPU, current Windows/NVIDIA drivers, and a current WSL kernel. The
 override follows Docker's
@@ -46,7 +49,7 @@ nvidia-smi
 docker info
 ```
 
-Merge the hardware override when starting the integrated runtime:
+For lower-level Compose operation, merge the hardware override explicitly:
 
 ```text
 docker compose --file docker-compose.yml --file docker-compose.gpu.yml --profile ollama-container up --detach --wait --wait-timeout 120 ollama

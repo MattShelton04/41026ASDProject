@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +34,9 @@ def create_blueprint(
     *,
     artifact_root: Path,
     full_data_enabled: bool = False,
+    psi_transport_enabled: bool = False,
+    psi_cached_years: tuple[int, ...] = (),
+    psi_cached_weeks: tuple[str, ...] = (),
 ) -> Blueprint:
     """Create Feature 1's public API without any persistence imports."""
     api = Blueprint("propertyscope-data-platform", __name__)
@@ -55,14 +58,23 @@ def create_blueprint(
 
     @api.get(f"{BASE}/runtime-capabilities")
     def runtime_capabilities() -> Response:
+        connected = ["schools-master", "bocsar-sparse", "gnaf-nsw"]
+        if psi_transport_enabled:
+            connected.append("psi-sales")
         return jsonify(
             {
                 "full_data_enabled": full_data_enabled,
-                "implemented_live_profiles": ["schools-master", "bocsar-sparse", "gnaf-nsw"],
+                "implemented_live_profiles": [
+                    "schools-master",
+                    "bocsar-sparse",
+                    "gnaf-nsw",
+                    "psi-sales",
+                ],
                 "host_verified_profiles": ["psi-sales"],
-                "connected_live_profiles": ["schools-master", "bocsar-sparse", "gnaf-nsw"]
-                if full_data_enabled
-                else [],
+                "connected_live_profiles": connected if full_data_enabled else [],
+                "cached_live_profiles": ["psi-sales"] if psi_cached_years else [],
+                "cached_source_years": {"psi-sales": list(psi_cached_years)},
+                "cached_source_weeks": {"psi-sales": list(psi_cached_weeks)},
                 "catalogued_profiles": ["psi-sales"],
                 "showcase_available": True,
             }
@@ -134,17 +146,28 @@ def create_blueprint(
             body.get("scope", job_data["scope_json"]),
             run_mode=mode,
             full_data_enabled=full_data_enabled,
+            psi_transport_enabled=psi_transport_enabled,
+            psi_cached_years=psi_cached_years,
         )
         if scope_error is not None:
             return scope_error
         assert scope is not None
+        cached_psi = _psi_scope_is_cached(
+            job_data,
+            scope,
+            cached_years=psi_cached_years,
+            cached_weeks=psi_cached_weeks,
+        )
         return jsonify(
             {
                 "valid": True,
                 "job_id": str(job_id),
                 "run_mode": mode,
                 "scope": scope,
-                "network_required": mode == "full_refresh" and scope.get("profile") == "full-data",
+                "network_required": mode == "full_refresh"
+                and scope.get("profile") == "full-data"
+                and not cached_psi,
+                "source_cache_required": cached_psi,
                 "tasks": [
                     {"sequence": index + 1, "stage": stage, "logical_key": f"{index:02d}/{stage}"}
                     for index, stage in enumerate(
@@ -188,6 +211,8 @@ def create_blueprint(
             body.get("scope", job_response.json()["job"]["scope_json"]),
             run_mode=mode,
             full_data_enabled=full_data_enabled,
+            psi_transport_enabled=psi_transport_enabled,
+            psi_cached_years=psi_cached_years,
         )
         if scope_error is not None:
             return scope_error
@@ -799,12 +824,41 @@ def approved_tool_call(ai_mode: AiModeClient, tool_name: str, arguments: Mapping
     )
 
 
+def _psi_scope_is_cached(
+    job: Mapping[str, Any],
+    scope: Mapping[str, Any],
+    *,
+    cached_years: tuple[int, ...],
+    cached_weeks: tuple[str, ...],
+) -> bool:
+    if scope.get("profile") != "full-data" or str(job.get("import_profile_key")) != "psi-sales":
+        return False
+    today = datetime.now(UTC).date()
+    required_years = set(scope.get("years", []))
+    if scope.get("all_history") is True:
+        required_years.update(range(1990, today.year))
+    required_weeks = set(scope.get("weeks", []))
+    if scope.get("include_current_weekly") is True:
+        cursor = date(today.year, 1, 1)
+        cursor += timedelta(days=(7 - cursor.weekday()) % 7)
+        while cursor <= today:
+            required_weeks.add(cursor.isoformat())
+            cursor += timedelta(days=7)
+    return (
+        bool(required_years or required_weeks)
+        and required_years.issubset(cached_years)
+        and required_weeks.issubset(cached_weeks)
+    )
+
+
 def validate_job_scope(
     job: Mapping[str, Any],
     raw_scope: Any,
     *,
     run_mode: str,
     full_data_enabled: bool = False,
+    psi_transport_enabled: bool = False,
+    psi_cached_years: tuple[int, ...] = (),
 ) -> tuple[dict[str, Any] | None, Response | None]:
     """Bound operator scope overrides and expose unavailable live transports before launch."""
     if not isinstance(raw_scope, dict):
@@ -826,19 +880,37 @@ def validate_job_scope(
         return None, problem(422, "invalid_scope", "maximum_records exceeds the job limit")
     if str(job.get("import_profile_key")) == "psi-sales":
         years = scope.get("years")
-        if not isinstance(years, list) or not years or len(years) > 40:
-            return None, problem(422, "invalid_scope", "PSI scope requires 1 to 40 source years")
+        all_history = scope.get("all_history") is True
+        weekly_only = isinstance(scope.get("weeks"), list) and bool(scope.get("weeks"))
+        if (
+            not all_history
+            and not weekly_only
+            and (not isinstance(years, list) or not years or len(years) > 100)
+        ):
+            return None, problem(
+                422, "invalid_scope", "PSI scope requires source years or complete history"
+            )
+        checked_years: list[Any] = [] if all_history or not isinstance(years, list) else list(years)
         maximum_year = datetime.now(UTC).year + 1
         if any(
             not isinstance(year, int)
             or isinstance(year, bool)
             or year < 1990
             or year > maximum_year
-            for year in years
+            for year in checked_years
         ):
             return None, problem(422, "invalid_scope", "PSI source year is outside the range")
-        if years != sorted(set(years)):
+        if checked_years != sorted(set(checked_years)):
             return None, problem(422, "invalid_scope", "PSI source years must be unique and sorted")
+        weeks = scope.get("weeks", [])
+        if not isinstance(weeks, list) or len(weeks) > 1000:
+            return None, problem(422, "invalid_scope", "PSI weekly partitions are invalid")
+        try:
+            parsed_weeks = [date.fromisoformat(value) for value in weeks]
+        except (TypeError, ValueError):
+            return None, problem(422, "invalid_scope", "PSI weeks must use ISO dates")
+        if parsed_weeks != sorted(set(parsed_weeks)):
+            return None, problem(422, "invalid_scope", "PSI weeks must be unique and sorted")
     if run_mode == "full_refresh" and profile == "full-data" and not full_data_enabled:
         return None, problem(
             422,
@@ -848,8 +920,11 @@ def validate_job_scope(
     if (
         run_mode == "full_refresh"
         and profile == "full-data"
-        and str(job.get("import_profile_key"))
-        not in {"schools-master", "bocsar-sparse", "gnaf-nsw", "property-fixture"}
+        and (
+            str(job.get("import_profile_key"))
+            not in {"schools-master", "bocsar-sparse", "gnaf-nsw", "property-fixture"}
+            and not (str(job.get("import_profile_key")) == "psi-sales" and psi_transport_enabled)
+        )
     ):
         return None, problem(
             422,

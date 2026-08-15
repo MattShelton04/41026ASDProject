@@ -93,6 +93,10 @@ For day-to-day work on the assignment-aligned integration stack, start Docker De
 uv run scripts/dev.py up
 ```
 
+The helper automatically uses the NVIDIA Compose override when Docker advertises that
+runtime, and otherwise keeps the portable CPU path. Use `--cpu-only` to opt out or `--gpu`
+to require acceleration and fail fast when it is unavailable.
+
 Then open the unified PropertyScope home at <http://localhost:5100>, Feature 1 at
 <http://localhost:5200>, or the non-product integration fixture at <http://localhost:5190>.
 The shared home also exposes live implemented-service status at
@@ -107,11 +111,13 @@ preserves Ollama models, AI-mode run history, PropertyScope data/artifacts, and 
 
 The default PropertyScope stack uses deterministic showcase data and never launches live or
 source-scale acquisition. The explicit full-data path uses a separate Compose project and
-therefore a separate PostgreSQL volume. It connects bounded official schools, BOCSAR and G-NAF
-acquisition; PSI is host-verified but remains disabled because its publisher currently rejects
-Docker-network requests. Live requests fail closed and never substitute synthetic data:
+therefore a separate PostgreSQL volume. It connects official schools, BOCSAR, G-NAF and PSI
+acquisition. PSI uses optional unmodified annual archives under `.propertyscope-source-cache/psi/`
+and acquires missing annual/current-weekly partitions with validated bounded requests. Complete
+history streams every record from 1990 onward and never substitutes synthetic data:
 
 ```text
+uv run scripts/dev.py sync-psi --all
 uv run scripts/dev.py up --full-data
 uv run scripts/dev.py down --full-data
 ```

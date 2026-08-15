@@ -3,6 +3,9 @@ export const ACTIVE_RUN_STATES = new Set([
   "normalising", "validating", "building_release", "running", "cancelling", "resuming",
 ]);
 export const TERMINAL_RUN_STATES = new Set(["succeeded", "failed", "cancelled"]);
+export const ACTIVE_AGENT_STATES = new Set([
+  "queued", "planning", "ready", "acting", "observing", "adapting", "review_required",
+]);
 
 export function createGenerationGuard() {
   let generation = 0;
@@ -29,4 +32,12 @@ export function nextPollDelay(status, failures = 0, hidden = false) {
   const base = status === "queued" || status === "requested" ? 2000 : 1200;
   const backedOff = Math.min(15000, base * (2 ** Math.min(failures, 3)));
   return hidden ? Math.max(10000, backedOff * 3) : backedOff;
+}
+
+export function nextAgentPollDelay(status, failures = 0, hidden = false) {
+  const state = String(status || "").toLowerCase();
+  if (!ACTIVE_AGENT_STATES.has(state)) return null;
+  const base = state === "queued" ? 1500 : state === "review_required" ? 5000 : 800;
+  const backedOff = Math.min(15000, base * (2 ** Math.min(failures, 4)));
+  return hidden ? Math.max(5000, backedOff * 4) : backedOff;
 }

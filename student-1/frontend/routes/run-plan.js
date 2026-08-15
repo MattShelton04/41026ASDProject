@@ -14,6 +14,7 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
     const importProfile = job.import_profile_key || job.import_profile;
     const gnaf = importProfile === "gnaf-nsw";
     const liveAvailable = runtime.full_data_enabled && runtime.connected_live_profiles?.includes(importProfile);
+    const cachedPsiYears = psi ? runtime.cached_source_years?.["psi-sales"] || [] : [];
     const currentYear = new Date().getFullYear();
     append(wrapper, el("div", `notice ${isBackfill ? "warning" : ""}`, isBackfill
       ? "Backfill creates a new full-refresh run for an explicit bounded scope. Accepted data is not replaced until a candidate passes review and publication."
@@ -49,7 +50,7 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
       && [...scopeProfile.options].some((option) => option.value === job.scope_json.profile && !option.disabled)
       ? job.scope_json.profile : "showcase";
     append(profileLabel, scopeProfile, el("small", "field-help", liveAvailable
-      ? "Live acquisition uses the registered upstream source with enforced archive, byte, and record limits."
+      ? "Live acquisition captures every record in the selected source partitions; archive safety checks fail the run instead of truncating it."
       : "Live acquisition is available only for connected sources in the explicit --full-data stack; fixtures are never substituted silently."));
     append(wrapper, profileLabel);
 
@@ -60,18 +61,29 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
       const scopeFields = el("div", "scope-fields");
       const startingYear = Number(job.scope_json?.source_year || job.scope_json?.years?.[0] || currentYear);
       const firstLabel = el("label", "field");
-      append(firstLabel, el("span", "", isBackfill ? "First source year" : "PSI source year"));
-      firstYear = el("input"); firstYear.type = "number"; firstYear.name = "psi_start_year"; firstYear.min = "1990"; firstYear.max = String(currentYear + 1); firstYear.required = true; firstYear.value = String(isBackfill ? Math.max(1990, startingYear - 1) : startingYear);
-      append(firstLabel, firstYear, el("small", "field-help", "PSI years are explicit source partitions, not an opaque incremental cursor."));
+      append(firstLabel, el("span", "", "First annual archive"));
+      firstYear = el("input"); firstYear.type = "number"; firstYear.name = "psi_start_year"; firstYear.min = "1990"; firstYear.max = String(currentYear); firstYear.required = true; firstYear.value = String(scopeProfile.value === "full-data" ? 1990 : (isBackfill ? Math.max(1990, startingYear - 1) : startingYear));
+      append(firstLabel, firstYear, el("small", "field-help", cachedPsiYears.length
+        ? `Detected official archive years: ${cachedPsiYears.join(", ")}.`
+        : "PSI years are explicit source partitions, not an opaque incremental cursor."));
       append(scopeFields, firstLabel);
-      if (isBackfill) {
-        const lastLabel = el("label", "field");
-        append(lastLabel, el("span", "", "Last source year"));
-        lastYear = el("input"); lastYear.type = "number"; lastYear.name = "psi_end_year"; lastYear.min = "1990"; lastYear.max = String(currentYear + 1); lastYear.required = true; lastYear.value = String(startingYear);
-        append(lastLabel, lastYear, el("small", "field-help", "The inclusive range is expanded into a reviewable list of yearly partitions."));
-        append(scopeFields, lastLabel);
-      }
+      const lastLabel = el("label", "field");
+      append(lastLabel, el("span", "", "Last annual archive"));
+      lastYear = el("input"); lastYear.type = "number"; lastYear.name = "psi_end_year"; lastYear.min = "1990"; lastYear.max = String(currentYear); lastYear.required = true; lastYear.value = String(scopeProfile.value === "full-data" ? currentYear - 1 : startingYear);
+      append(lastLabel, lastYear, el("small", "field-help", "Complete mode uses annual archives from 1990 through last year, then every published Monday archive in the current year."));
+      append(scopeFields, lastLabel);
       append(wrapper, scopeFields);
+      const syncPsiMode = () => {
+        const complete = scopeProfile.value === "full-data";
+        firstYear.disabled = complete;
+        lastYear.disabled = complete;
+        if (complete) {
+          firstYear.value = "1990";
+          lastYear.value = String(currentYear - 1);
+        }
+      };
+      scopeProfile.addEventListener("change", syncPsiMode);
+      syncPsiMode();
     }
     if (gnaf) {
       const limitLabel = el("label", "field");
@@ -88,8 +100,8 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
     }
 
     const advanced = el("details", "technical scope-editor");
-    const scope = el("textarea"); scope.value = JSON.stringify(job.scope_json || {}, null, 2); scope.setAttribute("aria-label", "Advanced bounded scope JSON");
-    append(advanced, el("summary", "", "Advanced scope JSON"), el("p", "", "Safe registered overrides only. PSI year controls above take precedence."), scope);
+    const scope = el("textarea"); scope.value = JSON.stringify(job.scope_json || {}, null, 2); scope.setAttribute("aria-label", "Advanced partition JSON");
+    append(advanced, el("summary", "", "Advanced partition JSON"), el("p", "", "Registered partition overrides only. Complete PSI mode always selects all annual and current weekly partitions."), scope);
     append(wrapper, advanced);
     const requestedScope = () => {
       const value = parseJsonField(scope.value, "Scope");
@@ -101,6 +113,14 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
         value.maximum_records = requested;
       }
       if (!psi) return value;
+      if (scopeProfile.value === "full-data") {
+        delete value.maximum_records;
+        delete value.years;
+        value.all_history = true;
+        value.include_current_weekly = true;
+        value.partition_type = "annual_and_weekly";
+        return value;
+      }
       const years = psiYearRange(firstYear.value, lastYear?.value || firstYear.value, { maximum: currentYear + 1 });
       delete value.source_year;
       value.years = years;
@@ -117,7 +137,7 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
       try {
         const payload = { run_mode: mode.value, scope: requestedScope() };
         const result = await request(`jobs/${job.id}/plans`, { method: "POST", body: payload });
-        const scopeSummary = psi ? `${payload.scope.years.length} PSI year partition${payload.scope.years.length === 1 ? "" : "s"}: ${payload.scope.years.join(", ")}` : payload.scope.profile === "full-data" ? "Live registered source" : "Deterministic bounded scope";
+        const scopeSummary = psi && payload.scope.all_history ? "Complete PSI history: annual archives from 1990 plus current weekly updates" : psi ? `${payload.scope.years.length} PSI annual partition${payload.scope.years.length === 1 ? "" : "s"}: ${payload.scope.years.join(", ")}` : payload.scope.profile === "full-data" ? "Live registered source" : "Deterministic bounded scope";
         evidence.replaceChildren(el("div", "notice", `Plan validated · ${scopeSummary}. Review task, cache/network work and limits before launch.`), technicalDetails(result.body, "Plan evidence"));
       } catch (error) { evidence.replaceChildren(el("div", "notice negative", `${error.message} Request ID ${error.requestId}`)); }
       finally { preview.disabled = false; }

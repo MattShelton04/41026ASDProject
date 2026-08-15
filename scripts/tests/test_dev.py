@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import date
 
+import httpx
 import pytest
 from scripts import dev
 
@@ -12,10 +14,13 @@ from scripts import dev
 def captured_commands(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
     commands: list[tuple[str, ...]] = []
 
-    def capture(command: Sequence[str]) -> None:
+    def capture(command: Sequence[str], *, environment: object = None) -> None:
+        del environment
         commands.append(tuple(command))
 
     monkeypatch.setattr(dev, "_run", capture)
+    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: False)
+    monkeypatch.setattr(dev, "_psi_cache_years", lambda: ())
     return commands
 
 
@@ -41,6 +46,26 @@ def test_up_can_skip_already_prepared_model(
 
     assert len(captured_commands) == 3
     assert all("ollama-init" not in command for command in captured_commands)
+
+
+def test_up_automatically_uses_available_nvidia_runtime(
+    captured_commands: list[tuple[str, ...]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: True)
+
+    assert dev.main(["up", "--skip-model-pull"]) == 0
+
+    assert all(dev.GPU_COMPOSE_FILE in command for command in captured_commands[1:])
+
+
+def test_up_can_explicitly_keep_portable_cpu_runtime(
+    captured_commands: list[tuple[str, ...]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: True)
+
+    assert dev.main(["up", "--skip-model-pull", "--cpu-only"]) == 0
+
+    assert all(dev.GPU_COMPOSE_FILE not in command for command in captured_commands)
 
 
 def test_rebuild_defaults_to_all_application_services(
@@ -72,6 +97,53 @@ def test_full_data_is_explicit_and_uses_isolated_project(
     assert dev.FULL_DATA_COMPOSE_FILE in application_up
     assert application_up[2:4] == ("--project-name", dev.FULL_DATA_PROJECT_NAME)
     assert "full-data" in application_up
+
+
+def test_full_data_exposes_psi_and_advertises_cached_years(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environments: list[object] = []
+
+    def capture(command: Sequence[str], *, environment: object = None) -> None:
+        del command
+        environments.append(environment)
+
+    monkeypatch.setattr(dev, "_run", capture)
+    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: False)
+    monkeypatch.setattr(dev, "_psi_cache_years", lambda: (2024, 2025))
+    monkeypatch.setattr(dev, "_psi_cache_weeks", lambda: ("2026-08-03", "2026-08-10"))
+
+    assert dev.main(["up", "--full-data", "--skip-model-pull"]) == 0
+
+    assert all(
+        isinstance(environment, dict)
+        and environment["PROPERTYSCOPE_PSI_TRANSPORT_ENABLED"] == "true"
+        and environment["PROPERTYSCOPE_PSI_CACHED_YEARS"] == "2024,2025"
+        and environment["PROPERTYSCOPE_PSI_CACHED_WEEKS"] == "2026-08-03,2026-08-10"
+        for environment in environments[1:]
+    )
+
+
+def test_psi_host_sync_handles_publisher_range_only_response() -> None:
+    payload = b"PK\x03\x04official-psi"
+
+    def source(request: httpx.Request) -> httpx.Response:
+        if "Range" not in request.headers:
+            return httpx.Response(403, content=b"publisher policy")
+        return httpx.Response(
+            206,
+            content=payload,
+            headers={"Content-Range": f"bytes 0-{len(payload) - 1}/{len(payload)}"},
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(source)) as client:
+        assert dev._download_psi_archive(client, "https://example.test/2025.zip") == payload
+
+
+def test_complete_psi_scope_resolves_history_and_current_mondays() -> None:
+    weeks = dev._current_psi_weeks(date(2026, 1, 13))
+
+    assert weeks == (date(2026, 1, 5), date(2026, 1, 12))
 
 
 def test_default_stack_does_not_enable_full_data(

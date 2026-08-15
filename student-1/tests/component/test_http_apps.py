@@ -415,6 +415,89 @@ def test_job_plan_rejects_catalogued_source_without_live_transport() -> None:
     assert response.get_json()["code"] == "live_transport_unavailable"
 
 
+def test_job_plan_enables_psi_when_official_archive_cache_is_available() -> None:
+    job_id = "20000000-0000-0000-0000-000000000001"
+
+    def database(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "job": {
+                    "id": job_id,
+                    "adapter_key": "psi-yearly-zip",
+                    "import_profile_key": "psi-sales",
+                    "scope_json": {"profile": "showcase"},
+                    "max_objects": 10,
+                    "max_bytes": 800_000_000,
+                    "max_rows": 500_000,
+                    "timeout_seconds": 7_200,
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+        full_data_enabled=True,
+        psi_transport_enabled=True,
+        psi_cached_years=(2025,),
+        psi_cached_weeks=("2026-08-10",),
+    )
+    client = app.test_client()
+
+    capabilities = client.get("/api/data-platform/v1/runtime-capabilities")
+    response = client.post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={
+            "run_mode": "full_refresh",
+            "scope": {"profile": "full-data", "years": [2025]},
+        },
+    )
+
+    assert "psi-sales" in capabilities.get_json()["connected_live_profiles"]
+    assert capabilities.get_json()["cached_live_profiles"] == ["psi-sales"]
+    assert response.status_code == 200
+    assert response.get_json()["network_required"] is False
+    assert response.get_json()["source_cache_required"] is True
+    assert capabilities.get_json()["cached_source_years"] == {"psi-sales": [2025]}
+    assert capabilities.get_json()["cached_source_weeks"] == {"psi-sales": ["2026-08-10"]}
+
+    missing = client.post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={
+            "run_mode": "full_refresh",
+            "scope": {"profile": "full-data", "years": [2024]},
+        },
+    )
+    assert missing.status_code == 200
+    assert missing.get_json()["network_required"] is True
+    assert missing.get_json()["source_cache_required"] is False
+
+    weekly = client.post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={
+            "run_mode": "full_refresh",
+            "scope": {"profile": "full-data", "weeks": ["2026-08-10"]},
+        },
+    )
+    assert weekly.status_code == 200
+    assert weekly.get_json()["network_required"] is False
+    assert weekly.get_json()["source_cache_required"] is True
+
+    showcase = client.post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={
+            "run_mode": "full_refresh",
+            "scope": {"profile": "showcase", "years": [2025]},
+        },
+    )
+    assert showcase.status_code == 200
+    assert showcase.get_json()["source_cache_required"] is False
+
+
 def test_protected_tool_rejects_forged_agent_run_header() -> None:
     run_id = "70000000-0000-0000-0000-000000000001"
     source_run_id = "30000000-0000-0000-0000-000000000003"
