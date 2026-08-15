@@ -157,6 +157,7 @@ test("generation guards reject late route and polling work", () => {
 
 test("the application shell exposes keyboard landmarks, live status and native dialogs", async () => {
   const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
   assert.match(html, /href="#main-content">Skip to main content/);
   assert.match(html, /<nav>/);
   assert.match(html, /<main id="main-content" tabindex="-1">/);
@@ -168,6 +169,8 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.match(html, /id="action-confirm"[^>]+type="submit"/);
   assert.doesNotMatch(html, /<script(?![^>]+src=)/);
   assert.doesNotMatch(html, /style="/);
+  assert.match(app, /event\.key === "Escape"/);
+  assert.match(app, /closeNavigation\(\{ restoreFocus: true \}\)/);
 });
 
 test("the frontend proxy keeps browser traffic on the public backend boundary", async () => {
@@ -217,7 +220,7 @@ test("release CRUD and report-section routes are represented in the browser clie
     await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8"),
     await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8"),
   ].join("\n");
-  assert.match(source, /Create draft release/);
+  assert.match(source, /Create draft dataset/);
   assert.match(source, /method: item \? "PUT" : "POST"/);
   assert.match(source, /method: "DELETE"/);
   assert.match(source, /properties\/\$\{encodeURIComponent\(propertyRef\)\}\/report-section/);
@@ -251,6 +254,7 @@ test("operator UI exposes working submit controls, backfills and durable histori
   assert.match(source, /PSI source year/);
   assert.match(source, /Preview deterministic plan/);
   assert.match(source, /link\("Run history"/);
+  assert.match(source, /`#ai\/release:\$\{linkedRelease\.id\}`/);
 });
 
 test("production frontend imports focused core and component modules", async () => {
@@ -276,11 +280,11 @@ test("property discovery consumes shell search queries and stays product-facing"
   const source = await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8");
   assert.match(source, /routeQuery\(location\.hash\)\.get\("q"\)/);
   assert.match(source, /if \(input\.value\) queueMicrotask/);
-  assert.match(source, /Explore properties/);
-  assert.match(source, /research areas have usable evidence/);
+  assert.match(source, /Explore NSW properties/);
+  assert.match(source, /which evidence is available/);
   assert.doesNotMatch(source, /Feature [1-5]|buyer features|Dossier report/);
   assert.match(source, /#properties\/\$\{encodeURIComponent\(item\.property_ref\)\}/);
-  assert.match(source, /Accessible text alternative to spatial context/);
+  assert.match(source, /Coordinates are also provided as text/);
 });
 
 test("live acquisition controls use truthful runtime capability evidence", async () => {
@@ -298,7 +302,7 @@ test("live acquisition controls use truthful runtime capability evidence", async
 test("AI diagnosis history is loaded from the durable shared service projection", async () => {
   const source = await readFile(new URL("../../frontend/routes/ai-diagnosis.js", import.meta.url), "utf8");
   assert.match(source, /request\("agent-runs\?limit=50"\)/);
-  assert.match(source, /panel\("Durable diagnosis history"/);
+  assert.match(source, /panel\("Diagnosis history"/);
   assert.match(source, /`#ai\/\$\{run\.id\}`/);
   assert.match(source, /selectedAgentRun/);
   assert.match(source, /OBJECTIVES = Object\.freeze/);
@@ -308,8 +312,8 @@ test("AI diagnosis history is loaded from the durable shared service projection"
 
 test("evidence explorers require an exact run and preserve unknown states", async () => {
   const source = await readFile(new URL("../../frontend/routes/evidence.js", import.meta.url), "utf8");
-  assert.match(source, /Choose an exact ingestion run/);
-  assert.match(source, /Evidence is never silently mixed across runs/);
+  assert.match(source, /Choose a processing run/);
+  assert.match(source, /Evidence from different runs is kept separate/);
   assert.match(source, /unknown evidence state, not a confirmed negative/);
   assert.match(source, /#\$\{kind\}\/\$\{run\.id\}/);
 });

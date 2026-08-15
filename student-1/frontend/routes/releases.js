@@ -74,11 +74,11 @@ export function createReleaseRoutes({
       const visible = filters.q ? releases.filter((release) => [release.dataset_id, release.release_version, release.target_feature]
         .some((value) => String(value || "").toLowerCase().includes(filters.q.toLowerCase()))) : releases;
       view.replaceChildren();
-      append(view, pageHeading("Publication control", "Dataset releases", "Compare isolated candidates with accepted evidence and keep publication under explicit human control.", [button("Create draft release", "button primary", () => openReleaseDialog())]));
+      append(view, pageHeading("Property records", "Published datasets", "Review each new dataset against the version already in use. Publication and rejection always require a recorded human decision.", [button("Create draft dataset", "button primary", () => openReleaseDialog())]));
       append(view, filterToolbar({ ...filters, statuses: ["", "draft", "candidate", "awaiting_review", "accepted", "rejected", "superseded"], placeholder: "Dataset, version or research area", onApply: (values) => { location.hash = `#releases${queryString(values)}`; rerender(); } }));
-      if (!visible.length) { append(view, emptyState("No dataset releases", filters.q || filters.status ? "Try clearing the current filters." : "Completed ingestion runs can create isolated candidate releases.")); return; }
-      append(view, panel(`${visible.length} releases`, "Candidates remain isolated from accepted generations", makeTable(
-        [{ label: "Dataset / release" }, { label: "Research area" }, { label: "Records" }, { label: "State" }, { label: "Accepted" }, { label: "Checksum" }], visible,
+      if (!visible.length) { append(view, emptyState("No datasets found", filters.q || filters.status ? "Try clearing the current filters." : "A completed processing run can create a dataset for review.")); return; }
+      append(view, panel(`${visible.length} dataset versions`, "Unpublished candidates remain separate from the version currently in use", makeTable(
+        [{ label: "Dataset / version" }, { label: "Research area" }, { label: "Records" }, { label: "State" }, { label: "Published" }, { label: "Checksum" }], visible,
         (release) => { const row = el("tr"); append(row, cell(link(release.dataset_id || "Dataset", `#releases/${release.id}`), "primary-cell"), cell(researchAreaLabel(release.target_feature)), cell(formatNumber(release.record_count), "numeric"), cell(badge(release.status)), cell(formatDate(release.accepted_at)), cell(String(release.content_sha256 || "—").slice(0, 12), "mono")); return row; },
       )));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
@@ -128,19 +128,19 @@ export function createReleaseRoutes({
     actions.push(button("Diagnose evidence", "button secondary", () => { location.hash = `#ai/release:${id}`; }));
 
     view.replaceChildren();
-    append(view, pageHeading("Dataset release", `${release.dataset_id} ${release.release_version}`, `${researchAreaLabel(release.target_feature)} · ${formatNumber(release.record_count)} records`, actions));
+    append(view, pageHeading("Dataset review", `${release.dataset_id} ${release.release_version}`, `${researchAreaLabel(release.target_feature)} · ${formatNumber(release.record_count)} records`, actions));
     if (!["accepted", "superseded"].includes(release.status)) append(view, el("div", "notice warning", "Candidate evidence is isolated. The accepted predecessor remains available until a reviewed publication handshake succeeds."));
     if (blocking) append(view, el("div", "notice negative", "Publication is blocked by deterministic quality failures. Inspect the failed checks, diagnose if useful, then reject or recover the candidate; accepted data is unaffected."));
     const layout = el("div", "detail-layout");
     const releaseBody = el("div");
     append(releaseBody, detailList([["State", badge(release.status)], ["Schema", release.schema_version], ["Records", formatNumber(release.record_count)], ["Content hash", el("code", "mono", release.content_sha256)], ["Coverage", release.coverage_json ? technicalDetails(release.coverage_json, "Inspect coverage") : "Unknown"], ["Review note", release.review_comment || "No review note recorded"], ["Created", formatDate(release.created_at)], ["Accepted", formatDate(release.accepted_at)], ["Request ID", el("code", "mono", requestId)]]), technicalDetails(release, "Inspect bounded release metadata"));
     const side = el("div", "stack");
-    append(side, panel("Manifest", "Bounded reproducibility evidence", manifest ? technicalDetails(manifest, "Inspect manifest") : el("p", "", "Manifest unavailable.")));
+    append(side, panel("Dataset manifest", "Files and settings needed to reproduce this version", manifest ? technicalDetails(manifest, "Inspect manifest") : el("p", "", "Manifest unavailable.")));
     const receiptBody = el("div");
     if (!receipts.length) append(receiptBody, el("p", "", "No consumer publication receipts recorded."));
     for (const receipt of receipts) append(receiptBody, detailList([["Research area", researchAreaLabel(receipt.target_feature)], ["Status", badge(receipt.status)], ["Rows accepted", formatNumber(receipt.rows_accepted)], ["Request ID", el("code", "mono", receipt.request_id || requestId)], ["Failure evidence", receipt.error_json ? technicalDetails(receipt.error_json, "Inspect failure") : "None recorded"]]));
-    append(side, panel("Publication receipts", "Consumer-owned import outcomes", receiptBody));
-    append(layout, panel("Candidate evidence", "Exact generation under review", releaseBody), side);
+    append(side, panel("Publication receipts", "Recorded outcomes from each destination", receiptBody));
+    append(layout, panel(["accepted", "superseded"].includes(release.status) ? "Published dataset" : "Candidate dataset", "The exact version selected for review", releaseBody), side);
     append(view, layout);
     if (previewResult.status === "fulfilled") append(view, releasePreviewPanel(id, previewResult.value.body));
     else append(view, panel("Dataset preview", "Bounded release-scoped records", el("div", "notice warning", "Preview is unavailable for this release profile. Release and quality evidence remain available.")));

@@ -68,10 +68,10 @@ export function createStatusRoute({ config, announce }) {
   return async function renderStatus(root) {
     const refresh = el("button", "ps-button ps-button--primary", "Refresh status");
     refresh.type = "button";
-    append(root, pageHeader("Shared operations", "System status", "Live readiness for implemented shared and Property records services, kept separate from data coverage and future capability availability.", [refresh]));
+    append(root, pageHeader("PropertyScope", "Data status", "Check whether property search, published data and recorded activity can be reached. Coverage and freshness are shown separately from service availability.", [refresh]));
     const summary = el("section", "status-summary");
     const cards = el("div", "ps-grid ps-grid-3 health-grid");
-    const contracts = panel("Service boundaries", "Only public browser-facing projections are listed. Planned services remain unavailable by design.");
+    const contracts = panel("Research area availability", "Planned areas stay unavailable until their own data and workflows are ready.");
     append(root, summary, cards, contracts.card);
 
     async function load() {
@@ -117,23 +117,23 @@ export function createStatusRoute({ config, announce }) {
       ];
       const overall = overallReadiness(components);
       const checkedAt = new Date().toISOString();
-      summary.replaceChildren(notice(overall === "ready" ? "success" : "warning", overall === "ready" ? "Implemented services are ready" : "Some implemented services need attention", `Checked ${formatDate(checkedAt)}. Planned student services are excluded from the health calculation.`));
+      summary.replaceChildren(notice(overall === "ready" ? "success" : "warning", overall === "ready" ? "PropertyScope is ready" : "Some live services need attention", `Checked ${formatDate(checkedAt)}. Planned research areas are not counted as failures.`));
       cards.replaceChildren(...components.map(healthCard));
 
       const planned = [
-        ["Sales and market", "Student-owned service", "Planned", "No live route or readiness claim"],
-        ["Suburb context", "Student-owned service", "Planned", "No live route or readiness claim"],
-        ["Site and planning", "Student-owned service", "Planned", "No live route or readiness claim"],
-        ["Buyer workspace", "Student-owned service", "Planned", "No live route or readiness claim"],
-        ["MCP / RAG", "Shared platform", "Release-gated", "Not required for foundation CRUD"],
-        ["Multi-agent", "Shared platform", "Release-gated", "Not active in this deployment"],
+        ["Sales and market", "Research area", "Planned", "No live route yet"],
+        ["Suburb context", "Research area", "Planned", "No live route yet"],
+        ["Site and planning", "Research area", "Planned", "No live route yet"],
+        ["Buyer workspace", "Research workspace", "Planned", "No live route yet"],
+        ["Cited document research", "Shared capability", "Planned", "Property search does not depend on it"],
+        ["Coordinated research roles", "Shared capability", "Planned", "Not active in this workspace"],
       ];
       contracts.body.querySelector(".dashboard-table-wrap")?.remove();
       append(contracts.body, table(["Capability", "Owner", "Availability", "Failure behaviour"], planned, (row) => {
         const tr = el("tr");
         append(tr, cell(row[0], "primary-cell"), cell(row[1]), cell(badge(row[2], "planned")), cell(row[3]));
         return tr;
-      }, "Planned and release-gated service boundaries"));
+      }, "Planned research areas and capabilities"));
       root.setAttribute("aria-busy", "false");
       refresh.disabled = false;
       announce(`Status refreshed. Implemented services are ${overall}.`);

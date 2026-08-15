@@ -25,8 +25,8 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, rerend
       const history = collection(historyResult.body);
       const selectedAgentRun = context && !context.startsWith("release:") ? context : "";
       view.replaceChildren();
-      append(view, pageHeading("Assisted investigation", "AI diagnosis", "Launch a bounded investigation for one exact candidate and linked ingestion run. Any recovery remains a proposal until a human reviews it.", selectedAgentRun ? [link("New diagnosis", "#ai", "button secondary"), sharedRunLink(selectedAgentRun, "Open Agent activity")] : [link("Open Agent activity", AGENT_ACTIVITY_URL, "button secondary")]));
-      append(view, el("div", "notice", "Sources, jobs, releases, quality evidence and property discovery remain usable without Ollama. Model or tool failure never removes prior durable observations."));
+      append(view, pageHeading("Data recovery", "Assisted diagnosis", "Investigate one unpublished dataset and its processing run. The assistant can gather evidence and propose a recovery, but a person must decide what happens next.", selectedAgentRun ? [link("New diagnosis", "#ai", "button secondary"), sharedRunLink(selectedAgentRun, "Open activity history")] : [link("Open activity history", AGENT_ACTIVITY_URL, "button secondary")]));
+      append(view, el("div", "notice", "Property search, sources, import jobs, published datasets and quality evidence remain available if the local model is offline. Previously recorded observations are never hidden by a later failure."));
       if (historyResult.error) append(view, el("div", "notice warning", `Diagnosis history is temporarily unavailable.${problemSuffix(historyResult.error)}`));
       else if (!history.length) append(view, emptyState("No diagnosis history", "Start the first bounded investigation below. Its durable evidence will remain available after navigation or reload."));
       else append(view, diagnosisHistory(history, selectedAgentRun));
@@ -38,7 +38,7 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, rerend
   }
 
   function diagnosisHistory(history, selectedAgentRun) {
-    return panel("Durable diagnosis history", `${history.length} bounded Agent activity runs · newest first`, makeTable(
+    return panel("Diagnosis history", `${history.length} recorded investigations · newest first`, makeTable(
       [{ label: "Diagnosis" }, { label: "State" }, { label: "Latest phase" }, { label: "Tool calls" }, { label: "Started" }, { label: "Evidence" }], history,
       (run) => { const row = el("tr"); append(row, cell(primaryCell(run.objective_preview || "Bounded diagnosis", run.id)), cell(badge(run.status)), cell(humanise(run.latest_phase)), cell(formatNumber(run.tool_call_count), "numeric"), cell(formatDate(run.created_at)), cell(link(run.id === selectedAgentRun ? "Viewing trace" : "View trace", `#ai/${run.id}`, "button secondary small"), "actions-cell")); return row; },
     ));
@@ -46,19 +46,19 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, rerend
 
   async function diagnosisForm(candidates, context) {
     const host = el("section", "panel"); const heading = el("div", "panel-heading"); const copy = el("div");
-    append(copy, el("h2", "", "Start a bounded diagnosis"), el("p", "", "Plan → Act → Observe → Adapt, with read-only evidence tools and a separate human decision")); append(heading, copy); const body = el("div", "panel-body"); append(host, heading, body);
-    if (!candidates.length) { append(body, emptyState("No candidate releases", "Only draft, candidate, review or rejected release evidence can be diagnosed here.")); return host; }
+    append(copy, el("h2", "", "Start a diagnosis"), el("p", "", "Plan → Act → Observe → Adapt, using read-only evidence and a separate human decision")); append(heading, copy); const body = el("div", "panel-body"); append(host, heading, body);
+    if (!candidates.length) { append(body, emptyState("Nothing needs diagnosis", "A draft, candidate, review or rejected dataset will appear here when it needs investigation.")); return host; }
     const form = el("form", "form-grid");
-    const releaseLabel = el("label", "wide"); append(releaseLabel, el("span", "", "Exact candidate release")); const releaseSelect = el("select"); releaseSelect.required = true;
+    const releaseLabel = el("label", "wide"); append(releaseLabel, el("span", "", "Dataset to investigate")); const releaseSelect = el("select"); releaseSelect.required = true;
     for (const release of candidates) { const option = el("option", "", `${release.dataset_id} ${release.release_version} · ${humanise(release.status)} · run ${release.ingestion_run_id}`); option.value = release.id; option.selected = context === `release:${release.id}`; append(releaseSelect, option); }
     append(releaseLabel, releaseSelect);
-    const objectiveLabel = el("label", "wide"); append(objectiveLabel, el("span", "", "Bounded investigation objective")); const objective = el("select"); objective.required = true;
+    const objectiveLabel = el("label", "wide"); append(objectiveLabel, el("span", "", "Investigation goal")); const objective = el("select"); objective.required = true;
     append(objective, option("compare", "Compare candidate, predecessor and failures"), option("quality", "Inspect blocking quality evidence"), option("consumer", "Inspect consumer publication failure")); append(objectiveLabel, objective);
     const scope = el("div", "notice wide"); scope.setAttribute("aria-live", "polite");
     const updateScope = () => { const release = candidates.find((item) => item.id === releaseSelect.value) || candidates[0]; scope.textContent = `Evidence boundary: release ${release.id}; ingestion run ${release.ingestion_run_id}; accepted predecessor for ${release.dataset_id} and ${researchAreaLabel(release.target_feature)}; bounded release, run, quality, coverage and receipt metadata only.`; };
     releaseSelect.addEventListener("change", updateScope); updateScope();
     const review = el("label", "wide review-acknowledgement"); const check = el("input"); check.type = "checkbox"; check.required = true; append(review, check, el("span", "", "I understand this run can propose a recovery, but cannot approve, publish or execute a protected mutation on my behalf."));
-    const submit = button("Start bounded diagnosis", "button primary"); submit.type = "submit";
+    const submit = button("Start diagnosis", "button primary"); submit.type = "submit";
     append(form, releaseLabel, objectiveLabel, scope, review, submit); append(body, form);
     form.addEventListener("submit", async (event) => {
       event.preventDefault(); if (!form.reportValidity()) return; submit.disabled = true;

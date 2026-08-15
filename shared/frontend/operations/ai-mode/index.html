@@ -16,12 +16,12 @@
           <span class="product-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-8 4 8 4 8-4-8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg>
           </span>
-          <span><strong>PropertyScope</strong><small>NSW property evidence</small></span>
+          <span><strong>PropertyScope NSW</strong><small>Property research workspace</small></span>
         </a>
         <span class="topbar-divider" aria-hidden="true"></span>
         <div>
           <h1>Agent activity</h1>
-          <p>Shared operational evidence</p>
+          <p>Recorded assisted activity</p>
         </div>
       </div>
       <div class="connection" role="status" aria-live="polite">
@@ -40,7 +40,7 @@
           <button id="refresh-runs" class="quiet-button" type="button">Refresh</button>
         </div>
 
-        <p class="scope-note">This operational view records bounded automated work. Property research begins in the <a href="http://localhost:5100/">PropertyScope product</a>.</p>
+        <p class="scope-note">Review plans, tool observations, failures and decisions from assisted work. Start property research from the <a href="http://localhost:5100/">PropertyScope workspace</a>.</p>
 
         <div id="quick-filters" class="quick-filters" role="group" aria-label="Quick run filters">
           <button type="button" data-filter="all" aria-pressed="true">All</button>
@@ -51,8 +51,11 @@
 
         <form id="filters" class="filters">
           <label>
-            <span>Owning service</span>
-            <input id="feature-filter" name="feature_key" maxlength="100" placeholder="All services">
+            <span>Research area</span>
+            <select id="feature-filter" name="feature_key">
+              <option value="">All areas</option>
+              <option value="student-1-propertyscope-data-platform">Property records</option>
+            </select>
           </label>
           <label>
             <span>Status</span>

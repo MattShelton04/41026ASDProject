@@ -34,11 +34,11 @@ function statusTone(value) {
 
 export function createEvidenceRoute({ config, announce }) {
   return async function renderEvidence(root) {
-    append(root, pageHeader("Shared evidence index", "Evidence and lineage", "Safe references to accepted datasets and durable agent activity. Domain facts remain owned and interpreted by their feature services.", [link("Open Property records evidence", config.dataOperations, "ps-button")]));
+    append(root, pageHeader("About the data", "Evidence ledger", "Open the published datasets and recorded activity behind PropertyScope without losing source, date or status context.", [link("Open property data", config.dataOperations, "ps-button")]));
     const state = el("div", "dashboard-state", "Loading current evidence references…");
     state.setAttribute("role", "status");
-    const releasePanel = panel("Accepted data references", "Only currently enabled research areas are indexed here. Accepted data remains owned by Property data operations.");
-    const agentPanel = panel("Durable agent references", "Read-only links into the shared Plan → Act → Observe → Adapt journal.");
+    const releasePanel = panel("Published datasets", "The versions currently available to property research.");
+    const agentPanel = panel("Recorded assisted activity", "Read-only links to plans, tool observations and review states.");
     const languagePanel = panel("Evidence language", "The same vocabulary applies across the product; data absence is never inferred from missing evidence.");
     append(root, state, el("div", "ps-grid ps-grid-2 evidence-grid"));
     const grid = root.querySelector(".evidence-grid");
@@ -72,9 +72,9 @@ export function createEvidenceRoute({ config, announce }) {
         append(dataset, link(item.dataset, `${config.releaseDetail}${encodeURIComponent(item.id)}`), el("code", "table-secondary mono", item.hash ? `${item.hash.slice(0, 12)}…` : "Hash unknown"));
         append(tr, cell(dataset), cell(item.area), cell(item.version, "mono"), cell(formatNumber(item.records), "numeric"), cell(badge(humanise(item.coverage), statusTone(item.coverage))), cell(formatDate(item.acceptedAt)));
         return tr;
-      }, "Accepted dataset release references"));
-      else append(releasePanel.body, notice("info", "No accepted references", "This is a valid empty state and does not indicate that source data is absent."));
-    } else append(releasePanel.body, notice("warning", "Accepted data index unavailable", `Property data operations remain the authority. Request ID: ${releasesResult.reason.requestId || "not supplied"}.`));
+      }, "Published dataset references"));
+      else append(releasePanel.body, notice("info", "No published references", "No conclusion about source data can be made from this empty index."));
+    } else append(releasePanel.body, notice("warning", "Published data index unavailable", `Open Property data operations for the current record. Request ID: ${releasesResult.reason.requestId || "not supplied"}.`));
 
     if (runsResult.status === "fulfilled") {
       const runs = agentRunReferences(runsResult.value.body);
@@ -83,8 +83,8 @@ export function createEvidenceRoute({ config, announce }) {
         append(tr, cell(link(item.id.slice(0, 8), `${config.agentRuns}?run=${encodeURIComponent(item.id)}`, "mono"), "primary-cell"), cell(item.area), cell(item.objective), cell(badge(humanise(item.status), statusTone(item.status))), cell(formatDate(item.updatedAt)));
         return tr;
       }, "Durable agent-run references"));
-      else append(agentPanel.body, notice("info", "No durable agent runs", "Deterministic property and data operations remain available without model activity."));
-    } else append(agentPanel.body, notice("warning", "Agent evidence index unavailable", `Prior accepted data references remain visible. Request ID: ${runsResult.reason.requestId || "not supplied"}.`));
+      else append(agentPanel.body, notice("info", "No assisted activity", "Property search and data operations remain available without model activity."));
+    } else append(agentPanel.body, notice("warning", "Activity index unavailable", `Published data references remain visible. Request ID: ${runsResult.reason.requestId || "not supplied"}.`));
     announce(failures.length ? "The shared evidence index loaded with unavailable providers." : "The shared evidence index loaded current references.");
   };
 }

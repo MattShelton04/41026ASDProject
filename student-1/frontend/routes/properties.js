@@ -11,7 +11,7 @@ export function createPropertyRoutes({ view, request, announce }) {
     if (propertyRef) return renderPropertyDetail(propertyRef);
     view.replaceChildren();
     const hero = el("section", "discovery-hero");
-    append(hero, el("p", "eyebrow", "Explore properties"), el("h1", "", "Trace an NSW address to the evidence behind it"), el("p", "", "Search the accepted property registry, inspect match provenance and see which research areas have usable evidence."));
+    append(hero, el("p", "eyebrow", "Property search"), el("h1", "", "Explore NSW properties"), el("p", "", "Find a stable property record before you begin further research. Every result shows how the address was resolved and which evidence is available."));
     const form = el("form", "search-box");
     const input = el("input");
     input.type = "search";
@@ -24,22 +24,22 @@ export function createPropertyRoutes({ view, request, announce }) {
     const search = button("Search", "button primary");
     search.type = "submit";
     append(form, input, search);
-    append(hero, form, el("p", "search-help", "NSW only · Maximum 25 matches · Search works without AI"));
+    append(hero, form, el("p", "search-help", "NSW addresses · Up to 25 results · Address matching does not depend on AI"));
     append(view, hero);
     const resultHost = el("div");
-    append(resultHost, emptyState("Start with a street address", "Results include an accessible list and table-based coordinate context. No map interaction is required."));
+    append(resultHost, emptyState("Start with a street address", "Include a street number and suburb or postcode for the clearest match."));
     append(view, resultHost);
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const query = input.value.trim();
       history.replaceState(null, "", `#properties${queryString({ q: query })}`);
-      resultHost.replaceChildren(el("section", "loading-state", "Searching the accepted property registry…"));
+      resultHost.replaceChildren(el("section", "loading-state", "Searching NSW property records…"));
       try {
         const result = await request(`properties/search${queryString({ q: query, state: "NSW", limit: 25 })}`);
         const items = collection(result.body);
         if (result.body.supported === false) resultHost.replaceChildren(el("div", "notice warning", "This query is outside the supported NSW coverage. Try an NSW street address."));
-        else if (!items.length) resultHost.replaceChildren(emptyState("No canonical property found", "Try including a street number, suburb and four-digit postcode. PropertyScope will not invent or silently broaden a match."));
+        else if (!items.length) resultHost.replaceChildren(emptyState("No property found", "Try including a street number, suburb and four-digit postcode. We will not silently broaden your search."));
         else {
           renderPropertyResults(resultHost, items, query);
           announce(`${items.length} property matches found.`);
@@ -60,7 +60,7 @@ export function createPropertyRoutes({ view, request, announce }) {
       const result = el("button", "result-card");
       result.type = "button";
       result.setAttribute("aria-label", `Open ${item.address_display}`);
-      append(result, el("strong", "", item.address_display), el("span", "", `${item.locality || ""} ${item.state || "NSW"} ${item.postcode || ""} · ${humanise(item.resolution_status || item.match?.status)} · match score ${item.score ?? item.match?.score ?? "not supplied"}`));
+      append(result, el("strong", "", item.address_display), el("span", "", `${humanise(item.resolution_status || item.match?.status)} address · ${item.locality || ""} ${item.state || "NSW"} ${item.postcode || ""} · confidence ${item.score ?? item.match?.score ?? "not supplied"}`));
       result.addEventListener("click", () => { location.hash = `#properties/${encodeURIComponent(item.property_ref)}${queryString({ q: query })}`; });
       append(listBody, result);
     });
@@ -68,7 +68,7 @@ export function createPropertyRoutes({ view, request, announce }) {
       [{ label: "Address" }, { label: "Property reference" }, { label: "Latitude" }, { label: "Longitude" }, { label: "Resolution" }], items,
       (item) => { const row = el("tr"); append(row, cell(item.address_display, "primary-cell"), cell(item.property_ref, "mono"), cell(item.latitude ?? "Unknown"), cell(item.longitude ?? "Unknown"), cell(badge(item.resolution_status || "unknown"))); return row; },
     );
-    append(layout, panel(`${items.length} matches`, "Stable identities, not listing duplicates", listBody), panel("Coordinate evidence", "Accessible text alternative to spatial context", coordinateRows));
+    append(layout, panel(`${items.length} ${items.length === 1 ? "property" : "properties"}`, "Stable property records, not real-estate listings", listBody), panel("Location details", "Coordinates are also provided as text for accessible review", coordinateRows));
     host.replaceChildren(layout);
   }
 
@@ -88,15 +88,19 @@ export function createPropertyRoutes({ view, request, announce }) {
       const coverage = coverageResult.status === "fulfilled" && coverageRows(coverageResult.value.body).length ? coverageRows(coverageResult.value.body) : (detailPayload.coverage || []);
       const query = routeQuery(location.hash).get("q") || "";
       view.replaceChildren();
-      append(view, pageHeading("Verified property identity", property.address_display || property.display_address || "Property record", "Canonical NSW address evidence with explicit aliases, identifiers, coordinates and accepted-release coverage.", [link("Back to property search", `#properties${queryString({ q: query })}`, "button secondary")]));
-      append(view, el("div", "notice", `Stable property reference ${property.property_ref}. Other research areas receive only this reference and remain independently owned.`));
+      const identityHero = el("section", "property-identity-hero");
+      append(identityHero, pageHeading("Verified NSW property", property.address_display || property.display_address || "Property record", `${property.locality || "NSW"} · ${property.state || "NSW"} ${property.postcode || ""} · Updated ${formatDate(property.updated_at)}`, [link("Back to search", `#properties${queryString({ q: query })}`, "button secondary")]));
+      const referenceStrip = el("div", "property-reference-strip");
+      append(referenceStrip, el("span", "", humanise(property.resolution_status || "unknown")), el("span", "", `${detailPayload.identifiers?.length || 0} source identifiers`), el("span", "", `${coverage.length} coverage records`), el("span", "mono", property.property_ref));
+      append(identityHero, referenceStrip);
+      append(view, identityHero);
       const body = el("div", "stack");
       const mapPanel = el("div", "map-context");
       const latitude = map.latitude ?? map.coordinates?.latitude ?? property.latitude ?? property.coordinates?.latitude;
       const longitude = map.longitude ?? map.coordinates?.longitude ?? property.longitude ?? property.coordinates?.longitude;
       append(mapPanel, el("span", "map-pin", "⌖"), el("div", "map-caption", `${latitude ?? "Unknown latitude"}, ${longitude ?? "unknown longitude"} · Visual coordinate context; the table below is the authoritative accessible fallback.`));
       append(body, mapPanel, makeTable([{ label: "Coordinate evidence" }, { label: "Value" }], [{ label: "Latitude", value: latitude ?? "Unknown" }, { label: "Longitude", value: longitude ?? "Unknown" }, { label: "Geometry type", value: map.geometry?.type || property.geometry?.type || "Unknown" }], (item) => { const row = el("tr"); append(row, cell(item.label, "primary-cell"), cell(String(item.value), item.label === "Geometry type" ? "" : "mono")); return row; }));
-      append(body, detailList([["Canonical address", property.address_display || property.display_address], ["Property reference", el("code", "mono", property.property_ref)], ["Locality", property.locality], ["State", property.state], ["Postcode", property.postcode], ["Resolution", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)], ["Request ID", el("code", "mono", detailResult.value.requestId)]]));
+      append(body, detailList([["Canonical address", property.address_display || property.display_address], ["PropertyScope reference", el("code", "mono", property.property_ref)], ["Locality", property.locality], ["State", property.state], ["Postcode", property.postcode], ["Identity status", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)], ["Request ID", el("code", "mono", detailResult.value.requestId)]]));
       append(body, evidenceTable("Identifiers and match evidence", detailPayload.identifiers || [], [
         ["Scheme", (item) => item.scheme], ["Identifier", (item) => item.identifier_value], ["Match method", (item) => humanise(item.match_method)], ["Confidence", (item) => item.match_confidence ?? "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"], ["Evidence", (item) => item.evidence_json ? technicalDetails(item.evidence_json, "Inspect") : "Unknown"],
       ], "No source identifiers are recorded. Identity confidence is therefore unknown."));
@@ -109,11 +113,11 @@ export function createPropertyRoutes({ view, request, announce }) {
         append(card, el("strong", "", item.dataset || item.dataset_id || researchAreaLabel(item.feature || item.target_feature)), el("span", "", `${humanise(item.status || item.coverage_status || item.state)}${item.release_version ? ` · ${item.release_version}` : ""}${item.limitation ? ` · ${item.limitation}` : ""}`));
         append(cards, card);
       }
-      if (coverage.length) append(body, el("h2", "", "Research-area coverage"), cards);
+      if (coverage.length) append(body, el("h2", "", "Available research coverage"), cards);
       else append(body, emptyState("Coverage is unknown", coverageResult.status === "rejected" ? `Coverage evidence is temporarily unavailable.${problemSuffix(coverageResult.reason)}` : "No accepted coverage entries are recorded. This does not confirm absence."));
       append(body, renderPropertyReportSection(reportResult.status === "fulfilled" ? reportResult.value : { error: reportResult.reason }));
       if (mapResult.status === "rejected") append(body, el("div", "notice warning", `Spatial context is temporarily unavailable; canonical identity remains usable.${problemSuffix(mapResult.reason)}`));
-      append(view, panel("Canonical identity and evidence", "Accepted snapshot with bounded provenance", body));
+      append(view, panel("Property identity and evidence", "Source-attributed address, location and coverage details", body));
     } catch (error) {
       view.replaceChildren(errorState(error, () => renderPropertyDetail(propertyRef)));
     }

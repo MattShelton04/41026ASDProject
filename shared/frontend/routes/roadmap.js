@@ -4,7 +4,7 @@ import { append, badge, cell, el, link, notice, pageHeader, panel, table } from 
 function stageCard(stage) {
   const card = el("article", `ps-card roadmap-card roadmap-card--${stage.state}`);
   const body = el("div", "ps-card__body");
-  const label = stage.state === "current" ? "Current foundation" : "Planned";
+  const label = stage.state === "current" ? "Available" : "Planned";
   append(body, badge(label, stage.state === "current" ? "confirmed" : "planned"), el("p", "ps-card__eyebrow", stage.id), el("h2", "", stage.label), el("p", "", stage.summary));
   const list = el("ul", "roadmap-list");
   for (const item of stage.capabilities) append(list, el("li", "", item));
@@ -16,14 +16,14 @@ function stageCard(stage) {
 export function createRoadmapRoute({ config }) {
   return function renderRoadmap(root) {
     const manifest = capabilityManifest(config);
-    append(root, pageHeader("Shared capability plan", "Capability roadmap", "Implemented and enabled are separate. Future research and AI capabilities stay visibly gated until their independently owned services exist.", [link("View live status", "#system-status", "ps-button ps-button--primary")]));
-    const mode = notice("success", "Local foundation mode", "Property records and shared agent activity are enabled. MCP, RAG and multi-agent are not part of this release and ordinary CRUD does not depend on them.");
+    append(root, pageHeader("PropertyScope", "What’s available", "See what can be used today and what is still planned. Unavailable research areas are never redirected to unrelated tools.", [link("View data status", "#system-status", "ps-button ps-button--primary")]));
+    const mode = notice("success", "Property records are available", "Address search, property evidence, data operations and activity history are ready. Planned research areas remain clearly unavailable.");
     append(root, mode);
     const stages = el("div", "ps-grid ps-grid-3 roadmap-grid");
     append(stages, ...RELEASE_STAGES.map(stageCard));
     append(root, stages);
 
-    const capabilityPanel = panel("Deployment capability manifest", `${manifest.release} · ${manifest.deploymentMode} deployment. Planned capability is not treated as a runtime failure.`);
+    const capabilityPanel = panel("Detailed availability", `${manifest.deploymentMode} workspace. A planned item is shown separately from an unavailable live service.`);
     const rows = [
       ...manifest.features.map((item) => ({ ...item, group: "Research area" })),
       ...manifest.services.map((item) => ({ ...item, group: "Shared service" })),

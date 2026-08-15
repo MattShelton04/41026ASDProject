@@ -55,6 +55,12 @@ function setActiveNavigation(route) {
   navToggle.setAttribute("aria-expanded", "false");
 }
 
+function closeNavigation({ restoreFocus = false } = {}) {
+  sidebar.classList.remove("open");
+  navToggle.setAttribute("aria-expanded", "false");
+  if (restoreFocus) navToggle.focus();
+}
+
 function loading(title = "Loading evidence") { renderLoading(view, title); }
 
 function request(path, options = {}) {
@@ -187,6 +193,8 @@ async function renderRoute() {
 entityForm.addEventListener("submit", (event) => { event.preventDefault(); if (event.submitter?.value === "cancel") entityDialog.close("cancel"); else if (entityForm.reportValidity()) entityDialog.close("save"); });
 actionForm.addEventListener("submit", (event) => { event.preventDefault(); actionDialog.close(event.submitter?.value || "cancel"); });
 navToggle.addEventListener("click", () => { const open = sidebar.classList.toggle("open"); navToggle.setAttribute("aria-expanded", String(open)); });
+sidebar.addEventListener("click", (event) => { if (event.target.closest("a")) closeNavigation(); });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && sidebar.classList.contains("open")) closeNavigation({ restoreFocus: true }); });
 window.addEventListener("hashchange", renderRoute);
 document.addEventListener("visibilitychange", () => { const current = parseRoute(location.hash); if (!document.hidden && current.route === "runs" && current.id && ACTIVE_RUN_STATES.has(state.lastRunStatus)) renderRunDetail(current.id, { polling: true }); });
 

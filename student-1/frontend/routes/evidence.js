@@ -15,7 +15,7 @@ export function createEvidenceRoutes({ view, request, loading, rerender }) {
         request(`ingestion-runs/${runId}/${kind === "quality" ? "quality-results" : "artifacts"}?limit=100`),
       ]);
       view.replaceChildren();
-      append(view, pageHeading("Evidence explorer", kind === "quality" ? "Quality rules and results" : "Artifact registry", kind === "quality" ? "Inspect deterministic outcomes, expected values and bounded samples for one exact ingestion run." : "Inspect safe artifact metadata, hashes, retention and lineage for one exact ingestion run.", [link("Choose another run", `#${kind}`, "button secondary")]));
+      append(view, pageHeading("Run evidence", kind === "quality" ? "Quality checks" : "Files & lineage", kind === "quality" ? "Review the checks, expected values and samples recorded for one processing run." : "Review file metadata, checksums, retention and lineage recorded for one processing run.", [link("Choose another run", `#${kind}`, "button secondary")]));
       if (runResult.status === "fulfilled") {
         const run = runResult.value.body.run || runResult.value.body;
         append(view, el("div", "notice", `Exact run ${run.id || runId} · ${humanise(run.status)} · requested ${formatDate(run.requested_at || run.created_at)}.`));
@@ -23,7 +23,7 @@ export function createEvidenceRoutes({ view, request, loading, rerender }) {
       if (evidenceResult.status === "rejected") { append(view, errorState(evidenceResult.reason, rerender)); return; }
       const items = collection(evidenceResult.value.body);
       if (!items.length) { append(view, emptyState(`No ${kind} evidence recorded`, `The selected run has no ${kind === "quality" ? "quality results" : "artifact metadata"}. This is an unknown evidence state, not a confirmed negative.`)); return; }
-      append(view, panel(`${formatNumber(items.length)} ${kind === "quality" ? "checks" : "artifact records"}`, "Safe, bounded metadata", kind === "quality" ? qualityTable(items) : artifactTable(items)));
+      append(view, panel(`${formatNumber(items.length)} ${kind === "quality" ? "checks" : "file records"}`, "Evidence recorded by the selected run", kind === "quality" ? qualityTable(items) : artifactTable(items)));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
   }
 
@@ -31,9 +31,9 @@ export function createEvidenceRoutes({ view, request, loading, rerender }) {
     const result = await request("ingestion-runs?limit=50");
     const runs = collection(result.body);
     view.replaceChildren();
-    append(view, pageHeading("Evidence explorer", kind === "quality" ? "Quality rules and results" : "Artifact registry", `Choose an exact ingestion run before inspecting ${kind} evidence. Evidence is never silently mixed across runs.`));
+    append(view, pageHeading("Run evidence", kind === "quality" ? "Quality checks" : "Files & lineage", `Choose a processing run to inspect its ${kind === "quality" ? "quality results" : "file records"}. Evidence from different runs is kept separate.`));
     if (!runs.length) { append(view, emptyState("No ingestion runs", `No ${kind} evidence can be selected yet.`)); return; }
-    append(view, panel("Choose an ingestion run", `${runs.length} recent durable runs`, makeTable(
+    append(view, panel("Choose a processing run", `${runs.length} recent runs`, makeTable(
       [{ label: "Run" }, { label: "State" }, { label: "Phase" }, { label: "Requested" }, { label: "Evidence" }], runs,
       (run) => { const row = el("tr"); append(row, cell(primaryCell(run.job_name || run.job_id || "Ingestion run", run.id)), cell(badge(run.status)), cell(humanise(run.current_phase)), cell(formatDate(run.requested_at || run.created_at)), cell(link(`Inspect ${kind}`, `#${kind}/${run.id}`, "button secondary small"), "actions-cell")); return row; },
     )));
@@ -48,11 +48,11 @@ export function createEvidenceRoutes({ view, request, loading, rerender }) {
         return { dataset_id: release.dataset_id, locality: coverage.locality || coverage.area || coverage.state || "NSW", coverage_status: coverage.status || (coverage.complete === false ? "partial" : "supported"), target_feature: release.target_feature, release_version: release.release_version, accepted_at: release.accepted_at, release_state: release.status, description: coverage.profile, limitations: coverage.limitations || coverage.known_limitations };
       });
       view.replaceChildren();
-      append(view, pageHeading("Availability evidence", "Coverage matrix", "Accepted, partial, stale, unavailable and source-failed are explicit evidence states—not conclusions inferred from service health."));
-      append(view, el("div", "notice", `Coverage derives from accepted release metadata. Request ID ${result.requestId}. An absent row means unknown or not published, not “not covered”.`));
+      append(view, pageHeading("Published data", "Data coverage", "See where each published dataset applies and whether its coverage is complete, partial, stale or unavailable."));
+      append(view, el("div", "notice", `Coverage comes from published dataset metadata. Request ID ${result.requestId}. If a row is absent, coverage is unknown—not confirmed absent.`));
       if (!rows.length) { append(view, emptyState("No published coverage evidence", "Coverage appears only after a release has been accepted. No negative finding is inferred.")); return; }
-      append(view, panel(`${rows.length} coverage entries`, "Colour is always paired with state text", makeTable(
-        [{ label: "Dataset" }, { label: "Area" }, { label: "Research area" }, { label: "Coverage" }, { label: "Release state" }, { label: "Accepted release" }, { label: "As at" }, { label: "Limitations" }], rows,
+      append(view, panel(`${rows.length} coverage entries`, "Every colour is paired with a written status", makeTable(
+        [{ label: "Dataset" }, { label: "Area" }, { label: "Research area" }, { label: "Coverage" }, { label: "Publication state" }, { label: "Published version" }, { label: "As at" }, { label: "Limitations" }], rows,
         (item) => { const row = el("tr"); append(row, cell(primaryCell(item.dataset_id, item.description)), cell(item.locality), cell(researchAreaLabel(item.target_feature)), cell(badge(item.coverage_status)), cell(badge(item.release_state)), cell(item.release_version, "mono"), cell(formatDate(item.accepted_at)), cell(item.limitations ? technicalDetails(item.limitations, "Inspect") : "None recorded")); return row; },
       )));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }

@@ -1,5 +1,5 @@
 import { collection } from "../core/api.js";
-import { append, button, el, link } from "../core/dom.js";
+import { append, el, link } from "../core/dom.js";
 import { formatDate, humanise, statusTone } from "../core/formats.js";
 import { ACTIVE_RUN_STATES } from "../core/polling.js";
 import { badge, pageHeading, panel } from "../components/layout.js";
@@ -21,8 +21,8 @@ export async function renderOverview({ view, request }) {
   }));
   const failures = results.filter((result) => result.status === "rejected");
   view.replaceChildren();
-  append(view, pageHeading("Property data service", "Data operations overview", "See accepted data, failed candidates and work requiring review without confusing service health with evidence readiness.", [button("Plan a run", "button primary", () => { location.hash = "#jobs"; })]));
-  if (failures.length) append(view, el("div", "notice warning", `${failures.length} overview feed${failures.length === 1 ? " is" : "s are"} unavailable. Available evidence is shown below; direct property search remains independent.`));
+  append(view, pageHeading("Property records", "Data operations overview", "Manage the sources and processing work that keep NSW property records current, checked and ready for research.", [link("Browse import jobs", "#jobs", "button primary"), link("Register a source", "#sources", "button secondary")]));
+  if (failures.length) append(view, el("div", "notice warning", `${failures.length} supporting feed${failures.length === 1 ? " is" : "s are"} temporarily unavailable. The information that could be loaded is still shown below.`));
   const active = runs.filter((run) => ACTIVE_RUN_STATES.has(String(run.status).toLowerCase())).length;
   const failed = runs.filter((run) => String(run.status).toLowerCase() === "failed").length;
   const stale = releases.filter((release) => ["stale", "expired"].includes(String(release.freshness_status || release.status).toLowerCase())).length;
@@ -30,16 +30,25 @@ export async function renderOverview({ view, request }) {
   const stats = el("section", "stat-grid");
   stats.setAttribute("aria-label", "Data readiness summary");
   for (const [label, value, note, tone] of [
-    ["Active runs", active, "Currently progressing", "info"],
-    ["Failed runs", failed, "Requires evidence review", failed ? "negative" : "neutral"],
-    ["Stale releases", stale, "Freshness, not service health", stale ? "warning" : "neutral"],
-    ["Accepted releases", accepted, "Available to consumers", "positive"],
+    ["Processing now", active, "Imports currently running", "info"],
+    ["Needs attention", failed, "Failed runs to review", failed ? "negative" : "neutral"],
+    ["Stale datasets", stale, "Published data past its freshness window", stale ? "warning" : "neutral"],
+    ["Published datasets", accepted, "Available to property research", "positive"],
   ]) {
     const card = el("article", `stat-card ${tone}`);
     append(card, el("span", "stat-label", label), el("strong", "stat-value", value), el("span", "stat-note", note));
     append(stats, card);
   }
   append(view, stats);
+
+  const latestFailure = runs.find((run) => String(run.status).toLowerCase() === "failed");
+  if (latestFailure) {
+    const alert = el("div", "notice negative notice-actions");
+    const copy = el("div");
+    append(copy, el("strong", "", "A recent data update needs review"), el("div", "", `${latestFailure.job_name || "Processing run"} failed. Published data remains available while the failed run is investigated.`));
+    append(alert, copy, link("Review run", `#runs/${latestFailure.id}`, "button secondary small"));
+    append(view, alert);
+  }
 
   const grid = el("div", "dashboard-grid");
   const recentBody = runs.length ? makeTable(
@@ -50,7 +59,7 @@ export async function renderOverview({ view, request }) {
       return row;
     },
     "Recent ingestion runs",
-  ) : emptyState("No runs yet", "Activate a bounded job, preview its plan and launch the first fixture run.", link("Open jobs", "#jobs", "button secondary"));
+  ) : emptyState("No processing runs yet", "Open an import job to preview and start a bounded data update.", link("Open import jobs", "#jobs", "button secondary"));
 
   const freshness = el("div", "stack");
   const sourceBody = el("div");
@@ -59,7 +68,7 @@ export async function renderOverview({ view, request }) {
     const item = el("div", "coverage-card");
     const release = releases.find((candidate) => candidate.source_definition_id === source.id && candidate.status === "accepted");
     item.classList.add(statusTone(release?.freshness_status || (release ? "accepted" : "unavailable")));
-    append(item, el("strong", "", source.name), el("span", "", release ? `${release.release_version} · ${formatDate(release.accepted_at)}` : "No accepted release"));
+    append(item, el("strong", "", source.name), el("span", "", release ? `${release.release_version} · published ${formatDate(release.accepted_at)}` : "No published dataset"));
     append(sourceBody, item);
   }
   const coverageBody = el("div", "coverage-grid");
@@ -69,7 +78,7 @@ export async function renderOverview({ view, request }) {
     append(coverageBody, card);
   }
   if (!coverage.length) append(coverageBody, el("p", "", "Coverage evidence is not available from this deployment."));
-  append(freshness, panel("Source freshness", "Accepted evidence by source", sourceBody), panel("Supported coverage", "Geography and dataset availability", coverageBody));
-  append(grid, panel("Recent ingestion runs", "Durable execution history", recentBody, link("View all", "#runs")), freshness);
+  append(freshness, panel("Latest published data", "Current dataset for each registered source", sourceBody), panel("NSW coverage", "Geography represented by published datasets", coverageBody));
+  append(grid, panel("Recent processing runs", "Data update history", recentBody, link("View all runs", "#runs")), freshness);
   append(view, grid);
 }

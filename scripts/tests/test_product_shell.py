@@ -14,12 +14,13 @@ def _read(relative_path: str) -> str:
 def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
     page = _read("shared/frontend/index.html")
 
-    assert "Start with the property. Follow the evidence." in page
+    assert "Research a property." in page
+    assert "See what is known." in page
     assert 'id="property-search-form"' in page
-    assert "One journey, independently owned evidence." in page
+    assert "Build the picture around a property" in page
     assert page.count("Not available yet") == 4
-    assert "planned areas do not redirect into the data operations workspace." in page
-    assert "Shared navigation does not mean shared domain ownership." in page
+    assert "The remaining research areas will appear here as their data becomes available." in page
+    assert "Start a property review" in page
     assert 'id="operations"' in page
 
     for assignment_copy in (
@@ -41,7 +42,7 @@ def test_shared_home_routes_only_live_product_and_operator_surfaces() -> None:
     assert 'data-config-link="agentRuns"' in page
     assert "docs/prototype" not in page
     assert "prototype:" not in script
-    assert page.count("data-planned=") == 4
+    assert page.count('class="area-row"') == 4
 
 
 def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -> None:
@@ -56,9 +57,9 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
         assert f'href="#{route}"' in page
         assert route in script
 
-    assert "Shared operations" in status
-    assert "Accepted data references" in evidence
-    assert "Deployment capability manifest" in roadmap
+    assert "Data status" in status
+    assert "Published datasets" in evidence
+    assert "Detailed availability" in roadmap
     assert "resolver 127.0.0.11" in nginx
     assert "proxy_pass $data_platform_upstream" in nginx
     assert "proxy_pass $ai_mode_upstream" in nginx
@@ -70,11 +71,12 @@ def test_property_data_and_agent_operations_link_back_to_product_home() -> None:
     operations_page = _read("shared/frontend/operations/ai-mode/index.html")
 
     assert feature_page.count("data-product-home") >= 2
-    assert "Property data" in feature_page
-    assert "Explore properties" in feature_page
-    assert "Market, suburb, site and buyer-workspace logic lives elsewhere." in feature_page
+    assert "Property records" in feature_page
+    assert "Property search" in feature_page
+    assert "Published datasets" in feature_page
+    assert "Search the accepted property record" in feature_page
 
     assert "PropertyScope | Agent activity" in operations_page
-    assert "Shared operational evidence" in operations_page
-    assert "Property research begins" in operations_page
+    assert "Recorded assisted activity" in operations_page
+    assert "Start property research" in operations_page
     assert 'meta name="color-scheme" content="light"' in operations_page

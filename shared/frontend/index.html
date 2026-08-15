@@ -3,181 +3,131 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#10262e">
-    <meta name="description" content="PropertyScope NSW — evidence-first NSW property research">
+    <meta name="theme-color" content="#102f36">
+    <meta name="description" content="PropertyScope NSW — research a property and understand the evidence behind it">
     <title>PropertyScope NSW</title>
-    <link rel="stylesheet" href="styles.css">
-    <script type="module" src="app.js"></script>
+    <link rel="stylesheet" href="styles.css?v=3">
+    <script type="module" src="app.js?v=3"></script>
   </head>
   <body>
     <a class="ps-skip-link" href="#main-content">Skip to main content</a>
 
     <header class="topbar">
-      <div class="ps-container topbar__inner">
+      <div class="topbar__inner">
         <a class="brand" href="#home" aria-label="PropertyScope NSW home" data-shell-route="home">
           <span class="brand__mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-8 4 8 4 8-4-8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg>
           </span>
-          <span class="brand__copy"><strong>PropertyScope NSW</strong><span>Evidence-first property research</span></span>
+          <span class="brand__copy"><strong>PropertyScope NSW</strong><span>Property research workspace</span></span>
         </a>
+        <form class="topbar__search" id="header-search-form" role="search">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <label class="ps-sr-only" for="header-search">Search PropertyScope</label>
+          <input id="header-search" type="search" placeholder="Search an address or PropertyScope reference" autocomplete="street-address">
+        </form>
         <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">
           <span class="ps-sr-only">Toggle navigation</span>
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
         <nav class="topbar__nav" id="primary-navigation" aria-label="Primary navigation">
           <a href="#home" data-shell-route="home">Home</a>
-          <a data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Explore properties</a>
-          <a href="#system-status" data-shell-route="system-status">Status</a>
+          <a data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Property search</a>
+          <a href="#system-status" data-shell-route="system-status">Data status</a>
           <a href="#evidence" data-shell-route="evidence">Evidence</a>
-          <a href="#release-roadmap" data-shell-route="release-roadmap">Roadmap</a>
         </nav>
+      </div>
+      <div class="environment-strip" aria-label="Workspace status">
+        <span><i aria-hidden="true"></i> Property records available</span>
+        <span>NSW coverage</span>
+        <span>Sources and uncertainty shown</span>
       </div>
     </header>
 
     <main id="main-content">
-      <section class="hero" id="top">
-        <div class="ps-container hero__layout">
-          <div>
-            <p class="ps-eyebrow">NSW property research</p>
-            <h1>Start with the property. Follow the evidence.</h1>
-            <p class="hero__lede">Search a NSW address, inspect the records that establish its identity, and see which evidence is confirmed, partial, stale or not yet available. PropertyScope keeps sources and uncertainty beside the facts they support.</p>
-            <form class="hero__search ps-input-shell" id="property-search-form" role="search">
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-              <label class="ps-sr-only" for="property-search">Search a NSW address or PropertyScope reference</label>
-              <input id="property-search" type="search" placeholder="Search a NSW address or PropertyScope reference" autocomplete="street-address">
-              <button class="ps-button ps-button--primary" type="submit">Explore property evidence</button>
-            </form>
-            <div class="hero__trust" aria-label="Product principles">
-              <span class="ps-badge ps-badge--confirmed">Source-attributed</span>
-              <span class="ps-badge ps-badge--info">Evidence before explanation</span>
-              <span class="ps-badge ps-badge--partial">Unknowns stay visible</span>
-            </div>
+      <div class="product-layout">
+        <aside class="product-rail" aria-label="PropertyScope areas">
+          <nav>
+            <p>Workspace</p>
+            <a class="is-current" href="#home"><span aria-hidden="true">⌂</span>Home</a>
+            <a data-config-link="propertyDiscovery" href="http://localhost:5200/#properties"><span aria-hidden="true">⌖</span>Property search</a>
+            <p>About the data</p>
+            <a href="#evidence"><span aria-hidden="true">≡</span>Evidence ledger</a>
+            <a href="#system-status"><span aria-hidden="true">◫</span>Data status</a>
+            <p>Operations</p>
+            <a data-config-link="dataOperations" href="http://localhost:5200/#overview"><span aria-hidden="true">◎</span>Data operations</a>
+            <a data-config-link="agentRuns" href="http://localhost:5005/operations/ai-mode/"><span aria-hidden="true">↗</span>Activity history</a>
+          </nav>
+          <div class="rail-foot">
+            <strong>Property records</strong>
+            <span>Available now</span>
           </div>
+        </aside>
 
-          <aside class="hero__aside ps-card" aria-labelledby="available-heading">
-            <div class="ps-card__body">
-              <p class="ps-card__eyebrow">Available now</p>
-              <h2 id="available-heading">Property identity and source evidence</h2>
-              <p>The live Property data service supports address discovery and the operational evidence behind it. Other research areas remain clearly unavailable until their own services exist.</p>
-              <ul class="ps-status-list">
-                <li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg><span>Search the curated NSW property registry</span></li>
-                <li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg><span>Inspect identity, source coverage and freshness</span></li>
-                <li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg><span>Trace data quality and recovery evidence</span></li>
-              </ul>
-              <a class="ps-button" data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Explore properties</a>
+        <div class="home-content">
+          <section class="home-hero" id="top">
+            <div class="home-hero__copy">
+              <p class="ps-eyebrow">NSW property research</p>
+              <h1>Research a property.<br>See what is known.</h1>
+              <p>Find a stable property record, then inspect the source evidence, coverage and uncertainty attached to it. PropertyScope keeps what is known separate from what still needs checking.</p>
+              <form class="hero-search" id="property-search-form" role="search">
+                <label class="ps-sr-only" for="property-search">Search a NSW address or PropertyScope reference</label>
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                <input id="property-search" type="search" placeholder="Try 11 Example Street, Sydney NSW 2000" autocomplete="street-address">
+                <button class="ps-button ps-button--primary" type="submit">Search properties</button>
+              </form>
+              <div class="hero-actions">
+                <a class="ps-button hero-button" data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Explore NSW properties</a>
+                <a class="ps-button hero-button hero-button--quiet" data-config-link="dataOperations" href="http://localhost:5200/#overview">Open data operations</a>
+              </div>
+              <div class="hero-trust" aria-label="Evidence principles">
+                <span>Source-attributed</span><span>Coverage shown</span><span>Unknown stays unknown</span>
+              </div>
             </div>
-          </aside>
+            <aside class="journey-card" aria-labelledby="journey-heading">
+              <p class="ps-eyebrow">Start a property review</p>
+              <h2 id="journey-heading">One address. A traceable record.</h2>
+              <ol>
+                <li><span>1</span><div><strong>Find the property</strong><p>Resolve an address to a stable PropertyScope reference.</p></div></li>
+                <li><span>2</span><div><strong>Review identity evidence</strong><p>See identifiers, aliases, coordinates and match confidence.</p></div></li>
+                <li><span>3</span><div><strong>Check coverage</strong><p>Understand which accepted datasets can support further research.</p></div></li>
+              </ol>
+              <a data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Begin with an address <span aria-hidden="true">→</span></a>
+            </aside>
+          </section>
+
+          <section class="home-section" id="research-areas" aria-labelledby="research-heading">
+            <div class="home-section__heading">
+              <div><p class="ps-eyebrow">Research workspace</p><h2 id="research-heading">Build the picture around a property</h2></div>
+              <p>Property identity is ready to use. The remaining research areas will appear here as their data becomes available.</p>
+            </div>
+            <div class="area-list">
+              <article class="area-row area-row--available">
+                <div class="area-icon" aria-hidden="true">⌂</div>
+                <div><span class="area-kicker">Available now</span><h3>Property records</h3><p>Search NSW addresses and inspect canonical identity, provenance, coordinates and accepted-data coverage.</p></div>
+                <a class="ps-button ps-button--primary" data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Search properties</a>
+              </article>
+              <article class="area-row"><div class="area-icon" aria-hidden="true">$</div><div><span class="area-kicker">Planned</span><h3>Sales &amp; market</h3><p>Recorded sales, comparable evidence and market context.</p></div><span class="area-state">Not available yet</span></article>
+              <article class="area-row"><div class="area-icon" aria-hidden="true">◎</div><div><span class="area-kicker">Planned</span><h3>Suburb context</h3><p>Local places, schools and neutral community context.</p></div><span class="area-state">Not available yet</span></article>
+              <article class="area-row"><div class="area-icon" aria-hidden="true">⌗</div><div><span class="area-kicker">Planned</span><h3>Site &amp; planning</h3><p>Planning constraints and due-diligence questions.</p></div><span class="area-state">Not available yet</span></article>
+              <article class="area-row"><div class="area-icon" aria-hidden="true">□</div><div><span class="area-kicker">Planned</span><h3>Buyer workspace</h3><p>Shortlists, follow-ups and reviewable property dossiers.</p></div><span class="area-state">Not available yet</span></article>
+            </div>
+          </section>
+
+          <section class="home-section operations-strip" id="operations" aria-labelledby="operations-heading">
+            <div class="home-section__heading"><div><p class="ps-eyebrow">Behind the evidence</p><h2 id="operations-heading">Inspect how the data was prepared</h2></div><p>Operational tools keep source history, quality checks and automated activity reviewable without crowding the research workflow.</p></div>
+            <div class="operations-links">
+              <a data-config-link="dataOperations" href="http://localhost:5200/#overview"><span>Property data</span><strong>Sources, imports and published datasets</strong><i aria-hidden="true">→</i></a>
+              <a href="#evidence"><span>Evidence ledger</span><strong>Accepted datasets and lineage</strong><i aria-hidden="true">→</i></a>
+              <a data-config-link="agentRuns" href="http://localhost:5005/operations/ai-mode/"><span>Activity history</span><strong>Automated plans, observations and reviews</strong><i aria-hidden="true">→</i></a>
+            </div>
+          </section>
+
+          <aside class="product-disclaimer"><strong>Research support, not professional advice.</strong> PropertyScope is independent of the NSW Government and does not provide valuation, conveyancing, planning, engineering, insurance, lending or buy/no-buy advice.</aside>
         </div>
-      </section>
-
-      <section class="section section--paper" id="research-areas" aria-labelledby="research-heading">
-        <div class="ps-container">
-          <div class="section__heading">
-            <div>
-              <p class="ps-eyebrow">Research areas</p>
-              <h2 id="research-heading">One journey, independently owned evidence.</h2>
-              <p>Each area has a separate service boundary and interpretation responsibility. Only Property records is live; planned areas do not redirect into the data operations workspace.</p>
-            </div>
-          </div>
-
-          <div class="ps-grid feature-grid">
-            <article class="ps-card feature-card feature-card--available">
-              <div class="ps-card__body">
-                <div class="feature-card__top"><span class="feature-card__number">PROPERTY RECORDS</span><span class="ps-badge ps-badge--confirmed">Available</span></div>
-                <h3>Identity, provenance and coverage</h3>
-                <p class="feature-card__copy">Resolve a stable PropertyScope reference, review address and source records, and understand which accepted datasets cover the property.</p>
-                <ul class="feature-card__facts"><li>NSW address and property discovery</li><li>Source, freshness and match evidence</li><li>Quality and release lineage for operators</li></ul>
-                <div class="feature-card__actions">
-                  <a class="ps-button ps-button--primary" data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Explore properties</a>
-                </div>
-              </div>
-            </article>
-
-            <article class="ps-card feature-card">
-              <div class="ps-card__body">
-                <div class="feature-card__top"><span class="feature-card__number">SALES &amp; MARKET</span><span class="ps-badge ps-badge--planned">Not available yet</span></div>
-                <h3>Recorded sales and comparable evidence</h3>
-                <p class="feature-card__copy">Recorded sale history, deterministic comparable selection and suburb trends, with method and exclusions visible.</p>
-                <div class="feature-card__actions"><button class="ps-button" type="button" data-planned="Sales and market research will open when its independently owned service is implemented.">About availability</button></div>
-              </div>
-            </article>
-
-            <article class="ps-card feature-card">
-              <div class="ps-card__body">
-                <div class="feature-card__top"><span class="feature-card__number">SUBURB CONTEXT</span><span class="ps-badge ps-badge--planned">Not available yet</span></div>
-                <h3>Places, schools and neutral crime context</h3>
-                <p class="feature-card__copy">Same-period comparisons and practical local context with explicit source, denominator and missing-data semantics.</p>
-                <div class="feature-card__actions"><button class="ps-button" type="button" data-planned="Suburb context will open when its independently owned service is implemented.">About availability</button></div>
-              </div>
-            </article>
-
-            <article class="ps-card feature-card">
-              <div class="ps-card__body">
-                <div class="feature-card__top"><span class="feature-card__number">SITE &amp; PLANNING</span><span class="ps-badge ps-badge--planned">Not available yet</span></div>
-                <h3>Constraints and due-diligence questions</h3>
-                <p class="feature-card__copy">Source-aware planning and site observations that support professional follow-up without certifying safety or compliance.</p>
-                <div class="feature-card__actions"><button class="ps-button" type="button" data-planned="Site and planning research will open when its independently owned service is implemented.">About availability</button></div>
-              </div>
-            </article>
-
-            <article class="ps-card feature-card">
-              <div class="ps-card__body">
-                <div class="feature-card__top"><span class="feature-card__number">YOUR WORKSPACE</span><span class="ps-badge ps-badge--planned">Not available yet</span></div>
-                <h3>Shortlists, follow-ups and dossiers</h3>
-                <p class="feature-card__copy">A future workspace will compose evidence from the other areas without taking ownership of their data or conclusions.</p>
-                <div class="feature-card__actions"><button class="ps-button" type="button" data-planned="The buyer workspace will open after its supporting research services exist.">About availability</button></div>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" aria-labelledby="boundaries-heading">
-        <div class="ps-container">
-          <div class="section__heading">
-            <div>
-              <p class="ps-eyebrow">How the product is split</p>
-              <h2 id="boundaries-heading">Shared navigation does not mean shared domain ownership.</h2>
-              <p>The common shell connects the journey. Research data and rules stay in the service that owns that area.</p>
-            </div>
-          </div>
-          <div class="boundary-flow" role="list" aria-label="PropertyScope service boundaries">
-            <article role="listitem"><span>01</span><div><strong>Property data</strong><p>Live today. Owns identity, ingestion, accepted datasets and coverage.</p></div></article>
-            <article role="listitem"><span>02–04</span><div><strong>Research services</strong><p>Planned independent owners for market, suburb and site evidence.</p></div></article>
-            <article role="listitem"><span>05</span><div><strong>Buyer workspace</strong><p>Planned composition layer that references evidence without copying ownership.</p></div></article>
-            <article role="listitem"><span>SHARED</span><div><strong>Platform services</strong><p>Shell, contracts and agent-run evidence; no feature-specific business rules.</p></div></article>
-          </div>
-        </div>
-      </section>
-
-      <section class="section section--warm" id="operations" aria-labelledby="operations-heading">
-        <div class="ps-container">
-          <div class="section__heading">
-            <div>
-              <p class="ps-eyebrow">For data and support operators</p>
-              <h2 id="operations-heading">Operational tools sit behind the research journey.</h2>
-              <p>These workspaces explain how evidence was prepared and how bounded automated work behaved. They are not the product home.</p>
-            </div>
-          </div>
-          <div class="ps-grid operations-grid">
-            <article class="ps-card operation-card"><div class="ps-card__body"><div class="operation-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg></div><p class="ps-card__eyebrow">Property data service</p><h3>Data operations</h3><p>Manage registered sources and jobs, inspect runs, compare candidate and accepted data, and review quality, artifacts and coverage.</p><a class="ps-button" data-config-link="dataOperations" href="http://localhost:5200/#overview">Open data operations</a></div></article>
-            <article class="ps-card operation-card"><div class="ps-card__body"><div class="operation-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5m0 7h5l2-4 3 8 2-4h4"/></svg></div><p class="ps-card__eyebrow">Shared platform service</p><h3>Agent activity</h3><p>Inspect durable planning, tool observations, failures and review gates for bounded automated work across participating services.</p><a class="ps-button" data-config-link="agentRuns" href="http://localhost:5005/operations/ai-mode/">Open agent activity</a></div></article>
-            <article class="ps-card operation-card"><div class="ps-card__body"><div class="operation-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 18V6m5 12V9m5 9v-6m5 6V4"/></svg></div><p class="ps-card__eyebrow">Shared platform overview</p><h3>Status and evidence</h3><p>Check implemented-service readiness, open accepted data and agent references, and understand which capabilities are deliberately gated.</p><div class="operation-card__links"><a class="ps-button" href="#system-status">View status</a><a class="ps-button ps-button--quiet" href="#evidence">Open evidence index</a></div></div></article>
-          </div>
-          <div class="disclaimer">
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg>
-            <div><strong>Decision support, not professional advice.</strong><p>PropertyScope is an independent student research tool. It is not affiliated with the NSW Government and does not provide valuation, conveyancing, planning, engineering, insurance, lending, enrolment or buy/no-buy advice.</p></div>
-          </div>
-        </div>
-      </section>
+      </div>
     </main>
 
-    <footer class="footer">
-      <div class="ps-container footer__inner">
-        <div><strong>PropertyScope NSW</strong><p>Property evidence with visible sources, coverage and uncertainty.</p></div>
-        <p><a data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Explore properties</a> · <a href="#system-status">Status</a> · <a href="#evidence">Evidence</a> · <a href="#release-roadmap">Roadmap</a></p>
-      </div>
-    </footer>
+    <footer class="footer"><div><strong>PropertyScope NSW</strong><span>Property evidence with visible sources, coverage and uncertainty.</span></div><nav aria-label="Footer"><a data-config-link="propertyDiscovery" href="http://localhost:5200/#properties">Property search</a><a href="#system-status">Data status</a><a href="#evidence">Evidence</a><a href="#release-roadmap">Technical roadmap</a></nav></footer>
     <div class="ps-toast" id="toast" role="status" aria-live="polite"></div>
     <div class="ps-sr-only" id="route-announcement" role="status" aria-live="polite"></div>
   </body>

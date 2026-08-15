@@ -12,6 +12,7 @@ const defaults = Object.freeze({
 const config = Object.freeze({ ...defaults, ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const main = document.querySelector("#main-content");
 const homeMarkup = main.innerHTML;
+const homeRail = main.querySelector(".product-rail")?.cloneNode(true);
 const toast = document.querySelector("#toast");
 const announcement = document.querySelector("#route-announcement");
 const navToggle = document.querySelector("#nav-toggle");
@@ -38,6 +39,15 @@ function applyConfigLinks(root = document) {
   });
 }
 
+function openPropertySearch(query = "") {
+  const target = new URL(config.propertyDiscovery, window.location.href);
+  if (query) {
+    const hashBase = target.hash.split("?")[0] || "#properties";
+    target.hash = `${hashBase}?q=${encodeURIComponent(query)}`;
+  }
+  window.location.assign(target.toString());
+}
+
 function bindHomeInteractions() {
   applyConfigLinks(main);
   main.querySelectorAll("[data-planned]").forEach((button) => {
@@ -48,13 +58,7 @@ function bindHomeInteractions() {
   });
   main.querySelector("#property-search-form")?.addEventListener("submit", (event) => {
     event.preventDefault();
-    const query = String(main.querySelector("#property-search")?.value || "").trim();
-    const target = new URL(config.propertyDiscovery, window.location.href);
-    if (query) {
-      const hashBase = target.hash.split("?")[0] || "#properties";
-      target.hash = `${hashBase}?q=${encodeURIComponent(query)}`;
-    }
-    window.location.assign(target.toString());
+    openPropertySearch(String(main.querySelector("#property-search")?.value || "").trim());
   });
 }
 
@@ -94,14 +98,21 @@ async function renderRoute() {
     return;
   }
 
+  const dashboardShell = el("div", "product-layout product-layout--dashboard");
   const dashboard = el("div", "ps-container dashboard");
-  main.replaceChildren(dashboard);
+  const rail = homeRail?.cloneNode(true);
+  if (rail) {
+    rail.querySelectorAll("a").forEach((item) => item.classList.toggle("is-current", item.getAttribute("href") === `#${route}`));
+    append(dashboardShell, rail);
+  }
+  append(dashboardShell, dashboard);
+  main.replaceChildren(dashboardShell);
   main.setAttribute("tabindex", "-1");
   try {
     await routes[route](dashboard);
     if (generation !== renderGeneration) return;
     applyConfigLinks(dashboard);
-    const routeTitle = route === "system-status" ? "System status" : route === "evidence" ? "Evidence and lineage" : "Capability roadmap";
+    const routeTitle = route === "system-status" ? "Data status" : route === "evidence" ? "Evidence ledger" : "What’s available";
     document.title = `${routeTitle} | PropertyScope NSW`;
     announce(`${routeTitle} loaded.`);
     main.focus({ preventScroll: true });
@@ -121,6 +132,10 @@ navToggle?.addEventListener("click", () => {
 });
 primaryNav?.addEventListener("click", (event) => {
   if (event.target.closest("a")) closeNavigation();
+});
+document.querySelector("#header-search-form")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  openPropertySearch(String(document.querySelector("#header-search")?.value || "").trim());
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && navToggle?.getAttribute("aria-expanded") === "true") closeNavigation({ restoreFocus: true });

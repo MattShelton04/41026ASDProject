@@ -17,6 +17,18 @@ const API_ROOT = "/api/v1";
 const EVENT_LIMIT = 200;
 const REQUEST_TIMEOUT_MS = 8000;
 const MOBILE_QUERY = "(max-width: 720px)";
+const RESEARCH_AREA_LABELS = Object.freeze({
+  "student-1-propertyscope-data-platform": "Property records",
+  "feature-1": "Property records",
+  "feature-2": "Sales & market",
+  "feature-3": "Suburb context",
+  "feature-4": "Site & planning",
+  "feature-5": "Buyer workspace",
+});
+
+function researchAreaLabel(value) {
+  return RESEARCH_AREA_LABELS[value] || String(value || "Unknown area").replaceAll("_", " ").replaceAll("-", " ");
+}
 
 const ui = Object.fromEntries([
   "announcement", "connection-dot", "connection-state", "workspace", "page-summary",
@@ -226,7 +238,7 @@ function updateRunItem(item, run) {
   item.querySelector(".run-objective").textContent = run.objective_preview || "Objective hidden by policy";
   const facts = item.querySelector(".run-facts");
   facts.replaceChildren(
-    node("span", "feature-key", run.feature_key),
+    node("span", "feature-key", researchAreaLabel(run.feature_key)),
     node("span", "", run.latest_phase ? label(run.latest_phase) : "not started"),
     node("span", "", `${run.iteration_count} iter · ${run.tool_call_count} calls`),
   );
@@ -547,7 +559,7 @@ function renderDetail() {
   ui["run-status"].replaceChildren(...statusMark(run.status).childNodes);
   ui["run-status"].className = `status-mark status-${run.status}`;
   ui["run-objective"].textContent = objective || run.objective_preview || "Objective hidden by policy";
-  ui["run-subtitle"].textContent = `${run.feature_key} · created ${localTime(run.created_at)}`;
+  ui["run-subtitle"].textContent = `${researchAreaLabel(run.feature_key)} · created ${localTime(run.created_at)}`;
   ui["last-updated"].textContent = `Updated ${localTime(run.updated_at)}`;
   renderCurrentWork(run, steps);
   renderCycles(steps);
@@ -556,7 +568,7 @@ function renderDetail() {
   addDefinition(ui["run-overview"], [
     ["Current phase", label(currentStep(steps)?.phase || run.latest_phase || "not started")],
     ["Elapsed", duration(run.duration_ms), "overview-elapsed"],
-    ["Feature", run.feature_key],
+    ["Research area", researchAreaLabel(run.feature_key)],
     ["Model", run.model_profile],
     ["Iterations", `${run.iteration_count} / ${limits.max_iterations}`],
     ["Tool calls", `${run.tool_call_count} / ${limits.max_tool_calls}`],
