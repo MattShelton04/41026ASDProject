@@ -157,6 +157,7 @@ test("generation guards reject late route and polling work", () => {
 
 test("the application shell exposes keyboard landmarks, live status and native dialogs", async () => {
   const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
   assert.match(html, /href="#main-content">Skip to main content/);
   assert.match(html, /<nav>/);
   assert.match(html, /<main id="main-content" tabindex="-1">/);
@@ -168,6 +169,8 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.match(html, /id="action-confirm"[^>]+type="submit"/);
   assert.doesNotMatch(html, /<script(?![^>]+src=)/);
   assert.doesNotMatch(html, /style="/);
+  assert.match(app, /event\.key === "Escape"/);
+  assert.match(app, /closeNavigation\(\{ restoreFocus: true \}\)/);
 });
 
 test("the frontend proxy keeps browser traffic on the public backend boundary", async () => {
@@ -214,25 +217,25 @@ test("report-section release evidence is bounded and defensively normalized", ()
 
 test("release CRUD and report-section routes are represented in the browser client", async () => {
   const source = [
-    await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
+    await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8"),
     await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8"),
   ].join("\n");
-  assert.match(source, /Create draft release/);
+  assert.match(source, /Create draft dataset/);
   assert.match(source, /method: item \? "PUT" : "POST"/);
   assert.match(source, /method: "DELETE"/);
-  assert.match(source, /properties\/\$\{encodeURIComponent\(summary\.property_ref\)\}\/report-section/);
-  assert.match(source, /Candidate comparison/);
-  assert.match(source, /Quality review/);
+  assert.match(source, /properties\/\$\{encodeURIComponent\(propertyRef\)\}\/report-section/);
+  assert.match(source, /Candidate and accepted predecessor/);
+  assert.match(source, /Deterministic quality review/);
   assert.match(source, /item\.release_version \|\| item\.dataset_release_id/);
   assert.match(source, /badge\(item\.coverage_status\)/);
 });
 
 test("release details render bounded paginated dataset records", async () => {
-  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
-  assert.match(app, /dataset-releases\/\$\{id\}\/records\?limit=25&offset=0/);
-  assert.match(app, /function releasePreviewPanel/);
-  assert.match(app, /No other release is mixed into this view/);
-  assert.match(app, /Next page/);
+  const releases = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
+  assert.match(releases, /dataset-releases\/\$\{id\}\/records\?limit=25&offset=0/);
+  assert.match(releases, /function releasePreviewPanel/);
+  assert.match(releases, /No other release is mixed into this view/);
+  assert.match(releases, /Next page/);
 });
 
 test("operator UI exposes working submit controls, backfills and durable histories", async () => {
@@ -251,10 +254,16 @@ test("operator UI exposes working submit controls, backfills and durable histori
   assert.match(source, /PSI source year/);
   assert.match(source, /Preview deterministic plan/);
   assert.match(source, /link\("Run history"/);
+  assert.match(source, /`#ai\/release:\$\{linkedRelease\.id\}`/);
 });
 
 test("production frontend imports focused core and component modules", async () => {
-  const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  const source = [
+    await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
+    await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8"),
+    await readFile(new URL("../../frontend/routes/evidence.js", import.meta.url), "utf8"),
+    await readFile(new URL("../../frontend/routes/ai-diagnosis.js", import.meta.url), "utf8"),
+  ].join("\n");
   for (const modulePath of [
     "./core/api.js", "./core/dom.js", "./core/formats.js", "./core/forms.js",
     "./core/polling.js", "./core/router.js", "./components/forms.js",
@@ -262,15 +271,20 @@ test("production frontend imports focused core and component modules", async () 
   ]) assert.match(source, new RegExp(modulePath.replaceAll(".", "\\.")));
   assert.doesNotMatch(source, /from "\.\/core\.js"/);
   assert.match(source, /\.\/routes\/properties\.js/);
+  assert.match(source, /\.\/routes\/releases\.js/);
+  assert.match(source, /\.\/routes\/evidence\.js/);
+  assert.match(source, /\.\/routes\/ai-diagnosis\.js/);
 });
 
 test("property discovery consumes shell search queries and stays product-facing", async () => {
   const source = await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8");
   assert.match(source, /routeQuery\(location\.hash\)\.get\("q"\)/);
   assert.match(source, /if \(input\.value\) queueMicrotask/);
-  assert.match(source, /Explore properties/);
-  assert.match(source, /research areas have usable evidence/);
+  assert.match(source, /Explore NSW properties/);
+  assert.match(source, /which evidence is available/);
   assert.doesNotMatch(source, /Feature [1-5]|buyer features|Dossier report/);
+  assert.match(source, /#properties\/\$\{encodeURIComponent\(item\.property_ref\)\}/);
+  assert.match(source, /Coordinates are also provided as text/);
 });
 
 test("live acquisition controls use truthful runtime capability evidence", async () => {
@@ -286,9 +300,20 @@ test("live acquisition controls use truthful runtime capability evidence", async
 });
 
 test("AI diagnosis history is loaded from the durable shared service projection", async () => {
-  const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  const source = await readFile(new URL("../../frontend/routes/ai-diagnosis.js", import.meta.url), "utf8");
   assert.match(source, /request\("agent-runs\?limit=50"\)/);
   assert.match(source, /panel\("Diagnosis history"/);
   assert.match(source, /`#ai\/\$\{run\.id\}`/);
   assert.match(source, /selectedAgentRun/);
+  assert.match(source, /OBJECTIVES = Object\.freeze/);
+  assert.doesNotMatch(source, /el\("textarea"\)/);
+  assert.match(source, /\?run=\$\{encodeURIComponent\(runId\)\}/);
+});
+
+test("evidence explorers require an exact run and preserve unknown states", async () => {
+  const source = await readFile(new URL("../../frontend/routes/evidence.js", import.meta.url), "utf8");
+  assert.match(source, /Choose a processing run/);
+  assert.match(source, /Evidence from different runs is kept separate/);
+  assert.match(source, /unknown evidence state, not a confirmed negative/);
+  assert.match(source, /#\$\{kind\}\/\$\{run\.id\}/);
 });

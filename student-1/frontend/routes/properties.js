@@ -1,16 +1,17 @@
 import { collection, entity, queryString } from "../core/api.js";
-import { append, button, el } from "../core/dom.js";
+import { append, button, el, link } from "../core/dom.js";
 import { coverageRows, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js";
 import { routeQuery } from "../core/router.js";
-import { badge, detailList, panel, technicalDetails } from "../components/layout.js";
+import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
 
 export function createPropertyRoutes({ view, request, announce }) {
-  async function renderProperties() {
+  async function renderProperties(propertyRef = "") {
+    if (propertyRef) return renderPropertyDetail(propertyRef);
     view.replaceChildren();
     const hero = el("section", "discovery-hero");
-    append(hero, el("p", "eyebrow", "Explore properties"), el("h1", "", "Trace an NSW address to the evidence behind it"), el("p", "", "Search the accepted property registry, inspect match provenance and see which research areas have usable evidence."));
+    append(hero, el("p", "eyebrow", "Property search"), el("h1", "", "Explore NSW properties"), el("p", "", "Find a stable property record before you begin further research. Every result shows how the address was resolved and which evidence is available."));
     const form = el("form", "search-box");
     const input = el("input");
     input.type = "search";
@@ -23,24 +24,24 @@ export function createPropertyRoutes({ view, request, announce }) {
     const search = button("Search", "button primary");
     search.type = "submit";
     append(form, input, search);
-    append(hero, form, el("p", "search-help", "NSW only · Maximum 25 matches · Search works without AI"));
+    append(hero, form, el("p", "search-help", "NSW addresses · Up to 25 results · Address matching does not depend on AI"));
     append(view, hero);
     const resultHost = el("div");
-    append(resultHost, emptyState("Start with a street address", "Results include an accessible list and table-based coordinate context. No map interaction is required."));
+    append(resultHost, emptyState("Start with a street address", "Include a street number and suburb or postcode for the clearest match."));
     append(view, resultHost);
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const query = input.value.trim();
       history.replaceState(null, "", `#properties${queryString({ q: query })}`);
-      resultHost.replaceChildren(el("section", "loading-state", "Searching the accepted property registry…"));
+      resultHost.replaceChildren(el("section", "loading-state", "Searching NSW property records…"));
       try {
         const result = await request(`properties/search${queryString({ q: query, state: "NSW", limit: 25 })}`);
         const items = collection(result.body);
         if (result.body.supported === false) resultHost.replaceChildren(el("div", "notice warning", "This query is outside the supported NSW coverage. Try an NSW street address."));
-        else if (!items.length) resultHost.replaceChildren(emptyState("No canonical property found", "Try including a street number, suburb and four-digit postcode. PropertyScope will not invent or silently broaden a match."));
+        else if (!items.length) resultHost.replaceChildren(emptyState("No property found", "Try including a street number, suburb and four-digit postcode. We will not silently broaden your search."));
         else {
-          renderPropertyResults(resultHost, items);
+          renderPropertyResults(resultHost, items, query);
           announce(`${items.length} property matches found.`);
         }
       } catch (error) {
@@ -51,56 +52,74 @@ export function createPropertyRoutes({ view, request, announce }) {
     if (input.value) queueMicrotask(() => form.requestSubmit());
   }
 
-  function renderPropertyResults(host, items) {
+  function renderPropertyResults(host, items, query) {
     const layout = el("div", "property-results");
     const listBody = el("div", "result-list");
     listBody.setAttribute("aria-label", "Property matches");
-    const detailHost = el("div");
-    items.forEach((item, index) => {
+    items.forEach((item) => {
       const result = el("button", "result-card");
       result.type = "button";
-      append(result, el("strong", "", item.address_display), el("span", "", `${item.locality || ""} ${item.state || "NSW"} ${item.postcode || ""} · ${humanise(item.resolution_status || item.match?.status)}`));
-      result.addEventListener("click", () => selectProperty(item, detailHost, result, listBody));
+      result.setAttribute("aria-label", `Open ${item.address_display}`);
+      append(result, el("strong", "", item.address_display), el("span", "", `${humanise(item.resolution_status || item.match?.status)} address · ${item.locality || ""} ${item.state || "NSW"} ${item.postcode || ""} · confidence ${item.score ?? item.match?.score ?? "not supplied"}`));
+      result.addEventListener("click", () => { location.hash = `#properties/${encodeURIComponent(item.property_ref)}${queryString({ q: query })}`; });
       append(listBody, result);
-      if (index === 0) queueMicrotask(() => result.click());
     });
-    append(layout, panel(`${items.length} matches`, "Select a result to inspect evidence", listBody), detailHost);
+    const coordinateRows = makeTable(
+      [{ label: "Address" }, { label: "Property reference" }, { label: "Latitude" }, { label: "Longitude" }, { label: "Resolution" }], items,
+      (item) => { const row = el("tr"); append(row, cell(item.address_display, "primary-cell"), cell(item.property_ref, "mono"), cell(item.latitude ?? "Unknown"), cell(item.longitude ?? "Unknown"), cell(badge(item.resolution_status || "unknown"))); return row; },
+    );
+    append(layout, panel(`${items.length} ${items.length === 1 ? "property" : "properties"}`, "Stable property records, not real-estate listings", listBody), panel("Location details", "Coordinates are also provided as text for accessible review", coordinateRows));
     host.replaceChildren(layout);
   }
 
-  async function selectProperty(summary, host, selectedButton, list) {
-    for (const item of list.querySelectorAll(".result-card")) item.removeAttribute("aria-current");
-    selectedButton.setAttribute("aria-current", "true");
-    host.replaceChildren(panel("Property evidence", "Loading accepted snapshot…", el("div", "loading-state", "Loading…")));
+  async function renderPropertyDetail(propertyRef) {
+    view.replaceChildren(el("section", "loading-state", "Loading canonical property evidence…"));
     try {
-      const [detailResult, mapResult, coverageResult, reportResult] = await Promise.all([
-        request(`properties/${encodeURIComponent(summary.property_ref)}`),
-        request(`properties/${encodeURIComponent(summary.property_ref)}/map-context`),
-        request(`properties/${encodeURIComponent(summary.property_ref)}/coverage`),
-        request(`properties/${encodeURIComponent(summary.property_ref)}/report-section`).catch((error) => ({ error })),
+      const [detailResult, mapResult, coverageResult, reportResult] = await Promise.allSettled([
+        request(`properties/${encodeURIComponent(propertyRef)}`),
+        request(`properties/${encodeURIComponent(propertyRef)}/map-context`),
+        request(`properties/${encodeURIComponent(propertyRef)}/coverage`),
+        request(`properties/${encodeURIComponent(propertyRef)}/report-section`),
       ]);
-      const property = entity(detailResult.body, "property");
-      const map = entity(mapResult.body);
-      const coverage = coverageRows(coverageResult.body).length ? coverageRows(coverageResult.body) : (detailResult.body.coverage || []);
+      if (detailResult.status === "rejected") throw detailResult.reason;
+      const detailPayload = detailResult.value.body;
+      const property = entity(detailPayload, "property");
+      const map = mapResult.status === "fulfilled" ? entity(mapResult.value.body) : {};
+      const coverage = coverageResult.status === "fulfilled" && coverageRows(coverageResult.value.body).length ? coverageRows(coverageResult.value.body) : (detailPayload.coverage || []);
+      const query = routeQuery(location.hash).get("q") || "";
+      view.replaceChildren();
+      const identityHero = el("section", "property-identity-hero");
+      append(identityHero, pageHeading("Verified NSW property", property.address_display || property.display_address || "Property record", `${property.locality || "NSW"} · ${property.state || "NSW"} ${property.postcode || ""} · Updated ${formatDate(property.updated_at)}`, [link("Back to search", `#properties${queryString({ q: query })}`, "button secondary")]));
+      const referenceStrip = el("div", "property-reference-strip");
+      append(referenceStrip, el("span", "", humanise(property.resolution_status || "unknown")), el("span", "", `${detailPayload.identifiers?.length || 0} source identifiers`), el("span", "", `${coverage.length} coverage records`), el("span", "mono", property.property_ref));
+      append(identityHero, referenceStrip);
+      append(view, identityHero);
       const body = el("div", "stack");
-      append(body, el("div", "notice", `Canonical property reference: ${property.property_ref}. Match evidence is shown explicitly; aliases are not silently merged.`));
       const mapPanel = el("div", "map-context");
       const latitude = map.latitude ?? map.coordinates?.latitude ?? property.latitude ?? property.coordinates?.latitude;
       const longitude = map.longitude ?? map.coordinates?.longitude ?? property.longitude ?? property.coordinates?.longitude;
-      append(mapPanel, el("span", "map-pin", "⌖"), el("div", "map-caption", `${latitude ?? "Unknown latitude"}, ${longitude ?? "unknown longitude"} · Map-style context with accessible evidence below`));
-      append(body, mapPanel, detailList([["Canonical address", property.address_display || property.display_address], ["Locality", property.locality], ["Postcode", property.postcode], ["Resolution", badge(property.resolution_status || summary.resolution_status || property.match?.tier)], ["Match source", summary.match?.source || property.match?.source], ["Match score", summary.match?.score ?? summary.match?.confidence ?? property.match?.score ?? property.match?.confidence ?? "Not supplied"]]));
+      append(mapPanel, el("span", "map-pin", "⌖"), el("div", "map-caption", `${latitude ?? "Unknown latitude"}, ${longitude ?? "unknown longitude"} · Visual coordinate context; the table below is the authoritative accessible fallback.`));
+      append(body, mapPanel, makeTable([{ label: "Coordinate evidence" }, { label: "Value" }], [{ label: "Latitude", value: latitude ?? "Unknown" }, { label: "Longitude", value: longitude ?? "Unknown" }, { label: "Geometry type", value: map.geometry?.type || property.geometry?.type || "Unknown" }], (item) => { const row = el("tr"); append(row, cell(item.label, "primary-cell"), cell(String(item.value), item.label === "Geometry type" ? "" : "mono")); return row; }));
+      append(body, detailList([["Canonical address", property.address_display || property.display_address], ["PropertyScope reference", el("code", "mono", property.property_ref)], ["Locality", property.locality], ["State", property.state], ["Postcode", property.postcode], ["Identity status", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)], ["Request ID", el("code", "mono", detailResult.value.requestId)]]));
+      append(body, evidenceTable("Identifiers and match evidence", detailPayload.identifiers || [], [
+        ["Scheme", (item) => item.scheme], ["Identifier", (item) => item.identifier_value], ["Match method", (item) => humanise(item.match_method)], ["Confidence", (item) => item.match_confidence ?? "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"], ["Evidence", (item) => item.evidence_json ? technicalDetails(item.evidence_json, "Inspect") : "Unknown"],
+      ], "No source identifiers are recorded. Identity confidence is therefore unknown."));
+      append(body, evidenceTable("Address aliases", detailPayload.aliases || [], [
+        ["Alias", (item) => item.alias_display], ["Kind", (item) => humanise(item.alias_kind)], ["Source identifier", (item) => item.source_identifier || "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"],
+      ], "No address aliases are recorded for this property."));
       const cards = el("div", "coverage-grid");
       for (const item of coverage) {
         const card = el("div", `coverage-card ${statusTone(item.status || item.coverage_status || item.state)}`);
         append(card, el("strong", "", item.dataset || item.dataset_id || researchAreaLabel(item.feature || item.target_feature)), el("span", "", `${humanise(item.status || item.coverage_status || item.state)}${item.release_version ? ` · ${item.release_version}` : ""}${item.limitation ? ` · ${item.limitation}` : ""}`));
         append(cards, card);
       }
-      if (coverage.length) append(body, el("h3", "", "Evidence coverage"), cards);
-      append(body, renderPropertyReportSection(reportResult));
-      append(body, technicalDetails({ identifiers: detailResult.body.identifiers || [], aliases: detailResult.body.aliases || [], map }, "Identifiers, aliases and coordinate evidence"));
-      host.replaceChildren(panel("Property evidence", "Accepted snapshot and provenance", body));
+      if (coverage.length) append(body, el("h2", "", "Available research coverage"), cards);
+      else append(body, emptyState("Coverage is unknown", coverageResult.status === "rejected" ? `Coverage evidence is temporarily unavailable.${problemSuffix(coverageResult.reason)}` : "No accepted coverage entries are recorded. This does not confirm absence."));
+      append(body, renderPropertyReportSection(reportResult.status === "fulfilled" ? reportResult.value : { error: reportResult.reason }));
+      if (mapResult.status === "rejected") append(body, el("div", "notice warning", `Spatial context is temporarily unavailable; canonical identity remains usable.${problemSuffix(mapResult.reason)}`));
+      append(view, panel("Property identity and evidence", "Source-attributed address, location and coverage details", body));
     } catch (error) {
-      host.replaceChildren(errorState(error, () => selectProperty(summary, host, selectedButton, list)));
+      view.replaceChildren(errorState(error, () => renderPropertyDetail(propertyRef)));
     }
   }
 
@@ -145,3 +164,12 @@ export function createPropertyRoutes({ view, request, announce }) {
 
   return { renderProperties };
 }
+
+function evidenceTable(title, items, columns, emptyCopy) {
+  const body = el("div", "stack"); append(body, el("h2", "", title));
+  if (!items.length) { append(body, el("p", "", emptyCopy)); return body; }
+  append(body, makeTable(columns.map(([label]) => ({ label })), items, (item) => { const row = el("tr"); columns.forEach(([, value], index) => append(row, cell(value(item), index === 0 ? "primary-cell" : ""))); return row; }));
+  return body;
+}
+
+function problemSuffix(error) { return error?.requestId ? ` Request ID ${error.requestId}.` : ""; }

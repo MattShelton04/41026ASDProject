@@ -61,7 +61,7 @@ jobs:
           PROPERTYSCOPE_NETWORK_ENABLED: "false"
         run: uv run pytest student-1/tests scripts/tests shared/contracts/tests
       - name: Run frontend behavior tests
-        run: node --test student-1/tests/frontend/core.test.mjs
+        run: node --test student-1/tests/frontend/*.test.mjs shared/frontend/*.test.mjs shared/frontend/operations/ai-mode/*.test.mjs
 
   containers:
     runs-on: ubuntu-latest

@@ -38,7 +38,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
       const runs = allRuns.filter((run) => (!filters.job || run.job_definition_id === filters.job)
         && (!search || [run.id, run.job_name, run.request_id, run.dataset_id].some((value) => String(value || "").toLowerCase().includes(search))));
       view.replaceChildren();
-      append(view, pageHeading("Property data service · Durable orchestration", "Ingestion runs", "Inspect task attempts, checkpoints, candidate failures and recovery lineage while accepted data remains stable.", [link("Run a job", "#jobs", "button primary")]));
+      append(view, pageHeading("Property records", "Processing runs", "Follow each data update from download to quality review. A failed run never replaces the dataset already available to property research.", [link("Start from an import job", "#jobs", "button primary")]));
       if (filters.job) {
         const jobFilter = el("div", "notice notice-actions");
         append(jobFilter, el("span", "", `Showing history for job ${filters.job}.`), link("Clear job filter", "#runs", "button secondary small"));
@@ -54,8 +54,8 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
         row.addEventListener("click", () => { location.hash = `#runs/${run.id}`; });
         row.addEventListener("keydown", (event) => { if (event.key === "Enter") location.hash = `#runs/${run.id}`; });
         return row;
-      }, "Ingestion run history");
-      append(view, panel(`${runs.length} runs`, "Newest evidence first", table));
+      }, "Processing run history");
+      append(view, panel(`${runs.length} runs`, "Newest first", table));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
   }
 
@@ -63,13 +63,15 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
     const scrollTop = polling ? window.scrollY : 0;
     if (!polling) renderLoading(view, "Loading run evidence");
     try {
-      const [detailResult, tasksResult, qualityResult, artifactsResult] = await Promise.all([
+      const [detailResult, tasksResult, qualityResult, artifactsResult, releasesResult] = await Promise.all([
         request(`ingestion-runs/${id}`), request(`ingestion-runs/${id}/tasks?limit=100`), request(`ingestion-runs/${id}/quality-results?limit=100`), request(`ingestion-runs/${id}/artifacts?limit=100`),
+        request("dataset-releases?limit=100").catch(() => ({ body: { items: [] } })),
       ]);
       const run = entity(detailResult.body, "run");
       const tasks = collection(tasksResult.body);
       const quality = collection(qualityResult.body);
       const artifacts = collection(artifactsResult.body);
+      const linkedRelease = collection(releasesResult.body).find((release) => release.ingestion_run_id === id && !["accepted", "superseded"].includes(release.status));
       view.replaceChildren();
       const availability = actionAvailability(run.status);
       const actions = [];
@@ -87,8 +89,8 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
       if (availability.retry) runAction("retry", "Retry failed", "Create a linked full-pipeline retry with the failed run retained as its parent evidence.");
       if (availability.reprocess) runAction("reprocess-cached", "Reprocess cached", "Create a linked child run using verified cached artifacts and current transforms.");
       if (availability.cancel) runAction("cancel", "Cancel", "Request cooperative cancellation. Completed evidence will remain available.", "danger");
-      if (availability.diagnose) actions.push(button("Diagnose with AI", "button primary", () => { location.hash = "#ai"; }));
-      append(view, pageHeading("Run evidence", run.job_name || `Run ${String(id).slice(0, 8)}`, `${humanise(run.run_mode)} · ${formatDate(run.requested_at)}`, actions));
+      if (availability.diagnose) actions.push(button("Diagnose failure", "button primary", () => { location.hash = linkedRelease ? `#ai/release:${linkedRelease.id}` : "#ai"; }));
+      append(view, pageHeading("Processing run", run.job_name || `Run ${String(id).slice(0, 8)}`, `${humanise(run.run_mode)} · started ${formatDate(run.requested_at)}`, actions));
       if (run.error_json) append(view, el("div", "notice negative", `${run.error_json.message || run.error_json.detail || "The run recorded a classified failure."} The previously accepted release remains unchanged.`));
       const metrics = el("div", "metric-strip");
       for (const [label, value] of [["Discovered", formatNumber(run.rows_discovered)], ["Staged", formatNumber(run.rows_staged)], ["Accepted", formatNumber(run.rows_accepted)], ["Rejected", formatNumber(run.rows_rejected)]]) {
@@ -100,13 +102,13 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
       append(runBody, runTimeline(tasks));
       const evidence = el("div", "stack");
       append(evidence,
-        panel("Run state", "Control-plane projection", detailList([["Status", badge(run.status)], ["Heartbeat", formatDate(run.heartbeat_at)], ["Attempt", run.attempt_number], ["Parent run", run.parent_run_id ? link(String(run.parent_run_id), `#runs/${run.parent_run_id}`) : "None"], ["Request ID", el("code", "mono", run.request_id || detailResult.requestId)], ["Finished", formatDate(run.finished_at)]])),
-        panel("Checkpoints and watermark", "Candidate progress never advances accepted data", detailList([["Input checkpoint", JSON.stringify(run.input_checkpoint_json || {})], ["Candidate checkpoint", JSON.stringify(run.output_checkpoint_json || {})], ["Accepted watermark", JSON.stringify(run.accepted_watermark_json || {})]])),
-        panel("Linked evidence", "Safe metadata only", detailList([["Quality checks", link(`${quality.length} results`, `#quality/${id}`)], ["Artifacts", link(`${artifacts.length} records`, `#artifacts/${id}`)]])),
+        panel("Run status", "Current recorded state", detailList([["Status", badge(run.status)], ["Last heartbeat", formatDate(run.heartbeat_at)], ["Attempt", run.attempt_number], ["Previous run", run.parent_run_id ? link(String(run.parent_run_id), `#runs/${run.parent_run_id}`) : "None"], ["Request ID", el("code", "mono", run.request_id || detailResult.requestId)], ["Finished", formatDate(run.finished_at)]])),
+        panel("Processing checkpoints", "Progress here does not change published data", detailList([["Input checkpoint", JSON.stringify(run.input_checkpoint_json || {})], ["Candidate checkpoint", JSON.stringify(run.output_checkpoint_json || {})], ["Published watermark", JSON.stringify(run.accepted_watermark_json || {})]])),
+        panel("Evidence from this run", "Quality and file records", detailList([["Quality checks", link(`${quality.length} results`, `#quality/${id}`)], ["Files & lineage", link(`${artifacts.length} records`, `#artifacts/${id}`)]])),
       );
-      append(grid, panel("Stage and task timeline", `${tasks.length} durable task records`, runBody), evidence);
+      append(grid, panel("Processing timeline", `${tasks.length} recorded tasks`, runBody), evidence);
       append(view, grid);
-      append(view, panel("Complete run projection", "Expandable, structured evidence for audit", technicalDetails(detailResult.body)));
+      append(view, panel("Technical run details", "Expandable record for troubleshooting and audit", technicalDetails(detailResult.body)));
       if (polling) window.scrollTo({ top: scrollTop });
       const statusChanged = state.lastRunStatus && state.lastRunStatus !== run.status;
       if (statusChanged) announce(`Run status changed to ${humanise(run.status)}.`);

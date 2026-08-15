@@ -8,7 +8,12 @@ independently buildable `student-N/frontend/` services.
 ## Files
 
 - `index.html` — unified entry point covering all five features and shared operational surfaces.
-- `app.js` — tiny configuration/search/planned-capability behavior; no domain data access.
+- `app.js` — shell composition root for home/search, bounded hash routing and mobile navigation.
+- `core.js` — safe DOM, formatting, table and correlated public-request helpers.
+- `capabilities.js` — static Release 0 deployment capability manifest; implemented and enabled remain separate.
+- `routes/status.js` — live health summary for implemented shared and Property records services.
+- `routes/evidence.js` — read-only accepted-release and durable agent-run reference index.
+- `routes/roadmap.js` — honest current/planned capability roadmap.
 - `styles.css` — shell-specific composition.
 - `Dockerfile` and `nginx.conf` — unprivileged static shell container with health and security headers.
 - `design-system/tokens.css` — colour, typography, spacing, radius, shadow and evidence-state tokens.
@@ -44,6 +49,21 @@ The shell presents product research areas rather than assignment feature/release
 Property records is linked as a live user journey; the other areas remain visibly unavailable and
 do not fall through to Feature 1. Data and agent operations are secondary operator destinations.
 The shell does not infer service health from a static page or claim future functionality is running.
+
+## Shared dashboards
+
+The framework-free shell exposes three hash routes:
+
+```text
+http://localhost:5100/#system-status
+http://localhost:5100/#evidence
+http://localhost:5100/#release-roadmap
+```
+
+System status checks only implemented components and excludes deliberately gated services from the
+overall result. The evidence index reads bounded public API projections through same-origin Nginx
+routes; it never accesses a feature database or interprets feature-owned business facts. Both views
+preserve successful sections when a dependency is unavailable and retain request IDs where supplied.
 
 ## Local shared-shell container
 
