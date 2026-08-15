@@ -59,8 +59,9 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "Shared operations" in status
     assert "Accepted data references" in evidence
     assert "Deployment capability manifest" in roadmap
-    assert "proxy_pass http://propertyscope-backend:5201" in nginx
-    assert "proxy_pass http://ai-mode:5005" in nginx
+    assert "resolver 127.0.0.11" in nginx
+    assert "proxy_pass $data_platform_upstream" in nginx
+    assert "proxy_pass $ai_mode_upstream" in nginx
     assert "database" not in evidence.lower()
 
 

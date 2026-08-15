@@ -59,6 +59,9 @@ test("shared routes use public same-origin projections and safe DOM rendering", 
   assert.match(nginx, /location = \/api\/shared-health\/data-platform/);
   assert.match(nginx, /location \/api\/data-platform\//);
   assert.match(nginx, /location \/api\/ai-mode\//);
+  assert.match(nginx, /resolver 127\.0\.0\.11/);
+  assert.match(nginx, /proxy_pass \$data_platform_upstream/);
+  assert.match(nginx, /proxy_pass \$ai_mode_upstream/);
   assert.doesNotMatch(statusRoute, /innerHTML/);
   assert.doesNotMatch(evidenceRoute, /innerHTML/);
 });
