@@ -18,6 +18,7 @@ import {
   psiYearRange,
   queryString,
   releaseComparison,
+  researchAreaLabel,
   reportReleaseRows,
   requestJson,
   parseRoute,
@@ -189,6 +190,9 @@ test("formatting pairs states with text and handles byte boundaries", () => {
   assert.deepEqual(stateLabel("stale"), { text: "Stale", tone: "warning", symbol: "△" });
   assert.equal(formatBytes(1024), "1.00 KB");
   assert.equal(formatBytes(10 * 1024 * 1024), "10.0 MB");
+  assert.equal(researchAreaLabel("feature-1"), "Property records");
+  assert.equal(researchAreaLabel("feature-4"), "Site & planning");
+  assert.equal(researchAreaLabel("future-area"), "Future Area");
 });
 
 test("release comparison keeps candidate and accepted evidence visibly distinct", () => {
@@ -209,7 +213,10 @@ test("report-section release evidence is bounded and defensively normalized", ()
 });
 
 test("release CRUD and report-section routes are represented in the browser client", async () => {
-  const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  const source = [
+    await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
+    await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8"),
+  ].join("\n");
   assert.match(source, /Create draft release/);
   assert.match(source, /method: item \? "PUT" : "POST"/);
   assert.match(source, /method: "DELETE"/);
@@ -232,6 +239,7 @@ test("operator UI exposes working submit controls, backfills and durable histori
   const source = [
     await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
     await readFile(new URL("../../frontend/components/forms.js", import.meta.url), "utf8"),
+    await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8"),
     await readFile(new URL("../../frontend/routes/entities.js", import.meta.url), "utf8"),
     await readFile(new URL("../../frontend/routes/run-plan.js", import.meta.url), "utf8"),
     await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8"),
@@ -253,6 +261,16 @@ test("production frontend imports focused core and component modules", async () 
     "./components/layout.js", "./components/states.js", "./components/tables.js",
   ]) assert.match(source, new RegExp(modulePath.replaceAll(".", "\\.")));
   assert.doesNotMatch(source, /from "\.\/core\.js"/);
+  assert.match(source, /\.\/routes\/properties\.js/);
+});
+
+test("property discovery consumes shell search queries and stays product-facing", async () => {
+  const source = await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8");
+  assert.match(source, /routeQuery\(location\.hash\)\.get\("q"\)/);
+  assert.match(source, /if \(input\.value\) queueMicrotask/);
+  assert.match(source, /Explore properties/);
+  assert.match(source, /research areas have usable evidence/);
+  assert.doesNotMatch(source, /Feature [1-5]|buyer features|Dossier report/);
 });
 
 test("live acquisition controls use truthful runtime capability evidence", async () => {

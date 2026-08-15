@@ -1,6 +1,6 @@
 import { API_BASE, collection, entity, newRequestId, queryString, requestJson } from "./core/api.js";
 import { append, button, el, link } from "./core/dom.js";
-import { coverageRows, formatBytes, formatDate, formatNumber, humanise, releaseComparison, reportReleaseRows, stateLabel, statusTone } from "./core/formats.js";
+import { formatBytes, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel, stateLabel, statusTone } from "./core/formats.js";
 import { parseJsonField } from "./core/forms.js";
 import { ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
 import { parseRoute } from "./core/router.js";
@@ -11,6 +11,7 @@ import { emptyState, errorState, renderLoading } from "./components/states.js";
 import { cell, makeTable, primaryCell } from "./components/tables.js";
 import { createEntityRoutes } from "./routes/entities.js";
 import { renderOverview } from "./routes/overview.js";
+import { createPropertyRoutes } from "./routes/properties.js";
 import { createRunPlanner } from "./routes/run-plan.js";
 import { createRunRoutes } from "./routes/runs.js";
 
@@ -25,11 +26,12 @@ const actionDialog = document.querySelector("#action-dialog");
 const actionForm = document.querySelector("#action-form");
 const toast = document.querySelector("#toast");
 
+const productHomeUrl = window.PROPERTYSCOPE_HOME_URL || "http://localhost:5100/";
+for (const link of document.querySelectorAll("[data-product-home]")) link.href = productHomeUrl;
+
 const state = {
   pollTimer: null,
   lastRunStatus: "",
-  selectedProperty: null,
-  propertyResults: [],
   requests: new Map(),
 };
 const generationGuard = createGenerationGuard();
@@ -79,7 +81,7 @@ const SOURCE_FIELDS = [
   { name: "licence_id", label: "Licence", required: true },
   { name: "licence_url", label: "Licence URL", type: "url", required: true },
   { name: "redistribution_policy", label: "Redistribution policy", required: true, wide: true },
-  { name: "target_features", label: "Target features", type: "json_array", wide: true, required: true, help: "JSON list of feature keys" },
+  { name: "target_features", label: "Research area keys", type: "json_array", wide: true, required: true, help: "Stored contract keys for the areas allowed to consume this source" },
   { name: "status", label: "Lifecycle status", options: ["draft", "active", "disabled", "retired"], required: true },
   { name: "notes", label: "Operator notes", type: "textarea", wide: true },
 ];
@@ -93,7 +95,7 @@ const JOB_FIELDS = [
   { name: "release_builder_key", label: "Release builder", required: true },
   { name: "import_profile_key", label: "Import profile", required: true },
   { name: "import_profile_version", label: "Import profile version", required: true },
-  { name: "target_feature", label: "Target feature", required: true },
+  { name: "target_feature", label: "Research area key", required: true },
   { name: "dataset_id", label: "Dataset ID", required: true },
   { name: "refresh_strategy", label: "Refresh strategy", options: ["full_snapshot", "append_only_partitioned", "partitioned_snapshot", "manual_versioned_import"], required: true },
   { name: "default_run_mode", label: "Default run mode", options: ["full_refresh", "reprocess_cached"], required: true },
@@ -106,14 +108,14 @@ const JOB_FIELDS = [
   { name: "max_bytes", label: "Byte limit", type: "number", min: 1, required: true },
   { name: "max_rows", label: "Row limit", type: "number", min: 1, required: true },
   { name: "status", label: "Lifecycle status", options: ["draft", "active", "disabled", "retired"], required: true },
-  { name: "schedule_text", label: "Schedule note", wide: true, help: "Descriptive only in Release 0" },
+  { name: "schedule_text", label: "Schedule note", wide: true, help: "Descriptive only; no scheduler is enabled" },
 ];
 
 const RELEASE_FIELDS = [
   { name: "dataset_id", label: "Dataset ID", required: true, createOnly: true },
   { name: "source_definition_id", label: "Source definition ID", required: true, createOnly: true },
   { name: "ingestion_run_id", label: "Ingestion run ID", required: true, createOnly: true },
-  { name: "target_feature", label: "Target feature", required: true, createOnly: true },
+  { name: "target_feature", label: "Research area key", required: true, createOnly: true },
   { name: "release_version", label: "Release version", required: true },
   { name: "schema_version", label: "Schema version", required: true },
   { name: "coverage", label: "Coverage evidence", type: "json", wide: true },
@@ -255,6 +257,7 @@ const { renderEntityList, renderEntityDetail } = createEntityRoutes({
 const { renderRuns, renderRunDetail } = createRunRoutes({
   view, request, mutate, confirmAction, showToast, announce, state, generationGuard, rerender: renderRoute,
 });
+const { renderProperties } = createPropertyRoutes({ view, request, announce });
 async function renderReleases(id = "") {
   loading("Loading release evidence");
   try {
@@ -270,7 +273,7 @@ async function renderReleases(id = "") {
     if (!visibleReleases.length) { append(view, emptyState("No dataset releases", filters.q || filters.status ? "Try clearing the current filters." : "Completed ingestion runs can create isolated candidate releases.")); return; }
     const table = makeTable([{ label: "Dataset / release" }, { label: "Target" }, { label: "Records" }, { label: "Status" }, { label: "Accepted" }, { label: "Checksum" }], visibleReleases, (release) => {
       const row = el("tr");
-      append(row, cell(link(release.dataset_id || "Dataset", `#releases/${release.id}`), "primary-cell"), cell(release.target_feature), cell(formatNumber(release.record_count), "numeric"), cell(badge(release.status)), cell(formatDate(release.accepted_at)), cell(String(release.content_sha256 || "—").slice(0, 12), "mono"));
+      append(row, cell(link(release.dataset_id || "Dataset", `#releases/${release.id}`), "primary-cell"), cell(researchAreaLabel(release.target_feature)), cell(formatNumber(release.record_count), "numeric"), cell(badge(release.status)), cell(formatDate(release.accepted_at)), cell(String(release.content_sha256 || "—").slice(0, 12), "mono"));
       return row;
     });
     append(view, panel(`${visibleReleases.length} releases`, "Candidates are isolated from accepted generations", table));
@@ -315,7 +318,7 @@ async function renderReleaseDetail(id) {
   }));
   if (["candidate", "review", "review_required", "awaiting_review"].includes(release.status)) actions.push(button("Reject", "button danger", async () => { const reason = el("textarea"); reason.placeholder = "Reason for rejection (required)"; const ok = await confirmAction({ title: "Reject this candidate?", description: "The decision and reason become durable evidence. Accepted data is unchanged.", label: "Reject candidate", extra: reason }); if (ok && reason.value.trim()) { await mutate(`dataset-releases/${id}/reject`, { body: { reason: reason.value.trim(), version: release.version }, success: "Candidate rejected" }); renderRoute(); } }));
   actions.push(button("Diagnose with AI", "button secondary", () => { location.hash = `#ai/release:${id}`; }));
-  append(view, pageHeading("Dataset release", `${release.dataset_id} ${release.release_version}`, `${release.target_feature} · ${formatNumber(release.record_count)} records`, actions));
+  append(view, pageHeading("Dataset release", `${release.dataset_id} ${release.release_version}`, `${researchAreaLabel(release.target_feature)} · ${formatNumber(release.record_count)} records`, actions));
   if (!["accepted", "superseded"].includes(release.status)) append(view, el("div", "notice warning", "This is candidate evidence. The previously accepted release remains live until the publication handshake succeeds."));
   const layout = el("div", "detail-layout");
   const releaseBody = el("div");
@@ -324,7 +327,7 @@ async function renderReleaseDetail(id) {
   append(side, panel("Manifest", "Bounded reproducibility evidence", manifest ? technicalDetails(manifest, "Inspect manifest") : el("p", "", "Manifest unavailable.")));
   const receiptBody = el("div");
   if (!receipts.length) append(receiptBody, el("p", "", "No consumer publication receipts recorded."));
-  for (const receipt of receipts) append(receiptBody, detailList([["Target", receipt.target_feature], ["Status", badge(receipt.status)], ["Rows accepted", formatNumber(receipt.rows_accepted)], ["Request ID", el("code", "mono", receipt.request_id || requestId)]]));
+  for (const receipt of receipts) append(receiptBody, detailList([["Research area", researchAreaLabel(receipt.target_feature)], ["Status", badge(receipt.status)], ["Rows accepted", formatNumber(receipt.rows_accepted)], ["Request ID", el("code", "mono", receipt.request_id || requestId)]]));
   append(side, panel("Publication receipts", "Consumer-owned import outcomes", receiptBody));
   append(layout, panel("Release evidence", "Candidate and accepted state remain distinct", releaseBody), side);
   append(view, layout);
@@ -476,124 +479,11 @@ async function renderCoverage() {
     if (!rows.length) { append(view, emptyState("No coverage evidence", "Coverage is published only after a release has been accepted.")); return; }
     const table = makeTable([{ label: "Dataset" }, { label: "Locality / area" }, { label: "Consumer feature" }, { label: "Coverage" }, { label: "Accepted release" }, { label: "As at" }], rows, (item) => {
       const row = el("tr");
-      append(row, cell(primaryCell(item.dataset || item.dataset_id, item.description)), cell(item.locality || item.area || item.geography || "NSW"), cell(item.feature || item.target_feature || "Property discovery"), cell(badge(item.status || item.coverage_status)), cell(item.release_version || item.dataset_release_id || "—", "mono"), cell(formatDate(item.as_at || item.accepted_at)));
+      append(row, cell(primaryCell(item.dataset || item.dataset_id, item.description)), cell(item.locality || item.area || item.geography || "NSW"), cell(researchAreaLabel(item.feature || item.target_feature || "feature-1")), cell(badge(item.status || item.coverage_status)), cell(item.release_version || item.dataset_release_id || "—", "mono"), cell(formatDate(item.as_at || item.accepted_at)));
       return row;
     });
     append(view, panel(`${rows.length} coverage entries`, "Colour is always paired with status text", table));
   } catch (error) { clearView(); append(view, errorState(error, renderRoute)); }
-}
-
-async function renderProperties() {
-  clearView();
-  const hero = el("section", "discovery-hero");
-  append(hero, el("p", "eyebrow", "Property discovery"), el("h1", "", "Trace an NSW address to the evidence behind it"), el("p", "", "Search the accepted property registry, inspect match provenance and see which buyer features have usable data."));
-  const form = el("form", "search-box");
-  const input = el("input"); input.type = "search"; input.name = "q"; input.placeholder = "Try 11 Example Street, Sydney NSW 2000"; input.autocomplete = "street-address"; input.maxLength = 250; input.required = true;
-  const search = button("Search", "button primary"); search.type = "submit";
-  append(form, input, search);
-  append(hero, form);
-  append(hero, el("p", "search-help", "NSW only · Maximum 25 matches · Search works without AI"));
-  append(view, hero);
-  const resultHost = el("div");
-  append(resultHost, emptyState("Start with a street address", "Results include an accessible list and table-based coordinate context. No map interaction is required."));
-  append(view, resultHost);
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    resultHost.replaceChildren(el("section", "loading-state", "Searching the accepted property registry…"));
-    try {
-      const result = await request(`properties/search${queryString({ q: input.value.trim(), state: "NSW", limit: 25 })}`);
-      const items = collection(result.body);
-      state.propertyResults = items;
-      if (result.body.supported === false) resultHost.replaceChildren(el("div", "notice warning", "This query is outside the supported NSW coverage. Try an NSW street address."));
-      else if (!items.length) resultHost.replaceChildren(emptyState("No canonical property found", "Try including a street number, suburb and four-digit postcode. The platform will not invent or silently broaden a match."));
-      else { renderPropertyResults(resultHost, items); announce(`${items.length} property matches found.`); }
-    } catch (error) { resultHost.replaceChildren(errorState(error, () => form.requestSubmit())); }
-  });
-}
-
-function renderPropertyResults(host, items) {
-  const layout = el("div", "property-results");
-  const listBody = el("div", "result-list");
-  listBody.setAttribute("aria-label", "Property matches");
-  const detailHost = el("div");
-  items.forEach((item, index) => {
-    const result = el("button", "result-card"); result.type = "button";
-    append(result, el("strong", "", item.address_display), el("span", "", `${item.locality || ""} ${item.state || "NSW"} ${item.postcode || ""} · ${humanise(item.resolution_status || item.match?.status)}`));
-    result.addEventListener("click", () => selectProperty(item, detailHost, result, listBody));
-    append(listBody, result);
-    if (index === 0) queueMicrotask(() => result.click());
-  });
-  append(layout, panel(`${items.length} matches`, "Select a result to inspect evidence", listBody), detailHost);
-  append(host, layout);
-}
-
-async function selectProperty(summary, host, selectedButton, list) {
-  for (const item of list.querySelectorAll(".result-card")) item.removeAttribute("aria-current");
-  selectedButton.setAttribute("aria-current", "true");
-  host.replaceChildren(panel("Property evidence", "Loading accepted snapshot…", el("div", "loading-state", "Loading…")));
-  try {
-    const [detailResult, mapResult, coverageResult, reportResult] = await Promise.all([
-      request(`properties/${encodeURIComponent(summary.property_ref)}`),
-      request(`properties/${encodeURIComponent(summary.property_ref)}/map-context`),
-      request(`properties/${encodeURIComponent(summary.property_ref)}/coverage`),
-      request(`properties/${encodeURIComponent(summary.property_ref)}/report-section`).catch((error) => ({ error })),
-    ]);
-    const property = entity(detailResult.body, "property");
-    const map = entity(mapResult.body);
-    const coverage = coverageRows(coverageResult.body).length ? coverageRows(coverageResult.body) : (detailResult.body.coverage || []);
-    const body = el("div", "stack");
-    append(body, el("div", "notice", `Canonical property reference: ${property.property_ref}. Match evidence is shown explicitly; aliases are not silently merged.`));
-    const mapPanel = el("div", "map-context");
-    const latitude = map.latitude ?? map.coordinates?.latitude ?? property.latitude ?? property.coordinates?.latitude;
-    const longitude = map.longitude ?? map.coordinates?.longitude ?? property.longitude ?? property.coordinates?.longitude;
-    append(mapPanel, el("span", "map-pin", "⌖"), el("div", "map-caption", `${latitude ?? "Unknown latitude"}, ${longitude ?? "unknown longitude"} · Map-style context with accessible evidence below`));
-    append(body, mapPanel, detailList([["Canonical address", property.address_display || property.display_address], ["Locality", property.locality], ["Postcode", property.postcode], ["Resolution", badge(property.resolution_status || summary.resolution_status || property.match?.tier)], ["Match source", summary.match?.source || property.match?.source], ["Match score", summary.match?.score ?? summary.match?.confidence ?? property.match?.score ?? property.match?.confidence ?? "Not supplied"]]));
-    const cards = el("div", "coverage-grid");
-    for (const item of coverage) { const card = el("div", `coverage-card ${statusTone(item.status || item.coverage_status || item.state)}`); append(card, el("strong", "", item.dataset || item.dataset_id || item.feature || item.target_feature || "Dataset"), el("span", "", `${humanise(item.status || item.coverage_status || item.state)}${item.release_version ? ` · ${item.release_version}` : ""}${item.limitation ? ` · ${item.limitation}` : ""}`)); append(cards, card); }
-    if (coverage.length) append(body, el("h3", "", "Feature coverage"), cards);
-    append(body, renderPropertyReportSection(reportResult));
-    append(body, technicalDetails({ identifiers: detailResult.body.identifiers || [], aliases: detailResult.body.aliases || [], map }, "Identifiers, aliases and coordinate evidence"));
-    host.replaceChildren(panel("Property evidence", "Accepted snapshot and provenance", body));
-  } catch (error) { host.replaceChildren(errorState(error, () => selectProperty(summary, host, selectedButton, list))); }
-}
-
-function renderPropertyReportSection(result) {
-  const section = el("section", "panel report-section");
-  const heading = el("div", "panel-heading");
-  const copy = el("div");
-  append(copy, el("h3", "", "Dossier report evidence"), el("p", "", "Bounded identity and accepted-release facts for Feature 5"));
-  append(heading, copy);
-  append(section, heading);
-  const body = el("div", "panel-body");
-  if (result?.error) {
-    append(body, el("div", "notice warning", `Report-section evidence is temporarily unavailable. Property discovery remains usable.${result.error.requestId ? ` Request ID ${result.error.requestId}` : ""}`));
-    append(section, body);
-    return section;
-  }
-  const report = result?.body || {};
-  const identity = report.identity || {};
-  append(body, detailList([
-    ["Property reference", el("code", "mono", report.property_ref || "Not supplied")],
-    ["Address", report.address_display || "Not supplied"],
-    ["G-NAF PID", identity.gnaf_pid || "Not supplied"],
-    ["Resolution", humanise(identity.resolution_status)],
-    ["Locality", identity.locality || "Not supplied"],
-    ["Evidence entries", formatNumber(report.evidence_count)],
-  ]));
-  const releases = reportReleaseRows(report);
-  if (!releases.length) append(body, el("p", "", "No accepted release evidence is available for this report section."));
-  else append(body, makeTable(
-    [{ label: "Dataset" }, { label: "Target feature" }, { label: "Release" }, { label: "Status" }, { label: "Accepted" }, { label: "Coverage" }],
-    releases,
-    (item) => {
-      const row = el("tr");
-      append(row, cell(item.dataset_id || "—", "primary-cell"), cell(item.target_feature || "—"), cell(item.release_version || item.dataset_release_id || "—"), cell(badge(item.coverage_status)), cell(formatDate(item.accepted_at || item.checked_at)), cell(item.coverage_scope ? technicalDetails(item.coverage_scope, "Inspect") : "—"));
-      return row;
-    },
-  ));
-  if (identity.geometry) append(body, technicalDetails(identity.geometry, "Report coordinate evidence"));
-  append(section, body);
-  return section;
 }
 
 async function renderAi(context = "") {

@@ -37,7 +37,9 @@ def test_enabled_dashboard_serves_hardened_assets(app_services: AppServices) -> 
     test_asset = client.get("/operations/ai-mode/assets/polling.test.mjs")
 
     assert page.status_code == 200
-    assert b"AI-mode operations" in page.data
+    assert b"PropertyScope | Agent activity" in page.data
+    assert b"Shared operational evidence" in page.data
+    assert b"http://localhost:5100/" in page.data
     assert page.headers["Cache-Control"] == "no-store"
     assert "frame-ancestors 'none'" in page.headers["Content-Security-Policy"]
     assert script.status_code == 200

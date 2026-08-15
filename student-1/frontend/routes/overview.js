@@ -21,7 +21,7 @@ export async function renderOverview({ view, request }) {
   }));
   const failures = results.filter((result) => result.status === "rejected");
   view.replaceChildren();
-  append(view, pageHeading("Feature 1 · Data platform", "Data operations overview", "See accepted data, failed candidates and work requiring review without confusing service health with evidence readiness.", [button("Plan a run", "button primary", () => { location.hash = "#jobs"; })]));
+  append(view, pageHeading("Property data service", "Data operations overview", "See accepted data, failed candidates and work requiring review without confusing service health with evidence readiness.", [button("Plan a run", "button primary", () => { location.hash = "#jobs"; })]));
   if (failures.length) append(view, el("div", "notice warning", `${failures.length} overview feed${failures.length === 1 ? " is" : "s are"} unavailable. Available evidence is shown below; direct property search remains independent.`));
   const active = runs.filter((run) => ACTIVE_RUN_STATES.has(String(run.status).toLowerCase())).length;
   const failed = runs.filter((run) => String(run.status).toLowerCase() === "failed").length;

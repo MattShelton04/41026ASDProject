@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#10262e">
-    <meta name="description" content="PropertyScope data operations and NSW property discovery">
-    <title>PropertyScope | Data and property evidence</title>
+    <meta name="description" content="PropertyScope property discovery and data evidence">
+    <title>PropertyScope | Property records</title>
     <link rel="stylesheet" href="/design-system/tokens.css?v=0.1">
     <link rel="stylesheet" href="/design-system/base.css?v=0.1">
     <link rel="stylesheet" href="/design-system/components.css?v=0.1">
@@ -15,12 +15,12 @@
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="topbar">
-      <a class="brand" href="#overview" aria-label="PropertyScope overview">
+      <a class="brand" data-product-home href="http://localhost:5100/" aria-label="PropertyScope product home">
         <svg class="brand-mark" viewBox="0 0 44 44" aria-hidden="true">
           <path d="M4 30 13 17l8 8L31 9l9 10v19H4Z"/>
           <path d="M9 35h26M14 30v-6m8 6V20m8 10V15"/>
         </svg>
-        <span><strong>PropertyScope</strong><small>NSW property evidence</small></span>
+        <span><strong>PropertyScope</strong><small>Property records</small></span>
       </a>
       <div class="topbar-actions">
         <div id="service-state" class="service-state checking" role="status">
@@ -35,27 +35,29 @@
 
     <div class="app-shell">
       <aside id="primary-nav" class="sidebar" aria-label="Primary navigation">
-        <div class="context-card">
+        <a class="context-card" href="#properties">
           <span class="context-icon" aria-hidden="true">⌁</span>
-          <div><strong>Data Platform</strong><small>Operations workspace</small></div>
-        </div>
+          <div><strong>Property data</strong><small>Explore and operate</small></div>
+        </a>
         <nav>
-          <p class="nav-label">Operate</p>
+          <p class="nav-label">Explore</p>
+          <a href="#properties" data-route="properties"><span aria-hidden="true">⌖</span>Explore properties</a>
+          <p class="nav-label">Data operations</p>
           <a href="#overview" data-route="overview"><span aria-hidden="true">◫</span>Overview</a>
           <a href="#sources" data-route="sources"><span aria-hidden="true">◉</span>Sources</a>
           <a href="#jobs" data-route="jobs"><span aria-hidden="true">◇</span>Jobs</a>
           <a href="#runs" data-route="runs"><span aria-hidden="true">▷</span>Runs</a>
           <a href="#releases" data-route="releases"><span aria-hidden="true">▱</span>Dataset releases</a>
-          <p class="nav-label">Investigate</p>
+          <p class="nav-label">Data evidence</p>
           <a href="#quality" data-route="quality"><span aria-hidden="true">✓</span>Quality</a>
           <a href="#artifacts" data-route="artifacts"><span aria-hidden="true">⬡</span>Artifacts</a>
           <a href="#coverage" data-route="coverage"><span aria-hidden="true">▦</span>Coverage</a>
-          <a href="#properties" data-route="properties"><span aria-hidden="true">⌖</span>Property discovery</a>
+          <p class="nav-label">Assistance</p>
           <a href="#ai" data-route="ai"><span aria-hidden="true">✦</span>AI diagnosis</a>
         </nav>
         <div class="sidebar-note">
-          <strong>Independent student project</strong>
-          <span>Not affiliated with or endorsed by the NSW Government.</span>
+          <a data-product-home href="http://localhost:5100/">← Back to PropertyScope</a>
+          <span>This workspace is owned by the Property data service. Market, suburb, site and buyer-workspace logic lives elsewhere.</span>
         </div>
       </aside>
 

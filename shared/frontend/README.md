@@ -1,7 +1,7 @@
 # Shared frontend and design system
 
 This directory owns only domain-neutral browser concerns for the integrated PropertyScope
-application: the unified entry point, navigation, release/capability labelling, common design
+application: the unified entry point, navigation, honest availability labelling, common design
 tokens and shared interaction primitives. Feature-specific behavior remains inside the
 independently buildable `student-N/frontend/` services.
 
@@ -35,14 +35,15 @@ A future edge/container may override them before `app.js` loads:
   window.PROPERTYSCOPE_CONFIG = {
     propertyDiscovery: "/features/data-platform/#properties",
     dataOperations: "/features/data-platform/#overview",
-    agentRuns: "/operations/ai-mode/",
-    prototype: "/docs/prototype/propertyscope-v2/standalone.html"
+    agentRuns: "/operations/ai-mode/"
   };
 </script>
 ```
 
-The shell deliberately labels Features 2–5 and release-gated AI capabilities as planned. It does
-not infer service health from a static page or claim future functionality is running.
+The shell presents product research areas rather than assignment feature/release terminology. Only
+Property records is linked as a live user journey; the other areas remain visibly unavailable and
+do not fall through to Feature 1. Data and agent operations are secondary operator destinations.
+The shell does not infer service health from a static page or claim future functionality is running.
 
 ## Local shared-shell container
 

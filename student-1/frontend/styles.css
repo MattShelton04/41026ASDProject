@@ -59,7 +59,8 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 
 .app-shell { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: calc(100vh - 72px); }
 .sidebar { position: sticky; top: 72px; height: calc(100vh - 72px); display: flex; flex-direction: column; padding: 1.2rem .85rem; border-right: 1px solid var(--line); background: var(--paper); overflow-y: auto; }
-.context-card { display: flex; align-items: center; gap: .7rem; margin: 0 .25rem 1.3rem; padding: .65rem; border-radius: 10px; background: var(--sand); }
+.context-card { display: flex; align-items: center; gap: .7rem; margin: 0 .25rem 1.3rem; padding: .65rem; border-radius: 10px; background: var(--sand); color: inherit; text-decoration: none; }
+.context-card:hover { background: var(--ps-sand-100); }
 .context-card div > * { display: block; }
 .context-card strong { font-size: .83rem; }
 .context-card small { margin-top: .1rem; color: var(--muted); font-size: .68rem; }
@@ -71,6 +72,8 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .sidebar nav a[aria-current="page"] { background: var(--sky); color: var(--navy); box-shadow: inset 3px 0 var(--ocean); }
 .sidebar-note { display: grid; gap: .25rem; margin: auto .45rem 0; padding: 1rem 0 .2rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .67rem; line-height: 1.45; }
 .sidebar-note strong { color: #405864; }
+.sidebar-note a { color: var(--ocean-dark); font-weight: 750; text-decoration: none; }
+.sidebar-note a:hover { text-decoration: underline; text-underline-offset: .18em; }
 
 main { min-width: 0; }
 .view { width: min(1460px, 100%); margin: 0 auto; padding: clamp(1.2rem, 3vw, 2.4rem); }

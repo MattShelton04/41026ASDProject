@@ -1,6 +1,6 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { formatBytes, formatDate, formatNumber, humanise } from "../core/formats.js";
+import { formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js";
 import { isPsiJob } from "../core/forms.js";
 import { routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js";
@@ -25,7 +25,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
       const { body } = await request(`${kind}${queryString({ ...filters, limit: 100 })}`);
       const items = collection(body);
       view.replaceChildren();
-      append(view, pageHeading("Feature 1 · Data control", isSource ? "Source registry" : "Ingestion jobs", isSource ? "Manage attributed, allowlisted sources, licences and operating state." : "Configure bounded reusable ingestion and preview work before a durable run is created.", [button(`Create ${isSource ? "source" : "job"}`, "button primary", () => openEntityDialog(isSource ? "source" : "job"))]));
+      append(view, pageHeading("Property data service · Data control", isSource ? "Source registry" : "Ingestion jobs", isSource ? "Manage attributed, allowlisted sources, licences and operating state." : "Configure bounded reusable ingestion and preview work before a durable run is created.", [button(`Create ${isSource ? "source" : "job"}`, "button primary", () => openEntityDialog(isSource ? "source" : "job"))]));
       append(view, filterToolbar({ ...filters, statuses: ["", "draft", "active", "disabled", "retired"], placeholder: isSource ? "Source or publisher" : "Job or dataset", onApply: (values) => { location.hash = `#${kind}${queryString(values)}`; rerender(); } }));
       if (!items.length) {
         append(view, emptyState(`No ${kind} found`, filters.q || filters.status ? "Try clearing the current filters." : `Create the first ${isSource ? "allowlisted source" : "bounded ingestion job"}.`));
@@ -53,7 +53,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
           } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }
         }));
         if (isSource) append(row, cell(primaryCell(item.name, item.id)), cell(item.publisher), cell(item.adapter_key, "mono"), cell(item.cadence), cell(badge(item.status)), cell(actions, "actions-cell"));
-        else append(row, cell(primaryCell(item.name, item.profile_key)), cell(primaryCell(item.dataset_id || item.target?.contract, item.target_feature || item.target?.feature)), cell(humanise(item.refresh_strategy)), cell(`${formatNumber(item.max_rows ?? item.limits?.max_rows)} rows`, "numeric"), cell(badge(item.status)), cell(actions, "actions-cell"));
+        else append(row, cell(primaryCell(item.name, item.profile_key)), cell(primaryCell(item.dataset_id || item.target?.contract, researchAreaLabel(item.target_feature || item.target?.feature))), cell(humanise(item.refresh_strategy)), cell(`${formatNumber(item.max_rows ?? item.limits?.max_rows)} rows`, "numeric"), cell(badge(item.status)), cell(actions, "actions-cell"));
         return row;
       }, isSource ? "Registered data sources" : "Configured ingestion jobs");
       append(view, panel(`${items.length} ${kind}`, "Bounded to 100 results", table));
@@ -84,7 +84,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
       const entries = kind === "sources" ? [
         ["Status", badge(item.status)], ["Publisher", item.publisher], ["Update cadence", item.cadence], ["Registered adapter", item.adapter_key], ["Licence", item.licence_id], ["Redistribution", item.redistribution_policy], ["Attribution URL", item.source_url], ["Updated", formatDate(item.updated_at)],
       ] : [
-        ["Status", badge(item.status)], ["Dataset contract", item.dataset_id || item.target?.contract], ["Target feature", item.target_feature || item.target?.feature], ["Profile", item.profile_key], ["Refresh strategy", humanise(item.refresh_strategy)], ["Default mode", humanise(item.default_run_mode)], ["Quality policy", item.quality_policy_key || item.quality_policy], ["Updated", formatDate(item.updated_at)],
+        ["Status", badge(item.status)], ["Dataset contract", item.dataset_id || item.target?.contract], ["Research area", researchAreaLabel(item.target_feature || item.target?.feature)], ["Profile", item.profile_key], ["Refresh strategy", humanise(item.refresh_strategy)], ["Default mode", humanise(item.default_run_mode)], ["Quality policy", item.quality_policy_key || item.quality_policy], ["Updated", formatDate(item.updated_at)],
       ];
       append(left, detailList(entries), technicalDetails(item));
       const right = el("div", "stack");

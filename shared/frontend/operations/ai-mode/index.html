@@ -1,21 +1,27 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-AU">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="dark">
-    <title>AI-mode operations</title>
+    <meta name="color-scheme" content="light">
+    <title>PropertyScope | Agent activity</title>
     <link rel="stylesheet" href="/operations/ai-mode/design-system/tokens.css">
     <link rel="stylesheet" href="/operations/ai-mode/assets/styles.css">
   </head>
   <body>
     <a class="skip-link" href="#run-detail">Skip to run detail</a>
     <header class="topbar">
-      <div class="product-title">
-        <span class="product-mark" aria-hidden="true">PS</span>
+      <div class="product-context">
+        <a class="product-title" href="http://localhost:5100/" aria-label="PropertyScope product home">
+          <span class="product-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-8 4 8 4 8-4-8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg>
+          </span>
+          <span><strong>PropertyScope</strong><small>NSW property evidence</small></span>
+        </a>
+        <span class="topbar-divider" aria-hidden="true"></span>
         <div>
-          <h1>PropertyScope · Agent operations</h1>
-          <p>Durable Plan → Act → Observe → Adapt evidence</p>
+          <h1>Agent activity</h1>
+          <p>Shared operational evidence</p>
         </div>
       </div>
       <div class="connection" role="status" aria-live="polite">
@@ -28,11 +34,13 @@
       <aside class="run-browser" aria-label="Agent run browser">
         <div class="run-browser-toolbar">
           <div>
-            <h2>Runs</h2>
+            <h2>Agent runs</h2>
             <p id="page-summary" class="muted">Loading persisted work…</p>
           </div>
           <button id="refresh-runs" class="quiet-button" type="button">Refresh</button>
         </div>
+
+        <p class="scope-note">This operational view records bounded automated work. Property research begins in the <a href="http://localhost:5100/">PropertyScope product</a>.</p>
 
         <div id="quick-filters" class="quick-filters" role="group" aria-label="Quick run filters">
           <button type="button" data-filter="all" aria-pressed="true">All</button>
@@ -43,8 +51,8 @@
 
         <form id="filters" class="filters">
           <label>
-            <span>Feature</span>
-            <input id="feature-filter" name="feature_key" maxlength="100" placeholder="All features">
+            <span>Owning service</span>
+            <input id="feature-filter" name="feature_key" maxlength="100" placeholder="All services">
           </label>
           <label>
             <span>Status</span>
@@ -161,7 +169,7 @@
           </details>
 
           <details class="raw-panel">
-            <summary>Developer projection (JSON)</summary>
+            <summary>Technical projection (JSON)</summary>
             <p class="muted">Allowlisted, redacted operations projection—not prompts or raw provider output.</p>
             <pre id="raw-projection"></pre>
           </details>

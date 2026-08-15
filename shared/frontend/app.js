@@ -5,7 +5,6 @@
     propertyDiscovery: "http://localhost:5200/#properties",
     dataOperations: "http://localhost:5200/#overview",
     agentRuns: "http://localhost:5005/operations/ai-mode/",
-    prototype: "../../docs/prototype/propertyscope-v2/standalone.html",
   });
   const config = Object.freeze({ ...defaults, ...(window.PROPERTYSCOPE_CONFIG || {}) });
 
@@ -27,7 +26,7 @@
   document.querySelectorAll("[data-planned]").forEach((button) => {
     button.addEventListener("click", () => {
       showToast(button.dataset.planned || "This capability is planned for a later implementation slice.");
-      document.querySelector("#roadmap")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.querySelector("#research-areas")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 

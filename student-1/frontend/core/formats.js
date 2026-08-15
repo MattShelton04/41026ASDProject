@@ -3,7 +3,7 @@ import { ACTIVE_RUN_STATES } from "./polling.js";
 
 export function humanise(value) {
   if (value === null || value === undefined || value === "") return "Not recorded";
-  return String(value).replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+  return String(value).replaceAll("_", " ").replaceAll("-", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 export function formatNumber(value) {
@@ -41,6 +41,19 @@ export function stateLabel(status) {
   const symbols = { positive: "✓", negative: "!", warning: "△", info: "↻", neutral: "•" };
   const tone = statusTone(status);
   return { text: humanise(status || "Unknown"), tone, symbol: symbols[tone] };
+}
+
+const RESEARCH_AREA_LABELS = Object.freeze({
+  "feature-1": "Property records",
+  "feature-2": "Sales & market",
+  "feature-3": "Suburb context",
+  "feature-4": "Site & planning",
+  "feature-5": "Buyer workspace",
+});
+
+export function researchAreaLabel(value) {
+  if (!value) return "Not assigned";
+  return RESEARCH_AREA_LABELS[String(value).toLowerCase()] || humanise(value);
 }
 
 export function coverageRows(payload) {

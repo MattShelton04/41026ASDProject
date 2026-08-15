@@ -38,7 +38,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
       const runs = allRuns.filter((run) => (!filters.job || run.job_definition_id === filters.job)
         && (!search || [run.id, run.job_name, run.request_id, run.dataset_id].some((value) => String(value || "").toLowerCase().includes(search))));
       view.replaceChildren();
-      append(view, pageHeading("Feature 1 · Durable orchestration", "Ingestion runs", "Inspect task attempts, checkpoints, candidate failures and recovery lineage while accepted data remains stable.", [link("Run a job", "#jobs", "button primary")]));
+      append(view, pageHeading("Property data service · Durable orchestration", "Ingestion runs", "Inspect task attempts, checkpoints, candidate failures and recovery lineage while accepted data remains stable.", [link("Run a job", "#jobs", "button primary")]));
       if (filters.job) {
         const jobFilter = el("div", "notice notice-actions");
         append(jobFilter, el("span", "", `Showing history for job ${filters.job}.`), link("Clear job filter", "#runs", "button secondary small"));

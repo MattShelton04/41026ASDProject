@@ -115,8 +115,8 @@ invent that governance evidence.
 The production browser remains framework-free and calls only the Feature 1 backend. Cross-cutting
 behavior is split under `frontend/core/` (API/Problem Details, routing, formatting/evidence,
 forms and polling guards), reusable DOM primitives live under `frontend/components/`, and migrated
-screens live under `frontend/routes/`. Overview, sources/jobs, run planning and runs/run detail are
-route-owned; `app.js` remains the transition composition root for releases, evidence, discovery and
-AI diagnosis until those routes move in the same behavior-preserving sequence. The independently
+screens live under `frontend/routes/`. Overview, sources/jobs, run planning, runs/run detail and
+property discovery/detail are route-owned; `app.js` remains the transition composition root for
+releases, evidence and AI diagnosis until those routes move in the same behavior-preserving sequence. The independently
 built frontend image copies shared design-system v0.1 assets, while the development overlay mounts
 the same source files for reload.

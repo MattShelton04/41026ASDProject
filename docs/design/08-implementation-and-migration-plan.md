@@ -18,11 +18,16 @@ one pull request.
 
 - The shared shell now participates in the canonical root Compose and `scripts/dev.py` workflow as
   an independently built service; the temporary manual sidecar overlay has been retired.
+- The shared home is product-facing: address exploration is primary, domain boundaries are shown as
+  research areas, assignment release labels are absent, and data/agent workspaces are secondary
+  operator destinations. Planned areas never fall through to the Feature 1 data platform.
 - Feature 1 consumes shared design-system v0.1 assets and has extracted API, routing, formatting,
   forms, polling/generation guards, DOM/component primitives, Overview, Sources/Jobs, run planning,
-  and Runs into focused modules without changing its backend contracts.
-- Release/evidence/discovery/AI route extraction remains the next move-then-improve sequence; do not
+  Runs and property discovery/detail into focused modules without changing its backend contracts.
+- Release/evidence/AI route extraction remains the next move-then-improve sequence; do not
   reintroduce cross-cutting behavior into `app.js` while completing it.
+- AI-mode agent activity now uses the same light evidence/status language and product navigation
+  while preserving its domain-neutral, independently served operational composition.
 
 ## 2. Repository branch strategy
 
