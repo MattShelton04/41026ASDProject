@@ -234,6 +234,9 @@ pre.json { max-height: 350px; overflow: auto; padding: .75rem; border-radius: 8p
 .form-grid .wide { grid-column: 1 / -1; }
 .form-grid label { display: grid; gap: .3rem; color: #536b76; font-size: .68rem; font-weight: 750; }
 .form-grid label span small { color: var(--muted); font-weight: 450; }
+.form-grid .review-acknowledgement { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .55rem; padding: .75rem; border: 1px solid var(--line); border-radius: 8px; background: #f7faf9; font-size: .72rem; line-height: 1.45; }
+.form-grid .review-acknowledgement input { width: 1rem; height: 1rem; margin-top: .08rem; padding: 0; accent-color: var(--ocean); }
+.dialog-review-field { display: grid; gap: .35rem; width: 100%; margin-top: .8rem; color: var(--muted); font-size: .7rem; font-weight: 750; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .dialog-copy { color: var(--muted); font-size: .8rem; line-height: 1.55; }
 .form-error { min-height: 1.1rem; margin: .65rem 0 0; color: var(--negative); font-size: .72rem; }
