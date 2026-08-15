@@ -308,6 +308,8 @@ test("live acquisition controls use truthful runtime capability evidence", async
   assert.match(app, /implemented_live_profiles/);
   assert.match(app, /liveOption\.disabled = !liveAvailable/);
   assert.match(app, /Maximum addresses/);
+  assert.match(app, /cached_source_years/);
+  assert.match(app, /Detected official archive years/);
 });
 
 test("AI diagnosis history is loaded from the durable shared service projection", async () => {

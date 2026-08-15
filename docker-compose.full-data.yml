@@ -20,6 +20,8 @@ services:
       PROPERTYSCOPE_SOURCE_CREDENTIAL_FILE: ${PROPERTYSCOPE_SOURCE_CREDENTIAL_FILE:-}
       PROPERTYSCOPE_GNAF_ARCHIVE_PATH: /var/lib/propertyscope/source-cache/gnaf.zip
       PROPERTYSCOPE_GNAF_CRS: ${PROPERTYSCOPE_GNAF_CRS:-GDA94}
+      PROPERTYSCOPE_PSI_ARCHIVE_ROOT: /var/lib/propertyscope/source-cache/psi
+      PROPERTYSCOPE_RUNNER_LEASE_SECONDS: "300"
     volumes:
       - ./.propertyscope-source-cache:/var/lib/propertyscope/source-cache:ro
     mem_limit: ${PROPERTYSCOPE_RUNNER_MEMORY_LIMIT:-8g}
@@ -29,3 +31,9 @@ services:
     profiles: [full-data]
     environment:
       PROPERTYSCOPE_FULL_DATA_ENABLED: "true"
+      PROPERTYSCOPE_PSI_TRANSPORT_ENABLED: ${PROPERTYSCOPE_PSI_TRANSPORT_ENABLED:-false}
+      PROPERTYSCOPE_PSI_CACHED_YEARS: ${PROPERTYSCOPE_PSI_CACHED_YEARS:-}
+
+networks:
+  shared_platform:
+    name: 41026-asd-propertyscope-full-data-shared-platform

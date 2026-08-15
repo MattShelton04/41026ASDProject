@@ -12,11 +12,13 @@ from scripts import dev
 def captured_commands(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
     commands: list[tuple[str, ...]] = []
 
-    def capture(command: Sequence[str]) -> None:
+    def capture(command: Sequence[str], *, environment: object = None) -> None:
+        del environment
         commands.append(tuple(command))
 
     monkeypatch.setattr(dev, "_run", capture)
     monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: False)
+    monkeypatch.setattr(dev, "_psi_cache_years", lambda: ())
     return commands
 
 
@@ -93,6 +95,29 @@ def test_full_data_is_explicit_and_uses_isolated_project(
     assert dev.FULL_DATA_COMPOSE_FILE in application_up
     assert application_up[2:4] == ("--project-name", dev.FULL_DATA_PROJECT_NAME)
     assert "full-data" in application_up
+
+
+def test_full_data_exposes_psi_only_when_official_archives_are_cached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environments: list[object] = []
+
+    def capture(command: Sequence[str], *, environment: object = None) -> None:
+        del command
+        environments.append(environment)
+
+    monkeypatch.setattr(dev, "_run", capture)
+    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: False)
+    monkeypatch.setattr(dev, "_psi_cache_years", lambda: (2024, 2025))
+
+    assert dev.main(["up", "--full-data", "--skip-model-pull"]) == 0
+
+    assert all(
+        isinstance(environment, dict)
+        and environment["PROPERTYSCOPE_PSI_TRANSPORT_ENABLED"] == "true"
+        and environment["PROPERTYSCOPE_PSI_CACHED_YEARS"] == "2024,2025"
+        for environment in environments[1:]
+    )
 
 
 def test_default_stack_does_not_enable_full_data(

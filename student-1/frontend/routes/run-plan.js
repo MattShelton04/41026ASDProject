@@ -14,6 +14,7 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
     const importProfile = job.import_profile_key || job.import_profile;
     const gnaf = importProfile === "gnaf-nsw";
     const liveAvailable = runtime.full_data_enabled && runtime.connected_live_profiles?.includes(importProfile);
+    const cachedPsiYears = psi ? runtime.cached_source_years?.["psi-sales"] || [] : [];
     const currentYear = new Date().getFullYear();
     append(wrapper, el("div", `notice ${isBackfill ? "warning" : ""}`, isBackfill
       ? "Backfill creates a new full-refresh run for an explicit bounded scope. Accepted data is not replaced until a candidate passes review and publication."
@@ -62,7 +63,9 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
       const firstLabel = el("label", "field");
       append(firstLabel, el("span", "", isBackfill ? "First source year" : "PSI source year"));
       firstYear = el("input"); firstYear.type = "number"; firstYear.name = "psi_start_year"; firstYear.min = "1990"; firstYear.max = String(currentYear + 1); firstYear.required = true; firstYear.value = String(isBackfill ? Math.max(1990, startingYear - 1) : startingYear);
-      append(firstLabel, firstYear, el("small", "field-help", "PSI years are explicit source partitions, not an opaque incremental cursor."));
+      append(firstLabel, firstYear, el("small", "field-help", cachedPsiYears.length
+        ? `Detected official archive years: ${cachedPsiYears.join(", ")}.`
+        : "PSI years are explicit source partitions, not an opaque incremental cursor."));
       append(scopeFields, firstLabel);
       if (isBackfill) {
         const lastLabel = el("label", "field");
@@ -102,6 +105,7 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
       }
       if (!psi) return value;
       const years = psiYearRange(firstYear.value, lastYear?.value || firstYear.value, { maximum: currentYear + 1 });
+      if (scopeProfile.value === "full-data" && cachedPsiYears.length && years.some((year) => !cachedPsiYears.includes(year))) throw new Error(`PSI full-data years must be selected from the detected official cache: ${cachedPsiYears.join(", ")}.`);
       delete value.source_year;
       value.years = years;
       value.partition_type = "source_year";

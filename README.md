@@ -112,8 +112,9 @@ preserves Ollama models, AI-mode run history, PropertyScope data/artifacts, and 
 The default PropertyScope stack uses deterministic showcase data and never launches live or
 source-scale acquisition. The explicit full-data path uses a separate Compose project and
 therefore a separate PostgreSQL volume. It connects bounded official schools, BOCSAR and G-NAF
-acquisition; PSI is host-verified but remains disabled because its publisher currently rejects
-Docker-network requests. Live requests fail closed and never substitute synthetic data:
+acquisition. PSI is enabled only when an unmodified official annual archive is present under
+`.propertyscope-source-cache/psi/`, because its publisher currently rejects new host and Docker
+downloads. Live requests fail closed and never substitute synthetic data:
 
 ```text
 uv run scripts/dev.py up --full-data

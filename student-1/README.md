@@ -24,6 +24,9 @@ canonical property/address registry, quality-gated immutable dataset releases, a
 property discovery. Other features receive versioned artifacts over HTTP and import them into
 their own stores; they never access this feature's PostgreSQL/PostGIS database directly.
 
+For verified official-source counts, examples, bounds, hashes, AI execution and the browser
+showcase path, see [Feature 1 marking evidence](MARKING_EVIDENCE.md).
+
 Version-controlled source/job configuration lives in `config/`, HTTP and release schemas in
 `contracts/`, and persistence-neutral Pydantic/domain policy in
 `backend/src/propertyscope_data_platform/`. Checked-in fixture data is synthetic and explicitly
@@ -35,10 +38,11 @@ official NSW schools CSV, BOCSAR archive and Geoscape G-NAF bulk archive. All th
 durable run, content-addressed artifact, serial loader, candidate generation, quality and human
 publication path as the showcase profile. Resource limits remain enforced in full-data mode.
 
-The PSI yearly archive parser is implemented and verified against a real 2025 publisher archive,
-but the publisher currently rejects requests from the Docker network with HTTP 403. PSI therefore
-remains visibly catalogued/host-verified rather than being offered as a connected live option.
-Fixture runs never silently stand in for a requested live run.
+The PSI yearly archive parser is implemented and verified against real publisher archives. The
+publisher currently rejects new host and Docker downloads with HTTP 403, so PSI stays visibly
+catalogued unless a genuine official annual ZIP is present in the read-only local source cache.
+The startup helper detects those archives and enables only their exact years. Fixture runs never
+silently stand in for a requested live run.
 
 ## Run it locally
 
@@ -78,7 +82,7 @@ uv run scripts/dev.py up --full-data
 | `schools-master` | Connected | Streams the official Data.NSW master CSV with byte/row limits. |
 | `bocsar-sparse` | Connected | Streams the official postcode or suburb ZIP and emits bounded sparse observations plus explicit coverage rows. |
 | `gnaf-nsw` | Connected | Discovers the latest registered PSV ZIP from Data.gov.au, or uses the optional local source cache below; preserves unit identity and transforms declared GDA94/GDA2020 coordinates to WGS84 at import. |
-| `psi-sales` | Host-verified, not Docker-connected | Parses real nested annual PSI packages, but the publisher's current HTTP 403 policy blocks the container transport. |
+| `psi-sales` | Cache-gated | Parses real nested annual PSI packages. New downloads fail closed while the publisher returns HTTP 403; cached official years become selectable when present. |
 
 G-NAF is about 1.7 GB. To avoid downloading it for every new full-data project, place an official
 PSV archive at `.propertyscope-source-cache/gnaf.zip` and declare its CRS before startup:
@@ -92,6 +96,15 @@ The cache directory is Git-ignored and mounted read-only. Without a cache, the r
 and downloads the latest registered archive from the official CKAN package. A run can bound its
 candidate to 1–50,000 addresses from the dashboard even though the source archive itself remains
 an immutable, checksummed acquisition artifact.
+
+The same cache supports official PSI annual packages. Place each unmodified publisher archive at
+`.propertyscope-source-cache/psi/<year>.zip` (for example `psi/2025.zip`) before starting the
+full-data stack. `scripts/dev.py` reports the detected years and enables PSI in the UI only when
+at least one archive is available. The run still requires an explicit year list, enforces the
+job's byte and 1–50,000 canonical-record bound, records the official publisher URL, and marks the
+years served from cache in discovery/canonical evidence. When detected cache years are advertised,
+the API rejects any other year before launch rather than creating a run that cannot currently
+download its source.
 
 Every release detail page includes a release-scoped dataset preview. Preview queries use fixed
 registered projections, cap pages at 100 records and never mix candidate and accepted

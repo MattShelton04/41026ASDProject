@@ -22,6 +22,8 @@ def create_app(
     ai_mode_client: AiModeClient | None = None,
     consumer_client: ConsumerImportClient | None = None,
     full_data_enabled: bool | None = None,
+    psi_transport_enabled: bool | None = None,
+    psi_cached_years: tuple[int, ...] | None = None,
 ) -> Flask:
     """Create the credential-free Feature 1 backend."""
     store = store_client or DataStoreClient(
@@ -52,6 +54,25 @@ def create_app(
         if full_data_enabled is None
         else full_data_enabled
     )
+    psi_transport = (
+        os.environ.get("PROPERTYSCOPE_PSI_TRANSPORT_ENABLED", "false").lower()
+        in {"1", "true", "yes"}
+        if psi_transport_enabled is None
+        else psi_transport_enabled
+    )
+    cached_years = (
+        tuple(
+            sorted(
+                {
+                    int(value)
+                    for value in os.environ.get("PROPERTYSCOPE_PSI_CACHED_YEARS", "").split(",")
+                    if value.strip().isdigit()
+                }
+            )
+        )
+        if psi_cached_years is None
+        else psi_cached_years
+    )
     app.register_blueprint(
         create_blueprint(
             store,
@@ -61,6 +82,8 @@ def create_app(
                 os.environ.get("PROPERTYSCOPE_ARTIFACT_ROOT", "/var/lib/propertyscope/artifacts")
             ),
             full_data_enabled=live_runtime,
+            psi_transport_enabled=psi_transport,
+            psi_cached_years=cached_years,
         )
     )
     worker_token = os.environ.get("PROPERTYSCOPE_RUNNER_TOKEN", "local-runner-only")

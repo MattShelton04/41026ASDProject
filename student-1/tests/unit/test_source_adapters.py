@@ -176,6 +176,49 @@ def test_psi_downloader_uses_verified_ranges_after_publisher_403(tmp_path: Path)
     assert downloaded == payload
 
 
+def test_live_psi_reuses_bounded_official_archive_cache(tmp_path: Path) -> None:
+    cache = tmp_path / "psi"
+    cache.mkdir()
+    archive = io.BytesIO()
+    with ZipFile(archive, "w") as stream:
+        stream.writestr(
+            "20250101.DAT",
+            "B;001;P1;1;20250101;;1;10;ROAD;SYDNEY;2000;500;M;20250101;"
+            "20250201;800000;R;R;;;X;;;D1\n",
+        )
+    (cache / "2025.zip").write_bytes(archive.getvalue())
+
+    def no_network(_: httpx.Request) -> httpx.Response:
+        raise AssertionError("a cached official PSI year must not contact the publisher")
+
+    runner = AcquisitionRunner(
+        RunnerSettings(
+            "http://backend",
+            "token",
+            tmp_path / "artifacts",
+            "worker",
+            0.1,
+            30,
+            True,
+            psi_archive_root=cache,
+        ),
+        client=httpx.Client(transport=httpx.MockTransport(no_network)),
+    )
+    document, records = runner._live_document(
+        {
+            "max_bytes": 1_000_000,
+            "max_rows": 10,
+            "partition_json": {"profile": "full-data", "years": [2025]},
+        },
+        stage="acquire",
+        profile="psi-sales",
+    )
+
+    assert records[0]["source_business_key"] == "001:P1:1"
+    assert cast(dict[str, object], document["source"])["cached_source_years"] == [2025]
+    assert runner._live_objects("psi-sales", {"years": [2025]})[0]["cached"] is True
+
+
 def test_live_bocsar_runner_emits_real_canonical_records(tmp_path: Path) -> None:
     stream = io.BytesIO()
     with ZipFile(stream, "w") as archive:

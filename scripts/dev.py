@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -53,9 +54,9 @@ def _compose_command(
     return tuple(command)
 
 
-def _run(command: Sequence[str]) -> None:
+def _run(command: Sequence[str], *, environment: Mapping[str, str] | None = None) -> None:
     print(f"> {shlex.join(command)}", flush=True)
-    subprocess.run(command, cwd=REPOSITORY_ROOT, check=True)
+    subprocess.run(command, cwd=REPOSITORY_ROOT, check=True, env=environment)
 
 
 def _ensure_docker() -> None:
@@ -77,6 +78,25 @@ def _nvidia_runtime_available() -> bool:
     return '"nvidia"' in completed.stdout.lower()
 
 
+def _psi_cache_years() -> tuple[int, ...]:
+    root = REPOSITORY_ROOT / ".propertyscope-source-cache" / "psi"
+    if not root.is_dir():
+        return ()
+    return tuple(
+        sorted(int(path.stem) for path in root.glob("[0-9][0-9][0-9][0-9].zip") if path.is_file())
+    )
+
+
+def _compose_environment(*, full_data: bool) -> Mapping[str, str] | None:
+    years = _psi_cache_years() if full_data else ()
+    if not years:
+        return None
+    environment = os.environ.copy()
+    environment.setdefault("PROPERTYSCOPE_PSI_TRANSPORT_ENABLED", "true")
+    environment.setdefault("PROPERTYSCOPE_PSI_CACHED_YEARS", ",".join(map(str, years)))
+    return environment
+
+
 def _up(*, pull_model: bool, full_data: bool, cpu_only: bool, require_gpu: bool) -> None:
     _ensure_docker()
     nvidia_available = _nvidia_runtime_available()
@@ -86,7 +106,10 @@ def _up(*, pull_model: bool, full_data: bool, cpu_only: bool, require_gpu: bool)
             "Use --cpu-only or repair Docker GPU support."
         )
     gpu = not cpu_only and nvidia_available
+    compose_environment = _compose_environment(full_data=full_data)
     print(f"Ollama acceleration: {'NVIDIA GPU' if gpu else 'CPU'}", flush=True)
+    if compose_environment is not None:
+        print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
     _run(
         _compose_command(
             "up",
@@ -97,10 +120,14 @@ def _up(*, pull_model: bool, full_data: bool, cpu_only: bool, require_gpu: bool)
             "ollama",
             full_data=full_data,
             gpu=gpu,
-        )
+        ),
+        environment=compose_environment,
     )
     if pull_model:
-        _run(_compose_command("run", "--rm", "ollama-init", full_data=full_data, gpu=gpu))
+        _run(
+            _compose_command("run", "--rm", "ollama-init", full_data=full_data, gpu=gpu),
+            environment=compose_environment,
+        )
     _run(
         _compose_command(
             "up",
@@ -111,7 +138,8 @@ def _up(*, pull_model: bool, full_data: bool, cpu_only: bool, require_gpu: bool)
             *APPLICATION_SERVICES,
             full_data=full_data,
             gpu=gpu,
-        )
+        ),
+        environment=compose_environment,
     )
     print("\nIntegration console: http://localhost:5190")
     print("AI-mode health:     http://localhost:5005/health/ready")
@@ -124,7 +152,11 @@ def _up(*, pull_model: bool, full_data: bool, cpu_only: bool, require_gpu: bool)
 def _rebuild(services: Sequence[str], *, full_data: bool) -> None:
     _ensure_docker()
     selected = tuple(services) or APPLICATION_SERVICES
-    _run(_compose_command("build", *selected, full_data=full_data))
+    compose_environment = _compose_environment(full_data=full_data)
+    _run(
+        _compose_command("build", *selected, full_data=full_data),
+        environment=compose_environment,
+    )
     _run(
         _compose_command(
             "up",
@@ -135,7 +167,8 @@ def _rebuild(services: Sequence[str], *, full_data: bool) -> None:
             "180",
             *selected,
             full_data=full_data,
-        )
+        ),
+        environment=compose_environment,
     )
 
 
@@ -224,6 +257,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _rebuild(arguments.services, full_data=arguments.full_data)
         elif arguments.command == "restart":
             _ensure_docker()
+            compose_environment = _compose_environment(full_data=arguments.full_data)
             _run(
                 _compose_command(
                     "up",
@@ -234,7 +268,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "180",
                     *APPLICATION_SERVICES,
                     full_data=arguments.full_data,
-                )
+                ),
+                environment=compose_environment,
             )
         elif arguments.command == "down":
             _ensure_docker()

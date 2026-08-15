@@ -86,3 +86,13 @@ def test_accepted_release_manifest_migration_removes_candidate_only_wording() ->
     assert "WHERE status = 'accepted'" in migration
     assert "Bounded accepted release" in migration
     assert "Candidate evidence; not accepted product data" in migration
+
+
+def test_registered_job_scope_migration_exposes_bounded_live_defaults() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE).joinpath("014_registered_job_scopes.sql").read_text("utf-8")
+    )
+
+    assert '"geography_values":["2000","2007","2010"]' in migration
+    assert '"years":[2025]' in migration
+    assert '"maximum_records":50000' in migration

@@ -53,6 +53,7 @@ class RunnerSettings:
     full_data_enabled: bool = False
     gnaf_archive_path: Path | None = None
     gnaf_archive_crs: str = "GDA94"
+    psi_archive_root: Path | None = None
 
     @classmethod
     def from_environment(cls) -> RunnerSettings:
@@ -71,6 +72,7 @@ class RunnerSettings:
             in {"1", "true", "yes"},
             gnaf_archive_path=_optional_path(os.environ.get("PROPERTYSCOPE_GNAF_ARCHIVE_PATH")),
             gnaf_archive_crs=os.environ.get("PROPERTYSCOPE_GNAF_CRS", "GDA94").upper(),
+            psi_archive_root=_optional_path(os.environ.get("PROPERTYSCOPE_PSI_ARCHIVE_ROOT")),
         )
 
 
@@ -293,10 +295,17 @@ class AcquisitionRunner:
         years = scope.get("years")
         if not isinstance(years, list) or not years:
             raise RuntimeError("PSI live scope requires source years")
-        return [
-            _source_object(f"psi-year-{year}", PSI_YEARLY_URL.format(year=year), "application/zip")
-            for year in years
-        ]
+        objects: list[dict[str, object]] = []
+        for year in years:
+            cached = self._psi_archive(int(year))
+            source = _source_object(
+                f"psi-year-{year}", PSI_YEARLY_URL.format(year=year), "application/zip"
+            )
+            source["cached"] = cached is not None
+            if cached is not None:
+                source["cache_key"] = f"psi/{year}.zip"
+            objects.append(source)
+        return objects
 
     def _live_bocsar(
         self, task: dict[str, Any], scope: dict[str, object]
@@ -362,14 +371,21 @@ class AcquisitionRunner:
         remaining = _record_limit(task, scope)
         records: list[dict[str, object]] = []
         source_urls: list[str] = []
+        cached_years: list[int] = []
         for year in years:
             if remaining <= 0:
                 break
             url = PSI_YEARLY_URL.format(year=year)
             source_urls.append(url)
-            content = self._download_psi_archive(
-                url, maximum_bytes=min(int(task.get("max_bytes", 50_000_000)), 50_000_000)
-            )
+            maximum_bytes = min(int(task.get("max_bytes", 50_000_000)), 50_000_000)
+            cached = self._psi_archive(year)
+            if cached is not None:
+                if cached.stat().st_size > maximum_bytes:
+                    raise RuntimeError("Cached PSI archive exceeds the configured byte limit")
+                content = cached.read_bytes()
+                cached_years.append(year)
+            else:
+                content = self._download_psi_archive(url, maximum_bytes=maximum_bytes)
             sales = parse_psi_archive(content, source_year=year, maximum_records=remaining)
             for sale in sales:
                 records.append(
@@ -401,7 +417,18 @@ class AcquisitionRunner:
                     }
                 )
             remaining = _record_limit(task, scope) - len(records)
-        return _live_canonical_document("psi-sales", source_urls, records), records
+        document = _live_canonical_document("psi-sales", source_urls, records)
+        source = document["source"]
+        assert isinstance(source, dict)
+        source["cached_source_years"] = cached_years
+        return document, records
+
+    def _psi_archive(self, year: int) -> Path | None:
+        root = self.settings.psi_archive_root
+        if root is None:
+            return None
+        candidate = root / f"{year}.zip"
+        return candidate if candidate.is_file() else None
 
     def _live_gnaf(
         self, task: dict[str, Any], scope: dict[str, object]

@@ -34,6 +34,8 @@ def create_blueprint(
     *,
     artifact_root: Path,
     full_data_enabled: bool = False,
+    psi_transport_enabled: bool = False,
+    psi_cached_years: tuple[int, ...] = (),
 ) -> Blueprint:
     """Create Feature 1's public API without any persistence imports."""
     api = Blueprint("propertyscope-data-platform", __name__)
@@ -55,14 +57,22 @@ def create_blueprint(
 
     @api.get(f"{BASE}/runtime-capabilities")
     def runtime_capabilities() -> Response:
+        connected = ["schools-master", "bocsar-sparse", "gnaf-nsw"]
+        if psi_transport_enabled:
+            connected.append("psi-sales")
         return jsonify(
             {
                 "full_data_enabled": full_data_enabled,
-                "implemented_live_profiles": ["schools-master", "bocsar-sparse", "gnaf-nsw"],
+                "implemented_live_profiles": [
+                    "schools-master",
+                    "bocsar-sparse",
+                    "gnaf-nsw",
+                    "psi-sales",
+                ],
                 "host_verified_profiles": ["psi-sales"],
-                "connected_live_profiles": ["schools-master", "bocsar-sparse", "gnaf-nsw"]
-                if full_data_enabled
-                else [],
+                "connected_live_profiles": connected if full_data_enabled else [],
+                "cached_live_profiles": ["psi-sales"] if psi_cached_years else [],
+                "cached_source_years": {"psi-sales": list(psi_cached_years)},
                 "catalogued_profiles": ["psi-sales"],
                 "showcase_available": True,
             }
@@ -134,17 +144,27 @@ def create_blueprint(
             body.get("scope", job_data["scope_json"]),
             run_mode=mode,
             full_data_enabled=full_data_enabled,
+            psi_transport_enabled=psi_transport_enabled,
+            psi_cached_years=psi_cached_years,
         )
         if scope_error is not None:
             return scope_error
         assert scope is not None
+        cached_psi = (
+            scope.get("profile") == "full-data"
+            and str(job_data.get("import_profile_key")) == "psi-sales"
+            and set(scope.get("years", [])).issubset(psi_cached_years)
+        )
         return jsonify(
             {
                 "valid": True,
                 "job_id": str(job_id),
                 "run_mode": mode,
                 "scope": scope,
-                "network_required": mode == "full_refresh" and scope.get("profile") == "full-data",
+                "network_required": mode == "full_refresh"
+                and scope.get("profile") == "full-data"
+                and not cached_psi,
+                "source_cache_required": cached_psi,
                 "tasks": [
                     {"sequence": index + 1, "stage": stage, "logical_key": f"{index:02d}/{stage}"}
                     for index, stage in enumerate(
@@ -188,6 +208,8 @@ def create_blueprint(
             body.get("scope", job_response.json()["job"]["scope_json"]),
             run_mode=mode,
             full_data_enabled=full_data_enabled,
+            psi_transport_enabled=psi_transport_enabled,
+            psi_cached_years=psi_cached_years,
         )
         if scope_error is not None:
             return scope_error
@@ -805,6 +827,8 @@ def validate_job_scope(
     *,
     run_mode: str,
     full_data_enabled: bool = False,
+    psi_transport_enabled: bool = False,
+    psi_cached_years: tuple[int, ...] = (),
 ) -> tuple[dict[str, Any] | None, Response | None]:
     """Bound operator scope overrides and expose unavailable live transports before launch."""
     if not isinstance(raw_scope, dict):
@@ -839,6 +863,16 @@ def validate_job_scope(
             return None, problem(422, "invalid_scope", "PSI source year is outside the range")
         if years != sorted(set(years)):
             return None, problem(422, "invalid_scope", "PSI source years must be unique and sorted")
+        if (
+            profile == "full-data"
+            and psi_cached_years
+            and not set(years).issubset(psi_cached_years)
+        ):
+            return None, problem(
+                422,
+                "psi_source_year_unavailable",
+                "Requested PSI years are not present in the detected official archive cache",
+            )
     if run_mode == "full_refresh" and profile == "full-data" and not full_data_enabled:
         return None, problem(
             422,
@@ -848,8 +882,11 @@ def validate_job_scope(
     if (
         run_mode == "full_refresh"
         and profile == "full-data"
-        and str(job.get("import_profile_key"))
-        not in {"schools-master", "bocsar-sparse", "gnaf-nsw", "property-fixture"}
+        and (
+            str(job.get("import_profile_key"))
+            not in {"schools-master", "bocsar-sparse", "gnaf-nsw", "property-fixture"}
+            and not (str(job.get("import_profile_key")) == "psi-sales" and psi_transport_enabled)
+        )
     ):
         return None, problem(
             422,
