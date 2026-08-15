@@ -93,8 +93,9 @@ For day-to-day work on the assignment-aligned integration stack, start Docker De
 uv run scripts/dev.py up
 ```
 
-Then open PropertyScope at <http://localhost:5200> or the non-product integration fixture at
-<http://localhost:5190>. Python services reload when source changes and the frontends are
+Then open the unified PropertyScope home at <http://localhost:5100>, Feature 1 at
+<http://localhost:5200>, or the non-product integration fixture at <http://localhost:5190>.
+Python services reload when source changes and the frontends are
 bind-mounted, so normal source edits do not require an image rebuild. Use
 `uv run scripts/dev.py rebuild` after changing dependencies, `uv.lock`, or a Dockerfile;
 `status`, `logs`, `test`, `restart`, and `down` cover the rest of the common loop. `down`

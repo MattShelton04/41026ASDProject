@@ -1,7 +1,7 @@
 # Shared frontend and design system
 
 This directory owns only domain-neutral browser concerns for the integrated PropertyScope
-application: the unified entry point, navigation, release/capability labelling, common design
+application: the unified entry point, navigation, honest availability labelling, common design
 tokens and shared interaction primitives. Feature-specific behavior remains inside the
 independently buildable `student-N/frontend/` services.
 
@@ -35,24 +35,24 @@ A future edge/container may override them before `app.js` loads:
   window.PROPERTYSCOPE_CONFIG = {
     propertyDiscovery: "/features/data-platform/#properties",
     dataOperations: "/features/data-platform/#overview",
-    agentRuns: "/operations/ai-mode/",
-    prototype: "/docs/prototype/propertyscope-v2/standalone.html"
+    agentRuns: "/operations/ai-mode/"
   };
 </script>
 ```
 
-The shell deliberately labels Features 2–5 and release-gated AI capabilities as planned. It does
-not infer service health from a static page or claim future functionality is running.
+The shell presents product research areas rather than assignment feature/release terminology. Only
+Property records is linked as a live user journey; the other areas remain visibly unavailable and
+do not fall through to Feature 1. Data and agent operations are secondary operator destinations.
+The shell does not infer service health from a static page or claim future functionality is running.
 
-## Optional local shared-shell container
+## Local shared-shell container
 
-The redesign pack also supplies `docker-compose.shared-shell.yml` at the repository root. After
-the main Release 0 profile has created the shared network, run:
+The shared shell is part of the canonical Release 0 development topology. Start it with the rest
+of the application from the repository root:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.shared-shell.yml --profile release-0 up --build -d
+uv run scripts/dev.py up
 ```
 
-Open `http://localhost:5100`. This sidecar overlay deliberately does not edit the team's primary
-`docker-compose.yml`; merge it into the main topology only after the team agrees on the final edge
-routing and same-origin proxy paths.
+Open `http://localhost:5100`. The shell remains an independently built container and the development
+overlay bind-mounts its source for the same edit-refresh loop as the other frontends.

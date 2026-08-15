@@ -64,6 +64,7 @@ CMD ["python", "-m", "propertyscope_data_platform.runner"]
 
 FROM nginxinc/nginx-unprivileged:1.29.1-alpine3.22-slim AS frontend
 COPY student-1/frontend /usr/share/nginx/html
+COPY shared/frontend/design-system /usr/share/nginx/html/design-system
 COPY student-1/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=20 \

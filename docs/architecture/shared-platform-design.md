@@ -10,7 +10,14 @@
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related record | `docs/architecture/repository-architecture.md` |
 
-### Implementation status (13 August 2026)
+### Implementation status (15 August 2026)
+
+The redesigned shared shell is now a first-class, independently built Release 0 service in the
+canonical root Compose and `scripts/dev.py` workflow. Feature 1 consumes the shared design tokens
+from its own image/development mount and has begun the contract-preserving browser decomposition:
+API, routing, formatting/evidence, forms, polling guards, reusable components, Overview,
+Sources/Jobs, run planning and Runs are separately owned modules. AI-mode operations serves the
+allowlisted common token asset while retaining its domain-neutral run projection and polling model.
 
 PropertyScope Feature 1 now supplies the first assessed product slice. Its frontend, control
 API, acquisition runner, database API, serial loader and PostgreSQL/PostGIS service are wired
