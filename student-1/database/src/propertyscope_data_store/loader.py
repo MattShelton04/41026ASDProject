@@ -12,7 +12,11 @@ from threading import Event
 from typing import Any
 
 from propertyscope_data_store.configuration import StoreSettings
-from propertyscope_data_store.import_profiles import REGISTERED_PROFILES, prepare_import
+from propertyscope_data_store.import_profiles import (
+    REGISTERED_PROFILES,
+    iter_ndjson_import,
+    prepare_import,
+)
 from propertyscope_data_store.repository import PropertyScopeStore
 
 logger = logging.getLogger(__name__)
@@ -38,14 +42,14 @@ class DatabaseLoader:
                 self.stop_event.wait(1.0)
 
     def run_once(self) -> bool:
-        operation = self.store.claim_import(worker_id=self.worker_id, lease_seconds=60)
+        operation = self.store.claim_import(worker_id=self.worker_id, lease_seconds=86_400)
         if operation is None:
             return False
         operation_id = uuid.UUID(str(operation["id"]))
         token = str(operation["lease_token"])
         try:
             self.store.heartbeat_import(
-                operation_id, worker_id=self.worker_id, lease_token=token, lease_seconds=60
+                operation_id, worker_id=self.worker_id, lease_token=token, lease_seconds=86_400
             )
             work = self.store.import_work(operation_id)
             counts, result = self._execute(work)
@@ -78,16 +82,25 @@ class DatabaseLoader:
         if profile not in REGISTERED_PROFILES:
             raise RuntimeError("import profile is not registered")
         path = self._artifact_path(str(work["storage_key"]))
-        maximum = min(int(work["artifact_bytes"]) + 1, 100_000_000)
-        data = path.read_bytes()
-        if len(data) >= maximum or len(data) != int(work["artifact_bytes"]):
+        if path.stat().st_size != int(work["artifact_bytes"]):
             raise RuntimeError("artifact size does not match registered metadata")
-        if hashlib.sha256(data).hexdigest() != work["content_sha256"]:
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        if digest.hexdigest() != work["content_sha256"]:
             raise RuntimeError("artifact checksum does not match registered metadata")
-        if work["media_type"] != "application/json":
-            raise RuntimeError("registered import requires canonical application/json")
-        prepared = prepare_import(data, profile=profile)
-        imported = self.store.execute_import_profile(work, prepared)
+        if work["media_type"] == "application/x-ndjson":
+            with path.open("rb") as stream:
+                rows = iter_ndjson_import(stream, profile=profile)
+                imported = self.store.execute_stream_import_profile(
+                    work, profile=profile, rows=rows
+                )
+        elif work["media_type"] == "application/json":
+            prepared = prepare_import(path.read_bytes(), profile=profile)
+            imported = self.store.execute_import_profile(work, prepared)
+        else:
+            raise RuntimeError("registered import requires canonical JSON or NDJSON")
         counts = {
             "rows_in": imported.rows_in,
             "rows_staged": imported.rows_staged,

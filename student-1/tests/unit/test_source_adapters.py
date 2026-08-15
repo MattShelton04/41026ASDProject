@@ -15,7 +15,11 @@ from propertyscope_data_platform.adapters.gnaf import (
     parse_gnaf_archive_path,
     select_geocode,
 )
-from propertyscope_data_platform.adapters.psi import parse_psi_archive, parse_psi_b_record
+from propertyscope_data_platform.adapters.psi import (
+    iter_psi_archive,
+    parse_psi_archive,
+    parse_psi_b_record,
+)
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
 from propertyscope_data_platform.runner import AcquisitionRunner, RunnerSettings
 
@@ -147,6 +151,35 @@ def test_psi_archive_parses_nested_current_format_and_caps_records() -> None:
     sales = parse_psi_archive(outer.getvalue(), source_year=2025, maximum_records=1)
     assert len(sales) == 1
     assert sales[0].source_business_key == "001:P1:2"
+    assert sales[0].area_square_metres == 15000
+
+
+def test_psi_archive_full_parse_has_no_implicit_record_cap() -> None:
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr(
+            "20250106.DAT",
+            "".join(
+                f"B;001;P{index};1;20250101;;1;10;ROAD;SYDNEY;2000;500;M;"
+                f"20250101;20250201;{800000 + index};R;R;;;X;;;D{index}\n"
+                for index in range(50_001)
+            ),
+        )
+
+    assert sum(1 for _ in iter_psi_archive(stream.getvalue(), source_year=2025)) == 50_001
+
+
+def test_psi_archive_parses_pre_2001_root_dat_and_deduplicates_retransmission() -> None:
+    row = "B;001;X;V1;P1;U1;10;GEORGE ST;SYDNEY;2000;31/12/1999;400000;X;1.5;H\n"
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("ARCHIVE_SALES_1999.DAT", row + row)
+
+    sales = tuple(iter_psi_archive(stream.getvalue(), source_year=1999))
+
+    assert len(sales) == 1
+    assert sales[0].source_era == "pre-2001"
+    assert sales[0].contract_date == date(1999, 12, 31)
     assert sales[0].area_square_metres == 15000
 
 

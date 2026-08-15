@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -153,6 +153,10 @@ def create_blueprint(
         cached_psi = (
             scope.get("profile") == "full-data"
             and str(job_data.get("import_profile_key")) == "psi-sales"
+            and scope.get("all_history") is not True
+            and scope.get("include_current_weekly") is not True
+            and not scope.get("weeks")
+            and bool(scope.get("years"))
             and set(scope.get("years", [])).issubset(psi_cached_years)
         )
         return jsonify(
@@ -850,29 +854,32 @@ def validate_job_scope(
         return None, problem(422, "invalid_scope", "maximum_records exceeds the job limit")
     if str(job.get("import_profile_key")) == "psi-sales":
         years = scope.get("years")
-        if not isinstance(years, list) or not years or len(years) > 40:
-            return None, problem(422, "invalid_scope", "PSI scope requires 1 to 40 source years")
+        all_history = scope.get("all_history") is True
+        if not all_history and (not isinstance(years, list) or not years or len(years) > 100):
+            return None, problem(
+                422, "invalid_scope", "PSI scope requires source years or complete history"
+            )
+        checked_years: list[Any] = [] if all_history else list(years or [])
         maximum_year = datetime.now(UTC).year + 1
         if any(
             not isinstance(year, int)
             or isinstance(year, bool)
             or year < 1990
             or year > maximum_year
-            for year in years
+            for year in checked_years
         ):
             return None, problem(422, "invalid_scope", "PSI source year is outside the range")
-        if years != sorted(set(years)):
+        if checked_years != sorted(set(checked_years)):
             return None, problem(422, "invalid_scope", "PSI source years must be unique and sorted")
-        if (
-            profile == "full-data"
-            and psi_cached_years
-            and not set(years).issubset(psi_cached_years)
-        ):
-            return None, problem(
-                422,
-                "psi_source_year_unavailable",
-                "Requested PSI years are not present in the detected official archive cache",
-            )
+        weeks = scope.get("weeks", [])
+        if not isinstance(weeks, list) or len(weeks) > 1000:
+            return None, problem(422, "invalid_scope", "PSI weekly partitions are invalid")
+        try:
+            parsed_weeks = [date.fromisoformat(value) for value in weeks]
+        except (TypeError, ValueError):
+            return None, problem(422, "invalid_scope", "PSI weeks must use ISO dates")
+        if parsed_weeks != sorted(set(parsed_weeks)):
+            return None, problem(422, "invalid_scope", "PSI weeks must be unique and sorted")
     if run_mode == "full_refresh" and profile == "full-data" and not full_data_enabled:
         return None, problem(
             422,

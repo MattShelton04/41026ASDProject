@@ -11,7 +11,7 @@ import time
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from threading import Event
 from typing import Any
@@ -21,7 +21,7 @@ import httpx
 
 from propertyscope_data_platform.adapters.bocsar import parse_bocsar_archive
 from propertyscope_data_platform.adapters.gnaf import parse_gnaf_archive_path
-from propertyscope_data_platform.adapters.psi import parse_psi_archive
+from propertyscope_data_platform.adapters.psi import PsiSale, iter_psi_archive, parse_psi_archive
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
 from propertyscope_data_platform.artifacts import LocalArtifactStore
 
@@ -35,10 +35,10 @@ BOCSAR_URLS = {
     "postcode": "https://bocsarblob.blob.core.windows.net/bocsar-open-data/PostcodeData.zip",
 }
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip"
+PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{date}.zip"
 GNAF_CKAN_URL = (
     "https://data.gov.au/data/api/3/action/package_show?id=19432f89-dc3a-4ef3-b943-5326ef1dbecc"
 )
-LIVE_CANONICAL_RECORD_LIMIT = 50_000
 logger = logging.getLogger(__name__)
 
 
@@ -161,6 +161,24 @@ class AcquisitionRunner:
                 raise RuntimeError(
                     "Full-data acquisition requires the explicit full-data runtime profile"
                 )
+            if live_requested and profile == "psi-sales" and stage == "acquire":
+                scope = task.get("partition_json") or {}
+                if not isinstance(scope, dict):
+                    raise RuntimeError("Registered live scope is invalid")
+                counter = [0]
+                canonical_chunks = self._live_psi_chunks(task, scope, counter)
+                artifact = self.artifacts.put(
+                    canonical_chunks,
+                    max_bytes=int(task.get("max_bytes", 20_000_000_000)),
+                    media_type="application/x-ndjson",
+                )
+                self._register_stage_artifact(
+                    task,
+                    stage=stage,
+                    artifact=artifact,
+                    schema_version="propertyscope.canonical-import.v1",
+                )
+                return counter[0], counter[0]
             if live_requested and profile != "property-fixture":
                 document, records = self._live_document(task, stage=stage, profile=profile)
             else:
@@ -182,27 +200,12 @@ class AcquisitionRunner:
             canonical = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
             artifact = self.artifacts.put(
                 (canonical,),
-                max_bytes=min(int(task.get("max_bytes", 1_000_000)), 50_000_000),
+                max_bytes=int(task.get("max_bytes", 1_000_000)),
                 media_type="application/json",
             )
-            response = self.client.post(
-                f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task['id']}/artifacts",
-                headers=self._headers(),
-                json={
-                    "ingestion_run_id": task["ingestion_run_id"],
-                    "logical_key": task["logical_key"],
-                    "artifact_kind": "source_snapshot"
-                    if stage == "discover"
-                    else "canonical_import",
-                    "storage_key": artifact.storage_key,
-                    "content_sha256": artifact.sha256,
-                    "media_type": artifact.media_type,
-                    "bytes": artifact.bytes,
-                    "schema_version": document["schema_version"],
-                    "retention_class": "candidate",
-                },
+            self._register_stage_artifact(
+                task, stage=stage, artifact=artifact, schema_version=str(document["schema_version"])
             )
-            response.raise_for_status()
             return len(records), len(records)
         if stage == "import":
             return self._execute_import(task)
@@ -216,6 +219,26 @@ class AcquisitionRunner:
             response.raise_for_status()
             return 1, 1
         return 0, 0
+
+    def _register_stage_artifact(
+        self, task: dict[str, Any], *, stage: str, artifact: Any, schema_version: str
+    ) -> None:
+        response = self.client.post(
+            f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task['id']}/artifacts",
+            headers=self._headers(),
+            json={
+                "ingestion_run_id": task["ingestion_run_id"],
+                "logical_key": task["logical_key"],
+                "artifact_kind": "source_snapshot" if stage == "discover" else "canonical_import",
+                "storage_key": artifact.storage_key,
+                "content_sha256": artifact.sha256,
+                "media_type": artifact.media_type,
+                "bytes": artifact.bytes,
+                "schema_version": schema_version,
+                "retention_class": "candidate",
+            },
+        )
+        response.raise_for_status()
 
     def _live_document(
         self, task: dict[str, Any], *, stage: str, profile: str
@@ -292,9 +315,7 @@ class AcquisitionRunner:
                     "cached": url.startswith("file-cache://"),
                 }
             ]
-        years = scope.get("years")
-        if not isinstance(years, list) or not years:
-            raise RuntimeError("PSI live scope requires source years")
+        years = _psi_years(scope)
         objects: list[dict[str, object]] = []
         for year in years:
             cached = self._psi_archive(int(year))
@@ -305,6 +326,14 @@ class AcquisitionRunner:
             if cached is not None:
                 source["cache_key"] = f"psi/{year}.zip"
             objects.append(source)
+        objects.extend(
+            _source_object(
+                f"psi-week-{week.isoformat()}",
+                PSI_WEEKLY_URL.format(date=week.strftime("%Y%m%d")),
+                "application/zip",
+            )
+            for week in _psi_weeks(scope)
+        )
         return objects
 
     def _live_bocsar(
@@ -368,13 +397,10 @@ class AcquisitionRunner:
             or any(not isinstance(year, int) for year in years)
         ):
             raise RuntimeError("PSI live scope requires integer source years")
-        remaining = _record_limit(task, scope)
         records: list[dict[str, object]] = []
         source_urls: list[str] = []
         cached_years: list[int] = []
         for year in years:
-            if remaining <= 0:
-                break
             url = PSI_YEARLY_URL.format(year=year)
             source_urls.append(url)
             maximum_bytes = min(int(task.get("max_bytes", 50_000_000)), 50_000_000)
@@ -386,42 +412,51 @@ class AcquisitionRunner:
                 cached_years.append(year)
             else:
                 content = self._download_psi_archive(url, maximum_bytes=maximum_bytes)
-            sales = parse_psi_archive(content, source_year=year, maximum_records=remaining)
+            sales = parse_psi_archive(content, source_year=year)
             for sale in sales:
-                records.append(
-                    {
-                        "source_business_key": sale.source_business_key,
-                        "source_revision": 1,
-                        "source_era": sale.source_era,
-                        "district_code": sale.district_code or None,
-                        "property_id": sale.property_id or None,
-                        "dealing_id": sale.dealing_id,
-                        "contract_date": sale.contract_date.isoformat()
-                        if sale.contract_date
-                        else None,
-                        "settlement_date": sale.settlement_date.isoformat()
-                        if sale.settlement_date
-                        else None,
-                        "price_aud": sale.price_aud,
-                        "area_original": str(sale.area_original)
-                        if sale.area_original is not None
-                        else None,
-                        "area_unit": sale.area_unit,
-                        "area_square_metres": str(sale.area_square_metres)
-                        if sale.area_square_metres is not None
-                        else None,
-                        "property_ref": None,
-                        "match_tier": "MISS",
-                        "match_confidence": "0",
-                        "geographic_precision": "unmatched",
-                    }
-                )
-            remaining = _record_limit(task, scope) - len(records)
+                records.append(_psi_record(sale))
         document = _live_canonical_document("psi-sales", source_urls, records)
         source = document["source"]
         assert isinstance(source, dict)
         source["cached_source_years"] = cached_years
         return document, records
+
+    def _live_psi_chunks(
+        self, task: dict[str, Any], scope: dict[str, object], counter: list[int]
+    ) -> Iterable[bytes]:
+        """Stream complete PSI partitions as canonical NDJSON without retaining history in RAM."""
+        years = _psi_years(scope)
+        sources = [
+            (year, PSI_YEARLY_URL.format(year=year), self._psi_archive(year)) for year in years
+        ]
+        sources.extend(
+            (
+                week.year,
+                PSI_WEEKLY_URL.format(date=week.strftime("%Y%m%d")),
+                None,
+            )
+            for week in _psi_weeks(scope)
+        )
+        if not sources:
+            raise RuntimeError("PSI full-data scope contains no annual or weekly partitions")
+        per_archive_limit = 750_000_000
+        for source_year, url, cached in sources:
+            if cached is not None:
+                if cached.stat().st_size > per_archive_limit:
+                    raise RuntimeError("Cached PSI archive exceeds the corruption-safety limit")
+                content = cached.read_bytes()
+            else:
+                content = self._download_psi_archive(url, maximum_bytes=per_archive_limit)
+            for sale in iter_psi_archive(content, source_year=source_year):
+                counter[0] += 1
+                if counter[0] > int(task.get("max_rows", 100_000_000)):
+                    raise RuntimeError("PSI source exceeds the registered capacity ceiling")
+                if counter[0] % 25_000 == 0:
+                    self._heartbeat(str(task["id"]), str(task["lease_token"]))
+                yield (
+                    json.dumps(_psi_record(sale), sort_keys=True, separators=(",", ":")).encode()
+                    + b"\n"
+                )
 
     def _psi_archive(self, year: int) -> Path | None:
         root = self.settings.psi_archive_root
@@ -656,7 +691,7 @@ class AcquisitionRunner:
         )
         response.raise_for_status()
         operation = response.json()["operation"]
-        deadline = time.monotonic() + min(int(task.get("timeout_seconds", 120)), 120)
+        deadline = time.monotonic() + int(task.get("timeout_seconds", 120))
         while operation["status"] not in {"succeeded", "failed", "cancelled"}:
             if time.monotonic() >= deadline:
                 raise RuntimeError("Registered import did not complete inside the task deadline")
@@ -699,10 +734,60 @@ def _safe_message(exc: Exception) -> str:
 
 
 def _record_limit(task: dict[str, Any], scope: dict[str, object]) -> int:
-    requested = scope.get("maximum_records", task.get("max_rows", LIVE_CANONICAL_RECORD_LIMIT))
+    requested = scope.get("maximum_records", task.get("max_rows", 100_000_000))
     if not isinstance(requested, int) or isinstance(requested, bool) or requested < 1:
         raise RuntimeError("maximum_records must be a positive integer")
-    return min(requested, int(task.get("max_rows", requested)), LIVE_CANONICAL_RECORD_LIMIT)
+    return min(requested, int(task.get("max_rows", requested)))
+
+
+def _psi_years(scope: dict[str, object]) -> list[int]:
+    if scope.get("all_history") is True:
+        return list(range(1990, datetime.now(UTC).year))
+    years = scope.get("years")
+    if not isinstance(years, list) or any(not isinstance(year, int) for year in years):
+        raise RuntimeError("PSI live scope requires integer source years or all_history")
+    return years
+
+
+def _psi_weeks(scope: dict[str, object]) -> list[date]:
+    raw = scope.get("weeks", [])
+    if not isinstance(raw, list) or any(not isinstance(value, str) for value in raw):
+        raise RuntimeError("PSI weekly partitions must be ISO dates")
+    try:
+        weeks = [date.fromisoformat(value) for value in raw]
+    except ValueError as exc:
+        raise RuntimeError("PSI weekly partitions must be ISO dates") from exc
+    if scope.get("include_current_weekly") is True:
+        today = datetime.now(UTC).date()
+        cursor = date(today.year, 1, 1)
+        cursor += timedelta(days=(7 - cursor.weekday()) % 7)
+        while cursor <= today:
+            weeks.append(cursor)
+            cursor += timedelta(days=7)
+    return sorted(set(weeks))
+
+
+def _psi_record(sale: PsiSale) -> dict[str, object]:
+    return {
+        "source_business_key": sale.source_business_key,
+        "source_revision": 1,
+        "source_era": sale.source_era,
+        "district_code": sale.district_code or None,
+        "property_id": sale.property_id or None,
+        "dealing_id": sale.dealing_id,
+        "contract_date": sale.contract_date.isoformat() if sale.contract_date else None,
+        "settlement_date": sale.settlement_date.isoformat() if sale.settlement_date else None,
+        "price_aud": sale.price_aud,
+        "area_original": str(sale.area_original) if sale.area_original is not None else None,
+        "area_unit": sale.area_unit,
+        "area_square_metres": str(sale.area_square_metres)
+        if sale.area_square_metres is not None
+        else None,
+        "property_ref": None,
+        "match_tier": "MISS",
+        "match_confidence": "0",
+        "geographic_precision": "unmatched",
+    }
 
 
 def _month_scope(value: object) -> date | None:

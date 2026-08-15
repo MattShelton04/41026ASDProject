@@ -99,14 +99,41 @@ def parse_psi_archive(
     content: bytes,
     *,
     source_year: int,
-    maximum_records: int,
+    maximum_records: int | None = None,
     maximum_members: int = 5000,
     maximum_uncompressed_bytes: int = 750_000_000,
 ) -> tuple[PsiSale, ...]:
     """Parse a registered annual PSI archive across its historical format eras."""
-    if maximum_records < 1:
+    if maximum_records is not None and maximum_records < 1:
         raise ValueError("PSI maximum_records must be positive")
-    sales: dict[str, PsiSale] = {}
+    return tuple(
+        iter_psi_archive(
+            content,
+            source_year=source_year,
+            maximum_records=maximum_records,
+            maximum_members=maximum_members,
+            maximum_uncompressed_bytes=maximum_uncompressed_bytes,
+        )
+    )
+
+
+def iter_psi_archive(
+    content: bytes,
+    *,
+    source_year: int,
+    maximum_records: int | None = None,
+    maximum_members: int = 5000,
+    maximum_uncompressed_bytes: int = 750_000_000,
+) -> Iterator[PsiSale]:
+    """Yield every unique sale in an annual or standalone weekly PSI archive.
+
+    ``maximum_records`` exists only for deterministic fixtures and targeted previews.
+    Production full-data acquisition passes ``None`` and never truncates a partition.
+    """
+    if maximum_records is not None and maximum_records < 1:
+        raise ValueError("PSI maximum_records must be positive")
+    seen: set[str] = set()
+    yielded = 0
     try:
         with ZipFile(io.BytesIO(content)) as archive:
             for raw in _dat_payloads(
@@ -118,14 +145,17 @@ def parse_psi_archive(
                     sale = _parse_source_b_record(fields, source_year=source_year)
                     if sale is None:
                         continue
-                    sales.setdefault(sale.source_business_key, sale)
-                    if len(sales) >= maximum_records:
-                        return tuple(sales.values())
+                    if sale.source_business_key in seen:
+                        continue
+                    seen.add(sale.source_business_key)
+                    yield sale
+                    yielded += 1
+                    if maximum_records is not None and yielded >= maximum_records:
+                        return
     except BadZipFile as exc:
         raise ValueError("PSI source is not a valid ZIP archive") from exc
-    if not sales:
+    if not seen:
         raise ValueError("PSI archive contains no supported B records")
-    return tuple(sales.values())
 
 
 def _dat_payloads(

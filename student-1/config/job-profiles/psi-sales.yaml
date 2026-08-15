@@ -1,7 +1,7 @@
 schema_version: propertyscope.job-profile.v1
 key: nsw-psi-sales-year
 version: 1.0.0
-display_name: NSW Valuer General PSI yearly property sales
+display_name: NSW Valuer General PSI complete property sales
 source_key: nsw-psi-sales
 adapter: {key: psi-bulk, version: 1.0.0}
 refresh_strategy: append_only_partitioned
@@ -12,9 +12,9 @@ target: {feature: feature-2, contract: propertyscope.property-sales.v1}
 scope_profiles:
   test: {years: [2025], maximum_records: 20}
   showcase: {years: [2025], maximum_records: 250000}
-  full-data: {years: [2025], maximum_records: 50000}
+  full-data: {all_history: true, include_current_weekly: true}
 quality_policy: psi-sales.v1
 limits:
-  {max_objects: 40, max_bytes: 5000000000, max_rows: 10000000,
+  {max_objects: 1000, max_bytes: 20000000000, max_rows: 100000000,
    deadline_seconds: 86400, max_parallelism: 1}
 publication: human_review

@@ -14,6 +14,7 @@ from propertyscope_data_store.import_profiles import (
     ImportProfileError,
     ImportResult,
     execute_import,
+    iter_ndjson_import,
     prepare_import,
 )
 from propertyscope_data_store.loader import DatabaseLoader
@@ -199,3 +200,30 @@ def test_import_updates_manifest_and_release_row_counts_together() -> None:
     source = inspect.getsource(execute_import)
     assert "manifest_json=jsonb_set" in source
     assert "'{record_count}'" in source
+
+
+def test_source_scale_ndjson_validation_streams_without_a_row_limit() -> None:
+    row = {
+        "source_business_key": "001:P1:1",
+        "source_revision": 1,
+        "source_era": "post-2001",
+        "district_code": "001",
+        "property_id": "P1",
+        "dealing_id": "D1",
+        "contract_date": "2025-01-01",
+        "settlement_date": "2025-02-01",
+        "price_aud": 900000,
+        "area_original": "500",
+        "area_unit": "M",
+        "area_square_metres": "500",
+        "property_ref": None,
+        "match_tier": "MISS",
+        "match_confidence": "0",
+        "geographic_precision": "unmatched",
+    }
+    lines = (
+        json.dumps({**row, "source_business_key": f"001:P{index}:1"}).encode() + b"\n"
+        for index in range(100_001)
+    )
+
+    assert sum(1 for _ in iter_ndjson_import(lines, profile="psi-sales")) == 100_001

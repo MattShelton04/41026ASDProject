@@ -38,11 +38,10 @@ official NSW schools CSV, BOCSAR archive and Geoscape G-NAF bulk archive. All th
 durable run, content-addressed artifact, serial loader, candidate generation, quality and human
 publication path as the showcase profile. Resource limits remain enforced in full-data mode.
 
-The PSI yearly archive parser is implemented and verified against real publisher archives. The
-publisher currently rejects new host and Docker downloads with HTTP 403, so PSI stays visibly
-catalogued unless a genuine official annual ZIP is present in the read-only local source cache.
-The startup helper detects those archives and enables only their exact years. Fixture runs never
-silently stand in for a requested live run.
+The PSI adapter is verified against real publisher archives and parses every annual archive from
+1990 onward plus current Monday weekly updates. Ordinary publisher requests may receive HTTP 403,
+so acquisition retries through validated bounded Range requests; a read-only cache can avoid repeat
+downloads. Fixture runs never silently stand in for a requested live run.
 
 ## Run it locally
 
@@ -82,7 +81,7 @@ uv run scripts/dev.py up --full-data
 | `schools-master` | Connected | Streams the official Data.NSW master CSV with byte/row limits. |
 | `bocsar-sparse` | Connected | Streams the official postcode or suburb ZIP and emits bounded sparse observations plus explicit coverage rows. |
 | `gnaf-nsw` | Connected | Discovers the latest registered PSV ZIP from Data.gov.au, or uses the optional local source cache below; preserves unit identity and transforms declared GDA94/GDA2020 coordinates to WGS84 at import. |
-| `psi-sales` | Cache-gated | Parses real nested annual PSI packages. New downloads fail closed while the publisher returns HTTP 403; cached official years become selectable when present. |
+| `psi-sales` | Connected | Streams complete annual history and current weekly packages, including the pre-2001 root-DAT format. Stable source keys collapse identical retransmissions. |
 
 G-NAF is about 1.7 GB. To avoid downloading it for every new full-data project, place an official
 PSV archive at `.propertyscope-source-cache/gnaf.zip` and declare its CRS before startup:
@@ -97,14 +96,13 @@ and downloads the latest registered archive from the official CKAN package. A ru
 candidate to 1–50,000 addresses from the dashboard even though the source archive itself remains
 an immutable, checksummed acquisition artifact.
 
-The same cache supports official PSI annual packages. Place each unmodified publisher archive at
+The same cache supports official PSI annual packages. Place any unmodified publisher archive at
 `.propertyscope-source-cache/psi/<year>.zip` (for example `psi/2025.zip`) before starting the
-full-data stack. `scripts/dev.py` reports the detected years and enables PSI in the UI only when
-at least one archive is available. The run still requires an explicit year list, enforces the
-job's byte and 1–50,000 canonical-record bound, records the official publisher URL, and marks the
-years served from cache in discovery/canonical evidence. When detected cache years are advertised,
-the API rejects any other year before launch rather than creating a run that cannot currently
-download its source.
+full-data stack. Missing years are acquired from the official source. Complete mode processes annual
+archives from 1990 through the previous year and every Monday weekly partition in the current year;
+explicit subsets remain available. Canonical NDJSON and PostgreSQL COPY stream without a record cap.
+The 100-million-row, 20 GB and per-archive expansion ceilings are corruption/capacity alarms that
+fail the candidate atomically rather than returning a partial dataset.
 
 Every release detail page includes a release-scoped dataset preview. Preview queries use fixed
 registered projections, cap pages at 100 records and never mix candidate and accepted

@@ -262,7 +262,8 @@ test("operator UI exposes working submit controls, backfills and durable histori
   assert.match(source, /apply\.type = "submit"/);
   assert.match(source, /button\("Run now"/);
   assert.match(source, /button\("Backfill"/);
-  assert.match(source, /PSI source year/);
+  assert.match(source, /First annual archive/);
+  assert.match(source, /Complete PSI history/);
   assert.match(source, /Preview deterministic plan/);
   assert.match(source, /link\("Run history"/);
   assert.match(source, /`#ai\/release:\$\{linkedRelease\.id\}`/);

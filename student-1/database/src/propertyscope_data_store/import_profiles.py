@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -120,6 +120,71 @@ def execute_import(
         rows_rejected=len(prepared.rows) - accepted,
         quality_checks=quality_checks,
     )
+
+
+def iter_ndjson_import(lines: Iterable[bytes], *, profile: str) -> Iterable[dict[str, Any]]:
+    """Validate canonical NDJSON incrementally for source-scale imports."""
+    if profile not in REGISTERED_PROFILES:
+        raise ImportProfileError("import profile is not registered")
+    validator = _VALIDATORS[profile]
+    found = False
+    for index, raw_line in enumerate(lines, start=1):
+        if not raw_line.strip():
+            continue
+        found = True
+        try:
+            row = json.loads(raw_line)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ImportProfileError(f"canonical NDJSON record {index} is invalid") from exc
+        yield validator(row, index)
+    if not found:
+        raise ImportProfileError("canonical import artifact must not be empty")
+
+
+def execute_stream_import(
+    connection: Connection[Any],
+    work: Mapping[str, Any],
+    *,
+    profile: str,
+    rows: Iterable[dict[str, Any]],
+) -> ImportResult:
+    """Stream validated rows through COPY and collapse retransmitted PSI keys atomically."""
+    run_id = uuid.UUID(str(work["ingestion_run_id"]))
+    release_id = uuid.UUID(str(work["candidate_release_id"]))
+    artifact_id = uuid.UUID(str(work["artifact_record_id"]))
+    staged = 0
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "CREATE TEMP TABLE propertyscope_import_stage "
+            "(ordinal BIGINT PRIMARY KEY, payload JSONB NOT NULL) ON COMMIT DROP"
+        )
+        with cursor.copy("COPY propertyscope_import_stage (ordinal, payload) FROM STDIN") as copy:
+            for staged, row in enumerate(rows, start=1):
+                copy.write_row((staged, Jsonb(row)))
+        if staged == 0:
+            raise ImportProfileError("canonical import artifact must not be empty")
+        accepted = _insert_profile_rows(
+            cursor, profile, release_id=release_id, artifact_id=artifact_id, run_id=run_id
+        )
+        quality_checks = _record_quality(
+            cursor,
+            profile=profile,
+            run_id=run_id,
+            release_id=release_id,
+            expected=accepted if profile == "psi-sales" else staged,
+            accepted=accepted,
+        )
+        cursor.execute(
+            """UPDATE ops.dataset_release SET record_count=%s,
+            manifest_json=jsonb_set(manifest_json,'{record_count}',to_jsonb(%s::bigint),true),
+            updated_at=now(),version=version+1
+            WHERE id=%s AND ingestion_run_id=%s AND status IN ('draft','candidate')""",
+            (accepted, accepted, release_id, run_id),
+        )
+        if cursor.rowcount != 1:
+            raise ImportProfileError("candidate release is not mutable for this import")
+    connection.commit()
+    return ImportResult(staged, staged, accepted, 0, quality_checks)
 
 
 def _insert_profile_rows(

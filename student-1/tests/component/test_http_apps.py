@@ -470,8 +470,9 @@ def test_job_plan_enables_psi_when_official_archive_cache_is_available() -> None
             "scope": {"profile": "full-data", "years": [2024]},
         },
     )
-    assert missing.status_code == 422
-    assert missing.get_json()["code"] == "psi_source_year_unavailable"
+    assert missing.status_code == 200
+    assert missing.get_json()["network_required"] is True
+    assert missing.get_json()["source_cache_required"] is False
 
     showcase = client.post(
         f"/api/data-platform/v1/jobs/{job_id}/plans",

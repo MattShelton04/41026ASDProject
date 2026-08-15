@@ -15,7 +15,7 @@ intentional: the system does not publish new product data without human review.
 | --- | --- | --- | --- |
 | NSW government schools | 2,210 of 2,210 source rows accepted, zero rejected. Example: school `1001`, Abbotsford Public School, open primary school, Canada Bay, point `151.131206,-33.852728`. | One registered CSV; 25 MB; 5,000 rows; 300 seconds. The current 1,277,226-byte source fits and the run captures the complete file. | Run `7b29bd18-f37d-4395-9acc-8ccbdf4a1c29`; release `21adaaec-a39d-499e-b381-be9883e807fc`; SHA-256 `90d31de45fd8ba586d1e5d35d8776657b774d5fc677e89fcc033bc307a727375`; 4.85 seconds. |
 | BOCSAR postcode crime | 6,827 canonical rows accepted, zero rejected: 6,641 non-zero observations and 186 explicit coverage rows. Example: postcode `2000`, Abduction and kidnapping, February 2021, count 1; the source declares 60 observed months from January 2021 to December 2025 and blanks mean observed zero. | Registered postcode or suburb ZIP; 50 MB; 100,000 parsed wide rows; 50,000 canonical rows per run; 900 seconds. Evidence scope was postcodes `2000`, `2007`, `2010`, January 2021–December 2026. | Run `d8e8593a-4ece-485a-8532-68fe9eb13b68`; release `adda5962-5869-4288-b7d4-49c81bdca35f`; SHA-256 `ed95068d5953fc14a169641b702ad1d9ba9eafc400a03eb15d2480d8e863eb62`; 4.46 seconds. |
-| NSW Valuer General PSI sales | 50,000 rows accepted, zero rejected, reaching the configured canonical ceiling. Example: business key `258:1382319:36`, dealing `AU493308`, contract date `1956-03-12`, settlement date `1993-02-26`, price $4,686 and area 695.6 m². It remains unmatched rather than inventing an address link. | 1–40 explicit annual partitions from 1990 through next year; maximum 50 MB per annual ZIP in the runner; effective 50,000 canonical rows total per run. The registered job also bounds source work at 10 objects, 5 GB and 24 hours. | Run `83892af0-acdb-42b0-9d53-46ca2fa741ae`; release `2c0c64fe-553e-445a-ae54-84fdba273630`; SHA-256 `dfdc624abc174c095160d9a7b66c4ff302e6c15fb38f8a0b44077b81d69df7e6`; 8.15 seconds. The official 2025 ZIP was 15,425,614 bytes with source SHA-256 `6368968e1a9d509b8224d747fb6c76d852d4da9a7ac8afd2bca0bbb8a4aaaa87`. |
+| NSW Valuer General PSI sales | The complete parser finds **230,480 unique rows** in the official 2025 annual archive; the former 50,000 run was therefore truncated and is retained only as defect evidence. The official 10 August 2026 weekly archive contains 2,964 unique rows; example key `001:2962123:1`. | Complete mode resolves annual partitions 1990–previous year plus every Monday archive in the current year. Explicit subsets are also supported. Canonical NDJSON and database COPY stream without a record cap; 750 MB archive/expansion guards, a 20 GB artifact capacity and 100 million-row capacity fail instead of returning partial success. Annual/weekly retransmissions use stable natural-key uniqueness; pre-2001 canonical row hashes provide stable identity. | Direct parser measurement on 15 August 2026: 2025 ZIP 15,425,614 bytes, 230,480 rows/keys, source SHA-256 `6368968e1a9d509b8224d747fb6c76d852d4da9a7ac8afd2bca0bbb8a4aaaa87`; weekly ZIP 213,986 bytes, 2,964 rows/keys. A fresh source-scale run is recorded after rebuilt-stack verification below. |
 | Geoscape G-NAF NSW addresses | 5,000 rows accepted, zero rejected, reaching the selected UI bound. Example: PID `GANSW711351856`, 20 Heysen Street, Abbotsbury NSW 2176, current `GG` geocode, declared EPSG:4283 transformed to point `150.86966825,-33.86735306`. | UI selection 1–50,000 addresses; source job maximum 2.5 GB, 6.5 million parsed rows and 24 hours. Evidence used the official February 2026 GDA94 archive (1,700,877,251 bytes); without a cache, discovery selects the latest registered Data.gov.au PSV resource. | Run `5329239a-34e8-44ca-baf4-88c171625b03`; release `4f2361b6-abea-4b9a-a09c-425497491528`; SHA-256 `2ae01855dba886e03c0834d791c7381503023beb5afa0339a8c06cc503096469`; 4 minutes 38 seconds including archive verification and parsing. Source SHA-256 `52786da19fb2e0a9c2b13446763434fec7db107de27bc81a40b5984eaf78c426`. |
 | Deterministic property fixture | Exactly 10 stable `fixture-001`…`fixture-010` records per run. This is the offline critical path and minimum-ten-record marking fixture, not a substitute for any requested official source. | No network; 50 MB/100,000 registered safety limits; the implementation emits exactly 10 deterministic rows. | Covered by unit, component, integration and frontend tests in the canonical quality gate. |
 
@@ -86,8 +86,11 @@ overlay automatically, with explicit `--cpu-only` and `--gpu` controls.
   network beneath retained containers in the other. The full-data project now owns a distinct fixed
   network.
 - The full-data startup path could not connect PSI even when an official archive was already
-  available. Capability discovery, plan validation, read-only cache mounting and exact-year UI
-  guidance now form one fail-closed path.
+  available. Capability discovery, read-only cache mounting and bounded Range acquisition now form
+  one fail-closed path for both cached and from-scratch partitions.
+- Live PSI silently stopped at 50,000 rows, while the loader separately rejected more than 100,000
+  JSON rows and the runner limited canonical artifacts to 50 MB. Complete annual/weekly acquisition
+  now streams canonical NDJSON into PostgreSQL COPY, and stable keys collapse retransmissions.
 
 ## Marking alignment
 
@@ -98,6 +101,4 @@ workflow and architecture links; this file supplies run IDs, counts, examples, h
 and a short repeatable showcase journey suitable for the report and video.
 
 The remaining action is governance, not missing implementation: a reviewer must accept and publish
-a candidate before another feature may treat it as current product data. New PSI downloads also
-remain dependent on the NSW publisher restoring its official endpoint or supplying another annual
-archive.
+a candidate before another feature may treat it as current product data.

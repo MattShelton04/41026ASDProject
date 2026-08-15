@@ -69,9 +69,18 @@ It never truncates the live accepted generation. `reprocess_cached` and failed-t
 repair reuse the same run model; PSI year/week replacement is an explicit partition
 scope, not a generic incremental-cursor claim.
 
+Source-scale PSI candidates use canonical NDJSON between the credential-free runner and the
+credential-owning loader. Both sides stream: acquisition writes records directly to the
+content-addressed artifact and the loader validates rows into PostgreSQL `COPY`. Annual archives
+from 1990 through the previous year and current Monday weekly archives may therefore form one
+complete candidate without an application-memory or presentation-size row cap. Archive member,
+expansion, artifact-byte and capacity ceilings fail the candidate; they never truncate it. The
+warehouse natural key collapses identical annual/weekly retransmissions inside each isolated
+candidate, so a rerun remains deterministic and cannot stack duplicates into accepted data.
+
 The Release 0 implementation target is the common ingestion framework plus deterministic
 fixtures and four real source families: NSW government-school master, sparse BOCSAR crime
-with an explicit coverage universe, NSW G-NAF, and a bounded PSI partition using the same
+with an explicit coverage universe, NSW G-NAF, and complete PSI partitions using the same
 path as the opt-in historical backfill. Other researched adapters remain staged follow-on
 work until their coverage, licensing and normalisation are proven.
 
