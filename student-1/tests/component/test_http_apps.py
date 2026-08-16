@@ -310,6 +310,102 @@ def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
     assert response.get_json()["code"] == "consumer_publication_failed"
 
 
+def test_local_artifact_verification_failure_records_receipt_and_preserves_release(
+    tmp_path: Path,
+) -> None:
+    release_id = "60000000-0000-0000-0000-000000000014"
+    digest = "a" * 64
+    manifest = {
+        "manifest_schema_version": "propertyscope.release-manifest.v1",
+        "product_schema_version": "propertyscope.property-snapshot.v1",
+        "release_id": release_id,
+        "release_version": "fixture-local-failure-v1",
+        "dataset_id": "fixture-property",
+        "target_feature": "feature-1",
+        "builder_key": "property-snapshot",
+        "builder_version": "1.0.0",
+        "import_profile": "property-fixture",
+        "normalisation_version": "1.0.0",
+        "publisher": "PropertyScope test",
+        "source": "Missing local artifact test",
+        "source_release": "fixture-v1",
+        "source_retrieved_at": "2026-08-16T01:02:03Z",
+        "source_effective_at": None,
+        "candidate_generation_id": release_id,
+        "record_count": 1,
+        "record_count_definition": "property records",
+        "content_sha256": digest,
+        "media_type": "application/json",
+        "content_encoding": None,
+        "byte_count": 100,
+        "geography_coverage": ["NSW"],
+        "temporal_coverage": None,
+        "measures": [],
+        "entity_types": ["property"],
+        "source_licence": "synthetic-test-data",
+        "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "redistribution_decision": "committed-synthetic-fixture",
+        "download_permitted": True,
+        "known_limitations": ["test"],
+        "created_at": "2026-08-16T01:02:03Z",
+        "supersedes_release_id": None,
+    }
+    release = {
+        "id": release_id,
+        "dataset_id": "fixture-property",
+        "target_feature": "feature-1",
+        "schema_version": "propertyscope.property-snapshot.v1",
+        "content_sha256": digest,
+        "record_count": 1,
+        "manifest_json": manifest,
+        "status": "awaiting_review",
+        "version": 1,
+    }
+    receipts: list[dict[str, Any]] = []
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path.endswith("/artifact"):
+            return httpx.Response(
+                200,
+                json={
+                    "artifact": {
+                        "artifact_kind": "release_export",
+                        "content_sha256": digest,
+                        "bytes": 100,
+                        "storage_key": f"sha256/{digest[:2]}/{digest}",
+                    }
+                },
+            )
+        if request.method == "GET":
+            return httpx.Response(200, json={"release": release, "receipts": receipts})
+        assert request.url.path.endswith("/receipts")
+        body = cast(dict[str, Any], json.loads(request.content))
+        assert body["status"] == "failed"
+        assert body["rows_received"] == body["rows_rejected"] == 1
+        receipt = {"id": "receipt-local-failure", **body}
+        receipts.append(receipt)
+        return httpx.Response(201, json={"receipt": receipt, "created": True})
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+        artifact_root=tmp_path,
+    )
+
+    response = app.test_client().post(
+        f"/api/data-platform/v1/dataset-releases/{release_id}/publish",
+        headers={"Idempotency-Key": "publish-local-failure"},
+        json={"version": 1, "comment": "Reviewed", "approved": True},
+    )
+
+    assert response.status_code == 424
+    assert release["status"] == "awaiting_review"
+    assert len(receipts) == 1
+
+
 @pytest.mark.parametrize(
     ("response", "expected_code"),
     [

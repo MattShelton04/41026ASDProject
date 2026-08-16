@@ -1586,7 +1586,7 @@ def verify_local_publication(
             status="failed",
             schema_version=publication.schema_version,
             content_sha256=publication.content_sha256,
-            rows_received=0,
+            rows_received=publication.record_count,
             rows_accepted=0,
             rows_rejected=publication.record_count,
             error={
