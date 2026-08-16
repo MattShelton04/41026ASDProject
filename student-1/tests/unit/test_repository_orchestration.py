@@ -407,7 +407,7 @@ def test_release_export_binding_is_atomic_and_requires_matching_evidence() -> No
                 "content_sha256": digest,
                 "bytes": 400,
             },
-            {"count": 0},
+            {"total": 1, "passed": 1},
             updated,
         ]
     )
@@ -430,7 +430,7 @@ def test_release_export_binding_is_atomic_and_requires_matching_evidence() -> No
     assert "manifest_json=%s" in update
 
 
-def test_candidate_export_replay_rejects_a_changed_manifest() -> None:
+def test_candidate_export_replay_allows_new_clock_but_rejects_changed_evidence() -> None:
     release_id = uuid.uuid4()
     artifact_id = uuid.uuid4()
     digest = "b" * 64
@@ -443,7 +443,10 @@ def test_candidate_export_replay_rejects_a_changed_manifest() -> None:
                 "content_sha256": digest,
                 "record_count": 1,
                 "artifact_record_id": artifact_id,
-                "manifest_json": {"created_at": "2026-08-16T00:00:00Z"},
+                "manifest_json": {
+                    "created_at": "2026-08-16T00:00:00Z",
+                    "source_release": "2025",
+                },
             },
             {"id": artifact_id},
         ]
@@ -457,7 +460,10 @@ def test_candidate_export_replay_rejects_a_changed_manifest() -> None:
                 "schema_version": "propertyscope.property-sales.v1",
                 "content_sha256": digest,
                 "record_count": 1,
-                "manifest": {"created_at": "2026-08-17T00:00:00Z"},
+                "manifest": {
+                    "created_at": "2026-08-17T00:00:00Z",
+                    "source_release": "2026",
+                },
             },
         )
 
@@ -493,7 +499,60 @@ def test_release_product_projection_is_bound_to_one_candidate_generation() -> No
     )
     projection = next(query for query in connection.queries if "warehouse.psi_sale" in query)
     assert "dataset_release_id=%s" in projection
+    assert "source_partition_year=ANY" in projection
+    assert "EXTRACT(YEAR FROM contract_date)" not in projection
     assert "ORDER BY source_business_key,source_revision" in projection
+
+
+def test_bound_candidate_fields_are_not_publicly_mutable() -> None:
+    release_id = uuid.uuid4()
+
+    class CandidateStore(PropertyScopeStore):
+        def __init__(self) -> None:
+            pass
+
+        def get_release(self, requested: uuid.UUID) -> dict[str, Any]:
+            assert requested == release_id
+            return {"id": str(release_id), "status": "candidate"}
+
+    with pytest.raises(ConflictError, match="immutable"):
+        CandidateStore().update_release(release_id, {"version": 1, "record_count": 999})
+
+
+def test_public_release_creation_cannot_skip_governed_draft_state() -> None:
+    store = PropertyScopeStore.__new__(PropertyScopeStore)
+    with pytest.raises(ConflictError, match="drafts"):
+        store.create_release({"status": "accepted"})
+
+
+def test_source_licence_policy_is_immutable_after_release_evidence_exists() -> None:
+    source_id = uuid.uuid4()
+    current = {
+        "id": str(source_id),
+        "name": "Source",
+        "publisher": "Publisher",
+        "source_url": "https://example.invalid/source",
+        "adapter_key": "fixture-property",
+        "cadence": "fixture",
+        "licence_id": "licence-v1",
+        "licence_url": "https://example.invalid/licence",
+        "redistribution_policy": "committed-synthetic-fixture",
+        "target_features_json": ["feature-1"],
+        "status": "active",
+        "notes": None,
+    }
+    connection = ScriptedConnection([{"id": source_id}, {"id": uuid.uuid4()}])
+
+    class SourceStore(ConnectedStore):
+        def get_source(self, requested: uuid.UUID) -> dict[str, Any]:
+            assert requested == source_id
+            return current
+
+    with pytest.raises(ConflictError, match="immutable"):
+        SourceStore(connection).update_source(
+            source_id,
+            {"version": 1, "redistribution_policy": "metadata-only"},
+        )
 
 
 def test_publication_idempotency_key_cannot_be_reused_for_another_release() -> None:

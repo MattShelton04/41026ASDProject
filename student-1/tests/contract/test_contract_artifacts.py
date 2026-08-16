@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
 
@@ -192,6 +193,54 @@ def test_discovery_and_publication_contracts_have_representative_fixtures(
     jsonschema.validate(_json(f"fixtures/{valid_fixture}"), schema)
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(_json(f"fixtures/{invalid_fixture}"), schema)
+
+
+@pytest.mark.parametrize(
+    ("schema_name", "valid_fixture"),
+    [
+        ("property-snapshot.v1.schema.json", "property-snapshot.valid.json"),
+        ("property-sales.v1.schema.json", "property-sales.valid.json"),
+        ("crime-series.v1.schema.json", "crime-series.valid.json"),
+        ("school-points.v1.schema.json", "school-points.valid.json"),
+        (
+            "data-product-catalogue-entry.v1.schema.json",
+            "data-product-catalogue-entry.valid.json",
+        ),
+        (
+            "consumer-publication-request.v1.schema.json",
+            "consumer-publication-request.valid.json",
+        ),
+        (
+            "consumer-publication-receipt.v1.schema.json",
+            "consumer-publication-receipt.valid.json",
+        ),
+        ("release-detail.v1.schema.json", "release-detail.valid.json"),
+    ],
+)
+def test_public_contract_matrix_rejects_missing_and_additive_fields(
+    schema_name: str, valid_fixture: str
+) -> None:
+    schema = _json(schema_name)
+    valid = _json(f"fixtures/{valid_fixture}")
+    missing = deepcopy(valid)
+    missing.pop(schema["required"][0])
+    additive = {**valid, "undeclared_future_field": True}
+
+    for invalid in (missing, additive):
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(invalid, schema)
+
+
+def test_openapi_references_checked_in_discovery_and_release_contracts() -> None:
+    document = (CONTRACTS / "data-platform-api.v1.openapi.yaml").read_text("utf-8")
+
+    for reference in (
+        "./data-product-catalogue-entry.v1.schema.json",
+        "./release-detail.v1.schema.json",
+        "./release-manifest.v1.schema.json",
+        "./consumer-publication-receipt.v1.schema.json",
+    ):
+        assert reference in document
 
 
 def test_generated_release_contracts_do_not_drift() -> None:

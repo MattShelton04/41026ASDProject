@@ -74,6 +74,11 @@ the schema/hash/count, and returns a typed receipt. Feature 1 durably records th
 the accepted-pointer transaction. A rejected, malformed, mismatched, unavailable, or timed-out
 consumer leaves the predecessor active.
 
+For Feature 1's own property products there is no separate downstream service. Before recording
+its local receipt, the provider re-reads the registered `release_export` from content-addressed
+storage and verifies the manifest, artifact registration, exact bytes, product schema/release ID,
+and record count. It does not synthesize acceptance from release metadata alone.
+
 Replaying the same operation returns the retained receipt and performs no duplicate import. The
 same target/key with different release evidence conflicts. A consumer that missed the push calls
 the accepted-product endpoint repeatedly; lookups are stable and do not mutate state.
@@ -92,8 +97,10 @@ SHA-256 covers the exact downloadable bytes, not a re-serialised object. The man
 number of records in the product envelope and its byte count is the exact artifact length.
 
 Release 0 uses one immutable JSON artifact per release. Every builder enforces a row limit and the
-50,000,000-byte artifact limit. Planning scopes require an explicit `maximum_records`; PSI full
-acquisition still narrows its downstream release to explicit years. Exceeding either bound fails
+50,000,000-byte artifact limit. Planning resolves the selected declarative profile first, so its
+registered `maximum_records` is present even when an operator supplies only the profile name; an
+override cannot exceed the product builder limit. PSI full acquisition still narrows its downstream
+release to explicit years and its partition year is retained even when business dates are null. Exceeding either bound fails
 with an instruction to narrow geography, period, category, or record scope. There is no silent
 truncation and no multipart or compressed-product fallback.
 
@@ -124,6 +131,11 @@ Ordering is business key then revision, and a duplicate key/revision fails const
 nominal, unusual, part-sale, bulk, and future-dated source records are not silently converted into
 analytics. Feature 2 owns exclusions, comparable semantics, medians, trends, valuations, forecasts,
 returns, and presentation.
+
+During acquisition, an exact retransmission with the same business key and source-row hash is
+collapsed. A changed row under the same business key is retained and receives a deterministic
+revision ordered by first source occurrence during import; it is never silently chosen over the
+earlier facts.
 
 ### Crime series
 

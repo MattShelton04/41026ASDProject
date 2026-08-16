@@ -183,6 +183,20 @@ def test_psi_archive_parses_pre_2001_root_dat_and_deduplicates_retransmission() 
     assert sales[0].area_square_metres == 15000
 
 
+def test_psi_archive_preserves_a_corrected_retransmission_as_a_revision() -> None:
+    first = (
+        "B;001;P1;2;20250101;;1;10;ROAD;SYDNEY;2000;500;M;20250101;20250201;900000;R;R;;;X;;;D1\n"
+    )
+    corrected = first.replace("900000", "910000")
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("20250101.DAT", first + first + corrected)
+
+    sales = tuple(iter_psi_archive(stream.getvalue(), source_year=2025))
+
+    assert [sale.price_aud for sale in sales] == [900000, 910000]
+
+
 def test_psi_archive_detects_legacy_rows_inside_official_2001_archive() -> None:
     row = (
         "B;014;ARCHIVE;2026840000000;361622;;8;LORRAINE AV;BERKELEY VALE;2261;"

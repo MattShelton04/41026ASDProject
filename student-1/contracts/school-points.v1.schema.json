@@ -74,7 +74,7 @@
           "type": "string"
         },
         "longitude": {
-          "maximum": 154,
+          "maximum": 160,
           "minimum": 140,
           "title": "Longitude",
           "type": "number"

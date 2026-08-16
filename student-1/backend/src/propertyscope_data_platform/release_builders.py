@@ -65,7 +65,7 @@ class PropertySnapshotRecord(ProductModel):
     state: str = Field(pattern=r"^NSW$")
     postcode: str = Field(pattern=r"^\d{4}$")
     latitude: float = Field(ge=-38, le=-27)
-    longitude: float = Field(ge=140, le=154)
+    longitude: float = Field(ge=140, le=160)
     source_status: str = Field(min_length=1, max_length=100)
     geocode_type: str | None = Field(default=None, max_length=100)
     geocode_precision: str | None = Field(default=None, max_length=100)
@@ -147,7 +147,7 @@ class SchoolPointRecord(ProductModel):
     state: str = Field(pattern=r"^NSW$")
     lga: str | None = None
     latitude: float = Field(ge=-38, le=-27)
-    longitude: float = Field(ge=140, le=154)
+    longitude: float = Field(ge=140, le=160)
     provenance: ProductProvenance
 
 
@@ -474,7 +474,9 @@ class RegisteredReleaseBuilder:
                 longitude=longitude,
                 source_status=str(row["source_status"]),
                 geocode_type=str(row["geocode_type"]) if row.get("geocode_type") else None,
-                geocode_precision=str(row["geocode_type"]) if row.get("geocode_type") else None,
+                geocode_precision=str(row["geocode_precision"])
+                if row.get("geocode_precision")
+                else None,
                 source_crs=str(row["source_crs"]),
                 transformation_version="postgis-st_transform-1.0.0",
                 provenance=ProductProvenance.model_validate(_provenance(context, row)),

@@ -528,7 +528,7 @@ class AcquisitionRunner:
                 content = self._download_psi_archive(url, maximum_bytes=maximum_bytes)
             sales = parse_psi_archive(content, source_year=year)
             for sale in sales:
-                records.append(_psi_record(sale))
+                records.append(_psi_record(sale, source_year=year))
         document = _live_canonical_document("psi-sales", source_urls, records)
         source = document["source"]
         assert isinstance(source, dict)
@@ -568,7 +568,11 @@ class AcquisitionRunner:
                 if counter[0] % 25_000 == 0:
                     self._heartbeat(str(task["id"]), str(task["lease_token"]))
                 yield (
-                    json.dumps(_psi_record(sale), sort_keys=True, separators=(",", ":")).encode()
+                    json.dumps(
+                        _psi_record(sale, source_year=source_year),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
                     + b"\n"
                 )
 
@@ -904,11 +908,12 @@ def _psi_weeks(scope: dict[str, object]) -> list[date]:
     return sorted(set(weeks))
 
 
-def _psi_record(sale: PsiSale) -> dict[str, object]:
+def _psi_record(sale: PsiSale, *, source_year: int) -> dict[str, object]:
     return {
         "source_business_key": sale.source_business_key,
         "source_revision": 1,
         "source_era": sale.source_era,
+        "source_partition_year": source_year,
         "district_code": sale.district_code or None,
         "property_id": sale.property_id or None,
         "dealing_id": sale.dealing_id,
@@ -1030,6 +1035,7 @@ def _canonical_records(profile: str) -> list[dict[str, object]]:
                 "source_business_key": f"001:P{index}:1",
                 "source_revision": 1,
                 "source_era": "post-2001",
+                "source_partition_year": 2025,
                 "district_code": "001",
                 "property_id": f"P{index}",
                 "dealing_id": f"D{index}",

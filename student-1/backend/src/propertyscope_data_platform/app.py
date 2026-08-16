@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+import uuid
 from pathlib import Path
 
-from flask import Flask, request
+from flask import Flask, Response, g, request
 
 from propertyscope_data_platform.api import create_blueprint, register_error_handlers
 from propertyscope_data_platform.clients import (
@@ -111,6 +112,13 @@ def create_app(
     worker_token = os.environ.get("PROPERTYSCOPE_RUNNER_TOKEN", "local-runner-only")
 
     @app.before_request
+    def establish_correlation() -> None:
+        supplied = request.headers.get("X-Request-ID", "").strip()
+        request_id = supplied if 1 <= len(supplied) <= 100 else str(uuid.uuid4())
+        request.environ["HTTP_X_REQUEST_ID"] = request_id
+        g.request_id = request_id
+
+    @app.before_request
     def protect_worker_api() -> tuple[dict[str, object], int] | None:
         if (
             request.path.startswith("/internal/data-platform/v1/worker/")
@@ -122,6 +130,14 @@ def create_app(
                 "detail": "Runner credential is required",
             }, 401
         return None
+
+    @app.after_request
+    def return_correlation(response: Response) -> Response:
+        response.headers.setdefault("X-Request-ID", g.request_id)
+        traceparent = request.headers.get("traceparent")
+        if traceparent:
+            response.headers.setdefault("traceparent", traceparent)
+        return response
 
     register_error_handlers(app)
     return app

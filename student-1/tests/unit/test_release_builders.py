@@ -168,6 +168,19 @@ def test_registered_property_builder_is_byte_deterministic() -> None:
     assert first.manifest.byte_count == len(first.content)
 
 
+def test_property_builder_preserves_published_identity_without_inventing_precision() -> None:
+    property_ref = "a0000000-0000-0000-0000-000000000001"
+    product = resolve_release_builder("property-snapshot", "1.0.0").build(
+        _context(),
+        [{**_property_row(), "property_ref": property_ref, "geocode_precision": None}],
+        created_at=FIXED_TIME,
+    )
+
+    record = json.loads(product.content)["records"][0]
+    assert record["property_ref"] == property_ref
+    assert record["geocode_precision"] is None
+
+
 def test_release_builder_registry_fails_closed() -> None:
     with pytest.raises(ConfigurationError, match="unknown release builder"):
         resolve_release_builder("not-registered", "1.0.0")
@@ -283,6 +296,35 @@ def test_school_builder_orders_codes_and_preserves_non_operational_status() -> N
     records = json.loads(product.content)["records"]
     assert [item["school_code"] for item in records] == ["S0001", "S0002"]
     assert records[1]["operational_status"] == "Closed"
+
+
+def test_school_builder_accepts_registered_lord_howe_footprint() -> None:
+    context = _context(
+        dataset_id="nsw-government-schools",
+        target_feature="feature-3",
+        import_profile="schools-master",
+        redistribution_policy="approved-bounded-extract",
+    )
+    product = resolve_release_builder("school-points", "1.0.0").build(
+        context,
+        [
+            {
+                "school_code": "1921",
+                "school_name": "Lord Howe Island Central School",
+                "school_type": "Central Schools",
+                "status": "Open",
+                "locality_original": "Lord Howe Island",
+                "locality_normalised": "LORD HOWE ISLAND",
+                "lga_name": None,
+                "geometry": {"type": "Point", "coordinates": [159.069032, -31.530072]},
+                "source_row_sha256": "d" * 64,
+                "normalisation_version": "1.0.0",
+            }
+        ],
+        created_at=FIXED_TIME,
+    )
+
+    assert json.loads(product.content)["records"][0]["longitude"] == 159.069032
 
 
 def test_every_job_profile_matches_a_complete_release_builder_registration() -> None:

@@ -1,5 +1,10 @@
 # Feature 1 marking evidence
 
+> Historical evidence note: this file records the canonical-import and candidate runs observed on
+> 15 August 2026. It predates the registered `release_export` consumer contracts and is not, by
+> itself, proof of artifact binding, consumer receipt, or property activation for those products.
+> Current implementation and test claims belong in `DATA_PRODUCT_CONSUMER_GUIDE.md`.
+
 This record is evidence from a fresh full-data deployment on 15 August 2026. The PostgreSQL and
 artifact volumes for the isolated `41026-asd-propertyscope-full-data` Compose project were empty
 before the runs below. The ordinary development volumes, Ollama model volume and read-only source

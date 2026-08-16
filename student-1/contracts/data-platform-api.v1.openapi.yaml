@@ -17,19 +17,27 @@ paths:
     get:
       operationId: listDataProducts
       description: Lists the complete registered provider catalogue and capability state.
-      responses: {'200': {description: Data product catalogue}}
+      responses:
+        '200':
+          description: Data product catalogue
+          content: {application/json: {schema: {$ref: '#/components/schemas/DataProductCatalogue'}}}
   /data-products/{dataset_id}:
     get:
       operationId: getDataProduct
       parameters: [{name: dataset_id, in: path, required: true, schema: {type: string}}]
-      responses: {'200': {description: Registered data product}, '404': {$ref: '#/components/responses/Problem'}}
+      responses:
+        '200': {description: Registered data product, content: {application/json: {schema: {$ref: './data-product-catalogue-entry.v1.schema.json'}}}}
+        '404': {$ref: '#/components/responses/Problem'}
   /data-products/{dataset_id}/accepted:
     get:
       operationId: getAcceptedDataProductRelease
       parameters:
         - {name: dataset_id, in: path, required: true, schema: {type: string}}
         - {name: target_feature, in: query, schema: {type: string}}
-      responses: {'200': {description: Current accepted release}, '404': {$ref: '#/components/responses/Problem'}}
+      responses:
+        '200': {description: Current accepted release, content: {application/json: {schema: {$ref: '#/components/schemas/AcceptedRelease'}}}}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /sources:
     get:
       operationId: listSources
@@ -112,7 +120,11 @@ paths:
     post: {operationId: createDatasetRelease, responses: {'201': {description: Draft release created}, '409': {$ref: '#/components/responses/Problem'}}}
   /dataset-releases/{release_id}:
     parameters: [{$ref: '#/components/parameters/ReleaseId'}]
-    get: {operationId: getDatasetRelease, responses: {'200': {description: Release detail}, '404': {$ref: '#/components/responses/Problem'}}}
+    get:
+      operationId: getDatasetRelease
+      responses:
+        '200': {description: Release inspection evidence, content: {application/json: {schema: {$ref: '#/components/schemas/ReleaseInspection'}}}}
+        '404': {$ref: '#/components/responses/Problem'}
     put: {operationId: updateDatasetRelease, responses: {'200': {description: Release updated}, '409': {$ref: '#/components/responses/Problem'}}}
     delete: {operationId: deleteDatasetRelease, responses: {'204': {description: Deleted}, '409': {$ref: '#/components/responses/Problem'}}}
   /dataset-releases/{release_id}/manifest:
@@ -155,8 +167,11 @@ paths:
         - {$ref: '#/components/parameters/ReleaseId'}
         - {$ref: '#/components/parameters/IdempotencyKey'}
       description: Calls the fixed consumer import contract, persists its immutable receipt, and advances the accepted pointer only after acceptance.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/OperatorPublishRequest'}}}
       responses:
-        '200': {description: Consumer accepted and release activated}
+        '200': {description: Consumer accepted and release activated, content: {application/json: {schema: {$ref: '#/components/schemas/PublicationResult'}}}}
         '409': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/Problem'}
         '424': {$ref: '#/components/responses/Problem'}
@@ -227,6 +242,49 @@ components:
     AgentRunId: {name: agent_run_id, in: path, required: true, schema: {type: string, format: uuid}}
     PropertyRef: {name: property_ref, in: path, required: true, schema: {type: string, format: uuid}}
   schemas:
+    DataProductCatalogue:
+      type: object
+      additionalProperties: false
+      required: [items, count, next_cursor]
+      properties:
+        items: {type: array, maxItems: 5, items: {$ref: './data-product-catalogue-entry.v1.schema.json'}}
+        count: {type: integer, minimum: 0, maximum: 5}
+        next_cursor: {type: 'null'}
+    AcceptedRelease:
+      type: object
+      additionalProperties: false
+      required: [release]
+      properties:
+        release: {$ref: './release-detail.v1.schema.json'}
+    ReleaseInspection:
+      type: object
+      required: [release, quality_results, quality_summary, receipts, accepted_predecessor, release_contract]
+      properties:
+        release: {type: object}
+        release_contract:
+          anyOf:
+            - {$ref: './release-detail.v1.schema.json'}
+            - {type: 'null'}
+        quality_results: {type: array, maxItems: 100, items: {type: object}}
+        quality_summary: {type: object}
+        receipts: {type: array, maxItems: 100, items: {$ref: './consumer-publication-receipt.v1.schema.json'}}
+        accepted_predecessor: {type: [object, 'null']}
+    OperatorPublishRequest:
+      type: object
+      additionalProperties: false
+      required: [version, comment, approved]
+      properties:
+        version: {type: integer, minimum: 1}
+        comment: {type: string, minLength: 1, maxLength: 2000}
+        approved: {const: true}
+    PublicationResult:
+      type: object
+      additionalProperties: false
+      required: [release, receipt, replayed]
+      properties:
+        release: {type: object}
+        receipt: {$ref: './consumer-publication-receipt.v1.schema.json'}
+        replayed: {type: boolean}
     SourceDefinition:
       type: object
       additionalProperties: false

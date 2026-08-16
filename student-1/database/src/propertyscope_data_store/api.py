@@ -228,7 +228,15 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     @api.get("/internal/data-platform/v1/releases")
     def releases_list() -> Response:
         limit, offset = pagination()
-        allowed = {"status", "dataset_id", "target_feature", "schema_version", "limit", "offset"}
+        allowed = {
+            "status",
+            "dataset_id",
+            "target_feature",
+            "schema_version",
+            "ingestion_run_id",
+            "limit",
+            "offset",
+        }
         unknown = set(request.args) - allowed
         if unknown:
             raise ValidationError("unknown release query parameter")
@@ -237,6 +245,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             dataset_id=request.args.get("dataset_id"),
             target_feature=request.args.get("target_feature"),
             schema_version=request.args.get("schema_version"),
+            ingestion_run_id=request.args.get("ingestion_run_id"),
             limit=limit,
             offset=offset,
         )

@@ -67,6 +67,8 @@ def prepare_import(data: bytes, *, profile: str) -> PreparedImport:
         raise ImportProfileError("canonical import artifact exceeds bounded row limit")
     validator = _VALIDATORS[profile]
     rows = tuple(validator(row, index) for index, row in enumerate(source_rows, start=1))
+    if profile == "psi-sales":
+        rows = _normalise_psi_revisions(rows)
     _validate_natural_keys(profile, rows)
     return PreparedImport(profile=profile, rows=rows)
 
@@ -279,6 +281,23 @@ def _validate_natural_keys(profile: str, rows: tuple[dict[str, Any], ...]) -> No
         raise ImportProfileError("canonical import natural keys must be unique")
 
 
+def _normalise_psi_revisions(
+    rows: tuple[dict[str, Any], ...],
+) -> tuple[dict[str, Any], ...]:
+    """Collapse exact PSI retransmissions and version changed facts in source order."""
+    seen: dict[str, set[str]] = {}
+    normalised: list[dict[str, Any]] = []
+    for row in rows:
+        key = str(row["source_business_key"])
+        digest = str(row["source_row_sha256"])
+        hashes = seen.setdefault(key, set())
+        if digest in hashes:
+            continue
+        hashes.add(digest)
+        normalised.append({**row, "source_revision": len(hashes)})
+    return tuple(normalised)
+
+
 def _fixture(row: object, index: int) -> dict[str, Any]:
     source = _object(row, index)
     latitude, longitude = _coordinates(source, index)
@@ -352,15 +371,26 @@ def _psi(row: object, index: int) -> dict[str, Any]:
     confidence = _decimal(source, "match_confidence", index)
     if not Decimal("0") <= confidence <= Decimal("1"):
         raise ImportProfileError(f"record {index} match_confidence is outside 0..1")
+    contract_date = _optional_date(source, "contract_date", index)
+    settlement_date = _optional_date(source, "settlement_date", index)
+    source_partition_year = _optional_integer(source, "source_partition_year", index, minimum=1990)
+    if source_partition_year is None:
+        scoped_date = contract_date or settlement_date
+        if scoped_date is None:
+            raise ImportProfileError(
+                f"record {index} requires source_partition_year when both dates are null"
+            )
+        source_partition_year = int(scoped_date[:4])
     result = {
         "source_business_key": _text(source, "source_business_key", index),
         "source_revision": _integer(source, "source_revision", index, minimum=1),
         "source_era": _text(source, "source_era", index),
+        "source_partition_year": source_partition_year,
         "district_code": _optional_text(source, "district_code", index),
         "property_id": _optional_text(source, "property_id", index),
         "dealing_id": _optional_text(source, "dealing_id", index),
-        "contract_date": _optional_date(source, "contract_date", index),
-        "settlement_date": _optional_date(source, "settlement_date", index),
+        "contract_date": contract_date,
+        "settlement_date": settlement_date,
         "price_aud": _optional_integer(source, "price_aud", index, minimum=0),
         "area_original": _optional_decimal(source, "area_original", index),
         "area_unit": _optional_text(source, "area_unit", index),
@@ -370,7 +400,8 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         "match_confidence": str(confidence),
         "geographic_precision": _text(source, "geographic_precision", index),
     }
-    return _with_hash(result)
+    facts = {key: value for key, value in result.items() if key != "source_revision"}
+    return {**_with_hash(facts), "source_revision": result["source_revision"]}
 
 
 def _bocsar(row: object, index: int) -> dict[str, Any]:
@@ -606,14 +637,28 @@ _PROFILE_INSERT_SQL = {
         ON CONFLICT (dataset_release_id,gnaf_pid) DO NOTHING
     """,
     "psi-sales": """
+        WITH distinct_source_rows AS (
+            SELECT DISTINCT ON (
+                payload->>'source_business_key',payload->>'source_row_sha256'
+            ) payload,ordinal
+            FROM propertyscope_import_stage
+            ORDER BY payload->>'source_business_key',payload->>'source_row_sha256',ordinal
+        ), ranked_source_rows AS (
+            SELECT payload,row_number() OVER (
+                PARTITION BY payload->>'source_business_key' ORDER BY ordinal
+            )::integer AS derived_revision
+            FROM distinct_source_rows
+        )
         INSERT INTO warehouse.psi_sale (
-            dataset_release_id,source_business_key,source_revision,source_era,district_code,
+            dataset_release_id,source_business_key,source_revision,source_era,
+            source_partition_year,district_code,
             property_id,dealing_id,contract_date,settlement_date,price_aud,area_original,
             area_unit,area_square_metres,property_ref,match_tier,match_confidence,
             geographic_precision,source_row_sha256,normalisation_version,artifact_record_id,
             ingestion_run_id,created_at
-        ) SELECT %s,payload->>'source_business_key',(payload->>'source_revision')::integer,
-            payload->>'source_era',NULLIF(payload->>'district_code',''),
+        ) SELECT %s,payload->>'source_business_key',derived_revision,
+            payload->>'source_era',(payload->>'source_partition_year')::integer,
+            NULLIF(payload->>'district_code',''),
             NULLIF(payload->>'property_id',''),NULLIF(payload->>'dealing_id',''),
             NULLIF(payload->>'contract_date','')::date,NULLIF(payload->>'settlement_date','')::date,
             NULLIF(payload->>'price_aud','')::bigint,NULLIF(payload->>'area_original','')::numeric,
@@ -621,7 +666,7 @@ _PROFILE_INSERT_SQL = {
             NULLIF(payload->>'property_ref','')::uuid,payload->>'match_tier',
             (payload->>'match_confidence')::numeric,payload->>'geographic_precision',
             payload->>'source_row_sha256','1.0.0',%s,%s,now()
-        FROM propertyscope_import_stage ORDER BY ordinal
+        FROM ranked_source_rows ORDER BY payload->>'source_business_key',derived_revision
         ON CONFLICT (dataset_release_id,source_business_key,source_revision) DO NOTHING
     """,
     "bocsar-sparse": """
