@@ -621,7 +621,7 @@ class AcquisitionRunner:
     def _live_gnaf(
         self, task: dict[str, Any], scope: dict[str, object]
     ) -> tuple[dict[str, object], list[dict[str, object]]]:
-        source_url, declared_crs = self._gnaf_source()
+        source_url, declared_crs = self._discovered_gnaf_source(task)
         maximum_bytes = min(int(task.get("max_bytes", 2_500_000_000)), 2_500_000_000)
         if self.settings.gnaf_archive_path and self.settings.gnaf_archive_path.is_file():
             stream = self.settings.gnaf_archive_path.open("rb")
@@ -713,6 +713,19 @@ class AcquisitionRunner:
             "raw_storage_key": raw_artifact.storage_key,
         }
         return document, records
+
+    def _discovered_gnaf_source(self, task: dict[str, Any]) -> tuple[str, str]:
+        snapshot = task.get("source_snapshot_json")
+        if not isinstance(snapshot, dict):
+            raise RuntimeError("G-NAF acquisition requires retained discovery evidence")
+        objects = snapshot.get("objects")
+        if not isinstance(objects, list) or len(objects) != 1 or not isinstance(objects[0], dict):
+            raise RuntimeError("G-NAF discovery evidence is invalid")
+        source_url = objects[0].get("source_url")
+        declared_crs = objects[0].get("coordinate_reference_system")
+        if not isinstance(source_url, str) or declared_crs not in {"GDA94", "GDA2020"}:
+            raise RuntimeError("G-NAF discovery resource evidence is incomplete")
+        return source_url, str(declared_crs)
 
     def _gnaf_source(self) -> tuple[str, str]:
         if self.settings.gnaf_archive_path and self.settings.gnaf_archive_path.is_file():

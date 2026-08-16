@@ -621,6 +621,12 @@ class PropertyScopeStore:
                                 kind,
                             ),
                         )
+                    connection.execute(
+                        """UPDATE ops.ingestion_run child SET source_snapshot_json=
+                        (SELECT parent.source_snapshot_json FROM ops.ingestion_run parent
+                         WHERE parent.id=%s) WHERE child.id=%s""",
+                        (parent_run_id, run_id),
+                    )
                 connection.commit()
             except errors.UniqueViolation:
                 connection.rollback()
@@ -829,6 +835,7 @@ class PropertyScopeStore:
                 )
                 context = connection.execute(
                     """SELECT run.profile_key,run.run_mode,run.requested_scope_json,
+                    run.source_snapshot_json,
                     job.adapter_key,job.import_profile_key,job.import_profile_version,
                     job.dataset_id,job.target_feature,job.source_definition_id,
                     job.max_bytes,job.max_rows,job.timeout_seconds
@@ -1842,9 +1849,8 @@ class PropertyScopeStore:
                 if values["artifact_kind"] == "source_snapshot":
                     snapshot = _source_snapshot(values)
                     connection.execute(
-                        """UPDATE ops.ingestion_run SET source_snapshot_json=%s,
-                        updated_at=%s,version=version+1 WHERE id=%s""",
-                        (_json(snapshot), datetime.now(UTC), lineage_params[0]),
+                        "UPDATE ops.ingestion_run SET source_snapshot_json=%s WHERE id=%s",
+                        (_json(snapshot), lineage_params[0]),
                     )
                 connection.commit()
         except errors.UniqueViolation:
@@ -1860,15 +1866,18 @@ class PropertyScopeStore:
         if values["artifact_kind"] != "source_snapshot":
             return
         snapshot = _source_snapshot(values)
+        run_id = uuid.UUID(str(values["ingestion_run_id"]))
+        current = self._required(
+            "SELECT source_snapshot_json FROM ops.ingestion_run WHERE id=%s", (run_id,)
+        )
+        if current.get("source_snapshot_json") is not None:
+            if current["source_snapshot_json"] != snapshot:
+                raise ConflictError("source snapshot replay evidence does not match")
+            return
         with self.connection() as connection:
             connection.execute(
-                """UPDATE ops.ingestion_run SET source_snapshot_json=%s,
-                updated_at=%s,version=version+1 WHERE id=%s""",
-                (
-                    _json(snapshot),
-                    datetime.now(UTC),
-                    uuid.UUID(str(values["ingestion_run_id"])),
-                ),
+                "UPDATE ops.ingestion_run SET source_snapshot_json=%s WHERE id=%s",
+                (_json(snapshot), run_id),
             )
             connection.commit()
 
