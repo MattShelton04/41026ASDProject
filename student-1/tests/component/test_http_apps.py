@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import httpx
+import pytest
 import yaml
 
 from propertyscope_data_platform.app import create_app as create_backend_app
@@ -14,6 +15,7 @@ from propertyscope_data_platform.clients import (
     ConsumerImportClient,
     DataStoreClient,
 )
+from propertyscope_data_platform.domain import ConsumerPublicationRequest
 
 
 def test_backend_proxies_property_search_and_preserves_expected_negative() -> None:
@@ -225,6 +227,112 @@ def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
     assert response.status_code == 424
     assert events == ["receipt"]
     assert response.get_json()["code"] == "consumer_publication_failed"
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_code"),
+    [
+        (
+            httpx.Response(
+                200,
+                json={
+                    "consumer_operation_id": "publish-release",
+                    "status": "accepted",
+                    "schema_version": "propertyscope.wrong.v1",
+                    "content_sha256": "a" * 64,
+                    "rows_received": 1,
+                    "rows_accepted": 1,
+                    "rows_rejected": 0,
+                    "error": None,
+                },
+            ),
+            "consumer_evidence_mismatch",
+        ),
+        (
+            httpx.Response(
+                200,
+                json={
+                    "consumer_operation_id": "publish-release",
+                    "status": "accepted",
+                    "schema_version": "propertyscope.property-sales.v1",
+                    "content_sha256": "b" * 64,
+                    "rows_received": 1,
+                    "rows_accepted": 1,
+                    "rows_rejected": 0,
+                    "error": None,
+                },
+            ),
+            "consumer_evidence_mismatch",
+        ),
+        (
+            httpx.Response(200, content=b"not-json"),
+            "consumer_response_invalid",
+        ),
+        (
+            httpx.Response(302, headers={"Location": "http://untrusted.invalid/import"}),
+            "consumer_response_invalid",
+        ),
+    ],
+)
+def test_consumer_receipt_mismatch_and_redirects_fail_closed(
+    response: httpx.Response, expected_code: str
+) -> None:
+    publication = ConsumerPublicationRequest(
+        release_id="60000000-0000-0000-0000-000000000099",
+        dataset_id="nsw-psi-sales",
+        schema_version="propertyscope.property-sales.v1",
+        content_sha256="a" * 64,
+        record_count=1,
+        manifest={},
+        artifact_path=(
+            "/api/data-platform/v1/dataset-releases/60000000-0000-0000-0000-000000000099/artifact"
+        ),
+        idempotency_key="publish-release",
+    )
+    client = ConsumerImportClient(
+        {"feature-2": ConsumerEndpoint("http://feature-2", "/api/imports")},
+        client=httpx.Client(transport=httpx.MockTransport(lambda _: response)),
+    )
+
+    receipt = client.publish("feature-2", publication, {})
+
+    assert receipt.status == "failed"
+    assert receipt.error is not None and receipt.error.code == expected_code
+
+
+def test_consumer_unavailability_returns_retryable_safe_receipt() -> None:
+    def unavailable(_: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("offline")
+
+    publication = ConsumerPublicationRequest(
+        release_id="60000000-0000-0000-0000-000000000099",
+        dataset_id="nsw-psi-sales",
+        schema_version="propertyscope.property-sales.v1",
+        content_sha256="a" * 64,
+        record_count=1,
+        manifest={},
+        artifact_path=(
+            "/api/data-platform/v1/dataset-releases/60000000-0000-0000-0000-000000000099/artifact"
+        ),
+        idempotency_key="publish-release",
+    )
+    client = ConsumerImportClient(
+        {"feature-2": ConsumerEndpoint("http://feature-2", "/api/imports")},
+        client=httpx.Client(transport=httpx.MockTransport(unavailable)),
+    )
+
+    receipt = client.publish("feature-2", publication, {})
+
+    assert receipt.status == "failed"
+    assert receipt.error is not None
+    assert receipt.error.code == "consumer_unavailable"
+    assert receipt.error.retryable is True
+
+
+@pytest.mark.parametrize("path", ["/api/../admin", "/api/imports?next=evil", "//evil"])
+def test_consumer_endpoint_rejects_unfixed_paths(path: str) -> None:
+    with pytest.raises(ValueError, match="fixed API path"):
+        ConsumerEndpoint("http://feature-2", path)
 
 
 def test_ai_unavailable_does_not_break_readiness() -> None:

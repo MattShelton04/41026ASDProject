@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 from flask import Blueprint, Response, jsonify, request
+from pydantic import ValidationError
 
 from propertyscope_data_platform.artifacts import ArtifactError, LocalArtifactStore
 from propertyscope_data_platform.clients import (
@@ -25,6 +26,7 @@ from propertyscope_data_platform.domain import (
 )
 from propertyscope_data_platform.release_builders import (
     BuildContext,
+    ReleaseManifestV1,
     data_product_catalogue,
     resolve_release_builder,
 )
@@ -90,6 +92,8 @@ def create_blueprint(
 
     @api.get(f"{BASE}/data-products")
     def data_products() -> Response:
+        if request.args:
+            return problem(422, "invalid_query", "Data product catalogue takes no query fields")
         accepted_response = store.request(
             "GET",
             f"{INTERNAL}/releases",
@@ -131,10 +135,29 @@ def create_blueprint(
 
     @api.get(f"{BASE}/data-products/<dataset_id>")
     def data_product(dataset_id: str) -> Response:
+        if request.args:
+            return problem(422, "invalid_query", "Data product detail takes no query fields")
         entry = next((item for item in product_catalogue if item.dataset_id == dataset_id), None)
         if entry is None:
             return problem(404, "data_product_not_found", "Data product is not registered")
-        return jsonify(entry.model_dump(mode="json"))
+        accepted_response = store.request(
+            "GET",
+            f"{INTERNAL}/releases",
+            headers=request.headers,
+            params={
+                "status": "accepted",
+                "dataset_id": dataset_id,
+                "target_feature": entry.target_feature,
+                "limit": 1,
+                "offset": 0,
+            },
+        )
+        if accepted_response.status_code >= 400:
+            return forward(accepted_response)
+        matching = next(iter(accepted_response.json().get("items", [])), None)
+        payload = entry.model_dump(mode="json")
+        payload["latest_accepted_release"] = matching
+        return jsonify(payload)
 
     @api.get(f"{BASE}/data-products/<dataset_id>/accepted")
     def accepted_data_product(dataset_id: str) -> Response:
@@ -412,9 +435,7 @@ def create_blueprint(
     def release(release_id: uuid.UUID) -> Response:
         if request.method != "GET":
             return proxy_item(store, f"{INTERNAL}/releases/{release_id}")
-        return forward(
-            store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
-        )
+        return release_inspection(store, release_id)
 
     @api.get(f"{BASE}/dataset-releases/<uuid:release_id>/manifest")
     def release_manifest(release_id: uuid.UUID) -> Response:
@@ -1222,6 +1243,21 @@ def finalize_candidate_release(
             "invalid_release_export_binding",
             "A complete release export binding is required",
         )
+    try:
+        manifest = ReleaseManifestV1.model_validate(body["manifest"])
+    except (KeyError, ValidationError):
+        return problem(422, "invalid_release_manifest", "Release manifest is contract-invalid")
+    if (
+        str(manifest.release_id) != release_id
+        or manifest.product_schema_version != body["schema_version"]
+        or manifest.content_sha256 != body["content_sha256"]
+        or manifest.record_count != body["record_count"]
+    ):
+        return problem(
+            422,
+            "invalid_release_export_binding",
+            "Release manifest and export binding disagree",
+        )
     return forward(
         store.request(
             "POST",
@@ -1399,33 +1435,53 @@ def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Respons
     response = store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
     if response.status_code >= 400:
         return forward(response)
-    release = response.json()["release"]
+    release_envelope = response.json()
+    release = release_envelope["release"]
     quality_response = store.request(
         "GET",
         f"{INTERNAL}/runs/{release['ingestion_run_id']}/quality-results",
         headers=request.headers,
         params={"limit": 100},
     )
-    releases_response = store.request(
-        "GET",
-        f"{INTERNAL}/releases",
-        headers=request.headers,
-        params={"status": "accepted", "limit": 100},
-    )
-    predecessor = next(
-        (
-            item
-            for item in releases_response.json().get("items", [])
-            if item["dataset_id"] == release["dataset_id"]
-            and item["target_feature"] == release["target_feature"]
-            and item["id"] != release["id"]
+    predecessor = None
+    if release.get("supersedes_release_id"):
+        predecessor_response = store.request(
+            "GET",
+            f"{INTERNAL}/releases/{release['supersedes_release_id']}",
+            headers=request.headers,
+        )
+        if predecessor_response.status_code < 400:
+            predecessor = predecessor_response.json().get("release")
+    elif release["status"] != "accepted":
+        releases_response = store.request(
+            "GET",
+            f"{INTERNAL}/releases",
+            headers=request.headers,
+            params={
+                "status": "accepted",
+                "dataset_id": release["dataset_id"],
+                "target_feature": release["target_feature"],
+                "limit": 1,
+                "offset": 0,
+            },
+        )
+        predecessor = next(iter(releases_response.json().get("items", [])), None)
+    quality_results = quality_response.json().get("items", [])
+    quality_summary = {
+        "total": len(quality_results),
+        "passed": sum(item.get("status") == "pass" for item in quality_results),
+        "failed": sum(item.get("status") == "fail" for item in quality_results),
+        "blocking_failures": sum(
+            item.get("status") == "fail" and item.get("severity") == "blocking"
+            for item in quality_results
         ),
-        None,
-    )
+    }
     return jsonify(
         {
             "release": release,
-            "quality_results": quality_response.json().get("items", []),
+            "quality_results": quality_results,
+            "quality_summary": quality_summary,
+            "receipts": release_envelope.get("receipts", []),
             "accepted_predecessor": predecessor,
         }
     )

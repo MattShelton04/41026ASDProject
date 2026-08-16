@@ -27,6 +27,7 @@ def create_app(
     psi_cached_years: tuple[int, ...] | None = None,
     psi_cached_weeks: tuple[str, ...] | None = None,
     feature_root: Path | None = None,
+    artifact_root: Path | None = None,
 ) -> Flask:
     """Create the credential-free Feature 1 backend."""
     resolved_feature_root = feature_root or Path(__file__).resolve().parents[3]
@@ -96,7 +97,8 @@ def create_app(
             store,
             ai_mode,
             consumers,
-            artifact_root=Path(
+            artifact_root=artifact_root
+            or Path(
                 os.environ.get("PROPERTYSCOPE_ARTIFACT_ROOT", "/var/lib/propertyscope/artifacts")
             ),
             full_data_enabled=live_runtime,

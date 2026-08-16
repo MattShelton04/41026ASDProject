@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -16,6 +18,7 @@ from propertyscope_data_platform.configuration import (
 )
 from propertyscope_data_platform.release_builders import (
     BuildContext,
+    RegisteredReleaseBuilder,
     default_release_builders,
     resolve_release_builder,
     validate_release_job,
@@ -293,4 +296,105 @@ def test_every_job_profile_matches_a_complete_release_builder_registration() -> 
             profile,
             source=sources.get_profile(profile.source_key),
             schema_names=schema_names,
+        )
+
+
+def test_builder_bounds_fail_without_silent_truncation() -> None:
+    registered = resolve_release_builder("property-snapshot", "1.0.0")
+    row_bounded = RegisteredReleaseBuilder(replace(registered.spec, max_rows=1))
+    byte_bounded = RegisteredReleaseBuilder(replace(registered.spec, max_bytes=10))
+
+    with pytest.raises(ValueError, match="row bound"):
+        row_bounded.build(_context(), [_property_row(1), _property_row(2)], created_at=FIXED_TIME)
+    with pytest.raises(ValueError, match="byte bound"):
+        byte_bounded.build(_context(), [_property_row(1)], created_at=FIXED_TIME)
+
+
+@pytest.mark.parametrize(
+    ("change", "schemas", "message"),
+    [
+        ({"release_builder": {"key": "missing", "version": "1.0.0"}}, None, "unknown"),
+        (
+            {"release_builder": {"key": "property-snapshot", "version": "2.0.0"}},
+            None,
+            "unsupported",
+        ),
+        (
+            {"target": {"feature": "feature-1", "contract": "propertyscope.wrong.v1"}},
+            None,
+            "target contract",
+        ),
+        (
+            {"target": {"feature": "feature-2", "contract": "propertyscope.property-snapshot.v1"}},
+            None,
+            "target feature",
+        ),
+        ({}, set(), "schema is absent"),
+    ],
+)
+def test_incomplete_release_registrations_fail_closed(
+    change: dict[str, Any], schemas: set[str] | None, message: str
+) -> None:
+    profiles = load_job_profiles(ROOT / "config" / "job-profiles")
+    sources = load_source_register(ROOT / "config" / "source-register.yaml")
+    original = profiles.get_profile("fixture-property-full")
+    profile = type(original).model_validate({**original.model_dump(mode="python"), **change})
+    available = schemas if schemas is not None else {"propertyscope.property-snapshot.v1"}
+
+    with pytest.raises(ConfigurationError, match=message):
+        validate_release_job(
+            profile,
+            source=sources.get_profile(profile.source_key),
+            schema_names=available,
+        )
+
+
+def test_runner_rejects_generation_change_during_pagination(tmp_path: Path) -> None:
+    run_id = "50000000-0000-0000-0000-000000000098"
+    release_id = "60000000-0000-0000-0000-000000000098"
+    page = 0
+
+    def backend(request: httpx.Request) -> httpx.Response:
+        nonlocal page
+        if request.url.path.endswith("/release-build-context"):
+            context = _context(
+                release_id=release_id,
+                candidate_generation_id=release_id,
+            )
+            return httpx.Response(
+                200,
+                json={
+                    "context": context.model_dump(mode="json"),
+                    "builder": {"key": "property-snapshot", "version": "1.0.0"},
+                    "target_contract": "propertyscope.property-snapshot.v1",
+                    "release_id": release_id,
+                },
+            )
+        page += 1
+        return httpx.Response(
+            200,
+            json={
+                "release_id": release_id,
+                "candidate_generation_id": release_id if page == 1 else str(uuid.uuid4()),
+                "items": [_property_row(page)],
+                "count": 1,
+                "total": 2,
+                "next_offset": 1 if page == 1 else None,
+            },
+        )
+
+    runner = AcquisitionRunner(
+        _settings(tmp_path),
+        client=httpx.Client(transport=httpx.MockTransport(backend)),
+        clock=lambda: FIXED_TIME,
+    )
+
+    with pytest.raises(RuntimeError, match="generation changed"):
+        runner._execute(
+            {
+                "id": "40000000-0000-0000-0000-000000000098",
+                "ingestion_run_id": run_id,
+                "stage": "build_release",
+                "logical_key": "06/build_release",
+            }
         )

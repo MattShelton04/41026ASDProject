@@ -9,6 +9,7 @@ import { formField } from "./components/forms.js";
 import { renderLoading } from "./components/states.js";
 import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js";
 import { createEntityRoutes } from "./routes/entities.js";
+import { createDataProductRoutes } from "./routes/data-products.js";
 import { createEvidenceRoutes } from "./routes/evidence.js";
 import { renderOverview } from "./routes/overview.js";
 import { createPropertyRoutes } from "./routes/properties.js";
@@ -165,6 +166,7 @@ const openPlanDialog = createRunPlanner({ request, mutate, confirmAction, showTo
 const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, showToast, rerender: renderRoute });
 const { renderRuns, renderRunDetail } = createRunRoutes({ view, request, mutate, confirmAction, showToast, announce, state, generationGuard, rerender: renderRoute });
 const { renderProperties } = createPropertyRoutes({ view, request, announce });
+const { renderDataProducts } = createDataProductRoutes({ view, request, loading, rerender: renderRoute });
 const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, mutate, showToast, rerender: renderRoute });
 const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request, loading, rerender: renderRoute });
 const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender: renderRoute });
@@ -179,6 +181,7 @@ async function renderRoute() {
   const { route, id } = parseRoute(location.hash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
   try {
     if (route === "overview") await renderOverview({ view, request });
+    else if (route === "data-products") await renderDataProducts(id);
     else if (route === "sources" || route === "jobs") id ? await renderEntityDetail(route, id) : await renderEntityList(route);
     else if (route === "runs") id ? await renderRunDetail(id) : await renderRuns();
     else if (route === "releases") await renderReleases(id);

@@ -1,0 +1,14 @@
+{
+  "id": "60000000-0000-0000-0000-000000000003",
+  "dataset_id": "bocsar-crime",
+  "target_feature": "feature-3",
+  "release_version": "release-fixture-crime-v1",
+  "schema_version": "propertyscope.crime-series.v1",
+  "status": "accepted",
+  "record_count": 1,
+  "content_sha256": "bad",
+  "manifest_json": {},
+  "supersedes_release_id": null,
+  "version": 3,
+  "receipts": []
+}

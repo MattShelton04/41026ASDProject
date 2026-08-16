@@ -1,0 +1,10 @@
+{
+  "release_id": "60000000-0000-0000-0000-000000000002",
+  "dataset_id": "nsw-psi-sales",
+  "schema_version": "propertyscope.property-sales.v1",
+  "content_sha256": "not-a-sha256",
+  "record_count": 1,
+  "manifest": {},
+  "artifact_path": "/api/data-platform/v1/dataset-releases/60000000-0000-0000-0000-000000000002/artifact",
+  "idempotency_key": "synthetic-publication-1"
+}

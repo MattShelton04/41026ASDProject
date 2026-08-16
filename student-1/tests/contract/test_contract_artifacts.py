@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, cast
 
+import httpx
 import jsonschema
 import pytest
 import yaml
 
 from ai_mode.tool_catalog import load_tool_catalog
+from propertyscope_data_platform.app import create_app
+from propertyscope_data_platform.clients import AiModeClient, DataStoreClient
 from propertyscope_data_platform.release_builders import product_schema_documents
 from shared_contracts.feature import load_feature_manifest
 
@@ -62,8 +66,8 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/properties/{property_ref}/coverage",
         "/properties/{property_ref}/report-section",
         "/agent-runs",
-        "/agent-runs/{agent_run_id}",
-        "/agent-runs/{agent_run_id}/events",
+        "/agent-runs/{run_id}",
+        "/agent-runs/{run_id}/events",
         "/tools/sources.list.v1",
         "/tools/runs.list.v1",
         "/tools/runs.inspect.v1",
@@ -76,6 +80,36 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/tools/releases.publish.v1",
     }
     assert set(document["paths"]) == expected_paths
+
+
+def test_openapi_operations_exactly_match_public_runtime_routes() -> None:
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    app = create_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=unavailable)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=unavailable)),
+    )
+    base = "/api/data-platform/v1"
+
+    def contract_path(rule: str) -> str:
+        return re.sub(r"<(?:[^:>]+:)?([^>]+)>", r"{\1}", rule.removeprefix(base))
+
+    runtime = {
+        (contract_path(rule.rule), method.lower())
+        for rule in app.url_map.iter_rules()
+        if rule.rule.startswith(base)
+        for method in rule.methods
+        if method not in {"HEAD", "OPTIONS"}
+    }
+    document = yaml.safe_load((CONTRACTS / "data-platform-api.v1.openapi.yaml").read_text("utf-8"))
+    described = {
+        (path, method)
+        for path, operations in document["paths"].items()
+        for method in operations
+        if method in {"get", "post", "put", "delete", "patch"}
+    }
+    assert described == runtime
 
 
 def test_release_manifest_fixtures_encode_success_and_failure() -> None:
@@ -118,6 +152,40 @@ def test_release_manifest_fixtures_encode_success_and_failure() -> None:
     ],
 )
 def test_data_product_contracts_have_valid_and_invalid_redistributable_fixtures(
+    schema_name: str, valid_fixture: str, invalid_fixture: str
+) -> None:
+    schema = _json(schema_name)
+    jsonschema.validate(_json(f"fixtures/{valid_fixture}"), schema)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(_json(f"fixtures/{invalid_fixture}"), schema)
+
+
+@pytest.mark.parametrize(
+    ("schema_name", "valid_fixture", "invalid_fixture"),
+    [
+        (
+            "data-product-catalogue-entry.v1.schema.json",
+            "data-product-catalogue-entry.valid.json",
+            "data-product-catalogue-entry.invalid-missing-field.json",
+        ),
+        (
+            "consumer-publication-request.v1.schema.json",
+            "consumer-publication-request.valid.json",
+            "consumer-publication-request.invalid-checksum.json",
+        ),
+        (
+            "consumer-publication-receipt.v1.schema.json",
+            "consumer-publication-receipt.valid.json",
+            "consumer-publication-receipt.invalid-checksum.json",
+        ),
+        (
+            "release-detail.v1.schema.json",
+            "release-detail.valid.json",
+            "release-detail.invalid-checksum.json",
+        ),
+    ],
+)
+def test_discovery_and_publication_contracts_have_representative_fixtures(
     schema_name: str, valid_fixture: str, invalid_fixture: str
 ) -> None:
     schema = _json(schema_name)

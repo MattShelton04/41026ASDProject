@@ -97,15 +97,15 @@ paths:
         - {$ref: '#/components/parameters/Limit'}
         - {$ref: '#/components/parameters/Cursor'}
       responses: {'200': {$ref: '#/components/responses/Page'}, '503': {$ref: '#/components/responses/Problem'}}
-  /agent-runs/{agent_run_id}:
+  /agent-runs/{run_id}:
     get:
       operationId: getFeatureAgentRun
-      parameters: [{$ref: '#/components/parameters/AgentRunId'}]
+      parameters: [{$ref: '#/components/parameters/RunId'}]
       responses: {'200': {description: Durable AI-mode run detail}, '404': {$ref: '#/components/responses/Problem'}, '503': {$ref: '#/components/responses/Problem'}}
-  /agent-runs/{agent_run_id}/events:
+  /agent-runs/{run_id}/events:
     get:
       operationId: listFeatureAgentRunEvents
-      parameters: [{$ref: '#/components/parameters/AgentRunId'}, {$ref: '#/components/parameters/Limit'}]
+      parameters: [{$ref: '#/components/parameters/RunId'}, {$ref: '#/components/parameters/Limit'}]
       responses: {'200': {$ref: '#/components/responses/Page'}, '404': {$ref: '#/components/responses/Problem'}, '503': {$ref: '#/components/responses/Problem'}}
   /dataset-releases:
     get: {operationId: listDatasetReleases, responses: {'200': {$ref: '#/components/responses/Page'}}}
