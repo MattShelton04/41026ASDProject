@@ -6,11 +6,30 @@ info:
 servers:
   - url: /api/data-platform/v1
 paths:
+  /overview:
+    get: {operationId: getOverview, responses: {'200': {description: Platform overview}}}
   /runtime-capabilities:
     get:
       operationId: getRuntimeCapabilities
       description: Reports whether this stack can execute registered live acquisition profiles.
       responses: {'200': {description: Runtime acquisition capabilities}}
+  /data-products:
+    get:
+      operationId: listDataProducts
+      description: Lists the complete registered provider catalogue and capability state.
+      responses: {'200': {description: Data product catalogue}}
+  /data-products/{dataset_id}:
+    get:
+      operationId: getDataProduct
+      parameters: [{name: dataset_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: Registered data product}, '404': {$ref: '#/components/responses/Problem'}}
+  /data-products/{dataset_id}/accepted:
+    get:
+      operationId: getAcceptedDataProductRelease
+      parameters:
+        - {name: dataset_id, in: path, required: true, schema: {type: string}}
+        - {name: target_feature, in: query, schema: {type: string}}
+      responses: {'200': {description: Current accepted release}, '404': {$ref: '#/components/responses/Problem'}}
   /sources:
     get:
       operationId: listSources
@@ -33,6 +52,11 @@ paths:
     get: {operationId: getJob, responses: {'200': {description: Job detail}, '404': {$ref: '#/components/responses/Problem'}}}
     put: {operationId: updateJob, responses: {'200': {description: Job updated}, '409': {$ref: '#/components/responses/Problem'}}}
     delete: {operationId: deleteJob, responses: {'204': {description: Deleted}, '409': {$ref: '#/components/responses/Problem'}}}
+  /jobs/{job_id}/capabilities:
+    get:
+      operationId: getJobCapabilities
+      parameters: [{$ref: '#/components/parameters/JobId'}]
+      responses: {'200': {description: Registered executable capabilities}, '404': {$ref: '#/components/responses/Problem'}}
   /jobs/{job_id}/plans:
     post:
       operationId: planRun
@@ -49,6 +73,20 @@ paths:
     get: {operationId: getRun, parameters: [{$ref: '#/components/parameters/RunId'}], responses: {'200': {description: Run evidence}, '404': {$ref: '#/components/responses/Problem'}}}
   /ingestion-runs:
     get: {operationId: listRuns, responses: {'200': {$ref: '#/components/responses/Page'}}}
+  /ingestion-runs/{run_id}/tasks:
+    get: {operationId: listRunTasks, parameters: [{$ref: '#/components/parameters/RunId'}], responses: {'200': {$ref: '#/components/responses/Page'}}}
+  /ingestion-runs/{run_id}/artifacts:
+    get: {operationId: listRunArtifacts, parameters: [{$ref: '#/components/parameters/RunId'}], responses: {'200': {$ref: '#/components/responses/Page'}}}
+  /ingestion-runs/{run_id}/quality-results:
+    get: {operationId: listRunQualityResults, parameters: [{$ref: '#/components/parameters/RunId'}], responses: {'200': {$ref: '#/components/responses/Page'}}}
+  /ingestion-runs/{run_id}/cancel:
+    post: {operationId: cancelRun, parameters: [{$ref: '#/components/parameters/RunId'}], responses: {'200': {description: Run cancelled}, '409': {$ref: '#/components/responses/Problem'}}}
+  /ingestion-runs/{run_id}/resume:
+    post: {operationId: resumeRun, parameters: [{$ref: '#/components/parameters/RunId'}], responses: {'200': {description: Run resumed}, '409': {$ref: '#/components/responses/Problem'}}}
+  /ingestion-runs/{run_id}/retry:
+    post: {operationId: retryRun, parameters: [{$ref: '#/components/parameters/RunId'}, {$ref: '#/components/parameters/IdempotencyKey'}], responses: {'201': {description: Retry queued}, '409': {$ref: '#/components/responses/Problem'}}}
+  /ingestion-runs/{run_id}/reprocess-cached:
+    post: {operationId: reprocessCachedRun, parameters: [{$ref: '#/components/parameters/RunId'}, {$ref: '#/components/parameters/IdempotencyKey'}], responses: {'201': {description: Cached reprocessing queued}, '409': {$ref: '#/components/responses/Problem'}}}
   /agent-runs:
     get:
       operationId: listFeatureAgentRuns
@@ -69,6 +107,14 @@ paths:
       operationId: listFeatureAgentRunEvents
       parameters: [{$ref: '#/components/parameters/AgentRunId'}, {$ref: '#/components/parameters/Limit'}]
       responses: {'200': {$ref: '#/components/responses/Page'}, '404': {$ref: '#/components/responses/Problem'}, '503': {$ref: '#/components/responses/Problem'}}
+  /dataset-releases:
+    get: {operationId: listDatasetReleases, responses: {'200': {$ref: '#/components/responses/Page'}}}
+    post: {operationId: createDatasetRelease, responses: {'201': {description: Draft release created}, '409': {$ref: '#/components/responses/Problem'}}}
+  /dataset-releases/{release_id}:
+    parameters: [{$ref: '#/components/parameters/ReleaseId'}]
+    get: {operationId: getDatasetRelease, responses: {'200': {description: Release detail}, '404': {$ref: '#/components/responses/Problem'}}}
+    put: {operationId: updateDatasetRelease, responses: {'200': {description: Release updated}, '409': {$ref: '#/components/responses/Problem'}}}
+    delete: {operationId: deleteDatasetRelease, responses: {'204': {description: Deleted}, '409': {$ref: '#/components/responses/Problem'}}}
   /dataset-releases/{release_id}/manifest:
     get: {operationId: getReleaseManifest, parameters: [{$ref: '#/components/parameters/ReleaseId'}], responses: {'200': {description: Release manifest, content: {application/json: {schema: {$ref: './release-manifest.v1.schema.json'}}}}, '404': {$ref: '#/components/responses/Problem'}}}
   /dataset-releases/{release_id}/artifact:
@@ -97,6 +143,11 @@ paths:
               schema: {$ref: '#/components/schemas/ReleaseRecordPreview'}
         '404': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /dataset-releases/{release_id}/submit-review:
+    post:
+      operationId: submitDatasetReleaseForReview
+      parameters: [{$ref: '#/components/parameters/ReleaseId'}]
+      responses: {'200': {description: Release awaiting review}, '409': {$ref: '#/components/responses/Problem'}}
   /dataset-releases/{release_id}/publish:
     post:
       operationId: publishRelease
@@ -109,6 +160,16 @@ paths:
         '409': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/Problem'}
         '424': {$ref: '#/components/responses/Problem'}
+  /dataset-releases/{release_id}/reject:
+    post:
+      operationId: rejectDatasetRelease
+      parameters: [{$ref: '#/components/parameters/ReleaseId'}]
+      responses: {'200': {description: Release rejected}, '409': {$ref: '#/components/responses/Problem'}}
+  /dataset-releases/{release_id}/agent-runs:
+    post:
+      operationId: createReleaseAgentRun
+      parameters: [{$ref: '#/components/parameters/ReleaseId'}]
+      responses: {'201': {description: AI-mode run created}, '503': {$ref: '#/components/responses/Problem'}}
   /properties/search:
     get:
       operationId: searchProperties
@@ -119,6 +180,10 @@ paths:
       responses: {'200': {$ref: '#/components/responses/Page'}, '400': {$ref: '#/components/responses/Problem'}}
   /properties/{property_ref}:
     get: {operationId: getProperty, parameters: [{$ref: '#/components/parameters/PropertyRef'}], responses: {'200': {description: Property evidence}, '404': {$ref: '#/components/responses/Problem'}}}
+  /properties/{property_ref}/map-context:
+    get: {operationId: getPropertyMapContext, parameters: [{$ref: '#/components/parameters/PropertyRef'}], responses: {'200': {description: Property map context}, '404': {$ref: '#/components/responses/Problem'}}}
+  /properties/{property_ref}/coverage:
+    get: {operationId: getPropertyCoverage, parameters: [{$ref: '#/components/parameters/PropertyRef'}], responses: {'200': {description: Accepted product coverage}, '404': {$ref: '#/components/responses/Problem'}}}
   /properties/{property_ref}/report-section:
     get:
       operationId: getPropertyReportSection
@@ -130,6 +195,26 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ReportSection'}
         '404': {$ref: '#/components/responses/Problem'}
+  /tools/sources.list.v1:
+    post: {operationId: toolSourcesList, responses: {'200': {description: Tool result}}}
+  /tools/runs.list.v1:
+    post: {operationId: toolRunsList, responses: {'200': {description: Tool result}}}
+  /tools/runs.inspect.v1:
+    post: {operationId: toolRunsInspect, responses: {'200': {description: Tool result}}}
+  /tools/releases.inspect.v1:
+    post: {operationId: toolReleasesInspect, responses: {'200': {description: Tool result}}}
+  /tools/releases.compare.v1:
+    post: {operationId: toolReleasesCompare, responses: {'200': {description: Tool result}}}
+  /tools/coverage.inspect.v1:
+    post: {operationId: toolCoverageInspect, responses: {'200': {description: Tool result}}}
+  /tools/properties.search.v1:
+    post: {operationId: toolPropertiesSearch, responses: {'200': {description: Tool result}}}
+  /tools/properties.inspect.v1:
+    post: {operationId: toolPropertiesInspect, responses: {'200': {description: Tool result}}}
+  /tools/runs.retry.v1:
+    post: {operationId: toolRunsRetry, responses: {'200': {description: Tool result}}}
+  /tools/releases.publish.v1:
+    post: {operationId: toolReleasesPublish, responses: {'200': {description: Tool result}}}
 components:
   parameters:
     Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}

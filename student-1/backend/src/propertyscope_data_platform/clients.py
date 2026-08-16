@@ -165,6 +165,9 @@ class ConsumerImportClient:
                 if (
                     result.schema_version != publication.schema_version
                     or result.content_sha256 != publication.content_sha256
+                    or result.rows_received != publication.record_count
+                    or result.rows_accepted != publication.record_count
+                    or result.rows_rejected != 0
                 ):
                     return self._failed(
                         publication,

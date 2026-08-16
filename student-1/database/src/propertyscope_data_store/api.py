@@ -228,7 +228,18 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     @api.get("/internal/data-platform/v1/releases")
     def releases_list() -> Response:
         limit, offset = pagination()
-        items = store.list_releases(status=request.args.get("status"), limit=limit, offset=offset)
+        allowed = {"status", "dataset_id", "target_feature", "schema_version", "limit", "offset"}
+        unknown = set(request.args) - allowed
+        if unknown:
+            raise ValidationError("unknown release query parameter")
+        items = store.list_releases(
+            status=request.args.get("status"),
+            dataset_id=request.args.get("dataset_id"),
+            target_feature=request.args.get("target_feature"),
+            schema_version=request.args.get("schema_version"),
+            limit=limit,
+            offset=offset,
+        )
         return jsonify(envelope(items, limit=limit, offset=offset))
 
     @api.post("/internal/data-platform/v1/releases")
@@ -252,6 +263,19 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     def releases_records(release_id: uuid.UUID) -> Response:
         limit, offset = pagination()
         return jsonify(store.preview_release_records(release_id, limit=limit, offset=offset))
+
+    @api.get("/internal/data-platform/v1/runs/<uuid:run_id>/release-build-context")
+    def releases_build_context(run_id: uuid.UUID) -> Response:
+        return jsonify({"context": store.release_build_context(run_id)})
+
+    @api.get("/internal/data-platform/v1/releases/<uuid:release_id>/product-records")
+    def releases_product_records(release_id: uuid.UUID) -> Response:
+        limit, offset = pagination()
+        return jsonify(store.release_product_records(release_id, limit=limit, offset=offset))
+
+    @api.post("/internal/data-platform/v1/releases/<uuid:release_id>/bind-export")
+    def releases_bind_export(release_id: uuid.UUID) -> Response:
+        return jsonify({"release": store.bind_release_export(release_id, payload())})
 
     @api.put("/internal/data-platform/v1/releases/<uuid:release_id>")
     def releases_update(release_id: uuid.UUID) -> Response:

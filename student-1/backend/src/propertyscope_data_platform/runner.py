@@ -9,7 +9,7 @@ import re
 import signal
 import time
 import uuid
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -24,6 +24,11 @@ from propertyscope_data_platform.adapters.gnaf import parse_gnaf_archive_path
 from propertyscope_data_platform.adapters.psi import PsiSale, iter_psi_archive, parse_psi_archive
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
 from propertyscope_data_platform.artifacts import LocalArtifactStore
+from propertyscope_data_platform.release_builders import (
+    BuildContext,
+    resolve_release_builder,
+    validate_feature_registration,
+)
 
 SCHOOLS_MASTER_URL = (
     "https://data.nsw.gov.au/data/dataset/"
@@ -79,10 +84,17 @@ class RunnerSettings:
 class AcquisitionRunner:
     """Bounded deterministic worker; source transports are selected by registered jobs only."""
 
-    def __init__(self, settings: RunnerSettings, *, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        settings: RunnerSettings,
+        *,
+        client: httpx.Client | None = None,
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
         self.settings = settings
         self.client = client or httpx.Client(timeout=10, follow_redirects=False)
         self.artifacts = LocalArtifactStore(settings.artifact_root)
+        self.clock = clock or (lambda: datetime.now(UTC))
         self.stop_event = Event()
 
     def run_forever(self) -> None:
@@ -211,15 +223,113 @@ class AcquisitionRunner:
         if stage == "import":
             return self._execute_import(task)
         if stage == "build_release":
-            response = self.client.post(
-                f"{self.settings.backend_url}/internal/data-platform/v1/worker/runs/"
-                f"{task['ingestion_run_id']}/finalize-release",
-                headers=self._headers(),
-                json={},
-            )
-            response.raise_for_status()
-            return 1, 1
+            return self._execute_release_build(task)
         return 0, 0
+
+    def _execute_release_build(self, task: dict[str, Any]) -> tuple[int, int]:
+        run_id = str(task["ingestion_run_id"])
+        context_response = self._control_request(
+            "GET",
+            f"{self.settings.backend_url}/internal/data-platform/v1/worker/runs/"
+            f"{run_id}/release-build-context",
+            headers=self._headers(),
+        )
+        context_response.raise_for_status()
+        payload = context_response.json()
+        builder_ref = payload.get("builder")
+        if not isinstance(builder_ref, dict):
+            raise RuntimeError("Release build context has no registered builder")
+        builder = resolve_release_builder(
+            str(builder_ref.get("key")), str(builder_ref.get("version"))
+        )
+        target_contract = str(payload.get("target_contract"))
+        if target_contract != builder.spec.contract:
+            raise RuntimeError("Release target contract does not match the registered builder")
+        context = BuildContext.model_validate(payload.get("context"))
+        release_id = str(payload["release_id"])
+        rows: list[dict[str, Any]] = []
+        offset = 0
+        page_size = 100
+        expected_total: int | None = None
+        while True:
+            page_response = self._control_request(
+                "GET",
+                f"{self.settings.backend_url}/internal/data-platform/v1/worker/releases/"
+                f"{release_id}/product-records",
+                headers=self._headers(),
+                params={"limit": page_size, "offset": offset},
+            )
+            page_response.raise_for_status()
+            page = page_response.json()
+            page_release_id = str(page.get("release_id", release_id))
+            generation_id = str(
+                page.get("candidate_generation_id", context.candidate_generation_id)
+            )
+            if page_release_id != release_id or generation_id != str(
+                context.candidate_generation_id
+            ):
+                raise RuntimeError("Candidate generation changed during release construction")
+            total = int(page["total"])
+            if expected_total is None:
+                expected_total = total
+            elif total != expected_total:
+                raise RuntimeError("Candidate generation count changed during release construction")
+            items = page.get("items")
+            if not isinstance(items, list):
+                raise RuntimeError("Release product page is malformed")
+            rows.extend(items)
+            if len(rows) > builder.spec.max_rows:
+                raise RuntimeError(
+                    "Release product exceeds its row bound; narrow the requested scope"
+                )
+            next_offset = page.get("next_offset")
+            if next_offset is None:
+                break
+            if not isinstance(next_offset, int) or next_offset <= offset:
+                raise RuntimeError("Release product pagination cursor is invalid")
+            offset = next_offset
+        if expected_total != len(rows):
+            raise RuntimeError("Release product page count is inconsistent")
+        product = builder.build(context, rows, created_at=self.clock())
+        artifact = self.artifacts.put(
+            (product.content,),
+            max_bytes=builder.spec.max_bytes,
+            media_type=builder.spec.media_type,
+        )
+        registration = self._control_request(
+            "POST",
+            f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/"
+            f"{task['id']}/artifacts",
+            headers=self._headers(),
+            json={
+                "ingestion_run_id": run_id,
+                "logical_key": task["logical_key"],
+                "artifact_kind": "release_export",
+                "storage_key": artifact.storage_key,
+                "content_sha256": artifact.sha256,
+                "media_type": artifact.media_type,
+                "bytes": artifact.bytes,
+                "schema_version": builder.spec.contract,
+                "retention_class": "candidate",
+            },
+        )
+        registration.raise_for_status()
+        artifact_record = registration.json()["artifact"]
+        finalize = self._control_request(
+            "POST",
+            f"{self.settings.backend_url}/internal/data-platform/v1/worker/runs/"
+            f"{run_id}/finalize-release",
+            headers=self._headers(),
+            json={
+                "artifact_record_id": artifact_record["id"],
+                "schema_version": builder.spec.contract,
+                "content_sha256": artifact.sha256,
+                "record_count": product.manifest.record_count,
+                "manifest": product.manifest.model_dump(mode="json"),
+            },
+        )
+        finalize.raise_for_status()
+        return len(rows), product.manifest.record_count
 
     def _register_stage_artifact(
         self, task: dict[str, Any], *, stage: str, artifact: Any, schema_version: str
@@ -853,7 +963,36 @@ def _optional_path(value: str | None) -> Path | None:
 def _canonical_records(profile: str) -> list[dict[str, object]]:
     """Produce bounded licensed synthetic evidence through every registered import profile."""
     if profile == "property-fixture":
-        return [{"source_key": f"fixture-{index:03d}"} for index in range(1, 11)]
+        localities = (
+            ("PARRAMATTA", "2150", -33.8151, 151.0011),
+            ("MOSMAN", "2088", -33.8298, 151.2441),
+            ("WOLLONGONG", "2500", -34.4278, 150.8931),
+        )
+        return [
+            {
+                "source_pid": f"FIX-{index:03d}",
+                "property_ref": None,
+                "address_display": (
+                    f"{index} FIXTURE STREET {localities[(index - 1) % 3][0]} NSW "
+                    f"{localities[(index - 1) % 3][1]}"
+                ),
+                "flat_type": None,
+                "unit_number": None,
+                "street_number_first": index,
+                "street_number_suffix": None,
+                "street_number_last": None,
+                "street_name": "FIXTURE",
+                "street_type": "STREET",
+                "locality": localities[(index - 1) % 3][0],
+                "postcode": localities[(index - 1) % 3][1],
+                "source_status": "CURRENT",
+                "geocode_type": "FIXTURE",
+                "source_crs": 4326,
+                "latitude": localities[(index - 1) % 3][2] + index * 0.00001,
+                "longitude": localities[(index - 1) % 3][3] + index * 0.00001,
+            }
+            for index in range(1, 11)
+        ]
     if profile == "schools-master":
         return [
             {
@@ -938,6 +1077,7 @@ def _canonical_records(profile: str) -> list[dict[str, object]]:
 
 
 def main() -> None:
+    validate_feature_registration(Path(__file__).resolve().parents[3])
     runner = AcquisitionRunner(RunnerSettings.from_environment())
     signal.signal(signal.SIGTERM, lambda *_: runner.stop())
     signal.signal(signal.SIGINT, lambda *_: runner.stop())

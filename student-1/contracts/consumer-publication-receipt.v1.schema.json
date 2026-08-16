@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "SafeError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 100,
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "SafeError",
+      "type": "object"
+    }
+  },
+  "$id": "https://propertyscope.local/contracts/consumer-publication-receipt.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "consumer_operation_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Consumer Operation Id",
+      "type": "string"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SafeError"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "rows_accepted": {
+      "minimum": 0,
+      "title": "Rows Accepted",
+      "type": "integer"
+    },
+    "rows_received": {
+      "minimum": 0,
+      "title": "Rows Received",
+      "type": "integer"
+    },
+    "rows_rejected": {
+      "minimum": 0,
+      "title": "Rows Rejected",
+      "type": "integer"
+    },
+    "schema_version": {
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "accepted",
+        "rejected",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "consumer_operation_id",
+    "status",
+    "schema_version",
+    "content_sha256",
+    "rows_received",
+    "rows_accepted",
+    "rows_rejected"
+  ],
+  "title": "PublicationReceiptResult",
+  "type": "object"
+}

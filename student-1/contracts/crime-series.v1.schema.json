@@ -1,0 +1,234 @@
+{
+  "$defs": {
+    "CrimeObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "exclusiveMinimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "month": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "Month",
+          "type": "string"
+        },
+        "source_row_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Row Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "month",
+        "count",
+        "source_row_sha256"
+      ],
+      "title": "CrimeObservation",
+      "type": "object"
+    },
+    "CrimeSeriesRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "blank_means_observed_zero": {
+          "title": "Blank Means Observed Zero",
+          "type": "boolean"
+        },
+        "completeness_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Completeness Sha256",
+          "type": "string"
+        },
+        "first_month": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "First Month",
+          "type": "string"
+        },
+        "geography_kind": {
+          "pattern": "^(postcode|suburb)$",
+          "title": "Geography Kind",
+          "type": "string"
+        },
+        "geography_value": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Geography Value",
+          "type": "string"
+        },
+        "last_month": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "Last Month",
+          "type": "string"
+        },
+        "month_count": {
+          "maximum": 240,
+          "minimum": 1,
+          "title": "Month Count",
+          "type": "integer"
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/$defs/CrimeObservation"
+          },
+          "maxItems": 240,
+          "title": "Observations",
+          "type": "array"
+        },
+        "observed_months": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 240,
+          "minItems": 1,
+          "title": "Observed Months",
+          "type": "array"
+        },
+        "offence_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Offence Label"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ProductProvenance"
+        },
+        "source_category_key": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Source Category Key",
+          "type": "string"
+        },
+        "state": {
+          "pattern": "^NSW$",
+          "title": "State",
+          "type": "string"
+        },
+        "subcategory_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subcategory Label"
+        }
+      },
+      "required": [
+        "geography_kind",
+        "geography_value",
+        "state",
+        "source_category_key",
+        "observed_months",
+        "first_month",
+        "last_month",
+        "month_count",
+        "blank_means_observed_zero",
+        "completeness_sha256",
+        "observations",
+        "provenance"
+      ],
+      "title": "CrimeSeriesRecord",
+      "type": "object"
+    },
+    "ProductProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_generation_id": {
+          "format": "uuid",
+          "title": "Candidate Generation Id",
+          "type": "string"
+        },
+        "normalisation_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Normalisation Version",
+          "type": "string"
+        },
+        "release_id": {
+          "format": "uuid",
+          "title": "Release Id",
+          "type": "string"
+        },
+        "release_version": {
+          "maxLength": 150,
+          "minLength": 1,
+          "title": "Release Version",
+          "type": "string"
+        },
+        "source_record_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Record Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "release_id",
+        "release_version",
+        "candidate_generation_id",
+        "source_record_sha256",
+        "normalisation_version"
+      ],
+      "title": "ProductProvenance",
+      "type": "object"
+    }
+  },
+  "$id": "https://propertyscope.local/contracts/crime-series.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidate_generation_id": {
+      "format": "uuid",
+      "title": "Candidate Generation Id",
+      "type": "string"
+    },
+    "dataset_id": {
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "records": {
+      "items": {
+        "$ref": "#/$defs/CrimeSeriesRecord"
+      },
+      "title": "Records",
+      "type": "array"
+    },
+    "release_id": {
+      "format": "uuid",
+      "title": "Release Id",
+      "type": "string"
+    },
+    "release_version": {
+      "title": "Release Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "pattern": "^propertyscope\\.crime-series\\.v1$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_feature": {
+      "pattern": "^feature-3$",
+      "title": "Target Feature",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "release_id",
+    "release_version",
+    "dataset_id",
+    "target_feature",
+    "candidate_generation_id",
+    "records"
+  ],
+  "title": "CrimeSeriesProduct",
+  "type": "object"
+}

@@ -12,7 +12,10 @@ target: {feature: feature-2, contract: propertyscope.property-sales.v1}
 scope_profiles:
   test: {years: [2025], maximum_records: 20}
   showcase: {years: [2025], maximum_records: 250000}
-  full-data: {all_history: true, include_current_weekly: true}
+  full-data:
+    all_history: true
+    include_current_weekly: true
+    release_scope: {years: [2025], maximum_records: 250000}
 quality_policy: psi-sales.v1
 limits:
   {max_objects: 1000, max_bytes: 20000000000, max_rows: 100000000,

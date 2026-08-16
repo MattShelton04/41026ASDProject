@@ -888,12 +888,32 @@ class PropertyScopeStore:
         )
 
     # Release lifecycle and evidence.
-    def list_releases(self, *, status: str | None, limit: int, offset: int) -> list[JsonObject]:
+    def list_releases(
+        self,
+        *,
+        status: str | None,
+        dataset_id: str | None = None,
+        target_feature: str | None = None,
+        schema_version: str | None = None,
+        limit: int,
+        offset: int,
+    ) -> list[JsonObject]:
         query = "SELECT * FROM ops.dataset_release"
         params: list[Any] = []
+        predicates: list[str] = []
         if status:
-            query += " WHERE status=%s"
+            predicates.append("status=%s")
             params.append(status)
+        for column, value in (
+            ("dataset_id", dataset_id),
+            ("target_feature", target_feature),
+            ("schema_version", schema_version),
+        ):
+            if value:
+                predicates.append(f"{column}=%s")
+                params.append(value)
+        if predicates:
+            query += " WHERE " + " AND ".join(predicates)
         query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
         params.extend((limit, offset))
         return self._fetch_all(query, params)
@@ -1029,6 +1049,217 @@ class PropertyScopeStore:
             else None,
         }
 
+    def release_build_context(self, run_id: uuid.UUID) -> JsonObject:
+        """Return one persistence-neutral build context bound to an imported generation."""
+        return self._required(
+            """SELECT release.id AS release_id,release.release_version,release.dataset_id,
+            release.target_feature,release.id AS candidate_generation_id,release.coverage_json,
+            COALESCE(release.supersedes_release_id,(
+                SELECT prior.id FROM ops.dataset_release prior
+                WHERE prior.dataset_id=release.dataset_id
+                  AND prior.target_feature=release.target_feature
+                  AND prior.status='accepted' ORDER BY prior.accepted_at DESC LIMIT 1
+            )) AS supersedes_release_id,run.profile_key AS source_release,
+            run.normalisation_version,run.release_builder_version,
+            job.release_builder_key,job.import_profile_key,source.name AS source_name,
+            source.publisher,source.licence_id,source.licence_url,
+            source.redistribution_policy,run.finished_at AS source_retrieved_at
+            FROM ops.ingestion_run run JOIN ops.job_definition job
+              ON job.id=run.job_definition_id
+            JOIN ops.source_definition source ON source.id=run.source_definition_id
+            JOIN ops.dataset_release release ON release.ingestion_run_id=run.id
+            WHERE run.id=%s AND release.status IN ('draft','candidate')""",
+            (run_id,),
+        )
+
+    def release_product_records(
+        self, release_id: uuid.UUID, *, limit: int, offset: int
+    ) -> JsonObject:
+        """Page the immutable candidate projection used only by registered builders."""
+        context = self._required(
+            """SELECT release.id,release.coverage_json,job.import_profile_key
+            FROM ops.dataset_release release JOIN ops.ingestion_run run
+              ON run.id=release.ingestion_run_id
+            JOIN ops.job_definition job ON job.id=run.job_definition_id
+            WHERE release.id=%s AND release.status IN ('draft','candidate')""",
+            (release_id,),
+        )
+        profile = str(context["import_profile_key"])
+        if profile in {"property-fixture", "gnaf-nsw"}:
+            rows = self._fetch_all(
+                """SELECT COALESCE(property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid)
+                    AS property_ref,gnaf_pid AS source_address_id,address_display,flat_type,
+                    unit_number,street_number_first,street_number_suffix,street_number_last,
+                    street_name,street_type,locality,postcode,source_status,geocode_type,
+                    source_crs,ST_AsGeoJSON(geom)::jsonb AS geometry,source_row_sha256,
+                    normalisation_version FROM warehouse.gnaf_address
+                WHERE dataset_release_id=%s ORDER BY property_ref,gnaf_pid LIMIT %s OFFSET %s""",
+                (release_id, limit, offset),
+            )
+            count = self._required(
+                "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
+                (release_id,),
+            )
+        elif profile == "psi-sales":
+            year_filter = context["coverage_json"].get("release_scope", context["coverage_json"])
+            years = year_filter.get("years", []) if isinstance(year_filter, dict) else []
+            if not isinstance(years, list) or not years:
+                raise ConflictError(
+                    "PSI release construction requires an explicit bounded year scope"
+                )
+            rows = self._fetch_all(
+                """SELECT source_business_key,source_revision,source_era,district_code,
+                property_id,dealing_id,contract_date::text,settlement_date::text,price_aud,
+                area_original::text,area_unit,area_square_metres::text,property_ref,match_tier,
+                match_confidence::text,geographic_precision,source_row_sha256,normalisation_version
+                FROM warehouse.psi_sale WHERE dataset_release_id=%s
+                  AND EXTRACT(YEAR FROM contract_date)=ANY(%s)
+                ORDER BY source_business_key,source_revision LIMIT %s OFFSET %s""",
+                (release_id, years, limit, offset),
+            )
+            count = self._required(
+                """SELECT count(*) AS count FROM warehouse.psi_sale
+                WHERE dataset_release_id=%s AND EXTRACT(YEAR FROM contract_date)=ANY(%s)""",
+                (release_id, years),
+            )
+        elif profile == "bocsar-sparse":
+            rows = self._fetch_all(
+                """SELECT * FROM (
+                    SELECT 'observation'::text AS record_kind,geography_kind,geography_value,
+                    source_category_key,offence_label,subcategory_label,month::text,count,
+                    NULL::date[] AS observed_months,NULL::text AS first_month,
+                    NULL::text AS last_month,NULL::integer AS month_count,
+                    NULL::boolean AS blank_means_observed_zero,
+                    NULL::text AS completeness_sha256,source_row_sha256,normalisation_version
+                    FROM warehouse.bocsar_observation WHERE dataset_release_id=%s
+                    UNION ALL
+                    SELECT 'coverage',geography_kind,geography_value,source_category_key,
+                    NULL,NULL,NULL,NULL,observed_months,first_month::text,last_month::text,
+                    month_count,blank_means_observed_zero,completeness_sha256,
+                    source_row_sha256,normalisation_version
+                    FROM warehouse.bocsar_coverage WHERE dataset_release_id=%s
+                ) product ORDER BY geography_kind,geography_value,source_category_key,
+                    record_kind,month NULLS LAST LIMIT %s OFFSET %s""",
+                (release_id, release_id, limit, offset),
+            )
+            for row in rows:
+                if row.get("observed_months"):
+                    row["observed_months"] = [value.isoformat() for value in row["observed_months"]]
+            count = self._required(
+                """SELECT (SELECT count(*) FROM warehouse.bocsar_observation
+                    WHERE dataset_release_id=%s) +
+                    (SELECT count(*) FROM warehouse.bocsar_coverage
+                    WHERE dataset_release_id=%s) AS count""",
+                (release_id, release_id),
+            )
+        elif profile == "schools-master":
+            rows = self._fetch_all(
+                """SELECT school_code,school_name,school_type,status,locality_original,
+                locality_normalised,lga_name,ST_AsGeoJSON(geom)::jsonb AS geometry,
+                source_row_sha256,normalisation_version FROM warehouse.school
+                WHERE dataset_release_id=%s ORDER BY school_code LIMIT %s OFFSET %s""",
+                (release_id, limit, offset),
+            )
+            count = self._required(
+                "SELECT count(*) AS count FROM warehouse.school WHERE dataset_release_id=%s",
+                (release_id,),
+            )
+        else:
+            raise ConflictError("release import profile has no registered product projection")
+        total = int(count["count"])
+        return {
+            "release_id": str(release_id),
+            "candidate_generation_id": str(release_id),
+            "items": rows,
+            "count": len(rows),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "next_offset": offset + len(rows) if offset + len(rows) < total else None,
+        }
+
+    def bind_release_export(self, release_id: uuid.UUID, values: Mapping[str, Any]) -> JsonObject:
+        """Atomically bind the verified export and complete the candidate transition."""
+        artifact_id = uuid.UUID(str(values["artifact_record_id"]))
+        now = datetime.now(UTC)
+        with self.connection() as connection:
+            release = connection.execute(
+                "SELECT * FROM ops.dataset_release WHERE id=%s FOR UPDATE", (release_id,)
+            ).fetchone()
+            if release is None:
+                raise NotFoundError("record does not exist")
+            artifact = connection.execute(
+                "SELECT * FROM ops.artifact_record WHERE id=%s", (artifact_id,)
+            ).fetchone()
+            if artifact is None:
+                raise NotFoundError("release export artifact does not exist")
+            manifest = values.get("manifest")
+            if not isinstance(manifest, dict):
+                raise ConflictError("release export manifest is invalid")
+            expected = (
+                str(values["schema_version"]),
+                str(values["content_sha256"]),
+                int(values["record_count"]),
+            )
+            if release["status"] == "candidate":
+                actual = (
+                    str(release["schema_version"]),
+                    str(release["content_sha256"]),
+                    int(release["record_count"]),
+                )
+                if (
+                    actual != expected
+                    or release["artifact_record_id"] != artifact_id
+                    or release["manifest_json"] != manifest
+                ):
+                    raise ConflictError(
+                        "candidate release export replay conflicts with immutable evidence"
+                    )
+                return _dict(release)
+            if release["status"] != "draft":
+                raise ConflictError("only a draft release can bind an export")
+            if artifact["ingestion_run_id"] != release["ingestion_run_id"]:
+                raise ConflictError("release export belongs to another candidate generation")
+            if artifact["artifact_kind"] != "release_export":
+                raise ConflictError("release artifact is not a release export")
+            if (
+                artifact["schema_version"] != expected[0]
+                or artifact["content_sha256"] != expected[1]
+                or int(artifact["bytes"]) != int(manifest.get("byte_count", -1))
+                or manifest.get("content_sha256") != expected[1]
+                or int(manifest.get("record_count", -1)) != expected[2]
+                or manifest.get("product_schema_version") != expected[0]
+                or str(manifest.get("release_id")) != str(release_id)
+            ):
+                raise ConflictError(
+                    "release export artifact, manifest, and requested binding disagree"
+                )
+            blocking = connection.execute(
+                """SELECT count(*) AS count FROM ops.quality_result WHERE dataset_release_id=%s
+                AND severity='blocking' AND status<>'pass'""",
+                (release_id,),
+            ).fetchone()
+            if blocking is None or int(blocking["count"]) != 0:
+                raise ConflictError("release cannot become candidate before blocking gates pass")
+            row = connection.execute(
+                """UPDATE ops.dataset_release SET schema_version=%s,record_count=%s,
+                content_sha256=%s,artifact_record_id=%s,manifest_json=%s,status='candidate',
+                updated_at=%s,version=version+1 WHERE id=%s AND status='draft' RETURNING *""",
+                (
+                    expected[0],
+                    expected[2],
+                    expected[1],
+                    artifact_id,
+                    _json(manifest),
+                    now,
+                    release_id,
+                ),
+            ).fetchone()
+            connection.commit()
+        if row is None:
+            raise ConflictError("release export binding lost its version race")
+        return _dict(row)
+
     def record_publication_receipt(
         self, release_id: uuid.UUID, values: Mapping[str, Any]
     ) -> tuple[JsonObject, bool]:
@@ -1113,6 +1344,21 @@ class PropertyScopeStore:
                 ).fetchone()
                 if blocking and blocking["count"]:
                     raise ConflictError("release has blocking quality failures")
+                receipt = connection.execute(
+                    """SELECT id FROM ops.publication_receipt WHERE dataset_release_id=%s
+                    AND status='accepted' AND schema_version=%s AND content_sha256=%s
+                    AND rows_received=%s AND rows_accepted=%s AND rows_rejected=0
+                    ORDER BY completed_at DESC LIMIT 1""",
+                    (
+                        release_id,
+                        current["schema_version"],
+                        current["content_sha256"],
+                        current["record_count"],
+                        current["record_count"],
+                    ),
+                ).fetchone()
+                if receipt is None:
+                    raise ConflictError("matching accepted consumer receipt is required")
                 predecessor = connection.execute(
                     """SELECT id FROM ops.dataset_release WHERE dataset_id=%s AND target_feature=%s
                     AND status='accepted' FOR UPDATE""",
@@ -1131,12 +1377,19 @@ class PropertyScopeStore:
             row = connection.execute(
                 """UPDATE ops.dataset_release SET status=%s,review_comment=%s,
                 accepted_at=CASE WHEN %s='accepted' THEN %s ELSE accepted_at END,
-                manifest_json=CASE WHEN %s='accepted' THEN jsonb_set(
-                    manifest_json,'{known_limitations}',to_jsonb(ARRAY[
-                        'Bounded accepted release; use only within the declared coverage'
-                    ]::text[]),true) ELSE manifest_json END,
+                supersedes_release_id=CASE WHEN %s='accepted' THEN %s ELSE supersedes_release_id END,
                 updated_at=%s,version=version+1 WHERE id=%s AND version=%s RETURNING *""",
-                (target, comment, target, now, target, now, release_id, expected_version),
+                (
+                    target,
+                    comment,
+                    target,
+                    now,
+                    target,
+                    predecessor["id"] if target == "accepted" and predecessor else None,
+                    now,
+                    release_id,
+                    expected_version,
+                ),
             ).fetchone()
             if row is None:
                 raise ConflictError("release version does not match")

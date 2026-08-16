@@ -27,6 +27,8 @@ RUN uv sync --locked --no-dev --package student-1-feature --no-install-workspace
 COPY shared/contracts/python shared/contracts/python
 COPY student-1/backend/src student-1/backend/src
 COPY student-1/database/src student-1/database/src
+COPY student-1/config student-1/config
+COPY student-1/contracts student-1/contracts
 RUN uv sync --locked --no-dev --package student-1-feature && uv cache clean
 
 FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime

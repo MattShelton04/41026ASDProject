@@ -14,6 +14,7 @@ from propertyscope_data_platform.clients import (
     ConsumerImportClient,
     DataStoreClient,
 )
+from propertyscope_data_platform.release_builders import validate_feature_registration
 
 
 def create_app(
@@ -25,8 +26,11 @@ def create_app(
     psi_transport_enabled: bool | None = None,
     psi_cached_years: tuple[int, ...] | None = None,
     psi_cached_weeks: tuple[str, ...] | None = None,
+    feature_root: Path | None = None,
 ) -> Flask:
     """Create the credential-free Feature 1 backend."""
+    resolved_feature_root = feature_root or Path(__file__).resolve().parents[3]
+    validate_feature_registration(resolved_feature_root)
     store = store_client or DataStoreClient(
         os.environ.get("PROPERTYSCOPE_DATABASE_API_URL", "http://propertyscope-database-api:5202"),
         os.environ.get("PROPERTYSCOPE_INTERNAL_TOKEN", "local-development-only"),
@@ -99,6 +103,7 @@ def create_app(
             psi_transport_enabled=psi_transport,
             psi_cached_years=cached_years,
             psi_cached_weeks=cached_weeks,
+            feature_root=resolved_feature_root,
         )
     )
     worker_token = os.environ.get("PROPERTYSCOPE_RUNNER_TOKEN", "local-runner-only")

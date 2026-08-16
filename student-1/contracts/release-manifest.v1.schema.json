@@ -1,24 +1,238 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://propertyscope.local/contracts/release-manifest.v1.schema.json",
-  "title": "PropertyScope release manifest v1",
-  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "required": ["schema_version", "release_id", "dataset_id", "owner_feature", "publisher", "source_release", "content_sha256", "record_count", "geographies", "measures", "redistribution_policy", "known_limitations"],
   "properties": {
-    "schema_version": {"type": "string", "minLength": 1, "maxLength": 100},
-    "release_id": {"type": "string", "minLength": 1, "maxLength": 150},
-    "dataset_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$", "maxLength": 100},
-    "owner_feature": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$", "maxLength": 100},
-    "publisher": {"type": "string", "minLength": 1, "maxLength": 200},
-    "source_release": {"type": "string", "minLength": 1, "maxLength": 100},
-    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "record_count": {"type": "integer", "minimum": 0},
-    "geographies": {"type": "array", "maxItems": 10000, "uniqueItems": true, "items": {"type": "string"}},
-    "period": {"type": "object", "additionalProperties": false, "required": ["from", "to"], "properties": {"from": {"type": "string", "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"}, "to": {"type": "string", "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"}}},
-    "measures": {"type": "array", "maxItems": 100, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"}},
-    "redistribution_policy": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
-    "known_limitations": {"type": "array", "maxItems": 100, "items": {"type": "string"}},
-    "created_date": {"type": "string", "format": "date"}
-  }
+    "builder_key": {
+      "title": "Builder Key",
+      "type": "string"
+    },
+    "builder_version": {
+      "title": "Builder Version",
+      "type": "string"
+    },
+    "byte_count": {
+      "maximum": 50000000,
+      "minimum": 1,
+      "title": "Byte Count",
+      "type": "integer"
+    },
+    "candidate_generation_id": {
+      "format": "uuid",
+      "title": "Candidate Generation Id",
+      "type": "string"
+    },
+    "content_encoding": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Content Encoding"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dataset_id": {
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "download_permitted": {
+      "title": "Download Permitted",
+      "type": "boolean"
+    },
+    "entity_types": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Entity Types",
+      "type": "array"
+    },
+    "geography_coverage": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Geography Coverage",
+      "type": "array"
+    },
+    "import_profile": {
+      "title": "Import Profile",
+      "type": "string"
+    },
+    "known_limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Known Limitations",
+      "type": "array"
+    },
+    "licence_url": {
+      "title": "Licence Url",
+      "type": "string"
+    },
+    "manifest_schema_version": {
+      "pattern": "^propertyscope\\.release-manifest\\.v1$",
+      "title": "Manifest Schema Version",
+      "type": "string"
+    },
+    "measures": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Measures",
+      "type": "array"
+    },
+    "media_type": {
+      "title": "Media Type",
+      "type": "string"
+    },
+    "normalisation_version": {
+      "title": "Normalisation Version",
+      "type": "string"
+    },
+    "product_schema_version": {
+      "title": "Product Schema Version",
+      "type": "string"
+    },
+    "publisher": {
+      "title": "Publisher",
+      "type": "string"
+    },
+    "record_count": {
+      "minimum": 0,
+      "title": "Record Count",
+      "type": "integer"
+    },
+    "record_count_definition": {
+      "title": "Record Count Definition",
+      "type": "string"
+    },
+    "redistribution_decision": {
+      "title": "Redistribution Decision",
+      "type": "string"
+    },
+    "release_id": {
+      "format": "uuid",
+      "title": "Release Id",
+      "type": "string"
+    },
+    "release_version": {
+      "title": "Release Version",
+      "type": "string"
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    },
+    "source_effective_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Effective At"
+    },
+    "source_licence": {
+      "title": "Source Licence",
+      "type": "string"
+    },
+    "source_release": {
+      "title": "Source Release",
+      "type": "string"
+    },
+    "source_retrieved_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Retrieved At"
+    },
+    "supersedes_release_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Supersedes Release Id"
+    },
+    "target_feature": {
+      "pattern": "^feature-[1-5]$",
+      "title": "Target Feature",
+      "type": "string"
+    },
+    "temporal_coverage": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Temporal Coverage"
+    }
+  },
+  "required": [
+    "manifest_schema_version",
+    "product_schema_version",
+    "release_id",
+    "release_version",
+    "dataset_id",
+    "target_feature",
+    "builder_key",
+    "builder_version",
+    "import_profile",
+    "normalisation_version",
+    "publisher",
+    "source",
+    "source_release",
+    "candidate_generation_id",
+    "record_count",
+    "record_count_definition",
+    "content_sha256",
+    "media_type",
+    "byte_count",
+    "geography_coverage",
+    "measures",
+    "entity_types",
+    "source_licence",
+    "licence_url",
+    "redistribution_decision",
+    "download_permitted",
+    "known_limitations",
+    "created_at"
+  ],
+  "title": "ReleaseManifestV1",
+  "type": "object"
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import uuid
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, timedelta
@@ -22,6 +23,11 @@ from propertyscope_data_platform.domain import (
     ConsumerPublicationRequest,
     PublicationReceiptResult,
 )
+from propertyscope_data_platform.release_builders import (
+    BuildContext,
+    data_product_catalogue,
+    resolve_release_builder,
+)
 
 BASE = "/api/data-platform/v1"
 INTERNAL = "/internal/data-platform/v1"
@@ -37,9 +43,11 @@ def create_blueprint(
     psi_transport_enabled: bool = False,
     psi_cached_years: tuple[int, ...] = (),
     psi_cached_weeks: tuple[str, ...] = (),
+    feature_root: Path | None = None,
 ) -> Blueprint:
     """Create Feature 1's public API without any persistence imports."""
     api = Blueprint("propertyscope-data-platform", __name__)
+    product_catalogue = data_product_catalogue(feature_root or Path(__file__).resolve().parents[3])
 
     @api.get("/health/live")
     def live() -> tuple[Response, int]:
@@ -79,6 +87,81 @@ def create_blueprint(
                 "showcase_available": True,
             }
         )
+
+    @api.get(f"{BASE}/data-products")
+    def data_products() -> Response:
+        accepted_response = store.request(
+            "GET",
+            f"{INTERNAL}/releases",
+            headers=request.headers,
+            params={"status": "accepted", "limit": 100, "offset": 0},
+        )
+        if accepted_response.status_code >= 400:
+            return forward(accepted_response)
+        accepted = accepted_response.json().get("items", [])
+        items = []
+        for entry in product_catalogue:
+            matching = next(
+                (
+                    item
+                    for item in accepted
+                    if item.get("dataset_id") == entry.dataset_id
+                    and item.get("target_feature") == entry.target_feature
+                ),
+                None,
+            )
+            payload = entry.model_dump(mode="json")
+            payload["latest_accepted_release"] = (
+                {
+                    key: matching.get(key)
+                    for key in (
+                        "id",
+                        "release_version",
+                        "schema_version",
+                        "content_sha256",
+                        "record_count",
+                        "accepted_at",
+                    )
+                }
+                if matching
+                else None
+            )
+            items.append(payload)
+        return jsonify({"items": items, "count": len(items), "next_cursor": None})
+
+    @api.get(f"{BASE}/data-products/<dataset_id>")
+    def data_product(dataset_id: str) -> Response:
+        entry = next((item for item in product_catalogue if item.dataset_id == dataset_id), None)
+        if entry is None:
+            return problem(404, "data_product_not_found", "Data product is not registered")
+        return jsonify(entry.model_dump(mode="json"))
+
+    @api.get(f"{BASE}/data-products/<dataset_id>/accepted")
+    def accepted_data_product(dataset_id: str) -> Response:
+        entry = next((item for item in product_catalogue if item.dataset_id == dataset_id), None)
+        if entry is None:
+            return problem(404, "data_product_not_found", "Data product is not registered")
+        target = request.args.get("target_feature", entry.target_feature)
+        if target != entry.target_feature or set(request.args) - {"target_feature"}:
+            return problem(422, "invalid_query", "Accepted product query is invalid")
+        upstream = store.request(
+            "GET",
+            f"{INTERNAL}/releases",
+            headers=request.headers,
+            params={
+                "status": "accepted",
+                "dataset_id": dataset_id,
+                "target_feature": target,
+                "limit": 1,
+                "offset": 0,
+            },
+        )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        items = upstream.json().get("items", [])
+        if not items:
+            return problem(404, "accepted_release_not_found", "No accepted release is available")
+        return jsonify({"release": items[0]})
 
     @api.route(f"{BASE}/sources", methods=["GET", "POST"])
     def sources() -> Response:
@@ -373,7 +456,16 @@ def create_blueprint(
             return problem(503, "artifact_unavailable", "Verified release artifact is unavailable")
         response = Response(data, content_type=artifact["media_type"])
         response.headers["Content-Disposition"] = f'attachment; filename="{release_id}.json"'
-        response.headers["Digest"] = f"sha-256={artifact['content_sha256']}"
+        digest_bytes = bytes.fromhex(artifact["content_sha256"])
+        response.headers["Digest"] = f"sha-256=:{base64.b64encode(digest_bytes).decode()}:"
+        response.headers["ETag"] = f'"sha256-{artifact["content_sha256"]}"'
+        response.headers["Cache-Control"] = (
+            "public, max-age=31536000, immutable"
+            if artifact["release_status"] in {"accepted", "superseded"}
+            else "private, no-store"
+        )
+        if artifact.get("content_encoding"):
+            response.headers["Content-Encoding"] = artifact["content_encoding"]
         return response
 
     @api.get(f"{BASE}/dataset-releases/<uuid:release_id>/records")
@@ -799,7 +891,60 @@ def create_blueprint(
 
     @api.post(f"{INTERNAL}/worker/runs/<uuid:run_id>/finalize-release")
     def worker_finalize_release(run_id: uuid.UUID) -> Response:
-        return finalize_candidate_release(store, run_id)
+        return finalize_candidate_release(store, run_id, json_body())
+
+    @api.get(f"{INTERNAL}/worker/runs/<uuid:run_id>/release-build-context")
+    def worker_release_build_context(run_id: uuid.UUID) -> Response:
+        upstream = store.request(
+            "GET", f"{INTERNAL}/runs/{run_id}/release-build-context", headers=request.headers
+        )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        raw = upstream.json()["context"]
+        builder = resolve_release_builder(
+            str(raw["release_builder_key"]), str(raw["release_builder_version"])
+        )
+        context = BuildContext(
+            release_id=raw["release_id"],
+            release_version=raw["release_version"],
+            dataset_id=raw["dataset_id"],
+            target_feature=raw["target_feature"],
+            candidate_generation_id=raw["candidate_generation_id"],
+            import_profile=raw["import_profile_key"],
+            normalisation_version=raw["normalisation_version"],
+            publisher=raw["publisher"],
+            source=raw["source_name"],
+            source_release=raw["source_release"],
+            source_licence=raw["licence_id"],
+            licence_url=raw["licence_url"],
+            redistribution_policy=raw["redistribution_policy"],
+            source_retrieved_at=raw.get("source_retrieved_at"),
+            scope=raw["coverage_json"],
+            supersedes_release_id=raw.get("supersedes_release_id"),
+        )
+        if context.import_profile not in builder.spec.import_profiles:
+            return problem(409, "release_builder_mismatch", "Release builder/import mismatch")
+        if context.target_feature != builder.spec.target_feature:
+            return problem(409, "release_builder_mismatch", "Release builder/target mismatch")
+        return jsonify(
+            {
+                "context": context.model_dump(mode="json"),
+                "builder": {"key": builder.spec.key, "version": builder.spec.version},
+                "target_contract": builder.spec.contract,
+                "release_id": str(context.release_id),
+            }
+        )
+
+    @api.get(f"{INTERNAL}/worker/releases/<uuid:release_id>/product-records")
+    def worker_release_product_records(release_id: uuid.UUID) -> Response:
+        return forward(
+            store.request(
+                "GET",
+                f"{INTERNAL}/releases/{release_id}/product-records",
+                headers=request.headers,
+                params=request.args,
+            )
+        )
 
     return api
 
@@ -1053,32 +1198,36 @@ def ensure_import_operation(
     return forward(operation_response)
 
 
-def finalize_candidate_release(store: DataStoreClient, run_id: uuid.UUID) -> Response:
-    releases = store.request(
-        "GET", f"{INTERNAL}/releases", headers=request.headers, params={"limit": 100}
+def finalize_candidate_release(
+    store: DataStoreClient, run_id: uuid.UUID, body: Mapping[str, Any]
+) -> Response:
+    context_response = store.request(
+        "GET",
+        f"{INTERNAL}/runs/{run_id}/release-build-context",
+        headers=request.headers,
     )
-    release = next(
-        (
-            item
-            for item in releases.json().get("items", [])
-            if item["ingestion_run_id"] == str(run_id)
-        ),
-        None,
-    )
-    if release is None:
+    if context_response.status_code >= 400:
         return problem(409, "candidate_release_missing", "Candidate release is missing")
-    if release["status"] == "candidate":
-        return jsonify({"release": release, "replayed": True})
+    release_id = context_response.json()["context"]["release_id"]
+    required = {
+        "artifact_record_id",
+        "schema_version",
+        "content_sha256",
+        "record_count",
+        "manifest",
+    }
+    if set(body) != required:
+        return problem(
+            422,
+            "invalid_release_export_binding",
+            "A complete release export binding is required",
+        )
     return forward(
         store.request(
             "POST",
-            f"{INTERNAL}/releases/{release['id']}/transition",
+            f"{INTERNAL}/releases/{release_id}/bind-export",
             headers=request.headers,
-            json={
-                "version": release["version"],
-                "target": "candidate",
-                "comment": "Registered import and quality checks completed",
-            },
+            json=dict(body),
         )
     )
 

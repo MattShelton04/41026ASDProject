@@ -1,0 +1,182 @@
+{
+  "$defs": {
+    "ProductProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_generation_id": {
+          "format": "uuid",
+          "title": "Candidate Generation Id",
+          "type": "string"
+        },
+        "normalisation_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Normalisation Version",
+          "type": "string"
+        },
+        "release_id": {
+          "format": "uuid",
+          "title": "Release Id",
+          "type": "string"
+        },
+        "release_version": {
+          "maxLength": 150,
+          "minLength": 1,
+          "title": "Release Version",
+          "type": "string"
+        },
+        "source_record_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Record Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "release_id",
+        "release_version",
+        "candidate_generation_id",
+        "source_record_sha256",
+        "normalisation_version"
+      ],
+      "title": "ProductProvenance",
+      "type": "object"
+    },
+    "SchoolPointRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "latitude": {
+          "maximum": -27,
+          "minimum": -38,
+          "title": "Latitude",
+          "type": "number"
+        },
+        "lga": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lga"
+        },
+        "locality_normalised": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Locality Normalised",
+          "type": "string"
+        },
+        "locality_original": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Locality Original",
+          "type": "string"
+        },
+        "longitude": {
+          "maximum": 154,
+          "minimum": 140,
+          "title": "Longitude",
+          "type": "number"
+        },
+        "operational_status": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Operational Status",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ProductProvenance"
+        },
+        "school_code": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "School Code",
+          "type": "string"
+        },
+        "school_name": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "School Name",
+          "type": "string"
+        },
+        "school_type": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "School Type",
+          "type": "string"
+        },
+        "state": {
+          "pattern": "^NSW$",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "school_code",
+        "school_name",
+        "school_type",
+        "operational_status",
+        "locality_original",
+        "locality_normalised",
+        "state",
+        "latitude",
+        "longitude",
+        "provenance"
+      ],
+      "title": "SchoolPointRecord",
+      "type": "object"
+    }
+  },
+  "$id": "https://propertyscope.local/contracts/school-points.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidate_generation_id": {
+      "format": "uuid",
+      "title": "Candidate Generation Id",
+      "type": "string"
+    },
+    "dataset_id": {
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "records": {
+      "items": {
+        "$ref": "#/$defs/SchoolPointRecord"
+      },
+      "title": "Records",
+      "type": "array"
+    },
+    "release_id": {
+      "format": "uuid",
+      "title": "Release Id",
+      "type": "string"
+    },
+    "release_version": {
+      "title": "Release Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "pattern": "^propertyscope\\.school-points\\.v1$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_feature": {
+      "pattern": "^feature-3$",
+      "title": "Target Feature",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "release_id",
+    "release_version",
+    "dataset_id",
+    "target_feature",
+    "candidate_generation_id",
+    "records"
+  ],
+  "title": "SchoolPointsProduct",
+  "type": "object"
+}
