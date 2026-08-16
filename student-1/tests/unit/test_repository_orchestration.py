@@ -269,6 +269,44 @@ def test_artifact_lineage_replay_rejects_changed_payload() -> None:
         )
 
 
+def test_source_snapshot_registration_persists_publisher_release_context() -> None:
+    run_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            None,
+            {"id": artifact_id, "artifact_kind": "source_snapshot"},
+            None,
+        ]
+    )
+    snapshot = {
+        "schema_version": "propertyscope.source-snapshot.v1",
+        "source_release": "psi-year-2025",
+        "objects": [{"logical_key": "psi-year-2025"}],
+    }
+
+    artifact, created = ConnectedStore(connection).register_artifact(
+        {
+            "ingestion_run_id": run_id,
+            "run_task_id": uuid.uuid4(),
+            "logical_key": "00/discover",
+            "artifact_kind": "source_snapshot",
+            "storage_key": f"sha256/{'a' * 64}",
+            "content_sha256": "a" * 64,
+            "media_type": "application/json",
+            "bytes": 100,
+            "schema_version": "propertyscope.source-snapshot.v1",
+            "retention_class": "candidate",
+            "source_snapshot": snapshot,
+        }
+    )
+
+    assert created is True
+    assert artifact["id"] == str(artifact_id)
+    snapshot_update = next(query for query in connection.queries if "source_snapshot_json" in query)
+    assert "UPDATE ops.ingestion_run" in snapshot_update
+
+
 class SearchStore:
     def __init__(self) -> None:
         self.query_text: str | None = None

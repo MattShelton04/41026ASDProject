@@ -135,6 +135,19 @@ def test_psi_source_key_and_hectare_conversion() -> None:
     assert sale.area_square_metres == 15000
 
 
+def test_psi_malformed_nonblank_facts_fail_closed_deterministically() -> None:
+    with pytest.raises(ValueError, match="date is malformed"):
+        parse_psi_b_record(
+            ("001", "P1", "2", "not-a-date", "20250201", "900000", "1.5", "H", "1 ROAD", "D1"),
+            source_year=2025,
+        )
+    with pytest.raises(ValueError, match="integer is malformed"):
+        parse_psi_b_record(
+            ("001", "P1", "2", "20250101", "20250201", "not-a-price", "1.5", "H", "1 ROAD", "D1"),
+            source_year=2025,
+        )
+
+
 def test_psi_archive_parses_nested_current_format_and_caps_records() -> None:
     nested = io.BytesIO()
     with ZipFile(nested, "w") as archive:
@@ -388,6 +401,17 @@ def test_gnaf_requires_members_and_selects_preferred_geocode() -> None:
         )
     )
     assert selected is not None and selected["GEOCODE_PID"] == "1"
+    lord_howe = select_geocode(
+        (
+            {
+                "GEOCODE_PID": "LHI-1",
+                "GEOCODE_TYPE_CODE": "PC",
+                "LATITUDE": "-31.53",
+                "LONGITUDE": "159.07",
+            },
+        )
+    )
+    assert lord_howe is not None and lord_howe["GEOCODE_PID"] == "LHI-1"
 
 
 def test_gnaf_streaming_join_preserves_units_and_declared_crs(tmp_path: Path) -> None:

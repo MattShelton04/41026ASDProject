@@ -247,8 +247,8 @@ components:
       additionalProperties: false
       required: [items, count, next_cursor]
       properties:
-        items: {type: array, maxItems: 5, items: {$ref: './data-product-catalogue-entry.v1.schema.json'}}
-        count: {type: integer, minimum: 0, maximum: 5}
+        items: {type: array, maxItems: 100, items: {$ref: './data-product-catalogue-entry.v1.schema.json'}}
+        count: {type: integer, minimum: 0, maximum: 100}
         next_cursor: {type: 'null'}
     AcceptedRelease:
       type: object

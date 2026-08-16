@@ -155,6 +155,73 @@ def test_existing_build_release_defect_is_closed_by_constructing_the_configured_
     assert observed["finalize"]["schema_version"] == "propertyscope.property-snapshot.v1"
 
 
+def test_runner_enforces_requested_product_bound_before_paging_all_rows(tmp_path: Path) -> None:
+    def backend(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/release-build-context"):
+            return httpx.Response(
+                200,
+                json={
+                    "context": _context(scope={"maximum_records": 1}).model_dump(mode="json"),
+                    "builder": {"key": "property-snapshot", "version": "1.0.0"},
+                    "target_contract": "propertyscope.property-snapshot.v1",
+                    "release_id": "60000000-0000-0000-0000-000000000099",
+                },
+            )
+        if request.url.path.endswith("/product-records"):
+            return httpx.Response(
+                200,
+                json={
+                    "release_id": "60000000-0000-0000-0000-000000000099",
+                    "candidate_generation_id": "60000000-0000-0000-0000-000000000099",
+                    "items": [_property_row()],
+                    "total": 2,
+                    "next_offset": 1,
+                },
+            )
+        raise AssertionError("runner must fail before registering an over-bound export")
+
+    runner = AcquisitionRunner(
+        _settings(tmp_path),
+        client=httpx.Client(transport=httpx.MockTransport(backend)),
+        clock=lambda: FIXED_TIME,
+    )
+
+    with pytest.raises(RuntimeError, match="maximum_records"):
+        runner._execute(
+            {
+                "id": "40000000-0000-0000-0000-000000000099",
+                "ingestion_run_id": "50000000-0000-0000-0000-000000000099",
+                "stage": "build_release",
+                "logical_key": "06/build_release",
+            }
+        )
+
+
+def test_discovery_persists_manifest_source_release_evidence(tmp_path: Path) -> None:
+    observed: dict[str, Any] = {}
+
+    def backend(request: httpx.Request) -> httpx.Response:
+        observed.update(cast(dict[str, Any], json.loads(request.content)))
+        return httpx.Response(201, json={"artifact": {"id": str(uuid.uuid4())}, "created": True})
+
+    runner = AcquisitionRunner(
+        _settings(tmp_path), client=httpx.Client(transport=httpx.MockTransport(backend))
+    )
+    runner._execute(
+        {
+            "id": "40000000-0000-0000-0000-000000000099",
+            "ingestion_run_id": "50000000-0000-0000-0000-000000000099",
+            "stage": "discover",
+            "logical_key": "00/discover",
+            "import_profile_key": "property-fixture",
+            "partition_json": {"profile": "showcase", "maximum_records": 10},
+        }
+    )
+
+    assert observed["artifact_kind"] == "source_snapshot"
+    assert observed["source_snapshot"]["source_release"] == "fixture-v1"
+
+
 def test_registered_property_builder_is_byte_deterministic() -> None:
     builder = resolve_release_builder("property-snapshot", "1.0.0")
     rows = [_property_row(2), _property_row(1)]

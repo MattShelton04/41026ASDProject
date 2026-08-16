@@ -187,6 +187,12 @@ def test_psi_scope_partition_survives_nullable_business_dates() -> None:
     assert [row["source_revision"] for row in revisions.rows] == [1, 2]
     assert [row["price_aud"] for row in revisions.rows] == [None, 910000]
 
+    later_partition = {**record, "source_partition_year": 2026}
+    retransmission = prepare_import(
+        _artifact("psi-sales", [record, later_partition]), profile="psi-sales"
+    )
+    assert len(retransmission.rows) == 1
+
 
 def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions() -> None:
     source = _PROFILE_INSERT_SQL["psi-sales"]

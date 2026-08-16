@@ -400,8 +400,12 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         "match_confidence": str(confidence),
         "geographic_precision": _text(source, "geographic_precision", index),
     }
-    facts = {key: value for key, value in result.items() if key != "source_revision"}
-    return {**_with_hash(facts), "source_revision": result["source_revision"]}
+    facts = {
+        key: value
+        for key, value in result.items()
+        if key not in {"source_revision", "source_partition_year"}
+    }
+    return {**result, "source_row_sha256": _with_hash(facts)["source_row_sha256"]}
 
 
 def _bocsar(row: object, index: int) -> dict[str, Any]:

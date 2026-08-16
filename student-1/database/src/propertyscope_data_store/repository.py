@@ -1809,6 +1809,7 @@ class PropertyScopeStore:
         )
         if existing:
             _validate_artifact_replay(existing, values)
+            self._persist_source_snapshot(values)
             return existing, False
         try:
             with self.connection() as connection:
@@ -1838,14 +1839,38 @@ class PropertyScopeStore:
                         datetime.now(UTC),
                     ),
                 ).fetchone()
+                if values["artifact_kind"] == "source_snapshot":
+                    snapshot = _source_snapshot(values)
+                    connection.execute(
+                        """UPDATE ops.ingestion_run SET source_snapshot_json=%s,
+                        updated_at=%s,version=version+1 WHERE id=%s""",
+                        (_json(snapshot), datetime.now(UTC), lineage_params[0]),
+                    )
                 connection.commit()
         except errors.UniqueViolation:
             # A concurrent delivery can win the lineage key between the optimistic
             # read and insert. Return it only when the replay arguments are identical.
             existing = self._required(lineage_query, lineage_params)
             _validate_artifact_replay(existing, values)
+            self._persist_source_snapshot(values)
             return existing, False
         return _dict(row), True
+
+    def _persist_source_snapshot(self, values: Mapping[str, Any]) -> None:
+        if values["artifact_kind"] != "source_snapshot":
+            return
+        snapshot = _source_snapshot(values)
+        with self.connection() as connection:
+            connection.execute(
+                """UPDATE ops.ingestion_run SET source_snapshot_json=%s,
+                updated_at=%s,version=version+1 WHERE id=%s""",
+                (
+                    _json(snapshot),
+                    datetime.now(UTC),
+                    uuid.UUID(str(values["ingestion_run_id"])),
+                ),
+            )
+            connection.commit()
 
     def _finish_task(
         self,
@@ -2041,6 +2066,19 @@ def _receipt_matches_values(
         int(receipt["rows_rejected"]),
     )
     return expected == actual
+
+
+def _source_snapshot(values: Mapping[str, Any]) -> Mapping[str, Any]:
+    snapshot = values.get("source_snapshot")
+    if not isinstance(snapshot, dict):
+        raise ConflictError("source snapshot metadata is required")
+    source_release = snapshot.get("source_release")
+    if not isinstance(source_release, str) or not 1 <= len(source_release) <= 100:
+        raise ConflictError("source snapshot release evidence is invalid")
+    objects = snapshot.get("objects")
+    if not isinstance(objects, list) or not objects:
+        raise ConflictError("source snapshot object evidence is invalid")
+    return snapshot
 
 
 def _cancellation_error() -> JsonObject:

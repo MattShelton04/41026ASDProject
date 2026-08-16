@@ -206,6 +206,7 @@ class AcquisitionRunner:
                     else {
                         "schema_version": "propertyscope.source-snapshot.v1",
                         "adapter_key": task.get("adapter_key", "fixture-snapshot"),
+                        "source_release": "fixture-v1",
                         "scope": scope,
                         "objects": [{"logical_key": "bounded-fixture", "complete": True}],
                     }
@@ -217,7 +218,11 @@ class AcquisitionRunner:
                 media_type="application/json",
             )
             self._register_stage_artifact(
-                task, stage=stage, artifact=artifact, schema_version=str(document["schema_version"])
+                task,
+                stage=stage,
+                artifact=artifact,
+                schema_version=str(document["schema_version"]),
+                source_snapshot=document if stage == "discover" else None,
             )
             return len(records), len(records)
         if stage == "import":
@@ -247,6 +252,17 @@ class AcquisitionRunner:
             raise RuntimeError("Release target contract does not match the registered builder")
         context = BuildContext.model_validate(payload.get("context"))
         release_id = str(payload["release_id"])
+        product_scope = context.scope.get("release_scope", context.scope)
+        if not isinstance(product_scope, dict):
+            raise RuntimeError("Release product scope is invalid")
+        maximum_records = product_scope.get("maximum_records")
+        if (
+            not isinstance(maximum_records, int)
+            or isinstance(maximum_records, bool)
+            or maximum_records < 1
+            or maximum_records > builder.spec.max_rows
+        ):
+            raise RuntimeError("Release product scope has no valid registered row bound")
         rows: list[dict[str, Any]] = []
         offset = 0
         page_size = 100
@@ -272,6 +288,10 @@ class AcquisitionRunner:
             total = int(page["total"])
             if expected_total is None:
                 expected_total = total
+                if total > maximum_records:
+                    raise RuntimeError(
+                        "Release product exceeds requested maximum_records; narrow the scope"
+                    )
             elif total != expected_total:
                 raise RuntimeError("Candidate generation count changed during release construction")
             items = page.get("items")
@@ -332,7 +352,13 @@ class AcquisitionRunner:
         return len(rows), product.manifest.record_count
 
     def _register_stage_artifact(
-        self, task: dict[str, Any], *, stage: str, artifact: Any, schema_version: str
+        self,
+        task: dict[str, Any],
+        *,
+        stage: str,
+        artifact: Any,
+        schema_version: str,
+        source_snapshot: dict[str, object] | None = None,
     ) -> None:
         response = self.client.post(
             f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task['id']}/artifacts",
@@ -347,6 +373,7 @@ class AcquisitionRunner:
                 "bytes": artifact.bytes,
                 "schema_version": schema_version,
                 "retention_class": "candidate",
+                "source_snapshot": source_snapshot,
             },
         )
         response.raise_for_status()
@@ -366,6 +393,7 @@ class AcquisitionRunner:
                 {
                     "schema_version": "propertyscope.source-snapshot.v1",
                     "adapter_key": task.get("adapter_key"),
+                    "source_release": _source_release_for_objects(objects),
                     "scope": scope,
                     "objects": objects,
                 },
@@ -948,6 +976,15 @@ def _source_object(logical_key: str, url: str, media_type: str) -> dict[str, obj
         "media_type": media_type,
         "complete": True,
     }
+
+
+def _source_release_for_objects(objects: list[dict[str, object]]) -> str:
+    keys = [str(item["logical_key"]) for item in objects]
+    if not keys:
+        raise RuntimeError("Source discovery returned no versioned objects")
+    if len(keys) == 1:
+        return keys[0]
+    return f"{keys[0]}..{keys[-1]} ({len(keys)} objects)"[:100]
 
 
 def _live_canonical_document(

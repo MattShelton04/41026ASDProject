@@ -79,8 +79,10 @@ its local receipt, the provider re-reads the registered `release_export` from co
 storage and verifies the manifest, artifact registration, exact bytes, product schema/release ID,
 and record count. It does not synthesize acceptance from release metadata alone.
 
-Replaying the same operation returns the retained receipt and performs no duplicate import. The
-same target/key with different release evidence conflicts. A consumer that missed the push calls
+Replaying an operation that produced an accepted receipt returns that retained receipt and
+completes any interrupted pointer transition without a duplicate import. A recorded rejected,
+failed, or unavailable attempt is immutable; after correcting the cause, the operator starts a new
+publication operation with a new idempotency key. The same target/key with different release evidence conflicts. A consumer that missed the push calls
 the accepted-product endpoint repeatedly; lookups are stable and do not mutate state.
 
 Accepted artifacts and manifests are immutable. Corrections are new releases with a supersession
@@ -187,7 +189,7 @@ uv run scripts/dev.py up
 Open <http://localhost:5200>, then use **Data-product catalogue** to inspect registrations. Launch a
 showcase job, inspect the candidate release count/bytes/checksum/coverage/licence/quality evidence,
 submit it for review, and publish. Stop or reject a test consumer to demonstrate a retained
-predecessor, then restore it and retry the same idempotency key. Reconcile with the accepted-product
+predecessor, then restore it and retry with a new idempotency key. Reconcile with the accepted-product
 endpoint. Ordinary `uv run scripts/dev.py down` preserves evidence volumes.
 
 The official-source measurements in `MARKING_EVIDENCE.md` are historical evidence and are not

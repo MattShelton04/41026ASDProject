@@ -29,6 +29,7 @@ from propertyscope_data_platform.domain import (
 )
 from propertyscope_data_platform.release_builders import (
     BuildContext,
+    ProductEnvelope,
     ReleaseDetailContract,
     ReleaseManifestV1,
     data_product_catalogue,
@@ -120,6 +121,11 @@ def create_blueprint(
                 ),
                 None,
             )
+            if matching is not None:
+                try:
+                    release_detail_contract(matching)
+                except ValidationError:
+                    matching = None
             payload = entry.model_dump(mode="json")
             payload["latest_accepted_release"] = (
                 {
@@ -161,6 +167,11 @@ def create_blueprint(
         if accepted_response.status_code >= 400:
             return forward(accepted_response)
         matching = next(iter(accepted_response.json().get("items", [])), None)
+        if matching is not None:
+            try:
+                release_detail_contract(matching)
+            except ValidationError:
+                matching = None
         payload = entry.model_dump(mode="json")
         payload["latest_accepted_release"] = matching
         return jsonify(payload)
@@ -1065,7 +1076,7 @@ def validate_job_scope(
     }.get(str(job.get("import_profile_key")))
     builder = resolve_release_builder(str(builder_key), "1.0.0")
     maximum_records = bounded_scope.get("maximum_records")
-    if maximum_records is not None and (
+    if (
         not isinstance(maximum_records, int)
         or isinstance(maximum_records, bool)
         or maximum_records < 1
@@ -1105,6 +1116,21 @@ def validate_job_scope(
             return None, problem(422, "invalid_scope", "PSI weeks must use ISO dates")
         if parsed_weeks != sorted(set(parsed_weeks)):
             return None, problem(422, "invalid_scope", "PSI weeks must be unique and sorted")
+        release_years = bounded_scope.get("years")
+        if not isinstance(release_years, list) or not release_years or len(release_years) > 100:
+            return None, problem(
+                422, "invalid_scope", "PSI release scope requires explicit source years"
+            )
+        if any(
+            not isinstance(year, int)
+            or isinstance(year, bool)
+            or year < 1990
+            or year > maximum_year
+            for year in release_years
+        ) or release_years != sorted(set(release_years)):
+            return None, problem(
+                422, "invalid_scope", "PSI release years must be unique, sorted, and in range"
+            )
     if run_mode == "full_refresh" and profile == "full-data" and not full_data_enabled:
         return None, problem(
             422,
@@ -1403,7 +1429,9 @@ def publish_release(
             return jsonify(
                 {"status": "accepted", "receipt_id": prior_receipt["id"], "replayed": True}
             )
-        return jsonify({"release": release, "receipt": prior_receipt, "replayed": True})
+        return jsonify(
+            {"release": release, "receipt": public_receipt(prior_receipt), "replayed": True}
+        )
     if release["status"] != "awaiting_review":
         return problem(
             409,
@@ -1510,7 +1538,11 @@ def complete_publication(
     if tool_output:
         return jsonify({"status": "accepted", "receipt_id": receipt["id"], "replayed": replayed})
     return jsonify(
-        {"release": published.json()["release"], "receipt": receipt, "replayed": replayed}
+        {
+            "release": published.json()["release"],
+            "receipt": public_receipt(receipt),
+            "replayed": replayed,
+        }
     )
 
 
@@ -1522,7 +1554,7 @@ def verify_local_publication(
 ) -> PublicationReceiptResult:
     """Verify Feature 1's own exported bytes before recording consumer acceptance."""
     try:
-        ReleaseManifestV1.model_validate(publication.manifest)
+        manifest = ReleaseManifestV1.model_validate(publication.manifest)
         upstream = store.request(
             "GET", f"{INTERNAL}/releases/{release['id']}/artifact", headers=request.headers
         )
@@ -1537,14 +1569,17 @@ def verify_local_publication(
         content = LocalArtifactStore(artifact_root).read_verified(
             artifact["storage_key"], publication.content_sha256, max_bytes=50_000_000
         )
-        envelope = json.loads(content)
+        envelope = ProductEnvelope.model_validate(json.loads(content))
         if (
-            envelope.get("schema_version") != publication.schema_version
-            or envelope.get("release_id") != str(publication.release_id)
-            or not isinstance(envelope.get("records"), list)
-            or len(envelope["records"]) != publication.record_count
+            envelope.schema_version != publication.schema_version
+            or envelope.release_id != publication.release_id
+            or envelope.dataset_id != publication.dataset_id
+            or len(envelope.records) != publication.record_count
         ):
             raise ArtifactError("product envelope does not match the release")
+        builder = resolve_release_builder(manifest.builder_key, manifest.builder_version)
+        for record in envelope.records:
+            builder.spec.record_adapter.validate_python(record)
     except (ArtifactError, KeyError, TypeError, ValueError, ValidationError, httpx.HTTPError):
         return PublicationReceiptResult(
             consumer_operation_id=publication.idempotency_key,
@@ -1645,7 +1680,7 @@ def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Respons
         "release": release,
         "quality_results": quality_results,
         "quality_summary": quality_summary,
-        "receipts": release_envelope.get("receipts", []),
+        "receipts": [public_receipt(item) for item in release_envelope.get("receipts", [])],
         "accepted_predecessor": predecessor,
     }
     try:
@@ -1658,19 +1693,7 @@ def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Respons
 
 
 def release_detail_contract(release: Mapping[str, Any], *, receipts: Any = ()) -> dict[str, Any]:
-    receipt_contracts = tuple(
-        {
-            "consumer_operation_id": item["consumer_operation_id"],
-            "status": item["status"],
-            "schema_version": item["schema_version"],
-            "content_sha256": item["content_sha256"],
-            "rows_received": item["rows_received"],
-            "rows_accepted": item["rows_accepted"],
-            "rows_rejected": item["rows_rejected"],
-            "error": item.get("error", item.get("error_json")),
-        }
-        for item in receipts
-    )
+    receipt_contracts = tuple(public_receipt(item) for item in receipts)
     return ReleaseDetailContract.model_validate(
         {
             "id": release["id"],
@@ -1685,6 +1708,22 @@ def release_detail_contract(release: Mapping[str, Any], *, receipts: Any = ()) -
             "supersedes_release_id": release.get("supersedes_release_id"),
             "version": release["version"],
             "receipts": receipt_contracts,
+        }
+    ).model_dump(mode="json")
+
+
+def public_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    """Project datastore evidence onto the closed public consumer receipt contract."""
+    return PublicationReceiptResult.model_validate(
+        {
+            "consumer_operation_id": receipt["consumer_operation_id"],
+            "status": receipt["status"],
+            "schema_version": receipt["schema_version"],
+            "content_sha256": receipt["content_sha256"],
+            "rows_received": receipt["rows_received"],
+            "rows_accepted": receipt["rows_accepted"],
+            "rows_rejected": receipt["rows_rejected"],
+            "error": receipt.get("error", receipt.get("error_json")),
         }
     ).model_dump(mode="json")
 

@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 from ai_mode.tool_catalog import load_tool_catalog
+from propertyscope_data_platform.api import public_receipt
 from propertyscope_data_platform.app import create_app
 from propertyscope_data_platform.clients import AiModeClient, DataStoreClient
 from propertyscope_data_platform.release_builders import product_schema_documents
@@ -241,6 +242,29 @@ def test_openapi_references_checked_in_discovery_and_release_contracts() -> None
         "./consumer-publication-receipt.v1.schema.json",
     ):
         assert reference in document
+
+
+def test_datastore_receipt_is_projected_to_the_closed_public_schema() -> None:
+    projected = public_receipt(
+        {
+            "id": "private-receipt-id",
+            "dataset_release_id": "60000000-0000-0000-0000-000000000099",
+            "target_feature": "feature-2",
+            "consumer_operation_id": "publish-fixture",
+            "status": "accepted",
+            "schema_version": "propertyscope.property-sales.v1",
+            "content_sha256": "a" * 64,
+            "rows_received": 1,
+            "rows_accepted": 1,
+            "rows_rejected": 0,
+            "error_json": None,
+            "request_id": "private-request-id",
+        }
+    )
+
+    jsonschema.validate(projected, _json("consumer-publication-receipt.v1.schema.json"))
+    assert "id" not in projected
+    assert "request_id" not in projected
 
 
 def test_generated_release_contracts_do_not_drift() -> None:

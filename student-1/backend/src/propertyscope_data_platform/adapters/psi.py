@@ -278,23 +278,27 @@ def _date(value: str, patterns: tuple[str, ...]) -> date | None:
     for pattern in patterns:
         try:
             result = datetime.strptime(value.strip(), pattern).date()
-            if 1900 <= result.year <= date.today().year + 1:
+            if 1900 <= result.year <= 2100:
                 return result
-            return None
+            raise ValueError("PSI date is outside the registered range")
         except ValueError:
             continue
-    return None
+    raise ValueError("PSI date is malformed")
 
 
 def _integer(value: str) -> int | None:
-    return int(value) if value.strip().isdigit() else None
+    if not value.strip():
+        return None
+    if not value.strip().isdigit():
+        raise ValueError("PSI integer is malformed")
+    return int(value)
 
 
 def _decimal(value: str) -> Decimal | None:
     try:
         return Decimal(value) if value.strip() else None
-    except InvalidOperation:
-        return None
+    except InvalidOperation as exc:
+        raise ValueError("PSI decimal is malformed") from exc
 
 
 def _square_metres(value: str, unit: str) -> Decimal | None:
@@ -305,4 +309,4 @@ def _square_metres(value: str, unit: str) -> Decimal | None:
         return amount
     if unit.upper() == "H":
         return amount * 10_000
-    return None
+    raise ValueError("PSI area unit is malformed")

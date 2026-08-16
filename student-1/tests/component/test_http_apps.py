@@ -173,7 +173,8 @@ def test_publication_records_consumer_receipt_before_pointer_transition() -> Non
     )
     assert response.status_code == 200
     assert events == ["consumer", "receipt", "transition"]
-    assert response.get_json()["receipt"]["id"] == "receipt-1"
+    assert response.get_json()["receipt"]["consumer_operation_id"] == "publish-release-11"
+    assert "id" not in response.get_json()["receipt"]
 
 
 def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() -> None:
@@ -695,6 +696,16 @@ def test_job_plan_enables_psi_when_official_archive_cache_is_available() -> None
     assert showcase.status_code == 200
     assert showcase.get_json()["source_cache_required"] is False
 
+    invalid_release_scope = client.post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={
+            "run_mode": "full_refresh",
+            "scope": {"profile": "full-data", "release_scope": {"years": None}},
+        },
+    )
+    assert invalid_release_scope.status_code == 422
+    assert invalid_release_scope.get_json()["code"] == "invalid_scope"
+
 
 def test_job_plan_merges_registered_bounds_and_rejects_product_overflow() -> None:
     job_id = "20000000-0000-0000-0000-000000000003"
@@ -737,11 +748,20 @@ def test_job_plan_merges_registered_bounds_and_rejects_product_overflow() -> Non
             "scope": {"profile": "full-data", "maximum_records": 50_001},
         },
     )
+    missing_bound = client.post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={
+            "run_mode": "full_refresh",
+            "scope": {"profile": "showcase", "maximum_records": None},
+        },
+    )
 
     assert merged.status_code == 200
     assert merged.get_json()["scope"]["maximum_records"] == 5000
     assert overflow.status_code == 422
     assert overflow.get_json()["code"] == "invalid_scope"
+    assert missing_bound.status_code == 422
+    assert missing_bound.get_json()["code"] == "invalid_scope"
 
 
 def test_protected_tool_rejects_forged_agent_run_header() -> None:
