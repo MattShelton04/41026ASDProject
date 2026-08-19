@@ -232,6 +232,6 @@ def _coordinate(candidate: dict[str, str]) -> bool:
     try:
         latitude = float(candidate["LATITUDE"])
         longitude = float(candidate["LONGITUDE"])
-        return -45 <= latitude <= -9 and 110 <= longitude <= 155
+        return -45 <= latitude <= -9 and 110 <= longitude <= 160
     except (KeyError, ValueError):
         return False

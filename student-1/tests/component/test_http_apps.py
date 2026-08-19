@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import httpx
+import pytest
 import yaml
 
 from propertyscope_data_platform.app import create_app as create_backend_app
@@ -14,6 +15,7 @@ from propertyscope_data_platform.clients import (
     ConsumerImportClient,
     DataStoreClient,
 )
+from propertyscope_data_platform.domain import ConsumerPublicationRequest
 
 
 def test_backend_proxies_property_search_and_preserves_expected_negative() -> None:
@@ -171,7 +173,88 @@ def test_publication_records_consumer_receipt_before_pointer_transition() -> Non
     )
     assert response.status_code == 200
     assert events == ["consumer", "receipt", "transition"]
-    assert response.get_json()["receipt"]["id"] == "receipt-1"
+    assert response.get_json()["receipt"]["consumer_operation_id"] == "publish-release-11"
+    assert "id" not in response.get_json()["receipt"]
+
+
+def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() -> None:
+    release_id = "60000000-0000-0000-0000-000000000013"
+    digest = "c" * 64
+    release = {
+        "id": release_id,
+        "dataset_id": "bocsar-crime",
+        "target_feature": "feature-3",
+        "schema_version": "propertyscope.crime-series.v1",
+        "content_sha256": digest,
+        "record_count": 2,
+        "manifest_json": {},
+        "status": "awaiting_review",
+        "version": 2,
+    }
+    receipts: list[dict[str, Any]] = []
+    transitions = 0
+    consumer_calls = 0
+
+    def database(request: httpx.Request) -> httpx.Response:
+        nonlocal transitions
+        if request.method == "GET":
+            return httpx.Response(200, json={"release": release, "receipts": receipts})
+        if request.url.path.endswith("/receipts"):
+            body = cast(dict[str, Any], json.loads(request.content))
+            receipt = {"id": "receipt-recovery", **body}
+            receipts.append(receipt)
+            return httpx.Response(201, json={"receipt": receipt, "created": True})
+        transitions += 1
+        if transitions == 1:
+            return httpx.Response(503, json={"code": "temporary_database_failure"})
+        return httpx.Response(200, json={"release": {**release, "status": "accepted"}})
+
+    def consumer(_: httpx.Request) -> httpx.Response:
+        nonlocal consumer_calls
+        consumer_calls += 1
+        return httpx.Response(
+            200,
+            json={
+                "consumer_operation_id": "publish-recovery",
+                "status": "accepted",
+                "schema_version": "propertyscope.crime-series.v1",
+                "content_sha256": digest,
+                "rows_received": 2,
+                "rows_accepted": 2,
+                "rows_rejected": 0,
+                "error": None,
+            },
+        )
+
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database",
+            "secret",
+            client=httpx.Client(transport=httpx.MockTransport(database)),
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai",
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
+        ),
+        consumer_client=ConsumerImportClient(
+            {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},
+            client=httpx.Client(transport=httpx.MockTransport(consumer)),
+        ),
+    )
+    client = app.test_client()
+    kwargs = {
+        "headers": {"Idempotency-Key": "publish-recovery"},
+        "json": {"version": 2, "comment": "Reviewed", "approved": True},
+    }
+
+    first = client.post(f"/api/data-platform/v1/dataset-releases/{release_id}/publish", **kwargs)
+    second = client.post(f"/api/data-platform/v1/dataset-releases/{release_id}/publish", **kwargs)
+
+    assert first.status_code == 503
+    assert second.status_code == 200
+    assert second.get_json()["replayed"] is True
+    assert consumer_calls == 1
+    assert transitions == 2
 
 
 def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
@@ -225,6 +308,224 @@ def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
     assert response.status_code == 424
     assert events == ["receipt"]
     assert response.get_json()["code"] == "consumer_publication_failed"
+
+
+def test_local_artifact_verification_failure_records_receipt_and_preserves_release(
+    tmp_path: Path,
+) -> None:
+    release_id = "60000000-0000-0000-0000-000000000014"
+    digest = "a" * 64
+    manifest = {
+        "manifest_schema_version": "propertyscope.release-manifest.v1",
+        "product_schema_version": "propertyscope.property-snapshot.v1",
+        "release_id": release_id,
+        "release_version": "fixture-local-failure-v1",
+        "dataset_id": "fixture-property",
+        "target_feature": "feature-1",
+        "builder_key": "property-snapshot",
+        "builder_version": "1.0.0",
+        "import_profile": "property-fixture",
+        "normalisation_version": "1.0.0",
+        "publisher": "PropertyScope test",
+        "source": "Missing local artifact test",
+        "source_release": "fixture-v1",
+        "source_retrieved_at": "2026-08-16T01:02:03Z",
+        "source_effective_at": None,
+        "candidate_generation_id": release_id,
+        "record_count": 1,
+        "record_count_definition": "property records",
+        "content_sha256": digest,
+        "media_type": "application/json",
+        "content_encoding": None,
+        "byte_count": 100,
+        "geography_coverage": ["NSW"],
+        "temporal_coverage": None,
+        "measures": [],
+        "entity_types": ["property"],
+        "source_licence": "synthetic-test-data",
+        "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "redistribution_decision": "committed-synthetic-fixture",
+        "download_permitted": True,
+        "known_limitations": ["test"],
+        "created_at": "2026-08-16T01:02:03Z",
+        "supersedes_release_id": None,
+    }
+    release = {
+        "id": release_id,
+        "dataset_id": "fixture-property",
+        "target_feature": "feature-1",
+        "schema_version": "propertyscope.property-snapshot.v1",
+        "content_sha256": digest,
+        "record_count": 1,
+        "manifest_json": manifest,
+        "status": "awaiting_review",
+        "version": 1,
+    }
+    receipts: list[dict[str, Any]] = []
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path.endswith("/artifact"):
+            return httpx.Response(
+                200,
+                json={
+                    "artifact": {
+                        "artifact_kind": "release_export",
+                        "content_sha256": digest,
+                        "bytes": 100,
+                        "storage_key": f"sha256/{digest[:2]}/{digest}",
+                    }
+                },
+            )
+        if request.method == "GET":
+            return httpx.Response(200, json={"release": release, "receipts": receipts})
+        assert request.url.path.endswith("/receipts")
+        body = cast(dict[str, Any], json.loads(request.content))
+        assert body["status"] == "failed"
+        assert body["rows_received"] == body["rows_rejected"] == 1
+        receipt = {"id": "receipt-local-failure", **body}
+        receipts.append(receipt)
+        return httpx.Response(201, json={"receipt": receipt, "created": True})
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+        artifact_root=tmp_path,
+    )
+
+    response = app.test_client().post(
+        f"/api/data-platform/v1/dataset-releases/{release_id}/publish",
+        headers={"Idempotency-Key": "publish-local-failure"},
+        json={"version": 1, "comment": "Reviewed", "approved": True},
+    )
+
+    assert response.status_code == 424
+    assert release["status"] == "awaiting_review"
+    assert len(receipts) == 1
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_code"),
+    [
+        (
+            httpx.Response(
+                200,
+                json={
+                    "consumer_operation_id": "publish-release",
+                    "status": "accepted",
+                    "schema_version": "propertyscope.wrong.v1",
+                    "content_sha256": "a" * 64,
+                    "rows_received": 1,
+                    "rows_accepted": 1,
+                    "rows_rejected": 0,
+                    "error": None,
+                },
+            ),
+            "consumer_evidence_mismatch",
+        ),
+        (
+            httpx.Response(
+                200,
+                json={
+                    "consumer_operation_id": "another-operation",
+                    "status": "accepted",
+                    "schema_version": "propertyscope.property-sales.v1",
+                    "content_sha256": "a" * 64,
+                    "rows_received": 1,
+                    "rows_accepted": 1,
+                    "rows_rejected": 0,
+                    "error": None,
+                },
+            ),
+            "consumer_evidence_mismatch",
+        ),
+        (
+            httpx.Response(
+                200,
+                json={
+                    "consumer_operation_id": "publish-release",
+                    "status": "accepted",
+                    "schema_version": "propertyscope.property-sales.v1",
+                    "content_sha256": "b" * 64,
+                    "rows_received": 1,
+                    "rows_accepted": 1,
+                    "rows_rejected": 0,
+                    "error": None,
+                },
+            ),
+            "consumer_evidence_mismatch",
+        ),
+        (
+            httpx.Response(200, content=b"not-json"),
+            "consumer_response_invalid",
+        ),
+        (
+            httpx.Response(302, headers={"Location": "http://untrusted.invalid/import"}),
+            "consumer_response_invalid",
+        ),
+    ],
+)
+def test_consumer_receipt_mismatch_and_redirects_fail_closed(
+    response: httpx.Response, expected_code: str
+) -> None:
+    publication = ConsumerPublicationRequest(
+        release_id="60000000-0000-0000-0000-000000000099",
+        dataset_id="nsw-psi-sales",
+        schema_version="propertyscope.property-sales.v1",
+        content_sha256="a" * 64,
+        record_count=1,
+        manifest={},
+        artifact_path=(
+            "/api/data-platform/v1/dataset-releases/60000000-0000-0000-0000-000000000099/artifact"
+        ),
+        idempotency_key="publish-release",
+    )
+    client = ConsumerImportClient(
+        {"feature-2": ConsumerEndpoint("http://feature-2", "/api/imports")},
+        client=httpx.Client(transport=httpx.MockTransport(lambda _: response)),
+    )
+
+    receipt = client.publish("feature-2", publication, {})
+
+    assert receipt.status == "failed"
+    assert receipt.error is not None and receipt.error.code == expected_code
+
+
+def test_consumer_unavailability_returns_retryable_safe_receipt() -> None:
+    def unavailable(_: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("offline")
+
+    publication = ConsumerPublicationRequest(
+        release_id="60000000-0000-0000-0000-000000000099",
+        dataset_id="nsw-psi-sales",
+        schema_version="propertyscope.property-sales.v1",
+        content_sha256="a" * 64,
+        record_count=1,
+        manifest={},
+        artifact_path=(
+            "/api/data-platform/v1/dataset-releases/60000000-0000-0000-0000-000000000099/artifact"
+        ),
+        idempotency_key="publish-release",
+    )
+    client = ConsumerImportClient(
+        {"feature-2": ConsumerEndpoint("http://feature-2", "/api/imports")},
+        client=httpx.Client(transport=httpx.MockTransport(unavailable)),
+    )
+
+    receipt = client.publish("feature-2", publication, {})
+
+    assert receipt.status == "failed"
+    assert receipt.error is not None
+    assert receipt.error.code == "consumer_unavailable"
+    assert receipt.error.retryable is True
+
+
+@pytest.mark.parametrize("path", ["/api/../admin", "/api/imports?next=evil", "//evil"])
+def test_consumer_endpoint_rejects_unfixed_paths(path: str) -> None:
+    with pytest.raises(ValueError, match="fixed API path"):
+        ConsumerEndpoint("http://feature-2", path)
 
 
 def test_ai_unavailable_does_not_break_readiness() -> None:
@@ -467,10 +768,7 @@ def test_job_plan_enables_psi_when_official_archive_cache_is_available() -> None
 
     missing = client.post(
         f"/api/data-platform/v1/jobs/{job_id}/plans",
-        json={
-            "run_mode": "full_refresh",
-            "scope": {"profile": "full-data", "years": [2024]},
-        },
+        json={"run_mode": "full_refresh", "scope": {"profile": "full-data", "years": [2024]}},
     )
     assert missing.status_code == 200
     assert missing.get_json()["network_required"] is True
@@ -489,13 +787,77 @@ def test_job_plan_enables_psi_when_official_archive_cache_is_available() -> None
 
     showcase = client.post(
         f"/api/data-platform/v1/jobs/{job_id}/plans",
-        json={
-            "run_mode": "full_refresh",
-            "scope": {"profile": "showcase", "years": [2025]},
-        },
+        json={"run_mode": "full_refresh", "scope": {"profile": "showcase", "years": [2025]}},
     )
     assert showcase.status_code == 200
     assert showcase.get_json()["source_cache_required"] is False
+
+    invalid_release_scope = client.post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={
+            "run_mode": "full_refresh",
+            "scope": {"profile": "full-data", "release_scope": {"years": None}},
+        },
+    )
+    assert invalid_release_scope.status_code == 422
+    assert invalid_release_scope.get_json()["code"] == "invalid_scope"
+
+
+def test_job_plan_merges_registered_bounds_and_rejects_product_overflow() -> None:
+    job_id = "20000000-0000-0000-0000-000000000003"
+
+    def database(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "job": {
+                    "id": job_id,
+                    "profile_key": "gnaf-nsw-address-registry",
+                    "release_builder_key": "property-snapshot",
+                    "import_profile_key": "gnaf-nsw",
+                    "scope_json": {"profile": "showcase"},
+                    "max_objects": 10,
+                    "max_bytes": 2_500_000_000,
+                    "max_rows": 6_500_000,
+                    "timeout_seconds": 86_400,
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+    client = app.test_client()
+
+    merged = client.post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={"run_mode": "full_refresh", "scope": {"profile": "showcase"}},
+    )
+    overflow = client.post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={
+            "run_mode": "full_refresh",
+            "scope": {"profile": "full-data", "maximum_records": 50_001},
+        },
+    )
+    missing_bound = client.post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={
+            "run_mode": "full_refresh",
+            "scope": {"profile": "showcase", "maximum_records": None},
+        },
+    )
+
+    assert merged.status_code == 200
+    assert merged.get_json()["scope"]["maximum_records"] == 5000
+    assert overflow.status_code == 422
+    assert overflow.get_json()["code"] == "invalid_scope"
+    assert missing_bound.status_code == 422
+    assert missing_bound.get_json()["code"] == "invalid_scope"
 
 
 def test_protected_tool_rejects_forged_agent_run_header() -> None:

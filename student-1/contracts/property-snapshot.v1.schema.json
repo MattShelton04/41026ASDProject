@@ -1,0 +1,294 @@
+{
+  "$defs": {
+    "ProductProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_generation_id": {
+          "format": "uuid",
+          "title": "Candidate Generation Id",
+          "type": "string"
+        },
+        "normalisation_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Normalisation Version",
+          "type": "string"
+        },
+        "release_id": {
+          "format": "uuid",
+          "title": "Release Id",
+          "type": "string"
+        },
+        "release_version": {
+          "maxLength": 150,
+          "minLength": 1,
+          "title": "Release Version",
+          "type": "string"
+        },
+        "source_record_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Record Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "release_id",
+        "release_version",
+        "candidate_generation_id",
+        "source_record_sha256",
+        "normalisation_version"
+      ],
+      "title": "ProductProvenance",
+      "type": "object"
+    },
+    "PropertySnapshotRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "display_address": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Display Address",
+          "type": "string"
+        },
+        "flat_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flat Type"
+        },
+        "geocode_precision": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geocode Precision"
+        },
+        "geocode_type": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geocode Type"
+        },
+        "latitude": {
+          "maximum": -27,
+          "minimum": -38,
+          "title": "Latitude",
+          "type": "number"
+        },
+        "locality": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Locality",
+          "type": "string"
+        },
+        "longitude": {
+          "maximum": 160,
+          "minimum": 140,
+          "title": "Longitude",
+          "type": "number"
+        },
+        "postcode": {
+          "pattern": "^\\d{4}$",
+          "title": "Postcode",
+          "type": "string"
+        },
+        "property_ref": {
+          "format": "uuid",
+          "title": "Property Ref",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ProductProvenance"
+        },
+        "source_address_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Source Address Id",
+          "type": "string"
+        },
+        "source_crs": {
+          "maxLength": 30,
+          "minLength": 1,
+          "title": "Source Crs",
+          "type": "string"
+        },
+        "source_status": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Source Status",
+          "type": "string"
+        },
+        "state": {
+          "pattern": "^NSW$",
+          "title": "State",
+          "type": "string"
+        },
+        "street_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Street Name"
+        },
+        "street_number_first": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Street Number First"
+        },
+        "street_number_last": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Street Number Last"
+        },
+        "street_number_suffix": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Street Number Suffix"
+        },
+        "street_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Street Type"
+        },
+        "transformation_version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Transformation Version",
+          "type": "string"
+        },
+        "unit_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit Number"
+        }
+      },
+      "required": [
+        "property_ref",
+        "source_address_id",
+        "display_address",
+        "locality",
+        "state",
+        "postcode",
+        "latitude",
+        "longitude",
+        "source_status",
+        "source_crs",
+        "transformation_version",
+        "provenance"
+      ],
+      "title": "PropertySnapshotRecord",
+      "type": "object"
+    }
+  },
+  "$id": "https://propertyscope.local/contracts/property-snapshot.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidate_generation_id": {
+      "format": "uuid",
+      "title": "Candidate Generation Id",
+      "type": "string"
+    },
+    "dataset_id": {
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "records": {
+      "items": {
+        "$ref": "#/$defs/PropertySnapshotRecord"
+      },
+      "title": "Records",
+      "type": "array"
+    },
+    "release_id": {
+      "format": "uuid",
+      "title": "Release Id",
+      "type": "string"
+    },
+    "release_version": {
+      "title": "Release Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "pattern": "^propertyscope\\.property-snapshot\\.v1$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_feature": {
+      "pattern": "^feature-1$",
+      "title": "Target Feature",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "release_id",
+    "release_version",
+    "dataset_id",
+    "target_feature",
+    "candidate_generation_id",
+    "records"
+  ],
+  "title": "PropertySnapshotProduct",
+  "type": "object"
+}

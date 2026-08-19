@@ -96,3 +96,16 @@ def test_registered_job_scope_migration_exposes_bounded_live_defaults() -> None:
     assert '"geography_values":["2000","2007","2010"]' in migration
     assert '"years":[2025]' in migration
     assert '"maximum_records":50000' in migration
+
+
+def test_runtime_scopes_match_declarative_profiles_and_psi_partition_scope() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("017_release_scope_and_psi_revisions.sql")
+        .read_text("utf-8")
+    )
+
+    assert "source_partition_year" in migration
+    assert '"end_month":"2025-12"' in migration
+    assert '"maximum_records":2500' in migration
+    assert '"maximum_records":250000' in migration

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+import uuid
 from pathlib import Path
 
-from flask import Flask, request
+from flask import Flask, Response, g, request
 
 from propertyscope_data_platform.api import create_blueprint, register_error_handlers
 from propertyscope_data_platform.clients import (
@@ -14,6 +15,7 @@ from propertyscope_data_platform.clients import (
     ConsumerImportClient,
     DataStoreClient,
 )
+from propertyscope_data_platform.release_builders import validate_feature_registration
 
 
 def create_app(
@@ -25,8 +27,12 @@ def create_app(
     psi_transport_enabled: bool | None = None,
     psi_cached_years: tuple[int, ...] | None = None,
     psi_cached_weeks: tuple[str, ...] | None = None,
+    feature_root: Path | None = None,
+    artifact_root: Path | None = None,
 ) -> Flask:
     """Create the credential-free Feature 1 backend."""
+    resolved_feature_root = feature_root or Path(__file__).resolve().parents[3]
+    validate_feature_registration(resolved_feature_root)
     store = store_client or DataStoreClient(
         os.environ.get("PROPERTYSCOPE_DATABASE_API_URL", "http://propertyscope-database-api:5202"),
         os.environ.get("PROPERTYSCOPE_INTERNAL_TOKEN", "local-development-only"),
@@ -92,16 +98,25 @@ def create_app(
             store,
             ai_mode,
             consumers,
-            artifact_root=Path(
+            artifact_root=artifact_root
+            or Path(
                 os.environ.get("PROPERTYSCOPE_ARTIFACT_ROOT", "/var/lib/propertyscope/artifacts")
             ),
             full_data_enabled=live_runtime,
             psi_transport_enabled=psi_transport,
             psi_cached_years=cached_years,
             psi_cached_weeks=cached_weeks,
+            feature_root=resolved_feature_root,
         )
     )
     worker_token = os.environ.get("PROPERTYSCOPE_RUNNER_TOKEN", "local-runner-only")
+
+    @app.before_request
+    def establish_correlation() -> None:
+        supplied = request.headers.get("X-Request-ID", "").strip()
+        request_id = supplied if 1 <= len(supplied) <= 100 else str(uuid.uuid4())
+        request.environ["HTTP_X_REQUEST_ID"] = request_id
+        g.request_id = request_id
 
     @app.before_request
     def protect_worker_api() -> tuple[dict[str, object], int] | None:
@@ -115,6 +130,14 @@ def create_app(
                 "detail": "Runner credential is required",
             }, 401
         return None
+
+    @app.after_request
+    def return_correlation(response: Response) -> Response:
+        response.headers.setdefault("X-Request-ID", g.request_id)
+        traceparent = request.headers.get("traceparent")
+        if traceparent:
+            response.headers.setdefault("traceparent", traceparent)
+        return response
 
     register_error_handlers(app)
     return app

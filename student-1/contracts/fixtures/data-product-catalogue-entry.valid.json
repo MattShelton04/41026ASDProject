@@ -1,0 +1,20 @@
+{
+  "dataset_id": "nsw-psi-sales",
+  "display_name": "Synthetic NSW PSI sales fixture",
+  "source_key": "nsw-psi-sales",
+  "job_profile": "nsw-psi-sales-year",
+  "import_profile": "psi-sales",
+  "target_feature": "feature-2",
+  "product_schema_version": "propertyscope.property-sales.v1",
+  "builder_key": "property-sales",
+  "builder_version": "1.0.0",
+  "supported_scope_profiles": ["test"],
+  "redistribution_decision": "bounded-derived-release",
+  "download_permitted": true,
+  "capability_state": "catalogued",
+  "ordering_rule": "source_business_key, source_revision",
+  "max_rows": 250000,
+  "max_bytes": 50000000,
+  "known_limitations": ["Synthetic fixture; Feature 2 owns analytical semantics"],
+  "latest_accepted_release": null
+}

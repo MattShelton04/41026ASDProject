@@ -1,0 +1,9 @@
+{
+  "schema_version": "propertyscope.crime-series.v1",
+  "release_id": "60000000-0000-0000-0000-000000000003",
+  "release_version": "fixture-crime-v1",
+  "dataset_id": "bocsar-crime",
+  "target_feature": "feature-3",
+  "candidate_generation_id": "60000000-0000-0000-0000-000000000003",
+  "records": [{"geography_kind": "street", "month_count": 2, "observed_months": []}]
+}

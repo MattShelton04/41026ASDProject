@@ -135,6 +135,19 @@ def test_psi_source_key_and_hectare_conversion() -> None:
     assert sale.area_square_metres == 15000
 
 
+def test_psi_malformed_nonblank_facts_fail_closed_deterministically() -> None:
+    with pytest.raises(ValueError, match="date is malformed"):
+        parse_psi_b_record(
+            ("001", "P1", "2", "not-a-date", "20250201", "900000", "1.5", "H", "1 ROAD", "D1"),
+            source_year=2025,
+        )
+    with pytest.raises(ValueError, match="integer is malformed"):
+        parse_psi_b_record(
+            ("001", "P1", "2", "20250101", "20250201", "not-a-price", "1.5", "H", "1 ROAD", "D1"),
+            source_year=2025,
+        )
+
+
 def test_psi_archive_parses_nested_current_format_and_caps_records() -> None:
     nested = io.BytesIO()
     with ZipFile(nested, "w") as archive:
@@ -181,6 +194,20 @@ def test_psi_archive_parses_pre_2001_root_dat_and_deduplicates_retransmission() 
     assert sales[0].source_era == "pre-2001"
     assert sales[0].contract_date == date(1999, 12, 31)
     assert sales[0].area_square_metres == 15000
+
+
+def test_psi_archive_preserves_a_corrected_retransmission_as_a_revision() -> None:
+    first = (
+        "B;001;P1;2;20250101;;1;10;ROAD;SYDNEY;2000;500;M;20250101;20250201;900000;R;R;;;X;;;D1\n"
+    )
+    corrected = first.replace("900000", "910000")
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("20250101.DAT", first + first + corrected)
+
+    sales = tuple(iter_psi_archive(stream.getvalue(), source_year=2025))
+
+    assert [sale.price_aud for sale in sales] == [900000, 910000]
 
 
 def test_psi_archive_detects_legacy_rows_inside_official_2001_archive() -> None:
@@ -374,6 +401,17 @@ def test_gnaf_requires_members_and_selects_preferred_geocode() -> None:
         )
     )
     assert selected is not None and selected["GEOCODE_PID"] == "1"
+    lord_howe = select_geocode(
+        (
+            {
+                "GEOCODE_PID": "LHI-1",
+                "GEOCODE_TYPE_CODE": "PC",
+                "LATITUDE": "-31.53",
+                "LONGITUDE": "159.07",
+            },
+        )
+    )
+    assert lord_howe is not None and lord_howe["GEOCODE_PID"] == "LHI-1"
 
 
 def test_gnaf_streaming_join_preserves_units_and_declared_crs(tmp_path: Path) -> None:

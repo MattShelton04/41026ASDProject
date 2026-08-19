@@ -1,0 +1,9 @@
+{
+  "schema_version": "propertyscope.school-points.v1",
+  "release_id": "60000000-0000-0000-0000-000000000004",
+  "release_version": "fixture-schools-v1",
+  "dataset_id": "nsw-government-schools",
+  "target_feature": "feature-3",
+  "candidate_generation_id": "60000000-0000-0000-0000-000000000004",
+  "records": [{"school_code": "S0001", "state": "VIC", "latitude": -50, "longitude": 200}]
+}

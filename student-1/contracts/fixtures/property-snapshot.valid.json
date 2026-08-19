@@ -1,0 +1,37 @@
+{
+  "schema_version": "propertyscope.property-snapshot.v1",
+  "release_id": "60000000-0000-0000-0000-000000000001",
+  "release_version": "fixture-property-v1",
+  "dataset_id": "fixture-property",
+  "target_feature": "feature-1",
+  "candidate_generation_id": "60000000-0000-0000-0000-000000000001",
+  "records": [{
+    "property_ref": "11111111-1111-4111-8111-111111111111",
+    "source_address_id": "FIX-001",
+    "display_address": "1 TEST STREET PARRAMATTA NSW 2150",
+    "flat_type": null,
+    "unit_number": null,
+    "street_number_first": 1,
+    "street_number_suffix": null,
+    "street_number_last": null,
+    "street_name": "TEST",
+    "street_type": "STREET",
+    "locality": "PARRAMATTA",
+    "state": "NSW",
+    "postcode": "2150",
+    "latitude": -33.8151,
+    "longitude": 151.0011,
+    "source_status": "CURRENT",
+    "geocode_type": "FIXTURE",
+    "geocode_precision": "FIXTURE",
+    "source_crs": "4326",
+    "transformation_version": "postgis-st_transform-1.0.0",
+    "provenance": {
+      "release_id": "60000000-0000-0000-0000-000000000001",
+      "release_version": "fixture-property-v1",
+      "candidate_generation_id": "60000000-0000-0000-0000-000000000001",
+      "source_record_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "normalisation_version": "1.0.0"
+    }
+  }]
+}

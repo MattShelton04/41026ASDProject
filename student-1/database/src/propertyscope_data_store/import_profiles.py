@@ -67,6 +67,8 @@ def prepare_import(data: bytes, *, profile: str) -> PreparedImport:
         raise ImportProfileError("canonical import artifact exceeds bounded row limit")
     validator = _VALIDATORS[profile]
     rows = tuple(validator(row, index) for index, row in enumerate(source_rows, start=1))
+    if profile == "psi-sales":
+        rows = _normalise_psi_revisions(rows)
     _validate_natural_keys(profile, rows)
     return PreparedImport(profile=profile, rows=rows)
 
@@ -195,8 +197,6 @@ def _insert_profile_rows(
     artifact_id: uuid.UUID,
     run_id: uuid.UUID,
 ) -> int:
-    if profile == "property-fixture":
-        return len(cursor.execute("SELECT 1 FROM propertyscope_import_stage").fetchall())
     statement = _PROFILE_INSERT_SQL[profile]
     parameters: tuple[object, ...] = (release_id, artifact_id, run_id)
     cursor.execute(statement, parameters)
@@ -264,7 +264,7 @@ def _record_quality(
 
 def _validate_natural_keys(profile: str, rows: tuple[dict[str, Any], ...]) -> None:
     key_fields = {
-        "property-fixture": ("source_key",),
+        "property-fixture": ("gnaf_pid",),
         "gnaf-nsw": ("gnaf_pid",),
         "psi-sales": ("source_business_key", "source_revision"),
         "bocsar-sparse": (
@@ -281,9 +281,46 @@ def _validate_natural_keys(profile: str, rows: tuple[dict[str, Any], ...]) -> No
         raise ImportProfileError("canonical import natural keys must be unique")
 
 
+def _normalise_psi_revisions(
+    rows: tuple[dict[str, Any], ...],
+) -> tuple[dict[str, Any], ...]:
+    """Collapse exact PSI retransmissions and version changed facts in source order."""
+    seen: dict[str, set[str]] = {}
+    normalised: list[dict[str, Any]] = []
+    for row in rows:
+        key = str(row["source_business_key"])
+        digest = str(row["source_row_sha256"])
+        hashes = seen.setdefault(key, set())
+        if digest in hashes:
+            continue
+        hashes.add(digest)
+        normalised.append({**row, "source_revision": len(hashes)})
+    return tuple(normalised)
+
+
 def _fixture(row: object, index: int) -> dict[str, Any]:
     source = _object(row, index)
-    return {"source_key": _text(source, "source_key", index)}
+    latitude, longitude = _coordinates(source, index)
+    result = {
+        "gnaf_pid": _text(source, "source_pid", index),
+        "property_ref": _optional_uuid(source, "property_ref", index),
+        "address_display": _text(source, "address_display", index),
+        "flat_type": _optional_text(source, "flat_type", index),
+        "unit_number": _optional_text(source, "unit_number", index),
+        "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
+        "street_number_suffix": _optional_text(source, "street_number_suffix", index),
+        "street_number_last": _optional_integer(source, "street_number_last", index, minimum=0),
+        "street_name": _optional_text(source, "street_name", index),
+        "street_type": _optional_text(source, "street_type", index),
+        "locality": _text(source, "locality", index).upper(),
+        "postcode": _postcode(source, index),
+        "source_status": _text(source, "source_status", index),
+        "geocode_type": _text(source, "geocode_type", index),
+        "source_crs": _integer(source, "source_crs", index, allowed={4326}),
+        "latitude": latitude,
+        "longitude": longitude,
+    }
+    return _with_hash(result)
 
 
 def _school(row: object, index: int) -> dict[str, Any]:
@@ -334,15 +371,26 @@ def _psi(row: object, index: int) -> dict[str, Any]:
     confidence = _decimal(source, "match_confidence", index)
     if not Decimal("0") <= confidence <= Decimal("1"):
         raise ImportProfileError(f"record {index} match_confidence is outside 0..1")
+    contract_date = _optional_date(source, "contract_date", index)
+    settlement_date = _optional_date(source, "settlement_date", index)
+    source_partition_year = _optional_integer(source, "source_partition_year", index, minimum=1990)
+    if source_partition_year is None:
+        scoped_date = contract_date or settlement_date
+        if scoped_date is None:
+            raise ImportProfileError(
+                f"record {index} requires source_partition_year when both dates are null"
+            )
+        source_partition_year = int(scoped_date[:4])
     result = {
         "source_business_key": _text(source, "source_business_key", index),
         "source_revision": _integer(source, "source_revision", index, minimum=1),
         "source_era": _text(source, "source_era", index),
+        "source_partition_year": source_partition_year,
         "district_code": _optional_text(source, "district_code", index),
         "property_id": _optional_text(source, "property_id", index),
         "dealing_id": _optional_text(source, "dealing_id", index),
-        "contract_date": _optional_date(source, "contract_date", index),
-        "settlement_date": _optional_date(source, "settlement_date", index),
+        "contract_date": contract_date,
+        "settlement_date": settlement_date,
         "price_aud": _optional_integer(source, "price_aud", index, minimum=0),
         "area_original": _optional_decimal(source, "area_original", index),
         "area_unit": _optional_text(source, "area_unit", index),
@@ -352,7 +400,12 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         "match_confidence": str(confidence),
         "geographic_precision": _text(source, "geographic_precision", index),
     }
-    return _with_hash(result)
+    facts = {
+        key: value
+        for key, value in result.items()
+        if key not in {"source_revision", "source_partition_year"}
+    }
+    return {**result, "source_row_sha256": _with_hash(facts)["source_row_sha256"]}
 
 
 def _bocsar(row: object, index: int) -> dict[str, Any]:
@@ -532,6 +585,26 @@ _VALIDATORS = {
 }
 
 _PROFILE_INSERT_SQL = {
+    "property-fixture": """
+        INSERT INTO warehouse.gnaf_address (
+            dataset_release_id,gnaf_pid,property_ref,address_display,locality,postcode,
+            flat_type,unit_number,street_number_first,street_number_suffix,
+            street_number_last,street_name,street_type,source_status,geocode_type,source_crs,
+            geom,source_row_sha256,normalisation_version,artifact_record_id,ingestion_run_id,
+            created_at
+        ) SELECT %s,payload->>'gnaf_pid',NULLIF(payload->>'property_ref','')::uuid,
+            payload->>'address_display',payload->>'locality',payload->>'postcode',
+            NULLIF(payload->>'flat_type',''),NULLIF(payload->>'unit_number',''),
+            NULLIF(payload->>'street_number_first','')::integer,
+            NULLIF(payload->>'street_number_suffix',''),
+            NULLIF(payload->>'street_number_last','')::integer,
+            NULLIF(payload->>'street_name',''),NULLIF(payload->>'street_type',''),
+            payload->>'source_status',payload->>'geocode_type',(payload->>'source_crs')::integer,
+            ST_SetSRID(ST_MakePoint((payload->>'longitude')::double precision,
+                (payload->>'latitude')::double precision),4326),payload->>'source_row_sha256',
+            '1.0.0',%s,%s,now() FROM propertyscope_import_stage ORDER BY ordinal
+        ON CONFLICT (dataset_release_id,gnaf_pid) DO NOTHING
+    """,
     "schools-master": """
         INSERT INTO warehouse.school (
             dataset_release_id,school_code,school_name,school_type,status,locality_original,
@@ -568,14 +641,28 @@ _PROFILE_INSERT_SQL = {
         ON CONFLICT (dataset_release_id,gnaf_pid) DO NOTHING
     """,
     "psi-sales": """
+        WITH distinct_source_rows AS (
+            SELECT DISTINCT ON (
+                payload->>'source_business_key',payload->>'source_row_sha256'
+            ) payload,ordinal
+            FROM propertyscope_import_stage
+            ORDER BY payload->>'source_business_key',payload->>'source_row_sha256',ordinal
+        ), ranked_source_rows AS (
+            SELECT payload,row_number() OVER (
+                PARTITION BY payload->>'source_business_key' ORDER BY ordinal
+            )::integer AS derived_revision
+            FROM distinct_source_rows
+        )
         INSERT INTO warehouse.psi_sale (
-            dataset_release_id,source_business_key,source_revision,source_era,district_code,
+            dataset_release_id,source_business_key,source_revision,source_era,
+            source_partition_year,district_code,
             property_id,dealing_id,contract_date,settlement_date,price_aud,area_original,
             area_unit,area_square_metres,property_ref,match_tier,match_confidence,
             geographic_precision,source_row_sha256,normalisation_version,artifact_record_id,
             ingestion_run_id,created_at
-        ) SELECT %s,payload->>'source_business_key',(payload->>'source_revision')::integer,
-            payload->>'source_era',NULLIF(payload->>'district_code',''),
+        ) SELECT %s,payload->>'source_business_key',derived_revision,
+            payload->>'source_era',(payload->>'source_partition_year')::integer,
+            NULLIF(payload->>'district_code',''),
             NULLIF(payload->>'property_id',''),NULLIF(payload->>'dealing_id',''),
             NULLIF(payload->>'contract_date','')::date,NULLIF(payload->>'settlement_date','')::date,
             NULLIF(payload->>'price_aud','')::bigint,NULLIF(payload->>'area_original','')::numeric,
@@ -583,7 +670,7 @@ _PROFILE_INSERT_SQL = {
             NULLIF(payload->>'property_ref','')::uuid,payload->>'match_tier',
             (payload->>'match_confidence')::numeric,payload->>'geographic_precision',
             payload->>'source_row_sha256','1.0.0',%s,%s,now()
-        FROM propertyscope_import_stage ORDER BY ordinal
+        FROM ranked_source_rows ORDER BY payload->>'source_business_key',derived_revision
         ON CONFLICT (dataset_release_id,source_business_key,source_revision) DO NOTHING
     """,
     "bocsar-sparse": """

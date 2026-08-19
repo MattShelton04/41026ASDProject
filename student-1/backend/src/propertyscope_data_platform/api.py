@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import copy
+import json
 import uuid
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, timedelta
@@ -10,6 +13,7 @@ from typing import Any
 
 import httpx
 from flask import Blueprint, Response, jsonify, request
+from pydantic import ValidationError
 
 from propertyscope_data_platform.artifacts import ArtifactError, LocalArtifactStore
 from propertyscope_data_platform.clients import (
@@ -18,9 +22,18 @@ from propertyscope_data_platform.clients import (
     DataStoreClient,
     DependencyUnavailableError,
 )
+from propertyscope_data_platform.configuration import load_job_profiles
 from propertyscope_data_platform.domain import (
     ConsumerPublicationRequest,
     PublicationReceiptResult,
+)
+from propertyscope_data_platform.release_builders import (
+    BuildContext,
+    ProductEnvelope,
+    ReleaseDetailContract,
+    ReleaseManifestV1,
+    data_product_catalogue,
+    resolve_release_builder,
 )
 
 BASE = "/api/data-platform/v1"
@@ -37,9 +50,13 @@ def create_blueprint(
     psi_transport_enabled: bool = False,
     psi_cached_years: tuple[int, ...] = (),
     psi_cached_weeks: tuple[str, ...] = (),
+    feature_root: Path | None = None,
 ) -> Blueprint:
     """Create Feature 1's public API without any persistence imports."""
     api = Blueprint("propertyscope-data-platform", __name__)
+    resolved_feature_root = feature_root or Path(__file__).resolve().parents[3]
+    product_catalogue = data_product_catalogue(resolved_feature_root)
+    job_profiles = load_job_profiles(resolved_feature_root / "config" / "job-profiles")
 
     @api.get("/health/live")
     def live() -> tuple[Response, int]:
@@ -79,6 +96,118 @@ def create_blueprint(
                 "showcase_available": True,
             }
         )
+
+    @api.get(f"{BASE}/data-products")
+    def data_products() -> Response:
+        if request.args:
+            return problem(422, "invalid_query", "Data product catalogue takes no query fields")
+        accepted_response = store.request(
+            "GET",
+            f"{INTERNAL}/releases",
+            headers=request.headers,
+            params={"status": "accepted", "limit": 100, "offset": 0},
+        )
+        if accepted_response.status_code >= 400:
+            return forward(accepted_response)
+        accepted = accepted_response.json().get("items", [])
+        items = []
+        for entry in product_catalogue:
+            matching = next(
+                (
+                    item
+                    for item in accepted
+                    if item.get("dataset_id") == entry.dataset_id
+                    and item.get("target_feature") == entry.target_feature
+                ),
+                None,
+            )
+            if matching is not None:
+                try:
+                    release_detail_contract(matching)
+                except ValidationError:
+                    matching = None
+            payload = entry.model_dump(mode="json")
+            payload["latest_accepted_release"] = (
+                {
+                    key: matching.get(key)
+                    for key in (
+                        "id",
+                        "release_version",
+                        "schema_version",
+                        "content_sha256",
+                        "record_count",
+                        "accepted_at",
+                    )
+                }
+                if matching
+                else None
+            )
+            items.append(payload)
+        return jsonify({"items": items, "count": len(items), "next_cursor": None})
+
+    @api.get(f"{BASE}/data-products/<dataset_id>")
+    def data_product(dataset_id: str) -> Response:
+        if request.args:
+            return problem(422, "invalid_query", "Data product detail takes no query fields")
+        entry = next((item for item in product_catalogue if item.dataset_id == dataset_id), None)
+        if entry is None:
+            return problem(404, "data_product_not_found", "Data product is not registered")
+        accepted_response = store.request(
+            "GET",
+            f"{INTERNAL}/releases",
+            headers=request.headers,
+            params={
+                "status": "accepted",
+                "dataset_id": dataset_id,
+                "target_feature": entry.target_feature,
+                "limit": 1,
+                "offset": 0,
+            },
+        )
+        if accepted_response.status_code >= 400:
+            return forward(accepted_response)
+        matching = next(iter(accepted_response.json().get("items", [])), None)
+        if matching is not None:
+            try:
+                release_detail_contract(matching)
+            except ValidationError:
+                matching = None
+        payload = entry.model_dump(mode="json")
+        payload["latest_accepted_release"] = matching
+        return jsonify(payload)
+
+    @api.get(f"{BASE}/data-products/<dataset_id>/accepted")
+    def accepted_data_product(dataset_id: str) -> Response:
+        entry = next((item for item in product_catalogue if item.dataset_id == dataset_id), None)
+        if entry is None:
+            return problem(404, "data_product_not_found", "Data product is not registered")
+        target = request.args.get("target_feature", entry.target_feature)
+        if target != entry.target_feature or set(request.args) - {"target_feature"}:
+            return problem(422, "invalid_query", "Accepted product query is invalid")
+        upstream = store.request(
+            "GET",
+            f"{INTERNAL}/releases",
+            headers=request.headers,
+            params={
+                "status": "accepted",
+                "dataset_id": dataset_id,
+                "target_feature": target,
+                "limit": 1,
+                "offset": 0,
+            },
+        )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        items = upstream.json().get("items", [])
+        if not items:
+            return problem(404, "accepted_release_not_found", "No accepted release is available")
+        try:
+            release_contract = release_detail_contract(items[0])
+        except ValidationError:
+            return problem(
+                409, "release_contract_invalid", "Accepted release is not contract-valid"
+            )
+        return jsonify({"release": release_contract})
 
     @api.route(f"{BASE}/sources", methods=["GET", "POST"])
     def sources() -> Response:
@@ -143,7 +272,7 @@ def create_blueprint(
             )
         scope, scope_error = validate_job_scope(
             job_data,
-            body.get("scope", job_data["scope_json"]),
+            resolve_registered_scope(job_data, body.get("scope"), job_profiles),
             run_mode=mode,
             full_data_enabled=full_data_enabled,
             psi_transport_enabled=psi_transport_enabled,
@@ -208,7 +337,7 @@ def create_blueprint(
             )
         scope, scope_error = validate_job_scope(
             job_response.json()["job"],
-            body.get("scope", job_response.json()["job"]["scope_json"]),
+            resolve_registered_scope(job_response.json()["job"], body.get("scope"), job_profiles),
             run_mode=mode,
             full_data_enabled=full_data_enabled,
             psi_transport_enabled=psi_transport_enabled,
@@ -329,9 +458,7 @@ def create_blueprint(
     def release(release_id: uuid.UUID) -> Response:
         if request.method != "GET":
             return proxy_item(store, f"{INTERNAL}/releases/{release_id}")
-        return forward(
-            store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
-        )
+        return release_inspection(store, release_id)
 
     @api.get(f"{BASE}/dataset-releases/<uuid:release_id>/manifest")
     def release_manifest(release_id: uuid.UUID) -> Response:
@@ -340,7 +467,11 @@ def create_blueprint(
         )
         if upstream.status_code >= 400:
             return forward(upstream)
-        return jsonify(upstream.json()["release"]["manifest_json"])
+        try:
+            manifest = ReleaseManifestV1.model_validate(upstream.json()["release"]["manifest_json"])
+        except ValidationError:
+            return problem(409, "manifest_invalid", "Release manifest is not contract-valid")
+        return jsonify(manifest.model_dump(mode="json"))
 
     @api.get(f"{BASE}/dataset-releases/<uuid:release_id>/artifact")
     def release_artifact(release_id: uuid.UUID) -> Response:
@@ -373,7 +504,16 @@ def create_blueprint(
             return problem(503, "artifact_unavailable", "Verified release artifact is unavailable")
         response = Response(data, content_type=artifact["media_type"])
         response.headers["Content-Disposition"] = f'attachment; filename="{release_id}.json"'
-        response.headers["Digest"] = f"sha-256={artifact['content_sha256']}"
+        digest_bytes = bytes.fromhex(artifact["content_sha256"])
+        response.headers["Digest"] = f"sha-256=:{base64.b64encode(digest_bytes).decode()}:"
+        response.headers["ETag"] = f'"sha256-{artifact["content_sha256"]}"'
+        response.headers["Cache-Control"] = (
+            "public, max-age=31536000, immutable"
+            if artifact["release_status"] in {"accepted", "superseded"}
+            else "private, no-store"
+        )
+        if artifact.get("content_encoding"):
+            response.headers["Content-Encoding"] = artifact["content_encoding"]
         return response
 
     @api.get(f"{BASE}/dataset-releases/<uuid:release_id>/records")
@@ -403,7 +543,7 @@ def create_blueprint(
         key = request.headers.get("Idempotency-Key", "").strip()
         if not key:
             return problem(422, "idempotency_key_required", "Idempotency-Key is required")
-        return publish_release(store, consumers, release_id, body, key)
+        return publish_release(store, consumers, release_id, body, key, artifact_root=artifact_root)
 
     @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/reject")
     def release_reject(release_id: uuid.UUID) -> Response:
@@ -756,6 +896,7 @@ def create_blueprint(
             release_id,
             {"comment": f"Approved agent operation {key}"},
             key,
+            artifact_root=artifact_root,
             tool_output=True,
         )
 
@@ -799,7 +940,60 @@ def create_blueprint(
 
     @api.post(f"{INTERNAL}/worker/runs/<uuid:run_id>/finalize-release")
     def worker_finalize_release(run_id: uuid.UUID) -> Response:
-        return finalize_candidate_release(store, run_id)
+        return finalize_candidate_release(store, run_id, json_body())
+
+    @api.get(f"{INTERNAL}/worker/runs/<uuid:run_id>/release-build-context")
+    def worker_release_build_context(run_id: uuid.UUID) -> Response:
+        upstream = store.request(
+            "GET", f"{INTERNAL}/runs/{run_id}/release-build-context", headers=request.headers
+        )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        raw = upstream.json()["context"]
+        builder = resolve_release_builder(
+            str(raw["release_builder_key"]), str(raw["release_builder_version"])
+        )
+        context = BuildContext(
+            release_id=raw["release_id"],
+            release_version=raw["release_version"],
+            dataset_id=raw["dataset_id"],
+            target_feature=raw["target_feature"],
+            candidate_generation_id=raw["candidate_generation_id"],
+            import_profile=raw["import_profile_key"],
+            normalisation_version=raw["normalisation_version"],
+            publisher=raw["publisher"],
+            source=raw["source_name"],
+            source_release=raw["source_release"],
+            source_licence=raw["licence_id"],
+            licence_url=raw["licence_url"],
+            redistribution_policy=raw["redistribution_policy"],
+            source_retrieved_at=raw.get("source_retrieved_at"),
+            scope=raw["coverage_json"],
+            supersedes_release_id=raw.get("supersedes_release_id"),
+        )
+        if context.import_profile not in builder.spec.import_profiles:
+            return problem(409, "release_builder_mismatch", "Release builder/import mismatch")
+        if context.target_feature != builder.spec.target_feature:
+            return problem(409, "release_builder_mismatch", "Release builder/target mismatch")
+        return jsonify(
+            {
+                "context": context.model_dump(mode="json"),
+                "builder": {"key": builder.spec.key, "version": builder.spec.version},
+                "target_contract": builder.spec.contract,
+                "release_id": str(context.release_id),
+            }
+        )
+
+    @api.get(f"{INTERNAL}/worker/releases/<uuid:release_id>/product-records")
+    def worker_release_product_records(release_id: uuid.UUID) -> Response:
+        return forward(
+            store.request(
+                "GET",
+                f"{INTERNAL}/releases/{release_id}/product-records",
+                headers=request.headers,
+                params=request.args,
+            )
+        )
 
     return api
 
@@ -870,14 +1064,25 @@ def validate_job_scope(
     if profile not in {"test", "showcase", "full-data"}:
         return None, problem(422, "invalid_scope", "Scope profile is not registered")
     scope["profile"] = profile
-    maximum_records = scope.get("maximum_records")
-    if maximum_records is not None and (
+    bounded_scope = scope.get("release_scope", scope)
+    if not isinstance(bounded_scope, dict):
+        return None, problem(422, "invalid_scope", "release_scope must be a JSON object")
+    builder_key = job.get("release_builder_key") or {
+        "bocsar-sparse": "crime-series",
+        "gnaf-nsw": "property-snapshot",
+        "property-fixture": "property-snapshot",
+        "psi-sales": "property-sales",
+        "schools-master": "school-points",
+    }.get(str(job.get("import_profile_key")))
+    builder = resolve_release_builder(str(builder_key), "1.0.0")
+    maximum_records = bounded_scope.get("maximum_records")
+    if (
         not isinstance(maximum_records, int)
         or isinstance(maximum_records, bool)
         or maximum_records < 1
-        or maximum_records > int(job["max_rows"])
+        or maximum_records > builder.spec.max_rows
     ):
-        return None, problem(422, "invalid_scope", "maximum_records exceeds the job limit")
+        return None, problem(422, "invalid_scope", "maximum_records exceeds the product limit")
     if str(job.get("import_profile_key")) == "psi-sales":
         years = scope.get("years")
         all_history = scope.get("all_history") is True
@@ -911,6 +1116,21 @@ def validate_job_scope(
             return None, problem(422, "invalid_scope", "PSI weeks must use ISO dates")
         if parsed_weeks != sorted(set(parsed_weeks)):
             return None, problem(422, "invalid_scope", "PSI weeks must be unique and sorted")
+        release_years = bounded_scope.get("years")
+        if not isinstance(release_years, list) or not release_years or len(release_years) > 100:
+            return None, problem(
+                422, "invalid_scope", "PSI release scope requires explicit source years"
+            )
+        if any(
+            not isinstance(year, int)
+            or isinstance(year, bool)
+            or year < 1990
+            or year > maximum_year
+            for year in release_years
+        ) or release_years != sorted(set(release_years)):
+            return None, problem(
+                422, "invalid_scope", "PSI release years must be unique, sorted, and in range"
+            )
     if run_mode == "full_refresh" and profile == "full-data" and not full_data_enabled:
         return None, problem(
             422,
@@ -932,6 +1152,54 @@ def validate_job_scope(
             "This source is catalogued but its live acquisition transport is not connected",
         )
     return scope, None
+
+
+def resolve_registered_scope(job: Mapping[str, Any], raw_scope: Any, job_profiles: Any) -> Any:
+    """Overlay bounded operator fields onto the declarative profile actually registered."""
+    requested = {} if raw_scope is None else raw_scope
+    if not isinstance(requested, dict):
+        return requested
+    profile_name = requested.get("profile")
+    if profile_name is None and isinstance(job.get("scope_json"), dict):
+        profile_name = job["scope_json"].get("profile")
+    profile_name = profile_name or "showcase"
+    try:
+        profile_key = job.get("profile_key")
+        if profile_key is None:
+            import_key = str(job.get("import_profile_key"))
+            profile_key = next(
+                key
+                for key in job_profiles
+                if job_profiles.get_profile(key).import_profile.key == import_key
+            )
+        registered = job_profiles.get_profile(str(profile_key))
+        defaults = registered.scope_profiles[str(profile_name)]
+    except (KeyError, StopIteration, ValueError):
+        return requested
+    resolved = copy.deepcopy(defaults)
+    for key, value in requested.items():
+        if key == "release_scope" and isinstance(value, dict):
+            nested = resolved.get(key, {})
+            if isinstance(nested, dict):
+                nested.update(value)
+                resolved[key] = nested
+            else:
+                resolved[key] = value
+        else:
+            resolved[key] = value
+    if "years" in requested:
+        resolved.setdefault("weeks", [])
+        if "all_history" not in requested:
+            resolved["all_history"] = False
+        if "include_current_weekly" not in requested:
+            resolved["include_current_weekly"] = False
+    if "weeks" in requested:
+        if "all_history" not in requested:
+            resolved["all_history"] = False
+        if "include_current_weekly" not in requested:
+            resolved["include_current_weekly"] = False
+    resolved["profile"] = profile_name
+    return resolved
 
 
 def proxy_collection(store: DataStoreClient, path: str) -> Response:
@@ -980,16 +1248,14 @@ def ensure_import_operation(
     if artifact is None:
         return problem(409, "canonical_artifact_missing", "Verified canonical artifact is missing")
     releases_response = store.request(
-        "GET", f"{INTERNAL}/releases", headers=request.headers, params={"limit": 100}
+        "GET",
+        f"{INTERNAL}/releases",
+        headers=request.headers,
+        params={"ingestion_run_id": str(run_id), "limit": 1},
     )
-    release = next(
-        (
-            item
-            for item in releases_response.json().get("items", [])
-            if item["ingestion_run_id"] == str(run_id)
-        ),
-        None,
-    )
+    if releases_response.status_code >= 400:
+        return forward(releases_response)
+    release = next(iter(releases_response.json().get("items", [])), None)
     if release is None:
         release_response = store.request(
             "POST",
@@ -1053,32 +1319,51 @@ def ensure_import_operation(
     return forward(operation_response)
 
 
-def finalize_candidate_release(store: DataStoreClient, run_id: uuid.UUID) -> Response:
-    releases = store.request(
-        "GET", f"{INTERNAL}/releases", headers=request.headers, params={"limit": 100}
+def finalize_candidate_release(
+    store: DataStoreClient, run_id: uuid.UUID, body: Mapping[str, Any]
+) -> Response:
+    context_response = store.request(
+        "GET",
+        f"{INTERNAL}/runs/{run_id}/release-build-context",
+        headers=request.headers,
     )
-    release = next(
-        (
-            item
-            for item in releases.json().get("items", [])
-            if item["ingestion_run_id"] == str(run_id)
-        ),
-        None,
-    )
-    if release is None:
+    if context_response.status_code >= 400:
         return problem(409, "candidate_release_missing", "Candidate release is missing")
-    if release["status"] == "candidate":
-        return jsonify({"release": release, "replayed": True})
+    release_id = context_response.json()["context"]["release_id"]
+    required = {
+        "artifact_record_id",
+        "schema_version",
+        "content_sha256",
+        "record_count",
+        "manifest",
+    }
+    if set(body) != required:
+        return problem(
+            422,
+            "invalid_release_export_binding",
+            "A complete release export binding is required",
+        )
+    try:
+        manifest = ReleaseManifestV1.model_validate(body["manifest"])
+    except (KeyError, ValidationError):
+        return problem(422, "invalid_release_manifest", "Release manifest is contract-invalid")
+    if (
+        str(manifest.release_id) != release_id
+        or manifest.product_schema_version != body["schema_version"]
+        or manifest.content_sha256 != body["content_sha256"]
+        or manifest.record_count != body["record_count"]
+    ):
+        return problem(
+            422,
+            "invalid_release_export_binding",
+            "Release manifest and export binding disagree",
+        )
     return forward(
         store.request(
             "POST",
-            f"{INTERNAL}/releases/{release['id']}/transition",
+            f"{INTERNAL}/releases/{release_id}/bind-export",
             headers=request.headers,
-            json={
-                "version": release["version"],
-                "target": "candidate",
-                "comment": "Registered import and quality checks completed",
-            },
+            json=dict(body),
         )
     )
 
@@ -1118,6 +1403,7 @@ def publish_release(
     body: Mapping[str, Any],
     idempotency_key: str,
     *,
+    artifact_root: Path,
     tool_output: bool = False,
 ) -> Response:
     """Record the final consumer receipt before atomically activating a release."""
@@ -1137,11 +1423,15 @@ def publish_release(
         None,
     )
     if release["status"] == "accepted" and prior_receipt:
+        if not receipt_matches_release(prior_receipt, release):
+            return problem(409, "receipt_evidence_conflict", "Receipt evidence does not match")
         if tool_output:
             return jsonify(
                 {"status": "accepted", "receipt_id": prior_receipt["id"], "replayed": True}
             )
-        return jsonify({"release": release, "receipt": prior_receipt, "replayed": True})
+        return jsonify(
+            {"release": release, "receipt": public_receipt(prior_receipt), "replayed": True}
+        )
     if release["status"] != "awaiting_review":
         return problem(
             409,
@@ -1154,6 +1444,24 @@ def publish_release(
         return problem(409, "release_version_conflict", "Release version does not match")
     if not isinstance(comment, str) or not comment.strip():
         return problem(422, "invalid_request", "A non-empty publication comment is required")
+    if prior_receipt:
+        if not receipt_matches_release(prior_receipt, release):
+            return problem(409, "receipt_evidence_conflict", "Receipt evidence does not match")
+        if prior_receipt["status"] != "accepted":
+            return problem(
+                424,
+                "consumer_publication_failed",
+                "The retained consumer receipt did not accept this release",
+            )
+        return complete_publication(
+            store,
+            release,
+            prior_receipt,
+            version=version,
+            comment=comment.strip(),
+            tool_output=tool_output,
+            replayed=True,
+        )
     publication = ConsumerPublicationRequest(
         release_id=release_id,
         dataset_id=release["dataset_id"],
@@ -1165,15 +1473,7 @@ def publish_release(
         idempotency_key=idempotency_key,
     )
     if release["target_feature"] == "feature-1":
-        result = PublicationReceiptResult(
-            consumer_operation_id=idempotency_key,
-            status="accepted",
-            schema_version=release["schema_version"],
-            content_sha256=release["content_sha256"],
-            rows_received=release["record_count"],
-            rows_accepted=release["record_count"],
-            rows_rejected=0,
-        )
+        result = verify_local_publication(store, release, publication, artifact_root)
     else:
         result = consumers.publish(release["target_feature"], publication, request.headers)
     recorded = store.request(
@@ -1196,28 +1496,113 @@ def publish_release(
             "consumer_publication_failed",
             "Consumer did not accept the release; the prior accepted release remains live",
         )
+    return complete_publication(
+        store,
+        release,
+        receipt,
+        version=version,
+        comment=comment.strip(),
+        tool_output=tool_output,
+        replayed=not receipt_envelope["created"],
+    )
+
+
+def receipt_matches_release(receipt: Mapping[str, Any], release: Mapping[str, Any]) -> bool:
+    return (
+        receipt.get("schema_version") == release.get("schema_version")
+        and receipt.get("content_sha256") == release.get("content_sha256")
+        and receipt.get("rows_received") == release.get("record_count")
+        and receipt.get("rows_accepted") == release.get("record_count")
+        and receipt.get("rows_rejected") == 0
+    )
+
+
+def complete_publication(
+    store: DataStoreClient,
+    release: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+    *,
+    version: int,
+    comment: str,
+    tool_output: bool,
+    replayed: bool,
+) -> Response:
     published = store.request(
         "POST",
-        f"{INTERNAL}/releases/{release_id}/transition",
+        f"{INTERNAL}/releases/{release['id']}/transition",
         headers=request.headers,
-        json={"version": version, "target": "accepted", "comment": comment.strip()},
+        json={"version": version, "target": "accepted", "comment": comment},
     )
     if published.status_code >= 400:
         return forward(published)
     if tool_output:
-        return jsonify(
-            {
-                "status": "accepted",
-                "receipt_id": receipt["id"],
-                "replayed": not receipt_envelope["created"],
-            }
-        )
+        return jsonify({"status": "accepted", "receipt_id": receipt["id"], "replayed": replayed})
     return jsonify(
         {
             "release": published.json()["release"],
-            "receipt": receipt,
-            "replayed": not receipt_envelope["created"],
+            "receipt": public_receipt(receipt),
+            "replayed": replayed,
         }
+    )
+
+
+def verify_local_publication(
+    store: DataStoreClient,
+    release: Mapping[str, Any],
+    publication: ConsumerPublicationRequest,
+    artifact_root: Path,
+) -> PublicationReceiptResult:
+    """Verify Feature 1's own exported bytes before recording consumer acceptance."""
+    try:
+        manifest = ReleaseManifestV1.model_validate(publication.manifest)
+        upstream = store.request(
+            "GET", f"{INTERNAL}/releases/{release['id']}/artifact", headers=request.headers
+        )
+        upstream.raise_for_status()
+        artifact = upstream.json()["artifact"]
+        if (
+            artifact["artifact_kind"] != "release_export"
+            or artifact["content_sha256"] != publication.content_sha256
+            or int(artifact["bytes"]) != int(publication.manifest["byte_count"])
+        ):
+            raise ArtifactError("artifact registration does not match the release")
+        content = LocalArtifactStore(artifact_root).read_verified(
+            artifact["storage_key"], publication.content_sha256, max_bytes=50_000_000
+        )
+        envelope = ProductEnvelope.model_validate(json.loads(content))
+        if (
+            envelope.schema_version != publication.schema_version
+            or envelope.release_id != publication.release_id
+            or envelope.dataset_id != publication.dataset_id
+            or len(envelope.records) != publication.record_count
+        ):
+            raise ArtifactError("product envelope does not match the release")
+        builder = resolve_release_builder(manifest.builder_key, manifest.builder_version)
+        for record in envelope.records:
+            builder.spec.record_adapter.validate_python(record)
+    except (ArtifactError, KeyError, TypeError, ValueError, ValidationError, httpx.HTTPError):
+        return PublicationReceiptResult(
+            consumer_operation_id=publication.idempotency_key,
+            status="failed",
+            schema_version=publication.schema_version,
+            content_sha256=publication.content_sha256,
+            rows_received=publication.record_count,
+            rows_accepted=0,
+            rows_rejected=publication.record_count,
+            error={
+                "code": "local_publication_verification_failed",
+                "message": "Feature 1 could not verify the registered release artifact",
+                "retryable": True,
+            },
+        )
+    return PublicationReceiptResult(
+        consumer_operation_id=publication.idempotency_key,
+        status="accepted",
+        schema_version=publication.schema_version,
+        content_sha256=publication.content_sha256,
+        rows_received=publication.record_count,
+        rows_accepted=publication.record_count,
+        rows_rejected=0,
     )
 
 
@@ -1250,36 +1635,97 @@ def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Respons
     response = store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
     if response.status_code >= 400:
         return forward(response)
-    release = response.json()["release"]
+    release_envelope = response.json()
+    release = release_envelope["release"]
     quality_response = store.request(
         "GET",
         f"{INTERNAL}/runs/{release['ingestion_run_id']}/quality-results",
         headers=request.headers,
         params={"limit": 100},
     )
-    releases_response = store.request(
-        "GET",
-        f"{INTERNAL}/releases",
-        headers=request.headers,
-        params={"status": "accepted", "limit": 100},
-    )
-    predecessor = next(
-        (
-            item
-            for item in releases_response.json().get("items", [])
-            if item["dataset_id"] == release["dataset_id"]
-            and item["target_feature"] == release["target_feature"]
-            and item["id"] != release["id"]
+    predecessor = None
+    if release.get("supersedes_release_id"):
+        predecessor_response = store.request(
+            "GET",
+            f"{INTERNAL}/releases/{release['supersedes_release_id']}",
+            headers=request.headers,
+        )
+        if predecessor_response.status_code < 400:
+            predecessor = predecessor_response.json().get("release")
+    elif release["status"] != "accepted":
+        releases_response = store.request(
+            "GET",
+            f"{INTERNAL}/releases",
+            headers=request.headers,
+            params={
+                "status": "accepted",
+                "dataset_id": release["dataset_id"],
+                "target_feature": release["target_feature"],
+                "limit": 1,
+                "offset": 0,
+            },
+        )
+        predecessor = next(iter(releases_response.json().get("items", [])), None)
+    quality_results = quality_response.json().get("items", [])
+    quality_summary = {
+        "total": len(quality_results),
+        "passed": sum(item.get("status") == "pass" for item in quality_results),
+        "failed": sum(item.get("status") == "fail" for item in quality_results),
+        "blocking_failures": sum(
+            item.get("status") == "fail" and item.get("severity") == "blocking"
+            for item in quality_results
         ),
-        None,
-    )
-    return jsonify(
+    }
+    payload = {
+        "release": release,
+        "quality_results": quality_results,
+        "quality_summary": quality_summary,
+        "receipts": [public_receipt(item) for item in release_envelope.get("receipts", [])],
+        "accepted_predecessor": predecessor,
+    }
+    try:
+        payload["release_contract"] = release_detail_contract(
+            release, receipts=release_envelope.get("receipts", [])
+        )
+    except ValidationError:
+        payload["release_contract"] = None
+    return jsonify(payload)
+
+
+def release_detail_contract(release: Mapping[str, Any], *, receipts: Any = ()) -> dict[str, Any]:
+    receipt_contracts = tuple(public_receipt(item) for item in receipts)
+    return ReleaseDetailContract.model_validate(
         {
-            "release": release,
-            "quality_results": quality_response.json().get("items", []),
-            "accepted_predecessor": predecessor,
+            "id": release["id"],
+            "dataset_id": release["dataset_id"],
+            "target_feature": release["target_feature"],
+            "release_version": release["release_version"],
+            "schema_version": release["schema_version"],
+            "status": release["status"],
+            "record_count": release["record_count"],
+            "content_sha256": release["content_sha256"],
+            "manifest_json": release["manifest_json"],
+            "supersedes_release_id": release.get("supersedes_release_id"),
+            "version": release["version"],
+            "receipts": receipt_contracts,
         }
-    )
+    ).model_dump(mode="json")
+
+
+def public_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    """Project datastore evidence onto the closed public consumer receipt contract."""
+    return PublicationReceiptResult.model_validate(
+        {
+            "consumer_operation_id": receipt["consumer_operation_id"],
+            "status": receipt["status"],
+            "schema_version": receipt["schema_version"],
+            "content_sha256": receipt["content_sha256"],
+            "rows_received": receipt["rows_received"],
+            "rows_accepted": receipt["rows_accepted"],
+            "rows_rejected": receipt["rows_rejected"],
+            "error": receipt.get("error", receipt.get("error_json")),
+        }
+    ).model_dump(mode="json")
 
 
 def forward(upstream: httpx.Response) -> Response:
@@ -1291,7 +1737,7 @@ def forward(upstream: httpx.Response) -> Response:
     response.status_code = upstream.status_code
     if upstream.headers.get("content-type", "").split(";", 1)[0] == "application/problem+json":
         response.content_type = "application/problem+json"
-    for name in ("Location", "X-Request-ID", "X-Agent-Run-ID"):
+    for name in ("Location", "X-Request-ID", "X-Agent-Run-ID", "traceparent"):
         if name in upstream.headers:
             response.headers[name] = upstream.headers[name]
     return response

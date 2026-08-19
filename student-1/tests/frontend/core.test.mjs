@@ -107,6 +107,7 @@ test("query construction excludes empty values and remains encoded", () => {
 
 test("hash routing is isolated, bounded, and preserves encoded query values", () => {
   assert.deepEqual(parseRoute("#runs/run%201"), { route: "runs", id: "run 1", action: "" });
+  assert.deepEqual(parseRoute("#data-products/nsw-psi-sales"), { route: "data-products", id: "nsw-psi-sales", action: "" });
   assert.deepEqual(parseRoute("#not-a-route"), { route: "overview", id: "", action: "" });
   assert.equal(routeQuery("#sources?q=crime+data&status=active").get("q"), "crime data");
 });

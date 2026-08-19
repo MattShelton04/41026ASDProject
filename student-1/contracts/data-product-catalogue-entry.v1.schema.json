@@ -1,0 +1,116 @@
+{
+  "$id": "https://propertyscope.local/contracts/data-product-catalogue-entry.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "builder_key": {
+      "title": "Builder Key",
+      "type": "string"
+    },
+    "builder_version": {
+      "title": "Builder Version",
+      "type": "string"
+    },
+    "capability_state": {
+      "pattern": "^(registered|fixture_backed|executable_cached|executable_live|blocked|deferred|catalogued)$",
+      "title": "Capability State",
+      "type": "string"
+    },
+    "dataset_id": {
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "display_name": {
+      "title": "Display Name",
+      "type": "string"
+    },
+    "download_permitted": {
+      "title": "Download Permitted",
+      "type": "boolean"
+    },
+    "import_profile": {
+      "title": "Import Profile",
+      "type": "string"
+    },
+    "job_profile": {
+      "title": "Job Profile",
+      "type": "string"
+    },
+    "known_limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Known Limitations",
+      "type": "array"
+    },
+    "latest_accepted_release": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latest Accepted Release"
+    },
+    "max_bytes": {
+      "title": "Max Bytes",
+      "type": "integer"
+    },
+    "max_rows": {
+      "title": "Max Rows",
+      "type": "integer"
+    },
+    "ordering_rule": {
+      "title": "Ordering Rule",
+      "type": "string"
+    },
+    "product_schema_version": {
+      "title": "Product Schema Version",
+      "type": "string"
+    },
+    "redistribution_decision": {
+      "title": "Redistribution Decision",
+      "type": "string"
+    },
+    "source_key": {
+      "title": "Source Key",
+      "type": "string"
+    },
+    "supported_scope_profiles": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Supported Scope Profiles",
+      "type": "array"
+    },
+    "target_feature": {
+      "title": "Target Feature",
+      "type": "string"
+    }
+  },
+  "required": [
+    "dataset_id",
+    "display_name",
+    "source_key",
+    "job_profile",
+    "import_profile",
+    "target_feature",
+    "product_schema_version",
+    "builder_key",
+    "builder_version",
+    "supported_scope_profiles",
+    "redistribution_decision",
+    "download_permitted",
+    "capability_state",
+    "ordering_rule",
+    "max_rows",
+    "max_bytes",
+    "known_limitations"
+  ],
+  "title": "DataProductCatalogueEntry",
+  "type": "object"
+}

@@ -163,8 +163,12 @@ class ConsumerImportClient:
             if response.status_code < 400:
                 result = PublicationReceiptResult.model_validate(payload)
                 if (
-                    result.schema_version != publication.schema_version
+                    result.consumer_operation_id != publication.idempotency_key
+                    or result.schema_version != publication.schema_version
                     or result.content_sha256 != publication.content_sha256
+                    or result.rows_received != publication.record_count
+                    or result.rows_accepted != publication.record_count
+                    or result.rows_rejected != 0
                 ):
                     return self._failed(
                         publication,

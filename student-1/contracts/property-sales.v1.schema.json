@@ -1,0 +1,272 @@
+{
+  "$defs": {
+    "ProductProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_generation_id": {
+          "format": "uuid",
+          "title": "Candidate Generation Id",
+          "type": "string"
+        },
+        "normalisation_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Normalisation Version",
+          "type": "string"
+        },
+        "release_id": {
+          "format": "uuid",
+          "title": "Release Id",
+          "type": "string"
+        },
+        "release_version": {
+          "maxLength": 150,
+          "minLength": 1,
+          "title": "Release Version",
+          "type": "string"
+        },
+        "source_record_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Record Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "release_id",
+        "release_version",
+        "candidate_generation_id",
+        "source_record_sha256",
+        "normalisation_version"
+      ],
+      "title": "ProductProvenance",
+      "type": "object"
+    },
+    "PropertySaleRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "area_original": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Area Original"
+        },
+        "area_square_metres": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Area Square Metres"
+        },
+        "area_unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Area Unit"
+        },
+        "contract_date": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contract Date"
+        },
+        "dealing_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dealing Id"
+        },
+        "district_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "District Code"
+        },
+        "geographic_precision": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Geographic Precision",
+          "type": "string"
+        },
+        "match_confidence": {
+          "pattern": "^(0(\\.\\d{1,4})?|1(\\.0{1,4})?)$",
+          "title": "Match Confidence",
+          "type": "string"
+        },
+        "match_tier": {
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Match Tier",
+          "type": "string"
+        },
+        "price_aud": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Aud"
+        },
+        "property_ref": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Property Ref"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ProductProvenance"
+        },
+        "settlement_date": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Settlement Date"
+        },
+        "source_business_key": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Source Business Key",
+          "type": "string"
+        },
+        "source_era": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Source Era",
+          "type": "string"
+        },
+        "source_property_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Property Id"
+        },
+        "source_revision": {
+          "minimum": 1,
+          "title": "Source Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_business_key",
+        "source_revision",
+        "source_era",
+        "match_tier",
+        "match_confidence",
+        "geographic_precision",
+        "provenance"
+      ],
+      "title": "PropertySaleRecord",
+      "type": "object"
+    }
+  },
+  "$id": "https://propertyscope.local/contracts/property-sales.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidate_generation_id": {
+      "format": "uuid",
+      "title": "Candidate Generation Id",
+      "type": "string"
+    },
+    "dataset_id": {
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "records": {
+      "items": {
+        "$ref": "#/$defs/PropertySaleRecord"
+      },
+      "title": "Records",
+      "type": "array"
+    },
+    "release_id": {
+      "format": "uuid",
+      "title": "Release Id",
+      "type": "string"
+    },
+    "release_version": {
+      "title": "Release Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "pattern": "^propertyscope\\.property-sales\\.v1$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_feature": {
+      "pattern": "^feature-2$",
+      "title": "Target Feature",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "release_id",
+    "release_version",
+    "dataset_id",
+    "target_feature",
+    "candidate_generation_id",
+    "records"
+  ],
+  "title": "PropertySalesProduct",
+  "type": "object"
+}

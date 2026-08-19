@@ -26,6 +26,9 @@ their own stores; they never access this feature's PostgreSQL/PostGIS database d
 
 For verified official-source counts, examples, bounds, hashes, AI execution and the browser
 showcase path, see [Feature 1 marking evidence](MARKING_EVIDENCE.md).
+For the implemented provider catalogue, HTTP/artifact contracts, compatibility policy,
+publication/recovery lifecycle, dataset semantics, and future-registration procedure, see
+[the Release 0 data-product consumer guide](DATA_PRODUCT_CONSUMER_GUIDE.md).
 
 Version-controlled source/job configuration lives in `config/`, HTTP and release schemas in
 `contracts/`, and persistence-neutral Pydantic/domain policy in
@@ -124,9 +127,9 @@ serial loader is the only process besides the database API that owns those crede
 AI-mode loads Feature 1's allowlisted tool catalogue, calls its bounded HTTP tools and stores
 diagnosis history in AI-mode's own database. It never reads PropertyScope PostgreSQL directly.
 
-Formal tutor/team approval evidence for the ADR-016 PostgreSQL/PostGIS exception still needs to be
-linked before final submission; the implementation and executable architecture checks do not
-invent that governance evidence.
+“Written tutor/team approval evidence for the ADR-016 PostgreSQL/PostGIS exception must still be
+attached before submission.” The implementation and executable architecture checks do not invent
+that governance evidence.
 
 ## Frontend structure
 

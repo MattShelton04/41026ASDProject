@@ -310,6 +310,22 @@ class PropertyScopeStore:
         merged = {name: values.get(name, current[name]) for name in fields}
         targets = values.get("target_features", current["target_features_json"])
         with self.connection() as connection:
+            connection.execute(
+                "SELECT id FROM ops.source_definition WHERE id=%s FOR UPDATE", (source_id,)
+            )
+            policy_changed = any(
+                merged[name] != current[name]
+                for name in ("licence_id", "licence_url", "redistribution_policy")
+            )
+            if policy_changed:
+                release = connection.execute(
+                    "SELECT id FROM ops.dataset_release WHERE source_definition_id=%s LIMIT 1",
+                    (source_id,),
+                ).fetchone()
+                if release is not None:
+                    raise ConflictError(
+                        "licence and redistribution evidence is immutable after a release exists"
+                    )
             row = connection.execute(
                 """
                 UPDATE ops.source_definition SET name=%s,publisher=%s,source_url=%s,adapter_key=%s,
@@ -605,6 +621,12 @@ class PropertyScopeStore:
                                 kind,
                             ),
                         )
+                    connection.execute(
+                        """UPDATE ops.ingestion_run child SET source_snapshot_json=
+                        (SELECT parent.source_snapshot_json FROM ops.ingestion_run parent
+                         WHERE parent.id=%s) WHERE child.id=%s""",
+                        (parent_run_id, run_id),
+                    )
                 connection.commit()
             except errors.UniqueViolation:
                 connection.rollback()
@@ -813,6 +835,7 @@ class PropertyScopeStore:
                 )
                 context = connection.execute(
                     """SELECT run.profile_key,run.run_mode,run.requested_scope_json,
+                    run.source_snapshot_json,
                     job.adapter_key,job.import_profile_key,job.import_profile_version,
                     job.dataset_id,job.target_feature,job.source_definition_id,
                     job.max_bytes,job.max_rows,job.timeout_seconds
@@ -888,12 +911,34 @@ class PropertyScopeStore:
         )
 
     # Release lifecycle and evidence.
-    def list_releases(self, *, status: str | None, limit: int, offset: int) -> list[JsonObject]:
+    def list_releases(
+        self,
+        *,
+        status: str | None,
+        dataset_id: str | None = None,
+        target_feature: str | None = None,
+        schema_version: str | None = None,
+        ingestion_run_id: str | None = None,
+        limit: int,
+        offset: int,
+    ) -> list[JsonObject]:
         query = "SELECT * FROM ops.dataset_release"
         params: list[Any] = []
+        predicates: list[str] = []
         if status:
-            query += " WHERE status=%s"
+            predicates.append("status=%s")
             params.append(status)
+        for column, value in (
+            ("dataset_id", dataset_id),
+            ("target_feature", target_feature),
+            ("schema_version", schema_version),
+            ("ingestion_run_id", ingestion_run_id),
+        ):
+            if value:
+                predicates.append(f"{column}=%s")
+                params.append(value)
+        if predicates:
+            query += " WHERE " + " AND ".join(predicates)
         query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
         params.extend((limit, offset))
         return self._fetch_all(query, params)
@@ -903,15 +948,18 @@ class PropertyScopeStore:
 
     def release_artifact(self, release_id: uuid.UUID) -> JsonObject:
         return self._required(
-            """SELECT artifact.*,source.redistribution_policy,release.status AS release_status
+            """SELECT artifact.*,
+            release.manifest_json->>'redistribution_decision' AS redistribution_policy,
+            release.status AS release_status
             FROM ops.dataset_release release
             JOIN ops.artifact_record artifact ON artifact.id=release.artifact_record_id
-            JOIN ops.source_definition source ON source.id=release.source_definition_id
             WHERE release.id=%s""",
             (release_id,),
         )
 
     def create_release(self, values: Mapping[str, Any]) -> JsonObject:
+        if values.get("status", "draft") != "draft":
+            raise ConflictError("new releases must begin as drafts")
         now = datetime.now(UTC)
         try:
             with self.connection() as connection:
@@ -949,14 +997,14 @@ class PropertyScopeStore:
 
     def update_release(self, release_id: uuid.UUID, values: Mapping[str, Any]) -> JsonObject:
         current = self.get_release(release_id)
-        if current["status"] not in {"draft", "candidate"}:
-            raise ConflictError("accepted or terminal release evidence cannot be edited")
+        if current["status"] != "draft":
+            raise ConflictError("bound candidate and terminal release evidence is immutable")
         with self.connection() as connection:
             row = connection.execute(
                 """UPDATE ops.dataset_release SET release_version=%s,schema_version=%s,
                 coverage_json=%s,record_count=%s,content_sha256=%s,manifest_json=%s,
                 review_comment=%s,updated_at=%s,version=version+1 WHERE id=%s AND version=%s
-                AND status IN ('draft','candidate') RETURNING *""",
+                AND status='draft' RETURNING *""",
                 (
                     values.get("release_version", current["release_version"]),
                     values.get("schema_version", current["schema_version"]),
@@ -1029,6 +1077,235 @@ class PropertyScopeStore:
             else None,
         }
 
+    def release_build_context(self, run_id: uuid.UUID) -> JsonObject:
+        """Return one persistence-neutral build context bound to an imported generation."""
+        return self._required(
+            """SELECT release.id AS release_id,release.release_version,release.dataset_id,
+            release.target_feature,release.id AS candidate_generation_id,release.coverage_json,
+            COALESCE(release.supersedes_release_id,(
+                SELECT prior.id FROM ops.dataset_release prior
+                WHERE prior.dataset_id=release.dataset_id
+                  AND prior.target_feature=release.target_feature
+                  AND prior.status='accepted' ORDER BY prior.accepted_at DESC LIMIT 1
+            )) AS supersedes_release_id,
+            COALESCE(run.source_snapshot_json->>'source_release',run.profile_key) AS source_release,
+            run.normalisation_version,run.release_builder_version,
+            job.release_builder_key,job.import_profile_key,source.name AS source_name,
+            source.publisher,source.licence_id,source.licence_url,
+            source.redistribution_policy,source_artifact.created_at AS source_retrieved_at
+            FROM ops.ingestion_run run JOIN ops.job_definition job
+              ON job.id=run.job_definition_id
+            JOIN ops.source_definition source ON source.id=run.source_definition_id
+            JOIN ops.dataset_release release ON release.ingestion_run_id=run.id
+            LEFT JOIN LATERAL (
+                SELECT artifact.created_at FROM ops.artifact_record artifact
+                WHERE artifact.ingestion_run_id=run.id
+                  AND artifact.artifact_kind IN ('source_snapshot','source_raw')
+                ORDER BY artifact.created_at DESC LIMIT 1
+            ) source_artifact ON true
+            WHERE run.id=%s AND release.status IN ('draft','candidate')""",
+            (run_id,),
+        )
+
+    def release_product_records(
+        self, release_id: uuid.UUID, *, limit: int, offset: int
+    ) -> JsonObject:
+        """Page the immutable candidate projection used only by registered builders."""
+        context = self._required(
+            """SELECT release.id,release.coverage_json,job.import_profile_key
+            FROM ops.dataset_release release JOIN ops.ingestion_run run
+              ON run.id=release.ingestion_run_id
+            JOIN ops.job_definition job ON job.id=run.job_definition_id
+            WHERE release.id=%s AND release.status IN ('draft','candidate')""",
+            (release_id,),
+        )
+        profile = str(context["import_profile_key"])
+        if profile in {"property-fixture", "gnaf-nsw"}:
+            rows = self._fetch_all(
+                """SELECT COALESCE(property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid)
+                    AS property_ref,gnaf_pid AS source_address_id,address_display,flat_type,
+                    unit_number,street_number_first,street_number_suffix,street_number_last,
+                    street_name,street_type,locality,postcode,source_status,geocode_type,
+                    source_crs,ST_AsGeoJSON(geom)::jsonb AS geometry,source_row_sha256,
+                    normalisation_version FROM warehouse.gnaf_address
+                WHERE dataset_release_id=%s ORDER BY property_ref,gnaf_pid LIMIT %s OFFSET %s""",
+                (release_id, limit, offset),
+            )
+            count = self._required(
+                "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
+                (release_id,),
+            )
+        elif profile == "psi-sales":
+            year_filter = context["coverage_json"].get("release_scope", context["coverage_json"])
+            years = year_filter.get("years", []) if isinstance(year_filter, dict) else []
+            if not isinstance(years, list) or not years:
+                raise ConflictError(
+                    "PSI release construction requires an explicit bounded year scope"
+                )
+            rows = self._fetch_all(
+                """SELECT source_business_key,source_revision,source_era,district_code,
+                property_id,dealing_id,contract_date::text,settlement_date::text,price_aud,
+                area_original::text,area_unit,area_square_metres::text,property_ref,match_tier,
+                match_confidence::text,geographic_precision,source_row_sha256,normalisation_version
+                FROM warehouse.psi_sale WHERE dataset_release_id=%s
+                  AND source_partition_year=ANY(%s)
+                ORDER BY source_business_key,source_revision LIMIT %s OFFSET %s""",
+                (release_id, years, limit, offset),
+            )
+            count = self._required(
+                """SELECT count(*) AS count FROM warehouse.psi_sale
+                WHERE dataset_release_id=%s AND source_partition_year=ANY(%s)""",
+                (release_id, years),
+            )
+        elif profile == "bocsar-sparse":
+            rows = self._fetch_all(
+                """SELECT * FROM (
+                    SELECT 'observation'::text AS record_kind,geography_kind,geography_value,
+                    source_category_key,offence_label,subcategory_label,month::text,count,
+                    NULL::date[] AS observed_months,NULL::text AS first_month,
+                    NULL::text AS last_month,NULL::integer AS month_count,
+                    NULL::boolean AS blank_means_observed_zero,
+                    NULL::text AS completeness_sha256,source_row_sha256,normalisation_version
+                    FROM warehouse.bocsar_observation WHERE dataset_release_id=%s
+                    UNION ALL
+                    SELECT 'coverage',geography_kind,geography_value,source_category_key,
+                    NULL,NULL,NULL,NULL,observed_months,first_month::text,last_month::text,
+                    month_count,blank_means_observed_zero,completeness_sha256,
+                    source_row_sha256,normalisation_version
+                    FROM warehouse.bocsar_coverage WHERE dataset_release_id=%s
+                ) product ORDER BY geography_kind,geography_value,source_category_key,
+                    record_kind,month NULLS LAST LIMIT %s OFFSET %s""",
+                (release_id, release_id, limit, offset),
+            )
+            for row in rows:
+                if row.get("observed_months"):
+                    row["observed_months"] = [value.isoformat() for value in row["observed_months"]]
+            count = self._required(
+                """SELECT (SELECT count(*) FROM warehouse.bocsar_observation
+                    WHERE dataset_release_id=%s) +
+                    (SELECT count(*) FROM warehouse.bocsar_coverage
+                    WHERE dataset_release_id=%s) AS count""",
+                (release_id, release_id),
+            )
+        elif profile == "schools-master":
+            rows = self._fetch_all(
+                """SELECT school_code,school_name,school_type,status,locality_original,
+                locality_normalised,lga_name,ST_AsGeoJSON(geom)::jsonb AS geometry,
+                source_row_sha256,normalisation_version FROM warehouse.school
+                WHERE dataset_release_id=%s ORDER BY school_code LIMIT %s OFFSET %s""",
+                (release_id, limit, offset),
+            )
+            count = self._required(
+                "SELECT count(*) AS count FROM warehouse.school WHERE dataset_release_id=%s",
+                (release_id,),
+            )
+        else:
+            raise ConflictError("release import profile has no registered product projection")
+        total = int(count["count"])
+        return {
+            "release_id": str(release_id),
+            "candidate_generation_id": str(release_id),
+            "items": rows,
+            "count": len(rows),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "next_offset": offset + len(rows) if offset + len(rows) < total else None,
+        }
+
+    def bind_release_export(self, release_id: uuid.UUID, values: Mapping[str, Any]) -> JsonObject:
+        """Atomically bind the verified export and complete the candidate transition."""
+        artifact_id = uuid.UUID(str(values["artifact_record_id"]))
+        now = datetime.now(UTC)
+        with self.connection() as connection:
+            release = connection.execute(
+                "SELECT * FROM ops.dataset_release WHERE id=%s FOR UPDATE", (release_id,)
+            ).fetchone()
+            if release is None:
+                raise NotFoundError("record does not exist")
+            artifact = connection.execute(
+                "SELECT * FROM ops.artifact_record WHERE id=%s", (artifact_id,)
+            ).fetchone()
+            if artifact is None:
+                raise NotFoundError("release export artifact does not exist")
+            manifest = values.get("manifest")
+            if not isinstance(manifest, dict):
+                raise ConflictError("release export manifest is invalid")
+            expected = (
+                str(values["schema_version"]),
+                str(values["content_sha256"]),
+                int(values["record_count"]),
+            )
+            if release["status"] == "candidate":
+                actual = (
+                    str(release["schema_version"]),
+                    str(release["content_sha256"]),
+                    int(release["record_count"]),
+                )
+                persisted_manifest = dict(release["manifest_json"])
+                replay_manifest = dict(manifest)
+                persisted_manifest.pop("created_at", None)
+                replay_manifest.pop("created_at", None)
+                if (
+                    actual != expected
+                    or release["artifact_record_id"] != artifact_id
+                    or persisted_manifest != replay_manifest
+                ):
+                    raise ConflictError(
+                        "candidate release export replay conflicts with immutable evidence"
+                    )
+                return _dict(release)
+            if release["status"] != "draft":
+                raise ConflictError("only a draft release can bind an export")
+            if artifact["ingestion_run_id"] != release["ingestion_run_id"]:
+                raise ConflictError("release export belongs to another candidate generation")
+            if artifact["artifact_kind"] != "release_export":
+                raise ConflictError("release artifact is not a release export")
+            if (
+                artifact["schema_version"] != expected[0]
+                or artifact["content_sha256"] != expected[1]
+                or int(artifact["bytes"]) != int(manifest.get("byte_count", -1))
+                or manifest.get("content_sha256") != expected[1]
+                or int(manifest.get("record_count", -1)) != expected[2]
+                or manifest.get("product_schema_version") != expected[0]
+                or str(manifest.get("release_id")) != str(release_id)
+            ):
+                raise ConflictError(
+                    "release export artifact, manifest, and requested binding disagree"
+                )
+            blocking = connection.execute(
+                """SELECT count(*) FILTER (WHERE severity='blocking') AS total,
+                count(*) FILTER (WHERE severity='blocking' AND status='pass') AS passed
+                FROM ops.quality_result WHERE dataset_release_id=%s""",
+                (release_id,),
+            ).fetchone()
+            if (
+                blocking is None
+                or int(blocking["total"]) == 0
+                or int(blocking["passed"]) != int(blocking["total"])
+            ):
+                raise ConflictError(
+                    "release cannot become candidate until every registered blocking gate passes"
+                )
+            row = connection.execute(
+                """UPDATE ops.dataset_release SET schema_version=%s,record_count=%s,
+                content_sha256=%s,artifact_record_id=%s,manifest_json=%s,status='candidate',
+                updated_at=%s,version=version+1 WHERE id=%s AND status='draft' RETURNING *""",
+                (
+                    expected[0],
+                    expected[2],
+                    expected[1],
+                    artifact_id,
+                    _json(manifest),
+                    now,
+                    release_id,
+                ),
+            ).fetchone()
+            connection.commit()
+        if row is None:
+            raise ConflictError("release export binding lost its version race")
+        return _dict(row)
+
     def record_publication_receipt(
         self, release_id: uuid.UUID, values: Mapping[str, Any]
     ) -> tuple[JsonObject, bool]:
@@ -1040,53 +1317,45 @@ class PropertyScopeStore:
             (values["target_feature"], values["consumer_operation_id"]),
         )
         if existing:
-            expected = (
-                str(release_id),
-                values["status"],
-                values["schema_version"],
-                values["content_sha256"],
-                int(values["rows_received"]),
-                int(values["rows_accepted"]),
-                int(values["rows_rejected"]),
-            )
-            actual = (
-                str(existing["dataset_release_id"]),
-                existing["status"],
-                existing["schema_version"],
-                existing["content_sha256"],
-                int(existing["rows_received"]),
-                int(existing["rows_accepted"]),
-                int(existing["rows_rejected"]),
-            )
-            if expected != actual:
+            if not _receipt_matches_values(existing, release_id, values):
                 raise ConflictError("publication idempotency key arguments do not match")
             return existing, False
         now = datetime.now(UTC)
-        with self.connection() as connection:
-            row = connection.execute(
-                """INSERT INTO ops.publication_receipt (
-                    id,dataset_release_id,target_feature,consumer_operation_id,status,
-                    schema_version,content_sha256,rows_received,rows_accepted,rows_rejected,
-                    error_json,request_id,created_at,completed_at
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
-                (
-                    uuid.uuid4(),
-                    release_id,
-                    values["target_feature"],
-                    values["consumer_operation_id"],
-                    values["status"],
-                    values["schema_version"],
-                    values["content_sha256"],
-                    int(values["rows_received"]),
-                    int(values["rows_accepted"]),
-                    int(values["rows_rejected"]),
-                    _json(values["error"]) if values.get("error") else None,
-                    values["request_id"],
-                    now,
-                    None if values["status"] == "pending" else now,
-                ),
-            ).fetchone()
-            connection.commit()
+        try:
+            with self.connection() as connection:
+                row = connection.execute(
+                    """INSERT INTO ops.publication_receipt (
+                        id,dataset_release_id,target_feature,consumer_operation_id,status,
+                        schema_version,content_sha256,rows_received,rows_accepted,rows_rejected,
+                        error_json,request_id,created_at,completed_at
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                    (
+                        uuid.uuid4(),
+                        release_id,
+                        values["target_feature"],
+                        values["consumer_operation_id"],
+                        values["status"],
+                        values["schema_version"],
+                        values["content_sha256"],
+                        int(values["rows_received"]),
+                        int(values["rows_accepted"]),
+                        int(values["rows_rejected"]),
+                        _json(values["error"]) if values.get("error") else None,
+                        values["request_id"],
+                        now,
+                        None if values["status"] == "pending" else now,
+                    ),
+                ).fetchone()
+                connection.commit()
+        except errors.UniqueViolation:
+            raced = self._fetch_one(
+                """SELECT * FROM ops.publication_receipt
+                WHERE target_feature=%s AND consumer_operation_id=%s""",
+                (values["target_feature"], values["consumer_operation_id"]),
+            )
+            if raced is None or not _receipt_matches_values(raced, release_id, values):
+                raise ConflictError("publication idempotency key arguments do not match") from None
+            return raced, False
         return _dict(row), True
 
     def transition_release(
@@ -1113,6 +1382,21 @@ class PropertyScopeStore:
                 ).fetchone()
                 if blocking and blocking["count"]:
                     raise ConflictError("release has blocking quality failures")
+                receipt = connection.execute(
+                    """SELECT id FROM ops.publication_receipt WHERE dataset_release_id=%s
+                    AND status='accepted' AND schema_version=%s AND content_sha256=%s
+                    AND rows_received=%s AND rows_accepted=%s AND rows_rejected=0
+                    ORDER BY completed_at DESC LIMIT 1""",
+                    (
+                        release_id,
+                        current["schema_version"],
+                        current["content_sha256"],
+                        current["record_count"],
+                        current["record_count"],
+                    ),
+                ).fetchone()
+                if receipt is None:
+                    raise ConflictError("matching accepted consumer receipt is required")
                 predecessor = connection.execute(
                     """SELECT id FROM ops.dataset_release WHERE dataset_id=%s AND target_feature=%s
                     AND status='accepted' FOR UPDATE""",
@@ -1131,17 +1415,31 @@ class PropertyScopeStore:
             row = connection.execute(
                 """UPDATE ops.dataset_release SET status=%s,review_comment=%s,
                 accepted_at=CASE WHEN %s='accepted' THEN %s ELSE accepted_at END,
-                manifest_json=CASE WHEN %s='accepted' THEN jsonb_set(
-                    manifest_json,'{known_limitations}',to_jsonb(ARRAY[
-                        'Bounded accepted release; use only within the declared coverage'
-                    ]::text[]),true) ELSE manifest_json END,
+                supersedes_release_id=CASE WHEN %s='accepted' THEN %s ELSE supersedes_release_id END,
                 updated_at=%s,version=version+1 WHERE id=%s AND version=%s RETURNING *""",
-                (target, comment, target, now, target, now, release_id, expected_version),
+                (
+                    target,
+                    comment,
+                    target,
+                    now,
+                    target,
+                    predecessor["id"] if target == "accepted" and predecessor else None,
+                    now,
+                    release_id,
+                    expected_version,
+                ),
             ).fetchone()
             if row is None:
                 raise ConflictError("release version does not match")
             if target == "accepted":
-                self._publish_gnaf_property_spine(connection, release_id, now)
+                self._publish_address_property_spine(
+                    connection,
+                    release_id,
+                    now,
+                    identifier_scheme=(
+                        "gnaf_pid" if current["dataset_id"] == "gnaf-nsw" else "fixture_pid"
+                    ),
+                )
                 connection.execute(
                     """INSERT INTO serving.accepted_generation
                     (dataset_id,target_feature,dataset_release_id,activated_at,activated_by,version)
@@ -1154,16 +1452,22 @@ class PropertyScopeStore:
             connection.commit()
         return _dict(row)
 
-    def _publish_gnaf_property_spine(
-        self, connection: Connection[Any], release_id: uuid.UUID, now: datetime
+    def _publish_address_property_spine(
+        self,
+        connection: Connection[Any],
+        release_id: uuid.UUID,
+        now: datetime,
+        *,
+        identifier_scheme: str,
     ) -> None:
-        """Materialise only an accepted G-NAF generation into stable property identities."""
+        """Materialise only an accepted address generation into stable property identities."""
         connection.execute(
             """INSERT INTO registry.property (
                 property_ref,address_display,flat_type,unit_number,street_number_first,
                 street_number_suffix,street_number_last,street_name,street_type,locality,
                 postcode,state,address_search,geom,resolution_status,created_at,updated_at,version
-            ) SELECT md5('propertyscope-gnaf:' || gnaf_pid)::uuid,address_display,flat_type,
+            ) SELECT COALESCE(property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid),
+                address_display,flat_type,
                 unit_number,street_number_first,street_number_suffix,street_number_last,
                 COALESCE(street_name,address_display),street_type,locality,postcode,'NSW',
                 lower(regexp_replace(address_display,'\\s+',' ','g')),geom,
@@ -1184,33 +1488,44 @@ class PropertyScopeStore:
         connection.execute(
             """UPDATE registry.property_identifier identifier SET is_current=false,valid_to=%s::date
             FROM warehouse.gnaf_address address
-            WHERE address.dataset_release_id=%s AND identifier.scheme='gnaf_pid'
+            WHERE address.dataset_release_id=%s AND identifier.scheme=%s
               AND identifier.identifier_value=address.gnaf_pid AND identifier.is_current
               AND identifier.source_release_id<>%s""",
-            (now, release_id, release_id),
+            (now, release_id, identifier_scheme, release_id),
         )
         connection.execute(
             """INSERT INTO registry.property_identifier (
                 id,property_ref,scheme,identifier_value,source_release_id,is_current,
                 valid_from,valid_to,match_method,match_confidence,evidence_json,created_at
-            ) SELECT md5('propertyscope-gnaf-identifier:' || %s::text || ':' || gnaf_pid)::uuid,
-                md5('propertyscope-gnaf:' || gnaf_pid)::uuid,'gnaf_pid',gnaf_pid,%s,true,
+            ) SELECT md5('propertyscope-' || %s || '-identifier:' || %s::text || ':' || gnaf_pid)::uuid,
+                COALESCE(property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid),
+                %s,gnaf_pid,%s,true,
                 %s::date,NULL,'source-authoritative',1,
                 jsonb_build_object('geocode_type',geocode_type,'source_crs',source_crs),%s
             FROM warehouse.gnaf_address WHERE dataset_release_id=%s
             ON CONFLICT (scheme,identifier_value,source_release_id) DO UPDATE SET is_current=true""",
-            (release_id, release_id, now, now, release_id),
+            (
+                identifier_scheme,
+                release_id,
+                identifier_scheme,
+                release_id,
+                now,
+                now,
+                release_id,
+            ),
         )
         connection.execute(
-            """UPDATE warehouse.gnaf_address SET property_ref=md5(
-                'propertyscope-gnaf:' || gnaf_pid)::uuid WHERE dataset_release_id=%s""",
+            """UPDATE warehouse.gnaf_address SET property_ref=COALESCE(
+                property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid)
+                WHERE dataset_release_id=%s""",
             (release_id,),
         )
         connection.execute(
             """INSERT INTO serving.property_coverage (
                 property_ref,dataset_id,target_feature,dataset_release_id,coverage_status,
                 coverage_scope,checked_at
-            ) SELECT md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid,
+            ) SELECT COALESCE(address.property_ref,
+                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid),
                 release.dataset_id,release.target_feature,release.id,'supported',
                 release.coverage_json,%s
             FROM warehouse.gnaf_address address JOIN ops.dataset_release release
@@ -1501,6 +1816,7 @@ class PropertyScopeStore:
         )
         if existing:
             _validate_artifact_replay(existing, values)
+            self._persist_source_snapshot(values)
             return existing, False
         try:
             with self.connection() as connection:
@@ -1530,14 +1846,40 @@ class PropertyScopeStore:
                         datetime.now(UTC),
                     ),
                 ).fetchone()
+                if values["artifact_kind"] == "source_snapshot":
+                    snapshot = _source_snapshot(values)
+                    connection.execute(
+                        "UPDATE ops.ingestion_run SET source_snapshot_json=%s WHERE id=%s",
+                        (_json(snapshot), lineage_params[0]),
+                    )
                 connection.commit()
         except errors.UniqueViolation:
             # A concurrent delivery can win the lineage key between the optimistic
             # read and insert. Return it only when the replay arguments are identical.
             existing = self._required(lineage_query, lineage_params)
             _validate_artifact_replay(existing, values)
+            self._persist_source_snapshot(values)
             return existing, False
         return _dict(row), True
+
+    def _persist_source_snapshot(self, values: Mapping[str, Any]) -> None:
+        if values["artifact_kind"] != "source_snapshot":
+            return
+        snapshot = _source_snapshot(values)
+        run_id = uuid.UUID(str(values["ingestion_run_id"]))
+        current = self._required(
+            "SELECT source_snapshot_json FROM ops.ingestion_run WHERE id=%s", (run_id,)
+        )
+        if current.get("source_snapshot_json") is not None:
+            if current["source_snapshot_json"] != snapshot:
+                raise ConflictError("source snapshot replay evidence does not match")
+            return
+        with self.connection() as connection:
+            connection.execute(
+                "UPDATE ops.ingestion_run SET source_snapshot_json=%s WHERE id=%s",
+                (_json(snapshot), run_id),
+            )
+            connection.commit()
 
     def _finish_task(
         self,
@@ -1709,6 +2051,43 @@ def _validate_artifact_replay(existing: Mapping[str, Any], values: Mapping[str, 
     )
     if expected != actual:
         raise ConflictError("artifact idempotency key arguments do not match")
+
+
+def _receipt_matches_values(
+    receipt: Mapping[str, Any], release_id: uuid.UUID, values: Mapping[str, Any]
+) -> bool:
+    expected = (
+        str(release_id),
+        values["status"],
+        values["schema_version"],
+        values["content_sha256"],
+        int(values["rows_received"]),
+        int(values["rows_accepted"]),
+        int(values["rows_rejected"]),
+    )
+    actual = (
+        str(receipt["dataset_release_id"]),
+        receipt["status"],
+        receipt["schema_version"],
+        receipt["content_sha256"],
+        int(receipt["rows_received"]),
+        int(receipt["rows_accepted"]),
+        int(receipt["rows_rejected"]),
+    )
+    return expected == actual
+
+
+def _source_snapshot(values: Mapping[str, Any]) -> Mapping[str, Any]:
+    snapshot = values.get("source_snapshot")
+    if not isinstance(snapshot, dict):
+        raise ConflictError("source snapshot metadata is required")
+    source_release = snapshot.get("source_release")
+    if not isinstance(source_release, str) or not 1 <= len(source_release) <= 100:
+        raise ConflictError("source snapshot release evidence is invalid")
+    objects = snapshot.get("objects")
+    if not isinstance(objects, list) or not objects:
+        raise ConflictError("source snapshot object evidence is invalid")
+    return snapshot
 
 
 def _cancellation_error() -> JsonObject:

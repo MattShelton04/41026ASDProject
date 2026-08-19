@@ -9,7 +9,7 @@ import re
 import signal
 import time
 import uuid
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -24,6 +24,11 @@ from propertyscope_data_platform.adapters.gnaf import parse_gnaf_archive_path
 from propertyscope_data_platform.adapters.psi import PsiSale, iter_psi_archive, parse_psi_archive
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
 from propertyscope_data_platform.artifacts import LocalArtifactStore
+from propertyscope_data_platform.release_builders import (
+    BuildContext,
+    resolve_release_builder,
+    validate_feature_registration,
+)
 
 SCHOOLS_MASTER_URL = (
     "https://data.nsw.gov.au/data/dataset/"
@@ -79,10 +84,17 @@ class RunnerSettings:
 class AcquisitionRunner:
     """Bounded deterministic worker; source transports are selected by registered jobs only."""
 
-    def __init__(self, settings: RunnerSettings, *, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        settings: RunnerSettings,
+        *,
+        client: httpx.Client | None = None,
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
         self.settings = settings
         self.client = client or httpx.Client(timeout=10, follow_redirects=False)
         self.artifacts = LocalArtifactStore(settings.artifact_root)
+        self.clock = clock or (lambda: datetime.now(UTC))
         self.stop_event = Event()
 
     def run_forever(self) -> None:
@@ -194,6 +206,7 @@ class AcquisitionRunner:
                     else {
                         "schema_version": "propertyscope.source-snapshot.v1",
                         "adapter_key": task.get("adapter_key", "fixture-snapshot"),
+                        "source_release": "fixture-v1",
                         "scope": scope,
                         "objects": [{"logical_key": "bounded-fixture", "complete": True}],
                     }
@@ -205,24 +218,147 @@ class AcquisitionRunner:
                 media_type="application/json",
             )
             self._register_stage_artifact(
-                task, stage=stage, artifact=artifact, schema_version=str(document["schema_version"])
+                task,
+                stage=stage,
+                artifact=artifact,
+                schema_version=str(document["schema_version"]),
+                source_snapshot=document if stage == "discover" else None,
             )
             return len(records), len(records)
         if stage == "import":
             return self._execute_import(task)
         if stage == "build_release":
-            response = self.client.post(
-                f"{self.settings.backend_url}/internal/data-platform/v1/worker/runs/"
-                f"{task['ingestion_run_id']}/finalize-release",
-                headers=self._headers(),
-                json={},
-            )
-            response.raise_for_status()
-            return 1, 1
+            return self._execute_release_build(task)
         return 0, 0
 
+    def _execute_release_build(self, task: dict[str, Any]) -> tuple[int, int]:
+        run_id = str(task["ingestion_run_id"])
+        context_response = self._control_request(
+            "GET",
+            f"{self.settings.backend_url}/internal/data-platform/v1/worker/runs/"
+            f"{run_id}/release-build-context",
+            headers=self._headers(),
+        )
+        context_response.raise_for_status()
+        payload = context_response.json()
+        builder_ref = payload.get("builder")
+        if not isinstance(builder_ref, dict):
+            raise RuntimeError("Release build context has no registered builder")
+        builder = resolve_release_builder(
+            str(builder_ref.get("key")), str(builder_ref.get("version"))
+        )
+        target_contract = str(payload.get("target_contract"))
+        if target_contract != builder.spec.contract:
+            raise RuntimeError("Release target contract does not match the registered builder")
+        context = BuildContext.model_validate(payload.get("context"))
+        release_id = str(payload["release_id"])
+        product_scope = context.scope.get("release_scope", context.scope)
+        if not isinstance(product_scope, dict):
+            raise RuntimeError("Release product scope is invalid")
+        maximum_records = product_scope.get("maximum_records")
+        if (
+            not isinstance(maximum_records, int)
+            or isinstance(maximum_records, bool)
+            or maximum_records < 1
+            or maximum_records > builder.spec.max_rows
+        ):
+            raise RuntimeError("Release product scope has no valid registered row bound")
+        rows: list[dict[str, Any]] = []
+        offset = 0
+        page_size = 100
+        expected_total: int | None = None
+        while True:
+            page_response = self._control_request(
+                "GET",
+                f"{self.settings.backend_url}/internal/data-platform/v1/worker/releases/"
+                f"{release_id}/product-records",
+                headers=self._headers(),
+                params={"limit": page_size, "offset": offset},
+            )
+            page_response.raise_for_status()
+            page = page_response.json()
+            page_release_id = str(page.get("release_id", release_id))
+            generation_id = str(
+                page.get("candidate_generation_id", context.candidate_generation_id)
+            )
+            if page_release_id != release_id or generation_id != str(
+                context.candidate_generation_id
+            ):
+                raise RuntimeError("Candidate generation changed during release construction")
+            total = int(page["total"])
+            if expected_total is None:
+                expected_total = total
+                if total > maximum_records:
+                    raise RuntimeError(
+                        "Release product exceeds requested maximum_records; narrow the scope"
+                    )
+            elif total != expected_total:
+                raise RuntimeError("Candidate generation count changed during release construction")
+            items = page.get("items")
+            if not isinstance(items, list):
+                raise RuntimeError("Release product page is malformed")
+            rows.extend(items)
+            if len(rows) > builder.spec.max_rows:
+                raise RuntimeError(
+                    "Release product exceeds its row bound; narrow the requested scope"
+                )
+            next_offset = page.get("next_offset")
+            if next_offset is None:
+                break
+            if not isinstance(next_offset, int) or next_offset <= offset:
+                raise RuntimeError("Release product pagination cursor is invalid")
+            offset = next_offset
+        if expected_total != len(rows):
+            raise RuntimeError("Release product page count is inconsistent")
+        product = builder.build(context, rows, created_at=self.clock())
+        artifact = self.artifacts.put(
+            (product.content,),
+            max_bytes=builder.spec.max_bytes,
+            media_type=builder.spec.media_type,
+        )
+        registration = self._control_request(
+            "POST",
+            f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/"
+            f"{task['id']}/artifacts",
+            headers=self._headers(),
+            json={
+                "ingestion_run_id": run_id,
+                "logical_key": task["logical_key"],
+                "artifact_kind": "release_export",
+                "storage_key": artifact.storage_key,
+                "content_sha256": artifact.sha256,
+                "media_type": artifact.media_type,
+                "bytes": artifact.bytes,
+                "schema_version": builder.spec.contract,
+                "retention_class": "candidate",
+            },
+        )
+        registration.raise_for_status()
+        artifact_record = registration.json()["artifact"]
+        finalize = self._control_request(
+            "POST",
+            f"{self.settings.backend_url}/internal/data-platform/v1/worker/runs/"
+            f"{run_id}/finalize-release",
+            headers=self._headers(),
+            json={
+                "artifact_record_id": artifact_record["id"],
+                "schema_version": builder.spec.contract,
+                "content_sha256": artifact.sha256,
+                "record_count": product.manifest.record_count,
+                "manifest": product.manifest.model_dump(mode="json"),
+            },
+        )
+        finalize.raise_for_status()
+        return len(rows), product.manifest.record_count
+
     def _register_stage_artifact(
-        self, task: dict[str, Any], *, stage: str, artifact: Any, schema_version: str
+        self,
+        task: dict[str, Any],
+        *,
+        stage: str,
+        artifact: Any,
+        schema_version: str,
+        source_snapshot: dict[str, object] | None = None,
     ) -> None:
         response = self.client.post(
             f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task['id']}/artifacts",
@@ -237,6 +373,7 @@ class AcquisitionRunner:
                 "bytes": artifact.bytes,
                 "schema_version": schema_version,
                 "retention_class": "candidate",
+                "source_snapshot": source_snapshot,
             },
         )
         response.raise_for_status()
@@ -256,6 +393,7 @@ class AcquisitionRunner:
                 {
                     "schema_version": "propertyscope.source-snapshot.v1",
                     "adapter_key": task.get("adapter_key"),
+                    "source_release": _source_release_for_objects(objects),
                     "scope": scope,
                     "objects": objects,
                 },
@@ -418,7 +556,7 @@ class AcquisitionRunner:
                 content = self._download_psi_archive(url, maximum_bytes=maximum_bytes)
             sales = parse_psi_archive(content, source_year=year)
             for sale in sales:
-                records.append(_psi_record(sale))
+                records.append(_psi_record(sale, source_year=year))
         document = _live_canonical_document("psi-sales", source_urls, records)
         source = document["source"]
         assert isinstance(source, dict)
@@ -458,7 +596,11 @@ class AcquisitionRunner:
                 if counter[0] % 25_000 == 0:
                     self._heartbeat(str(task["id"]), str(task["lease_token"]))
                 yield (
-                    json.dumps(_psi_record(sale), sort_keys=True, separators=(",", ":")).encode()
+                    json.dumps(
+                        _psi_record(sale, source_year=source_year),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
                     + b"\n"
                 )
 
@@ -479,7 +621,7 @@ class AcquisitionRunner:
     def _live_gnaf(
         self, task: dict[str, Any], scope: dict[str, object]
     ) -> tuple[dict[str, object], list[dict[str, object]]]:
-        source_url, declared_crs = self._gnaf_source()
+        source_url, declared_crs = self._discovered_gnaf_source(task)
         maximum_bytes = min(int(task.get("max_bytes", 2_500_000_000)), 2_500_000_000)
         if self.settings.gnaf_archive_path and self.settings.gnaf_archive_path.is_file():
             stream = self.settings.gnaf_archive_path.open("rb")
@@ -571,6 +713,19 @@ class AcquisitionRunner:
             "raw_storage_key": raw_artifact.storage_key,
         }
         return document, records
+
+    def _discovered_gnaf_source(self, task: dict[str, Any]) -> tuple[str, str]:
+        snapshot = task.get("source_snapshot_json")
+        if not isinstance(snapshot, dict):
+            raise RuntimeError("G-NAF acquisition requires retained discovery evidence")
+        objects = snapshot.get("objects")
+        if not isinstance(objects, list) or len(objects) != 1 or not isinstance(objects[0], dict):
+            raise RuntimeError("G-NAF discovery evidence is invalid")
+        source_url = objects[0].get("source_url")
+        declared_crs = objects[0].get("coordinate_reference_system")
+        if not isinstance(source_url, str) or declared_crs not in {"GDA94", "GDA2020"}:
+            raise RuntimeError("G-NAF discovery resource evidence is incomplete")
+        return source_url, str(declared_crs)
 
     def _gnaf_source(self) -> tuple[str, str]:
         if self.settings.gnaf_archive_path and self.settings.gnaf_archive_path.is_file():
@@ -794,11 +949,12 @@ def _psi_weeks(scope: dict[str, object]) -> list[date]:
     return sorted(set(weeks))
 
 
-def _psi_record(sale: PsiSale) -> dict[str, object]:
+def _psi_record(sale: PsiSale, *, source_year: int) -> dict[str, object]:
     return {
         "source_business_key": sale.source_business_key,
         "source_revision": 1,
         "source_era": sale.source_era,
+        "source_partition_year": source_year,
         "district_code": sale.district_code or None,
         "property_id": sale.property_id or None,
         "dealing_id": sale.dealing_id,
@@ -835,6 +991,15 @@ def _source_object(logical_key: str, url: str, media_type: str) -> dict[str, obj
     }
 
 
+def _source_release_for_objects(objects: list[dict[str, object]]) -> str:
+    keys = [str(item["logical_key"]) for item in objects]
+    if not keys:
+        raise RuntimeError("Source discovery returned no versioned objects")
+    if len(keys) == 1:
+        return keys[0]
+    return f"{keys[0]}..{keys[-1]} ({len(keys)} objects)"[:100]
+
+
 def _live_canonical_document(
     profile: str, source_url: str | list[str], records: list[dict[str, object]]
 ) -> dict[str, object]:
@@ -853,7 +1018,36 @@ def _optional_path(value: str | None) -> Path | None:
 def _canonical_records(profile: str) -> list[dict[str, object]]:
     """Produce bounded licensed synthetic evidence through every registered import profile."""
     if profile == "property-fixture":
-        return [{"source_key": f"fixture-{index:03d}"} for index in range(1, 11)]
+        localities = (
+            ("PARRAMATTA", "2150", -33.8151, 151.0011),
+            ("MOSMAN", "2088", -33.8298, 151.2441),
+            ("WOLLONGONG", "2500", -34.4278, 150.8931),
+        )
+        return [
+            {
+                "source_pid": f"FIX-{index:03d}",
+                "property_ref": None,
+                "address_display": (
+                    f"{index} FIXTURE STREET {localities[(index - 1) % 3][0]} NSW "
+                    f"{localities[(index - 1) % 3][1]}"
+                ),
+                "flat_type": None,
+                "unit_number": None,
+                "street_number_first": index,
+                "street_number_suffix": None,
+                "street_number_last": None,
+                "street_name": "FIXTURE",
+                "street_type": "STREET",
+                "locality": localities[(index - 1) % 3][0],
+                "postcode": localities[(index - 1) % 3][1],
+                "source_status": "CURRENT",
+                "geocode_type": "FIXTURE",
+                "source_crs": 4326,
+                "latitude": localities[(index - 1) % 3][2] + index * 0.00001,
+                "longitude": localities[(index - 1) % 3][3] + index * 0.00001,
+            }
+            for index in range(1, 11)
+        ]
     if profile == "schools-master":
         return [
             {
@@ -891,6 +1085,7 @@ def _canonical_records(profile: str) -> list[dict[str, object]]:
                 "source_business_key": f"001:P{index}:1",
                 "source_revision": 1,
                 "source_era": "post-2001",
+                "source_partition_year": 2025,
                 "district_code": "001",
                 "property_id": f"P{index}",
                 "dealing_id": f"D{index}",
@@ -938,6 +1133,7 @@ def _canonical_records(profile: str) -> list[dict[str, object]]:
 
 
 def main() -> None:
+    validate_feature_registration(Path(__file__).resolve().parents[3])
     runner = AcquisitionRunner(RunnerSettings.from_environment())
     signal.signal(signal.SIGTERM, lambda *_: runner.stop())
     signal.signal(signal.SIGINT, lambda *_: runner.stop())

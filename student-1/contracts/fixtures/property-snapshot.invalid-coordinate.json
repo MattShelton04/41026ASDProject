@@ -1,0 +1,9 @@
+{
+  "schema_version": "propertyscope.property-snapshot.v1",
+  "release_id": "60000000-0000-0000-0000-000000000001",
+  "release_version": "fixture-property-v1",
+  "dataset_id": "fixture-property",
+  "target_feature": "feature-1",
+  "candidate_generation_id": "60000000-0000-0000-0000-000000000001",
+  "records": [{"property_ref": "not-a-uuid", "postcode": 2150, "latitude": 91}]
+}

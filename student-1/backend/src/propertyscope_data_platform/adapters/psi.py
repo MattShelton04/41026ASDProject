@@ -6,7 +6,7 @@ import hashlib
 import io
 import json
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from zipfile import BadZipFile, ZipFile, ZipInfo
@@ -132,7 +132,7 @@ def iter_psi_archive(
     """
     if maximum_records is not None and maximum_records < 1:
         raise ValueError("PSI maximum_records must be positive")
-    seen: set[str] = set()
+    seen: set[tuple[str, str]] = set()
     yielded = 0
     try:
         with ZipFile(io.BytesIO(content)) as archive:
@@ -145,9 +145,10 @@ def iter_psi_archive(
                     sale = _parse_source_b_record(fields, source_year=source_year)
                     if sale is None:
                         continue
-                    if sale.source_business_key in seen:
+                    identity = (sale.source_business_key, _sale_fingerprint(sale))
+                    if identity in seen:
                         continue
-                    seen.add(sale.source_business_key)
+                    seen.add(identity)
                     yield sale
                     yielded += 1
                     if maximum_records is not None and yielded >= maximum_records:
@@ -156,6 +157,18 @@ def iter_psi_archive(
         raise ValueError("PSI source is not a valid ZIP archive") from exc
     if not seen:
         raise ValueError("PSI archive contains no supported B records")
+
+
+def _sale_fingerprint(sale: PsiSale) -> str:
+    """Distinguish corrected retransmissions while collapsing byte-equivalent source facts."""
+    payload = {
+        name: str(value) if isinstance(value, (date, Decimal)) else value
+        for name, value in asdict(sale).items()
+        if name != "source_business_key"
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def _dat_payloads(
@@ -265,23 +278,27 @@ def _date(value: str, patterns: tuple[str, ...]) -> date | None:
     for pattern in patterns:
         try:
             result = datetime.strptime(value.strip(), pattern).date()
-            if 1900 <= result.year <= date.today().year + 1:
+            if 1900 <= result.year <= 2100:
                 return result
-            return None
+            raise ValueError("PSI date is outside the registered range")
         except ValueError:
             continue
-    return None
+    raise ValueError("PSI date is malformed")
 
 
 def _integer(value: str) -> int | None:
-    return int(value) if value.strip().isdigit() else None
+    if not value.strip():
+        return None
+    if not value.strip().isdigit():
+        raise ValueError("PSI integer is malformed")
+    return int(value)
 
 
 def _decimal(value: str) -> Decimal | None:
     try:
         return Decimal(value) if value.strip() else None
-    except InvalidOperation:
-        return None
+    except InvalidOperation as exc:
+        raise ValueError("PSI decimal is malformed") from exc
 
 
 def _square_metres(value: str, unit: str) -> Decimal | None:
@@ -292,4 +309,4 @@ def _square_metres(value: str, unit: str) -> Decimal | None:
         return amount
     if unit.upper() == "H":
         return amount * 10_000
-    return None
+    raise ValueError("PSI area unit is malformed")

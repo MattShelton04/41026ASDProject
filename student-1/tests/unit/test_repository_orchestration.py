@@ -269,6 +269,44 @@ def test_artifact_lineage_replay_rejects_changed_payload() -> None:
         )
 
 
+def test_source_snapshot_registration_persists_publisher_release_context() -> None:
+    run_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            None,
+            {"id": artifact_id, "artifact_kind": "source_snapshot"},
+            None,
+        ]
+    )
+    snapshot = {
+        "schema_version": "propertyscope.source-snapshot.v1",
+        "source_release": "psi-year-2025",
+        "objects": [{"logical_key": "psi-year-2025"}],
+    }
+
+    artifact, created = ConnectedStore(connection).register_artifact(
+        {
+            "ingestion_run_id": run_id,
+            "run_task_id": uuid.uuid4(),
+            "logical_key": "00/discover",
+            "artifact_kind": "source_snapshot",
+            "storage_key": f"sha256/{'a' * 64}",
+            "content_sha256": "a" * 64,
+            "media_type": "application/json",
+            "bytes": 100,
+            "schema_version": "propertyscope.source-snapshot.v1",
+            "retention_class": "candidate",
+            "source_snapshot": snapshot,
+        }
+    )
+
+    assert created is True
+    assert artifact["id"] == str(artifact_id)
+    snapshot_update = next(query for query in connection.queries if "source_snapshot_json" in query)
+    assert "UPDATE ops.ingestion_run" in snapshot_update
+
+
 class SearchStore:
     def __init__(self) -> None:
         self.query_text: str | None = None
@@ -373,3 +411,223 @@ def test_release_preview_uses_fixed_profile_projection_and_bounds() -> None:
     assert preview["profile"] == "schools-master"
     assert preview["total"] == 2210
     assert preview["next_offset"] == 51
+
+
+def test_release_export_binding_is_atomic_and_requires_matching_evidence() -> None:
+    release_id = uuid.uuid4()
+    run_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+    digest = "a" * 64
+    manifest = {
+        "release_id": str(release_id),
+        "product_schema_version": "propertyscope.school-points.v1",
+        "content_sha256": digest,
+        "record_count": 2,
+        "byte_count": 400,
+    }
+    updated = {
+        "id": release_id,
+        "status": "candidate",
+        "schema_version": "propertyscope.school-points.v1",
+        "content_sha256": digest,
+        "record_count": 2,
+        "artifact_record_id": artifact_id,
+        "manifest_json": manifest,
+    }
+    connection = ScriptedConnection(
+        [
+            {"id": release_id, "status": "draft", "ingestion_run_id": run_id},
+            {
+                "id": artifact_id,
+                "ingestion_run_id": run_id,
+                "artifact_kind": "release_export",
+                "schema_version": "propertyscope.school-points.v1",
+                "content_sha256": digest,
+                "bytes": 400,
+            },
+            {"total": 1, "passed": 1},
+            updated,
+        ]
+    )
+
+    result = ConnectedStore(connection).bind_release_export(
+        release_id,
+        {
+            "artifact_record_id": artifact_id,
+            "schema_version": "propertyscope.school-points.v1",
+            "content_sha256": digest,
+            "record_count": 2,
+            "manifest": manifest,
+        },
+    )
+
+    assert result["status"] == "candidate"
+    assert connection.committed is True
+    update = next(query for query in connection.queries if "status='candidate'" in query)
+    assert "artifact_record_id=%s" in update
+    assert "manifest_json=%s" in update
+
+
+def test_candidate_export_replay_allows_new_clock_but_rejects_changed_evidence() -> None:
+    release_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+    digest = "b" * 64
+    connection = ScriptedConnection(
+        [
+            {
+                "id": release_id,
+                "status": "candidate",
+                "schema_version": "propertyscope.property-sales.v1",
+                "content_sha256": digest,
+                "record_count": 1,
+                "artifact_record_id": artifact_id,
+                "manifest_json": {
+                    "created_at": "2026-08-16T00:00:00Z",
+                    "source_release": "2025",
+                },
+            },
+            {"id": artifact_id},
+        ]
+    )
+
+    with pytest.raises(ConflictError, match="immutable evidence"):
+        ConnectedStore(connection).bind_release_export(
+            release_id,
+            {
+                "artifact_record_id": artifact_id,
+                "schema_version": "propertyscope.property-sales.v1",
+                "content_sha256": digest,
+                "record_count": 1,
+                "manifest": {
+                    "created_at": "2026-08-17T00:00:00Z",
+                    "source_release": "2026",
+                },
+            },
+        )
+
+
+def test_release_product_projection_is_bound_to_one_candidate_generation() -> None:
+    release_id = uuid.uuid4()
+    connection = ScriptedConnection([])
+
+    class ProjectionStore(ConnectedStore):
+        def _required(self, query: str, params: Sequence[Any]) -> dict[str, Any]:
+            connection.queries.append(" ".join(query.split()))
+            connection.parameters.append(params)
+            if "ops.dataset_release" in query:
+                return {
+                    "id": release_id,
+                    "coverage_json": {"years": [2025]},
+                    "import_profile_key": "psi-sales",
+                }
+            return {"count": 1}
+
+        def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+            connection.queries.append(" ".join(query.split()))
+            connection.parameters.append(params)
+            return [{"source_business_key": "sale-1", "source_revision": 1}]
+
+    page = ProjectionStore(connection).release_product_records(release_id, limit=25, offset=0)
+
+    assert page["release_id"] == str(release_id)
+    assert page["candidate_generation_id"] == str(release_id)
+    assert page["total"] == 1
+    assert all(
+        release_id in parameters for parameters in connection.parameters if parameters is not None
+    )
+    projection = next(query for query in connection.queries if "warehouse.psi_sale" in query)
+    assert "dataset_release_id=%s" in projection
+    assert "source_partition_year=ANY" in projection
+    assert "EXTRACT(YEAR FROM contract_date)" not in projection
+    assert "ORDER BY source_business_key,source_revision" in projection
+
+
+def test_bound_candidate_fields_are_not_publicly_mutable() -> None:
+    release_id = uuid.uuid4()
+
+    class CandidateStore(PropertyScopeStore):
+        def __init__(self) -> None:
+            pass
+
+        def get_release(self, requested: uuid.UUID) -> dict[str, Any]:
+            assert requested == release_id
+            return {"id": str(release_id), "status": "candidate"}
+
+    with pytest.raises(ConflictError, match="immutable"):
+        CandidateStore().update_release(release_id, {"version": 1, "record_count": 999})
+
+
+def test_public_release_creation_cannot_skip_governed_draft_state() -> None:
+    store = PropertyScopeStore.__new__(PropertyScopeStore)
+    with pytest.raises(ConflictError, match="drafts"):
+        store.create_release({"status": "accepted"})
+
+
+def test_source_licence_policy_is_immutable_after_release_evidence_exists() -> None:
+    source_id = uuid.uuid4()
+    current = {
+        "id": str(source_id),
+        "name": "Source",
+        "publisher": "Publisher",
+        "source_url": "https://example.invalid/source",
+        "adapter_key": "fixture-property",
+        "cadence": "fixture",
+        "licence_id": "licence-v1",
+        "licence_url": "https://example.invalid/licence",
+        "redistribution_policy": "committed-synthetic-fixture",
+        "target_features_json": ["feature-1"],
+        "status": "active",
+        "notes": None,
+    }
+    connection = ScriptedConnection([{"id": source_id}, {"id": uuid.uuid4()}])
+
+    class SourceStore(ConnectedStore):
+        def get_source(self, requested: uuid.UUID) -> dict[str, Any]:
+            assert requested == source_id
+            return current
+
+    with pytest.raises(ConflictError, match="immutable"):
+        SourceStore(connection).update_source(
+            source_id,
+            {"version": 1, "redistribution_policy": "metadata-only"},
+        )
+
+
+def test_publication_idempotency_key_cannot_be_reused_for_another_release() -> None:
+    first_release = uuid.uuid4()
+    second_release = uuid.uuid4()
+
+    class ReceiptStore(PropertyScopeStore):
+        def __init__(self) -> None:
+            pass
+
+        def get_release(self, release_id: uuid.UUID) -> dict[str, Any]:
+            return {"id": str(release_id)}
+
+        def _fetch_one(self, query: str, params: Sequence[Any]) -> dict[str, Any] | None:
+            del query, params
+            return {
+                "dataset_release_id": first_release,
+                "status": "accepted",
+                "schema_version": "propertyscope.property-sales.v1",
+                "content_sha256": "f" * 64,
+                "rows_received": 1,
+                "rows_accepted": 1,
+                "rows_rejected": 0,
+            }
+
+    with pytest.raises(ConflictError, match="idempotency key arguments"):
+        ReceiptStore().record_publication_receipt(
+            second_release,
+            {
+                "target_feature": "feature-2",
+                "consumer_operation_id": "same-operation-key",
+                "status": "accepted",
+                "schema_version": "propertyscope.property-sales.v1",
+                "content_sha256": "f" * 64,
+                "rows_received": 1,
+                "rows_accepted": 1,
+                "rows_rejected": 0,
+                "request_id": "request-1",
+            },
+        )

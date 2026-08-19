@@ -1,0 +1,9 @@
+{
+  "schema_version": "propertyscope.property-sales.v1",
+  "release_id": "60000000-0000-0000-0000-000000000002",
+  "release_version": "fixture-sales-v1",
+  "dataset_id": "nsw-psi-sales",
+  "target_feature": "feature-2",
+  "candidate_generation_id": "60000000-0000-0000-0000-000000000002",
+  "records": [{"source_business_key": "001:P1:1", "source_revision": 0, "contract_date": "yesterday"}]
+}

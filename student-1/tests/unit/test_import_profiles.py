@@ -10,6 +10,7 @@ import pytest
 
 from propertyscope_data_platform.runner import _canonical_records
 from propertyscope_data_store.import_profiles import (
+    _PROFILE_INSERT_SQL,
     CANONICAL_SCHEMA_VERSION,
     ImportProfileError,
     ImportResult,
@@ -130,7 +131,7 @@ def test_bocsar_requires_sparse_observation_and_explicit_coverage_contracts() ->
 
 
 def test_profile_mismatch_and_duplicate_natural_keys_fail_before_copy() -> None:
-    record: dict[str, object] = {"source_key": "fixture-001"}
+    record = _canonical_records("property-fixture")[0]
     with pytest.raises(ImportProfileError, match="does not match"):
         prepare_import(_artifact("property-fixture", [record]), profile="schools-master")
     with pytest.raises(ImportProfileError, match="natural keys"):
@@ -153,6 +154,55 @@ def test_schools_import_accepts_nsw_lord_howe_island() -> None:
     assert prepared.rows[0]["school_code"] == "1921"
 
 
+def test_psi_scope_partition_survives_nullable_business_dates() -> None:
+    record: dict[str, object] = {
+        "source_business_key": "001:P1:1",
+        "source_revision": 1,
+        "source_era": "post-2001",
+        "district_code": "001",
+        "property_id": "P1",
+        "dealing_id": None,
+        "contract_date": None,
+        "settlement_date": None,
+        "price_aud": None,
+        "area_original": None,
+        "area_unit": None,
+        "area_square_metres": None,
+        "property_ref": None,
+        "match_tier": "MISS",
+        "match_confidence": "0",
+        "geographic_precision": "unmatched",
+        "source_partition_year": 2025,
+    }
+
+    prepared = prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
+
+    assert prepared.rows[0]["contract_date"] is None
+    assert prepared.rows[0]["source_partition_year"] == 2025
+
+    corrected = {**record, "price_aud": 910000}
+    revisions = prepare_import(
+        _artifact("psi-sales", [record, record, corrected]), profile="psi-sales"
+    )
+    assert [row["source_revision"] for row in revisions.rows] == [1, 2]
+    assert [row["price_aud"] for row in revisions.rows] == [None, 910000]
+
+    later_partition = {**record, "source_partition_year": 2026}
+    retransmission = prepare_import(
+        _artifact("psi-sales", [record, later_partition]), profile="psi-sales"
+    )
+    assert len(retransmission.rows) == 1
+
+
+def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions() -> None:
+    source = _PROFILE_INSERT_SQL["psi-sales"]
+
+    assert "distinct_source_rows" in source
+    assert "source_row_sha256" in source
+    assert "derived_revision" in source
+    assert "source_partition_year" in source
+
+
 class _Store:
     def execute_import_profile(self, work: dict[str, Any], prepared: Any) -> ImportResult:
         assert prepared.profile == "property-fixture"
@@ -161,7 +211,7 @@ class _Store:
 
 
 def test_loader_verifies_artifact_then_delegates_registered_copy_profile(tmp_path: Path) -> None:
-    data = _artifact("property-fixture", [{"source_key": "fixture-001"}])
+    data = _artifact("property-fixture", [_canonical_records("property-fixture")[0]])
     digest = hashlib.sha256(data).hexdigest()
     relative = Path("sha256") / digest[:2] / digest
     path = tmp_path / relative
