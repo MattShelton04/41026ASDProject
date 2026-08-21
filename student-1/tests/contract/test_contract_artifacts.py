@@ -101,7 +101,7 @@ def test_openapi_operations_exactly_match_public_runtime_routes() -> None:
         (contract_path(rule.rule), method.lower())
         for rule in app.url_map.iter_rules()
         if rule.rule.startswith(base)
-        for method in rule.methods
+        for method in rule.methods or set()
         if method not in {"HEAD", "OPTIONS"}
     }
     document = yaml.safe_load((CONTRACTS / "data-platform-api.v1.openapi.yaml").read_text("utf-8"))
