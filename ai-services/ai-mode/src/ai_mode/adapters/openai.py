@@ -89,12 +89,6 @@ class OpenAIProvider(LLMProvider):
             client_request_id=str(uuid4()),
         )
         total_duration_ms = max(0, int((monotonic() - started) * 1_000))
-        if len(response.content) > self._max_response_bytes:
-            raise ModelProviderError(
-                "OpenAI response exceeded the configured size limit",
-                code="model_response_too_large",
-                retryable=False,
-            )
         body = self._response_object(response)
         content = self._structured_content(body)
         usage = body.get("usage")
@@ -265,12 +259,22 @@ class OpenAIProvider(LLMProvider):
     ) -> httpx.Response:
         for attempt in range(self._max_retries + 1):
             try:
-                response = self._client.post(
+                with self._client.stream(
+                    "POST",
                     "/responses",
                     json=payload,
                     headers=self._headers(client_request_id=client_request_id),
                     timeout=self._request_timeout(deadline_at),
-                )
+                ) as response:
+                    if response.status_code in RETRYABLE_HTTP_STATUSES:
+                        if attempt < self._max_retries:
+                            retry_after = response.headers.get("retry-after")
+                        else:
+                            self._raise_http_error(response.status_code)
+                    elif response.status_code >= 400:
+                        self._raise_http_error(response.status_code)
+                    else:
+                        return self._bounded_response(response)
             except httpx.TimeoutException as exc:
                 if attempt < self._max_retries:
                     self._wait_to_retry(attempt=attempt, deadline_at=deadline_at)
@@ -285,17 +289,29 @@ class OpenAIProvider(LLMProvider):
                 raise ModelProviderError(
                     "OpenAI is unavailable", code="model_unavailable", retryable=True
                 ) from exc
-            if response.status_code in RETRYABLE_HTTP_STATUSES and attempt < self._max_retries:
-                self._wait_to_retry(
-                    attempt=attempt,
-                    deadline_at=deadline_at,
-                    retry_after=response.headers.get("retry-after"),
-                )
-                continue
-            if response.status_code >= 400:
-                self._raise_http_error(response.status_code)
-            return response
+            self._wait_to_retry(
+                attempt=attempt,
+                deadline_at=deadline_at,
+                retry_after=retry_after,
+            )
         raise AssertionError("OpenAI retry loop exhausted without returning or raising")
+
+    def _bounded_response(self, response: httpx.Response) -> httpx.Response:
+        content = bytearray()
+        for chunk in response.iter_bytes():
+            if len(content) + len(chunk) > self._max_response_bytes:
+                raise ModelProviderError(
+                    "OpenAI response exceeded the configured size limit",
+                    code="model_response_too_large",
+                    retryable=False,
+                )
+            content.extend(chunk)
+        return httpx.Response(
+            response.status_code,
+            headers=response.headers,
+            content=bytes(content),
+            request=response.request,
+        )
 
     def _headers(self, *, client_request_id: str | None = None) -> dict[str, str]:
         headers = {
@@ -397,7 +413,7 @@ class OpenAIProvider(LLMProvider):
                 code="model_response_failed",
                 retryable=False,
             )
-        if status not in {None, "completed"}:
+        if status != "completed":
             raise ModelProviderError(
                 "OpenAI returned a non-terminal response",
                 code="invalid_model_response",
