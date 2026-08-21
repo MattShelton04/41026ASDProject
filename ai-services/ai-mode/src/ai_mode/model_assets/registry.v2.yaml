@@ -1,0 +1,27 @@
+schema_version: 2
+default_profile: remote-standard.v1
+models:
+  - key: gpt-5.6-luna
+    provider: openai
+    model_id: gpt-5.6-luna
+    maximum_context_tokens: 1050000
+    maximum_output_tokens: 128000
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    description: Cost-sensitive GPT-5.6 model selected for frequent implementation planning.
+  - key: gpt-5.6-terra
+    provider: openai
+    model_id: gpt-5.6-terra
+    maximum_context_tokens: 1050000
+    maximum_output_tokens: 128000
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-terra
+    description: Balanced GPT-5.6 model reserved for adaptation and reviewer turns.
+profiles:
+  - key: remote-standard.v1
+    role_models:
+      planner: gpt-5.6-luna
+      adapter: gpt-5.6-terra
+      reviewer: gpt-5.6-terra
+    context_tokens: 16384
+    maximum_output_tokens: 2048
+    reasoning_effort: low
+    description: Low-cost routing with Luna as implementer and Terra as adapter/reviewer.

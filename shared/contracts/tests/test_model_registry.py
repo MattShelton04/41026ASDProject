@@ -8,29 +8,29 @@ from shared_contracts import ModelRegistry, ModelRoleName
 
 def _registry() -> dict[str, object]:
     return {
-        "schema_version": 1,
-        "default_profile": "local-small.v1",
+        "schema_version": 2,
+        "default_profile": "remote-standard.v1",
         "models": [
             {
-                "key": "qwen-test",
-                "family": "qwen",
-                "provider": "ollama",
-                "ollama_tag": "qwen:test",
-                "parameters_billion": 0.5,
-                "download_size_gb": 0.4,
-                "maximum_context_tokens": 8192,
-                "source_url": "https://ollama.com/library/qwen",
+                "key": "gpt-5.6-luna",
+                "provider": "openai",
+                "model_id": "gpt-5.6-luna",
+                "maximum_context_tokens": 1_050_000,
+                "maximum_output_tokens": 128_000,
+                "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
                 "description": "Test model",
             }
         ],
         "profiles": [
             {
-                "key": "local-small.v1",
-                "model_key": "qwen-test",
-                "context_tokens": 4096,
-                "maximum_output_tokens": 512,
-                "keep_alive": "5m",
-                "intended_roles": ["planner", "adapter"],
+                "key": "remote-standard.v1",
+                "role_models": {
+                    "planner": "gpt-5.6-luna",
+                    "adapter": "gpt-5.6-luna",
+                },
+                "context_tokens": 16_384,
+                "maximum_output_tokens": 2_048,
+                "reasoning_effort": "low",
                 "description": "Test profile",
             }
         ],
@@ -40,8 +40,8 @@ def _registry() -> dict[str, object]:
 def test_registry_resolves_models_and_profiles() -> None:
     registry = ModelRegistry.model_validate(_registry())
 
-    assert registry.profile("local-small.v1") is not None
-    assert registry.model("qwen-test") is not None
+    assert registry.profile("remote-standard.v1") is not None
+    assert registry.model("gpt-5.6-luna") is not None
     assert registry.profile("missing") is None
 
 
@@ -58,12 +58,16 @@ def test_profile_reports_supported_role_sets() -> None:
     [
         (lambda value: value.update(default_profile="missing.v1"), "default model profile"),
         (
-            lambda value: value["profiles"][0].update(model_key="missing"),  # type: ignore[index,union-attr]
+            lambda value: value["profiles"][0].update(role_models={"planner": "missing"}),  # type: ignore[index,union-attr]
             "unknown model",
         ),
         (
-            lambda value: value["profiles"][0].update(context_tokens=16384),  # type: ignore[index,union-attr]
+            lambda value: value["profiles"][0].update(context_tokens=1_050_001),  # type: ignore[index,union-attr]
             "exceeds the model context",
+        ),
+        (
+            lambda value: value["models"][0].update(maximum_output_tokens=2_047),  # type: ignore[index,union-attr]
+            "exceeds the model output",
         ),
     ],
 )

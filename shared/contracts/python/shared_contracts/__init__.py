@@ -59,8 +59,9 @@ from shared_contracts.http import (
     trace_id_from_traceparent,
 )
 from shared_contracts.model_registry import (
-    ApprovedModelFamily,
     ModelProfile,
+    ModelProviderName,
+    ModelReasoningEffort,
     ModelRegistry,
     ModelRoleName,
     SupportedModel,
@@ -118,7 +119,6 @@ __all__ = [
     "AgentStep",
     "AgentStepEvidence",
     "ApprovalStatus",
-    "ApprovedModelFamily",
     "EvidenceSource",
     "FeatureManifest",
     "FeatureManifestError",
@@ -132,6 +132,8 @@ __all__ = [
     "ModelInvocationEvidence",
     "ModelMetricsEvidence",
     "ModelProfile",
+    "ModelProviderName",
+    "ModelReasoningEffort",
     "ModelRegistry",
     "ModelRoleName",
     "Observation",

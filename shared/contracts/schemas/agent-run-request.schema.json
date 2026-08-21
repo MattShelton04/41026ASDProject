@@ -51,7 +51,7 @@
       "$ref": "#/$defs/RunLimits"
     },
     "model_profile": {
-      "default": "local-standard.v1",
+      "default": "remote-standard.v1",
       "maxLength": 100,
       "minLength": 1,
       "pattern": "^[a-z0-9][a-z0-9_.-]*$",

@@ -99,6 +99,8 @@ class ModelMetricsEvidence(ContractModel):
     eval_duration_ms: int | None = Field(default=None, ge=0)
     prompt_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
+    cached_prompt_tokens: int | None = Field(default=None, ge=0)
+    reasoning_tokens: int | None = Field(default=None, ge=0)
 
 
 class ModelInvocationEvidence(ContractModel):

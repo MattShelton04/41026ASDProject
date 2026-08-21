@@ -1,18 +1,8 @@
 {
   "$defs": {
-    "ApprovedModelFamily": {
-      "description": "Open model families permitted by the assignment specification.",
-      "enum": [
-        "qwen",
-        "llama",
-        "deepseek"
-      ],
-      "title": "ApprovedModelFamily",
-      "type": "string"
-    },
     "ModelProfile": {
       "additionalProperties": false,
-      "description": "Stable logical name and bounded operational settings for one model.",
+      "description": "Stable logical name with role-routed models and bounded operational settings.",
       "properties": {
         "context_tokens": {
           "maximum": 2000000,
@@ -24,21 +14,6 @@
           "maxLength": 500,
           "minLength": 1,
           "title": "Description",
-          "type": "string"
-        },
-        "intended_roles": {
-          "items": {
-            "$ref": "#/$defs/ModelRoleName"
-          },
-          "maxItems": 3,
-          "minItems": 1,
-          "title": "Intended Roles",
-          "type": "array"
-        },
-        "keep_alive": {
-          "maxLength": 50,
-          "minLength": 1,
-          "title": "Keep Alive",
           "type": "string"
         },
         "key": {
@@ -54,25 +29,56 @@
           "title": "Maximum Output Tokens",
           "type": "integer"
         },
-        "model_key": {
-          "maxLength": 100,
-          "minLength": 1,
-          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
-          "title": "Model Key",
-          "type": "string"
+        "reasoning_effort": {
+          "$ref": "#/$defs/ModelReasoningEffort"
+        },
+        "role_models": {
+          "additionalProperties": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "type": "string"
+          },
+          "maxProperties": 3,
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/ModelRoleName"
+          },
+          "title": "Role Models",
+          "type": "object"
         }
       },
       "required": [
         "key",
-        "model_key",
+        "role_models",
         "context_tokens",
         "maximum_output_tokens",
-        "keep_alive",
-        "intended_roles",
+        "reasoning_effort",
         "description"
       ],
       "title": "ModelProfile",
       "type": "object"
+    },
+    "ModelProviderName": {
+      "description": "Remote model providers supported by the current AI-mode composition.",
+      "enum": [
+        "openai"
+      ],
+      "title": "ModelProviderName",
+      "type": "string"
+    },
+    "ModelReasoningEffort": {
+      "description": "Portable configured reasoning effort for reasoning-capable models.",
+      "enum": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "title": "ModelReasoningEffort",
+      "type": "string"
     },
     "ModelRoleName": {
       "description": "Agent roles for which a runtime profile is intended.",
@@ -86,22 +92,13 @@
     },
     "SupportedModel": {
       "additionalProperties": false,
-      "description": "One concrete Ollama model with traceable capacity metadata.",
+      "description": "One concrete API model with traceable capacity metadata.",
       "properties": {
         "description": {
           "maxLength": 500,
           "minLength": 1,
           "title": "Description",
           "type": "string"
-        },
-        "download_size_gb": {
-          "exclusiveMinimum": 0,
-          "maximum": 1000,
-          "title": "Download Size Gb",
-          "type": "number"
-        },
-        "family": {
-          "$ref": "#/$defs/ApprovedModelFamily"
         },
         "key": {
           "maxLength": 100,
@@ -116,37 +113,34 @@
           "title": "Maximum Context Tokens",
           "type": "integer"
         },
-        "ollama_tag": {
+        "maximum_output_tokens": {
+          "maximum": 1000000,
+          "minimum": 1,
+          "title": "Maximum Output Tokens",
+          "type": "integer"
+        },
+        "model_id": {
           "maxLength": 200,
           "minLength": 1,
-          "title": "Ollama Tag",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Model Id",
           "type": "string"
-        },
-        "parameters_billion": {
-          "exclusiveMinimum": 0,
-          "maximum": 1000,
-          "title": "Parameters Billion",
-          "type": "number"
         },
         "provider": {
-          "const": "ollama",
-          "default": "ollama",
-          "title": "Provider",
-          "type": "string"
+          "$ref": "#/$defs/ModelProviderName"
         },
         "source_url": {
-          "pattern": "^https://(www\\.)?(registry\\.)?ollama\\.com/",
+          "pattern": "^https://developers\\.openai\\.com/",
           "title": "Source Url",
           "type": "string"
         }
       },
       "required": [
         "key",
-        "family",
-        "ollama_tag",
-        "parameters_billion",
-        "download_size_gb",
+        "provider",
+        "model_id",
         "maximum_context_tokens",
+        "maximum_output_tokens",
         "source_url",
         "description"
       ],
@@ -183,7 +177,7 @@
       "type": "array"
     },
     "schema_version": {
-      "const": 1,
+      "const": 2,
       "title": "Schema Version",
       "type": "integer"
     }

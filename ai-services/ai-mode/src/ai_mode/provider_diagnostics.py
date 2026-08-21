@@ -18,9 +18,8 @@ from agent_core import (
     ModelRole,
     StructuredModelRequest,
 )
-from ai_mode.adapters.ollama import OllamaProvider
 from ai_mode.configuration import Settings
-from ai_mode.providers import build_ollama_provider, configured_model_registry
+from ai_mode.providers import build_provider, configured_model_registry
 from shared_contracts import ModelRegistry
 
 
@@ -34,7 +33,7 @@ class SmokeItem(BaseModel):
 
 
 class SmokeResponse(BaseModel):
-    """Schema proving structured output and complex-grammar compatibility."""
+    """Schema proving structured-output and parser compatibility."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -46,10 +45,10 @@ class SmokeResponse(BaseModel):
 def run_smoke(
     provider: LLMProvider,
     *,
-    model_profile: str = "local-standard.v1",
+    model_profile: str = "remote-standard.v1",
     model_role: ModelRole = ModelRole.PLANNER,
 ) -> Mapping[str, object]:
-    """Exercise health and one schema-constrained turn through the provider port."""
+    """Exercise health and one schema-guided turn through the provider port."""
     health = provider.health()
     if not health.reachable:
         raise RuntimeError(health.detail)
@@ -65,29 +64,29 @@ def run_smoke(
             ModelMessage(
                 role="user",
                 content=(
-                    'Set ready to true, message to exactly "ollama-ready", and items to one '
+                    'Set ready to true, message to exactly "provider-ready", and items to one '
                     "entry with sequence 1 and an empty arguments object."
                 ),
             ),
         ),
         output_schema=SmokeResponse.model_json_schema(),
-        prompt_id="ollama-smoke",
+        prompt_id="provider-smoke",
         prompt_version="v1",
         prompt_hash="0" * 64,
         rendered_input_hash="0" * 64,
         temperature=0,
-        max_output_tokens=64,
+        max_output_tokens=128,
     )
     generated = provider.generate_structured(request)
     response = SmokeResponse.model_validate(generated.content)
     if (
         response.ready is not True
-        or response.message != "ollama-ready"
+        or response.message != "provider-ready"
         or len(response.items) != 1
         or response.items[0].sequence != 1
         or response.items[0].arguments != {}
     ):
-        raise RuntimeError("Ollama returned valid but unexpected diagnostic content")
+        raise RuntimeError("Provider returned valid but unexpected diagnostic content")
     return {
         "status": "ready",
         "provider": generated.provider,
@@ -102,7 +101,7 @@ def _diagnostic_role(registry: ModelRegistry, model_profile: str) -> ModelRole:
     profile = registry.profile(model_profile)
     if profile is None:  # configured_model_registry already validates this lookup.
         raise ValueError(f"model profile is not registered: {model_profile}")
-    return ModelRole(profile.intended_roles[0].value)
+    return ModelRole(next(iter(profile.role_models)).value)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -110,7 +109,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--base-url",
         default=None,
-        help="Override OLLAMA_BASE_URL for this check",
+        help="Override OPENAI_BASE_URL for this check",
     )
     parser.add_argument(
         "--profile",
@@ -124,18 +123,18 @@ def _parser() -> argparse.ArgumentParser:
 def main() -> int:
     """Run the diagnostic and emit a bounded machine-readable report."""
     args = _parser().parse_args()
-    provider: OllamaProvider | None = None
+    provider: LLMProvider | None = None
     try:
         environment = dict(os.environ)
         if args.base_url is not None:
-            environment["OLLAMA_BASE_URL"] = args.base_url
+            environment["OPENAI_BASE_URL"] = args.base_url
         if args.profile is not None:
             environment["AI_MODE_DEFAULT_MODEL_PROFILE"] = args.profile
         if args.timeout_seconds is not None:
-            environment["OLLAMA_TIMEOUT_SECONDS"] = str(args.timeout_seconds)
+            environment["OPENAI_TIMEOUT_SECONDS"] = str(args.timeout_seconds)
         settings = Settings.from_env(environment)
         registry, model_profile = configured_model_registry(settings)
-        provider = build_ollama_provider(
+        provider = build_provider(
             settings,
             registry=registry,
             readiness_profile=model_profile,
@@ -153,11 +152,13 @@ def main() -> int:
         )
         return 0
     except (ModelProviderError, RuntimeError, ValueError) as exc:
-        print(f"Ollama diagnostic failed: {exc}", file=sys.stderr)
+        print(f"Provider diagnostic failed: {exc}", file=sys.stderr)
         return 1
     finally:
         if provider is not None:
-            provider.close()
+            close = getattr(provider, "close", None)
+            if callable(close):
+                close()
 
 
 if __name__ == "__main__":

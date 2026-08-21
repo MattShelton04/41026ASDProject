@@ -113,7 +113,7 @@ class AgentRunRequest(ContractModel):
     feature_key: Identifier
     objective: str = Field(min_length=1, max_length=4_000)
     prompt_set: PromptSet = DEFAULT_PROMPT_SET
-    model_profile: Identifier = "local-standard.v1"
+    model_profile: Identifier = "remote-standard.v1"
     limits: RunLimits = Field(default_factory=RunLimits)
 
 

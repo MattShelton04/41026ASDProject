@@ -1,10 +1,10 @@
 """Central composition of logical model profiles and concrete providers."""
 
-from agent_core import ModelRole
-from ai_mode.adapters.ollama import OllamaModelProfile, OllamaProvider
+from agent_core import LLMProvider, ModelRole
+from ai_mode.adapters.openai import OpenAIModelProfile, OpenAIProvider
 from ai_mode.configuration import ConfigurationError, Settings
 from ai_mode.model_registry import load_model_registry
-from shared_contracts import ModelRegistry
+from shared_contracts import ModelProviderName, ModelRegistry
 
 
 def configured_model_registry(settings: Settings) -> tuple[ModelRegistry, str]:
@@ -18,32 +18,41 @@ def configured_model_registry(settings: Settings) -> tuple[ModelRegistry, str]:
     return registry, default_profile
 
 
-def build_ollama_provider(
+def build_provider(
     settings: Settings,
     *,
     registry: ModelRegistry | None = None,
     readiness_profile: str | None = None,
-) -> OllamaProvider:
-    """Build the production provider used by the service and runtime diagnostics."""
+) -> LLMProvider:
+    """Build the configured production provider used by the service and diagnostics."""
     if registry is None or readiness_profile is None:
         registry, readiness_profile = configured_model_registry(settings)
-    profiles: dict[str, OllamaModelProfile] = {}
+    if settings.llm_provider != ModelProviderName.OPENAI.value:
+        raise ConfigurationError(f"unsupported LLM provider: {settings.llm_provider}")
+    profiles: dict[str, OpenAIModelProfile] = {}
     for profile in registry.profiles:
-        model = registry.model(profile.model_key)
-        if model is None:  # Defensive: ModelRegistry validation already rejects this.
-            raise ConfigurationError(f"model profile references unknown model: {profile.key}")
-        profiles[profile.key] = OllamaModelProfile(
-            model=model.ollama_tag,
-            keep_alive=settings.ollama_keep_alive or profile.keep_alive,
-            context_tokens=profile.context_tokens,
+        role_models: dict[ModelRole, str] = {}
+        for role, model_key in profile.role_models.items():
+            model = registry.model(model_key)
+            if model is None:  # Defensive: ModelRegistry validation already rejects this.
+                raise ConfigurationError(f"model profile references unknown model: {profile.key}")
+            if model.provider is not ModelProviderName.OPENAI:
+                raise ConfigurationError(
+                    f"model profile {profile.key} does not use the configured OpenAI provider"
+                )
+            role_models[ModelRole(role.value)] = model.model_id
+        profiles[profile.key] = OpenAIModelProfile(
+            models=role_models,
             maximum_output_tokens=profile.maximum_output_tokens,
-            intended_roles=frozenset(ModelRole(role.value) for role in profile.intended_roles),
+            reasoning_effort=profile.reasoning_effort,
         )
-    return OllamaProvider(
-        base_url=settings.ollama_base_url,
+    return OpenAIProvider(
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url,
         profiles=profiles,
         readiness_profiles=frozenset({readiness_profile}),
-        timeout_seconds=settings.ollama_timeout_seconds,
-        health_timeout_seconds=settings.ollama_health_timeout_seconds,
+        timeout_seconds=settings.openai_timeout_seconds,
+        health_timeout_seconds=settings.openai_health_timeout_seconds,
+        max_retries=settings.openai_max_retries,
         max_response_bytes=settings.max_model_response_bytes,
     )

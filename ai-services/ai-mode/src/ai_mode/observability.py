@@ -31,6 +31,8 @@ _OPTIONAL_FIELDS: Final[tuple[str, ...]] = (
     "model_role",
     "prompt_tokens",
     "output_tokens",
+    "cached_prompt_tokens",
+    "reasoning_tokens",
     "repair_count",
     "retryable",
     "tool_name",
