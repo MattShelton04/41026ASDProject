@@ -3,8 +3,11 @@
 Keep non-secret configuration templates here. Copy `.env.example` to a local
 untracked environment file; never commit credentials or cloud secrets.
 
-`ai-mode` uses Ollama's native API for structured output and timing metadata. It also
-accepts the course guide's `/v1` URL and normalizes that suffix. Release-gated service
+`ai-mode` uses the OpenAI Responses API for JSON-Schema-guided output, reasoning controls,
+and token usage metadata. `OPENAI_API_KEY` is a secret: inject it through the host process
+environment or use `OPENAI_API_KEY_FILE` for a mounted secret, and never commit it. Compose
+sources its service-scoped secret from the launching shell and mounts it only into AI-mode.
+Release-gated service
 flags remain false until their applicable local release and must remain false in the
 Release 2 cloud deployment.
 
@@ -15,8 +18,7 @@ a strict startup catalogue. Do not place credentials in those files or expose ar
 caller/model URLs. `AI_MODE_EVIDENCE_ACCESS_TOKEN` is a local secret; leaving it unset
 removes the development evidence route entirely.
 
-AI-mode selects concrete Ollama tags through its bundled validated model registry.
+AI-mode selects concrete provider model IDs through its bundled validated model registry.
 `AI_MODE_DEFAULT_MODEL_PROFILE` chooses the readiness/default profile and
-`AI_MODE_MODEL_REGISTRY_PATH` can name a complete replacement file. In Compose,
-`OLLAMA_MODEL` is consumed by the one-shot model puller, so it must correspond to the
-selected logical profile. Unknown profiles and non-approved model families fail fast.
+`AI_MODE_MODEL_REGISTRY_PATH` can name a complete replacement file. Unknown profiles,
+providers, and model IDs fail startup validation or a typed provider request.

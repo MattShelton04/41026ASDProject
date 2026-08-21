@@ -82,7 +82,7 @@ function releaseStrip() {
   return `<div class="release-strip" role="status">
     <span class="strip-status"><strong>Local prototype</strong></span><span class="separator">•</span>
     <span>Release 0 architecture</span><span class="separator">•</span>
-    <span>Ollama + approved open-source LLM</span><span class="separator">•</span>
+    <span>OpenAI API · GPT-5.6 Luna</span><span class="separator">•</span>
     <span>MCP / RAG / multi-agent are release-gated</span>
   </div>`;
 }

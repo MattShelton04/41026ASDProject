@@ -13,7 +13,7 @@ calls the database over HTTP. The example supplies ten deterministic records wit
 priority metadata and dependency relationships, three composable read tools
 (search, inspect, and dependency evidence), an idempotent create tool, and
 operation-status lookup. Its longer-horizon component test executes a three-action
-plan over real loopback HTTP with the scripted model; Ollama and Docker are not
+plan over real loopback HTTP with the scripted model; OpenAI credentials and Docker are not
 required. A public-API lifecycle test additionally drives idempotent create/replay,
 run detail, paged events, filtered durable history, safe evidence caching, model registry,
 shared Problem Details, and both protected-action review decisions through a live AI-mode
@@ -29,7 +29,8 @@ closed.
 
 ## Run the working preview
 
-With Docker Desktop running, start the fixture, AI-mode, and the pinned Ollama runtime:
+With Docker Desktop running and `OPENAI_API_KEY` exported in the launching shell, start the
+fixture and AI-mode:
 
 ```text
 uv run scripts/dev.py up
@@ -42,12 +43,10 @@ Python edits, and preserves all named volumes on `uv run scripts/dev.py down`. R
 The equivalent production-like Compose sequence without development mounts is:
 
 ```text
-docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile ollama-container up --detach --wait --wait-timeout 120 ollama
-docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile ollama-container run --rm ollama-init
 docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test up --detach --build --wait --wait-timeout 120 ai-mode integration-test-feature-database integration-test-feature-backend integration-test-feature-frontend
 ```
 
-The first run downloads the standard Release 0 Qwen model. Open <http://localhost:5190> to:
+No model image or weights are downloaded. Open <http://localhost:5190> to:
 
 - search the ten deterministic records through frontend -> backend -> database;
 - inspect record detail and its dependency graph without invoking a model;
@@ -66,15 +65,10 @@ tool call/result, model invocation summary, safe progress event, run/request ID,
 W3C trace context. The complete safe run-detail JSON remains available in an expandable
 debug panel.
 
-The longer-horizon preset uses `default.v3` and a six-minute client/run window. Measured
-CPU timings vary materially with prompt size: one warm three-tool run completed in about
-153 seconds, while a one-tool verification on 9 August 2026 took about 171 seconds
-(100 seconds planning and 51 seconds adapting). A small structured-output provider smoke
-on the same model took 8.3 seconds. Model load was warm in those runs; prompt evaluation
-and generation dominated. Rehearse and pre-warm real-model demonstrations, retain the
-deterministic scripted proof, and do not present these timings as satisfying the CRUD
-latency target. The platform does not yet reuse durable conversation context or provider
-KV state between calls.
+The longer-horizon preset uses `default.v3` and a six-minute client/run window. Remote-model
+latency and output remain probabilistic, so retain the deterministic scripted proof and do not
+present provider timings as satisfying the CRUD latency target. The platform reconstructs each
+request from persisted safe state and does not use provider-side conversation state.
 
 You can also inspect <http://localhost:5005/api/v1/model-profiles> and
 <http://localhost:5005/health/ready>. Stop the preview without deleting its named data
@@ -94,7 +88,7 @@ Validate its optional Compose topology with:
 
 ```text
 docker compose --file docker-compose.yml --file docker-compose.integration-test.yml \
-  --profile release-0 --profile ollama-container --profile integration-test config --quiet
+  --profile release-0 --profile integration-test config --quiet
 ```
 
 This is a pattern and integration fixture, not a substitute for any student's

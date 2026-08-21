@@ -1,4 +1,4 @@
-"""Tests for strict, side-effect-free service configuration."""
+"""Tests for strict service configuration and bounded secret loading."""
 
 from pathlib import Path
 
@@ -40,6 +40,16 @@ def test_openai_configuration_accepts_a_loopback_compatible_api() -> None:
     assert "test-secret" not in repr(settings)
 
 
+def test_openai_configuration_reads_a_bounded_secret_file(tmp_path: Path) -> None:
+    secret_path = tmp_path / "openai-key"
+    secret_path.write_text("file-secret\n", encoding="utf-8")
+
+    settings = Settings.from_env({"OPENAI_API_KEY_FILE": str(secret_path)})
+
+    assert settings.openai_api_key == "file-secret"
+    assert "file-secret" not in repr(settings)
+
+
 @pytest.mark.parametrize(
     ("values", "message"),
     [
@@ -53,6 +63,11 @@ def test_openai_configuration_accepts_a_loopback_compatible_api() -> None:
         ({"OPENAI_MAX_RETRIES": "6"}, "must be between"),
         ({"OPENAI_MAX_RETRIES": "many"}, "must be an integer"),
         ({"OPENAI_API_KEY": "bad\nkey"}, "OPENAI_API_KEY is invalid"),
+        (
+            {"OPENAI_API_KEY": "direct", "OPENAI_API_KEY_FILE": "/run/secrets/key"},
+            "set only one",
+        ),
+        ({"OPENAI_API_KEY_FILE": "/missing/openai-key"}, "could not be read"),
         ({"AI_MODE_MAX_MODEL_RESPONSE_BYTES": "10"}, "must be between"),
         ({"AI_MODE_MAX_MODEL_RESPONSE_BYTES": "many"}, "must be an integer"),
         ({"AI_MODE_MAX_REQUEST_BYTES": "10"}, "must be between"),

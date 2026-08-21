@@ -12,8 +12,8 @@ shared package, and student slice owns its dependencies in a local `pyproject.to
   install or browser test stack is required
 - Docker Desktop or another Docker Engine with Compose support for container builds,
   integration checks, and the assignment-aligned runtime
-- The Ollama CLI only when using the optional native-host runtime; the canonical Compose
-  path supplies its own pinned Ollama container
+- An OpenAI API key with access to the configured model for live AI-mode requests; deterministic
+  tests do not need credentials or internet access
 
 Do not install project dependencies globally. `uv` creates and maintains `.venv` in the
 repository root.
@@ -55,7 +55,7 @@ Command Prompt, Bash, and zsh.
 5. Run the full check command before opening a pull request.
 6. Request review from affected owners when shared contracts or infrastructure change.
 
-Never commit `.env`, SQLite files, model files, credentials, logs, or generated runtime data.
+Never commit `.env`, SQLite files, credentials, logs, or generated runtime data.
 Use the checked-in `.env.example` files for documented, non-secret defaults.
 
 ## Commands

@@ -80,8 +80,8 @@ feature entities, business rules, schemas, or user experience.
 - A Compose smoke test covering frontend → backend → database and backend → AI-mode →
   feature tool → backend → database over real HTTP without requiring a real model.
 
-Keep real Ollama evaluation separate from deterministic CI. Record the model profile,
-concrete tag/digest, prompt set, inputs, safe outputs, timings, and known failures as
+Keep real-provider evaluation separate from deterministic CI. Record the model profile,
+concrete provider/model ID, prompt set, inputs, safe outputs, timings, token usage, cost, and known failures as
 release evidence.
 
 ## Integration sequence

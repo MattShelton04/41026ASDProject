@@ -1,5 +1,0 @@
-# Developer override: AI-mode runs in Compose and reaches Ollama on the host.
-services:
-  ai-mode:
-    environment:
-      OLLAMA_BASE_URL: ${AI_MODE_OLLAMA_BASE_URL:-http://host.docker.internal:11434}

@@ -85,7 +85,7 @@ flowchart TB
   B5 --> AI
   Ops --> AI
 
-  AI --> O[Ollama]
+  AI --> O[OpenAI Responses API]
   AI -. Release 1 .-> MCP[MCP server]
   AI -. Release 1 .-> RAG[RAG server]
   AI -. Release 2 local .-> MAS[Multi-agent server]
@@ -208,7 +208,7 @@ The system status screen should aggregate only operational summaries, not domain
 - edge and five frontend services;
 - five backend APIs;
 - five database APIs/stores;
-- AI-mode and Ollama;
+- AI-mode and the remote LLM provider;
 - MCP/RAG/multi-agent capability flags and readiness;
 - deployment mode/release;
 - last checked timestamp and request ID; and

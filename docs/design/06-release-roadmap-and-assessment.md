@@ -19,8 +19,8 @@ model behavior or statewide data.
 | Five frontend/backend/database microservice sets | One independently owned set per feature |
 | CRUD per feature | Source/job/release; market case; suburb comparison; site review; buyer profile/watchlist/follow-up/dossier |
 | Minimum ten records per table | Deterministic idempotent seed/migration tests for every owned production table |
-| Approved open-source LLM through Ollama | Shared AI-mode model profiles and durable run metadata |
-| Frontend → backend → Ollama → LLM | One distinct action from each feature frontend through its backend/AI-mode |
+| Configured LLM through OpenAI | Shared AI-mode model profiles and durable run metadata |
+| Frontend → backend → AI-mode → LLM | One distinct action from each feature frontend through its backend/AI-mode |
 | Plan → Act → Observe → Adapt | Failed data-release recovery and integrated dossier journeys |
 | Unified `index.html` and common CSS | New shared shell and design-system overlay |
 | Docker/Compose | Existing topology extended with Features 2–5 and later AI services |
@@ -54,7 +54,7 @@ flowchart TB
   B3 --> AI
   B4 --> AI
   B5 --> AI
-  AI --> Ollama[Ollama + approved LLM]
+  AI --> OpenAI[OpenAI Responses API]
 ```
 
 ### Feature minimums
@@ -69,7 +69,7 @@ flowchart TB
 
 ### Release 0 product capability
 
-- all direct CRUD and deterministic evidence remain usable without Ollama;
+- all direct CRUD and deterministic evidence remain usable without the LLM provider;
 - each feature has one distinct AI objective and tool set;
 - shared run operations show durable events and terminal state;
 - at least one integrated dossier uses all features;
@@ -100,7 +100,7 @@ flowchart LR
   MCP --> Tools[Feature HTTP tools]
   AI --> RAG[RAG server]
   RAG --> Index[Derived corpus index]
-  AI --> Ollama[Approved LLM]
+  AI --> OpenAI[Configured LLM]
 
   Tools --> Evidence[Structured current evidence]
   Index --> Docs[Approved attributed documents]
@@ -192,7 +192,7 @@ flowchart LR
 The cloud deployment must remain useful with:
 
 ```text
-Enabled: frontends, backends, databases, AI-mode, Ollama/approved LLM
+Enabled: frontends, backends, databases, AI-mode, OpenAI/configured LLM
 Disabled: MCP, RAG, multi-agent
 ```
 
@@ -274,7 +274,7 @@ plan.
 | Individual frontend/backend/database architecture | Each student | Mermaid/diagram + code paths | 0–2 |
 | CRUD operation matrix | Each student | tests + UI screenshots/video | 0–2 |
 | Ten records/table | Each student | seed/migration test output | 0–2 |
-| AI frontend→backend→AI-mode→Ollama | Each student | run trace/request IDs | 0–2 |
+| AI frontend→backend→AI-mode→OpenAI | Each student | run trace/request IDs | 0–2 |
 | Plan→Act→Observe→Adapt | Group + Feature 1/5 | durable event timeline | 0–2 |
 | Docker Compose | Group | `docker compose ps`, health and logs | 0–2 |
 | Five workflows | Each student | GitHub Actions run URLs/screenshots | 0–2 |
@@ -323,7 +323,7 @@ collect screenshots in the final week without naming conventions.
 | 8:45–9:30 | Group | Compose/architecture/deployment |
 | 9:30–10:00 | Group | limitations and next release capability |
 
-Pre-warm Ollama and keep a stored deterministic successful trace available. The recorded trace is a
+Verify provider readiness and keep a stored deterministic successful trace available. The recorded trace is a
 fallback for model latency, not a fabricated substitute for having successfully run the live path
 before recording.
 

@@ -1,6 +1,6 @@
 # ADR-017: Use the OpenAI Responses API as the default model provider
 
-- Status: Accepted by repository owner; implementation in progress
+- Status: Accepted and implemented
 - Date: 21 August 2026
 - Owner: Shared platform
 - Supersedes: ADR-011 and the Ollama-specific portions of ADR-015
@@ -11,7 +11,8 @@ The Release 0 baseline isolated Ollama behind `agent-core`'s `LLMProvider` port,
 integrated runtime still carries a model server, initializer, persistent model volume,
 GPU/CPU branching, model downloads, native-host override, and hardware-dependent inference.
 The repository owner requested a remote LLM API architecture with OpenAI as the default provider
-and GPT-5.6 Luna as the default model.
+and GPT-5.6 Luna as the default high-volume model. The owner subsequently requested a bounded,
+low-cost implementer/reviewer split rather than a single model or million-token working context.
 
 The deterministic orchestrator, local workflow-state ownership, allowlisted feature HTTP tools,
 human authority, structured output validation, and offline test strategy remain valid and must not
@@ -22,18 +23,22 @@ move into provider-specific code.
 Keep the provider-neutral `LLMProvider` port and replace the production Ollama adapter with an
 OpenAI adapter using the Responses API.
 
-- `ai-mode` calls `POST /v1/responses` over HTTPS with `gpt-5.6-luna` selected through the stable
-  logical profile `remote-standard.v1`.
-- The adapter requests JSON Schema structured output, sets `store: false`, uses explicit `low`
-  reasoning effort, enforces local profile/output/deadline limits, bounds response bytes, and maps
+- `ai-mode` calls `POST /v1/responses` over HTTPS through the stable logical profile
+  `remote-standard.v1`. Planner implementation turns route to cost-sensitive `gpt-5.6-luna`;
+  adaptation and reviewer turns route to balanced `gpt-5.6-terra`. This uses both models in the
+  current loop when adaptation is needed without enabling the later multi-agent service.
+- The adapter requests JSON-Schema-guided output, sets `store: false`, uses explicit `low`
+  reasoning effort, enforces a 128K operational context profile plus 16K maximum output/deadline limits,
+  bounds response bytes, and maps
   transport/provider failures into safe `ModelProviderError` values.
-- Provider readiness uses the bounded, authenticated `GET /v1/models/{model}` endpoint. A missing
+- Provider readiness uses bounded, authenticated `GET /v1/models/{model}` calls for every distinct
+  model routed by the selected profile. A missing
   key is a degraded provider state, not a reason for liveness or deterministic CRUD to fail.
 - `OPENAI_API_KEY` is accepted only from server-side runtime configuration. It is never stored in
   source, images, logs, workflow state, evidence projections, or client-visible configuration.
 - The model registry becomes provider-neutral metadata and is bumped to schema version 2. It
   records provider, API model ID, advertised capacity, operational budgets, reasoning effort, and
-  intended roles rather than local download/residency data.
+  role-to-model routing rather than local download/residency data.
 - The Ollama services, initializer, volume, GPU/native-host Compose overlays, and model-pull
   workflow are removed.
 - A live remote-provider diagnostic remains explicit and optional; deterministic CI mocks the
@@ -50,10 +55,13 @@ project for live AI operation. Usage is metered, provider availability/rate limi
 dependencies, and prompts/tool inputs leave the local machine under the API project's data
 controls.
 
-Operational safeguards therefore include explicit timeouts, bounded retries, strict response-size
-and schema validation, `store: false`, safe error messages, runtime-only secrets, request IDs, and
-graceful degraded readiness. Teams must evaluate cost, latency, structured-output success, and task
-quality on representative runs before making release claims.
+Operational safeguards therefore include explicit timeouts, bounded retries, response-size bounds,
+application schema validation, `store: false`, safe error messages, runtime-only secrets, request
+IDs, and graceful degraded readiness. The Plan contract's dynamic tool-argument map is incompatible
+with the provider's closed/all-required strict-schema subset, so API strict mode is false and the
+existing application validator plus one repair turn remains authoritative. Teams must evaluate
+cost, latency, structured-output success, and task quality on representative runs before making
+release claims.
 
 ## Alternatives considered
 
@@ -68,4 +76,3 @@ quality on representative runs before making release claims.
   persisted phase boundaries are the security, audit, idempotency, and recovery authority.
 - **Embed a vendor SDK in `agent-core`:** rejected because the core must remain framework and
   provider independent. AI-mode's adapter uses the documented HTTP API at its existing boundary.
-

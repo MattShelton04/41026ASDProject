@@ -186,7 +186,7 @@ export const groundedCitations = [
 ];
 
 export const roadmap = [
-  { release: "Release 0", label: "Foundations", status: "Current build", date: "30 Aug 2026", capabilities: ["Five microservice slices", "AI-mode + Ollama", "Plan → Act → Observe → Adapt", "Shared shell and design system", "Docker Compose + student CI"] },
+  { release: "Release 0", label: "Foundations", status: "Current build", date: "30 Aug 2026", capabilities: ["Five microservice slices", "AI-mode + OpenAI", "Plan → Act → Observe → Adapt", "Shared shell and design system", "Docker Compose + student CI"] },
   { release: "Release 1", label: "Grounded intelligence", status: "Designed", date: "27 Sep 2026", capabilities: ["MCP resources and tools", "RAG document corpus", "Cited grounded answers", "Prompt-injection controls", "MCP/RAG failure states"] },
   { release: "Release 2", label: "Multi-agent + cloud", status: "Designed", date: "18 Oct 2026", capabilities: ["Planner / Worker / Reviewer", "Human review queue", "Pre/post AI-assisted tests", "Azure Container Apps", "Cloud mode with MCP/RAG/multi-agent disabled"] },
 ];

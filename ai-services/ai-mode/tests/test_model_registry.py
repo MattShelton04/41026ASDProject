@@ -17,7 +17,8 @@ def test_bundled_registry_has_openai_model_and_bounded_profiles() -> None:
         "gpt-5.6-terra",
     }
     assert registry.profile(registry.default_profile) is not None
-    assert all(profile.context_tokens == 16_384 for profile in registry.profiles)
+    assert all(profile.context_tokens == 131_072 for profile in registry.profiles)
+    assert all(profile.maximum_output_tokens == 16_384 for profile in registry.profiles)
     assert all(
         profile.context_tokens <= registry.model(model_key).maximum_context_tokens  # type: ignore[union-attr]
         for profile in registry.profiles

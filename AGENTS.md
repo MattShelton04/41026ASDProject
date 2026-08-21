@@ -39,7 +39,7 @@ Use `uv run scripts/dev.py up` for the complete local Docker workflow. Source-on
 frontend changes reload through `docker-compose.dev.yml`; use `uv run scripts/dev.py rebuild`
 after dependency, lockfile, or Dockerfile changes. Use `status`, `logs`, `test`, `restart`, and
 `down` rather than reconstructing long Compose commands. Ordinary `down` preserves named
-volumes and therefore local model data, AI-mode run history, and fixture records.
+volumes and therefore AI-mode run history and fixture records.
 
 Use `uv add --package <project-name> <dependency>` to change dependencies, and commit the
 resulting `pyproject.toml` and `uv.lock` together. Do not hand-edit `uv.lock`.
@@ -54,7 +54,7 @@ resulting `pyproject.toml` and `uv.lock` together. Do not hand-edit `uv.lock`.
 - Never commit secrets, local databases, model weights, generated caches, or private
   reasoning traces.
 - Update architecture documentation or add an ADR when a change alters a recorded decision.
-- Add tests for changed behaviour. Tests must not require Ollama, Docker, Azure, or internet
+- Add tests for changed behaviour. Tests must not require OpenAI credentials, Docker, Azure, or internet
   access unless explicitly marked as integration/evaluation tests.
 
 ## Before handing off

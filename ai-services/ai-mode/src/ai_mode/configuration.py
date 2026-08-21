@@ -63,7 +63,7 @@ class Settings:
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
-        """Load settings without mutating process environment or performing I/O."""
+        """Load settings without mutating process environment; read an explicit secret file."""
         values = os.environ if environ is None else environ
         provider = values.get("AI_MODE_LLM_PROVIDER", DEFAULT_LLM_PROVIDER).strip().lower()
         if provider not in SUPPORTED_LLM_PROVIDERS:
@@ -72,7 +72,11 @@ class Settings:
             )
         base_url = values.get("OPENAI_BASE_URL", DEFAULT_OPENAI_BASE_URL).rstrip("/")
         _validate_provider_url(base_url)
-        api_key = _optional_secret(values.get("OPENAI_API_KEY"), "OPENAI_API_KEY")
+        api_key = _configured_secret(
+            values,
+            value_name="OPENAI_API_KEY",
+            file_name="OPENAI_API_KEY_FILE",
+        )
         timeout = _positive_float(
             values.get("OPENAI_TIMEOUT_SECONDS", str(DEFAULT_OPENAI_TIMEOUT_SECONDS)),
             "OpenAI timeout",
@@ -216,6 +220,26 @@ def _optional_secret(value: str | None, label: str) -> str | None:
     if len(secret) > 4_096 or any(character in secret for character in "\r\n"):
         raise ConfigurationError(f"{label} is invalid")
     return secret
+
+
+def _configured_secret(
+    values: Mapping[str, str],
+    *,
+    value_name: str,
+    file_name: str,
+) -> str | None:
+    direct = values.get(value_name, "").strip()
+    secret_path = values.get(file_name, "").strip()
+    if direct and secret_path:
+        raise ConfigurationError(f"set only one of {value_name} or {file_name}")
+    if not secret_path:
+        return _optional_secret(direct, value_name)
+    try:
+        with Path(secret_path).open(encoding="utf-8") as stream:
+            value = stream.read(4_097)
+    except OSError as exc:
+        raise ConfigurationError(f"{file_name} could not be read") from exc
+    return _optional_secret(value, file_name)
 
 
 def _catalog_paths(value: str) -> tuple[Path, ...]:
