@@ -167,9 +167,8 @@ class PropertyScopeStore:
         with self._pool.connection() as connection:
             yield connection
 
-    def initialize(self, *, seed: bool = True) -> str:
-        """Migrate from empty; seed migration remains idempotent and profile-safe."""
-        del seed  # The checked showcase seed is an idempotent migration in Release 0.
+    def initialize(self) -> str:
+        """Migrate from empty, including the idempotent Release 0 showcase baseline."""
         with self.connection() as connection:
             migrate(connection)
             return schema_fingerprint(connection)

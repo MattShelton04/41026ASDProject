@@ -20,6 +20,11 @@ def captured_commands(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
 
     monkeypatch.setattr(dev, "_run", capture)
     monkeypatch.setattr(dev, "_psi_cache_years", lambda: ())
+    monkeypatch.setattr(dev, "_psi_cache_weeks", lambda: ())
+    monkeypatch.setattr(
+        dev, "_write_openai_secret", lambda _value, *, full_data: dev.Path("secret")
+    )
+    monkeypatch.setattr(dev, "_remove_openai_secret", lambda *, full_data: None)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     return commands
 
@@ -44,6 +49,7 @@ def test_up_starts_complete_stack(
 
     assert captured_commands[0][:2] == ("docker", "info")
     assert captured_commands[1][-len(dev.APPLICATION_SERVICES) :] == dev.APPLICATION_SERVICES
+    assert "--build" in captured_commands[1]
     for filename in dev.COMPOSE_FILES:
         assert filename in captured_commands[1]
     assert "propertyscope-shared-frontend" in captured_commands[1]
@@ -93,6 +99,9 @@ def test_full_data_exposes_psi_and_advertises_cached_years(
     monkeypatch.setattr(dev, "_run", capture)
     monkeypatch.setattr(dev, "_psi_cache_years", lambda: (2024, 2025))
     monkeypatch.setattr(dev, "_psi_cache_weeks", lambda: ("2026-08-03", "2026-08-10"))
+    monkeypatch.setattr(
+        dev, "_write_openai_secret", lambda _value, *, full_data: dev.Path("secret")
+    )
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     assert dev.main(["up", "--full-data"]) == 0
@@ -103,6 +112,46 @@ def test_full_data_exposes_psi_and_advertises_cached_years(
         and environment["PROPERTYSCOPE_PSI_CACHED_YEARS"] == "2024,2025"
         and environment["PROPERTYSCOPE_PSI_CACHED_WEEKS"] == "2026-08-03,2026-08-10"
         for environment in environments[1:]
+    )
+
+
+def test_offline_up_needs_no_credential_and_disables_provider_readiness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environments: list[object] = []
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(
+        dev,
+        "_run",
+        lambda command, *, environment=None: environments.append(environment),
+    )
+    monkeypatch.setattr(
+        dev, "_write_openai_secret", lambda _value, *, full_data: dev.Path("secret")
+    )
+
+    assert dev.main(["up", "--offline"]) == 0
+
+    environment = environments[-1]
+    assert isinstance(environment, dict)
+    assert environment["AI_MODE_REQUIRE_PROVIDER_READY"] == "false"
+    assert "OPENAI_API_KEY" not in environment
+
+
+def test_reset_removes_only_selected_project_volumes(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["reset", "--full-data"]) == 0
+
+    down, prune = captured_commands[-2:]
+    assert down[-3:] == ("down", "--remove-orphans", "--volumes")
+    assert prune == (
+        "docker",
+        "volume",
+        "prune",
+        "--all",
+        "--force",
+        "--filter",
+        f"label=com.docker.compose.project={dev.FULL_DATA_PROJECT_NAME}",
     )
 
 

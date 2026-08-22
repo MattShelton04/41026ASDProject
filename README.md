@@ -93,9 +93,11 @@ For day-to-day work on the assignment-aligned integration stack, start Docker De
 uv run scripts/dev.py up
 ```
 
-Export `OPENAI_API_KEY` in the launching shell before starting the complete stack. Compose
-mounts it only into AI-mode as a service-scoped secret; the value must never be placed in a
-tracked file, rendered configuration, container environment, or image.
+Export `OPENAI_API_KEY` in the launching shell before starting the complete stack. The development
+command atomically materialises it into a Git-ignored runtime file and Compose mounts that file only
+into AI-mode as a service-scoped secret. The value never enters rendered configuration, the
+container environment, or an image. To work on deterministic data flows without an API key, use
+`uv run scripts/dev.py up --offline`; AI calls are unavailable, but Feature 1 remains operational.
 
 Then open the unified PropertyScope home at <http://localhost:5100>, Feature 1 at
 <http://localhost:5200>, or the non-product integration fixture at <http://localhost:5190>.
@@ -103,11 +105,12 @@ The shared home also exposes live implemented-service status at
 <http://localhost:5100/#system-status>, bounded evidence references at
 <http://localhost:5100/#evidence>, and the honest deployment capability roadmap at
 <http://localhost:5100/#release-roadmap>.
-Python services reload when source changes and the frontends are
-bind-mounted, so normal source edits do not require an image rebuild. Use
-`uv run scripts/dev.py rebuild` after changing dependencies, `uv.lock`, or a Dockerfile;
-`status`, `logs`, `test`, `restart`, and `down` cover the rest of the common loop. `down`
-preserves AI-mode run history, PropertyScope data/artifacts, and example records.
+Python services reload when source changes and the frontends are bind-mounted. Each `up` also asks
+BuildKit to reconcile images, so a newly pulled lockfile or Dockerfile cannot leave stale local
+images; unchanged layers remain cached. Use `rebuild [service ...]` for an explicit targeted
+rebuild. `doctor`, `status`, `logs`, `test`, `restart`, and `down` cover the rest of the common loop.
+`down` preserves AI-mode run history, PropertyScope data/artifacts, and example records. The
+explicit `reset` command deletes only volumes labelled for the selected Compose project.
 
 The default PropertyScope stack uses deterministic showcase data and never launches live or
 source-scale acquisition. The explicit full-data path uses a separate Compose project and
@@ -122,6 +125,13 @@ uv run scripts/dev.py up --full-data
 uv run scripts/dev.py down --full-data
 ```
 
+To reproduce a clean full-data deployment without deleting items in Docker Desktop manually:
+
+```text
+uv run scripts/dev.py reset --full-data
+uv run scripts/dev.py up --full-data --offline
+```
+
 See [student-1/README.md](student-1/README.md) for the operator workflow, release-scoped dataset
 preview, optional local G-NAF cache, real-source status and shared AI-mode boundary.
 
@@ -129,6 +139,7 @@ For the production-like Release 0 container runtime without development bind mou
 
 ```text
 OPENAI_API_KEY=<set-in-your-shell>
+OPENAI_API_KEY_FILE=<path-to-a-local-file-containing-that-key>
 docker compose --profile release-0 up --detach --build --wait --wait-timeout 120 ai-mode
 uv run ai-mode-provider-smoke
 ```

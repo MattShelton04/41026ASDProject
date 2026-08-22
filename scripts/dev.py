@@ -11,6 +11,7 @@ import shlex
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -40,6 +41,9 @@ APPLICATION_SERVICES = (
 )
 BUILD_SERVICES = APPLICATION_SERVICES
 FULL_DATA_PROJECT_NAME = "41026-asd-propertyscope-full-data"
+DEFAULT_PROJECT_NAME = "41026-asd-project"
+RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
+OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{partition}.zip"
 PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{partition}.zip"
 PSI_ARCHIVE_BYTE_LIMIT = 750_000_000
@@ -69,13 +73,47 @@ def _ensure_docker() -> None:
     _run(("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"))
 
 
-def _ensure_openai_credential() -> None:
-    """Fail clearly before Compose tries to materialise its OpenAI secret."""
-    if not os.environ.get("OPENAI_API_KEY", "").strip():
+def _openai_credential(*, offline: bool) -> str:
+    """Resolve an explicit live credential or the documented offline placeholder."""
+    if offline:
+        return OFFLINE_OPENAI_CREDENTIAL
+    credential = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not credential:
         raise RuntimeError(
             "OPENAI_API_KEY is required for the complete stack. Set a real key for OpenAI "
-            "or a non-empty local-development value for your OpenAI-compatible endpoint."
+            "or pass --offline to run data and non-AI workflows with provider readiness disabled."
         )
+    return credential
+
+
+def _runtime_secret_path(*, full_data: bool) -> Path:
+    suffix = ".full-data" if full_data else ""
+    return RUNTIME_DIRECTORY / f"openai_api_key{suffix}"
+
+
+def _write_openai_secret(credential: str, *, full_data: bool) -> Path:
+    """Materialise a Compose file secret without exposing it in rendered configuration."""
+    RUNTIME_DIRECTORY.mkdir(parents=True, exist_ok=True)
+    destination = _runtime_secret_path(full_data=full_data)
+    with NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=RUNTIME_DIRECTORY,
+        delete=False,
+    ) as temporary:
+        temporary.write(credential)
+        temporary.flush()
+        os.fsync(temporary.fileno())
+        temporary_path = Path(temporary.name)
+    os.chmod(temporary_path, 0o600)
+    os.replace(temporary_path, destination)
+    return destination
+
+
+def _remove_openai_secret(*, full_data: bool) -> None:
+    _runtime_secret_path(full_data=full_data).unlink(missing_ok=True)
+    with suppress(OSError):
+        RUNTIME_DIRECTORY.rmdir()
 
 
 def _psi_cache_years() -> tuple[int, ...]:
@@ -199,29 +237,34 @@ def _sync_psi(*, years: Sequence[int], weeks: Sequence[date]) -> None:
             )
 
 
-def _compose_environment(*, full_data: bool) -> Mapping[str, str] | None:
-    if not full_data:
-        return None
-    years = _psi_cache_years()
-    weeks = _psi_cache_weeks()
+def _compose_environment(*, full_data: bool, offline: bool) -> Mapping[str, str]:
+    credential = _openai_credential(offline=offline)
     environment = os.environ.copy()
-    environment.setdefault("PROPERTYSCOPE_PSI_TRANSPORT_ENABLED", "true")
-    if years:
-        environment.setdefault("PROPERTYSCOPE_PSI_CACHED_YEARS", ",".join(map(str, years)))
-    if weeks:
-        environment.setdefault("PROPERTYSCOPE_PSI_CACHED_WEEKS", ",".join(weeks))
+    environment.pop("OPENAI_API_KEY", None)
+    environment["OPENAI_API_KEY_FILE"] = str(_write_openai_secret(credential, full_data=full_data))
+    if offline:
+        environment["AI_MODE_REQUIRE_PROVIDER_READY"] = "false"
+    if full_data:
+        years = _psi_cache_years()
+        weeks = _psi_cache_weeks()
+        environment.setdefault("PROPERTYSCOPE_PSI_TRANSPORT_ENABLED", "true")
+        if years:
+            environment.setdefault("PROPERTYSCOPE_PSI_CACHED_YEARS", ",".join(map(str, years)))
+        if weeks:
+            environment.setdefault("PROPERTYSCOPE_PSI_CACHED_WEEKS", ",".join(weeks))
     return environment
 
 
-def _up(*, full_data: bool) -> None:
-    _ensure_openai_credential()
+def _up(*, full_data: bool, offline: bool) -> None:
+    _openai_credential(offline=offline)
     _ensure_docker()
-    compose_environment = _compose_environment(full_data=full_data)
-    if compose_environment is not None:
+    compose_environment = _compose_environment(full_data=full_data, offline=offline)
+    if full_data:
         print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
     _run(
         _compose_command(
             "up",
+            "--build",
             "--detach",
             "--wait",
             "--wait-timeout",
@@ -237,13 +280,15 @@ def _up(*, full_data: bool) -> None:
     print("PropertyScope:      http://localhost:5200")
     if full_data:
         print("Full-data mode:     enabled in an isolated Compose project")
+    if offline:
+        print("AI provider:        offline (data workflows remain available)")
 
 
-def _rebuild(services: Sequence[str], *, full_data: bool) -> None:
-    _ensure_openai_credential()
+def _rebuild(services: Sequence[str], *, full_data: bool, offline: bool) -> None:
+    _openai_credential(offline=offline)
     _ensure_docker()
     selected = tuple(services) or APPLICATION_SERVICES
-    compose_environment = _compose_environment(full_data=full_data)
+    compose_environment = _compose_environment(full_data=full_data, offline=offline)
     _run(
         _compose_command("build", *selected, full_data=full_data),
         environment=compose_environment,
@@ -263,6 +308,45 @@ def _rebuild(services: Sequence[str], *, full_data: bool) -> None:
     )
 
 
+def _down(*, full_data: bool, remove_volumes: bool = False) -> None:
+    _ensure_docker()
+    arguments = ["down", "--remove-orphans"]
+    if remove_volumes:
+        arguments.append("--volumes")
+    _run(_compose_command(*arguments, full_data=full_data))
+    _remove_openai_secret(full_data=full_data)
+
+
+def _reset(*, full_data: bool) -> None:
+    """Delete only volumes labelled for the selected Compose project."""
+    _down(full_data=full_data, remove_volumes=True)
+    project_name = FULL_DATA_PROJECT_NAME if full_data else DEFAULT_PROJECT_NAME
+    _run(
+        (
+            "docker",
+            "volume",
+            "prune",
+            "--all",
+            "--force",
+            "--filter",
+            f"label=com.docker.compose.project={project_name}",
+        )
+    )
+    print(f"Reset durable Docker volumes for Compose project {project_name}.", flush=True)
+
+
+def _doctor(*, full_data: bool) -> None:
+    """Validate local prerequisites and the selected merged Compose model."""
+    _ensure_docker()
+    _run(("docker", "compose", "version"))
+    _run(_compose_command("config", "--quiet", full_data=full_data))
+    credential_state = "available" if os.environ.get("OPENAI_API_KEY", "").strip() else "missing"
+    print(f"OpenAI credential: {credential_state} (--offline remains available)", flush=True)
+    if full_data:
+        print(f"Cached PSI annual archives: {len(_psi_cache_years())}", flush=True)
+        print(f"Cached PSI weekly archives: {len(_psi_cache_weeks())}", flush=True)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run the assignment-aligned local stack with fast source reloads."
@@ -277,8 +361,16 @@ def _parser() -> argparse.ArgumentParser:
             help="Use the isolated, opt-in source-scale PropertyScope profile",
         )
 
+    def add_offline_option(command: argparse.ArgumentParser) -> None:
+        command.add_argument(
+            "--offline",
+            action="store_true",
+            help="Start data/non-AI workflows without requiring a live OpenAI credential",
+        )
+
     up = commands.add_parser("up", help="Start the complete development stack")
     add_full_data_option(up)
+    add_offline_option(up)
 
     rebuild = commands.add_parser(
         "rebuild",
@@ -291,13 +383,21 @@ def _parser() -> argparse.ArgumentParser:
         help="Optional application services to rebuild (all by default)",
     )
     add_full_data_option(rebuild)
+    add_offline_option(rebuild)
 
     restart = commands.add_parser(
         "restart", help="Recreate application containers without rebuilding"
     )
     add_full_data_option(restart)
+    add_offline_option(restart)
     down = commands.add_parser("down", help="Stop containers while preserving durable volumes")
     add_full_data_option(down)
+    reset = commands.add_parser(
+        "reset", help="Stop the stack and delete only its labelled durable Docker volumes"
+    )
+    add_full_data_option(reset)
+    doctor = commands.add_parser("doctor", help="Validate Docker and the merged Compose model")
+    add_full_data_option(doctor)
     status = commands.add_parser("status", help="Show current service and health state")
     add_full_data_option(status)
     config_command = commands.add_parser("config", help="Validate the merged Compose configuration")
@@ -337,13 +437,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
         if arguments.command == "up":
-            _up(full_data=arguments.full_data)
+            _up(full_data=arguments.full_data, offline=arguments.offline)
         elif arguments.command == "rebuild":
-            _rebuild(arguments.services, full_data=arguments.full_data)
+            _rebuild(
+                arguments.services,
+                full_data=arguments.full_data,
+                offline=arguments.offline,
+            )
         elif arguments.command == "restart":
-            _ensure_openai_credential()
+            _openai_credential(offline=arguments.offline)
             _ensure_docker()
-            compose_environment = _compose_environment(full_data=arguments.full_data)
+            compose_environment = _compose_environment(
+                full_data=arguments.full_data,
+                offline=arguments.offline,
+            )
             _run(
                 _compose_command(
                     "up",
@@ -358,8 +465,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 environment=compose_environment,
             )
         elif arguments.command == "down":
-            _ensure_docker()
-            _run(_compose_command("down", "--remove-orphans", full_data=arguments.full_data))
+            _down(full_data=arguments.full_data)
+        elif arguments.command == "reset":
+            _reset(full_data=arguments.full_data)
+        elif arguments.command == "doctor":
+            _doctor(full_data=arguments.full_data)
         elif arguments.command == "status":
             _ensure_docker()
             _run(_compose_command("ps", full_data=arguments.full_data))

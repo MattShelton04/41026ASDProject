@@ -15,8 +15,13 @@ Scripts should validate and operate the integrated application rather than
 deploying isolated student features.
 
 Run `uv run scripts/dev.py --help` for the local development commands. The common loop is
-`up`, edit source with automatic reload, `test`, and `down`; use `rebuild` only after changing
-a dependency, lockfile, or Dockerfile.
+`doctor`, `up`, edit source with automatic reload, `test`, and `down`. `up` performs a
+cache-backed image reconciliation, while `rebuild` remains available for explicit targeted
+rebuilds. `up --offline` keeps data workflows available without an OpenAI credential.
+
+`reset` stops the selected stack, removes its declared volumes, and prunes only unused volumes
+with that exact Compose project label. Add `--full-data` to reset the isolated source-scale
+project; the Git-ignored host source cache is not removed.
 
 PropertyScope's bounded showcase profile is part of the default stack at
 <http://localhost:5200>. Source-scale acquisition is deliberately separate: append

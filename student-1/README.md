@@ -55,6 +55,10 @@ uv sync --locked --all-packages --all-groups
 uv run scripts/dev.py up
 ```
 
+Use `uv run scripts/dev.py up --offline` when validating Feature 1 without an OpenAI credential.
+Database migrations and the deterministic showcase baseline are automatic in both modes; no SQL,
+seed script, or Docker Desktop action is required.
+
 Open <http://localhost:5200>. The normal operator path is:
 
 1. Open **Jobs**, choose a registered job and select **Run now** or **Backfill**.
@@ -79,6 +83,10 @@ Real acquisition is isolated in a separate Compose project and PostgreSQL volume
 uv run scripts/dev.py sync-psi --all
 uv run scripts/dev.py up --full-data
 ```
+
+A complete project reset is also code-driven: `uv run scripts/dev.py reset --full-data` removes
+only the isolated project's labelled Docker volumes. The following `up --full-data` recreates
+PostgreSQL, migrates it, and restores the deterministic operator baseline automatically.
 
 | Import profile | Full-data status | Upstream behaviour |
 |---|---|---|
