@@ -809,11 +809,12 @@ class PropertyScopeStore:
         limit: int,
         offset: int,
     ) -> list[JsonObject]:
-        query = "SELECT * FROM ops.dataset_release"
+        query = """SELECT release.* FROM ops.dataset_release release
+        JOIN ops.source_definition source ON source.id=release.source_definition_id"""
         params: list[Any] = []
-        predicates: list[str] = []
+        predicates: list[str] = ["source.status<>'retired'"]
         if status:
-            predicates.append("status=%s")
+            predicates.append("release.status=%s")
             params.append(status)
         for column, value in (
             ("dataset_id", dataset_id),
@@ -822,11 +823,10 @@ class PropertyScopeStore:
             ("ingestion_run_id", ingestion_run_id),
         ):
             if value:
-                predicates.append(f"{column}=%s")
+                predicates.append(f"release.{column}=%s")
                 params.append(value)
-        if predicates:
-            query += " WHERE " + " AND ".join(predicates)
-        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        query += " WHERE " + " AND ".join(predicates)
+        query += " ORDER BY release.created_at DESC LIMIT %s OFFSET %s"
         params.extend((limit, offset))
         return self._fetch_all(query, params)
 

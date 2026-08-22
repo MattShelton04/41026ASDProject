@@ -376,6 +376,16 @@ def test_property_search_requires_an_accepted_identity_generation() -> None:
     assert "best_score - 0.08" in store.query
 
 
+def test_release_collection_excludes_retired_assessment_sources() -> None:
+    store = PropertyQueryStore()
+
+    store.list_releases(status="accepted", limit=100, offset=0)
+
+    assert "JOIN ops.source_definition source" in store.query
+    assert "source.status<>'retired'" in store.query
+    assert "release.status=%s" in store.query
+
+
 class PreviewStore(PropertyScopeStore):
     def __init__(self) -> None:
         self.required_calls = 0

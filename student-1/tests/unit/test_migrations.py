@@ -122,3 +122,15 @@ def test_public_catalogue_migration_retires_padding_and_aligns_registered_produc
     assert "DELETE FROM serving.accepted_generation" in migration
     assert "THEN 'gnaf-nsw'" in migration
     assert "THEN '[\"feature-3\"]'::jsonb" in migration
+
+
+def test_internal_assessment_cardinality_is_restored_but_excluded_from_projections() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("019_internal_assessment_cardinality.sql")
+        .read_text("utf-8")
+    )
+
+    assert "INSERT INTO serving.accepted_generation" in migration
+    assert "internal-assessment-fixture" in migration
+    assert "status = 'accepted'" in migration
