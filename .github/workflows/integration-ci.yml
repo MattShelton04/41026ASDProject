@@ -15,24 +15,39 @@ concurrency:
 
 jobs:
   quality:
-    name: Python quality gate
+    name: Canonical quality gate
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Lint GitHub Actions workflows
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          curl --fail --silent --show-error --location \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            --output /tmp/actionlint.tar.gz
+          echo "${ACTIONLINT_SHA256}  /tmp/actionlint.tar.gz" | sha256sum --check --strict
+          tar --extract --gzip --file /tmp/actionlint.tar.gz --directory /tmp actionlint
+          /tmp/actionlint -ignore 'constant expression "false" in condition'
+
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version-file: .python-version
 
       - name: Install pinned uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.12.1"
           enable-cache: true
-
-      - name: Install Python
-        run: uv python install
+          cache-dependency-glob: uv.lock
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "20"
 
@@ -42,10 +57,9 @@ jobs:
       - name: Run quality gate
         run: uv run --locked python scripts/check.py
 
-      - name: Run shared and Feature 1 frontend behavior tests
-        run: node --test student-1/tests/frontend/*.test.mjs shared/frontend/*.test.mjs shared/frontend/operations/ai-mode/*.test.mjs
-
       - name: Validate integrated Compose model
+        env:
+          OPENAI_API_KEY_FILE: /dev/null
         run: |
           docker compose --profile release-0 config --quiet
           docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test config --quiet
@@ -57,7 +71,22 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Build the locked non-root shared images
-        run: docker compose --profile release-0 build ai-mode propertyscope-shared-frontend
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Build cached non-root shared images
+        uses: docker/bake-action@82490499d2e5613fcead7e128237ef0b0ea210f7 # v7.0.0
+        env:
+          OPENAI_API_KEY_FILE: /dev/null
+        with:
+          source: .
+          files: docker-compose.yml
+          targets: ai-mode,propertyscope-shared-frontend
+          load: true
+          set: |
+            ai-mode.cache-from=type=gha,scope=integration-ai-mode
+            ai-mode.cache-to=type=gha,mode=max,scope=integration-ai-mode
+            propertyscope-shared-frontend.cache-from=type=gha,scope=integration-shared-frontend
+            propertyscope-shared-frontend.cache-to=type=gha,mode=max,scope=integration-shared-frontend
