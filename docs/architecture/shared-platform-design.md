@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Status | Living architecture; Release 0 shared baseline and PropertyScope Feature 1 integrated |
-| Last verified | 21 August 2026 |
+| Last verified | 22 August 2026 |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related records | `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
@@ -25,8 +25,8 @@ through the root Compose model. ADR-016 is implemented as a narrow exception: on
 database API/loader receive the PostgreSQL URL; only PostgreSQL mounts its database volume;
 the runner writes the Feature 1 artifact volume and the loader reads it. Architecture checks
 enforce those imports, credentials and mounts. Default development/CI uses bounded fixture
-data, while the source-scale profile is explicit and isolated. Formal tutor/team approval
-evidence for the exception remains a release gate.
+data, while the source-scale profile is explicit and isolated. Tutor approval of the narrow
+exception has been confirmed; preserving a durable copy/link remains a submission-evidence task.
 
 The first Release 0 foundation increment implemented the strict shared agent
 contracts, deterministic state graph, limits and tool policy, persistence-independent
@@ -52,7 +52,13 @@ I/O, centralises Problem Details responses, and verifies truthful feature-side i
 replay status. The opt-in operations projection and browser dashboard are implemented for
 trusted local use. The canonical gate includes deterministic Python and frontend tests,
 enforces at least 90% branch coverage for the shared/AI core, and separately ratchets Feature 1
-at 60% while its broader integration-heavy suite is improved.
+while its broader integration-heavy suite is improved.
+
+Feature 1's maintenance pass separates HTTP mechanics, correlation, approval verification,
+run-scope policy and registered source transport from the backend API composition surface. The
+database repository retains atomic PostgreSQL operations but delegates immutable preview/builder
+query registration, retry/task planning, serialization and replay matching to deterministic modules.
+PSI acquisition is disk-backed and member-streamed under the same registered limits.
 
 This does not complete the five-feature shared-foundation definition of done. Owners must
 still supply approved manifests and endpoints for Features 2–5; the product edge, complete

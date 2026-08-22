@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import base64
-import copy
 import json
 import uuid
 from collections.abc import Mapping
-from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -15,17 +13,26 @@ import httpx
 from flask import Blueprint, Response, jsonify, request
 from pydantic import ValidationError
 
+from propertyscope_data_platform.approval import approved_tool_call
 from propertyscope_data_platform.artifacts import ArtifactError, LocalArtifactStore
 from propertyscope_data_platform.clients import (
     AiModeClient,
     ConsumerImportClient,
     DataStoreClient,
-    DependencyUnavailableError,
 )
 from propertyscope_data_platform.configuration import load_job_profiles
 from propertyscope_data_platform.domain import (
     ConsumerPublicationRequest,
     PublicationReceiptResult,
+)
+from propertyscope_data_platform.http_support import (
+    forward,
+    json_body,
+    problem,
+    proxy_collection,
+    proxy_item,
+    required_uuid,
+    tool_envelope,
 )
 from propertyscope_data_platform.release_builders import (
     BuildContext,
@@ -34,6 +41,11 @@ from propertyscope_data_platform.release_builders import (
     ReleaseManifestV1,
     data_product_catalogue,
     resolve_release_builder,
+)
+from propertyscope_data_platform.scope_policy import (
+    psi_scope_is_cached,
+    resolve_registered_scope,
+    validate_job_scope,
 )
 
 BASE = "/api/data-platform/v1"
@@ -276,12 +288,11 @@ def create_blueprint(
             run_mode=mode,
             full_data_enabled=full_data_enabled,
             psi_transport_enabled=psi_transport_enabled,
-            psi_cached_years=psi_cached_years,
         )
         if scope_error is not None:
-            return scope_error
+            return problem(scope_error.status, scope_error.code, scope_error.detail)
         assert scope is not None
-        cached_psi = _psi_scope_is_cached(
+        cached_psi = psi_scope_is_cached(
             job_data,
             scope,
             cached_years=psi_cached_years,
@@ -341,10 +352,9 @@ def create_blueprint(
             run_mode=mode,
             full_data_enabled=full_data_enabled,
             psi_transport_enabled=psi_transport_enabled,
-            psi_cached_years=psi_cached_years,
         )
         if scope_error is not None:
-            return scope_error
+            return problem(scope_error.status, scope_error.code, scope_error.detail)
         body["scope"] = scope
         body["idempotency_key"] = key
         body["request_id"] = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -851,7 +861,7 @@ def create_blueprint(
     def tool_retry() -> Response:
         body = json_body()
         key = str(body.get("idempotency_key", "")).strip()
-        if not key or not approved_tool_call(ai_mode, "data.run_retry.v1", body):
+        if not key or not approved_tool_call(ai_mode, request.headers, "data.run_retry.v1", body):
             return problem(
                 422,
                 "human_approval_required",
@@ -883,7 +893,9 @@ def create_blueprint(
     def tool_publish() -> Response:
         body = json_body()
         key = str(body.get("idempotency_key", "")).strip()
-        if not key or not approved_tool_call(ai_mode, "data.release_publish.v1", body):
+        if not key or not approved_tool_call(
+            ai_mode, request.headers, "data.release_publish.v1", body
+        ):
             return problem(
                 422,
                 "human_approval_required",
@@ -996,222 +1008,6 @@ def create_blueprint(
         )
 
     return api
-
-
-def approved_tool_call(ai_mode: AiModeClient, tool_name: str, arguments: Mapping[str, Any]) -> bool:
-    """Verify a protected callback against AI-mode's durable human-review evidence."""
-    raw_run_id = request.headers.get("X-Agent-Run-ID", "").strip()
-    try:
-        run_id = uuid.UUID(raw_run_id)
-    except ValueError:
-        return False
-    response = ai_mode.get(f"/api/v1/agent-runs/{run_id}", request.headers)
-    if response.status_code != 200:
-        return False
-    reviews = response.json().get("reviews", [])
-    return any(
-        review.get("decision") == "approve"
-        and review.get("tool_call", {}).get("tool_name") == tool_name
-        and review.get("tool_call", {}).get("arguments") == dict(arguments)
-        for review in reviews
-        if isinstance(review, dict)
-    )
-
-
-def _psi_scope_is_cached(
-    job: Mapping[str, Any],
-    scope: Mapping[str, Any],
-    *,
-    cached_years: tuple[int, ...],
-    cached_weeks: tuple[str, ...],
-) -> bool:
-    if scope.get("profile") != "full-data" or str(job.get("import_profile_key")) != "psi-sales":
-        return False
-    today = datetime.now(UTC).date()
-    required_years = set(scope.get("years", []))
-    if scope.get("all_history") is True:
-        required_years.update(range(1990, today.year))
-    required_weeks = set(scope.get("weeks", []))
-    if scope.get("include_current_weekly") is True:
-        cursor = date(today.year, 1, 1)
-        cursor += timedelta(days=(7 - cursor.weekday()) % 7)
-        while cursor <= today:
-            required_weeks.add(cursor.isoformat())
-            cursor += timedelta(days=7)
-    return (
-        bool(required_years or required_weeks)
-        and required_years.issubset(cached_years)
-        and required_weeks.issubset(cached_weeks)
-    )
-
-
-def validate_job_scope(
-    job: Mapping[str, Any],
-    raw_scope: Any,
-    *,
-    run_mode: str,
-    full_data_enabled: bool = False,
-    psi_transport_enabled: bool = False,
-    psi_cached_years: tuple[int, ...] = (),
-) -> tuple[dict[str, Any] | None, Response | None]:
-    """Bound operator scope overrides and expose unavailable live transports before launch."""
-    if not isinstance(raw_scope, dict):
-        return None, problem(422, "invalid_scope", "Run scope must be a JSON object")
-    if len(raw_scope) > 20:
-        return None, problem(422, "invalid_scope", "Run scope has too many fields")
-    scope = dict(raw_scope)
-    profile = scope.get("profile", "showcase")
-    if profile not in {"test", "showcase", "full-data"}:
-        return None, problem(422, "invalid_scope", "Scope profile is not registered")
-    scope["profile"] = profile
-    bounded_scope = scope.get("release_scope", scope)
-    if not isinstance(bounded_scope, dict):
-        return None, problem(422, "invalid_scope", "release_scope must be a JSON object")
-    builder_key = job.get("release_builder_key") or {
-        "bocsar-sparse": "crime-series",
-        "gnaf-nsw": "property-snapshot",
-        "property-fixture": "property-snapshot",
-        "psi-sales": "property-sales",
-        "schools-master": "school-points",
-    }.get(str(job.get("import_profile_key")))
-    builder = resolve_release_builder(str(builder_key), "1.0.0")
-    maximum_records = bounded_scope.get("maximum_records")
-    if (
-        not isinstance(maximum_records, int)
-        or isinstance(maximum_records, bool)
-        or maximum_records < 1
-        or maximum_records > builder.spec.max_rows
-    ):
-        return None, problem(422, "invalid_scope", "maximum_records exceeds the product limit")
-    if str(job.get("import_profile_key")) == "psi-sales":
-        years = scope.get("years")
-        all_history = scope.get("all_history") is True
-        weekly_only = isinstance(scope.get("weeks"), list) and bool(scope.get("weeks"))
-        if (
-            not all_history
-            and not weekly_only
-            and (not isinstance(years, list) or not years or len(years) > 100)
-        ):
-            return None, problem(
-                422, "invalid_scope", "PSI scope requires source years or complete history"
-            )
-        checked_years: list[Any] = [] if all_history or not isinstance(years, list) else list(years)
-        maximum_year = datetime.now(UTC).year + 1
-        if any(
-            not isinstance(year, int)
-            or isinstance(year, bool)
-            or year < 1990
-            or year > maximum_year
-            for year in checked_years
-        ):
-            return None, problem(422, "invalid_scope", "PSI source year is outside the range")
-        if checked_years != sorted(set(checked_years)):
-            return None, problem(422, "invalid_scope", "PSI source years must be unique and sorted")
-        weeks = scope.get("weeks", [])
-        if not isinstance(weeks, list) or len(weeks) > 1000:
-            return None, problem(422, "invalid_scope", "PSI weekly partitions are invalid")
-        try:
-            parsed_weeks = [date.fromisoformat(value) for value in weeks]
-        except (TypeError, ValueError):
-            return None, problem(422, "invalid_scope", "PSI weeks must use ISO dates")
-        if parsed_weeks != sorted(set(parsed_weeks)):
-            return None, problem(422, "invalid_scope", "PSI weeks must be unique and sorted")
-        release_years = bounded_scope.get("years")
-        if not isinstance(release_years, list) or not release_years or len(release_years) > 100:
-            return None, problem(
-                422, "invalid_scope", "PSI release scope requires explicit source years"
-            )
-        if any(
-            not isinstance(year, int)
-            or isinstance(year, bool)
-            or year < 1990
-            or year > maximum_year
-            for year in release_years
-        ) or release_years != sorted(set(release_years)):
-            return None, problem(
-                422, "invalid_scope", "PSI release years must be unique, sorted, and in range"
-            )
-    if run_mode == "full_refresh" and profile == "full-data" and not full_data_enabled:
-        return None, problem(
-            422,
-            "full_data_runtime_disabled",
-            "Start the explicit full-data runtime before launching live acquisition",
-        )
-    if (
-        run_mode == "full_refresh"
-        and profile == "full-data"
-        and (
-            str(job.get("import_profile_key"))
-            not in {"schools-master", "bocsar-sparse", "gnaf-nsw", "property-fixture"}
-            and not (str(job.get("import_profile_key")) == "psi-sales" and psi_transport_enabled)
-        )
-    ):
-        return None, problem(
-            422,
-            "live_transport_unavailable",
-            "This source is catalogued but its live acquisition transport is not connected",
-        )
-    return scope, None
-
-
-def resolve_registered_scope(job: Mapping[str, Any], raw_scope: Any, job_profiles: Any) -> Any:
-    """Overlay bounded operator fields onto the declarative profile actually registered."""
-    requested = {} if raw_scope is None else raw_scope
-    if not isinstance(requested, dict):
-        return requested
-    profile_name = requested.get("profile")
-    if profile_name is None and isinstance(job.get("scope_json"), dict):
-        profile_name = job["scope_json"].get("profile")
-    profile_name = profile_name or "showcase"
-    try:
-        profile_key = job.get("profile_key")
-        if profile_key is None:
-            import_key = str(job.get("import_profile_key"))
-            profile_key = next(
-                key
-                for key in job_profiles
-                if job_profiles.get_profile(key).import_profile.key == import_key
-            )
-        registered = job_profiles.get_profile(str(profile_key))
-        defaults = registered.scope_profiles[str(profile_name)]
-    except (KeyError, StopIteration, ValueError):
-        return requested
-    resolved = copy.deepcopy(defaults)
-    for key, value in requested.items():
-        if key == "release_scope" and isinstance(value, dict):
-            nested = resolved.get(key, {})
-            if isinstance(nested, dict):
-                nested.update(value)
-                resolved[key] = nested
-            else:
-                resolved[key] = value
-        else:
-            resolved[key] = value
-    if "years" in requested:
-        resolved.setdefault("weeks", [])
-        if "all_history" not in requested:
-            resolved["all_history"] = False
-        if "include_current_weekly" not in requested:
-            resolved["include_current_weekly"] = False
-    if "weeks" in requested:
-        if "all_history" not in requested:
-            resolved["all_history"] = False
-        if "include_current_weekly" not in requested:
-            resolved["include_current_weekly"] = False
-    resolved["profile"] = profile_name
-    return resolved
-
-
-def proxy_collection(store: DataStoreClient, path: str) -> Response:
-    return forward(
-        store.request(
-            request.method,
-            path,
-            headers=request.headers,
-            params=request.args,
-            json=json_body() if request.method == "POST" else None,
-        )
-    )
 
 
 def ensure_import_operation(
@@ -1364,17 +1160,6 @@ def finalize_candidate_release(
             f"{INTERNAL}/releases/{release_id}/bind-export",
             headers=request.headers,
             json=dict(body),
-        )
-    )
-
-
-def proxy_item(store: DataStoreClient, path: str) -> Response:
-    return forward(
-        store.request(
-            request.method,
-            path,
-            headers=request.headers,
-            json=json_body() if request.method == "PUT" else None,
         )
     )
 
@@ -1606,30 +1391,6 @@ def verify_local_publication(
     )
 
 
-def json_body(*, optional: bool = False) -> dict[str, Any]:
-    if optional and not request.data:
-        return {}
-    value: Any = request.get_json(silent=True)
-    if not isinstance(value, dict):
-        return {}
-    return value
-
-
-def required_uuid(body: Mapping[str, Any], name: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(str(body.get(name, "")))
-    except ValueError as exc:
-        raise ValueError(f"{name} must be a UUID") from exc
-
-
-def tool_envelope(upstream: httpx.Response) -> Response:
-    """Strip internal pagination fields to match bounded tool output contracts."""
-    if upstream.status_code >= 400:
-        return forward(upstream)
-    data = upstream.json()
-    return jsonify({"items": data.get("items", []), "count": data.get("count", 0)})
-
-
 def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Response:
     """Compose release, quality, and accepted predecessor evidence without SQL access."""
     response = store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
@@ -1726,49 +1487,3 @@ def public_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
             "error": receipt.get("error", receipt.get("error_json")),
         }
     ).model_dump(mode="json")
-
-
-def forward(upstream: httpx.Response) -> Response:
-    try:
-        data = upstream.json()
-    except ValueError:
-        data = {"status": upstream.status_code}
-    response = jsonify(data)
-    response.status_code = upstream.status_code
-    if upstream.headers.get("content-type", "").split(";", 1)[0] == "application/problem+json":
-        response.content_type = "application/problem+json"
-    for name in ("Location", "X-Request-ID", "X-Agent-Run-ID", "traceparent"):
-        if name in upstream.headers:
-            response.headers[name] = upstream.headers[name]
-    return response
-
-
-def problem(status: int, code: str, detail: str) -> Response:
-    response = jsonify(
-        {
-            "type": f"https://propertyscope.local/problems/{code}",
-            "title": code.replace("_", " ").title(),
-            "status": status,
-            "detail": detail,
-            "code": code,
-            "request_id": request.headers.get("X-Request-ID", "unknown"),
-        }
-    )
-    response.status_code = status
-    response.content_type = "application/problem+json"
-    return response
-
-
-def register_error_handlers(app: Any) -> None:
-    app.register_error_handler(
-        DependencyUnavailableError, lambda error: problem(503, "dependency_unavailable", str(error))
-    )
-    app.register_error_handler(
-        ValueError, lambda error: problem(422, "invalid_request", str(error))
-    )
-    app.register_error_handler(
-        404, lambda _: problem(404, "route_not_found", "Route does not exist")
-    )
-    app.register_error_handler(
-        405, lambda _: problem(405, "method_not_allowed", "Method is not allowed")
-    )

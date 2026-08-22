@@ -5,23 +5,26 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import signal
 import time
 import uuid
 from collections.abc import Callable, Iterable
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from threading import Event
 from typing import Any
-from urllib.parse import urlparse
 
 import httpx
 
 from propertyscope_data_platform.adapters.bocsar import parse_bocsar_archive
 from propertyscope_data_platform.adapters.gnaf import parse_gnaf_archive_path
-from propertyscope_data_platform.adapters.psi import PsiSale, iter_psi_archive, parse_psi_archive
+from propertyscope_data_platform.adapters.psi import (
+    PsiSale,
+    iter_psi_archive_path,
+    parse_psi_archive_path,
+)
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
 from propertyscope_data_platform.artifacts import LocalArtifactStore
 from propertyscope_data_platform.release_builders import (
@@ -29,6 +32,7 @@ from propertyscope_data_platform.release_builders import (
     resolve_release_builder,
     validate_feature_registration,
 )
+from propertyscope_data_platform.source_transport import RegisteredSourceTransport
 
 SCHOOLS_MASTER_URL = (
     "https://data.nsw.gov.au/data/dataset/"
@@ -93,6 +97,7 @@ class AcquisitionRunner:
     ) -> None:
         self.settings = settings
         self.client = client or httpx.Client(timeout=10, follow_redirects=False)
+        self.source_transport = RegisteredSourceTransport(self.client)
         self.artifacts = LocalArtifactStore(settings.artifact_root)
         self.clock = clock or (lambda: datetime.now(UTC))
         self.stop_event = Event()
@@ -550,17 +555,25 @@ class AcquisitionRunner:
             if cached is not None:
                 if cached.stat().st_size > maximum_bytes:
                     raise RuntimeError("Cached PSI archive exceeds the configured byte limit")
-                content = cached.read_bytes()
                 cached_years.append(year)
+            source: AbstractContextManager[Path]
+            if cached is not None:
+                source = nullcontext(cached)
             else:
-                content = self._download_psi_archive(url, maximum_bytes=maximum_bytes)
-            sales = parse_psi_archive(content, source_year=year)
+                source = self.source_transport.psi_archive_path(
+                    url,
+                    directory=self.settings.artifact_root,
+                    maximum_bytes=maximum_bytes,
+                    progress=self._heartbeat_progress(task),
+                )
+            with source as path:
+                sales = parse_psi_archive_path(path, source_year=year)
             for sale in sales:
                 records.append(_psi_record(sale, source_year=year))
         document = _live_canonical_document("psi-sales", source_urls, records)
-        source = document["source"]
-        assert isinstance(source, dict)
-        source["cached_source_years"] = cached_years
+        source_metadata = document["source"]
+        assert isinstance(source_metadata, dict)
+        source_metadata["cached_source_years"] = cached_years
         return document, records
 
     def _live_psi_chunks(
@@ -583,26 +596,33 @@ class AcquisitionRunner:
             raise RuntimeError("PSI full-data scope contains no annual or weekly partitions")
         per_archive_limit = 750_000_000
         for source_year, url, cached in sources:
+            if cached is not None and cached.stat().st_size > per_archive_limit:
+                raise RuntimeError("Cached PSI archive exceeds the corruption-safety limit")
+            source: AbstractContextManager[Path]
             if cached is not None:
-                if cached.stat().st_size > per_archive_limit:
-                    raise RuntimeError("Cached PSI archive exceeds the corruption-safety limit")
-                content = cached.read_bytes()
+                source = nullcontext(cached)
             else:
-                content = self._download_psi_archive(url, maximum_bytes=per_archive_limit)
-            for sale in iter_psi_archive(content, source_year=source_year):
-                counter[0] += 1
-                if counter[0] > int(task.get("max_rows", 100_000_000)):
-                    raise RuntimeError("PSI source exceeds the registered capacity ceiling")
-                if counter[0] % 25_000 == 0:
-                    self._heartbeat(str(task["id"]), str(task["lease_token"]))
-                yield (
-                    json.dumps(
-                        _psi_record(sale, source_year=source_year),
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    ).encode()
-                    + b"\n"
+                source = self.source_transport.psi_archive_path(
+                    url,
+                    directory=self.settings.artifact_root,
+                    maximum_bytes=per_archive_limit,
+                    progress=self._heartbeat_progress(task),
                 )
+            with source as path:
+                for sale in iter_psi_archive_path(path, source_year=source_year):
+                    counter[0] += 1
+                    if counter[0] > int(task.get("max_rows", 100_000_000)):
+                        raise RuntimeError("PSI source exceeds the registered capacity ceiling")
+                    if counter[0] % 25_000 == 0:
+                        self._heartbeat(str(task["id"]), str(task["lease_token"]))
+                    yield (
+                        json.dumps(
+                            _psi_record(sale, source_year=source_year),
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ).encode()
+                        + b"\n"
+                    )
 
     def _psi_archive(self, year: int) -> Path | None:
         root = self.settings.psi_archive_root
@@ -759,94 +779,25 @@ class AcquisitionRunner:
         return url, "GDA2020" if "gda2020" in url.lower() else "GDA94"
 
     def _heartbeat_chunks(self, task: dict[str, Any], chunks: Iterable[bytes]) -> Iterable[bytes]:
+        progress = self._heartbeat_progress(task)
+        for chunk in chunks:
+            progress(len(chunk))
+            yield chunk
+
+    def _heartbeat_progress(self, task: dict[str, Any]) -> Callable[[int], None]:
         last_heartbeat = time.monotonic()
         interval = max(1.0, self.settings.lease_seconds / 3)
-        for chunk in chunks:
+
+        def report_progress(_bytes_processed: int) -> None:
+            nonlocal last_heartbeat
             if time.monotonic() - last_heartbeat >= interval:
                 self._heartbeat(str(task["id"]), str(task["lease_token"]))
                 last_heartbeat = time.monotonic()
-            yield chunk
+
+        return report_progress
 
     def _download_registered(self, url: str, *, maximum_bytes: int) -> bytes:
-        parsed = urlparse(url)
-        allowed_hosts = {
-            "data.nsw.gov.au",
-            "bocsarblob.blob.core.windows.net",
-            "www.valuergeneral.nsw.gov.au",
-        }
-        if parsed.scheme != "https" or parsed.hostname not in allowed_hosts:
-            raise RuntimeError("Source URL is outside the registered HTTPS allowlist")
-        chunks: list[bytes] = []
-        total = 0
-        with self.client.stream(
-            "GET", url, headers={"Accept": "*/*", "User-Agent": "PropertyScope/1.0"}
-        ) as response:
-            response.raise_for_status()
-            media_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
-            if media_type not in {
-                "text/csv",
-                "application/csv",
-                "application/octet-stream",
-                "application/zip",
-                "application/x-zip-compressed",
-            }:
-                raise RuntimeError("Registered source returned an unexpected media type")
-            declared = response.headers.get("content-length")
-            if declared and int(declared) > maximum_bytes:
-                raise RuntimeError("Registered source exceeds the configured byte limit")
-            for chunk in response.iter_bytes():
-                total += len(chunk)
-                if total > maximum_bytes:
-                    raise RuntimeError("Registered source exceeds the configured byte limit")
-                chunks.append(chunk)
-        return b"".join(chunks)
-
-    def _download_psi_archive(self, url: str, *, maximum_bytes: int) -> bytes:
-        try:
-            return self._download_registered(url, maximum_bytes=maximum_bytes)
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code != 403:
-                raise
-        # The publisher's current Cloudflare policy serves the public annual files via
-        # bounded Range requests while intermittently rejecting an ordinary full GET.
-        chunks: list[bytes] = []
-        offset = 0
-        expected_total: int | None = None
-        chunk_size = 4 * 1024 * 1024
-        while expected_total is None or offset < expected_total:
-            end = min(offset + chunk_size - 1, maximum_bytes - 1)
-            response: httpx.Response | None = None
-            for _attempt in range(4):
-                candidate = self.client.get(
-                    url,
-                    headers={
-                        "Accept": "application/zip",
-                        "Range": f"bytes={offset}-{end}",
-                        "User-Agent": "PropertyScope/1.0",
-                    },
-                )
-                if candidate.status_code == 206:
-                    response = candidate
-                    break
-                if candidate.status_code != 403:
-                    candidate.raise_for_status()
-            if response is None:
-                raise RuntimeError("PSI source rejected bounded range acquisition")
-            match = re.fullmatch(
-                r"bytes (\d+)-(\d+)/(\d+)", response.headers.get("content-range", "")
-            )
-            if match is None or int(match.group(1)) != offset:
-                raise RuntimeError("PSI source returned an invalid content range")
-            range_end, total = int(match.group(2)), int(match.group(3))
-            invalid_length = len(response.content) != range_end - offset + 1
-            if total > maximum_bytes or range_end >= total or invalid_length:
-                raise RuntimeError("PSI source range exceeds the registered byte limit")
-            if expected_total is not None and total != expected_total:
-                raise RuntimeError("PSI source changed during ranged acquisition")
-            expected_total = total
-            chunks.append(response.content)
-            offset = range_end + 1
-        return b"".join(chunks)
+        return self.source_transport.download_bytes(url, maximum_bytes=maximum_bytes)
 
     def _execute_import(self, task: dict[str, Any]) -> tuple[int, int]:
         response = self._control_request(

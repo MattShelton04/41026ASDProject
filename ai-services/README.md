@@ -24,7 +24,8 @@ feature data or business rules.
 `agent-core` now contains the deterministic state machine, bounded runner, tool policy,
 ports, and human-review rules. `ai-mode` supplies the SQLite, prompt-registry,
 OpenAI Responses, background-queue, and versioned HTTP adapters. See each package README
-for implemented behavior and the remaining Release 0 vertical-integration work.
+for implemented behavior and operating instructions. The Release 0 vertical path is integrated;
+remaining work is feature onboarding and release evidence, not missing AI-mode plumbing.
 
 MCP, RAG, and multi-agent directories remain placeholders. Those services are required
 locally in their applicable releases and disabled in the cloud.

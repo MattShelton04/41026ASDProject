@@ -1,0 +1,104 @@
+"""Small, reusable Flask adapters for Feature 1's HTTP boundary."""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import Mapping
+from typing import Any
+
+import httpx
+from flask import Response, jsonify, request
+
+from propertyscope_data_platform.clients import DataStoreClient, DependencyUnavailableError
+
+
+def proxy_collection(store: DataStoreClient, path: str) -> Response:
+    return forward(
+        store.request(
+            request.method,
+            path,
+            headers=request.headers,
+            params=request.args,
+            json=json_body() if request.method == "POST" else None,
+        )
+    )
+
+
+def proxy_item(store: DataStoreClient, path: str) -> Response:
+    return forward(
+        store.request(
+            request.method,
+            path,
+            headers=request.headers,
+            json=json_body() if request.method == "PUT" else None,
+        )
+    )
+
+
+def json_body(*, optional: bool = False) -> dict[str, Any]:
+    if optional and not request.data:
+        return {}
+    value: Any = request.get_json(silent=True)
+    return value if isinstance(value, dict) else {}
+
+
+def required_uuid(body: Mapping[str, Any], name: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(str(body.get(name, "")))
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a UUID") from exc
+
+
+def tool_envelope(upstream: httpx.Response) -> Response:
+    """Strip internal pagination fields to match bounded tool output contracts."""
+    if upstream.status_code >= 400:
+        return forward(upstream)
+    data = upstream.json()
+    return jsonify({"items": data.get("items", []), "count": data.get("count", 0)})
+
+
+def forward(upstream: httpx.Response) -> Response:
+    """Project an upstream response and its correlation fields onto Flask."""
+    try:
+        data = upstream.json()
+    except ValueError:
+        data = {"status": upstream.status_code}
+    response = jsonify(data)
+    response.status_code = upstream.status_code
+    if upstream.headers.get("content-type", "").split(";", 1)[0] == "application/problem+json":
+        response.content_type = "application/problem+json"
+    for name in ("Location", "X-Request-ID", "X-Agent-Run-ID", "traceparent"):
+        if name in upstream.headers:
+            response.headers[name] = upstream.headers[name]
+    return response
+
+
+def problem(status: int, code: str, detail: str) -> Response:
+    response = jsonify(
+        {
+            "type": f"https://propertyscope.local/problems/{code}",
+            "title": code.replace("_", " ").title(),
+            "status": status,
+            "detail": detail,
+            "code": code,
+            "request_id": request.headers.get("X-Request-ID", "unknown"),
+        }
+    )
+    response.status_code = status
+    response.content_type = "application/problem+json"
+    return response
+
+
+def register_error_handlers(app: Any) -> None:
+    app.register_error_handler(
+        DependencyUnavailableError, lambda error: problem(503, "dependency_unavailable", str(error))
+    )
+    app.register_error_handler(
+        ValueError, lambda error: problem(422, "invalid_request", str(error))
+    )
+    app.register_error_handler(
+        404, lambda _: problem(404, "route_not_found", "Route does not exist")
+    )
+    app.register_error_handler(
+        405, lambda _: problem(405, "method_not_allowed", "Method is not allowed")
+    )

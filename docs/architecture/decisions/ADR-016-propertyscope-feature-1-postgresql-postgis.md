@@ -1,9 +1,9 @@
 # ADR-016: Use PostgreSQL/PostGIS for the PropertyScope Feature 1 database service
 
-- Status: Accepted for implementation — tutor/team approval evidence remains to be linked
+- Status: Accepted — tutor approval confirmed; durable evidence link pending
 - Date: 9 August 2026
 - Owner: PropertyScope Feature 1 / shared architecture review
-- Supersedes: the SQLite default described as ADR-007 for Feature 1 only, if accepted
+- Supersedes: the SQLite default described as ADR-007 for Feature 1 only
 
 ## Context
 
@@ -29,7 +29,7 @@ or adopting that database unchanged.
 
 ## Decision
 
-Subject to written tutor approval, PropertyScope Feature 1 uses one feature-owned
+PropertyScope Feature 1 uses one feature-owned
 PostgreSQL 16 database with PostGIS. Features 2–5 keep their independently owned SQLite
 database services. AI-mode keeps its existing independent workflow store.
 
@@ -57,8 +57,8 @@ database services. AI-mode keeps its existing independent workflow store.
 
 The shared architecture, Compose topology, architecture validator and tests are updated
 together with the implementation. The repository owner authorised implementation on
-13 August 2026; the team must still link the formal tutor/team approval evidence before
-claiming the exception in assessed release evidence.
+13 August 2026 and tutor approval has since been confirmed. The submission evidence should
+still retain a durable link or copy of the written approval.
 
 ## Data and release implications
 
@@ -102,7 +102,7 @@ This decision does not weaken the rubric requirement that every persistent Relea
 table be populated for demonstration. Small deterministic CI/showcase seeds provide at
 least ten rows per persistent R0 table; full-data tables have their source-scale counts.
 
-## Fallback if approval is denied
+## Recorded fallback
 
 Feature 1 implements the same public contracts over bounded SQLite extracts and removes
 full-state ingestion/search from Release 0 claims. The product can still demonstrate
@@ -131,9 +131,10 @@ tutor decision before implementation and uses one database path thereafter.
 
 ## Approval and validation record
 
-Implementation authorisation was confirmed by the repository owner on 13 August 2026. This
-records authority to build the branch, not evidence of tutor approval. Before release, link
-the written tutor/team record and retain the following validation evidence:
+Implementation authorisation was confirmed by the repository owner on 13 August 2026 and tutor
+approval of the Feature 1 PostgreSQL/PostGIS exception was subsequently confirmed. The repository
+does not currently contain the durable approval artefact, so attach its link or copy to the
+submission evidence. Retain the following validation evidence:
 
 1. written tutor approval for one Feature 1-owned PostgreSQL/PostGIS database service;
 2. team approval of the database, publication and property-identity boundaries;

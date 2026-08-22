@@ -15,8 +15,7 @@ from propertyscope_data_platform.domain import (
     PublicationReceiptResult,
     SafeError,
 )
-
-PROPAGATED_HEADERS = ("X-Request-ID", "X-Agent-Run-ID", "traceparent", "Idempotency-Key")
+from propertyscope_data_platform.http_headers import forwarded_headers
 
 
 class DependencyUnavailableError(RuntimeError):
@@ -49,9 +48,7 @@ class DataStoreClient:
     ) -> httpx.Response:
         request_headers = {"X-PropertyScope-Internal-Token": self._token}
         if headers:
-            request_headers.update(
-                {key: value for key, value in headers.items() if key in PROPAGATED_HEADERS}
-            )
+            request_headers.update(forwarded_headers(headers))
         try:
             return self._client.request(
                 method,
@@ -85,7 +82,7 @@ class AiModeClient:
             return self._client.post(
                 f"{self._origin}/api/v1/agent-runs",
                 json=dict(payload),
-                headers={key: value for key, value in headers.items() if key in PROPAGATED_HEADERS},
+                headers=forwarded_headers(headers),
             )
         except httpx.TransportError as exc:
             raise DependencyUnavailableError(
@@ -102,7 +99,7 @@ class AiModeClient:
         try:
             return self._client.get(
                 f"{self._origin}{path}",
-                headers={key: value for key, value in headers.items() if key in PROPAGATED_HEADERS},
+                headers=forwarded_headers(headers),
                 params=params,
             )
         except httpx.TransportError as exc:
@@ -148,7 +145,7 @@ class ConsumerImportClient:
         endpoint = self._endpoints.get(target_feature)
         if endpoint is None:
             raise ValueError(f"target feature is not registered for publication: {target_feature}")
-        safe_headers = {key: value for key, value in headers.items() if key in PROPAGATED_HEADERS}
+        safe_headers = forwarded_headers(headers)
         safe_headers["Idempotency-Key"] = publication.idempotency_key
         try:
             response = self._client.post(

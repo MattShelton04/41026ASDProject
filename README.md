@@ -183,6 +183,6 @@ remaining remote-access decisions are documented in
 ## Remaining allocation decisions
 
 The team should confirm its membership and project approval with the tutor, allocate Features
-2–5, link the formal approval evidence for Feature 1's PostgreSQL/PostGIS exception, and
-confirm the eventual Azure-or-AWS provider. Features 2–5 retain independent stores and never
-receive Feature 1 database credentials.
+2–5, retain a durable link/copy of the confirmed tutor approval for Feature 1's
+PostgreSQL/PostGIS exception, and confirm the eventual Azure-or-AWS provider. Features 2–5 retain
+independent stores and never receive Feature 1 database credentials.

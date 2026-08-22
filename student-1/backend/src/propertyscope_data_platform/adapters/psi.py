@@ -9,6 +9,11 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from io import TextIOWrapper
+from pathlib import Path
+from shutil import copyfileobj
+from tempfile import SpooledTemporaryFile
+from typing import IO
 from zipfile import BadZipFile, ZipFile, ZipInfo
 
 
@@ -132,29 +137,89 @@ def iter_psi_archive(
     """
     if maximum_records is not None and maximum_records < 1:
         raise ValueError("PSI maximum_records must be positive")
-    seen: set[tuple[str, str]] = set()
-    yielded = 0
     try:
         with ZipFile(io.BytesIO(content)) as archive:
-            for raw in _dat_payloads(
+            yield from _iter_psi_zip(
                 archive,
+                source_year=source_year,
+                maximum_records=maximum_records,
                 maximum_members=maximum_members,
                 maximum_uncompressed_bytes=maximum_uncompressed_bytes,
-            ):
-                for fields in _b_records(raw):
-                    sale = _parse_source_b_record(fields, source_year=source_year)
-                    if sale is None:
-                        continue
-                    identity = (sale.source_business_key, _sale_fingerprint(sale))
-                    if identity in seen:
-                        continue
-                    seen.add(identity)
-                    yield sale
-                    yielded += 1
-                    if maximum_records is not None and yielded >= maximum_records:
-                        return
+            )
     except BadZipFile as exc:
         raise ValueError("PSI source is not a valid ZIP archive") from exc
+
+
+def parse_psi_archive_path(
+    path: Path,
+    *,
+    source_year: int,
+    maximum_records: int | None = None,
+    maximum_members: int = 100_000,
+    maximum_uncompressed_bytes: int = 750_000_000,
+) -> tuple[PsiSale, ...]:
+    """Parse a bounded PSI archive from disk without materialising the ZIP in memory."""
+    return tuple(
+        iter_psi_archive_path(
+            path,
+            source_year=source_year,
+            maximum_records=maximum_records,
+            maximum_members=maximum_members,
+            maximum_uncompressed_bytes=maximum_uncompressed_bytes,
+        )
+    )
+
+
+def iter_psi_archive_path(
+    path: Path,
+    *,
+    source_year: int,
+    maximum_records: int | None = None,
+    maximum_members: int = 100_000,
+    maximum_uncompressed_bytes: int = 750_000_000,
+) -> Iterator[PsiSale]:
+    """Yield PSI sales from a filesystem archive using bounded streaming reads."""
+    if maximum_records is not None and maximum_records < 1:
+        raise ValueError("PSI maximum_records must be positive")
+    try:
+        with ZipFile(path) as archive:
+            yield from _iter_psi_zip(
+                archive,
+                source_year=source_year,
+                maximum_records=maximum_records,
+                maximum_members=maximum_members,
+                maximum_uncompressed_bytes=maximum_uncompressed_bytes,
+            )
+    except BadZipFile as exc:
+        raise ValueError("PSI source is not a valid ZIP archive") from exc
+
+
+def _iter_psi_zip(
+    archive: ZipFile,
+    *,
+    source_year: int,
+    maximum_records: int | None,
+    maximum_members: int,
+    maximum_uncompressed_bytes: int,
+) -> Iterator[PsiSale]:
+    seen: set[tuple[str, str]] = set()
+    yielded = 0
+    for fields in _source_b_records(
+        archive,
+        maximum_members=maximum_members,
+        maximum_uncompressed_bytes=maximum_uncompressed_bytes,
+    ):
+        sale = _parse_source_b_record(fields, source_year=source_year)
+        if sale is None:
+            continue
+        identity = (sale.source_business_key, _sale_fingerprint(sale))
+        if identity in seen:
+            continue
+        seen.add(identity)
+        yield sale
+        yielded += 1
+        if maximum_records is not None and yielded >= maximum_records:
+            return
     if not seen:
         raise ValueError("PSI archive contains no supported B records")
 
@@ -171,50 +236,83 @@ def _sale_fingerprint(sale: PsiSale) -> str:
     ).hexdigest()
 
 
-def _dat_payloads(
+def _source_b_records(
     archive: ZipFile, *, maximum_members: int, maximum_uncompressed_bytes: int
-) -> Iterator[bytes]:
+) -> Iterator[tuple[str, ...]]:
     members = [item for item in archive.infolist() if not item.is_dir()]
-    if not members or len(members) > maximum_members:
+    if not members:
         raise ValueError("PSI archive member count is outside the registered limit")
-    _validate_members(members, maximum_uncompressed_bytes=maximum_uncompressed_bytes)
+    budget = _ArchiveBudget(maximum_members, maximum_uncompressed_bytes)
+    yield from _archive_b_records(archive, members, budget)
+
+
+@dataclass(slots=True)
+class _ArchiveBudget:
+    maximum_members: int
+    maximum_uncompressed_bytes: int
+    members: int = 0
+    uncompressed_bytes: int = 0
+
+    def register(self, members: list[ZipInfo]) -> None:
+        """Consume one global member/expanded-byte budget across nested archives."""
+        self.members += len(members)
+        if self.members > self.maximum_members:
+            raise ValueError("PSI archive member count is outside the registered limit")
+        for member in members:
+            parts = member.filename.replace("\\", "/").split("/")
+            if member.filename.startswith("/") or ".." in parts:
+                raise ValueError("PSI archive contains an unsafe member path")
+            if member.filename.lower().endswith(".zip"):
+                # The nested ZIP bytes are a container, not expanded source data. Bound
+                # each container while counting its leaf members against the global budget.
+                if member.file_size > self.maximum_uncompressed_bytes:
+                    raise ValueError("PSI nested ZIP exceeds the container byte limit")
+                continue
+            self.uncompressed_bytes += member.file_size
+            if self.uncompressed_bytes > self.maximum_uncompressed_bytes:
+                raise ValueError("PSI archive exceeds the uncompressed byte limit")
+
+
+def _archive_b_records(
+    archive: ZipFile, members: list[ZipInfo], budget: _ArchiveBudget, *, depth: int = 0
+) -> Iterator[tuple[str, ...]]:
+    if depth > 4:
+        raise ValueError("PSI archive exceeds the nested ZIP depth limit")
+    budget.register(members)
     for member in members:
         if member.filename.upper().endswith(".DAT"):
-            yield archive.read(member)
+            with archive.open(member) as raw:
+                yield from _b_records_from_stream(raw)
         elif member.filename.lower().endswith(".zip"):
             try:
-                with ZipFile(io.BytesIO(archive.read(member))) as nested:
-                    nested_members = [item for item in nested.infolist() if not item.is_dir()]
-                    if len(nested_members) > maximum_members:
-                        raise ValueError("PSI nested archive exceeds the member limit")
-                    _validate_members(
-                        nested_members,
-                        maximum_uncompressed_bytes=maximum_uncompressed_bytes,
-                    )
-                    for nested_member in nested_members:
-                        if nested_member.filename.upper().endswith(".DAT"):
-                            yield nested.read(nested_member)
+                with SpooledTemporaryFile(max_size=16 * 1024 * 1024) as nested_file:
+                    with archive.open(member) as nested_source:
+                        copyfileobj(nested_source, nested_file, length=1024 * 1024)
+                    nested_file.seek(0)
+                    with ZipFile(nested_file) as nested:
+                        nested_members = [item for item in nested.infolist() if not item.is_dir()]
+                        yield from _archive_b_records(
+                            nested, nested_members, budget, depth=depth + 1
+                        )
             except BadZipFile as exc:
                 raise ValueError("PSI archive contains an invalid nested ZIP") from exc
 
 
-def _validate_members(members: list[ZipInfo], *, maximum_uncompressed_bytes: int) -> None:
-    total = 0
-    for member in members:
-        parts = member.filename.replace("\\", "/").split("/")
-        if member.filename.startswith("/") or ".." in parts:
-            raise ValueError("PSI archive contains an unsafe member path")
-        total += member.file_size
-        if total > maximum_uncompressed_bytes:
-            raise ValueError("PSI archive exceeds the uncompressed byte limit")
-
-
 def _b_records(raw: bytes) -> Iterator[tuple[str, ...]]:
-    text = raw.decode("latin-1", errors="replace").lstrip("\ufeff")
-    for line in text.splitlines():
-        fields = tuple(value.strip() for value in line.split(";"))
-        if fields and fields[0] == "B":
-            yield fields
+    yield from _b_records_from_stream(io.BytesIO(raw))
+
+
+def _b_records_from_stream(raw: IO[bytes]) -> Iterator[tuple[str, ...]]:
+    text = TextIOWrapper(raw, encoding="latin-1", errors="replace", newline="")
+    try:
+        for index, line in enumerate(text):
+            if index == 0:
+                line = line.lstrip("\ufeff")
+            fields = tuple(value.strip() for value in line.split(";"))
+            if fields and fields[0] == "B":
+                yield fields
+    finally:
+        text.detach()
 
 
 def _parse_source_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiSale | None:
