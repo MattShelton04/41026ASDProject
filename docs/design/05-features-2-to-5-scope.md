@@ -27,7 +27,7 @@ Feature 5  /features/buyer-workspaces/       /api/buyer-workspaces/v1/
 4. Feature 1 owns canonical `property_ref`, release publication and source-aligned acquisition.
 5. Consumer feature owners define their product semantics, schema, import acceptance and calculations.
 6. Feature 5 owns cross-feature dossier composition; shared AI-mode does not become a product backend.
-7. Direct CRUD and deterministic reads work without Ollama/MCP/RAG/multi-agent services.
+7. Direct CRUD and deterministic reads work without the LLM provider/MCP/RAG/multi-agent services.
 8. Source-backed evidence is immutable/superseded where appropriate; assessed CRUD is prominent on
    legitimate user-owned work records.
 9. Every AI response returns evidence/tool references, limitations and review state.
@@ -837,7 +837,7 @@ The model receives the structured section result, not unrestricted upstream payl
 - durable run/review state and idempotent save;
 - print layout and version/history;
 - no external side effects;
-- ordinary workspace usable without Ollama; and
+- ordinary workspace usable without the LLM provider; and
 - independent database API/container/workflow plus provider contract tests.
 
 ---

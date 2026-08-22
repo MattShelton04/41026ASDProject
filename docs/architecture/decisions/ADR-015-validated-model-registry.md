@@ -1,6 +1,6 @@
 # ADR-015: Select local models through a validated logical-profile registry
 
-- Status: Accepted
+- Status: Superseded in part by ADR-017 on 21 August 2026; logical profiles remain accepted
 - Date: 1 August 2026
 - Owner: Shared platform
 - Supersedes: none

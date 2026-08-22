@@ -76,7 +76,7 @@ The first screen answers “what matters now?”; detail screens answer “show 
 
 ### 2.4 Deterministic core, optional intelligence
 
-Search, CRUD, recorded calculations and evidence retrieval must work when Ollama, MCP, RAG or the
+Search, CRUD, recorded calculations and evidence retrieval must work when the LLM provider, MCP, RAG or the
 multi-agent service is unavailable. AI adds explanation, planning, review and gap detection. It is
 not the only path to basic functionality.
 
@@ -312,7 +312,7 @@ from evidence requests that require a confirmed property identity.
 | Empty user collection | Explain why empty and offer create action |
 | No source evidence | Return a valid empty evidence state, not a generic error |
 | Partial dependency failure | Preserve successful sections and show which provider failed |
-| Ollama unavailable | Keep CRUD/read views available; disable AI action with recovery guidance |
+| LLM provider unavailable | Keep CRUD/read views available; disable AI action with recovery guidance |
 | MCP/RAG disabled | Hide/label grounded-answer controls; do not show broken buttons |
 | Stale accepted release | Show age/effective date and allow investigation; do not call it current |
 | Candidate failed | Accepted predecessor remains prominent and untouched |

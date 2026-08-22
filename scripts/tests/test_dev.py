@@ -19,53 +19,35 @@ def captured_commands(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
         commands.append(tuple(command))
 
     monkeypatch.setattr(dev, "_run", capture)
-    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: False)
     monkeypatch.setattr(dev, "_psi_cache_years", lambda: ())
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     return commands
 
 
-def test_up_prepares_model_and_starts_complete_stack(
+def test_up_fails_before_docker_when_openai_credential_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(dev, "_run", lambda command, **_kwargs: commands.append(tuple(command)))
+
+    assert dev.main(["up"]) == 1
+    assert commands == []
+    assert "OPENAI_API_KEY is required" in capsys.readouterr().err
+
+
+def test_up_starts_complete_stack(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
     assert dev.main(["up"]) == 0
 
     assert captured_commands[0][:2] == ("docker", "info")
-    assert captured_commands[1][-1] == "ollama"
-    assert captured_commands[2][-3:] == ("run", "--rm", "ollama-init")
-    assert captured_commands[3][-len(dev.APPLICATION_SERVICES) :] == dev.APPLICATION_SERVICES
+    assert captured_commands[1][-len(dev.APPLICATION_SERVICES) :] == dev.APPLICATION_SERVICES
     for filename in dev.COMPOSE_FILES:
-        assert filename in captured_commands[3]
-    assert "propertyscope-shared-frontend" in captured_commands[3]
+        assert filename in captured_commands[1]
+    assert "propertyscope-shared-frontend" in captured_commands[1]
     assert "docker-compose.shared-shell.yml" not in dev.COMPOSE_FILES
-
-
-def test_up_can_skip_already_prepared_model(
-    captured_commands: list[tuple[str, ...]],
-) -> None:
-    assert dev.main(["up", "--skip-model-pull"]) == 0
-
-    assert len(captured_commands) == 3
-    assert all("ollama-init" not in command for command in captured_commands)
-
-
-def test_up_automatically_uses_available_nvidia_runtime(
-    captured_commands: list[tuple[str, ...]], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: True)
-
-    assert dev.main(["up", "--skip-model-pull"]) == 0
-
-    assert all(dev.GPU_COMPOSE_FILE in command for command in captured_commands[1:])
-
-
-def test_up_can_explicitly_keep_portable_cpu_runtime(
-    captured_commands: list[tuple[str, ...]], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: True)
-
-    assert dev.main(["up", "--skip-model-pull", "--cpu-only"]) == 0
-
-    assert all(dev.GPU_COMPOSE_FILE not in command for command in captured_commands)
 
 
 def test_rebuild_defaults_to_all_application_services(
@@ -91,7 +73,7 @@ def test_down_preserves_named_volumes(captured_commands: list[tuple[str, ...]]) 
 def test_full_data_is_explicit_and_uses_isolated_project(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["up", "--full-data", "--skip-model-pull"]) == 0
+    assert dev.main(["up", "--full-data"]) == 0
 
     application_up = captured_commands[-1]
     assert dev.FULL_DATA_COMPOSE_FILE in application_up
@@ -109,11 +91,11 @@ def test_full_data_exposes_psi_and_advertises_cached_years(
         environments.append(environment)
 
     monkeypatch.setattr(dev, "_run", capture)
-    monkeypatch.setattr(dev, "_nvidia_runtime_available", lambda: False)
     monkeypatch.setattr(dev, "_psi_cache_years", lambda: (2024, 2025))
     monkeypatch.setattr(dev, "_psi_cache_weeks", lambda: ("2026-08-03", "2026-08-10"))
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-    assert dev.main(["up", "--full-data", "--skip-model-pull"]) == 0
+    assert dev.main(["up", "--full-data"]) == 0
 
     assert all(
         isinstance(environment, dict)

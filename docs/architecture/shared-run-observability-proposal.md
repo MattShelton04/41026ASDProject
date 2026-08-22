@@ -285,12 +285,11 @@ not couple its data model to a particular vendor.
 
 ### 7.3 Caching and multi-turn latency
 
-The current runtime already avoids some repeated work: Ollama `keep_alive` keeps model
-weights resident, prompt templates are validated and cached in-process, model and tool
-registries load once at startup, and HTTP clients reuse connection pools. These are
-runtime optimisations, not durable conversation caching. Every structured generation
-still sends its bounded messages, and the platform does not promise reusable provider
-KV state across separate `/api/chat` requests.
+The current runtime exposes provider-reported cached input-token metrics, validates prompt
+templates in process, loads model/tool registries once at startup, and reuses HTTP connection
+pools. These are runtime optimisations, not durable conversation caching. Every structured
+generation still sends its bounded messages, and the platform does not promise reusable
+provider state across separate Responses API requests.
 
 If durable conversations are approved, optimise only after measuring prompt evaluation,
 generation, queue, and tool timings separately. A safe conversation-context cache key
@@ -426,7 +425,7 @@ SQLite database or unrestricted logs into a report bundle.
 | Conversation, if enabled | Turn ordering, one-active-run invariant, explicit context revision, truncation evidence, delete/export behavior |
 | Performance | Polling request rate, list-query latency, SQLite contention, event growth, queue delay, optional SSE connection budget |
 
-Deterministic tests should use the scripted model and injected clock. Real Ollama cases
+Deterministic tests should use the scripted model and injected clock. Real-provider cases
 remain tagged evaluation tests and must report the model digest/profile and prompt
 hashes because output is probabilistic.
 

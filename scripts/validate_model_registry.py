@@ -6,7 +6,7 @@ from ai_mode.model_registry import DEFAULT_MODEL_REGISTRY_PATH, load_model_regis
 
 
 def main() -> int:
-    """Validate the source-of-truth registry without Ollama or internet access."""
+    """Validate the source-of-truth registry without a provider or internet access."""
     registry = load_model_registry()
     print(
         f"Validated model registry v{registry.schema_version}: "

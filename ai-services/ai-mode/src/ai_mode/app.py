@@ -149,7 +149,7 @@ def create_app(
                     status=HealthStatus.HEALTHY if store_ready else HealthStatus.UNHEALTHY,
                     detail=store_health.detail,
                 ),
-                "ollama": HealthCheck(
+                "llm_provider": HealthCheck(
                     status=(
                         HealthStatus.HEALTHY if provider_health.reachable else HealthStatus.DEGRADED
                     ),
@@ -158,7 +158,7 @@ def create_app(
             },
         )
         dependencies_ready = store_ready and (
-            provider_health.reachable or not runtime_settings.require_ollama_ready
+            provider_health.reachable or not runtime_settings.require_provider_ready
         )
         return jsonify(response.model_dump(mode="json")), 200 if dependencies_ready else 503
 

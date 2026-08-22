@@ -75,7 +75,7 @@ feature frontend
 
 feature backend
   -> shared AI-mode
-     -> Ollama / approved LLM
+     -> OpenAI / configured LLM
      -> allowlisted feature backend tool endpoints
 ```
 
@@ -97,8 +97,8 @@ The proposed baseline is therefore **five feature-owned database services**: Fea
 | Agentic workflow | Report generation retrieves from all five feature APIs, observes missing/conflicting evidence, adapts, and review-gates the report write |
 | Prompt/context management | Versioned prompts, source/freshness metadata, bounded tool schemas, prohibited-advice rules, and per-feature evaluation cases |
 | DevOps | Each workflow validates its owned slice, contracts, seeds, tests, and images; integration CI verifies the full report journey |
-| Docker Compose | One root configuration runs at least 15 student containers plus edge, AI-mode, and Ollama |
-| Working software | User-owned records in every feature have visible CRUD independent of Ollama availability |
+| Docker Compose | One root configuration runs at least 15 student containers plus edge and AI-mode; the LLM API is external |
+| Working software | User-owned records in every feature have visible CRUD independent of LLM-provider availability |
 | Technical report | Data provenance, architecture, diagrams, evaluation results, screenshots, run trace, limitations, and contribution evidence are designed in from the start |
 | Demonstration | Each student gets a short CRUD + AI vignette; the final report scenario crosses all five services |
 
@@ -1240,7 +1240,7 @@ flowchart LR
     F3API --> AIMode
     F4API --> AIMode
     F5API --> AIMode
-    AIMode --> Ollama
+    AIMode --> OpenAI[OpenAI Responses API]
     AIMode -. fixed tool endpoints .-> F1API
     AIMode -. fixed tool endpoints .-> F2API
     AIMode -. fixed tool endpoints .-> F3API
@@ -1316,7 +1316,7 @@ The safest test is: **would this component still make sense if PropertyScope wer
 | Shared CSS tokens, header, footer, icons, loading/error patterns | Explicit shared-theme requirement; avoids five visually unrelated applications |
 | Correlation IDs, Problem Details, health/readiness conventions | Cross-cutting operational contracts |
 | Agent run, event, review, prompt/model and tool-result contracts | Already-established domain-neutral AI-mode seams |
-| AI-mode orchestration, bounded loop, Ollama adapter and review UI | Group platform required by the brief |
+| AI-mode orchestration, bounded loop, OpenAI adapter and review UI | Group platform required by the brief |
 | Release 1 MCP gateway/registry and protocol adapters | Required shared service; delegates domain work to feature HTTP APIs |
 | Release 1 RAG extraction/index/retrieval service | Required shared service; index is derived and documents retain feature ownership/provenance |
 | Authentication/session abstraction if later required | Cross-cutting, provided it contains no property rules |
@@ -1627,7 +1627,7 @@ The application should not send that sentence directly to an unconstrained model
 11. The user reviews, edits and approves the persisted report.
 12. Feature 5 proposes evidence-linked follow-ups by stakeholder; the user edits/approves tasks and remains responsible for all external contact.
 
-This is feasible for a curated candidate property. It is also a near-perfect demonstration of frontend → backend → AI-mode → Ollama → tools → feature APIs, plus Plan → Act → Observe → Adapt and a human approval boundary.
+This is feasible for a curated candidate property. It is also a near-perfect demonstration of frontend → backend → AI-mode → OpenAI → tools → feature APIs, plus Plan → Act → Observe → Adapt and a human approval boundary.
 
 ### 17.2 Data release diagnosis and recovery
 
@@ -1691,7 +1691,7 @@ sequenceDiagram
     participant MCP as Shared MCP server
     participant FB as Owning feature backends
     participant RAG as Shared RAG server
-    participant LLM as Ollama / approved LLM
+    participant LLM as OpenAI / configured LLM
 
     UI->>API: grounded question / report objective
     API->>AI: bounded objective + feature context
@@ -1815,7 +1815,7 @@ Cloud mode must remain useful with MCP, RAG and multi-agent services disabled as
 
 | Area | Release 0 target |
 |---|---|
-| Availability | Direct CRUD and deterministic insights remain usable when Ollama is unavailable |
+| Availability | Direct CRUD and deterministic insights remain usable when the LLM provider is unavailable |
 | Performance | Search p95 under 500 ms and normal reads under 1 s on curated local data; dossier deterministic fetch under 5 s excluding model latency |
 | Agent bounds | Maximum steps/tools/time/output configured; all runs end in a durable terminal state |
 | Accessibility | Keyboard-complete flows, visible focus, labelled forms/maps, table alternatives and WCAG-conscious contrast |
@@ -1837,14 +1837,14 @@ Each `student-N.yml` should path-filter and validate the owner's:
 - pure domain calculations and validation;
 - database migrations, seeds and all CRUD operations;
 - backend/database API schemas and structured errors;
-- frontend HTMX success, empty, error and Ollama-unavailable states;
+- frontend HTMX success, empty, error and provider-unavailable states;
 - AI request construction using a fake AI-mode client;
 - tool catalogue conformance, bounded results and idempotent writes;
 - provider/consumer contract fixtures for cross-feature APIs;
 - container build and health checks; and
 - architecture rules preventing direct DB/import shortcuts.
 
-Tests must not require Ollama, Docker, internet or the prior data warehouse unless explicitly marked integration/evaluation.
+Tests must not require OpenAI credentials, Docker, internet or the prior data warehouse unless explicitly marked integration/evaluation.
 
 Feature-specific minimum acceptance cases:
 
@@ -1869,7 +1869,7 @@ Maintain one executable golden-path test which:
 7. approves and reconciles the idempotent write; and
 8. verifies the dossier remains retrievable after restart.
 
-Use a second integration case for partial dependency failure. A live Ollama evaluation can be recorded locally, but it should not be the sole proof that integration works.
+Use a second integration case for partial dependency failure. A live provider evaluation can be recorded explicitly, but it should not be the sole proof that integration works.
 
 ### 20.3 Evidence matrix
 
@@ -1881,7 +1881,7 @@ Use a second integration case for partial dependency failure. A live Ollama eval
 | Agentic workflow | Dossier run with real tool observations, adaptation and review-gated write |
 | Prompt/context | Versioned feature prompts, context budgets, evaluation fixtures and before/after evidence |
 | DevOps | Five green path-filtered workflows with contract/container checks |
-| Compose | Single command starts edge, 15 student services, AI-mode and Ollama; health evidence retained |
+| Compose | Single command starts edge, 15 student services and AI-mode; remote-provider health evidence retained |
 | Working software | CRUD matrix plus screenshots/tests for every student aggregate |
 | Report | Architecture, ERDs, contracts, data provenance, risks, logs, screenshots, attendance and known gaps |
 | Demonstration | Timed five-person scenario plus CI, Compose and run-trace evidence |
@@ -1904,7 +1904,7 @@ The full-mark strategy is a deterministic, rehearsed story rather than an improv
 | 8:50–9:35 | Deployment/Compose and architecture summary |
 | 9:35–10:00 | Limitations, release runway and conclusion |
 
-Pre-warm Ollama and keep each prompt/tool output bounded. Have a stored successful run and deterministic CI trace available if local model latency exceeds the video window. Every student must speak and visibly demonstrate their integrated feature.
+Keep each prompt/tool output bounded. Have a stored successful run and deterministic CI trace available if remote-provider latency exceeds the video window. Every student must speak and visibly demonstrate their integrated feature.
 
 ### 21.1 High-value polish, in order
 
@@ -1931,7 +1931,7 @@ Animated maps or elaborate valuation models are lower value until every rubric r
 | Crime counts/rates are compared incorrectly | Misleading conclusion | Same geography/period/measure validation, explicit denominator metadata, zero/missing state and automated comparison tests |
 | AI invents figures or recommendations | Trust and marking failure | Deterministic calculations, evidence IDs, structured prompts, reviewer checks and prohibited-output tests |
 | Source licence prevents redistribution | Submission/deployment issue | Licence register and bounded synthetic substitute before committing fixtures |
-| PostgreSQL plus fifteen-plus service containers strain laptops | Demo instability | Tiny Flask images, small consumer SQLite files, small default PostgreSQL profile, persistent full-data opt-in, health dependencies and pre-warmed Ollama |
+| PostgreSQL plus fifteen-plus service containers strain laptops | Demo instability | Tiny Flask images, no local model container, small consumer SQLite files, small default PostgreSQL profile, persistent full-data opt-in, and health dependencies |
 | Cyclic cross-feature calls | Cascading failures | Provider hierarchy, short timeouts and Feature 5 composition only |
 | Prior project work obscures new contributions | Individual evidence risk | Attribute prior work clearly; log new export tooling separately; each owner authors their service/schema/tests/prompts and contribution record |
 | Polished map hides incomplete CRUD | Lost binary marks | CRUD/evidence checklist is the release gate before visual extras |
@@ -2004,7 +2004,7 @@ PropertyScope Release 0 is done only when:
 - every database table has ten or more seeded records;
 - each student-owned aggregate supports visible create/read/update/delete;
 - every feature has a distinct approved-LLM action callable from its frontend;
-- direct CRUD still works with Ollama stopped;
+- direct CRUD still works when the LLM provider is unavailable;
 - no service opens another service's database/file, receives its credentials or imports its code;
 - Feature 1 can demonstrate source/release CRUD, a failed candidate release, preserved accepted data and a reviewed recovery action;
 - Feature 3 can demonstrate a same-period crime comparison with count/rate and zero/missing semantics;

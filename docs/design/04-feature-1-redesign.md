@@ -432,10 +432,10 @@ sequenceDiagram
 
 - polished source/job/release CRUD;
 - deterministic runs, quality, artifact and property discovery;
-- direct AI-mode diagnosis through Ollama/approved LLM;
+- direct AI-mode diagnosis through OpenAI/configured LLM;
 - genuine Plan → Act → Observe → Adapt trace;
 - review gate for state-changing recovery/publication;
-- all direct CRUD works without Ollama; and
+- all direct CRUD works without the LLM provider; and
 - screenshots/tests/Compose/workflow evidence.
 
 ### Release 1
@@ -556,7 +556,7 @@ The UI may summarise it, but a detail/provenance action must expose the complete
 - run polling lifecycle;
 - release comparison/review;
 - property search/map/list fallback;
-- Ollama-unavailable state; and
+- LLM-provider-unavailable state; and
 - partial/error states with request IDs.
 
 ### Architecture
@@ -591,7 +591,7 @@ Feature 1 is full-mark ready when:
 - a failed candidate release cannot displace the accepted predecessor;
 - the operator can diagnose, review and execute a bounded recovery action;
 - property search resolves a canonical candidate and exposes match/source/coverage metadata;
-- ordinary operation works with Ollama stopped;
+- ordinary operation works with the LLM provider unavailable;
 - AI run evidence is durable and understandable;
 - maps/tables/forms are accessible and mobile-usable;
 - frontend/backend/database boundaries remain enforced;

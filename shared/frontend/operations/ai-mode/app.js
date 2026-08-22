@@ -702,6 +702,9 @@ function renderStep(step, isLatest) {
       metric("Prompt evaluation", duration(model.metrics.prompt_eval_duration_ms)),
       metric("Generation", duration(model.metrics.eval_duration_ms)),
       metric("Tokens", `${model.metrics.prompt_tokens ?? "?"} in · ${model.metrics.output_tokens ?? "?"} out`),
+      metric("Cache", `${model.metrics.cached_prompt_tokens ?? "?"} read · ${model.metrics.cache_write_prompt_tokens ?? "?"} written`),
+      metric("Provider request", model.provider_request_id || "Not supplied"),
+      metric("Retries", String(model.metrics.retry_count ?? 0)),
       metric("Repairs", String(model.repair_count)),
     );
     body.append(node("h5", "", "Model evidence"), metrics);

@@ -6,7 +6,7 @@ The project is PropertyScope NSW. Feature 1, owned by Matthew Shelton, provides 
 operations and property-discovery platform. The repository contains a reproducible Python
 workspace, strict shared contracts/test utilities, a
 framework-independent bounded agent state machine, and an AI-mode foundation with
-SQLite workflow persistence, versioned prompts, native Ollama integration, health and
+SQLite workflow persistence, versioned prompts, OpenAI Responses API integration, health and
 agent-run APIs, a serial background worker, feature-scoped HTTP tools, resumable safe
 events, request idempotency, and human-review gating. The non-product
 `examples/integration-test-feature` proves the shared boundaries over real HTTP and
@@ -35,7 +35,7 @@ backend/API, database, tests, Dockerfile, and ownership notes.
 
 | Release | Planned scope |
 |---|---|
-| Release 0 | Integrated microservices, AI mode/Ollama, shared agentic loop, Docker Compose, and student CI |
+| Release 0 | Integrated microservices, AI mode/OpenAI, shared agentic loop, Docker Compose, and student CI |
 | Release 1 | Release 0 plus MCP, RAG, and grounded AI responses |
 | Release 2 | Release 1 plus multi-agent orchestration, advanced testing, and Azure deployment |
 
@@ -52,7 +52,7 @@ deployment.
 - `student-1/` to `student-5/`: individual feature workspaces
 - `ai-services/`: agent-core and AI-mode projects plus later-release service locations
 - `scripts/`: shared quality, build, test, and deployment automation
-- `docker-compose.yml`: Release 0 AI-mode, profiled Ollama, the bounded PropertyScope Feature
+- `docker-compose.yml`: Release 0 AI-mode, remote provider configuration, the bounded PropertyScope Feature
   1 stack, and its exclusive PostgreSQL/PostGIS and artifact-volume boundaries
 - `CONTRIBUTING.md`: environment setup, commands, ownership, and pull request workflow
 - `AGENTS.md`: durable repository instructions for coding agents
@@ -93,9 +93,9 @@ For day-to-day work on the assignment-aligned integration stack, start Docker De
 uv run scripts/dev.py up
 ```
 
-The helper automatically uses the NVIDIA Compose override when Docker advertises that
-runtime, and otherwise keeps the portable CPU path. Use `--cpu-only` to opt out or `--gpu`
-to require acceleration and fail fast when it is unavailable.
+Export `OPENAI_API_KEY` in the launching shell before starting the complete stack. Compose
+mounts it only into AI-mode as a service-scoped secret; the value must never be placed in a
+tracked file, rendered configuration, container environment, or image.
 
 Then open the unified PropertyScope home at <http://localhost:5100>, Feature 1 at
 <http://localhost:5200>, or the non-product integration fixture at <http://localhost:5190>.
@@ -107,7 +107,7 @@ Python services reload when source changes and the frontends are
 bind-mounted, so normal source edits do not require an image rebuild. Use
 `uv run scripts/dev.py rebuild` after changing dependencies, `uv.lock`, or a Dockerfile;
 `status`, `logs`, `test`, `restart`, and `down` cover the rest of the common loop. `down`
-preserves Ollama models, AI-mode run history, PropertyScope data/artifacts, and example records.
+preserves AI-mode run history, PropertyScope data/artifacts, and example records.
 
 The default PropertyScope stack uses deterministic showcase data and never launches live or
 source-scale acquisition. The explicit full-data path uses a separate Compose project and
@@ -128,25 +128,21 @@ preview, optional local G-NAF cache, real-source status and shared AI-mode bound
 For the production-like Release 0 container runtime without development bind mounts, run:
 
 ```text
-docker compose --profile ollama-container up --detach --wait --wait-timeout 120 ollama
-docker compose --profile ollama-container run --rm ollama-init
+OPENAI_API_KEY=<set-in-your-shell>
 docker compose --profile release-0 up --detach --build --wait --wait-timeout 120 ai-mode
-uv run ai-mode-ollama-smoke
+uv run ai-mode-provider-smoke
 ```
 
-Compose starts pinned Ollama and AI-mode containers and prepares the small Release 0
-model; the installed diagnostic then performs a real structured-output provider check.
-Native Ollama, routing choices, resource settings, lifecycle commands, and
-troubleshooting are documented in
-[`docs/release-0/ollama-operations.md`](docs/release-0/ollama-operations.md).
+Compose starts AI-mode without a local model runtime; the installed diagnostic performs a
+real structured-output and model-access check against OpenAI. Secret handling, configuration,
+lifecycle commands, and troubleshooting are documented in
+[`docs/release-0/openai-api-operations.md`](docs/release-0/openai-api-operations.md).
 
 The helper above previews the non-product integration feature as a working vertical slice.
 To reproduce its production-like Compose commands directly, add the integration overlay and
 profile:
 
 ```text
-docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile ollama-container up --detach --wait --wait-timeout 120 ollama
-docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile ollama-container run --rm ollama-init
 docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test up --detach --build --wait --wait-timeout 120 ai-mode integration-test-feature-database integration-test-feature-backend integration-test-feature-frontend
 ```
 

@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Status | Living architecture; Release 0 shared baseline and PropertyScope Feature 1 integrated |
-| Last verified | 13 August 2026 |
+| Last verified | 21 August 2026 |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related record | `docs/architecture/repository-architecture.md` |
@@ -31,19 +31,19 @@ evidence for the exception remains a release gate.
 The first Release 0 foundation increment implemented the strict shared agent
 contracts, deterministic state graph, limits and tool policy, persistence-independent
 ports, bounded four-phase runner, deterministic fake provider, SQLite run/step/review
-store, prompt registry, native Ollama structured-output adapter, serial worker, and
+store, prompt registry, OpenAI Responses API adapter, serial worker, and
 create/read/cancel/review HTTP endpoints. JSON Schema and OpenAPI artefacts are generated
-and drift-checked by the canonical quality gate. A pinned non-root AI-mode image,
-profiled Ollama runtime/model initializer, native-host override, and real structured
-provider diagnostic now supply the shared Release 0 container boundary.
+and drift-checked by the canonical quality gate. A pinned non-root AI-mode image and
+real structured provider diagnostic supply the shared Release 0 container boundary;
+no model runtime is deployed in the application Compose topology.
 
 A subsequent domain-neutral Release 0 increment added validated feature manifests,
 feature-scoped/versioned tool registration, fail-fast YAML tool composition, a bounded
 HTTP executor, create-run idempotency, safe append-only progress events, and an opt-in
 redacted development evidence page. A non-product `integration-test-feature` proves
 the agent/core/backend/database boundary over real HTTP and SQLite. A validated model
-registry now maps stable logical profiles to assignment-approved Ollama tags and explicit
-context/output budgets; ADR-015 records the selection and readiness policy.
+registry now maps stable logical profiles to provider model IDs and explicit
+context/output/reasoning budgets; ADR-017 records the provider and readiness policy.
 
 The current hardening increment makes repository import/dependency boundaries executable in
 the canonical gate, preserves validation during immutable state evolution, enforces aware and
@@ -56,7 +56,7 @@ coverage of at least 90%.
 This does not complete the five-feature shared-foundation definition of done. Owners must
 still supply approved manifests and endpoints for Features 2–5; the product edge, complete
 five-slice topology, approval records, and team-owned release evidence remain. The
-non-product fixture and real Qwen runtime remain useful shared-boundary evidence, not
+non-product fixture and optional live API diagnostic remain useful shared-boundary evidence, not
 substitutes for assessed product evidence. MCP, RAG, and multi-agent runtime behavior remains
 disabled and unclaimed.
 
@@ -72,7 +72,7 @@ student-owned feature slices and a small set of shared integration services.
 
 Each feature slice owns its frontend, backend/API, database service, tests, and
 container artefacts. Shared services provide the unified web entry point, agentic
-orchestration, Ollama access, common contracts, test utilities, and later MCP, RAG,
+orchestration, remote model access, common contracts, test utilities, and later MCP, RAG,
 multi-agent, and Azure integration. Shared services must not absorb feature business
 logic or erase evidence of individual ownership.
 
@@ -114,7 +114,7 @@ The main architectural constraints are:
 - local MCP and RAG in Release 1;
 - local Planner, Worker, Reviewer, and human review in Release 2;
 - Azure or AWS deployment in Release 2;
-- AI-mode and Ollama enabled in the cloud while MCP, RAG, and multi-agent services are
+- AI-mode with remote OpenAI model access enabled in the cloud while MCP, RAG, and multi-agent services are
   disabled; and
 - individual workflows, integrated testing, diagrams, execution evidence, and reports.
 
@@ -134,10 +134,11 @@ The main architectural constraints are:
 4. **Early foundations.** Later-release interfaces, schemas, feature flags, and test
    doubles may exist from Release 0. Later capabilities remain off, are excluded from
    the relevant release demo, and are not claimed as completed early.
-5. **Ollama location.** Native host Ollama is allowed as a developer convenience on
-   Windows and macOS, consistent with the course configuration guide. Integrated
-   release validation uses a containerised Ollama profile so the complete topology is
-   reproducible.
+5. **Model provider.** ADR-017 supersedes the earlier local-runtime decision. AI-mode calls
+   OpenAI through the existing provider port, routes planner/implementer work to
+   `gpt-5.6-luna` and adaptation/review to `gpt-5.6-terra`, and keeps direct
+   feature behavior independent of provider availability. Credentials come only from the
+   runtime environment or deployment secret manager.
 
 ### 2.3 Requirement traceability
 
@@ -187,7 +188,7 @@ The main architectural constraints are:
 | Correctness | All external and tool inputs schema-validated; invalid state transitions rejected |
 | Boundedness | Default maximum 6 agent iterations, 12 tool calls, and one configurable time budget per run |
 | CRUD performance | Non-AI endpoints meet the course lab baseline of 19/20 calls at or below 500 ms locally |
-| Resilience | CRUD remains available when Ollama is unavailable; AI requests return a typed degraded response |
+| Resilience | CRUD remains available when the LLM provider is unavailable; AI requests return a typed degraded response |
 | Idempotency | Retried mutation tool calls do not create duplicate effects |
 | Portability | One documented command path each for Windows PowerShell, macOS/Linux, and Compose |
 | Testability | Shared core tests use a deterministic fake model; real-model tests are a separate suite |
@@ -231,7 +232,7 @@ flowchart LR
     E --> FN[Feature slices 2-5]
     F1 --> O[Agent orchestrator / AI-mode]
     FN --> O
-    O --> L[Ollama + approved model]
+    O --> L[OpenAI Responses API]
     O -. Release 1 local .-> M[MCP server]
     O -. Release 1 local .-> R[RAG server]
     O -. Release 2 local .-> A[Multi-agent roles]
@@ -260,8 +261,8 @@ flowchart LR
 | `shared/contracts` | 0 | Pydantic/JSON Schema types, error envelope, identifiers, headers | Feature entities |
 | `shared/testkit` | 0 | Fake model, contract fixtures, factories, assertion helpers | Production orchestration |
 | `ai-services/agent-core` | 0 | State machine, policies, provider/tool ports, cache interfaces | Flask routes or feature code |
-| `ai-services/ai-mode` | 0 | Orchestrator API, run persistence, Ollama adapter, prompt registry | Direct feature DB access |
-| Ollama | 0 | Approved model runtime | Application workflow state |
+| `ai-services/ai-mode` | 0 | Orchestrator API, run persistence, OpenAI adapter, prompt registry | Direct feature DB access |
+| OpenAI API | 0 | Remote model inference | Application workflow state or feature data |
 | `ai-services/mcp-server` | 1 | MCP tools/resources/prompts over existing contracts | Duplicate CRUD logic |
 | `ai-services/rag-server` | 1 | Ingestion, chunking, retrieval, citations, corpus versions | Final response authority |
 | `ai-services/multi-agent-server` | 2 | Planner/Worker/Reviewer coordination and human-review API | A second incompatible run model |
@@ -477,14 +478,14 @@ loop indefinitely. Mutation retries reuse the original idempotency key.
 
 This is an orchestrator-worker pattern, not free-form multi-agent debate. Parallel work
 is allowed only for independent read-only actions and only when the configured machine
-and Ollama runtime can support it.
+and provider limits can support it.
 
 ### 8.4 Failure and cancellation semantics
 
 - Client cancellation marks the run and prevents new tool dispatches.
 - A timed-out tool returns a structured timeout result; the planner never sees a Python
   exception or stack trace.
-- If Ollama is unavailable, deterministic checks and CRUD continue; the AI operation
+- If the LLM provider is unavailable, deterministic checks and CRUD continue; the AI operation
   becomes `degraded` or `failed` according to its contract.
 - A restarted orchestrator resumes only from a persisted safe boundary. An `acting`
   mutation with unknown outcome goes to human review rather than being repeated.
@@ -494,16 +495,19 @@ and Ollama runtime can support it.
 
 ### 9.1 Provider boundary
 
-`agent-core` defines an `LLMProvider` protocol for structured generation, chat, health,
-and invocation metrics. `ai-mode` supplies an Ollama implementation using the native
-Ollama API so tool calls, structured output, detailed duration fields, and `keep_alive`
-remain available. No feature backend imports an Ollama or commercial-provider SDK.
+`agent-core` defines an `LLMProvider` protocol for structured generation, health, and
+invocation metrics. `ai-mode` supplies an OpenAI Responses API implementation using the
+official SDK inside its adapter boundary. It requests JSON-Schema-guided output, records
+token/timing/cache/request-ID metrics, disables response storage, enforces configured context,
+and performs bounded retries within the persisted deadline. Stable prompt prefixes use explicit
+provider caching and model readiness uses a short TTL. No feature backend imports
+or calls a model-provider SDK/API.
 
 Configuration selects a model profile rather than embedding model names in feature
 code. Profiles can reduce context, output length, concurrency, or agent discretion on
-less capable hardware. The versioned registry records the assignment-approved family,
-exact Ollama tag, advertised maximum context, official source, and conservative runtime
-budgets. Startup and CI validate it; the public API exposes the same typed view. The same
+less capable or more costly models. The versioned registry records the provider, exact model
+ID, advertised context/output maxima, official source, reasoning effort, and conservative
+runtime budgets. Startup and CI validate it; the public API exposes the same typed view. The same
 evaluation set should run against every supported profile before a default changes.
 
 ### 9.2 Prompt registry
@@ -544,7 +548,7 @@ compatibility and retention decision, not as routine file cleanup.
 
 | Layer | Key | Invalidation | Allowed content |
 |---|---|---|---|
-| Model residency | model digest and `keep_alive` | expiry or memory pressure | Model weights/runtime state |
+| Provider prompt cache observation | provider model + prompt hash | provider-managed | Non-sensitive token-count metadata only |
 | Embedding cache | embedding model digest + chunk content hash | content/model change | Embedding vectors |
 | Retrieval cache | normalized query + corpus version + retriever config | corpus/config change | Ranked chunk IDs |
 | Deterministic response cache | model digest + prompt-set hash + normalized input + relevant data version | TTL or any dependency version change | Read-only, non-personal, non-agentic responses |
@@ -554,22 +558,19 @@ responses, or responses containing secrets/personal data. Cache hits and misses 
 metrics, not assumptions. A cache is adopted only after an A/B benchmark shows a useful
 latency or compute improvement without reducing task success.
 
-Ollama `keep_alive` keeps a model resident and reduces reload latency; it is not treated
-as a portable guarantee of provider-managed prompt-prefix caching. The architecture can
-take advantage of future prefix caching through the provider adapter without changing
-feature code.
+Provider-reported cached input tokens are recorded as metrics only. AI-mode does not depend on,
+control, or claim provider prompt caching, and does not persist provider response state.
 
 ### 9.4 Performance experiment
 
 Do not claim prompt caching from anecdotal timing. For each release candidate, run a
-versioned benchmark containing at least 10 cold requests and 30 warm repeated-prefix
-requests per supported showcase profile. Export CSV/JSON with model digest, machine
-profile, context length, prompt hash, input/output tokens, `load_duration`,
-`prompt_eval_duration`, `eval_duration`, total duration, cache outcome, and task-success
+versioned benchmark containing at least 10 initial requests and 30 repeated-prefix
+requests per supported showcase profile. Export CSV/JSON with model ID, profile,
+context length, prompt hash, input/output/cached/reasoning tokens, total duration, and task-success
 assertion. Compare:
 
-1. model unloaded versus resident with `keep_alive`;
-2. stable-prefix versus semantically identical reordered prompts;
+1. stable-prefix versus semantically identical reordered prompts;
+2. configured reasoning efforts and output budgets;
 3. retrieval cache disabled versus enabled; and
 4. application response cache disabled versus enabled for an eligible read-only case.
 
@@ -696,8 +697,8 @@ Release 0 needs useful instrumentation, not a monitoring platform project.
 - JSON logs to stdout with timestamp, level, service, request ID, trace ID, run ID, step
   ID, event name, duration, and outcome;
 - request and dependency latency histograms;
-- Ollama load, prompt-evaluation, generation, and total durations where reported;
-- token counts, queue time, model/profile, and structured-output repair count;
+- provider request duration and HTTP outcome;
+- input/output/cached/reasoning token counts, queue time, model/profile, and structured-output repair count;
 - agent run and step outcome counters;
 - tool retries, timeouts, policy rejections, and human-review counts;
 - cache hit/miss/invalidations; and
@@ -741,8 +742,8 @@ debugging, and report screenshots.
 - a reviewer rejection; and
 - deterministic token/duration metadata.
 
-Most CI must not download a model. Real Ollama tests are tagged and produce a separate
-report because model output and runner performance are variable.
+Deterministic CI does not call a paid remote API. Live provider diagnostics are manual or
+secret-gated and produce separate evidence because model output and provider latency vary.
 
 ### 14.3 Agent evaluation set
 
@@ -816,16 +817,13 @@ Maintain one root `docker-compose.yml` with clearly named profiles:
 
 | Profile | Contents |
 |---|---|
-| default / `release-0` | Edge, five feature slices, AI-mode |
-| `ollama-container` | Containerised Ollama and model-initialisation task |
+| default / `release-0` | Edge, five feature slices, AI-mode; OpenAI is an external dependency |
 | `release-1` | Release 0 plus MCP and RAG |
 | `release-2-local` | Release 1 plus multi-agent service |
 | `observability` | Optional collector/viewer |
 
-Native host Ollama uses a developer override and the stable configured base URL. On
-Windows/macOS containers use `host.docker.internal`; Linux supplies the host-gateway
-mapping. Release evidence uses the container profile unless the tutor explicitly
-accepts the native-runtime topology.
+The OpenAI credential is injected at runtime and is never built into an image or committed.
+Compose uses the same HTTPS API root and logical model registry as host execution.
 
 Use health checks, `depends_on` health conditions where supported, explicit internal
 networks, named volumes, resource limits, and non-root application users. Do not expose
@@ -952,7 +950,7 @@ student package.
 | Persistence | SQLAlchemy 2, Alembic, SQLite |
 | Frontend | HTML5, HTMX, minimal JavaScript, shared CSS tokens/components |
 | Edge | Nginx, serving static content and same-origin reverse proxy routes |
-| LLM | Native Ollama client behind `LLMProvider` |
+| LLM | OpenAI Responses API behind `LLMProvider`; Luna implementer/Terra reviewer, 128K profile |
 | MCP | Official Python MCP SDK |
 | Packaging | `pyproject.toml`, `uv` workspace/lock, documented pip-compatible fallback |
 | Quality | pytest, pytest-cov, Hypothesis, Ruff, mypy, pip-audit, Trivy, Gitleaks |
@@ -979,12 +977,12 @@ requests. Do not paste floating `latest` image tags into release or deployment f
 1. Implement `agent-core` state machine and persistence-independent ports.
 2. Implement fake-provider tests, property tests, policies, limits, cancellation, and
    idempotency.
-3. Implement `ai-mode` with SQLite run store, prompt registry, Ollama adapter, and run
+3. Implement `ai-mode` with SQLite run store, prompt registry, OpenAI adapter, and run
    detail endpoint.
 4. Implement the edge/home page and manifest-driven feature links.
 5. Create one non-product integration-test fixture that proves the structural pattern;
    do not stamp or edit student-owned feature behavior before allocation.
-6. Build Compose health checks and native/container Ollama profiles.
+6. Build Compose health checks and runtime-only remote-provider configuration.
 7. Prove a complete Plan -> Act -> Observe -> Adapt case plus an unavailable-model case.
 
 ### Release 1 extension
@@ -1014,7 +1012,8 @@ students' feature logic.
 | ADR-008 | Centralise orchestration while keeping feature tools and business logic student-owned |
 | ADR-009 | Use Pydantic/JSON Schema and OpenAPI 3.1 as shared contract sources |
 | ADR-010 | Use a deterministic persisted state machine and bounded structured LLM outputs |
-| ADR-011 | Access Ollama through a provider port; support native-dev and container-demo profiles |
+| ADR-011 | Superseded local Ollama provider decision; provider port retained |
+| ADR-017 | Use the OpenAI Responses API; route Luna implementer and Terra reviewer roles |
 | ADR-012 | Build later-release seams early but gate capabilities by release and deployment |
 | ADR-013 | Target Azure Container Apps and document the SQLite/Azure Files limitation |
 
@@ -1026,9 +1025,9 @@ superseding decision where applicable.
 | Risk | Consequence | Mitigation |
 |---|---|---|
 | Shared platform becomes the project | Feature work and ownership become unclear | Strict service catalogue, minimal shared kernel, feature-owned tools/tests |
-| Fifteen student containers overwhelm laptops | Slow startup or demos | Resource profiles, native Ollama option, start selected feature during development, full stack on integration machine |
-| Small model produces invalid plans | Low task success | Structured schemas, deterministic fallback, limited tool set, repair once, evaluation gates |
-| Multiple model roles exceed memory | Queuing or failure | Default single loaded model/parallel request, profile-based role reuse, benchmark before concurrency |
+| Fifteen student containers overwhelm laptops | Slow startup or demos | Remove the local model container, start selected features during development, full stack on integration machine |
+| Model produces invalid plans | Low task success | Schema guidance, deterministic validation, limited tool set, repair once, evaluation gates |
+| Remote provider limits or outage | AI requests queue or fail | Bounded retries/deadlines, typed degradation, direct CRUD independence, provider metrics |
 | SQLite network storage in Azure | Locking or persistence failure | Single replica/owner, exclusive mount, cloud write test, documented PostgreSQL escape hatch |
 | Prompt/retrieval cache returns stale data | Incorrect answers | Dependency versions in keys, short TTLs, explicit invalidation, never cache mutation flows |
 | Early placeholders are mistaken for release completion | Assessment credibility issue | Flags off, docs label status, release-specific acceptance tests |
@@ -1043,12 +1042,12 @@ The foundation is complete when:
 
 - all shared packages have owners, README files, tests, and stable public interfaces;
 - one integration-test fixture proves frontend -> backend -> database CRUD and backend ->
-  orchestrator -> Ollama interaction;
+  orchestrator -> OpenAI interaction;
 - the orchestrator persists and displays a bounded four-phase run;
 - fake-model tests cover success, invalid schema, tool failure, timeout, approval,
   cancellation, retry, and loop limit;
 - schema and OpenAPI artefacts validate in CI;
-- Windows/macOS native-Ollama setup and full Compose setup are documented and tested;
+- host and full Compose provider configuration are documented and tested;
 - the full topology starts on the nominated integration machine;
 - advanced services are disabled by default and cloud exclusions are machine-tested;
 - cache metrics exist before caching is claimed as an optimisation;
@@ -1082,9 +1081,10 @@ The foundation is complete when:
 
 - [Flask application factories](https://flask.palletsprojects.com/en/stable/patterns/appfactories/)
   and [Blueprints](https://flask.palletsprojects.com/en/stable/blueprints/)
-- [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs),
-  [tool calling](https://docs.ollama.com/capabilities/tool-calling), and
-  [runtime FAQ](https://docs.ollama.com/faq)
+- [OpenAI GPT-5.6 luna model](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
+- [OpenAI GPT-5.6 terra model](https://developers.openai.com/api/docs/models/gpt-5.6-terra)
+- [OpenAI Responses create reference](https://developers.openai.com/api/reference/cli/resources/responses/methods/create)
+- [OpenAI model retrieval reference](https://developers.openai.com/api/reference/typescript/resources/models/methods/retrieve)
 - [Model Context Protocol architecture](https://modelcontextprotocol.io/docs/learn/architecture)
   and [tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
 - [Docker Compose profiles](https://docs.docker.com/compose/how-tos/profiles/)
@@ -1102,7 +1102,7 @@ The foundation is complete when:
 Review this design at four points:
 
 1. after tutor approval of the topic and feature allocation;
-2. after the reference vertical slice and first measured Ollama evaluation;
+2. after the reference vertical slice and first measured remote-provider evaluation;
 3. before enabling MCP/RAG for Release 1; and
 4. before committing to the Azure persistence and compute profile for Release 2.
 

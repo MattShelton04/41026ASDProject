@@ -688,7 +688,7 @@ def create_blueprint(
                 "feature_key": "student-1-propertyscope-data-platform",
                 "objective": objective,
                 "prompt_set": "default.v3",
-                "model_profile": "local-standard.v1",
+                "model_profile": "remote-standard.v1",
                 "limits": {
                     "max_iterations": 6,
                     "max_tool_calls": 12,

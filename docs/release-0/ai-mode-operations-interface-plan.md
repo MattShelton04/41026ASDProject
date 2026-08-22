@@ -91,7 +91,7 @@ patterns, but must not import example code or become coupled to the fixture's re
   backend.
 - Remain domain-neutral and useful for all five student features.
 - Keep AI-mode as the only owner and reader of its SQLite workflow database.
-- Work without Ollama when displaying historical or deterministically scripted runs.
+- Work without the remote LLM provider when displaying historical or deterministically scripted runs.
 - Add no WebSocket, event broker, second database, or mandatory monitoring stack.
 
 ### 3.2 Non-goals
@@ -143,7 +143,7 @@ Ownership rules:
 - `agent-core` remains a library and receives no Flask or UI concerns.
 - `shared_contracts` owns public, domain-neutral response models.
 - The shared edge serves the browser assets and proxies operations API routes. The browser
-  never connects to SQLite or Ollama.
+  never connects to SQLite or the model provider.
 - Feature services can supply safe evidence references but the operations interface does
   not call their databases.
 
@@ -621,7 +621,7 @@ eventual shared Playwright/Cypress choice.
 - 10,000 synthetic run summaries with list-query p95 below 200 ms on the reference local
   machine;
 - bounded network/event volume over a six-minute run;
-- real Ollama evaluation remains separate from deterministic CI.
+- real-provider evaluation remains separate from deterministic CI.
 
 Use one browser test stack shared with the eventual unified frontend. Do not add both
 Playwright and Cypress.
@@ -711,7 +711,7 @@ ADR.
   browser-visible evidence.
 - OpenAPI/JSON Schema and implementation behavior pass conformance tests.
 - Operations UI checks join the canonical quality/integration workflow without requiring
-  Ollama.
+  OpenAI.
 - Documentation explains how to enable, use, troubleshoot, and disable the interface.
 
 ## 17. Decisions still required

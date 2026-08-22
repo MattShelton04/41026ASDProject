@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from shared_contracts import ModelRegistry
 
-DEFAULT_MODEL_REGISTRY_PATH = Path(__file__).resolve().parent / "model_assets" / "registry.v1.yaml"
+DEFAULT_MODEL_REGISTRY_PATH = Path(__file__).resolve().parent / "model_assets" / "registry.v2.yaml"
 
 
 class ModelRegistryError(ValueError):

@@ -16,7 +16,7 @@ def _summary() -> AgentRunSummary:
         feature_key="student-1-feature",
         objective_preview="Inspect a safe run",
         status=RunStatus.QUEUED,
-        model_profile="local-standard.v1",
+        model_profile="remote-standard.v1",
         prompt_set="default.v3",
         iteration_count=0,
         tool_call_count=0,

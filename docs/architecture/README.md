@@ -14,10 +14,15 @@ Architecture sources, decisions, and exported diagrams belong here.
 - `shared-run-observability-proposal.md` records the implemented local read-only baseline
   and the remaining remote observability proposal. Its concrete Release 0 delivery plan is
   [`../release-0/ai-mode-operations-interface-plan.md`](../release-0/ai-mode-operations-interface-plan.md).
+- `openai-remote-provider-migration-plan.md` records the investigated problem, current API fit,
+  implementation scope, acceptance criteria, and validation plan for replacing the local model
+  runtime.
 - `decisions/ADR-014-append-only-safe-agent-run-events.md` records the resumable event
   persistence and cursor-polling decision.
 - `decisions/ADR-015-validated-model-registry.md` records supported-model metadata,
   logical profiles, operational limits, and readiness selection.
+- `decisions/ADR-017-openai-responses-provider.md` supersedes the Ollama runtime decision and
+  selects the OpenAI Responses API with GPT-5.6 Luna as the default provider/model boundary.
 - `decisions/ADR-016-propertyscope-feature-1-postgresql-postgis.md` records the implemented
   Feature 1-only PostgreSQL/PostGIS exception for PropertyScope's verified statewide data
   scale. The repository owner authorised implementation; formal tutor/team approval evidence

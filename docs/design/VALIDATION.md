@@ -189,7 +189,7 @@ Docker is not installed, so the following were not proven in this environment:
 - Flask service startup and health endpoints;
 - PostgreSQL/PostGIS migrations and persistence;
 - frontend-to-backend-to-database calls;
-- Ollama/model integration;
+- OpenAI/model integration;
 - MCP, RAG or multi-agent local profiles; and
 - cloud deployment.
 

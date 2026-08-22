@@ -40,7 +40,7 @@ def test_readiness_reports_current_scaffold_check(app_services: AppServices) -> 
     assert response.get_json()["checks"]["application"]["status"] == "healthy"
 
 
-def test_degraded_ollama_is_available_when_strict_readiness_is_disabled(
+def test_degraded_provider_is_available_when_strict_readiness_is_disabled(
     app_services: AppServices,
 ) -> None:
     app_services.provider = ScriptedLLMProvider(
@@ -55,20 +55,29 @@ def test_degraded_ollama_is_available_when_strict_readiness_is_disabled(
     assert response.get_json()["status"] == "degraded"
 
 
-def test_strict_readiness_requires_the_configured_ollama_model(
+def test_strict_readiness_requires_the_configured_provider_model(
     app_services: AppServices,
 ) -> None:
     app_services.provider = ScriptedLLMProvider(
         [],
         health=ProviderHealth(reachable=False, detail="configured model is missing"),
     )
-    settings = Settings.from_env({"AI_MODE_REQUIRE_OLLAMA_READY": "true"})
+    settings = Settings.from_env({"AI_MODE_REQUIRE_PROVIDER_READY": "true"})
     client: FlaskClient = create_app(settings, services=app_services).test_client()
 
     response = client.get("/health/ready")
 
     assert response.status_code == 503
     assert response.get_json()["status"] == "degraded"
+
+
+def test_readiness_uses_provider_neutral_dependency_name(app_services: AppServices) -> None:
+    client: FlaskClient = create_app(services=app_services).test_client()
+
+    response = client.get("/health/ready")
+
+    assert "llm_provider" in response.get_json()["checks"]
+    assert "ollama" not in response.get_json()["checks"]
 
 
 @pytest.mark.parametrize("path", ["/health/live", "/health/ready"])

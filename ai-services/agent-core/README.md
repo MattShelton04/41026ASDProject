@@ -30,7 +30,7 @@ idempotency obligations.
 
 Feature services do not import this package. They call `ai-mode` over HTTP and own the
 business rules behind their tool endpoints. `agent-core` does not know student entities,
-URLs, Flask routes, Ollama details, or database implementations.
+URLs, Flask routes, provider-specific details, or database implementations.
 
 Release 1 MCP/RAG adapters and Release 2 role separation must reuse these contracts and
 the same run model. Their runtime behavior is intentionally not implemented or enabled

@@ -1651,7 +1651,7 @@ const groundedCitations = [
 ];
 
 const roadmap = [
-  { release: "Release 0", label: "Foundations", status: "Current build", date: "30 Aug 2026", capabilities: ["Five microservice slices", "AI-mode + Ollama", "Plan → Act → Observe → Adapt", "Shared shell and design system", "Docker Compose + student CI"] },
+  { release: "Release 0", label: "Foundations", status: "Current build", date: "30 Aug 2026", capabilities: ["Five microservice slices", "AI-mode + OpenAI", "Plan → Act → Observe → Adapt", "Shared shell and design system", "Docker Compose + student CI"] },
   { release: "Release 1", label: "Grounded intelligence", status: "Designed", date: "27 Sep 2026", capabilities: ["MCP resources and tools", "RAG document corpus", "Cited grounded answers", "Prompt-injection controls", "MCP/RAG failure states"] },
   { release: "Release 2", label: "Multi-agent + cloud", status: "Designed", date: "18 Oct 2026", capabilities: ["Planner / Worker / Reviewer", "Human review queue", "Pre/post AI-assisted tests", "Azure Container Apps", "Cloud mode with MCP/RAG/multi-agent disabled"] },
 ];
@@ -2044,7 +2044,7 @@ function healthGrid() {
     ["Shared shell", "Healthy", "18 ms", 98, "success"],
     ["Feature 1 API", "Healthy", "42 ms", 94, "success"],
     ["PostgreSQL / PostGIS", "Healthy", "11 ms", 99, "success"],
-    ["Ollama · Qwen", "Ready", "1 model", 87, "success"],
+    ["OpenAI · GPT-5.6 Luna", "Ready", "1 model", 87, "success"],
     ["MCP server", "Designed", "R1 local", 38, "warning"],
     ["RAG server", "Designed", "R1 local", 32, "warning"],
     ["Multi-agent", "Designed", "R2 local", 14, "warning"],
@@ -2067,7 +2067,7 @@ function architectureDiagram(release = 0) {
     { title: "Shared shell", detail: "Navigation + design system", icon: "home" },
     { title: "Feature APIs", detail: "Flask REST boundaries", icon: "server" },
     { title: "Databases", detail: "Independently owned", icon: "database" },
-    { title: "AI-mode", detail: "Ollama + approved LLM", icon: "bot" },
+    { title: "AI-mode", detail: "OpenAI Responses API", icon: "bot" },
   ];
   if (release >= 1) services.push({ title: "MCP + RAG", detail: "Local grounded context", icon: "book" });
   if (release >= 2) services.push({ title: "Multi-agent", detail: "Planner / Worker / Reviewer", icon: "users" });
@@ -2144,8 +2144,8 @@ function systemStatusScreen() {
     ${notice({ state: "info", title: "Prototype status values are representative", body: "The full HTML prototype is static. The implementation blueprint maps these cards to health endpoints and Compose service checks." })}
     <div class="section-gap">${healthGrid()}</div>
     <div class="grid grid-main-aside section-gap">
-      ${panel({ title: "Release 0 local topology", description: "Required integrated path for the first showcase", body: architectureDiagram(0), footer: `${apiPill("frontend → API → Ollama → LLM")}<span class="muted">MCP/RAG/multi-agent remain release-gated</span>` })}
-      ${panel({ title: "Deployment mode", description: "Capability gating is explicit", body: `<div class="stack">${evidenceState("confirmed", "Local · Release 0", "AI-mode, Ollama and approved LLM enabled")}${evidenceState("partial", "Local · Release 1/2", "MCP, RAG and multi-agent designed but not active")}${evidenceState("unknown", "Cloud · Release 2", "Not yet deployed; MCP/RAG/multi-agent must be disabled")}</div>` })}
+      ${panel({ title: "Release 0 topology", description: "Required integrated path for the first showcase", body: architectureDiagram(0), footer: `${apiPill("frontend → API → OpenAI LLM")}<span class="muted">MCP/RAG/multi-agent remain release-gated</span>` })}
+      ${panel({ title: "Deployment mode", description: "Capability gating is explicit", body: `<div class="stack">${evidenceState("confirmed", "Local · Release 0", "AI-mode and OpenAI provider enabled")}${evidenceState("partial", "Local · Release 1/2", "MCP, RAG and multi-agent designed but not active")}${evidenceState("unknown", "Cloud · Release 2", "Not yet deployed; MCP/RAG/multi-agent must be disabled")}</div>` })}
     </div>
     ${panel({ title: "Service contracts", description: "What the shell depends on, without sharing feature databases", body: table({ columns: [
       { label: "Capability", key: "name" }, { label: "Owner", key: "owner" }, { label: "Endpoint / contract", render: (r) => apiPill(r.endpoint) }, { label: "Readiness", render: (r) => badge(r.status, r.state, "no-dot") }, { label: "Failure UX", key: "failure" },
@@ -2223,7 +2223,7 @@ function releaseRoadmapScreen() {
     <div class="stack section-gap">
       ${panel({ title: "Release 0 · integrated foundations", description: "Local only — five slices, AI-mode and shared agent loop", body: architectureDiagram(0) })}
       ${panel({ title: "Release 1 · grounded intelligence", description: "Local only — Release 0 plus separate MCP and RAG services", body: architectureDiagram(1) })}
-      ${panel({ title: "Release 2 · multi-agent and cloud", description: "Local has all services; cloud deliberately disables MCP, RAG and multi-agent", body: architectureDiagram(2), footer: `${notice({ state: "warning", title: "Cloud capability gate", body: "The cloud deployment enables AI-mode, Ollama and an approved LLM only. MCP, RAG and multi-agent remain disabled." })}` })}
+      ${panel({ title: "Release 2 · multi-agent and cloud", description: "Local has all services; cloud deliberately disables MCP, RAG and multi-agent", body: architectureDiagram(2), footer: `${notice({ state: "warning", title: "Cloud capability gate", body: "The cloud deployment enables AI-mode and its remote LLM provider only. MCP, RAG and multi-agent remain disabled." })}` })}
     </div>
   `;
 }
@@ -2492,7 +2492,7 @@ function featurePropertyDetailScreen() {
 
 function aiDiagnosisScreen() {
   return `
-    ${screenHeader({ eyebrow: "Feature 1 · AI-mode", title: "Diagnose a data operation", description: "Use an approved local model to explain a selected run or release, propose bounded next steps and leave the evidence trace visible. It cannot accept releases or mutate data without an explicit human action.", actions: button("Past agent runs", { route: "agent-runs", iconName: "history" }), meta: `${badge("Ollama ready", "success")}${tag("Qwen 2.5 3B")}${tag("Release 0 AI-mode")}` })}
+    ${screenHeader({ eyebrow: "Feature 1 · AI-mode", title: "Diagnose a data operation", description: "Use the configured remote model to explain a selected run or release, propose bounded next steps and leave the evidence trace visible. It cannot accept releases or mutate data without an explicit human action.", actions: button("Past agent runs", { route: "agent-runs", iconName: "history" }), meta: `${badge("OpenAI ready", "success")}${tag("GPT-5.6 Luna")}${tag("Release 0 AI-mode")}` })}
     <div class="grid grid-wide-aside">
       ${panel({ title: "Assisted task", description: "The source object constrains the prompt and available tools", body: `<div class="form-grid">${field({ label: "Context type", type: "select", value: "Failed run", options: ["Failed run", "Candidate release", "Source", "Job", "Property identity"] })}${field({ label: "Context object", type: "select", value: "RUN-0826-1042", options: ["RUN-0826-1042", "REL-CRIME-2026-06-C", "SRC-BOCSAR", "JOB-CRIME"] })}${field({ label: "Objective", type: "textarea", value: "Explain why this run failed, what downstream impact exists, and the safest non-destructive recovery plan.", className: "wide" })}<label class="checkbox-row wide"><input type="checkbox" checked><span><strong>Require human review</strong><span class="table-secondary">Recommended for any workflow that proposes a state-changing next step.</span></span></label></div><div class="cluster" style="margin-top:1rem">${button("Generate diagnosis", { kind: "primary", iconName: "sparkles", route: "agent-run" })}${button("Preview context", { iconName: "eye" })}</div>` })}
       ${panel({ title: "Bounded tool access", description: "Release 0 uses backend tools around the local model", body: `<div class="stack" style="gap:.5rem">${toolCall({ name: "data.get_run", detail: "Read run, stage and request metadata", meta: "read-only" })}${toolCall({ name: "data.get_quality_results", detail: "Read evaluated rules and evidence samples", meta: "read-only" })}${toolCall({ name: "data.get_release", detail: "Read candidate and accepted predecessor", meta: "read-only" })}${toolCall({ name: "data.create_recovery_plan", detail: "Create a reviewable draft only", state: "warning", meta: "human gate" })}</div>` })}
@@ -2918,7 +2918,7 @@ function releaseStrip() {
   return `<div class="release-strip" role="status">
     <span class="strip-status"><strong>Local prototype</strong></span><span class="separator">•</span>
     <span>Release 0 architecture</span><span class="separator">•</span>
-    <span>Ollama + approved open-source LLM</span><span class="separator">•</span>
+    <span>OpenAI API · GPT-5.6 Luna</span><span class="separator">•</span>
     <span>MCP / RAG / multi-agent are release-gated</span>
   </div>`;
 }

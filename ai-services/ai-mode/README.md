@@ -1,16 +1,17 @@
 # AI-mode shared agent orchestrator
 
 `ai-mode` owns the HTTP orchestration boundary, workflow-state SQLite database,
-versioned prompts, native Ollama integration, and concurrency-one background worker.
+versioned prompts, OpenAI Responses API integration, and concurrency-one background worker.
 The name follows the assignment's **AI mode** capability; operationally this container
-is the shared agent orchestrator. The separate `ollama` container owns model inference.
+is the shared agent orchestrator. OpenAI owns remote model inference; AI-mode owns all
+application orchestration, validation, persistence, and tool policy.
 
 ## HTTP surface
 
 | Method and path | Behavior |
 |---|---|
 | `GET /health/live` | Process liveness; never calls dependencies |
-| `GET /health/ready` | Store readiness plus a truthful healthy/degraded Ollama check |
+| `GET /health/ready` | Store readiness plus a truthful healthy/degraded provider check |
 | `GET /api/v1/model-profiles` | Inspect supported models and bounded logical profiles |
 | `GET /api/v1/agent-runs` | Flagged operations index with stable cursor pagination and filters |
 | `POST /api/v1/agent-runs` | Validate, persist, enqueue, and return `202` |
@@ -30,26 +31,33 @@ the configured limit.
 
 ## Configuration
 
-The adapter calls Ollama's native `/api/chat` endpoint to retain JSON Schema output,
-`keep_alive`, token counts, and detailed durations. If the course `/v1` base URL is
-supplied, configuration normalizes it to the native API root.
-
-Some valid application schemas exceed llama.cpp's grammar-complexity limit. The adapter
-recognizes that specific rejection and retries in Ollama JSON mode; the agent-core
-validator and bounded repair turn still enforce the complete application schema. Other
-HTTP 400 responses remain terminal request errors.
+The adapter uses the official OpenAI Python SDK to call `POST /v1/responses` with `store: false`,
+low reasoning effort, bounded output, a client request ID, and a JSON Schema format. The Plan contract contains dynamic
+tool-argument objects, which are incompatible with OpenAI's closed/all-required strict
+schema subset, so API strict mode is deliberately disabled. Agent-core still validates the
+complete application contract and permits at most one repair turn. Readiness retrieves only
+the selected models through `GET /v1/models/{model}` and caches that readiness result briefly.
+The configured context window is conservatively enforced before dispatch. Stable versioned
+system prompts use explicit prompt-cache breakpoints and a deterministic cache key; cache read,
+write, retry, and provider request-ID evidence is retained with the run.
 
 | Variable | Default |
 |---|---|
 | `AI_MODE_DATABASE_PATH` | `instance/agent-state.sqlite3` |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` |
-| `OLLAMA_TIMEOUT_SECONDS` | `120` |
-| `OLLAMA_HEALTH_TIMEOUT_SECONDS` | `2` |
-| `OLLAMA_KEEP_ALIVE` | unset (use each registry profile's value) |
-| `AI_MODE_DEFAULT_MODEL_PROFILE` | registry default (`local-standard.v1`) |
-| `AI_MODE_MODEL_REGISTRY_PATH` | bundled `registry.v1.yaml` |
+| `AI_MODE_LLM_PROVIDER` | `openai` |
+| `OPENAI_API_KEY` | unset; direct host-process credential |
+| `OPENAI_API_KEY_FILE` | unset; mutually exclusive file-mounted credential used by Compose |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` |
+| `OPENAI_ALLOW_INSECURE_HTTP` | `false` |
+| `OPENAI_TIMEOUT_SECONDS` | `120` |
+| `OPENAI_HEALTH_TIMEOUT_SECONDS` | `2` |
+| `OPENAI_HEALTH_CACHE_SECONDS` | `60` |
+| `OPENAI_MAX_RETRIES` | `2` |
+| `OPENAI_PROMPT_CACHE_ENABLED` | `true` |
+| `AI_MODE_DEFAULT_MODEL_PROFILE` | registry default (`remote-standard.v1`) |
+| `AI_MODE_MODEL_REGISTRY_PATH` | bundled `registry.v2.yaml` |
 | `AI_MODE_MAX_MODEL_RESPONSE_BYTES` | `1048576` |
-| `AI_MODE_REQUIRE_OLLAMA_READY` | `false` |
+| `AI_MODE_REQUIRE_PROVIDER_READY` | `false` |
 | `AI_MODE_MAX_REQUEST_BYTES` | `65536` |
 | `AI_MODE_MAX_TOOL_REQUEST_BYTES` | `262144` |
 | `AI_MODE_MAX_TOOL_RESPONSE_BYTES` | `1048576` |
@@ -67,7 +75,7 @@ HTTP 400 responses remain terminal request errors.
 
 The domain-neutral, read-only operations dashboard lists durable runs and follows a selected
 run's safe cursor events at `/operations/ai-mode/`. It displays policy-projected evidence,
-model/tool timings, limits, and correlation identifiers; it never reads SQLite or Ollama from
+model/tool timings, limits, and correlation identifiers; it never reads SQLite or calls OpenAI from
 the browser. Enable it only for trusted local development or demonstrations:
 
 ```text
@@ -97,33 +105,35 @@ Run locally with:
 uv run flask --app ai_mode:create_app run --port 5005
 ```
 
-The assignment-aligned Compose path and the native-host alternative are documented in
-[`docs/release-0/ollama-operations.md`](../../docs/release-0/ollama-operations.md).
-The `ai-mode-ollama-smoke` console command performs a real provider-level structured
+The provider setup is documented in
+[`docs/release-0/openai-api-operations.md`](../../docs/release-0/openai-api-operations.md).
+The `ai-mode-provider-smoke` console command performs a real provider-level structured
 output diagnostic without owning Docker lifecycle or feature behavior. It uses the same
 settings parser, logical model profile, and provider factory as the running service, and
 selects a role explicitly declared by that profile so role enforcement is exercised too.
+Use `uv run ai-mode-provider-smoke --dry-run` first to validate configuration, model routing,
+and limits without a credential or network request.
 
 ### Supported models and profiles
 
-The strict registry separates stable client-facing profile names from concrete Ollama
-tags. It includes one assignment-approved model from each permitted family:
+The strict registry separates the stable client-facing profile name from concrete,
+role-routed provider model IDs:
 
-| Profile | Ollama tag | Advertised maximum | Runtime context | Output maximum | Intended use |
-|---|---|---:|---:|---:|---|
-| `local-standard.v1` | `qwen2.5:3b` | 32K | 8K | 1K | Default Release 0 demonstration profile |
-| `local-small.v1` | `qwen2.5:1.5b` | 32K | 8K | 1K | Constrained-machine planner/adapter evaluation |
-| `local-smoke.v1` | `qwen2.5:0.5b` | 32K | 4K | 512 | Provider compatibility smoke only |
-| `local-balanced.v1` | `llama3.1:8b` | 128K | 16K | 2K | Representative local planning/review evaluation |
-| `local-reasoning.v1` | `deepseek-r1:8b` | 128K | 16K | 4K | Explicit reasoning/reviewer evaluation |
+| Profile | Implementer (planner) | Reviewer (adapter/reviewer) | Runtime context | Output maximum | Reasoning |
+|---|---|---|---:|---:|---|
+| `remote-standard.v1` | `gpt-5.6-luna` | `gpt-5.6-terra` | 128K | 16K | low |
 
-Runtime contexts are intentionally below advertised maxima because context allocation
-affects memory. Select a registered profile in `AgentRunRequest.model_profile`; omitting
+The provider advertises a much larger context for both models, but this application deliberately
+caps the profile at 128K and does not target the 1.05M window. Individual agent requests retain
+their smaller explicit output limits, so the 16K profile maximum is not a default spend. Luna handles frequent
+implementation-planning turns at the lowest current GPT-5.6 price tier; Terra is reserved for
+adaptation/review where additional quality is worth its higher per-token cost. Agent-core calls
+the adapter only when deterministic observation cannot settle the run, limiting that expense.
+Select a registered profile in `AgentRunRequest.model_profile`; omitting
 it uses the service's configured default. Intended roles are enforced rather than being
 descriptive metadata: Release 0 runs require planner and adapter support, and every
-provider call rejects a mismatched role before network I/O. For Compose, `OLLAMA_MODEL`
-controls the model initializer and must name the concrete tag corresponding to
-`AI_MODE_DEFAULT_MODEL_PROFILE`. Pull optional profile models explicitly before use.
+provider call rejects a mismatched role before network I/O. Readiness verifies access to every
+distinct model routed by the selected profile.
 
 The registry YAML is deliberate source configuration and can be replaced as a whole
 with `AI_MODE_MODEL_REGISTRY_PATH`. It is validated offline at startup and by:
@@ -144,7 +154,7 @@ adds an evidence-completeness policy for ordered multi-action objectives. Immuta
 earlier prompt assets.
 
 Planner and adapter are roles in one persisted orchestrator, not separate long-lived
-agents. Each role is a separate stateless Ollama request with its own versioned system
+agents. Each role is a separate stateless OpenAI request with its own versioned system
 prompt. The planner receives the objective and allowlisted tools; the adapter receives
 the active plan's ordered persisted action/results and current observation. Successful
 intermediate actions continue by deterministic orchestration policy, avoiding an

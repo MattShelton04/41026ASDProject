@@ -25,8 +25,7 @@ COMPOSE_FILES = (
     "docker-compose.dev.yml",
 )
 FULL_DATA_COMPOSE_FILE = "docker-compose.full-data.yml"
-GPU_COMPOSE_FILE = "docker-compose.gpu.yml"
-PROFILES = ("release-0", "ollama-container", "integration-test")
+PROFILES = ("release-0", "integration-test")
 APPLICATION_SERVICES = (
     "propertyscope-shared-frontend",
     "ai-mode",
@@ -46,9 +45,7 @@ PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{partition}.
 PSI_ARCHIVE_BYTE_LIMIT = 750_000_000
 
 
-def _compose_command(
-    *arguments: str, full_data: bool = False, gpu: bool = False
-) -> tuple[str, ...]:
+def _compose_command(*arguments: str, full_data: bool = False) -> tuple[str, ...]:
     command = ["docker", "compose"]
     if full_data:
         command.extend(("--project-name", FULL_DATA_PROJECT_NAME))
@@ -56,8 +53,6 @@ def _compose_command(
         command.extend(("--file", filename))
     if full_data:
         command.extend(("--file", FULL_DATA_COMPOSE_FILE))
-    if gpu:
-        command.extend(("--file", GPU_COMPOSE_FILE))
     profiles = (*PROFILES, "full-data") if full_data else PROFILES
     for profile in profiles:
         command.extend(("--profile", profile))
@@ -74,19 +69,13 @@ def _ensure_docker() -> None:
     _run(("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"))
 
 
-def _nvidia_runtime_available() -> bool:
-    """Return whether this Docker daemon advertises the NVIDIA runtime."""
-    try:
-        completed = subprocess.run(
-            ("docker", "info", "--format", "{{json .Runtimes}}"),
-            cwd=REPOSITORY_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
+def _ensure_openai_credential() -> None:
+    """Fail clearly before Compose tries to materialise its OpenAI secret."""
+    if not os.environ.get("OPENAI_API_KEY", "").strip():
+        raise RuntimeError(
+            "OPENAI_API_KEY is required for the complete stack. Set a real key for OpenAI "
+            "or a non-empty local-development value for your OpenAI-compatible endpoint."
         )
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return False
-    return '"nvidia"' in completed.stdout.lower()
 
 
 def _psi_cache_years() -> tuple[int, ...]:
@@ -224,37 +213,12 @@ def _compose_environment(*, full_data: bool) -> Mapping[str, str] | None:
     return environment
 
 
-def _up(*, pull_model: bool, full_data: bool, cpu_only: bool, require_gpu: bool) -> None:
+def _up(*, full_data: bool) -> None:
+    _ensure_openai_credential()
     _ensure_docker()
-    nvidia_available = _nvidia_runtime_available()
-    if require_gpu and not nvidia_available:
-        raise RuntimeError(
-            "--gpu was requested, but Docker does not advertise the NVIDIA runtime. "
-            "Use --cpu-only or repair Docker GPU support."
-        )
-    gpu = not cpu_only and nvidia_available
     compose_environment = _compose_environment(full_data=full_data)
-    print(f"Ollama acceleration: {'NVIDIA GPU' if gpu else 'CPU'}", flush=True)
     if compose_environment is not None:
         print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
-    _run(
-        _compose_command(
-            "up",
-            "--detach",
-            "--wait",
-            "--wait-timeout",
-            "120",
-            "ollama",
-            full_data=full_data,
-            gpu=gpu,
-        ),
-        environment=compose_environment,
-    )
-    if pull_model:
-        _run(
-            _compose_command("run", "--rm", "ollama-init", full_data=full_data, gpu=gpu),
-            environment=compose_environment,
-        )
     _run(
         _compose_command(
             "up",
@@ -264,7 +228,6 @@ def _up(*, pull_model: bool, full_data: bool, cpu_only: bool, require_gpu: bool)
             "180",
             *APPLICATION_SERVICES,
             full_data=full_data,
-            gpu=gpu,
         ),
         environment=compose_environment,
     )
@@ -277,6 +240,7 @@ def _up(*, pull_model: bool, full_data: bool, cpu_only: bool, require_gpu: bool)
 
 
 def _rebuild(services: Sequence[str], *, full_data: bool) -> None:
+    _ensure_openai_credential()
     _ensure_docker()
     selected = tuple(services) or APPLICATION_SERVICES
     compose_environment = _compose_environment(full_data=full_data)
@@ -314,22 +278,6 @@ def _parser() -> argparse.ArgumentParser:
         )
 
     up = commands.add_parser("up", help="Start the complete development stack")
-    up.add_argument(
-        "--skip-model-pull",
-        action="store_true",
-        help="Skip the idempotent Ollama model preparation step",
-    )
-    acceleration = up.add_mutually_exclusive_group()
-    acceleration.add_argument(
-        "--cpu-only",
-        action="store_true",
-        help="Disable automatic NVIDIA acceleration for Ollama",
-    )
-    acceleration.add_argument(
-        "--gpu",
-        action="store_true",
-        help="Require NVIDIA acceleration and fail if Docker cannot provide it",
-    )
     add_full_data_option(up)
 
     rebuild = commands.add_parser(
@@ -359,7 +307,7 @@ def _parser() -> argparse.ArgumentParser:
     logs.add_argument(
         "services",
         nargs="*",
-        choices=("ollama", *APPLICATION_SERVICES),
+        choices=APPLICATION_SERVICES,
         help="Optional services to follow (all application services by default)",
     )
     add_full_data_option(logs)
@@ -389,15 +337,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
         if arguments.command == "up":
-            _up(
-                pull_model=not arguments.skip_model_pull,
-                full_data=arguments.full_data,
-                cpu_only=arguments.cpu_only,
-                require_gpu=arguments.gpu,
-            )
+            _up(full_data=arguments.full_data)
         elif arguments.command == "rebuild":
             _rebuild(arguments.services, full_data=arguments.full_data)
         elif arguments.command == "restart":
+            _ensure_openai_credential()
             _ensure_docker()
             compose_environment = _compose_environment(full_data=arguments.full_data)
             _run(

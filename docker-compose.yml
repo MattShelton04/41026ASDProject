@@ -39,16 +39,21 @@ services:
       # Feature 1 consumes the durable, redacted run index for diagnosis history.
       AI_MODE_OPERATIONS_ENABLED: ${AI_MODE_OPERATIONS_ENABLED:-true}
       AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml
-      AI_MODE_REQUIRE_OLLAMA_READY: "true"
-      AI_MODE_DEFAULT_MODEL_PROFILE: ${AI_MODE_DEFAULT_MODEL_PROFILE:-local-standard.v1}
-      OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
-      OLLAMA_HEALTH_TIMEOUT_SECONDS: ${OLLAMA_HEALTH_TIMEOUT_SECONDS:-2}
-      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-300}
-    extra_hosts:
-      - host.docker.internal:host-gateway
+      AI_MODE_LLM_PROVIDER: openai
+      AI_MODE_REQUIRE_PROVIDER_READY: ${AI_MODE_REQUIRE_PROVIDER_READY:-true}
+      AI_MODE_DEFAULT_MODEL_PROFILE: ${AI_MODE_DEFAULT_MODEL_PROFILE:-remote-standard.v1}
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_HEALTH_TIMEOUT_SECONDS: ${OPENAI_HEALTH_TIMEOUT_SECONDS:-2}
+      OPENAI_HEALTH_CACHE_SECONDS: ${OPENAI_HEALTH_CACHE_SECONDS:-60}
+      OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-120}
+      OPENAI_MAX_RETRIES: ${OPENAI_MAX_RETRIES:-2}
+      OPENAI_PROMPT_CACHE_ENABLED: ${OPENAI_PROMPT_CACHE_ENABLED:-true}
+      OPENAI_ALLOW_INSECURE_HTTP: ${OPENAI_ALLOW_INSECURE_HTTP:-false}
     ports:
       - 127.0.0.1:${AI_MODE_PORT:-5005}:5005
+    secrets:
+      - openai_api_key
     volumes:
       - ai_mode_state:/var/lib/ai-mode
       - ./student-1/tool-catalog.yaml:/etc/ai-mode/propertyscope-tools.yaml:ro
@@ -56,45 +61,14 @@ services:
       - shared_platform
     mem_limit: ${AI_MODE_MEMORY_LIMIT:-512m}
     cpus: ${AI_MODE_CPU_LIMIT:-1.0}
+    pids_limit: 256
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     stop_grace_period: 35s
-
-  ollama:
-    profiles: [ollama-container]
-    image: ollama/ollama:0.32.5
-    init: true
-    restart: unless-stopped
-    command: [serve]
-    environment:
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
-    ports:
-      - 127.0.0.1:${OLLAMA_PORT:-11434}:11434
-    volumes:
-      - ollama_models:/root/.ollama
-    networks:
-      - shared_platform
-    mem_limit: ${OLLAMA_MEMORY_LIMIT:-4g}
-    cpus: ${OLLAMA_CPU_LIMIT:-4.0}
-    healthcheck:
-      test: [CMD, ollama, list]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 10s
-
-  ollama-init:
-    profiles: [ollama-container]
-    image: ollama/ollama:0.32.5
-    restart: "no"
-    depends_on:
-      ollama:
-        condition: service_healthy
-    command: [pull, "${OLLAMA_MODEL:-qwen2.5:3b}"]
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-    volumes:
-      - ollama_models:/root/.ollama
-    networks:
-      - shared_platform
 
   propertyscope-postgres:
     profiles: [release-0]
@@ -246,8 +220,11 @@ networks:
   shared_platform:
     name: 41026-asd-shared-platform
 
+secrets:
+  openai_api_key:
+    environment: OPENAI_API_KEY
+
 volumes:
   ai_mode_state:
-  ollama_models:
   propertyscope_artifacts:
   propertyscope_postgres_data:

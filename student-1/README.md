@@ -68,7 +68,7 @@ Open <http://localhost:5200>. The normal operator path is:
 6. Open **AI diagnosis** to start or revisit persistent shared AI-mode investigations. Leaving the
    page does not discard their history.
 
-Run `uv run scripts/dev.py down` when finished. Named model, AI history, PostgreSQL and artifact
+Run `uv run scripts/dev.py down` when finished. Named AI history, PostgreSQL and artifact
 volumes are preserved.
 
 ## Real-source captures

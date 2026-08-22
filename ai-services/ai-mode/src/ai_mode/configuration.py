@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
 
 DEFAULT_DATABASE_PATH = Path("instance/agent-state.sqlite3")
-DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
-DEFAULT_OLLAMA_TIMEOUT_SECONDS = 120.0
-DEFAULT_OLLAMA_HEALTH_TIMEOUT_SECONDS = 2.0
+DEFAULT_LLM_PROVIDER = "openai"
+DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_OPENAI_TIMEOUT_SECONDS = 120.0
+DEFAULT_OPENAI_HEALTH_TIMEOUT_SECONDS = 2.0
+DEFAULT_OPENAI_HEALTH_CACHE_SECONDS = 60.0
+DEFAULT_OPENAI_MAX_RETRIES = 2
+DEFAULT_OPENAI_PROMPT_CACHE_ENABLED = True
+DEFAULT_OPENAI_ALLOW_INSECURE_HTTP = False
 DEFAULT_MAX_MODEL_RESPONSE_BYTES = 1_048_576
 DEFAULT_MAX_REQUEST_BYTES = 65_536
 DEFAULT_MAX_TOOL_REQUEST_BYTES = 262_144
@@ -22,6 +28,7 @@ DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_OPERATIONS_ASSETS_PATH = (
     Path(__file__).resolve().parents[4] / "shared" / "frontend" / "operations" / "ai-mode"
 )
+SUPPORTED_LLM_PROVIDERS = frozenset({"openai"})
 SUPPORTED_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
 
 
@@ -31,15 +38,20 @@ class ConfigurationError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class Settings:
-    """Small, explicit set of Release 0 runtime settings."""
+    """Small, explicit set of AI-mode runtime settings."""
 
     database_path: Path = DEFAULT_DATABASE_PATH
-    ollama_base_url: str = DEFAULT_OLLAMA_BASE_URL
-    ollama_timeout_seconds: float = DEFAULT_OLLAMA_TIMEOUT_SECONDS
-    ollama_keep_alive: str | None = None
+    llm_provider: str = DEFAULT_LLM_PROVIDER
+    openai_api_key: str | None = field(default=None, repr=False)
+    openai_base_url: str = DEFAULT_OPENAI_BASE_URL
+    openai_timeout_seconds: float = DEFAULT_OPENAI_TIMEOUT_SECONDS
+    openai_health_timeout_seconds: float = DEFAULT_OPENAI_HEALTH_TIMEOUT_SECONDS
+    openai_health_cache_seconds: float = DEFAULT_OPENAI_HEALTH_CACHE_SECONDS
+    openai_max_retries: int = DEFAULT_OPENAI_MAX_RETRIES
+    openai_prompt_cache_enabled: bool = DEFAULT_OPENAI_PROMPT_CACHE_ENABLED
+    openai_allow_insecure_http: bool = DEFAULT_OPENAI_ALLOW_INSECURE_HTTP
     max_model_response_bytes: int = DEFAULT_MAX_MODEL_RESPONSE_BYTES
-    ollama_health_timeout_seconds: float = DEFAULT_OLLAMA_HEALTH_TIMEOUT_SECONDS
-    require_ollama_ready: bool = False
+    require_provider_ready: bool = False
     max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES
     max_tool_request_bytes: int = DEFAULT_MAX_TOOL_REQUEST_BYTES
     max_tool_response_bytes: int = DEFAULT_MAX_TOOL_RESPONSE_BYTES
@@ -49,7 +61,7 @@ class Settings:
     tool_catalog_paths: tuple[Path, ...] = ()
     model_registry_path: Path | None = None
     default_model_profile: str | None = None
-    evidence_access_token: str | None = None
+    evidence_access_token: str | None = field(default=None, repr=False)
     operations_enabled: bool = False
     operations_assets_path: Path = DEFAULT_OPERATIONS_ASSETS_PATH
     environment: str = DEFAULT_ENVIRONMENT
@@ -57,26 +69,52 @@ class Settings:
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
-        """Load settings without mutating process environment or performing I/O."""
+        """Load settings without mutating process environment; read an explicit secret file."""
         values = os.environ if environ is None else environ
-        base_url = values.get("OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL).rstrip("/")
-        # The course guide uses the OpenAI-compatible /v1 URL; this service intentionally
-        # uses Ollama's native API to retain structured output and detailed timings.
-        if base_url.endswith("/v1"):
-            base_url = base_url[:-3]
-        if not base_url.startswith(("http://", "https://")):
-            raise ConfigurationError("OLLAMA_BASE_URL must use http or https")
-
+        provider = values.get("AI_MODE_LLM_PROVIDER", DEFAULT_LLM_PROVIDER).strip().lower()
+        if provider not in SUPPORTED_LLM_PROVIDERS:
+            raise ConfigurationError(
+                f"AI_MODE_LLM_PROVIDER must be one of: {', '.join(sorted(SUPPORTED_LLM_PROVIDERS))}"
+            )
+        base_url = values.get("OPENAI_BASE_URL", DEFAULT_OPENAI_BASE_URL).rstrip("/")
+        allow_insecure_http = _boolean(
+            values.get(
+                "OPENAI_ALLOW_INSECURE_HTTP",
+                str(DEFAULT_OPENAI_ALLOW_INSECURE_HTTP),
+            ),
+            "OpenAI insecure HTTP opt-in",
+        )
+        _validate_provider_url(base_url, allow_insecure_http=allow_insecure_http)
+        api_key = _configured_secret(
+            values,
+            value_name="OPENAI_API_KEY",
+            file_name="OPENAI_API_KEY_FILE",
+        )
         timeout = _positive_float(
-            values.get("OLLAMA_TIMEOUT_SECONDS", str(DEFAULT_OLLAMA_TIMEOUT_SECONDS)),
-            "timeout",
+            values.get("OPENAI_TIMEOUT_SECONDS", str(DEFAULT_OPENAI_TIMEOUT_SECONDS)),
+            "OpenAI timeout",
         )
         health_timeout = _positive_float(
             values.get(
-                "OLLAMA_HEALTH_TIMEOUT_SECONDS",
-                str(DEFAULT_OLLAMA_HEALTH_TIMEOUT_SECONDS),
+                "OPENAI_HEALTH_TIMEOUT_SECONDS",
+                str(DEFAULT_OPENAI_HEALTH_TIMEOUT_SECONDS),
             ),
-            "health timeout",
+            "OpenAI health timeout",
+        )
+        health_cache = _bounded_float(
+            values.get(
+                "OPENAI_HEALTH_CACHE_SECONDS",
+                str(DEFAULT_OPENAI_HEALTH_CACHE_SECONDS),
+            ),
+            "OpenAI health cache",
+            minimum=1.0,
+            maximum=3_600.0,
+        )
+        max_retries = _bounded_int(
+            values.get("OPENAI_MAX_RETRIES", str(DEFAULT_OPENAI_MAX_RETRIES)),
+            "OpenAI maximum retries",
+            minimum=0,
+            maximum=5,
         )
         max_bytes = _bounded_int(
             values.get("AI_MODE_MAX_MODEL_RESPONSE_BYTES", str(DEFAULT_MAX_MODEL_RESPONSE_BYTES)),
@@ -102,10 +140,6 @@ class Settings:
             minimum=1_024,
             maximum=10_485_760,
         )
-        keep_alive_value = values.get("OLLAMA_KEEP_ALIVE")
-        keep_alive = keep_alive_value.strip() if keep_alive_value is not None else None
-        if keep_alive_value is not None and not keep_alive:
-            raise ConfigurationError("OLLAMA_KEEP_ALIVE cannot be empty")
         catalog_value = values.get("AI_MODE_TOOL_CATALOG_PATH", "").strip()
         catalog_values = values.get("AI_MODE_TOOL_CATALOG_PATHS", "").strip()
         if catalog_value and catalog_values:
@@ -117,7 +151,10 @@ class Settings:
         default_profile = values.get("AI_MODE_DEFAULT_MODEL_PROFILE", "").strip() or None
         if default_profile is not None and not _identifier(default_profile):
             raise ConfigurationError("AI_MODE_DEFAULT_MODEL_PROFILE is invalid")
-        evidence_token = values.get("AI_MODE_EVIDENCE_ACCESS_TOKEN", "").strip() or None
+        evidence_token = _optional_secret(
+            values.get("AI_MODE_EVIDENCE_ACCESS_TOKEN"),
+            "AI_MODE_EVIDENCE_ACCESS_TOKEN",
+        )
         if evidence_token is not None and len(evidence_token) < 16:
             raise ConfigurationError("AI_MODE_EVIDENCE_ACCESS_TOKEN must be at least 16 characters")
         queue_capacity = _bounded_int(
@@ -144,14 +181,25 @@ class Settings:
 
         return cls(
             database_path=Path(values.get("AI_MODE_DATABASE_PATH", str(DEFAULT_DATABASE_PATH))),
-            ollama_base_url=base_url,
-            ollama_timeout_seconds=timeout,
-            ollama_keep_alive=keep_alive,
+            llm_provider=provider,
+            openai_api_key=api_key,
+            openai_base_url=base_url,
+            openai_timeout_seconds=timeout,
+            openai_health_timeout_seconds=health_timeout,
+            openai_health_cache_seconds=health_cache,
+            openai_max_retries=max_retries,
+            openai_prompt_cache_enabled=_boolean(
+                values.get(
+                    "OPENAI_PROMPT_CACHE_ENABLED",
+                    str(DEFAULT_OPENAI_PROMPT_CACHE_ENABLED),
+                ),
+                "OpenAI prompt caching",
+            ),
+            openai_allow_insecure_http=allow_insecure_http,
             max_model_response_bytes=max_bytes,
-            ollama_health_timeout_seconds=health_timeout,
-            require_ollama_ready=_boolean(
-                values.get("AI_MODE_REQUIRE_OLLAMA_READY", "false"),
-                "strict Ollama readiness",
+            require_provider_ready=_boolean(
+                values.get("AI_MODE_REQUIRE_PROVIDER_READY", "false"),
+                "strict provider readiness",
             ),
             max_request_bytes=max_request_bytes,
             max_tool_request_bytes=max_tool_request_bytes,
@@ -184,6 +232,54 @@ class Settings:
         return ()
 
 
+def _validate_provider_url(value: str, *, allow_insecure_http: bool) -> None:
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ConfigurationError("OPENAI_BASE_URL must be an absolute http or https URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise ConfigurationError("OPENAI_BASE_URL must not contain credentials")
+    if (
+        parsed.scheme == "http"
+        and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
+        and not allow_insecure_http
+    ):
+        raise ConfigurationError(
+            "OPENAI_BASE_URL must use https; set OPENAI_ALLOW_INSECURE_HTTP=true "
+            "only for trusted local development"
+        )
+
+
+def _optional_secret(value: str | None, label: str) -> str | None:
+    if value is None:
+        return None
+    secret = value.strip()
+    if not secret:
+        return None
+    if len(secret) > 4_096 or any(character in secret for character in "\r\n"):
+        raise ConfigurationError(f"{label} is invalid")
+    return secret
+
+
+def _configured_secret(
+    values: Mapping[str, str],
+    *,
+    value_name: str,
+    file_name: str,
+) -> str | None:
+    direct = values.get(value_name, "").strip()
+    secret_path = values.get(file_name, "").strip()
+    if direct and secret_path:
+        raise ConfigurationError(f"set only one of {value_name} or {file_name}")
+    if not secret_path:
+        return _optional_secret(direct, value_name)
+    try:
+        with Path(secret_path).open(encoding="utf-8") as stream:
+            value = stream.read(4_097)
+    except OSError as exc:
+        raise ConfigurationError(f"{file_name} could not be read") from exc
+    return _optional_secret(value, file_name)
+
+
 def _catalog_paths(value: str) -> tuple[Path, ...]:
     if not value:
         return ()
@@ -203,6 +299,22 @@ def _positive_float(value: str, label: str) -> float:
         raise ConfigurationError(f"{label} must be numeric") from exc
     if parsed <= 0:
         raise ConfigurationError(f"{label} must be greater than zero")
+    return parsed
+
+
+def _bounded_float(
+    value: str,
+    label: str,
+    *,
+    minimum: float,
+    maximum: float,
+) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise ConfigurationError(f"{label} must be numeric") from exc
+    if not minimum <= parsed <= maximum:
+        raise ConfigurationError(f"{label} must be between {minimum:g} and {maximum:g}")
     return parsed
 
 

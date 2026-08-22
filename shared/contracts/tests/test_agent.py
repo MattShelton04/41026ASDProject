@@ -37,7 +37,7 @@ def _run(**changes: object) -> AgentRun:
         "objective": "Validate immutable run state",
         "status": RunStatus.QUEUED,
         "prompt_set": "default.v3",
-        "model_profile": "local-standard.v1",
+        "model_profile": "remote-standard.v1",
         "limits": RunLimits(),
         "created_at": NOW,
         "updated_at": NOW,

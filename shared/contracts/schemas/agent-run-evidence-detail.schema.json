@@ -489,6 +489,20 @@
           "title": "Provider",
           "type": "string"
         },
+        "provider_request_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Request Id"
+        },
         "rendered_input_hash": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Rendered Input Hash",
@@ -518,6 +532,32 @@
       "additionalProperties": false,
       "description": "Portable model timings and counts safe for developer display.",
       "properties": {
+        "cache_write_prompt_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Write Prompt Tokens"
+        },
+        "cached_prompt_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cached Prompt Tokens"
+        },
         "eval_duration_ms": {
           "anyOf": [
             {
@@ -582,6 +622,26 @@
           ],
           "default": null,
           "title": "Prompt Tokens"
+        },
+        "reasoning_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Tokens"
+        },
+        "retry_count": {
+          "default": 0,
+          "maximum": 5,
+          "minimum": 0,
+          "title": "Retry Count",
+          "type": "integer"
         },
         "total_duration_ms": {
           "minimum": 0,

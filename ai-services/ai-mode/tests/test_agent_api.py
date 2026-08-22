@@ -15,6 +15,7 @@ from shared_contracts import (
     TRACEPARENT_HEADER,
     AgentStep,
     ApprovalStatus,
+    ModelRoleName,
     RunStatus,
     StepPhase,
     StepStatus,
@@ -50,20 +51,31 @@ def test_model_registry_is_visible_and_unknown_profiles_are_rejected(app: Flask)
     )
 
     assert catalogue.status_code == 200
-    assert catalogue.get_json()["default_profile"] == "local-standard.v1"
-    assert {item["family"] for item in catalogue.get_json()["models"]} == {
-        "qwen",
-        "llama",
-        "deepseek",
+    assert catalogue.get_json()["default_profile"] == "remote-standard.v1"
+    assert {item["provider"] for item in catalogue.get_json()["models"]} == {"openai"}
+    assert {item["model_id"] for item in catalogue.get_json()["models"]} == {
+        "gpt-5.6-luna",
+        "gpt-5.6-terra",
     }
     assert_problem_detail(rejected.get_json(), status=422, code="model_profile_not_supported")
 
+    services = app.extensions["ai_mode_services"]
+    profile = services.model_registry.profiles[0]
+    services.model_registry = services.model_registry.model_copy(
+        update={
+            "profiles": (
+                profile.model_copy(
+                    update={"role_models": {ModelRoleName.REVIEWER: "gpt-5.6-terra"}}
+                ),
+            )
+        }
+    )
     incompatible = client.post(
         "/api/v1/agent-runs",
         json={
             "feature_key": "student-1-feature",
             "objective": "Find records",
-            "model_profile": "local-reasoning.v1",
+            "model_profile": "remote-standard.v1",
         },
     )
     assert_problem_detail(

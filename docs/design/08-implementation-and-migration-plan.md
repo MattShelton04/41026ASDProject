@@ -58,7 +58,7 @@ Before applying changes:
 
 1. Commit or stash the current repository.
 2. Record the current architecture/contract/frontend test output.
-3. Confirm local Python/Docker/Ollama versions and `.env` handling.
+3. Confirm local Python/Docker versions, OpenAI model access, and `.env` handling.
 4. Tag the baseline, for example `pre-propertyscope-redesign`.
 5. Agree on feature owners and route/API names.
 6. Keep the original long-form plans unchanged as source/attribution history.
@@ -241,7 +241,7 @@ Feature 5 implements composition only after providers publish stable contracts.
 8. follow-up task proposals and CRUD; and
 9. print view.
 
-The golden-path CI uses fake model/tool behavior. A live Ollama evaluation is additional evidence.
+The golden-path CI uses fake model/tool behavior. A live remote-provider evaluation is additional evidence.
 
 ## 10. Phase 7 — Release 1 extension
 

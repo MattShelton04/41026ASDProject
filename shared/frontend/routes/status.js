@@ -78,7 +78,7 @@ export function createStatusRoute({ config, announce }) {
       root.setAttribute("aria-busy", "true");
       refresh.disabled = true;
       cards.replaceChildren();
-      append(cards, ...["Shared product shell", "Property records", "Property data store", "Agent activity", "Local model"].map((name) => {
+      append(cards, ...["Shared product shell", "Property records", "Property data store", "Agent activity", "AI provider"].map((name) => {
         const card = el("div", "ps-card health-card health-card--loading");
         append(card, el("div", "ps-card__body", `Checking ${name}…`));
         return card;
@@ -108,11 +108,11 @@ export function createStatusRoute({ config, announce }) {
         }),
         agentApi,
         dependencyComponent(agentApi, {
-          name: "Local model",
+          name: "AI provider",
           kind: "AI dependency",
           owner: "Shared platform",
-          rawStatus: agentApi.payload?.checks?.ollama?.status,
-          detail: agentApi.payload?.checks?.ollama?.detail,
+          rawStatus: agentApi.payload?.checks?.llm_provider?.status,
+          detail: agentApi.payload?.checks?.llm_provider?.detail,
         }),
       ];
       const overall = overallReadiness(components);

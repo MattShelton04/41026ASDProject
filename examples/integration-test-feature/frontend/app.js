@@ -559,9 +559,12 @@ async function loadProfiles() {
   try {
     const { body } = await jsonRequest("/api/ai/model-profiles");
     for (const profile of body.profiles) {
-      const model = body.models.find((item) => item.key === profile.model_key);
+      const modelRoutes = Object.entries(profile.role_models).map(([role, modelKey]) => {
+        const model = body.models.find((item) => item.key === modelKey);
+        return `${role}: ${model?.model_id ?? modelKey}`;
+      });
       const option = document.createElement("option");
-      const supportsAgentRun = ["planner", "adapter"].every((role) => profile.intended_roles.includes(role));
+      const supportsAgentRun = ["planner", "adapter"].every((role) => role in profile.role_models);
       const supportsPlannerOutput = profile.maximum_output_tokens >= 1024;
       const selectable = supportsAgentRun && supportsPlannerOutput;
       option.value = profile.key;
@@ -572,7 +575,7 @@ async function loadProfiles() {
         : !supportsPlannerOutput
           ? " — smoke diagnostic only"
           : "";
-      option.textContent = `${profile.key} — ${model.ollama_tag} (${profile.context_tokens} ctx)${restriction}`;
+      option.textContent = `${profile.key} — ${modelRoutes.join(", ")} (${profile.context_tokens} ctx)${restriction}`;
       profileSelect.append(option);
     }
     agentOutput.textContent = `Ready. Default profile: ${body.default_profile}`;

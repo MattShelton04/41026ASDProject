@@ -177,7 +177,7 @@ The default developer profile may be `showcase` so teammates do not download ten
 
 ### Demonstrator/reviewer
 
-16. Show direct CRUD working with Ollama stopped.
+16. Show direct CRUD working with the LLM provider unavailable.
 17. Show a failed crime candidate release leaving the accepted release untouched.
 18. Run the Plan → Act → Observe → Adapt diagnosis and review-gated retry/publish path.
 19. Trace the release into Feature 3 and then into a Feature 5 dossier.
@@ -1448,7 +1448,7 @@ Expected phases:
 4. **Adapt:** preserve predecessor, propose a retry using the fixed fixture/profile, and pause for human review.
 5. **After approval:** invoke one idempotent retry/publish operation and record outcome.
 
-Maintain a deterministic scripted-model test and a stored successful Ollama trace.
+Maintain a deterministic scripted-model test and a stored successful live-provider trace.
 
 ## 13. Frontend plan
 
@@ -1582,7 +1582,7 @@ Mutation commands can be added for controlled developer recovery, but the assess
 - Display accepted and candidate versions together during review.
 - Require confirmation for delete/reject/publish actions.
 - Render structured safe errors and request IDs.
-- Preserve page functionality when Ollama is unavailable.
+- Preserve page functionality when the LLM provider is unavailable.
 - Do not require knowledge of adapter class names, database tables or internal task codes; translate these to operator language with an expandable technical detail panel.
 - Preserve filters and scroll position across HTMX polling; announce state changes through an accessible live region.
 - Use colour plus icons/text, never colour alone, for run/quality/coverage states.
@@ -1684,7 +1684,7 @@ Deliver:
 - frontend/backend/database/runner Docker targets and initial workflow; and
 - unit/database/component/frontend tests.
 
-Exit gate: browser → backend → database API → PostgreSQL source/job CRUD works with Ollama absent, and the fixture adapter passes the reusable conformance suite.
+Exit gate: browser → backend → database API → PostgreSQL source/job CRUD works with the LLM provider absent, and the fixture adapter passes the reusable conformance suite.
 
 ### Chunk 2 — property discovery vertical slice
 
@@ -1785,7 +1785,7 @@ Deliver:
 - real AI-mode HTTP integration;
 - durable run/event projection in Feature 1 UI;
 - idempotent protected retry/publish with approve/reject/reconcile from the browser; and
-- deterministic golden scenario plus live Ollama evaluation.
+- deterministic golden scenario plus live-provider evaluation.
 
 Exit gate: Plan/Act/Observe/Adapt uses real stored evidence and never performs an unreviewed write.
 
@@ -1881,7 +1881,7 @@ Exit gate: canonical quality gate and full group Compose/golden journey pass.
 - model cites exact run/release/check IDs;
 - model never proposes arbitrary command/source/URL;
 - model preserves previous accepted release; and
-- Ollama-unavailable state leaves direct functionality usable.
+- provider-unavailable state leaves direct functionality usable.
 
 ### Source acceptance matrix
 
@@ -1898,7 +1898,7 @@ For every executable source, keep a compact evidence fixture covering:
 | Interrupted worker | Lease recovery and successful resume |
 | Reprocess after transform change | Same raw hashes, new transform/builder version and candidate hash |
 | Consumer rejection | Rejection receipt visible; accepted watermark does not advance |
-| Internet/Ollama unavailable | Cached/direct non-AI product paths still work |
+| Internet/LLM provider unavailable | Cached/direct non-AI product paths still work |
 
 ## 17. CI, Docker, and operations
 
@@ -1932,7 +1932,7 @@ The runner shares code/image with the backend where practical but has a distinct
 | Reproducibility | Hash, adapter version, source release and transform version for every release |
 | Operability | Every run is startable, inspectable and recoverable from the web console; no terminal required |
 | Accessibility | Keyboard-complete CRUD and table alternative for map/status visualisation |
-| Availability | CRUD, discovery, manifests and release history work without Ollama/internet/prior warehouse |
+| Availability | CRUD, discovery, manifests and release history work without the LLM provider/internet/prior warehouse |
 
 ## 19. Release 1 MCP/RAG extension
 
@@ -2019,6 +2019,6 @@ Do not begin domain implementation until the team/tutor confirms:
 - Feature 5 can retrieve Feature 1's bounded report-section evidence.
 - Feature-specific AI is callable from the frontend and uses an approved model.
 - The golden agent run records real Plan/Act/Observe/Adapt tools and pauses before a protected write.
-- Direct functionality degrades cleanly when Ollama or internet is absent; cached/showcase data remains usable.
+- Direct functionality degrades cleanly when the LLM provider or internet is absent; cached/showcase data remains usable.
 - Student workflow, root Compose, shared theme/index and full integration tests pass.
 - Architecture, ERD, API, data provenance, prompt/evaluation, screenshots, run logs and contribution evidence are ready for the technical report/video.

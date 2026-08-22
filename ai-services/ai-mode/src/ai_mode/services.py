@@ -23,7 +23,7 @@ from ai_mode.configuration import Settings
 from ai_mode.operations import RunReader
 from ai_mode.persistence import SQLiteRunStore
 from ai_mode.prompts import PromptRegistry, RegistryPromptBuilder
-from ai_mode.providers import build_ollama_provider, configured_model_registry
+from ai_mode.providers import build_provider, configured_model_registry
 from ai_mode.queue import SerialRunQueue
 from ai_mode.tool_catalog import build_tool_runtime, load_tool_catalogs
 from shared_contracts import (
@@ -81,11 +81,11 @@ class AppServices:
 
 
 def build_services(settings: Settings) -> AppServices:
-    """Build the default Release 0 dependency graph without contacting Ollama."""
+    """Build the default dependency graph without contacting the model provider."""
     store = SQLiteRunStore(settings.database_path)
     store.initialize()
     model_registry, default_model_profile = configured_model_registry(settings)
-    provider = build_ollama_provider(
+    provider = build_provider(
         settings,
         registry=model_registry,
         readiness_profile=default_model_profile,

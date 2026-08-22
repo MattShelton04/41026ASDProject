@@ -1,14 +1,14 @@
 # Release 0
 
 Release 0 establishes the integrated frontend, backend/API, and database
-microservices; AI mode with Ollama and an approved LLM; the shared
+microservices; AI mode with a remote OpenAI model; the shared
 Plan -> Act -> Observe -> Adapt loop; Docker Compose; student CI; local testing;
 and the first report and showcase evidence.
 
 The currently integrated shared/Feature 1 baseline includes:
 
 - the product-facing shared home, mobile navigation and address hand-off;
-- live shared system status with separate API, store and local-model readiness;
+- live shared system status with separate API, store and remote-provider readiness;
 - bounded accepted-data and durable agent-run evidence references;
 - an explicit implemented/enabled/planned capability roadmap;
 - complete Property records exploration and data-operations routes; and
@@ -17,8 +17,8 @@ The currently integrated shared/Feature 1 baseline includes:
 These shared views consume only public HTTP projections. Features 2–5 remain honest planned
 capabilities until their independently owned frontends, backends and stores are integrated.
 
-See [`ollama-operations.md`](ollama-operations.md) for the canonical Docker Desktop /
-Compose runtime, native developer alternative, routing, smoke test, and troubleshooting.
+See [`openai-api-operations.md`](openai-api-operations.md) for remote-provider configuration,
+secret handling, the live smoke test, and troubleshooting.
 Student owners should use [`feature-onboarding.md`](feature-onboarding.md) after their
 topic and feature allocation are approved; it records integration and testing
 obligations without inventing domain behavior.
@@ -41,5 +41,5 @@ Before capturing submission evidence, run:
 uv run python scripts/check.py
 uv run scripts/dev.py test
 node --test student-1/tests/frontend/*.test.mjs shared/frontend/*.test.mjs shared/frontend/operations/ai-mode/*.test.mjs
-docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --file docker-compose.dev.yml --profile release-0 --profile ollama-container --profile integration-test config --quiet
+docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --file docker-compose.dev.yml --profile release-0 --profile integration-test config --quiet
 ```

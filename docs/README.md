@@ -11,8 +11,8 @@ Store maintained project documentation here throughout all three releases.
   service and contract design
 - [Agent-run state machine](architecture/agent-run-state-machine.md): normative Release 0
   execution/recovery model
-- [Ollama operations](release-0/ollama-operations.md): canonical local runtime and
-  troubleshooting guide
+- [OpenAI API operations](release-0/openai-api-operations.md): canonical provider setup,
+  secret handling, and troubleshooting guide
 - [Feature onboarding](release-0/feature-onboarding.md): requirements for approved student
   vertical slices
 

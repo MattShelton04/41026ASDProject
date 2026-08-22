@@ -15,9 +15,8 @@ def test_evidence_view_is_hidden_without_bearer_token_and_redacts_fields(
 ) -> None:
     settings = Settings(
         database_path=Path("unused.sqlite3"),
-        ollama_base_url="http://ollama.invalid",
-        ollama_timeout_seconds=1,
-        ollama_keep_alive="0",
+        openai_api_key=None,
+        openai_timeout_seconds=1,
         max_model_response_bytes=10_000,
         evidence_access_token="development-token",
     )

@@ -205,7 +205,7 @@ requesting private reasoning. If repair fails, the phase and run fail determinis
 
 ## Current boundaries and later releases
 
-The state machine, SQLite recovery, native Ollama adapter, HTTP run/review surface,
+The state machine, SQLite recovery, OpenAI Responses adapter, HTTP run/review surface,
 feature-scoped HTTP tool adapter, create-run idempotency, and resumable safe-event pages
 are implemented. The default tool registry remains empty until feature owners define
 their HTTP contracts. The integration-test feature proves feature-side mutation
@@ -228,7 +228,7 @@ transition rules; they do not create an independent free-form agent loop.
 
 Deterministic tests cover the legal graph, transaction rollback, schema repair,
 protected approval, exact idempotent resume, executor exceptions, and interruption in
-planning, acting, observing, and adapting. They do not require Docker, Ollama, Azure, or
+planning, acting, observing, and adapting. They do not require Docker, OpenAI credentials, Azure, or
 internet access:
 
 ```text

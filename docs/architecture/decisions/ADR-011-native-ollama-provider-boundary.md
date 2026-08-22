@@ -1,6 +1,6 @@
 # ADR-011: Access Ollama through a provider port and native API adapter
 
-- Status: Proposed for team approval; implemented as the Release 0 baseline
+- Status: Superseded by ADR-017 on 21 August 2026
 - Date: 1 August 2026
 - Owner: Shared platform team
 - Supersedes: None
