@@ -134,6 +134,7 @@ Direct bound ports may remain available for isolated development and marking evi
 | `/#system-status` | Shared shell | Live implemented-service readiness; planned features do not count as failures |
 | `/#evidence` | Shared shell | Bounded accepted-release and agent-run references |
 | `/#release-roadmap` | Shared shell | Honest implemented/planned capability view |
+| `/operations/ai-mode/` | AI-mode, through the shared edge | Read-only durable Agent activity and evidence |
 | `/features/data-platform/` | Feature 1 | Property search and data operations |
 | `/features/market-intelligence/` | Feature 2 | Reserved until its complete slice is integrated |
 | `/features/suburb-analytics/` | Feature 3 | Reserved until its complete slice is integrated |
@@ -152,10 +153,14 @@ Each feature owns its hash routes below its base. The baseline landing hashes ar
 
 An unavailable feature has no live link. The shell displays `Planned`, `Disabled` or `Unavailable`
 with an explanation; it must not redirect the user to Feature 1 or return an unrelated screen.
+Reserved feature paths redirect to the registry-backed `/#features` explanation until their
+complete slice is enabled. Unknown `/api/` paths return a structured Problem Details response and
+must never fall through to shell HTML.
 
 ### 4.2 Feature registry
 
-One domain-neutral browser registry is the navigation source of truth. Each entry contains:
+One domain-neutral browser registry is the deployed navigation and availability projection. Each
+entry contains:
 
 ```text
 id, feature_key, label, short_label, owner, summary,
@@ -167,7 +172,11 @@ them. `ready` is a live health observation and must not be stored as static conf
 card becomes a link only when it is implemented and enabled; readiness is shown separately.
 
 The registry must not contain feature entities, API payloads or business calculations. Compose
-services stay explicit—the registry does not generate hidden topology.
+services stay explicit—the registry does not generate hidden topology. An implemented feature's
+validated `feature.yaml` remains the machine-readable ownership and service-path authority; shell
+tests must cross-check its identity and canonical frontend path against the browser projection.
+Placeholder registry entries for unallocated features reserve product routes only and do not stand
+in for a feature manifest.
 
 ### 4.3 In-feature navigation
 
@@ -278,19 +287,21 @@ sequenceDiagram
     participant D as Consumer database API
     F1->>F1: Build immutable artefact and manifest
     F1->>F1: Validate schema, checksum and coverage
-    F1-->>C: Offer candidate release
+    H->>F1: Request publication or reject candidate
+    F1-->>C: Offer candidate manifest and immutable artefact
     C->>C: Validate owned schema and semantics
-    C-->>H: Acceptance result and counts
-    H->>F1: Approve or reject publication
-    F1-->>C: Accepted release reference
     C->>D: Atomic idempotent import
     D-->>C: Receipt, release ID and counts
+    C-->>F1: Validated consumer receipt
+    F1->>F1: Atomically advance accepted pointer
+    F1-->>H: Accepted release reference and receipt
 ```
 
 The manifest includes producer feature, target feature, schema version, release ID, content hash,
-record count, coverage/freshness metadata and creation time. The consumer owns acceptance rules and
-retains its previous accepted release on failure. Publication/import operations require an
-idempotency key and auditable receipt.
+record count, coverage/freshness metadata and creation time. The consumer owns acceptance rules.
+Feature 1 records and validates the consumer receipt before atomically advancing its accepted
+pointer; a rejection, unavailable consumer or invalid receipt leaves the previous accepted release
+live. Publication/import operations require an idempotency key and auditable receipt.
 
 ### 5.4 Runtime composition
 
