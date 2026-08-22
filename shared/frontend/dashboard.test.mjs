@@ -79,3 +79,10 @@ test("shared routes use public same-origin projections and safe DOM rendering", 
   assert.doesNotMatch(statusRoute, /innerHTML/);
   assert.doesNotMatch(evidenceRoute, /innerHTML/);
 });
+
+test("design tokens expose shared type, control, focus and layering contracts", () => {
+  const tokens = readFileSync(new URL("./design-system/tokens.css", import.meta.url), "utf8");
+  for (const token of ["--ps-type-body", "--ps-leading-body", "--ps-control-height", "--ps-focus-outline", "--ps-z-navigation"]) {
+    assert.match(tokens, new RegExp(`${token}:`));
+  }
+});

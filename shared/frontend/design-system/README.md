@@ -28,6 +28,19 @@ comes last and may compose shared primitives, but should not redefine token valu
 
 Classes without the `ps-` prefix remain private to a page or feature.
 
+## Token categories
+
+Use shared tokens for concepts that should look and behave alike across features:
+
+- `--ps-type-*`, `--ps-leading-*` and `--ps-weight-*` for the common type scale;
+- `--ps-ink-*`, `--ps-ocean-*`, surface and semantic-state tokens for colour;
+- `--ps-space-*`, `--ps-content-max`, `--ps-control-height*` and `--ps-shell-*` for rhythm and shell sizing;
+- `--ps-radius-*` and `--ps-shadow-*` for shape and elevation; and
+- `--ps-duration`, `--ps-ease`, `--ps-focus-*` and `--ps-z-*` for shared interaction behaviour.
+
+Feature styles may introduce private layout variables, but must not redeclare a `--ps-*` token.
+If the shared value is unsuitable, propose a new semantic token instead of silently overriding it.
+
 ## Evidence vocabulary
 
 Use semantic states consistently:

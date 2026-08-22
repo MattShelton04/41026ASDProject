@@ -5,6 +5,18 @@
   --ps-font-sans: Inter, "Avenir Next", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --ps-font-display: "Avenir Next", "Segoe UI", var(--ps-font-sans);
   --ps-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --ps-type-xs: 0.72rem;
+  --ps-type-sm: 0.84rem;
+  --ps-type-body: 0.94rem;
+  --ps-type-lg: 1.12rem;
+  --ps-type-title: clamp(2rem, 4vw, 3.3rem);
+  --ps-type-display: clamp(2.55rem, 7vw, 5.5rem);
+  --ps-leading-tight: 1.08;
+  --ps-leading-body: 1.5;
+  --ps-leading-relaxed: 1.65;
+  --ps-weight-medium: 650;
+  --ps-weight-bold: 750;
+  --ps-weight-heavy: 810;
 
   /* Ink and surfaces */
   --ps-ink-950: #10262e;
@@ -95,6 +107,15 @@
   --ps-space-12: 3rem;
   --ps-space-16: 4rem;
   --ps-content-max: 1240px;
+  --ps-control-height: 42px;
+  --ps-control-height-large: 58px;
+  --ps-shell-topbar-height: 66px;
+  --ps-shell-rail-width: 224px;
   --ps-duration: 160ms;
   --ps-ease: cubic-bezier(.2, .8, .2, 1);
+  --ps-focus-outline: 3px solid rgba(21, 148, 149, 0.38);
+  --ps-focus-offset: 2px;
+  --ps-z-navigation: 30;
+  --ps-z-dialog: 100;
+  --ps-z-skip-link: 1000;
 }

@@ -6,7 +6,7 @@
 .ps-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 .ps-button {
-  min-height: 42px;
+  min-height: var(--ps-control-height);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -17,7 +17,7 @@
   background: var(--ps-paper);
   color: var(--ps-ink-900);
   box-shadow: var(--ps-shadow-xs);
-  font-weight: 740;
+  font-weight: var(--ps-weight-bold);
   line-height: 1;
   text-decoration: none;
   cursor: pointer;
@@ -68,7 +68,7 @@
 .ps-card p:last-child { margin-bottom: 0; }
 
 .ps-input-shell {
-  min-height: 58px;
+  min-height: var(--ps-control-height-large);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -89,7 +89,7 @@
 
 .ps-toast {
   position: fixed;
-  z-index: 100;
+  z-index: var(--ps-z-dialog);
   right: 1rem;
   bottom: 1rem;
   max-width: min(26rem, calc(100% - 2rem));
