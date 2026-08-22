@@ -31,7 +31,7 @@ tools:
       name: data.runs.v1
       version: v1
       feature_key: student-1-propertyscope-data-platform
-      description: List bounded ingestion run summaries filtered by status.
+      description: List bounded ingestion run summaries filtered by status. Use only to discover a run when no exact run ID is known; use data.run_inspect.v1 for a supplied run ID.
       input_schema:
         type: object
         properties:
@@ -97,7 +97,7 @@ tools:
       name: data.run_inspect.v1
       version: v1
       feature_key: student-1-propertyscope-data-platform
-      description: Inspect one ingestion run and bounded task, artifact, error, and quality evidence.
+      description: Inspect one exact ingestion run and bounded task, artifact, error, and quality evidence. Prefer this tool whenever the objective supplies a run ID.
       input_schema:
         type: object
         properties:

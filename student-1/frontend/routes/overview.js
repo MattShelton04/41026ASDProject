@@ -1,6 +1,6 @@
 import { collection } from "../core/api.js";
 import { append, el, link } from "../core/dom.js";
-import { formatDate, humanise, isInternalAssessmentFixture, statusTone } from "../core/formats.js?v=6";
+import { formatDate, humanise, isInternalAssessmentFixture, statusTone } from "../core/formats.js?v=7";
 import { ACTIVE_RUN_STATES } from "../core/polling.js";
 import { badge, pageHeading, panel } from "../components/layout.js";
 import { cell, makeTable } from "../components/tables.js";

@@ -2,8 +2,8 @@ import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js";
 import { nextAgentPollDelay } from "../core/polling.js";
-import { parseRoute, routeQuery } from "../core/router.js?v=6";
-import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=6";
+import { parseRoute, routeQuery } from "../core/router.js?v=7";
+import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=7";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
 
@@ -28,7 +28,7 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
       const releases = collection(releasesResult.body);
       const actionable = releases.filter((release) => !["accepted", "superseded", "draft"].includes(release.status));
       const selectedReleaseId = context.startsWith("release:") ? context.slice("release:".length) : "";
-      const selectedRelease = actionable.find((release) => release.id === selectedReleaseId);
+      const selectedRelease = releases.find((release) => release.id === selectedReleaseId);
       const candidates = selectedRelease
         ? [selectedRelease, ...actionable.filter((release) => release.id !== selectedRelease.id).slice(0, 7)]
         : actionable.slice(0, 8);
@@ -44,7 +44,7 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
         append(view, traceHost);
         await renderAgentTrace(selectedAgentRun, traceHost);
       }
-      append(view, await diagnosisForm(candidates, context));
+      if (!selectedAgentRun) append(view, await diagnosisForm(candidates, context));
       if (historyResult.error) append(view, el("div", "notice warning", `Diagnosis history is temporarily unavailable.${problemSuffix(historyResult.error)}`));
       else if (!history.length) append(view, emptyState("No diagnosis history", "Start the first bounded investigation above. Its durable evidence will remain available after navigation or reload."));
       else append(view, diagnosisHistory(history, selectedAgentRun));

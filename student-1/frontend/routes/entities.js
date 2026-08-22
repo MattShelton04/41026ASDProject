@@ -3,7 +3,7 @@ import { append, button, el, link } from "../core/dom.js";
 import { formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js";
 import { isPsiJob } from "../core/forms.js";
 import { routeQuery } from "../core/router.js";
-import { filterToolbar } from "../components/forms.js";
+import { filterToolbar } from "../components/forms.js?v=7";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
