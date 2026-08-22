@@ -1,9 +1,9 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js";
+import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js?v=17";
 import { nextAgentPollDelay } from "../core/polling.js";
 import { parseRoute, routeQuery } from "../core/router.js?v=7";
-import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=7";
+import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
 
@@ -12,14 +12,14 @@ const AGENT_ACTIVITY_URL = window.PROPERTYSCOPE_AGENT_ACTIVITY_URL
     ? "/operations/ai-mode/"
     : `${window.location.protocol}//${window.location.hostname}:5005/operations/ai-mode/`);
 const OBJECTIVES = Object.freeze({
-  compare: "Required outcome: compare this candidate with its accepted predecessor; quantify material schema, record-count, coverage, quality, and publication differences; distinguish missing evidence from a pass; confirm accepted data remains unchanged; and recommend one specific human-reviewed safe recovery. Do not publish or mutate data.",
-  quality: "Required outcome: inspect this candidate and its exact ingestion run; identify each blocking or failed deterministic quality check and its observed impact; distinguish an empty result set from a pass; confirm prior accepted observations remain available; and recommend one specific human-reviewed bounded reprocess. Do not execute it.",
-  consumer: "Required outcome: inspect this candidate's publication receipts and accepted predecessor; identify each failed or retryable consumer delivery with exact evidence; distinguish no receipt from successful delivery; confirm accepted data remains available; and recommend one specific recovery that requires separate human review. Do not publish or mutate data.",
+  compare: "Compare this unpublished version with the current published version. Check schema, record count, coverage, quality and publishing differences. Make clear when information is missing. Recommend one next step for human review. Do not publish or change data.",
+  quality: "Review this unpublished version and its exact data update. Explain each required or failed data check and its impact. Make clear when information is missing. Recommend one retry option for human review. Do not execute it.",
+  consumer: "Review this unpublished version, its publishing records and the current published version. Explain each failed or retryable delivery. Make clear when a receipt is missing. Recommend one next step for human review. Do not publish or change data.",
 });
 
 export function createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender }) {
   async function renderAi(context = "") {
-    loading("Loading diagnosis workspace");
+    loading("Loading AI review");
     try {
       const [releasesResult, historyResult] = await Promise.all([
         request("dataset-releases?limit=100"),
@@ -35,8 +35,8 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
       const history = collection(historyResult.body);
       const selectedAgentRun = context && !context.startsWith("release:") ? context : "";
       view.replaceChildren();
-      append(view, pageHeading("Data recovery", "Assisted diagnosis", "Investigate one unpublished dataset and its processing run. The assistant can gather evidence and propose a recovery, but a person must decide what happens next.", selectedAgentRun ? [link("New diagnosis", "#ai", "button secondary"), sharedRunLink(selectedAgentRun, "Open activity history")] : [link("Open activity history", AGENT_ACTIVITY_URL, "button secondary")]));
-      append(view, el("div", "notice", "Property search, sources, import jobs, published datasets and quality evidence remain available if the local model is offline. Previously recorded observations are never hidden by a later failure."));
+      append(view, pageHeading("Data review", "AI review", "Ask the assistant to compare an unpublished dataset with the version currently in use. You remain in control of every publishing decision.", selectedAgentRun ? [link("New AI review", "#ai", "button secondary"), sharedRunLink(selectedAgentRun, "Open activity history")] : [link("Open activity history", activityUrl(), "button secondary")]));
+      append(view, el("div", "notice", "AI review is optional. Property search and data management continue to work if the model is unavailable."));
       if (selectedAgentRun) {
         const traceHost = el("div");
         traceHost.dataset.agentTrace = selectedAgentRun;
@@ -45,15 +45,15 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
         await renderAgentTrace(selectedAgentRun, traceHost);
       }
       if (!selectedAgentRun) append(view, await diagnosisForm(candidates, context));
-      if (historyResult.error) append(view, el("div", "notice warning", `Diagnosis history is temporarily unavailable.${problemSuffix(historyResult.error)}`));
-      else if (!history.length) append(view, emptyState("No diagnosis history", "Start the first bounded investigation above. Its durable evidence will remain available after navigation or reload."));
+      if (historyResult.error) append(view, el("div", "notice warning", `AI review history is temporarily unavailable.${problemSuffix(historyResult.error)}`));
+      else if (!history.length) append(view, emptyState("No AI reviews yet", "Start a review above. Its result will remain available in activity history."));
       else append(view, diagnosisHistory(history, selectedAgentRun));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
   }
 
   function diagnosisHistory(history, selectedAgentRun) {
-    return disclosurePanel("Recent diagnosis history", `${history.length} recorded investigations · newest first`, makeTable(
-      [{ label: "Diagnosis" }, { label: "State" }, { label: "Evidence calls" }, { label: "Started" }, { label: "Evidence" }], history,
+    return disclosurePanel("Recent AI reviews", `${history.length} recorded reviews · newest first`, makeTable(
+      [{ label: "Review" }, { label: "State" }, { label: "Source checks" }, { label: "Started" }, { label: "Result" }], history,
       (run) => {
         const row = el("tr"); row.dataset.agentRunId = run.id;
         const status = cell(badge(run.status)); status.dataset.agentField = "status";
@@ -66,30 +66,29 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
 
   async function diagnosisForm(candidates, context) {
     const host = el("section", "panel"); const heading = el("div", "panel-heading"); const copy = el("div");
-    append(copy, el("h2", "", "Start a diagnosis"), el("p", "", "Plan → Act → Observe → Adapt, using read-only evidence and a separate human decision")); append(heading, copy); const body = el("div", "panel-body"); append(host, heading, body);
-    if (!candidates.length) { append(body, emptyState("Nothing needs diagnosis", "A draft, candidate, review or rejected dataset will appear here when it needs investigation.")); return host; }
+    append(copy, el("h2", "", "Start an AI review"), el("p", "", "The assistant reads recorded data checks and recommends a next step. It cannot publish changes.")); append(heading, copy); const body = el("div", "panel-body"); append(host, heading, body);
+    if (!candidates.length) { append(body, emptyState("Nothing needs review", "An unpublished or rejected dataset will appear here when it needs attention.")); return host; }
     const form = el("form", "form-grid");
-    const releaseLabel = el("label", "wide"); releaseLabel.htmlFor = "diagnosis-release"; append(releaseLabel, el("span", "", "Dataset to investigate")); const releaseSelect = el("select"); releaseSelect.id = "diagnosis-release"; releaseSelect.required = true;
+    const releaseLabel = el("label", "wide"); releaseLabel.htmlFor = "diagnosis-release"; append(releaseLabel, el("span", "", "Dataset to review")); const releaseSelect = el("select"); releaseSelect.id = "diagnosis-release"; releaseSelect.required = true;
     for (const release of candidates) { const option = el("option", "", `${humanise(release.dataset_id)} · ${release.release_version} · ${humanise(release.status)}`); option.value = release.id; option.selected = context === `release:${release.id}`; append(releaseSelect, option); }
     append(releaseLabel, releaseSelect);
-    const objectiveLabel = el("label", "wide"); objectiveLabel.htmlFor = "diagnosis-objective"; append(objectiveLabel, el("span", "", "Investigation goal")); const objective = el("select"); objective.id = "diagnosis-objective"; objective.required = true;
-    append(objective, option("compare", "Compare candidate, predecessor and failures"), option("quality", "Inspect blocking quality evidence"), option("consumer", "Inspect consumer publication failure")); append(objectiveLabel, objective);
+    const objectiveLabel = el("label", "wide"); objectiveLabel.htmlFor = "diagnosis-objective"; append(objectiveLabel, el("span", "", "What should the AI check?")); const objective = el("select"); objective.id = "diagnosis-objective"; objective.required = true;
+    append(objective, option("compare", "Compare with the published version"), option("quality", "Explain failed data checks"), option("consumer", "Explain a publishing failure")); append(objectiveLabel, objective);
     const requestedGoal = routeQuery(location.hash).get("goal");
     if (Object.hasOwn(OBJECTIVES, requestedGoal)) objective.value = requestedGoal;
     const scope = el("div", "notice wide"); scope.setAttribute("aria-live", "polite");
-    const updateScope = () => { const release = candidates.find((item) => item.id === releaseSelect.value) || candidates[0]; scope.replaceChildren(document.createTextNode(`The assistant will inspect ${humanise(release.dataset_id)} ${release.release_version}, its processing evidence and the previous accepted version for ${researchAreaLabel(release.target_feature)}. It can only read evidence and propose a next step.`), technicalDetails({ release_id: release.id, ingestion_run_id: release.ingestion_run_id }, "Technical evidence boundary")); };
+    const updateScope = () => { const release = candidates.find((item) => item.id === releaseSelect.value) || candidates[0]; scope.replaceChildren(document.createTextNode(`The AI will review ${humanise(release.dataset_id)} ${release.release_version}, its data checks and the current published version. It can recommend a next step, but it cannot publish or change data.`), technicalDetails({ release_id: release.id, ingestion_run_id: release.ingestion_run_id }, "Review references")); };
     releaseSelect.addEventListener("change", updateScope); updateScope();
-    const review = el("label", "wide review-acknowledgement"); const check = el("input"); check.type = "checkbox"; check.required = true; append(review, check, el("span", "", "I understand this run can propose a recovery, but cannot approve, publish or execute a protected mutation on my behalf."));
-    const submit = button("Start diagnosis", "button primary"); submit.type = "submit";
-    append(form, releaseLabel, objectiveLabel, scope, review, submit); append(body, form);
+    const submit = button("Start AI review", "button primary"); submit.type = "submit";
+    append(form, releaseLabel, objectiveLabel, scope, submit); append(body, form);
     form.addEventListener("submit", async (event) => {
       event.preventDefault(); if (!form.reportValidity()) return; submit.disabled = true;
-      const progress = el("div", "notice", "Creating a durable Agent activity run…"); body.prepend(progress);
+      const progress = el("div", "notice", "Starting AI review…"); body.prepend(progress);
       try {
-        const result = await mutate(`dataset-releases/${releaseSelect.value}/agent-runs`, { body: { objective: OBJECTIVES[objective.value] }, success: "Diagnosis started" });
+        const result = await mutate(`dataset-releases/${releaseSelect.value}/agent-runs`, { body: { objective: OBJECTIVES[objective.value] }, success: "AI review started" });
         const run = entity(result, "agent_run"); location.hash = `#ai/${run.id || result.id}`;
       } catch (error) {
-        progress.className = "notice warning"; progress.textContent = `${error.status === 503 ? "The model service is unavailable. Deterministic evidence and recovery controls remain usable." : error.message}${problemSuffix(error)}`; submit.disabled = false;
+        progress.className = "notice warning"; progress.textContent = `${error.status === 503 ? "AI review is temporarily unavailable. Property search and data management still work." : error.message}${problemSuffix(error)}`; submit.disabled = false;
       }
     });
     return host;
@@ -113,26 +112,26 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     const providerRetryCount = steps.reduce((total, step) => total + Number(step.output?.model_invocation?.provider_retry_count || 0), 0);
     const body = el("div", "stack");
     append(body, detailList([["State", badge(run.status)], ["Evidence calls", formatNumber(run.tool_call_count)], ["Iterations", formatNumber(run.iteration_count)]]));
-    if (run.final_result) append(body, panel("Recommended recovery", "Evidence-backed summary for a human decision", recoveryBrief(run.final_result)));
-    append(body, el("div", "notice", "This assistant can inspect bounded evidence and recommend a next step. It cannot silently publish, retry, approve or replace accepted data."));
+    if (run.final_result) append(body, panel("Recommended next step", "AI summary for your review", recoveryBrief(run.final_result)));
+    append(body, el("div", "notice", "The AI can read recorded checks and recommend a next step. It cannot publish, retry or approve changes."));
     if (detailError) append(body, el("div", "notice warning", `Latest run summary is unavailable. Previously recorded events remain below.${problemSuffix(detailError)}`));
-    if (eventsError) append(body, el("div", "notice warning", `Durable event retrieval failed; no prior observation has been replaced by a negative conclusion.${problemSuffix(eventsError)}`));
-    if (run.error) append(body, el("div", "notice negative", `${humanise(run.error.code || "Agent run failed")}: ${run.error.message || "The durable trace records where the investigation stopped."}`));
-    if (repairCount) append(body, el("div", "notice", `The assistant corrected ${formatNumber(repairCount)} malformed structured response${repairCount === 1 ? "" : "s"} before continuing. Repairs are schema-informed and bounded; every attempt remains in model invocation metadata.`));
+    if (eventsError) append(body, el("div", "notice warning", `Some activity details could not be loaded. Previously recorded results have not been changed.${problemSuffix(eventsError)}`));
+    if (run.error) append(body, el("div", "notice negative", `${humanise(run.error.code || "AI review failed")}: ${run.error.message || "Activity history shows where the review stopped."}`));
+    if (repairCount) append(body, el("div", "notice", `The assistant corrected ${formatNumber(repairCount)} invalid response${repairCount === 1 ? "" : "s"} before continuing. Each attempt remains available in the technical details.`));
     if (providerRetryCount) append(body, el("div", "notice", `Recovered from ${formatNumber(providerRetryCount)} incomplete model response${providerRetryCount === 1 ? "" : "s"} by requesting the complete structured result again within the original run deadline.`));
-    if (failedSteps.length && run.status === "succeeded") append(body, el("div", "notice positive", `Recovered automatically from ${formatNumber(failedSteps.length)} evidence issue${failedSteps.length === 1 ? "" : "s"}. Failed attempts remain visible below and were not rewritten as successful observations.`));
-    if (!steps.length) append(body, emptyState("No durable events yet", "The run exists, but no Plan, Act, Observe or Adapt event is currently available."));
+    if (failedSteps.length && run.status === "succeeded") append(body, el("div", "notice positive", `The review recovered from ${formatNumber(failedSteps.length)} source-check issue${failedSteps.length === 1 ? "" : "s"}. Earlier failed attempts remain in the activity details.`));
+    if (!steps.length) append(body, emptyState("No activity yet", "The review has started, but no steps are available yet."));
     else {
       const timeline = el("ol", "timeline");
       for (const step of steps) append(timeline, traceStep(step));
       append(body, run.final_result
-        ? disclosurePanel("How the assistant reached this answer", "Plan · Act · Observe · Adapt with every durable evidence call", timeline)
-        : panel("Live evidence trail", "Plan · Act · Observe · Adapt", timeline));
+        ? disclosurePanel("How the assistant reached this answer", "Recorded review steps and source checks", timeline)
+        : panel("Review progress", "Recorded steps and source checks", timeline));
     }
     if (["review_required", "awaiting_review"].includes(run.status)) append(body, el("div", "notice warning", "Proposed action only: a protected retry or publication is paused. Review and execution are separate human-controlled steps in Agent activity; no write has occurred."));
     append(body, technicalDetails({ model_profile: run.model_profile, agent_run_id: run.id || id, request_id: run.request_id || detailResult.value?.requestId || null }, "Technical run references"));
-    const controls = el("div", "dialog-actions"); append(controls, sharedRunLink(id, "Open durable run detail"), button("Refresh evidence", "button secondary", () => renderAgentTrace(id, host))); append(body, controls);
-    host.replaceChildren(panel(run.final_result ? "Assisted diagnosis result" : "Diagnosis in progress", "Grounded in bounded, durable Feature 1 evidence", body));
+    const controls = el("div", "dialog-actions"); append(controls, sharedRunLink(id, "Open full activity details"), button("Refresh result", "button secondary", () => renderAgentTrace(id, host))); append(body, controls);
+    host.replaceChildren(panel(run.final_result ? "AI review result" : "AI review in progress", "Based on recorded Feature 1 checks", body));
     host.setAttribute("aria-busy", "false");
     host.dataset.agentStatus = run.status;
     updateHistorySummary(id, run);
@@ -174,9 +173,15 @@ function diagnosisTitle(run) {
   if (objective.includes("quality")) return "Quality-check investigation";
   if (objective.includes("consumer")) return "Consumer delivery investigation";
   if (objective.includes("compare")) return "Candidate comparison";
-  return "Bounded data investigation";
+  return "Data review";
 }
-function sharedRunLink(runId, label) { return link(label, `${AGENT_ACTIVITY_URL}?run=${encodeURIComponent(runId)}&feature_key=student-1-propertyscope-data-platform`, "button secondary"); }
+function activityUrl(runId = "") {
+  const url = new URL(AGENT_ACTIVITY_URL, window.location.href);
+  url.searchParams.set("feature_key", "student-1-propertyscope-data-platform");
+  if (runId) url.searchParams.set("run", runId);
+  return url.href;
+}
+function sharedRunLink(runId, label) { return link(label, activityUrl(runId), "button secondary"); }
 function problemSuffix(error) { return error?.requestId ? ` Request ID ${error.requestId}.` : ""; }
 
 function traceStep(step) {
@@ -193,48 +198,48 @@ function traceStep(step) {
   let summary = step.summary || step.message || humanise(step.status);
   let evidence = step.evidence || step.observation || null;
   if (phase === "plan" && plan) {
-    title = `Plan · ${formatNumber(plan.actions?.length || 0)} evidence call${plan.actions?.length === 1 ? "" : "s"}`;
+    title = `Review plan · ${formatNumber(plan.actions?.length || 0)} source check${plan.actions?.length === 1 ? "" : "s"}`;
     summary = plan.goal;
     evidence = plan;
   } else if (phase === "act" && call.tool_name) {
-    title = `Act · ${humanise(call.tool_name)}`;
+    title = `Source check · ${humanise(call.tool_name)}`;
     summary = result.outcome === "succeeded"
       ? `Validated ${formatNumber(result.evidence_references?.length || 0)} service reference${result.evidence_references?.length === 1 ? "" : "s"}.`
-      : `${humanise(result.error?.code || step.error?.code || "Evidence call failed")}: ${result.error?.message || step.error?.message || "The issue was recorded for adaptation."}`;
+      : `${humanise(result.error?.code || step.error?.code || "Source check failed")}: ${result.error?.message || step.error?.message || "The issue was recorded before the review continued."}`;
     evidence = { arguments: call.arguments, result };
   } else if (phase === "observe" && (result.outcome || observation)) {
-    title = result.outcome === "succeeded" ? "Observe · evidence accepted" : "Observe · issue retained";
+    title = result.outcome === "succeeded" ? "Result recorded" : "Issue recorded";
     summary = result.outcome === "succeeded"
-      ? "The validated tool result is now durable evidence for the next decision."
-      : `The ${humanise(result.error?.code || "evidence failure")} was passed to Adapt instead of being treated as a successful observation.`;
+      ? "The source result was recorded for the next decision."
+      : `The ${humanise(result.error?.code || "source failure")} was kept as an issue instead of being treated as a successful result.`;
     evidence = { observation, tool_result: result };
   } else if (phase === "adapt" && adaptation) {
-    title = `Adapt · ${humanise(adaptation.decision)}`;
+    title = `Next decision · ${humanise(adaptation.decision)}`;
     summary = adaptation.justification;
     evidence = { adaptation, model_invocation: invocation };
   }
   append(detail, el("h3", "", title), el("p", "", summary));
   if (invocation?.model) append(detail, el("span", "timeline-meta", `${invocation.provider || "model"} · ${invocation.model}${invocation.repair_count ? ` · ${invocation.repair_count} repaired response${invocation.repair_count === 1 ? "" : "s"}` : ""}${invocation.provider_retry_count ? ` · ${invocation.provider_retry_count} incomplete response retried` : ""}`));
   if (call.tool_name) append(detail, el("code", "mono timeline-tool", call.tool_name));
-  if (evidence) append(detail, technicalDetails(evidence, phase === "act" ? "Inspect call and bounded evidence" : "Inspect durable phase evidence"));
+  if (evidence) append(detail, technicalDetails(evidence, phase === "act" ? "Inspect source call" : "Inspect step details"));
   append(item, el("span", `timeline-marker ${statusTone(step.status)}`, stateLabel(step.status).symbol), detail);
   return item;
 }
 
 function recoveryBrief(result) {
   const brief = el("div", "recovery-brief");
-  append(brief, el("p", "recovery-summary", result.summary || "The assistant completed a bounded evidence review."));
+  append(brief, el("p", "recovery-summary", result.summary || "The assistant completed its review."));
   if (Array.isArray(result.findings) && result.findings.length) {
     const section = el("section"); const list = el("ul", "finding-list");
     for (const finding of result.findings) append(list, el("li", "", finding));
     append(section, el("h3", "", "Key findings"), list); append(brief, section);
   }
   if (result.recommended_next_step) append(brief, resultCallout("Recommended next step", result.recommended_next_step, "recommendation"));
-  if (result.safety_note) append(brief, resultCallout("Safety boundary", result.safety_note, "safety"));
+  if (result.safety_note) append(brief, resultCallout("What did not change", result.safety_note, "safety"));
   if (Array.isArray(result.evidence) && result.evidence.length) {
     const section = el("section"); const list = el("ul", "evidence-list");
     for (const reference of result.evidence) append(list, el("li", "", reference));
-    append(section, el("h3", "", "Evidence cited"), list); append(brief, section);
+    append(section, el("h3", "", "Sources used"), list); append(brief, section);
   }
   append(brief, technicalDetails(result, "Inspect structured result"));
   return brief;

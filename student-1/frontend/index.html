@@ -5,20 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#10262e">
     <meta name="description" content="PropertyScope property discovery and data evidence">
-    <title>PropertyScope | Property records</title>
+    <title>PropertyScope | Property data</title>
     <link rel="stylesheet" href="./design-system/tokens.css?v=0.2">
     <link rel="stylesheet" href="./design-system/base.css?v=0.2">
     <link rel="stylesheet" href="./design-system/components.css?v=0.2">
-    <link rel="stylesheet" href="./styles.css?v=9">
-    <script type="module" src="./app.js?v=11"></script>
+    <link rel="stylesheet" href="./styles.css?v=11">
+  <script type="module" src="./app.js?v=18"></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="topbar">
       <a class="brand" data-product-home href="http://localhost:5100/" aria-label="PropertyScope product home">
         <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m12 3-8 4 8 4 8-4-8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg></span>
-        <span><strong>PropertyScope NSW</strong><small>Property records</small></span>
+        <span><strong>PropertyScope NSW</strong><small>Property research workspace</small></span>
       </a>
+      <form id="header-property-search" class="topbar-search" role="search">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <label class="visually-hidden" for="header-property-query">Search Property data</label>
+        <input id="header-property-query" type="search" placeholder="Search Property data by address or reference" autocomplete="street-address">
+      </form>
+      <nav class="global-nav" aria-label="PropertyScope navigation">
+        <a data-product-path="#home" href="http://localhost:5100/#home">Home</a>
+        <a data-product-path="#features" href="http://localhost:5100/#features">Research areas</a>
+        <a data-product-path="#system-status" href="http://localhost:5100/#system-status">Data status</a>
+        <a data-product-path="#evidence" href="http://localhost:5100/#evidence">Sources &amp; history</a>
+      </nav>
       <div class="topbar-actions">
         <div id="service-state" class="service-state checking" role="status">
           <span class="status-dot" aria-hidden="true"></span>
@@ -30,35 +41,27 @@
       </div>
     </header>
 
-    <div class="workspace-strip" aria-label="Workspace status"><span><i aria-hidden="true"></i> Property records available</span><span>Accepted data stays available during review</span><span>NSW coverage</span></div>
+    <div class="workspace-strip" aria-label="Current research area and data status"><span class="workspace-strip__area"><b>Current research area</b> Property data</span><span><i aria-hidden="true"></i> Property records available</span><span>NSW coverage</span><span>Sources and uncertainty shown</span></div>
 
     <div class="app-shell">
       <aside id="primary-nav" class="sidebar" aria-label="Primary navigation">
         <a class="context-card" href="#properties">
           <span class="context-icon" aria-hidden="true">⌁</span>
-          <div><strong>Property records</strong><small>Search and maintain</small></div>
+          <div><small>Current research area</small><strong>Property data</strong></div>
         </a>
         <nav>
-          <p class="nav-label">Start here</p>
+          <p class="nav-label">Property research</p>
           <a href="#properties" data-route="properties"><span aria-hidden="true">⌖</span>Property search</a>
-          <p class="nav-label">Keep data ready</p>
-          <a href="#overview" data-route="overview"><span aria-hidden="true">◫</span>Data health</a>
+          <p class="nav-label">Data management</p>
+          <a href="#overview" data-route="overview"><span aria-hidden="true">◫</span>Data overview</a>
           <a href="#jobs" data-route="jobs"><span aria-hidden="true">◇</span>Data updates</a>
-          <a href="#runs" data-route="runs"><span aria-hidden="true">▷</span>Processing runs</a>
-          <a href="#releases" data-route="releases"><span aria-hidden="true">▱</span>Published datasets</a>
-          <a href="#ai" data-route="ai"><span aria-hidden="true">✦</span>Assisted diagnosis</a>
-          <details class="advanced-nav">
-            <summary>Advanced operations</summary>
-            <a href="#data-products" data-route="data-products"><span aria-hidden="true">▤</span>Product contracts</a>
-            <a href="#sources" data-route="sources"><span aria-hidden="true">◉</span>Source registry</a>
-            <a href="#quality" data-route="quality"><span aria-hidden="true">✓</span>Quality checks</a>
-            <a href="#artifacts" data-route="artifacts"><span aria-hidden="true">⬡</span>Files &amp; lineage</a>
-            <a href="#coverage" data-route="coverage"><span aria-hidden="true">▦</span>Data coverage</a>
-          </details>
+          <a href="#runs" data-route="runs"><span aria-hidden="true">▷</span>Update history</a>
+          <a href="#releases" data-route="releases"><span aria-hidden="true">▱</span>Published data</a>
         </nav>
         <div class="sidebar-note">
-          <a data-product-home href="http://localhost:5100/">← Back to PropertyScope</a>
-          <span>Search the accepted property record or review how its data was sourced, checked and published.</span>
+          <a data-product-home href="http://localhost:5100/">← Back to research workspace</a>
+          <a data-product-path="operations/ai-mode/?feature_key=student-1-propertyscope-data-platform" href="http://localhost:5100/operations/ai-mode/?feature_key=student-1-propertyscope-data-platform">Activity history</a>
+          <span>Specialist quality, file and coverage details are available from the relevant update or dataset.</span>
         </div>
       </aside>
 

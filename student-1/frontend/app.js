@@ -1,27 +1,29 @@
 import { API_BASE, newRequestId, requestJson } from "./core/api.js";
 import { append, el } from "./core/dom.js";
-import { humanise } from "./core/formats.js";
+import { humanise } from "./core/formats.js?v=17";
 import { parseJsonField } from "./core/forms.js";
 import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
 import { parseRoute } from "./core/router.js?v=7";
 import { waitForDialog } from "./components/dialogs.js";
-import { formField } from "./components/forms.js";
+import { formField } from "./components/forms.js?v=17";
 import { renderLoading } from "./components/states.js";
-import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=8";
-import { createEntityRoutes } from "./routes/entities.js?v=9";
-import { createDataProductRoutes } from "./routes/data-products.js?v=10";
-import { createEvidenceRoutes } from "./routes/evidence.js";
-import { renderOverview } from "./routes/overview.js?v=11";
-import { createPropertyRoutes } from "./routes/properties.js?v=7";
-import { createReleaseRoutes } from "./routes/releases.js?v=11";
-import { createRunPlanner } from "./routes/run-plan.js";
-import { createRunRoutes } from "./routes/runs.js?v=7";
+import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=17";
+import { createEntityRoutes } from "./routes/entities.js?v=17";
+import { createDataProductRoutes } from "./routes/data-products.js?v=17";
+import { createEvidenceRoutes } from "./routes/evidence.js?v=17";
+import { renderOverview } from "./routes/overview.js?v=17";
+import { createPropertyRoutes } from "./routes/properties.js?v=17";
+import { createReleaseRoutes } from "./routes/releases.js?v=17";
+import { createRunPlanner } from "./routes/run-plan.js?v=17";
+import { createRunRoutes } from "./routes/runs.js?v=17";
 
 const view = document.querySelector("#view");
 const liveRegion = document.querySelector("#live-region");
 const serviceState = document.querySelector("#service-state");
 const sidebar = document.querySelector("#primary-nav");
 const navToggle = document.querySelector("#nav-toggle");
+const headerPropertySearch = document.querySelector("#header-property-search");
+const headerPropertyQuery = document.querySelector("#header-property-query");
 const entityDialog = document.querySelector("#entity-dialog");
 const entityForm = document.querySelector("#entity-form");
 const actionDialog = document.querySelector("#action-dialog");
@@ -34,6 +36,9 @@ const healthUrl = window.location.pathname.startsWith("/features/data-platform/"
   ? "/api/shared-health/data-platform"
   : "/health/ready";
 for (const item of document.querySelectorAll("[data-product-home]")) item.href = productHomeUrl;
+for (const item of document.querySelectorAll("[data-product-path]")) {
+  item.href = new URL(item.dataset.productPath, new URL(productHomeUrl, window.location.href)).href;
+}
 
 const state = { pollTimer: null, lastRunStatus: "", lastAgentStatus: "", requests: new Map() };
 const generationGuard = createGenerationGuard();
@@ -80,7 +85,7 @@ const SOURCE_FIELDS = [
   { name: "name", label: "Source name", required: true },
   { name: "publisher", label: "Publisher", required: true },
   { name: "source_url", label: "Attribution URL", type: "url", required: true, wide: true, help: "Metadata only; acquisition remains allowlisted" },
-  { name: "adapter_key", label: "Registered adapter", required: true },
+  { name: "adapter_key", label: "Connector", required: true },
   { name: "cadence", label: "Update cadence", required: true },
   { name: "licence_id", label: "Licence", required: true },
   { name: "licence_url", label: "Licence URL", type: "url", required: true },
@@ -95,7 +100,7 @@ const JOB_FIELDS = [
   { name: "name", label: "Job name", required: true },
   { name: "profile_key", label: "Registered profile", required: true },
   { name: "profile_version", label: "Profile version", required: true },
-  { name: "adapter_key", label: "Registered adapter", required: true },
+  { name: "adapter_key", label: "Connector", required: true },
   { name: "release_builder_key", label: "Release builder", required: true },
   { name: "import_profile_key", label: "Import profile", required: true },
   { name: "import_profile_version", label: "Import profile version", required: true },
@@ -103,7 +108,7 @@ const JOB_FIELDS = [
   { name: "dataset_id", label: "Dataset ID", required: true },
   { name: "refresh_strategy", label: "Refresh strategy", options: ["full_snapshot", "append_only_partitioned", "partitioned_snapshot", "manual_versioned_import"], required: true },
   { name: "default_run_mode", label: "Default run mode", options: ["full_refresh", "reprocess_cached"], required: true },
-  { name: "scope_json", label: "Bounded default scope", type: "json", wide: true },
+  { name: "scope_json", label: "Default update scope", type: "json", wide: true },
   { name: "quality_policy_key", label: "Quality policy", required: true },
   { name: "quality_policy_version", label: "Quality policy version", required: true },
   { name: "max_parallelism", label: "Maximum parallel tasks", type: "number", min: 1, required: true },
@@ -215,6 +220,11 @@ async function renderRoute({ focus = false } = {}) {
 entityForm.addEventListener("submit", (event) => { event.preventDefault(); if (event.submitter?.value === "cancel") entityDialog.close("cancel"); else if (entityForm.reportValidity()) entityDialog.close("save"); });
 actionForm.addEventListener("submit", (event) => { event.preventDefault(); actionDialog.close(event.submitter?.value || "cancel"); });
 navToggle.addEventListener("click", () => { const open = sidebar.classList.toggle("open"); navToggle.setAttribute("aria-expanded", String(open)); navToggle.querySelector(".visually-hidden").textContent = open ? "Close navigation" : "Open navigation"; });
+headerPropertySearch.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const query = headerPropertyQuery.value.trim();
+  location.hash = query ? `#properties?q=${encodeURIComponent(query)}` : "#properties";
+});
 sidebar.addEventListener("click", (event) => { if (event.target.closest("a")) closeNavigation(); });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && sidebar.classList.contains("open")) closeNavigation({ restoreFocus: true }); });
 window.addEventListener("hashchange", () => renderRoute({ focus: true }));

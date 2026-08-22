@@ -6,7 +6,7 @@ export function renderLoading(view, title = "Loading evidence") {
   const box = el("div");
   const spinner = el("div", "spinner");
   spinner.setAttribute("aria-hidden", "true");
-  append(box, spinner, el("h2", "", title), el("p", "", "Requesting a bounded view from the data platform…"));
+  append(box, spinner, el("h2", "", title), el("p", "", "Loading the latest available information…"));
   append(section, box);
   append(view, section);
 }

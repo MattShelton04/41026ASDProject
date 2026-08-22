@@ -61,18 +61,17 @@ Use `uv run scripts/dev.py up --offline` when validating Feature 1 without an Op
 Database migrations and the deterministic showcase baseline are automatic in both modes; no SQL,
 seed script, or Docker Desktop action is required.
 
-Open <http://localhost:5200>. The normal operator path is:
+Open <http://localhost:5200>. The main product path is:
 
-1. Open **Jobs**, choose a registered job and select **Run now** or **Backfill**.
-2. Select deterministic showcase/test data, preview the bounded plan, then launch it.
-3. Follow durable task progress from **Runs**; failed work exposes retry/reprocess controls and an
-   interrupted lease exposes resume.
-4. Open the generated candidate under **Releases**. Inspect quality evidence and preview its
-   actual rows before accepting or rejecting it.
-5. Accepted G-NAF releases become searchable under **Properties**. Candidate rows are deliberately
-   invisible until publication.
-6. Open **AI diagnosis** to start or revisit persistent shared AI-mode investigations. Leaving the
-   page does not discard their history.
+1. Use **Property search** to find a NSW address and review the sources available for it.
+2. Use **Data overview** to check whether published property data is current or needs attention.
+3. Open **Data updates**, choose an update, then select **Start update** or **Load earlier data**.
+4. Preview the source, limits and proposed work, then follow progress in **Update history**.
+5. Review new versions under **Published data** before publishing or rejecting them. Data checks,
+   files and coverage are opened from the update or version they explain instead of appearing as
+   separate primary destinations.
+6. When a version needs interpretation, select **Review with AI**. AI review is optional, cannot
+   publish changes and remains available later in **Activity history**.
 
 The acquisition path can also run without browser actions. This queues the registered deterministic
 fixture, waits for all runner and loader stages, and reports the retained candidate release:
@@ -176,8 +175,9 @@ identifiers are replaced or dropped at ingress rather than becoming misleading c
 The production browser remains framework-free and calls only the Feature 1 backend. Cross-cutting
 behavior is split under `frontend/core/` (API/Problem Details, routing, formatting/evidence,
 forms and polling guards), reusable DOM primitives live under `frontend/components/`, and migrated
-screens live under `frontend/routes/`. Overview, sources/jobs, run planning, runs/run detail and
-property discovery/detail are route-owned; `app.js` remains the transition composition root for
-releases, evidence and AI diagnosis until those routes move in the same behavior-preserving
-sequence. The independently built frontend image copies shared design-system v0.1 assets, while
-the development overlay mounts the same source files for reload.
+screens live under `frontend/routes/`. The primary product navigation contains Property search,
+Data overview, Data updates, Update history and Published data. Source definitions, product
+contracts, quality checks, files and coverage remain available as contextual specialist routes but
+are not presented as competing top-level workflows. `app.js` is the transition composition root.
+The independently built frontend image copies shared design-system v0.1 assets, while the
+development overlay mounts the same source files for reload.

@@ -1,6 +1,6 @@
-import { capabilityState } from "../capabilities.js";
-import { featureRegistry } from "../features.js";
-import { append, badge, el, link, pageHeader } from "../core.js";
+import { capabilityState } from "../capabilities.js?v=10";
+import { featureRegistry } from "../features.js?v=10";
+import { append, badge, el, link, pageHeader } from "../core.js?v=10";
 
 function featureCard(feature) {
   const card = el("article", "ps-card feature-directory-card");
@@ -12,17 +12,11 @@ function featureCard(feature) {
   append(copy, el("p", "ps-card__eyebrow", feature.shortLabel), el("h2", "", feature.label));
   append(heading, icon, copy);
   const state = capabilityState(feature);
-  const owner = el("dl", "feature-directory-card__facts");
-  for (const [term, value] of [["Owner", feature.owner], ["Route", feature.frontendBase]]) {
-    const row = el("div");
-    append(row, el("dt", "", term), el("dd", term === "Route" ? "mono" : "", value));
-    append(owner, row);
-  }
-  append(body, heading, el("p", "", feature.summary), owner);
+  append(body, heading, el("p", "", feature.summary));
   const actions = el("div", "feature-directory-card__actions");
   append(actions, badge(state.label, state.tone));
-  if (feature.href) append(actions, link("Open research area", feature.href, "ps-button ps-button--primary"));
-  else append(actions, el("span", "feature-directory-card__unavailable", "No live route yet"));
+  if (feature.href) append(actions, link(`Open ${feature.label}`, feature.href, "ps-button ps-button--primary"));
+  else append(actions, el("span", "feature-directory-card__unavailable", "Coming later"));
   append(body, actions);
   append(card, body);
   return card;
@@ -30,13 +24,13 @@ function featureCard(feature) {
 
 export function createFeaturesRoute({ config }) {
   return function renderFeatures(root) {
-    append(root, pageHeader("Research workspace", "PropertyScope research areas", "Five independently owned feature slices share one product entry, visual language and evidence contract. Planned areas stay distinct from unavailable live services.", [link("View system status", "#system-status", "ps-button")]));
+    append(root, pageHeader("Research workspace", "PropertyScope research areas", "Start with a verified property record, then add market, suburb, site and planning context as those research tools become available.", [link("Check what’s available", "#release-roadmap", "ps-button")]));
     const grid = el("div", "ps-grid ps-grid-2 feature-directory-grid");
     append(grid, ...featureRegistry(config).map(featureCard));
     append(root, grid);
 
     const boundary = el("aside", "product-disclaimer feature-directory-boundary");
-    append(boundary, el("strong", "", "One application, independent ownership."), document.createTextNode(" Each feature owns its frontend, backend, database and domain decisions. Cross-feature work uses versioned HTTP contracts; no feature reads another feature's database."));
+    append(boundary, el("strong", "", "Property data is available now."), document.createTextNode(" Other research areas are clearly marked as planned and cannot be opened until they are ready."));
     append(root, boundary);
   };
 }

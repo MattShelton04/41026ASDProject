@@ -37,8 +37,8 @@ def test_enabled_dashboard_serves_hardened_assets(app_services: AppServices) -> 
     test_asset = client.get("/operations/ai-mode/assets/polling.test.mjs")
 
     assert page.status_code == 200
-    assert b"PropertyScope | Agent activity" in page.data
-    assert b"Recorded assisted activity" in page.data
+    assert b"PropertyScope | Activity history" in page.data
+    assert b"Recorded AI reviews" in page.data
     assert b'href="/"' in page.data
     assert b"http://localhost:5100/" not in page.data
     assert page.headers["Cache-Control"] == "no-store"

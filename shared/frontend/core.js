@@ -34,8 +34,8 @@ export function formatNumber(value) {
 
 export function researchAreaLabel(value) {
   const labels = {
-    "feature-1": "Property records",
-    "student-1-propertyscope-data-platform": "Property records",
+    "feature-1": "Property data",
+    "student-1-propertyscope-data-platform": "Property data",
     "feature-2": "Sales and market",
     "feature-3": "Suburb context",
     "feature-4": "Site and planning",

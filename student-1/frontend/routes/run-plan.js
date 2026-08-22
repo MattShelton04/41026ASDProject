@@ -1,8 +1,8 @@
 import { entity } from "../core/api.js";
 import { append, button, el } from "../core/dom.js";
-import { humanise } from "../core/formats.js";
+import { humanise } from "../core/formats.js?v=17";
 import { isPsiJob, liveProfileLabel, parseJsonField, psiYearRange } from "../core/forms.js";
-import { technicalDetails } from "../components/layout.js";
+import { technicalDetails } from "../components/layout.js?v=17";
 
 export function createRunPlanner({ request, mutate, confirmAction, showToast }) {
   return async function openPlanDialog(job, capabilities = null, { intent = "run" } = {}) {
@@ -17,11 +17,11 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
     const cachedPsiYears = psi ? runtime.cached_source_years?.["psi-sales"] || [] : [];
     const currentYear = new Date().getFullYear();
     append(wrapper, el("div", `notice ${isBackfill ? "warning" : ""}`, isBackfill
-      ? "Backfill creates a new full-refresh run for an explicit bounded scope. Accepted data is not replaced until a candidate passes review and publication."
-      : "Run now creates a durable run from this registered job. Preview the deterministic task plan before launch."));
+      ? "Loading earlier data starts a separate update. Published data changes only after the new version passes review."
+      : "Preview the source, work and limits before starting this data update."));
 
     const modeLabel = el("label", "field");
-    append(modeLabel, el("span", "", "Run mode"));
+    append(modeLabel, el("span", "", "Update method"));
     const mode = el("select"); mode.name = "run_mode";
     for (const value of capabilities?.supported_modes || capabilities?.run_modes || ["full_refresh", "reprocess_cached"]) {
       const option = el("option", "", humanise(value));
@@ -34,14 +34,14 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
     append(wrapper, modeLabel);
 
     const profileLabel = el("label", "field");
-    append(profileLabel, el("span", "", "Acquisition data"));
+    append(profileLabel, el("span", "", "Data source"));
     const scopeProfile = el("select"); scopeProfile.name = "scope_profile";
-    const showcaseOption = el("option", "", "Deterministic showcase records"); showcaseOption.value = "showcase";
-    const testOption = el("option", "", "Small deterministic test records"); testOption.value = "test";
+    const showcaseOption = el("option", "", "Example data (recommended)"); showcaseOption.value = "showcase";
+    const testOption = el("option", "", "Small test sample"); testOption.value = "test";
     append(scopeProfile, showcaseOption, testOption);
     if (runtime.implemented_live_profiles?.includes(importProfile)) {
       const liveLabel = liveProfileLabel(importProfile);
-      const liveOption = el("option", "", liveAvailable ? liveLabel : `${liveLabel} requires --full-data`);
+      const liveOption = el("option", "", liveAvailable ? liveLabel : `${liveLabel} (not available here)`);
       liveOption.value = "full-data";
       liveOption.disabled = !liveAvailable;
       append(scopeProfile, liveOption);
@@ -50,8 +50,8 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
       && [...scopeProfile.options].some((option) => option.value === job.scope_json.profile && !option.disabled)
       ? job.scope_json.profile : "showcase";
     append(profileLabel, scopeProfile, el("small", "field-help", liveAvailable
-      ? "Live acquisition captures every record in the selected source partitions; archive safety checks fail the run instead of truncating it."
-      : "Live acquisition is available only for connected sources in the explicit --full-data stack; fixtures are never substituted silently."));
+      ? "Official source data is available. The update stops if a source file fails validation."
+      : "Official source imports are disabled in this workspace. Example data never substitutes for an official-source update."));
     append(wrapper, profileLabel);
 
     let firstYear = null;
@@ -95,7 +95,7 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
       maximumRecords.max = String(Math.min(Number(job.max_rows || 50000), 50000));
       maximumRecords.required = true;
       maximumRecords.value = String(job.scope_json?.maximum_records || 5000);
-      append(limitLabel, maximumRecords, el("small", "field-help", "The live bulk archive is streamed once, but only this bounded number of addresses enters the candidate release."));
+      append(limitLabel, maximumRecords, el("small", "field-help", "Only this many addresses will be included in the new version."));
       append(wrapper, limitLabel);
     }
 
@@ -128,24 +128,24 @@ export function createRunPlanner({ request, mutate, confirmAction, showToast }) 
       return value;
     };
 
-    const preview = button("Preview deterministic plan", "button secondary");
+    const preview = button("Preview update", "button secondary");
     const evidence = el("div");
     append(wrapper, preview, evidence);
     preview.addEventListener("click", async () => {
       preview.disabled = true;
-      evidence.replaceChildren(el("p", "", "Validating limits and proposed work…"));
+      evidence.replaceChildren(el("p", "", "Checking the source, limits and proposed work…"));
       try {
         const payload = { run_mode: mode.value, scope: requestedScope() };
         const result = await request(`jobs/${job.id}/plans`, { method: "POST", body: payload });
-        const scopeSummary = psi && payload.scope.all_history ? "Complete PSI history: annual archives from 1990 plus current weekly updates" : psi ? `${payload.scope.years.length} PSI annual partition${payload.scope.years.length === 1 ? "" : "s"}: ${payload.scope.years.join(", ")}` : payload.scope.profile === "full-data" ? "Live registered source" : "Deterministic bounded scope";
-        evidence.replaceChildren(el("div", "notice", `Plan validated · ${scopeSummary}. Review task, cache/network work and limits before launch.`), technicalDetails(result.body, "Plan evidence"));
+        const scopeSummary = psi && payload.scope.all_history ? "Complete sales history: annual archives from 1990 plus current weekly updates" : psi ? `${payload.scope.years.length} annual sales partition${payload.scope.years.length === 1 ? "" : "s"}: ${payload.scope.years.join(", ")}` : payload.scope.profile === "full-data" ? "Official source data" : "Example data";
+        evidence.replaceChildren(el("div", "notice", `Update checked · ${scopeSummary}. Review the work and limits before starting.`), technicalDetails(result.body, "Technical plan details"));
       } catch (error) { evidence.replaceChildren(el("div", "notice negative", `${error.message} Request ID ${error.requestId}`)); }
       finally { preview.disabled = false; }
     });
-    const confirmed = await confirmAction({ title: `${isBackfill ? "Backfill" : "Run"} ${job.name}?`, description: "A durable run will be created with a new idempotency key. The runner processes it independently.", label: isBackfill ? "Start backfill" : "Launch run", tone: "primary", extra: wrapper });
+    const confirmed = await confirmAction({ title: `${isBackfill ? "Load earlier data for" : "Start"} ${job.name}?`, description: "This creates a separate update that you can follow in Update history.", label: isBackfill ? "Load earlier data" : "Start update", tone: "primary", extra: wrapper });
     if (!confirmed) return;
     try {
-      const body = await mutate(`jobs/${job.id}/runs`, { body: { run_mode: mode.value, scope: requestedScope() }, success: isBackfill ? "Backfill requested" : "Run requested" });
+      const body = await mutate(`jobs/${job.id}/runs`, { body: { run_mode: mode.value, scope: requestedScope() }, success: isBackfill ? "Earlier-data update started" : "Data update started" });
       const run = entity(body, "run");
       location.hash = `#runs/${run.id}`;
     } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }

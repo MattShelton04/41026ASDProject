@@ -1,8 +1,8 @@
 import { collection } from "../core/api.js";
 import { append, el, link } from "../core/dom.js";
-import { formatDate, humanise, statusTone } from "../core/formats.js?v=11";
+import { displayName, formatDate, humanise, statusTone } from "../core/formats.js?v=17";
 import { ACTIVE_RUN_STATES } from "../core/polling.js";
-import { badge, pageHeading, panel } from "../components/layout.js";
+import { badge, pageHeading, panel } from "../components/layout.js?v=17";
 import { cell, makeTable } from "../components/tables.js";
 import { emptyState, renderLoading } from "../components/states.js";
 
@@ -21,7 +21,7 @@ export async function renderOverview({ view, request }) {
   }));
   const failures = results.filter((result) => result.status === "rejected");
   view.replaceChildren();
-  append(view, pageHeading("Property records", "Data operations overview", "Manage the sources and processing work that keep NSW property records current, checked and ready for research.", [link("Browse import jobs", "#jobs", "button primary"), link("Register a source", "#sources", "button secondary")]));
+  append(view, pageHeading("Property data", "Data overview", "Check whether property data is current and review recent updates.", [link("View data updates", "#jobs", "button primary"), link("Manage sources", "#sources", "button secondary")]));
   if (failures.length) append(view, el("div", "notice warning", `${failures.length} supporting feed${failures.length === 1 ? " is" : "s are"} temporarily unavailable. The information that could be loaded is still shown below.`));
   const active = runs.filter((run) => ACTIVE_RUN_STATES.has(String(run.status).toLowerCase())).length;
   const latestByJob = [];
@@ -38,10 +38,10 @@ export async function renderOverview({ view, request }) {
   const stats = el("section", "stat-grid");
   stats.setAttribute("aria-label", "Data readiness summary");
   for (const [label, value, note, tone] of [
-    ["Processing now", active, "Imports currently running", "info"],
-    ["Needs attention", failed, "Failed runs to review", failed ? "negative" : "neutral"],
-    ["Stale datasets", stale, "Published data past its freshness window", stale ? "warning" : "neutral"],
-    ["Published datasets", accepted, "Available to property research", "positive"],
+    ["Updating now", active, "Data updates in progress", "info"],
+    ["Update problems", failed, "Latest updates that need review", failed ? "negative" : "neutral"],
+    ["Out-of-date data", stale, "Published sources past their review date", stale ? "warning" : "neutral"],
+    ["Published sources", accepted, "Available in property research", "positive"],
   ]) {
     const card = el("article", `stat-card ${tone}`);
     append(card, el("span", "stat-label", label), el("strong", "stat-value", value), el("span", "stat-note", note));
@@ -53,21 +53,21 @@ export async function renderOverview({ view, request }) {
   if (latestFailure) {
     const alert = el("div", "notice negative notice-actions");
     const copy = el("div");
-    append(copy, el("strong", "", "A recent data update needs review"), el("div", "", `${latestFailure.job_name || "Processing run"} failed. Published data remains available while the failed run is investigated.`));
-    append(alert, copy, link("Review run", `#runs/${latestFailure.id}`, "button secondary small"));
+    append(copy, el("strong", "", "A data update failed"), el("div", "", `${displayName(latestFailure.job_name || "Data update")} did not finish. The current published version is still in use.`));
+    append(alert, copy, link("View failure", `#runs/${latestFailure.id}`, "button secondary small"));
     append(view, alert);
   }
 
   const grid = el("div", "dashboard-grid");
   const recentBody = runs.length ? makeTable(
-    [{ label: "Run" }, { label: "Mode" }, { label: "Status" }, { label: "Requested" }], runs.slice(0, 8),
+    [{ label: "Update" }, { label: "Method" }, { label: "Status" }, { label: "Started" }], runs.slice(0, 8),
     (run) => {
       const row = el("tr");
-      append(row, cell(link(run.job_name || `Run ${String(run.id).slice(0, 8)}`, `#runs/${run.id}`), "primary-cell"), cell(humanise(run.run_mode)), cell(badge(run.status)), cell(formatDate(run.requested_at || run.created_at)));
+      append(row, cell(link(displayName(run.job_name || `Update ${String(run.id).slice(0, 8)}`), `#runs/${run.id}`), "primary-cell"), cell(humanise(run.run_mode)), cell(badge(run.status)), cell(formatDate(run.requested_at || run.created_at)));
       return row;
     },
-    "Recent ingestion runs",
-  ) : emptyState("No processing runs yet", "Open an import job to preview and start a bounded data update.", link("Open import jobs", "#jobs", "button secondary"));
+    "Recent data updates",
+  ) : emptyState("No updates yet", "Choose a saved data update to preview and start it.", link("View data updates", "#jobs", "button secondary"));
 
   const freshness = el("div", "stack");
   const sourceBody = el("div");
@@ -76,17 +76,17 @@ export async function renderOverview({ view, request }) {
     const item = el("div", "coverage-card");
     const release = releases.find((candidate) => candidate.source_definition_id === source.id && candidate.status === "accepted");
     item.classList.add(statusTone(release?.freshness_status || (release ? "accepted" : "unavailable")));
-    append(item, el("strong", "", source.name), el("span", "", release ? `${release.release_version} · published ${formatDate(release.accepted_at)}` : "No published dataset"));
+    append(item, el("strong", "", displayName(source.name)), el("span", "", release ? `${release.release_version} · published ${formatDate(release.accepted_at)}` : "No published data"));
     append(sourceBody, item);
   }
   const coverageBody = el("div", "coverage-grid");
   for (const item of coverage.slice(0, 6)) {
     const card = el("div", `coverage-card ${statusTone(item.status)}`);
-    append(card, el("strong", "", item.locality || item.area || "NSW"), el("span", "", `${item.dataset || item.dataset_id || "Dataset"} · ${humanise(item.status)}`));
+    append(card, el("strong", "", item.locality || item.area || "NSW"), el("span", "", `${displayName(item.dataset || item.dataset_id || "Dataset")} · ${humanise(item.status)}`));
     append(coverageBody, card);
   }
   if (!coverage.length) append(coverageBody, el("p", "", "Coverage evidence is not available from this deployment."));
-  append(freshness, panel("Latest published data", "Current dataset for each registered source", sourceBody), panel("NSW coverage", "Geography represented by published datasets", coverageBody));
-  append(grid, panel("Recent processing runs", "Data update history", recentBody, link("View all runs", "#runs")), freshness);
+  append(freshness, panel("Current published data", "Latest version available from each source", sourceBody), panel("NSW coverage", "Areas represented in published data", coverageBody));
+  append(grid, panel("Recent updates", "Latest data processing activity", recentBody, link("View update history", "#runs")), freshness);
   append(view, grid);
 }

@@ -1,5 +1,5 @@
-import { append, badge, cell, el, formatDate, link, notice, pageHeader, panel, requestJson, table } from "../core.js";
-import { featureRegistry } from "../features.js";
+import { append, badge, cell, el, formatDate, link, notice, pageHeader, panel, requestJson, table } from "../core.js?v=10";
+import { featureRegistry } from "../features.js?v=10";
 
 export function classifyHealth(payload) {
   const raw = String(payload?.status || "unknown").toLowerCase();
@@ -23,13 +23,16 @@ function healthCard(component) {
   append(top, el("span", "health-card__kind", component.kind), badge(component.label, component.tone));
   append(body, top, el("h2", "", component.name), el("p", "", component.detail));
   const facts = el("dl", "health-card__facts");
-  for (const [term, value] of [["Owner", component.owner], ["Response", component.latency === null ? "Not observed" : `${component.latency} ms`], ["Request ID", component.requestId || "Not supplied"]]) {
+  for (const [term, value] of [["Response time", component.latency === null ? "Not observed" : `${component.latency} ms`], ["Request ID", component.requestId || "Not supplied"]]) {
     const row = el("div");
     append(row, el("dt", "", term), el("dd", term === "Request ID" ? "mono" : "", value));
     append(facts, row);
   }
   append(body, facts);
-  if (component.href) append(body, link("Open operational detail", component.href, "ps-button ps-button--quiet health-card__link"));
+  if (component.href) {
+    const action = component.kind === "Feature API" ? `Open ${component.name}` : component.name === "AI review history" ? "Open Activity history" : "Open workspace";
+    append(body, link(action, component.href, "ps-button ps-button--quiet health-card__link"));
+  }
   append(card, body);
   return card;
 }
@@ -69,10 +72,10 @@ export function createStatusRoute({ config, announce }) {
   return async function renderStatus(root) {
     const refresh = el("button", "ps-button ps-button--primary", "Refresh status");
     refresh.type = "button";
-    append(root, pageHeader("PropertyScope", "Data status", "Check whether property search, published data and recorded activity can be reached. Coverage and freshness are shown separately from service availability.", [refresh]));
+    append(root, pageHeader("PropertyScope", "Data status", "Check whether property search, published data and AI review history are available.", [refresh]));
     const summary = el("section", "status-summary");
     const cards = el("div", "ps-grid ps-grid-3 health-grid");
-    const contracts = panel("Research area availability", "Planned areas stay unavailable until their own data and workflows are ready.");
+    const contracts = panel("Research area availability", "Planned areas stay unavailable until their data and workflows are ready.");
     append(root, summary, cards, contracts.card);
 
     async function load() {
@@ -102,7 +105,7 @@ export function createStatusRoute({ config, announce }) {
           `${feature.summary} Readiness is observed independently from its deployment gate.`,
           feature.href,
         )),
-        check("Agent activity", "Shared API", "Shared platform", "/api/shared-health/ai-mode", "Durable agent evidence and its configured model dependency.", config.agentRuns),
+        check("AI review history", "Shared API", "Shared platform", "/api/shared-health/ai-mode", "Recorded AI reviews and the configured model connection.", config.agentRuns),
       ]);
       const shellApi = primaryComponents[0];
       const featureApis = primaryComponents.slice(1, 1 + enabledFeatures.length);
@@ -116,7 +119,7 @@ export function createStatusRoute({ config, announce }) {
           kind: "Owned dependency",
           owner: "Property data service",
           rawStatus: propertyApi.payload?.dependencies?.database,
-          detail: propertyApi.payload?.dependencies?.database === true ? "The public Property records API reports its owned database dependency ready." : "The owned data-store readiness check did not pass.",
+          detail: propertyApi.payload?.dependencies?.database === true ? "The Property data service reports its data store ready." : "The owned data-store readiness check did not pass.",
         }));
       }
       components.push(
@@ -137,19 +140,18 @@ export function createStatusRoute({ config, announce }) {
       const planned = [
         ...features.filter((feature) => !feature.implemented || !feature.enabled).map((feature) => [
           feature.label,
-          feature.owner,
           feature.implemented ? "Disabled" : "Planned",
-          feature.implemented ? "Deployment gate is disabled" : "No live route until the complete feature slice is integrated",
+          feature.implemented ? "Temporarily disabled" : "Coming later",
         ]),
-        ["Cited document research", "Shared capability", "Planned", "Property search does not depend on it"],
-        ["Coordinated research roles", "Shared capability", "Planned", "Not active in this workspace"],
+        ["Cited document research", "Planned", "Coming later"],
+        ["Coordinated research roles", "Planned", "Coming later"],
       ];
       contracts.body.querySelector(".dashboard-table-wrap")?.remove();
-      append(contracts.body, table(["Capability", "Owner", "Availability", "Failure behaviour"], planned, (row) => {
+      append(contracts.body, table(["Research tool", "Availability", "Status"], planned, (row) => {
         const tr = el("tr");
-        append(tr, cell(row[0], "primary-cell"), cell(row[1]), cell(badge(row[2], "planned")), cell(row[3]));
+        append(tr, cell(row[0], "primary-cell"), cell(badge(row[1], "planned")), cell(row[2]));
         return tr;
-      }, "Planned research areas and capabilities"));
+      }, "Planned research tools"));
       root.setAttribute("aria-busy", "false");
       refresh.disabled = false;
       announce(`Status refreshed. Implemented services are ${overall}.`);
