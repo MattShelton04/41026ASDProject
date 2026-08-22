@@ -24,6 +24,7 @@ test("feature registry is the bounded source for shell routes and availability",
   assert.equal(findFeature("data-platform").href, "/features/data-platform/#properties");
   assert.equal(findFeature("student-4-due-diligence").frontendBase, "/features/due-diligence/");
   assert.equal(findFeature("market-intelligence").href, undefined);
+  assert.ok(features.every((item) => item.healthPath?.startsWith("/api/shared-health/")));
   assert.equal(featureRegistry({ propertyDiscovery: "/custom/#properties" })[0].href, "/custom/#properties");
 });
 
@@ -71,12 +72,17 @@ test("shared routes use public same-origin projections and safe DOM rendering", 
   assert.match(nginx, /location = \/api\/shared-health\/data-platform/);
   assert.match(nginx, /location \/api\/data-platform\//);
   assert.match(nginx, /location \/api\/ai-mode\//);
+  assert.match(nginx, /location \/api\/v1\//);
+  assert.match(nginx, /location \/api\//);
   assert.match(nginx, /location \/features\/data-platform\//);
+  assert.match(nginx, /market-intelligence\|suburb-analytics\|due-diligence\|buyer-workspaces/);
+  assert.match(nginx, /location \/operations\/ai-mode\//);
   assert.match(nginx, /proxy_pass \$data_platform_frontend_upstream/);
   assert.match(nginx, /resolver 127\.0\.0\.11/);
   assert.match(nginx, /proxy_pass \$data_platform_upstream/);
   assert.match(nginx, /proxy_pass \$ai_mode_upstream/);
   assert.doesNotMatch(statusRoute, /innerHTML/);
+  assert.match(statusRoute, /featureRegistry\(config\)/);
   assert.doesNotMatch(evidenceRoute, /innerHTML/);
 });
 
@@ -85,4 +91,6 @@ test("design tokens expose shared type, control, focus and layering contracts", 
   for (const token of ["--ps-type-body", "--ps-leading-body", "--ps-control-height", "--ps-focus-outline", "--ps-z-navigation"]) {
     assert.match(tokens, new RegExp(`${token}:`));
   }
+  assert.match(tokens, /--ps-focus-outline: 3px solid var\(--ps-ocean-800\)/);
+  assert.doesNotMatch(tokens, /--ps-focus-outline:[^;]*rgba/);
 });

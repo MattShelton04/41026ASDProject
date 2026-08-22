@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from shared_contracts.feature import load_feature_manifest
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -54,6 +56,17 @@ def test_shared_home_routes_only_live_product_and_operator_surfaces() -> None:
     assert registry.count("frontendBase:") == 5
     assert registry.count("implemented: true") == 1
     assert 'frontendBase: "/features/data-platform/"' in registry
+    assert "http://localhost:5005" not in page
+    assert "http://localhost:5005" not in script
+
+
+def test_implemented_feature_manifest_matches_browser_projection() -> None:
+    manifest = load_feature_manifest(REPOSITORY_ROOT / "student-1" / "feature.yaml")
+    registry = _read("shared/frontend/features.js")
+
+    assert f'featureKey: "{manifest.feature_key}"' in registry
+    assert f'owner: "{manifest.owner}"' in registry
+    assert f'frontendBase: "{manifest.frontend_base_path}"' in registry
 
 
 def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -> None:
@@ -76,6 +89,9 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "resolver 127.0.0.11" in nginx
     assert "proxy_pass $data_platform_upstream" in nginx
     assert "proxy_pass $ai_mode_upstream" in nginx
+    assert "location /api/" in nginx
+    assert "application/problem+json" in nginx
+    assert "location /operations/ai-mode/" in nginx
     assert "database" not in evidence.lower()
 
 
@@ -93,3 +109,4 @@ def test_property_data_and_agent_operations_link_back_to_product_home() -> None:
     assert "Recorded assisted activity" in operations_page
     assert "Start property research" in operations_page
     assert 'meta name="color-scheme" content="light"' in operations_page
+    assert "http://localhost:5100" not in operations_page

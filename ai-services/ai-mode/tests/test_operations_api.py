@@ -39,7 +39,8 @@ def test_enabled_dashboard_serves_hardened_assets(app_services: AppServices) -> 
     assert page.status_code == 200
     assert b"PropertyScope | Agent activity" in page.data
     assert b"Recorded assisted activity" in page.data
-    assert b"http://localhost:5100/" in page.data
+    assert b'href="/"' in page.data
+    assert b"http://localhost:5100/" not in page.data
     assert page.headers["Cache-Control"] == "no-store"
     assert "frame-ancestors 'none'" in page.headers["Content-Security-Policy"]
     assert script.status_code == 200

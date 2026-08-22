@@ -113,7 +113,7 @@
   --ps-shell-rail-width: 224px;
   --ps-duration: 160ms;
   --ps-ease: cubic-bezier(.2, .8, .2, 1);
-  --ps-focus-outline: 3px solid rgba(21, 148, 149, 0.38);
+  --ps-focus-outline: 3px solid var(--ps-ocean-800);
   --ps-focus-offset: 2px;
   --ps-z-navigation: 30;
   --ps-z-dialog: 100;

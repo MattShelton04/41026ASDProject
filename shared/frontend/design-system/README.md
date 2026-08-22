@@ -7,14 +7,15 @@ the shared directory into a domain-component monolith.
 ## Import order
 
 ```html
-<link rel="stylesheet" href="/shared/design-system/tokens.css">
-<link rel="stylesheet" href="/shared/design-system/base.css">
-<link rel="stylesheet" href="/shared/design-system/components.css">
-<link rel="stylesheet" href="/feature/styles.css">
+<link rel="stylesheet" href="./design-system/tokens.css">
+<link rel="stylesheet" href="./design-system/base.css">
+<link rel="stylesheet" href="./design-system/components.css">
+<link rel="stylesheet" href="./styles.css">
 ```
 
-Relative paths are also valid while each frontend is served independently. The feature stylesheet
-comes last and may compose shared primitives, but should not redefine token values locally.
+These base-path-compatible relative imports work when a frontend is served independently or below
+its canonical `/features/<slug>/` edge path. The feature stylesheet comes last and may compose
+shared primitives, but should not redefine token values locally.
 
 ## Stable public surface
 
