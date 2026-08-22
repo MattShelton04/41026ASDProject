@@ -1,4 +1,4 @@
-"""Production OpenAI Responses API adapter for structured model generation."""
+"""Production OpenAI-SDK adapter for Responses and compatible Chat Completions APIs."""
 
 from __future__ import annotations
 
@@ -41,6 +41,7 @@ LOGGER = logging.getLogger(__name__)
 RETRYABLE_HTTP_STATUSES = frozenset({408, 409, 429, 500, 502, 503, 504})
 CONTEXT_SAFETY_TOKENS = 1_024
 MAX_RETRY_AFTER_SECONDS = 60.0
+SUPPORTED_API_STYLES = frozenset({"chat_completions", "responses"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +62,8 @@ class OpenAIProvider(LLMProvider):
         *,
         api_key: str | None,
         base_url: str,
+        provider_name: str = "openai",
+        api_style: str = "responses",
         profiles: Mapping[str, OpenAIModelProfile],
         readiness_profiles: frozenset[str] | None = None,
         timeout_seconds: float,
@@ -75,6 +78,10 @@ class OpenAIProvider(LLMProvider):
         randomizer: Callable[[], float] = random.random,
     ) -> None:
         self._api_key = api_key
+        self._provider_name = provider_name
+        if api_style not in SUPPORTED_API_STYLES:
+            raise ValueError(f"unsupported OpenAI-compatible API style: {api_style}")
+        self._api_style = api_style
         self._profiles = dict(profiles)
         self._readiness_profiles = readiness_profiles or frozenset(self._profiles)
         if self._readiness_profiles - self._profiles.keys():
@@ -99,6 +106,7 @@ class OpenAIProvider(LLMProvider):
                 timeout=httpx.Timeout(timeout_seconds),
                 max_retries=0,
                 http_client=client,
+                default_headers={"x-goog-api-client": "propertyscope-ai-mode-oai/0.1"},
             )
         elif client is not None:
             self._client = client
@@ -110,7 +118,10 @@ class OpenAIProvider(LLMProvider):
                 base_url=f"{base_url.rstrip('/')}/",
                 timeout=httpx.Timeout(timeout_seconds),
                 max_retries=0,
-                default_headers={"User-Agent": "asd-ai-mode/0.1"},
+                default_headers={
+                    "User-Agent": "asd-ai-mode/0.1",
+                    "x-goog-api-client": "propertyscope-ai-mode-oai/0.1",
+                },
                 http_client=DefaultHttpxClient(
                     follow_redirects=False,
                     limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
@@ -126,7 +137,11 @@ class OpenAIProvider(LLMProvider):
                 code="model_credentials_missing",
                 retryable=False,
             )
-        payload = self._payload(request, profile, model=model)
+        payload = (
+            self._chat_completions_payload(request, profile, model=model)
+            if self._api_style == "chat_completions"
+            else self._responses_payload(request, profile, model=model)
+        )
         self._enforce_context_limit(request, profile, payload)
         started = self._clock()
         body, provider_request_id, retry_count = self._post_with_retries(
@@ -135,25 +150,49 @@ class OpenAIProvider(LLMProvider):
             client_request_id=str(uuid4()),
         )
         total_duration_ms = max(0, int((self._clock() - started) * 1_000))
-        content = self._structured_content(body, provider_request_id=provider_request_id)
+        content = (
+            self._chat_completions_content(body, provider_request_id=provider_request_id)
+            if self._api_style == "chat_completions"
+            else self._responses_content(body, provider_request_id=provider_request_id)
+        )
         usage = body.get("usage")
         usage_object = usage if isinstance(usage, dict) else {}
         input_details = usage_object.get("input_tokens_details")
         output_details = usage_object.get("output_tokens_details")
         result = StructuredModelResult(
             content=content,
-            provider="openai",
+            provider=self._provider_name,
             model=_required_string(body, "model", fallback=model),
             provider_request_id=provider_request_id,
             metrics=ModelMetrics(
                 total_duration_ms=total_duration_ms,
-                prompt_tokens=_optional_nonnegative_int(usage_object.get("input_tokens")),
-                output_tokens=_optional_nonnegative_int(usage_object.get("output_tokens")),
-                cached_prompt_tokens=_nested_nonnegative_int(input_details, "cached_tokens"),
+                prompt_tokens=_optional_nonnegative_int(
+                    usage_object.get(
+                        "prompt_tokens" if self._api_style == "chat_completions" else "input_tokens"
+                    )
+                ),
+                output_tokens=_optional_nonnegative_int(
+                    usage_object.get(
+                        "completion_tokens"
+                        if self._api_style == "chat_completions"
+                        else "output_tokens"
+                    )
+                ),
+                cached_prompt_tokens=_nested_nonnegative_int(
+                    usage_object.get("prompt_tokens_details")
+                    if self._api_style == "chat_completions"
+                    else input_details,
+                    "cached_tokens",
+                ),
                 cache_write_prompt_tokens=_nested_nonnegative_int(
                     input_details, "cache_write_tokens"
                 ),
-                reasoning_tokens=_nested_nonnegative_int(output_details, "reasoning_tokens"),
+                reasoning_tokens=_nested_nonnegative_int(
+                    usage_object.get("completion_tokens_details")
+                    if self._api_style == "chat_completions"
+                    else output_details,
+                    "reasoning_tokens",
+                ),
                 retry_count=retry_count,
             ),
         )
@@ -184,7 +223,7 @@ class OpenAIProvider(LLMProvider):
         if self._api_key is None:
             return ProviderHealth(
                 reachable=False,
-                detail="OpenAI API credentials are not configured",
+                detail=f"{self._provider_name.title()} API credentials are not configured",
             )
         with self._health_lock:
             now = self._clock()
@@ -216,22 +255,33 @@ class OpenAIProvider(LLMProvider):
                 with raw_create(model, timeout=self._health_timeout_seconds) as response:
                     content = self._bounded_content(response)
                     body = self._decode_object(content, provider_request_id=response.request_id)
-                    if body.get("id") != model:
+                    returned_model = body.get("id")
+                    if not isinstance(returned_model, str) or returned_model.removeprefix(
+                        "models/"
+                    ) != model.removeprefix("models/"):
                         return ProviderHealth(
                             reachable=False,
-                            detail="OpenAI model readiness returned an invalid response",
+                            detail=(
+                                f"{self._provider_name.title()} model readiness returned "
+                                "an invalid response"
+                            ),
                         )
-            return ProviderHealth(reachable=True, detail="OpenAI and configured models are ready")
+            return ProviderHealth(
+                reachable=True,
+                detail=f"{self._provider_name.title()} and configured models are ready",
+            )
         except APIStatusError as exc:
             if exc.status_code in {401, 403, 404}:
-                detail = "OpenAI authentication or model access failed"
+                detail = f"{self._provider_name.title()} authentication or model access failed"
             else:
-                detail = f"OpenAI model readiness returned HTTP {exc.status_code}"
+                detail = (
+                    f"{self._provider_name.title()} model readiness returned HTTP {exc.status_code}"
+                )
             return ProviderHealth(reachable=False, detail=detail)
         except (OpenAIError, ModelProviderError, ValueError, json.JSONDecodeError) as exc:
             return ProviderHealth(
                 reachable=False,
-                detail=f"OpenAI unavailable: {type(exc).__name__}",
+                detail=f"{self._provider_name.title()} unavailable: {type(exc).__name__}",
             )
 
     def _profile_for(self, request: StructuredModelRequest) -> tuple[OpenAIModelProfile, str]:
@@ -257,7 +307,7 @@ class OpenAIProvider(LLMProvider):
             )
         return profile, model
 
-    def _payload(
+    def _responses_payload(
         self,
         request: StructuredModelRequest,
         profile: OpenAIModelProfile,
@@ -315,6 +365,51 @@ class OpenAIProvider(LLMProvider):
         return payload
 
     @staticmethod
+    def _chat_completions_payload(
+        request: StructuredModelRequest,
+        profile: OpenAIModelProfile,
+        *,
+        model: str,
+    ) -> dict[str, Any]:
+        schema_guidance = (
+            "Return only one JSON object matching this JSON Schema. Do not add commentary: "
+            + json.dumps(
+                request.output_schema,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+        messages: list[dict[str, str]] = []
+        guidance_attached = False
+        for message in request.messages:
+            content = message.content
+            if message.role == "system" and not guidance_attached:
+                content = f"{content}\n\n{schema_guidance}"
+                guidance_attached = True
+            messages.append({"role": message.role, "content": content})
+        if not guidance_attached:
+            messages.insert(0, {"role": "system", "content": schema_guidance})
+        if not request.messages:
+            messages.append(
+                {"role": "user", "content": "Produce the requested structured response."}
+            )
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "max_completion_tokens": request.max_output_tokens,
+            # Gemini's compatibility layer rejects the Plan contract's intentionally dynamic
+            # tool-argument map in JSON Schema mode. JSON-object mode plus explicit schema
+            # guidance retains arbitrary tool arguments; agent-core remains the strict validator.
+            "response_format": {"type": "json_object"},
+        }
+        if profile.reasoning_effort is ModelReasoningEffort.NONE:
+            payload["temperature"] = request.temperature
+        else:
+            payload["reasoning_effort"] = profile.reasoning_effort.value
+        return payload
+
+    @staticmethod
     def _enforce_context_limit(
         request: StructuredModelRequest,
         profile: OpenAIModelProfile,
@@ -345,7 +440,11 @@ class OpenAIProvider(LLMProvider):
     ) -> tuple[dict[str, Any], str | None, int]:
         for attempt in range(self._max_retries + 1):
             try:
-                raw_create = cast(Any, self._client.responses.with_streaming_response.create)
+                raw_create = (
+                    cast(Any, self._client.chat.completions.with_streaming_response.create)
+                    if self._api_style == "chat_completions"
+                    else cast(Any, self._client.responses.with_streaming_response.create)
+                )
                 with raw_create(
                     **payload,
                     extra_headers={"X-Client-Request-Id": client_request_id},
@@ -353,12 +452,17 @@ class OpenAIProvider(LLMProvider):
                 ) as response:
                     content = self._bounded_content(response)
                     body = self._decode_object(content, provider_request_id=response.request_id)
-                    self._validate_response(body, provider_request_id=response.request_id)
+                    if self._api_style == "chat_completions":
+                        self._validate_chat_completion(
+                            body, provider_request_id=response.request_id
+                        )
+                    else:
+                        self._validate_response(body, provider_request_id=response.request_id)
                     return body, _safe_request_id(response.request_id), attempt
             except APITimeoutError as exc:
                 if attempt >= self._max_retries:
                     self._raise_provider_error(
-                        "OpenAI request timed out",
+                        "Model provider request timed out",
                         code="model_timeout",
                         retryable=True,
                         cause=exc,
@@ -367,7 +471,7 @@ class OpenAIProvider(LLMProvider):
             except APIConnectionError as exc:
                 if attempt >= self._max_retries:
                     self._raise_provider_error(
-                        "OpenAI is unavailable",
+                        "Model provider is unavailable",
                         code="model_unavailable",
                         retryable=True,
                         cause=exc,
@@ -385,7 +489,7 @@ class OpenAIProvider(LLMProvider):
                 self._raise_http_error(exc.status_code, provider_request_id=request_id, cause=exc)
             except OpenAIError as exc:
                 self._raise_provider_error(
-                    "OpenAI SDK rejected the request",
+                    "OpenAI-compatible SDK rejected the request",
                     code="model_request_rejected",
                     retryable=False,
                     cause=exc,
@@ -396,7 +500,7 @@ class OpenAIProvider(LLMProvider):
         content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
         if content_type and content_type != "application/json":
             raise ModelProviderError(
-                "OpenAI returned an unsupported media type",
+                "Model provider returned an unsupported media type",
                 code="invalid_model_response",
                 retryable=False,
                 provider_request_id=_safe_request_id(response.request_id),
@@ -417,7 +521,7 @@ class OpenAIProvider(LLMProvider):
 
     def _raise_response_too_large(self, request_id: object) -> NoReturn:
         raise ModelProviderError(
-            "OpenAI response exceeded the configured size limit",
+            "Model provider response exceeded the configured size limit",
             code="model_response_too_large",
             retryable=False,
             provider_request_id=_safe_request_id(request_id),
@@ -429,14 +533,14 @@ class OpenAIProvider(LLMProvider):
             body = json.loads(content)
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ModelProviderError(
-                "OpenAI returned invalid JSON",
+                "Model provider returned invalid JSON",
                 code="invalid_model_response",
                 retryable=False,
                 provider_request_id=_safe_request_id(provider_request_id),
             ) from exc
         if not isinstance(body, dict):
             raise ModelProviderError(
-                "OpenAI returned a non-object response",
+                "Model provider returned a non-object response",
                 code="invalid_model_response",
                 retryable=False,
                 provider_request_id=_safe_request_id(provider_request_id),
@@ -451,7 +555,7 @@ class OpenAIProvider(LLMProvider):
             raise ModelProviderError(
                 "OpenAI returned an incomplete response",
                 code="model_response_incomplete",
-                retryable=False,
+                retryable=True,
                 provider_request_id=request_id,
             )
         if status in {"failed", "cancelled"} or body.get("error") is not None:
@@ -470,7 +574,34 @@ class OpenAIProvider(LLMProvider):
             )
 
     @staticmethod
-    def _structured_content(
+    def _validate_chat_completion(body: Mapping[str, Any], *, provider_request_id: object) -> None:
+        request_id = _safe_request_id(provider_request_id)
+        choices = body.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise ModelProviderError(
+                "Model provider response omitted completion choices",
+                code="invalid_model_response",
+                retryable=False,
+                provider_request_id=request_id,
+            )
+        finish_reason = choices[0].get("finish_reason")
+        if finish_reason == "length":
+            raise ModelProviderError(
+                "Model provider returned an incomplete response",
+                code="model_response_incomplete",
+                retryable=True,
+                provider_request_id=request_id,
+            )
+        if finish_reason not in {"stop", None}:
+            raise ModelProviderError(
+                "Model provider could not complete the structured response",
+                code="model_response_failed",
+                retryable=False,
+                provider_request_id=request_id,
+            )
+
+    @staticmethod
+    def _responses_content(
         body: Mapping[str, Any], *, provider_request_id: str | None
     ) -> dict[str, Any]:
         output = body.get("output")
@@ -508,6 +639,41 @@ class OpenAIProvider(LLMProvider):
                 provider_request_id=provider_request_id,
             )
         raw = "".join(texts)
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return {"invalid_model_output": raw[:10_000]}
+        return parsed if isinstance(parsed, dict) else {"invalid_model_output": parsed}
+
+    @staticmethod
+    def _chat_completions_content(
+        body: Mapping[str, Any], *, provider_request_id: str | None
+    ) -> dict[str, Any]:
+        choices = body.get("choices")
+        choice = choices[0] if isinstance(choices, list) and choices else None
+        message = choice.get("message") if isinstance(choice, dict) else None
+        if not isinstance(message, dict):
+            raise ModelProviderError(
+                "Model provider response omitted the completion message",
+                code="invalid_model_response",
+                retryable=False,
+                provider_request_id=provider_request_id,
+            )
+        if message.get("refusal"):
+            raise ModelProviderError(
+                "Model provider refused the structured request",
+                code="model_refused",
+                retryable=False,
+                provider_request_id=provider_request_id,
+            )
+        raw = message.get("content")
+        if not isinstance(raw, str) or not raw:
+            raise ModelProviderError(
+                "Model provider response omitted completion content",
+                code="invalid_model_response",
+                retryable=False,
+                provider_request_id=provider_request_id,
+            )
         try:
             parsed = json.loads(raw)
         except json.JSONDecodeError:
@@ -564,7 +730,7 @@ class OpenAIProvider(LLMProvider):
         else:
             code, retryable = "model_request_rejected", False
         raise ModelProviderError(
-            f"OpenAI returned HTTP {status_code}",
+            f"Model provider returned HTTP {status_code}",
             code=code,
             retryable=retryable,
             provider_request_id=provider_request_id,

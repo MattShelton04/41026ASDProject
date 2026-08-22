@@ -52,8 +52,14 @@ def test_model_registry_is_visible_and_unknown_profiles_are_rejected(app: Flask)
 
     assert catalogue.status_code == 200
     assert catalogue.get_json()["default_profile"] == "remote-standard.v1"
-    assert {item["provider"] for item in catalogue.get_json()["models"]} == {"openai"}
+    assert {item["provider"] for item in catalogue.get_json()["models"]} == {
+        "gemini",
+        "openai",
+    }
     assert {item["model_id"] for item in catalogue.get_json()["models"]} == {
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
         "gpt-5.6-luna",
         "gpt-5.6-terra",
     }

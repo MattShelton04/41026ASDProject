@@ -21,6 +21,7 @@ from agent_core import (
 from shared_contracts import (
     SUPPORTED_PROMPT_SETS,
     AgentRun,
+    AgentStep,
     Observation,
     Plan,
     ToolDefinition,
@@ -116,6 +117,10 @@ class RegistryPromptBuilder(PromptBuilder):
             ModelRole.PLANNER: ("planner", "v3"),
             ModelRole.ADAPTER: ("adapter", "v3"),
         },
+        "default.v4": {
+            ModelRole.PLANNER: ("planner", "v4"),
+            ModelRole.ADAPTER: ("adapter", "v4"),
+        },
     }
 
     def __init__(self, registry: PromptRegistry) -> None:
@@ -132,7 +137,10 @@ class RegistryPromptBuilder(PromptBuilder):
             self._registry.load(prompt_id, version)
 
     def build_plan_request(
-        self, run: AgentRun, definitions: tuple[ToolDefinition, ...]
+        self,
+        run: AgentRun,
+        definitions: tuple[ToolDefinition, ...],
+        prior_steps: tuple[AgentStep, ...] = (),
     ) -> StructuredModelRequest:
         prompt = self._load_for(run, ModelRole.PLANNER)
         dynamic = {
@@ -140,6 +148,7 @@ class RegistryPromptBuilder(PromptBuilder):
             "feature_key": run.feature_key,
             "limits": run.limits.model_dump(mode="json"),
             "tools": [definition.model_dump(mode="json") for definition in definitions],
+            "prior_tool_attempts": _prior_tool_attempts(prior_steps),
         }
         return self._request(run, prompt, dynamic)
 
@@ -160,6 +169,8 @@ class RegistryPromptBuilder(PromptBuilder):
             for action, result in zip(plan.actions, tool_results, strict=False)
         ]
         dynamic = {
+            "objective": run.objective,
+            "feature_key": run.feature_key,
             "plan": plan.model_dump(mode="json"),
             "tool_result": tool_result.model_dump(mode="json"),
             "completed_actions": completed_actions,
@@ -201,8 +212,32 @@ class RegistryPromptBuilder(PromptBuilder):
             prompt_hash=prompt.content_hash,
             rendered_input_hash=hashlib.sha256(serialized_input.encode("utf-8")).hexdigest(),
             temperature=0.0,
+            max_output_tokens=(4_096 if prompt.metadata.role is ModelRole.ADAPTER else 2_048),
         )
 
 
 def _safe_component(value: str) -> bool:
     return bool(value) and all(character.isalnum() or character in "._-" for character in value)
+
+
+def _prior_tool_attempts(steps: tuple[AgentStep, ...]) -> list[dict[str, object]]:
+    """Project bounded call outcomes so replanning can avoid repeating failed work."""
+    attempts: list[dict[str, object]] = []
+    for step in steps:
+        if step.phase.value != "act" or "tool_call" not in step.input:
+            continue
+        call = step.input.get("tool_call")
+        result = step.output.get("tool_result")
+        if not isinstance(call, dict) or not isinstance(result, dict):
+            continue
+        error = result.get("error")
+        attempts.append(
+            {
+                "tool_name": call.get("tool_name"),
+                "arguments": call.get("arguments", {}),
+                "outcome": result.get("outcome"),
+                "error": error if isinstance(error, dict) else None,
+                "evidence_references": result.get("evidence_references", []),
+            }
+        )
+    return attempts[-12:]

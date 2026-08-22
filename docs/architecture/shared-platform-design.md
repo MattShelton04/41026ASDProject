@@ -31,7 +31,8 @@ exception has been confirmed; preserving a durable copy/link remains a submissio
 The first Release 0 foundation increment implemented the strict shared agent
 contracts, deterministic state graph, limits and tool policy, persistence-independent
 ports, bounded four-phase runner, deterministic fake provider, SQLite run/step/review
-store, prompt registry, OpenAI Responses API adapter, serial worker, and
+store, prompt registry, OpenAI Responses API adapter, opt-in Gemini development compatibility,
+serial worker, and
 create/read/cancel/review HTTP endpoints. JSON Schema and OpenAPI artefacts are generated
 and drift-checked by the canonical quality gate. A pinned non-root AI-mode image and
 real structured provider diagnostic supply the shared Release 0 container boundary;
@@ -145,7 +146,8 @@ The main architectural constraints are:
    OpenAI through the existing provider port, routes planner/implementer work to
    `gpt-5.6-luna` and adaptation/review to `gpt-5.6-terra`, and keeps direct
    feature behavior independent of provider availability. Credentials come only from the
-   runtime environment or deployment secret manager.
+   runtime environment or deployment secret manager. ADR-018 adds Gemini Chat Completions as an
+   opt-in development provider without changing that production default.
 
 ### 2.3 Requirement traceability
 
@@ -195,7 +197,7 @@ The main architectural constraints are:
 | Correctness | All external and tool inputs schema-validated; invalid state transitions rejected |
 | Boundedness | Default maximum 6 agent iterations, 12 tool calls, and one configurable time budget per run |
 | CRUD performance | Non-AI endpoints meet the course lab baseline of 19/20 calls at or below 500 ms locally |
-| Resilience | CRUD remains available when the LLM provider is unavailable; AI requests return a typed degraded response |
+| Resilience | CRUD remains available when the LLM provider is unavailable; malformed structured output receives bounded repair; one failed read-only evidence call can Observe/Adapt before an identical repeat stops the run |
 | Idempotency | Retried mutation tool calls do not create duplicate effects |
 | Portability | One documented command path each for Windows PowerShell, macOS/Linux, and Compose |
 | Testability | Shared core tests use a deterministic fake model; real-model tests are a separate suite |
@@ -239,7 +241,7 @@ flowchart LR
     E --> FN[Feature slices 2-5]
     F1 --> O[Agent orchestrator / AI-mode]
     FN --> O
-    O --> L[OpenAI Responses API]
+    O --> L[Remote model API: OpenAI default / Gemini dev]
     O -. Release 1 local .-> M[MCP server]
     O -. Release 1 local .-> R[RAG server]
     O -. Release 2 local .-> A[Multi-agent roles]
@@ -268,8 +270,9 @@ flowchart LR
 | `shared/contracts` | 0 | Pydantic/JSON Schema types, error envelope, identifiers, headers | Feature entities |
 | `shared/testkit` | 0 | Fake model, contract fixtures, factories, assertion helpers | Production orchestration |
 | `ai-services/agent-core` | 0 | State machine, policies, provider/tool ports, cache interfaces | Flask routes or feature code |
-| `ai-services/ai-mode` | 0 | Orchestrator API, run persistence, OpenAI adapter, prompt registry | Direct feature DB access |
+| `ai-services/ai-mode` | 0 | Orchestrator API, run persistence, remote-provider adapter, prompt registry | Direct feature DB access |
 | OpenAI API | 0 | Remote model inference | Application workflow state or feature data |
+| Gemini API | 0 dev | Opt-in local model inference through OpenAI-compatible Chat Completions | Production default or application workflow state |
 | `ai-services/mcp-server` | 1 | MCP tools/resources/prompts over existing contracts | Duplicate CRUD logic |
 | `ai-services/rag-server` | 1 | Ingestion, chunking, retrieval, citations, corpus versions | Final response authority |
 | `ai-services/multi-agent-server` | 2 | Planner/Worker/Reviewer coordination and human-review API | A second incompatible run model |
@@ -504,11 +507,12 @@ and provider limits can support it.
 ### 9.1 Provider boundary
 
 `agent-core` defines an `LLMProvider` protocol for structured generation, health, and
-invocation metrics. `ai-mode` supplies an OpenAI Responses API implementation using the
-official SDK inside its adapter boundary. It requests JSON-Schema-guided output, records
+invocation metrics. `ai-mode` supplies an OpenAI Responses API implementation and an opt-in
+Gemini Chat Completions compatibility mode using the official OpenAI SDK inside its adapter
+boundary. Both request JSON-Schema-guided output and record
 token/timing/cache/request-ID metrics, disables response storage, enforces configured context,
 and performs bounded retries within the persisted deadline. Stable prompt prefixes use explicit
-provider caching and model readiness uses a short TTL. No feature backend imports
+OpenAI provider caching and model readiness uses a short TTL. No feature backend imports
 or calls a model-provider SDK/API.
 
 Configuration selects a model profile rather than embedding model names in feature
@@ -830,7 +834,7 @@ Maintain one root `docker-compose.yml` with clearly named profiles:
 | `release-2-local` | Release 1 plus multi-agent service |
 | `observability` | Optional collector/viewer |
 
-The OpenAI credential is injected at runtime and is never built into an image or committed.
+The selected provider credential is injected at runtime and is never built into an image or committed.
 Compose uses the same HTTPS API root and logical model registry as host execution.
 
 Use health checks, `depends_on` health conditions where supported, explicit internal
@@ -958,7 +962,7 @@ student package.
 | Persistence | SQLAlchemy 2, Alembic, SQLite |
 | Frontend | HTML5, HTMX, minimal JavaScript, shared CSS tokens/components |
 | Edge | Nginx, serving static content and same-origin reverse proxy routes |
-| LLM | OpenAI Responses API behind `LLMProvider`; Luna implementer/Terra reviewer, 128K profile |
+| LLM | OpenAI Responses default plus opt-in Gemini development compatibility behind `LLMProvider`; 128K profiles |
 | MCP | Official Python MCP SDK |
 | Packaging | `pyproject.toml`, `uv` workspace/lock, documented pip-compatible fallback |
 | Quality | pytest, pytest-cov, Hypothesis, Ruff, mypy, pip-audit, Trivy, Gitleaks |
@@ -1022,6 +1026,8 @@ students' feature logic.
 | ADR-010 | Use a deterministic persisted state machine and bounded structured LLM outputs |
 | ADR-011 | Superseded local Ollama provider decision; provider port retained |
 | ADR-017 | Use the OpenAI Responses API; route Luna implementer and Terra reviewer roles |
+| ADR-018 | Add Gemini Chat Completions as an opt-in development provider |
+| ADR-019 | Continue one failed read through Observe/Adapt; stop an identical repeated failure |
 | ADR-012 | Build later-release seams early but gate capabilities by release and deployment |
 | ADR-013 | Target Azure Container Apps and document the SQLite/Azure Files limitation |
 
@@ -1093,6 +1099,8 @@ The foundation is complete when:
 - [OpenAI GPT-5.6 terra model](https://developers.openai.com/api/docs/models/gpt-5.6-terra)
 - [OpenAI Responses create reference](https://developers.openai.com/api/reference/cli/resources/responses/methods/create)
 - [OpenAI model retrieval reference](https://developers.openai.com/api/reference/typescript/resources/models/methods/retrieve)
+- [Gemini OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai)
+- [Gemini Models API](https://ai.google.dev/api/models)
 - [Model Context Protocol architecture](https://modelcontextprotocol.io/docs/learn/architecture)
   and [tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
 - [Docker Compose profiles](https://docs.docker.com/compose/how-tos/profiles/)

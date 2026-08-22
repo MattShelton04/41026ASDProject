@@ -9,12 +9,16 @@ application caps the profile at 128K context and 16K maximum output, while indiv
 continue to request only the output budget they need. There is
 no model server, model download, GPU overlay, or model volume in the repository topology.
 
-The production adapter deliberately supports one protocol family rather than a growing set of
-provider-specific switches. `OPENAI_BASE_URL` may target OpenAI or another service that implements
+The production default deliberately uses the Responses protocol. `OPENAI_BASE_URL` may target
+OpenAI or another service that implements
 the required OpenAI **Responses create** and **Models retrieve** endpoints. Chat Completions
 compatibility alone is insufficient. Disable `OPENAI_PROMPT_CACHE_ENABLED` when an otherwise
 compatible service does not accept OpenAI's prompt-cache fields. Model IDs and role routing remain
 registry configuration, so feature code and `agent-core` do not change.
+
+Local development also supports Gemini through Google's OpenAI-compatible Chat Completions and
+Models endpoints. This is an explicit `gemini` provider mode rather than a base-URL-only swap
+because Google's compatibility endpoint does not implement Responses create.
 
 The authoritative design and migration rationale are recorded in
 [`ADR-017`](../architecture/decisions/ADR-017-openai-responses-provider.md) and the
@@ -51,6 +55,9 @@ into the container environment or rendered Compose configuration.
 | `OPENAI_API_KEY` | Bearer credential; required for generation/readiness | unset |
 | `OPENAI_API_KEY_FILE` | Mutually exclusive mounted credential path | runtime file supplied by `scripts/dev.py` |
 | `OPENAI_BASE_URL` | Responses/Models API root | `https://api.openai.com/v1` |
+| `GEMINI_API_KEY` | Gemini credential when `AI_MODE_LLM_PROVIDER=gemini` | unset |
+| `GEMINI_API_KEY_FILE` | Mutually exclusive mounted Gemini credential path | runtime file supplied by `scripts/dev.py` |
+| `GEMINI_BASE_URL` | Gemini Chat Completions/Models root | `https://generativelanguage.googleapis.com/v1beta/openai` |
 | `OPENAI_ALLOW_INSECURE_HTTP` | Permit non-loopback HTTP for a trusted local compatible endpoint | `false` |
 | `OPENAI_TIMEOUT_SECONDS` | Per-generation ceiling before the run deadline is applied | `120` |
 | `OPENAI_HEALTH_TIMEOUT_SECONDS` | Model-access readiness timeout | `2` |
@@ -80,6 +87,19 @@ passes only that file path to Compose. This file-backed secret is compatible wit
 AI-mode container on Compose implementations that cannot materialise environment-backed secrets
 there. `down` removes the corresponding runtime file. Use `up --offline` for deterministic data
 work without live model readiness.
+
+For Gemini, create a Git-ignored `.env.gemini`:
+
+```dotenv
+AI_MODE_LLM_PROVIDER=gemini
+GEMINI_API_KEY=<your key>
+GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+AI_MODE_DEFAULT_MODEL_PROFILE=gemini-development.v1
+OPENAI_PROMPT_CACHE_ENABLED=false
+```
+
+Start with `uv run scripts/dev.py up --env-file .env.gemini`. Use
+`gemini-quality.v1` only when intentionally comparing Gemini 3.7 quality and cost.
 
 For AI-mode on the host:
 
@@ -130,7 +150,8 @@ Useful endpoints after startup:
   budget and a safety margin. The adapter does not make a second paid/remote token-count request.
 - The dynamic `arguments` map in the public Plan contract cannot use OpenAI's strict closed
   schema subset. API strict mode is therefore false; agent-core validates the full Pydantic
-  contract and allows at most one bounded repair attempt.
+  contract and allows up to the run's configured two bounded repair attempts. Feature 1 uses two;
+  other callers retain the default of one.
 - The adapter retries only network/timeouts and HTTP `408`, `409`, `429`, `500`, `502`, `503`,
   or `504`, at most `OPENAI_MAX_RETRIES` times. It respects a bounded `Retry-After` delay and
   never extends the persisted run deadline.

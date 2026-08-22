@@ -122,13 +122,23 @@ def configuration_report(
     return {
         "status": "configuration-valid",
         "provider": settings.llm_provider,
-        "base_url": settings.openai_base_url,
-        "credential_configured": settings.openai_api_key is not None,
+        "base_url": (
+            settings.gemini_base_url
+            if settings.llm_provider == "gemini"
+            else settings.openai_base_url
+        ),
+        "credential_configured": (
+            settings.gemini_api_key is not None
+            if settings.llm_provider == "gemini"
+            else settings.openai_api_key is not None
+        ),
         "profile": model_profile,
         "role_models": role_models,
         "context_tokens": profile.context_tokens,
         "maximum_output_tokens": profile.maximum_output_tokens,
-        "prompt_cache_enabled": settings.openai_prompt_cache_enabled,
+        "prompt_cache_enabled": (
+            settings.openai_prompt_cache_enabled and settings.llm_provider == "openai"
+        ),
         "network_checked": False,
     }
 
@@ -138,7 +148,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--base-url",
         default=None,
-        help="Override OPENAI_BASE_URL for this check",
+        help="Override the selected provider base URL for this check",
     )
     parser.add_argument(
         "--profile",
@@ -161,7 +171,10 @@ def main() -> int:
     try:
         environment = dict(os.environ)
         if args.base_url is not None:
-            environment["OPENAI_BASE_URL"] = args.base_url
+            provider_name = environment.get("AI_MODE_LLM_PROVIDER", "openai").strip().lower()
+            environment["GEMINI_BASE_URL" if provider_name == "gemini" else "OPENAI_BASE_URL"] = (
+                args.base_url
+            )
         if args.profile is not None:
             environment["AI_MODE_DEFAULT_MODEL_PROFILE"] = args.profile
         if args.timeout_seconds is not None:

@@ -14,6 +14,7 @@ from shared_contracts.base import ContractModel
 class ModelProviderName(StrEnum):
     """Remote model providers supported by the current AI-mode composition."""
 
+    GEMINI = "gemini"
     OPENAI = "openai"
 
 

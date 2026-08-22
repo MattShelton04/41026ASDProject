@@ -60,7 +60,7 @@ tools:
       input_schema:
         type: object
         properties:
-          release_id: {type: string, minLength: 1, maxLength: 150}
+          release_id: {type: string, format: uuid}
         required: [release_id]
         additionalProperties: false
       output_schema:
@@ -68,8 +68,25 @@ tools:
         properties:
           release: {type: object}
           quality_results: {type: array, maxItems: 100, items: {type: object}}
+          quality_summary:
+            type: object
+            properties:
+              total: {type: integer, minimum: 0}
+              passed: {type: integer, minimum: 0}
+              failed: {type: integer, minimum: 0}
+              blocking_failures: {type: integer, minimum: 0}
+            required: [total, passed, failed, blocking_failures]
+            additionalProperties: false
+          receipts: {type: array, maxItems: 100, items: {type: object}}
           accepted_predecessor: {type: [object, "null"]}
-        required: [release, quality_results, accepted_predecessor]
+          release_contract: {type: [object, "null"]}
+        required:
+          - release
+          - quality_results
+          - quality_summary
+          - receipts
+          - accepted_predecessor
+          - release_contract
         additionalProperties: false
       side_effect: read_only
       timeout_ms: 3000
@@ -110,8 +127,8 @@ tools:
       input_schema:
         type: object
         properties:
-          candidate_release_id: {type: string, minLength: 1, maxLength: 150}
-          predecessor_release_id: {type: string, minLength: 1, maxLength: 150}
+          candidate_release_id: {type: string, format: uuid}
+          predecessor_release_id: {type: string, format: uuid}
         required: [candidate_release_id, predecessor_release_id]
         additionalProperties: false
       output_schema:

@@ -35,9 +35,12 @@ const ui = Object.fromEntries([
   "quick-filters", "filters", "feature-filter", "status-filter", "model-filter",
   "clear-filters", "count-active", "count-review", "count-failed", "count-complete",
   "run-list", "refresh-runs", "load-more", "run-detail", "empty-detail", "detail-content",
-  "back-to-runs", "run-status", "stale-state", "run-objective", "run-subtitle", "copy-link",
+  "back-to-runs", "run-status", "stale-state", "run-objective", "run-objective-full",
+  "objective-details", "run-subtitle", "copy-link",
   "current-work", "current-work-symbol", "current-work-phase", "current-work-title",
-  "current-work-detail", "live-elapsed", "cycle-history", "cycle-summary", "run-overview",
+  "current-work-detail", "live-elapsed", "outcome-summary", "outcome-eyebrow", "outcome-title",
+  "outcome-badge", "outcome-content", "cycle-history", "cycle-summary", "run-overview",
+  "workload-metrics",
   "correlation-identifiers", "last-updated", "run-metadata", "execution", "event-cursor",
   "event-list", "raw-projection",
 ].map((id) => [id, document.getElementById(id)]));
@@ -82,6 +85,13 @@ function shortTime(value) {
   return value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—";
 }
 
+function workloadTitle(objective) {
+  const normalized = String(objective || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "Objective hidden by policy";
+  const firstSentence = normalized.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim() || normalized;
+  return firstSentence.length <= 150 ? firstSentence : `${firstSentence.slice(0, 149).trimEnd()}…`;
+}
+
 function duration(value) {
   if (value === null || value === undefined) return "—";
   if (value < 1000) return `${value} ms`;
@@ -90,6 +100,10 @@ function duration(value) {
   const minutes = Math.floor(seconds / 60);
   const remainder = Math.floor(seconds % 60);
   return `${minutes}m ${String(remainder).padStart(2, "0")}s`;
+}
+
+function compactNumber(value) {
+  return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
 function elapsedSince(value, now = Date.now()) {
@@ -239,8 +253,8 @@ function updateRunItem(item, run) {
   const facts = item.querySelector(".run-facts");
   facts.replaceChildren(
     node("span", "feature-key", researchAreaLabel(run.feature_key)),
-    node("span", "", run.latest_phase ? label(run.latest_phase) : "not started"),
-    node("span", "", `${run.iteration_count} iter · ${run.tool_call_count} calls`),
+    node("span", "model-profile", run.model_profile),
+    node("span", "", `${run.iteration_count} iter · ${run.tool_call_count} tool${run.tool_call_count === 1 ? "" : "s"}`),
   );
   item.className = `run-item run-${run.status}`;
 }
@@ -298,6 +312,7 @@ async function selectRun(runId) {
   ui["empty-detail"].hidden = true;
   ui["detail-content"].hidden = false;
   ui["run-objective"].textContent = "Loading durable evidence…";
+  ui["run-objective-full"].textContent = "";
   ui["run-subtitle"].textContent = runId;
   ui["current-work-title"].textContent = "Loading current work…";
   ui["event-list"].replaceChildren(node("li", "empty", "Restoring the bounded event journal…"));
@@ -558,10 +573,14 @@ function renderDetail() {
   } = state.detail;
   ui["run-status"].replaceChildren(...statusMark(run.status).childNodes);
   ui["run-status"].className = `status-mark status-${run.status}`;
-  ui["run-objective"].textContent = objective || run.objective_preview || "Objective hidden by policy";
+  const fullObjective = objective || run.objective_preview || "Objective hidden by policy";
+  ui["run-objective"].textContent = workloadTitle(fullObjective);
+  ui["run-objective-full"].textContent = fullObjective;
+  ui["objective-details"].hidden = workloadTitle(fullObjective) === fullObjective;
   ui["run-subtitle"].textContent = `${researchAreaLabel(run.feature_key)} · created ${localTime(run.created_at)}`;
   ui["last-updated"].textContent = `Updated ${localTime(run.updated_at)}`;
   renderCurrentWork(run, steps);
+  renderOutcome(run, finalResult, error);
   renderCycles(steps);
 
   ui["run-overview"].replaceChildren();
@@ -575,6 +594,7 @@ function renderDetail() {
     ["Outcome", outcomeLabel(run, finalResult, error), `overview-outcome status-${run.status}`],
   ]);
   ui["run-overview"].querySelector(".overview-elapsed dd").dataset.overviewElapsed = "true";
+  renderWorkloadTelemetry(steps);
   renderCorrelation(correlation);
 
   ui["run-metadata"].replaceChildren();
@@ -585,7 +605,7 @@ function renderDetail() {
     ["Created", localTime(run.created_at)], ["Updated", localTime(run.updated_at)],
     ["Terminal duration", TERMINAL_STATUSES.has(run.status) ? duration(run.duration_ms) : "Still running"],
   ]);
-  renderExecution(steps, reviews, finalResult, error, run);
+  renderExecution(steps, reviews);
   ui["raw-projection"].textContent = pretty(state.detail);
   ui.announcement.textContent = `Run ${run.id} updated to ${label(run.status)}, version ${run.version}.`;
   updateLiveElapsed();
@@ -613,6 +633,105 @@ function renderValue(value) {
     return list;
   }
   return node("span", typeof value === "string" ? "" : "mono", String(value));
+}
+
+function appendList(target, values, className = "plain-list") {
+  const list = node("ul", className);
+  for (const value of values) list.append(node("li", "", String(value)));
+  target.append(list);
+}
+
+function renderOutcome(run, finalResult, error) {
+  const terminal = TERMINAL_STATUSES.has(run.status);
+  ui["outcome-summary"].hidden = !terminal;
+  if (!terminal) return;
+
+  ui["outcome-summary"].className = `outcome-summary outcome-${run.status}`;
+  ui["outcome-badge"].replaceChildren(statusMark(run.status));
+  ui["outcome-content"].replaceChildren();
+
+  if (finalResult) {
+    ui["outcome-eyebrow"].textContent = "Evidence-backed outcome";
+    ui["outcome-title"].textContent = "Recovery brief";
+    const summary = typeof finalResult.summary === "string" ? finalResult.summary : null;
+    if (summary) ui["outcome-content"].append(node("p", "outcome-lede", summary));
+
+    const grid = node("div", "outcome-grid");
+    const findings = Array.isArray(finalResult.findings) ? finalResult.findings : [];
+    if (findings.length) {
+      const section = node("section", "outcome-findings");
+      section.append(node("h4", "", "What the evidence says"));
+      appendList(section, findings, "finding-list");
+      grid.append(section);
+    }
+    for (const [key, title, className] of [
+      ["recommended_next_step", "Recommended next step", "outcome-next"],
+      ["safety_note", "Safety boundary", "outcome-safety"],
+    ]) {
+      if (typeof finalResult[key] !== "string") continue;
+      const section = node("section", className);
+      section.append(node("h4", "", title), node("p", "", finalResult[key]));
+      grid.append(section);
+    }
+    if (grid.childNodes.length) ui["outcome-content"].append(grid);
+
+    if (Array.isArray(finalResult.evidence) && finalResult.evidence.length) {
+      const evidence = node("details", "outcome-evidence");
+      evidence.append(node("summary", "", `${finalResult.evidence.length} cited evidence reference${finalResult.evidence.length === 1 ? "" : "s"}`));
+      appendList(evidence, finalResult.evidence, "evidence-reference-list");
+      ui["outcome-content"].append(evidence);
+    }
+    const knownKeys = new Set(["summary", "findings", "recommended_next_step", "safety_note", "evidence"]);
+    if (Object.keys(finalResult).some((key) => !knownKeys.has(key)) || !summary) {
+      const details = node("details", "outcome-evidence");
+      details.append(node("summary", "", "Structured result"), renderValue(finalResult));
+      ui["outcome-content"].append(details);
+    }
+    return;
+  }
+
+  const cancelled = run.status === "cancelled";
+  ui["outcome-eyebrow"].textContent = cancelled ? "Workload cancelled" : "Safe stop";
+  ui["outcome-title"].textContent = cancelled ? "No final result was produced" : label(error?.code || run.error_code || "Run failed");
+  ui["outcome-content"].append(node(
+    "p",
+    "outcome-lede",
+    error?.message || (cancelled ? "The run was cancelled before completion." : "The workload stopped without returning a final result."),
+  ));
+}
+
+function workloadTelemetry(steps) {
+  const modelInvocations = steps.map((step) => step.model_invocation).filter(Boolean);
+  const toolSteps = steps.filter((step) => step.tool);
+  const sum = (values) => values.reduce((total, value) => total + (Number(value) || 0), 0);
+  return {
+    modelCalls: modelInvocations.length,
+    models: [...new Set(modelInvocations.map((item) => item.model))],
+    promptTokens: sum(modelInvocations.map((item) => item.metrics.prompt_tokens)),
+    outputTokens: sum(modelInvocations.map((item) => item.metrics.output_tokens)),
+    modelDuration: sum(modelInvocations.map((item) => item.metrics.total_duration_ms)),
+    repairs: sum(modelInvocations.map((item) => item.repair_count)),
+    providerRetries: sum(modelInvocations.map((item) => item.provider_retry_count)),
+    transportRetries: sum(modelInvocations.map((item) => item.metrics.retry_count)),
+    toolFailures: toolSteps.filter((step) => step.tool.outcome === "failed").length,
+    replans: Math.max(0, steps.filter((step) => step.phase === "plan").length - 1),
+  };
+}
+
+function renderWorkloadTelemetry(steps) {
+  const telemetry = workloadTelemetry(steps);
+  const tokensKnown = telemetry.promptTokens > 0 || telemetry.outputTokens > 0;
+  ui["workload-metrics"].replaceChildren();
+  addDefinition(ui["workload-metrics"], [
+    ["Model calls", telemetry.modelCalls],
+    ["Models", telemetry.models.join(" · ") || "No model evidence"],
+    ["Tokens", tokensKnown ? `${compactNumber(telemetry.promptTokens)} in · ${compactNumber(telemetry.outputTokens)} out` : "Not reported"],
+    ["Model time", telemetry.modelCalls ? duration(telemetry.modelDuration) : "—"],
+    ["Schema repairs", telemetry.repairs],
+    ["Provider retries", telemetry.providerRetries + telemetry.transportRetries],
+    ["Tool failures", telemetry.toolFailures],
+    ["Replans", telemetry.replans],
+  ]);
 }
 
 function metric(labelText, value) {
@@ -706,6 +825,7 @@ function renderStep(step, isLatest) {
       metric("Provider request", model.provider_request_id || "Not supplied"),
       metric("Retries", String(model.metrics.retry_count ?? 0)),
       metric("Repairs", String(model.repair_count)),
+      metric("Incomplete-response retries", String(model.provider_retry_count ?? 0)),
     );
     body.append(node("h5", "", "Model evidence"), metrics);
   }
@@ -716,7 +836,7 @@ function renderStep(step, isLatest) {
   return card;
 }
 
-function renderExecution(steps, reviews, finalResult, error, run) {
+function renderExecution(steps, reviews) {
   ui.execution.replaceChildren();
   if (!steps.length) ui.execution.append(node("p", "empty", "The run is queued; no phase step is durable yet."));
   steps.forEach((step, index) => ui.execution.append(renderStep(step, index === steps.length - 1)));
@@ -729,20 +849,6 @@ function renderExecution(steps, reviews, finalResult, error, run) {
       copyButton("Call", String(review.call_id)),
     );
     ui.execution.append(card);
-  }
-  if (finalResult) {
-    const result = node("section", "outcome-block status-succeeded");
-    result.append(node("h4", "", "✓ Final result"), renderValue(finalResult));
-    ui.execution.append(result);
-  } else if (error || run.error_code) {
-    const failure = node("section", "outcome-block status-failed");
-    failure.append(node("h4", "", `! ${label(error?.code || run.error_code)}`));
-    if (error?.message) failure.append(node("p", "", error.message));
-    ui.execution.append(failure);
-  } else if (run.status === "cancelled") {
-    const cancelled = node("section", "outcome-block status-cancelled");
-    cancelled.append(node("h4", "", "× Run cancelled"), node("p", "", "No final result was produced."));
-    ui.execution.append(cancelled);
   }
 }
 
@@ -855,6 +961,7 @@ async function start() {
   await loadRuns();
   const runId = initial.get("run");
   if (runId && /^[0-9a-f-]{36}$/i.test(runId)) await selectRun(runId);
+  else if (!window.matchMedia(MOBILE_QUERY).matches && state.runs.length) await selectRun(state.runs[0].id);
 }
 
 start();

@@ -1,0 +1,5 @@
+prompt_id: planner
+version: v4
+role: planner
+template: v4.system.j2
+description: Recovery-aware planner with explicit objective coverage and failed-call memory.

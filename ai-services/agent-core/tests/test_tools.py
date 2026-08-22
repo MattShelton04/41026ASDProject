@@ -64,6 +64,28 @@ def test_registry_rejects_unknown_tools_and_invalid_values() -> None:
         registry.validate_output(registry.definitions[0], {"count": -1})
 
 
+def test_registry_enforces_declared_json_schema_formats() -> None:
+    definition = _definition().model_copy(
+        update={
+            "input_schema": {
+                "type": "object",
+                "properties": {"release_id": {"type": "string", "format": "uuid"}},
+                "required": ["release_id"],
+                "additionalProperties": False,
+            }
+        }
+    )
+    registry = ToolRegistry([definition])
+
+    with pytest.raises(ToolSchemaValidationError, match="is not a 'uuid'"):
+        registry.validate_input(definition, {"release_id": "<accepted-release-id>"})
+
+    registry.validate_input(
+        definition,
+        {"release_id": "60000000-0000-0000-0000-000000000004"},
+    )
+
+
 def test_read_only_tools_execute_without_approval() -> None:
     decision = authorize_tool(
         _definition(),

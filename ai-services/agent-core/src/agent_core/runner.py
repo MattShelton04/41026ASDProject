@@ -12,10 +12,12 @@ from pydantic import BaseModel, JsonValue
 from agent_core.errors import (
     AgentCoreError,
     ConcurrentRunUpdateError,
+    ModelOutputValidationError,
     ModelProviderError,
     RunLimitExceededError,
     RunStalledError,
     ToolSchemaValidationError,
+    UnknownToolError,
 )
 from agent_core.generation import ValidatedModelOutput, generate_validated
 from agent_core.limits import ensure_time_remaining, ensure_within_limits, remaining_time_ms
@@ -156,6 +158,7 @@ class AgentRunner:
                 self._prompt_builder.build_plan_request(
                     planning,
                     self._tools.definitions_for(planning.feature_key),
+                    detail.steps,
                 ),
                 planning,
             )
@@ -164,14 +167,12 @@ class AgentRunner:
                 request,
                 Plan,
                 max_repairs=run.limits.max_model_repairs,
+                validate=lambda plan: self._validate_model_plan(planning, plan),
             )
             if self._repeats_successful_plan(detail.steps, generated.value):
                 raise RunStalledError(
                     "planner repeated the previous plan after successful tool evidence"
                 )
-            for action in generated.value.actions:
-                definition = self._tools.resolve(planning.feature_key, action.tool_name)
-                self._tools.validate_input(definition, action.arguments)
         except AgentCoreError as exc:
             return self._fail_with_step(planning, step, exc, code=self._error_code(exc))
 
@@ -278,13 +279,18 @@ class AgentRunner:
             return self._fail_with_step(acting, step, exc, code="run_limit_reached")
         except Exception as exc:
             if definition.side_effect is SideEffectClass.READ_ONLY:
-                return self._fail_with_step(
-                    acting,
-                    step,
-                    exc,
-                    code="tool_executor_error",
+                result = ToolResult(
+                    call_id=call.id,
+                    outcome=ToolOutcome.FAILED,
+                    error=ToolError(
+                        code="tool_executor_error",
+                        message=self._safe_message(exc),
+                    ),
+                    duration_ms=0,
+                    retryable=False,
                 )
-            return self._pause_uncertain_effect(acting, step, call)
+            else:
+                return self._pause_uncertain_effect(acting, step, call)
         if result.call_id != call.id:
             return self._fail_with_step(
                 acting,
@@ -316,10 +322,41 @@ class AgentRunner:
             now=self._clock.now(),
             output={**step.output, "tool_result": result.model_dump(mode="json")},
         )
-        if result.outcome is ToolOutcome.FAILED and not result.retryable:
+        if result.outcome is not ToolOutcome.SUCCEEDED:
             error = result.error or ToolError(code="tool_failed", message="Tool execution failed")
-            failed = transition_run(acting, RunStatus.FAILED, now=self._clock.now(), error=error)
             failed_step = completed.evolve(status=StepStatus.FAILED, error=error)
+            if definition.side_effect is SideEffectClass.READ_ONLY:
+                repeated = self._repeats_failed_read(detail.steps, call, result)
+                if repeated:
+                    repeated_error = ToolError(
+                        code="repeated_tool_failure",
+                        message=(f"{call.tool_name} repeated {error.code} for the same arguments"),
+                    )
+                    failed = transition_run(
+                        acting,
+                        RunStatus.FAILED,
+                        now=self._clock.now(),
+                        error=repeated_error,
+                    )
+                    self._store.save(
+                        failed,
+                        expected_version=acting.version,
+                        step=failed_step.evolve(error=repeated_error),
+                    )
+                    return failed
+                observing = transition_run(acting, RunStatus.OBSERVING, now=self._clock.now())
+                self._store.save(
+                    observing,
+                    expected_version=acting.version,
+                    step=failed_step,
+                )
+                return observing
+            failed = transition_run(
+                acting,
+                RunStatus.FAILED,
+                now=self._clock.now(),
+                error=error,
+            )
             self._store.save(failed, expected_version=acting.version, step=failed_step)
             return failed
 
@@ -525,6 +562,40 @@ class AgentRunner:
 
         return signature(previous) == signature(candidate)
 
+    def _validate_model_plan(self, run: AgentRun, plan: Plan) -> None:
+        """Return tool-name and argument mistakes to bounded model repair before execution."""
+        try:
+            for action in plan.actions:
+                definition = self._tools.resolve(run.feature_key, action.tool_name)
+                self._tools.validate_input(definition, action.arguments)
+        except (ToolSchemaValidationError, UnknownToolError) as exc:
+            raise ModelOutputValidationError(str(exc)) from exc
+
+    @staticmethod
+    def _repeats_failed_read(
+        steps: tuple[AgentStep, ...], call: ToolCall, result: ToolResult
+    ) -> bool:
+        """Stop after the same read call records the same structured failure twice."""
+        if result.error is None:
+            return False
+        for step in steps:
+            if step.phase is not StepPhase.ACT or "tool_result" not in step.output:
+                continue
+            try:
+                previous_call = ToolCall.model_validate(step.input.get("tool_call"))
+                previous_result = ToolResult.model_validate(step.output["tool_result"])
+            except ValueError:
+                continue
+            if (
+                previous_result.outcome is not ToolOutcome.SUCCEEDED
+                and previous_result.error is not None
+                and previous_call.tool_name == call.tool_name
+                and previous_call.arguments == call.arguments
+                and previous_result.error.code == result.error.code
+            ):
+                return True
+        return False
+
     @staticmethod
     def _with_run_deadline(
         request: StructuredModelRequest, run: AgentRun
@@ -548,6 +619,7 @@ class AgentRunner:
             "prompt_hash": request.prompt_hash,
             "rendered_input_hash": request.rendered_input_hash,
             "repair_count": generated.repair_count,
+            "provider_retry_count": generated.provider_retry_count,
         }
 
     def _running_step(

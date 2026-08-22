@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
@@ -42,6 +43,54 @@ def test_up_fails_before_docker_when_openai_credential_is_missing(
     assert dev.main(["up"]) == 1
     assert commands == []
     assert "OPENAI_API_KEY is required" in capsys.readouterr().err
+
+
+def test_explicit_env_file_loads_gemini_without_overriding_shell(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env.gemini"
+    env_file.write_text(
+        "AI_MODE_LLM_PROVIDER=gemini\nGEMINI_API_KEY=file-key\n",
+        encoding="utf-8",
+    )
+    original_provider = os.environ.get("AI_MODE_LLM_PROVIDER")
+    original_key = os.environ.get("GEMINI_API_KEY")
+    os.environ["AI_MODE_LLM_PROVIDER"] = "openai"
+    os.environ.pop("GEMINI_API_KEY", None)
+    try:
+        dev._load_environment_file(env_file)
+
+        assert os.environ["AI_MODE_LLM_PROVIDER"] == "openai"
+        assert os.environ["GEMINI_API_KEY"] == "file-key"
+    finally:
+        if original_provider is None:
+            os.environ.pop("AI_MODE_LLM_PROVIDER", None)
+        else:
+            os.environ["AI_MODE_LLM_PROVIDER"] = original_provider
+        if original_key is None:
+            os.environ.pop("GEMINI_API_KEY", None)
+        else:
+            os.environ["GEMINI_API_KEY"] = original_key
+
+
+def test_gemini_up_materialises_only_file_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    environments: list[object] = []
+    monkeypatch.setenv("AI_MODE_LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(
+        dev,
+        "_run",
+        lambda command, *, environment=None: environments.append(environment),
+    )
+    monkeypatch.setattr(
+        dev, "_write_openai_secret", lambda _value, *, full_data: dev.Path("secret")
+    )
+
+    assert dev.main(["up"]) == 0
+
+    environment = environments[-1]
+    assert isinstance(environment, dict)
+    assert "GEMINI_API_KEY" not in environment
+    assert environment["GEMINI_API_KEY_FILE"] == "secret"
 
 
 def test_up_starts_complete_stack(

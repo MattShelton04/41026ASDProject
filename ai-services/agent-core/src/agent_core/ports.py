@@ -53,7 +53,7 @@ class StructuredModelRequest(CoreModel):
     rendered_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     max_output_tokens: int = Field(default=1_024, ge=1, le=32_768)
-    repair_attempt: int = Field(default=0, ge=0, le=1)
+    repair_attempt: int = Field(default=0, ge=0, le=2)
     deadline_at: AwareDatetime | None = None
 
 
@@ -127,9 +127,12 @@ class PromptBuilder(Protocol):
     """Port separating versioned prompt rendering from orchestration policy."""
 
     def build_plan_request(
-        self, run: AgentRun, definitions: tuple[ToolDefinition, ...]
+        self,
+        run: AgentRun,
+        definitions: tuple[ToolDefinition, ...],
+        prior_steps: tuple[AgentStep, ...] = (),
     ) -> StructuredModelRequest:
-        """Build a schema-constrained planner request."""
+        """Build a schema-constrained planner request with bounded prior attempts."""
         ...
 
     def build_adaptation_request(

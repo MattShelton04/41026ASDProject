@@ -38,6 +38,7 @@ ALLOWED_QUERY_PARAMETERS = frozenset({"status", "feature_key", "model_profile", 
 ALLOWED_ASSETS = frozenset({"app.js", "polling.js", "styles.css"})
 ALLOWED_DESIGN_SYSTEM_ASSETS = frozenset({"tokens.css"})
 IDENTIFIER_ADAPTER = TypeAdapter(Identifier)
+OPERATIONS_PROJECTION_VERSION = 2
 
 
 def create_operations_blueprint(assets_path: Path) -> Blueprint:
@@ -102,7 +103,7 @@ def create_operations_blueprint(assets_path: Path) -> Blueprint:
         detail = _operations().get_evidence(run_id, as_of=_services_clock_now())
         if detail is None:
             return _problem(404, "agent_run_not_found", "Agent run does not exist")
-        etag = f"{run_id}:{detail.run.version}"
+        etag = f"operations-v{OPERATIONS_PROJECTION_VERSION}:{run_id}:{detail.run.version}"
         if request.if_none_match.contains_weak(etag):
             response = Response(status=304)
         else:

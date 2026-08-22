@@ -115,7 +115,10 @@ class MemoryStore:
 
 class TestPromptBuilder:
     def build_plan_request(
-        self, run: AgentRun, definitions: tuple[ToolDefinition, ...]
+        self,
+        run: AgentRun,
+        definitions: tuple[ToolDefinition, ...],
+        prior_steps: tuple[AgentStep, ...] = (),
     ) -> StructuredModelRequest:
         return self._request(run, ModelRole.PLANNER, "planner")
 
@@ -150,12 +153,14 @@ class RecordingToolExecutor:
         store: MemoryStore,
         *,
         outcome: ToolOutcome = ToolOutcome.SUCCEEDED,
+        outcomes: tuple[ToolOutcome, ...] = (),
         retryable: bool = False,
         exception: Exception | None = None,
         cancel_during_execute: bool = False,
     ) -> None:
         self.store = store
         self.outcome = outcome
+        self.outcomes = outcomes
         self.retryable = retryable
         self.exception = exception
         self.cancel_during_execute = cancel_during_execute
@@ -177,16 +182,17 @@ class RecordingToolExecutor:
             self.store.request_cancellation(call.run_id, now=NOW)
         if self.exception is not None:
             raise self.exception
-        if self.outcome is ToolOutcome.SUCCEEDED:
+        outcome = self.outcomes[len(self.calls) - 1] if self.outcomes else self.outcome
+        if outcome is ToolOutcome.SUCCEEDED:
             return ToolResult(
                 call_id=call.id,
-                outcome=self.outcome,
+                outcome=outcome,
                 content={"count": 1},
                 duration_ms=5,
             )
         return ToolResult(
             call_id=call.id,
-            outcome=self.outcome,
+            outcome=outcome,
             error=ToolError(code="feature_unavailable", message="Feature tool unavailable"),
             duration_ms=5,
             retryable=self.retryable,
@@ -271,6 +277,7 @@ def _runner(
     *,
     tool: ToolDefinition | None = None,
     tool_outcome: ToolOutcome = ToolOutcome.SUCCEEDED,
+    tool_outcomes: tuple[ToolOutcome, ...] = (),
     limits: RunLimits | None = None,
     tool_exception: Exception | None = None,
     cancel_during_execute: bool = False,
@@ -290,6 +297,7 @@ def _runner(
     executor = RecordingToolExecutor(
         store,
         outcome=tool_outcome,
+        outcomes=tool_outcomes,
         exception=tool_exception,
         cancel_during_execute=cancel_during_execute,
     )
@@ -422,8 +430,26 @@ def test_cancellation_race_reconciles_an_uncertain_write_to_review() -> None:
     assert pending.output["recovery"] is not None
 
 
-def test_invalid_planner_arguments_fail_before_tool_execution() -> None:
-    runner, store, executor = _runner([_model_result(_plan(arguments={"wrong": True}))])
+def test_invalid_planner_arguments_are_repaired_before_tool_execution() -> None:
+    runner, store, executor = _runner(
+        [
+            _model_result(_plan(arguments={"wrong": True})),
+            _model_result(_plan()),
+            _model_result(_adaptation("complete")),
+        ]
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert [call.arguments for call in executor.calls] == [{"query": "verified"}]
+    plan_step = next(step for step in store.steps if step.phase is StepPhase.PLAN)
+    assert plan_step.output["model_invocation"]["repair_count"] == 1
+
+
+def test_invalid_planner_arguments_fail_after_bounded_repair() -> None:
+    invalid = _model_result(_plan(arguments={"wrong": True}))
+    runner, store, executor = _runner([invalid, invalid])
 
     result = runner.run_until_blocked(store.run.id)
 
@@ -433,16 +459,50 @@ def test_invalid_planner_arguments_fail_before_tool_execution() -> None:
     assert executor.calls == []
 
 
-def test_non_retryable_tool_failure_is_terminal_but_still_persisted() -> None:
-    runner, store, _ = _runner([_model_result(_plan())], tool_outcome=ToolOutcome.FAILED)
+def test_first_read_failure_can_replan_and_succeed() -> None:
+    runner, store, executor = _runner(
+        [
+            _model_result(_plan()),
+            _model_result(_adaptation("replan")),
+            _model_result(_plan(arguments={"query": "fallback"})),
+            _model_result(_adaptation("complete")),
+        ],
+        tool_outcomes=(ToolOutcome.FAILED, ToolOutcome.SUCCEEDED),
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert [call.arguments for call in executor.calls] == [
+        {"query": "verified"},
+        {"query": "fallback"},
+    ]
+    failed_action = next(
+        step
+        for step in store.steps
+        if step.phase is StepPhase.ACT and step.status is StepStatus.FAILED
+    )
+    assert failed_action.error is not None
+    assert failed_action.error.code == "feature_unavailable"
+
+
+def test_same_read_failure_is_terminal_on_second_identical_attempt() -> None:
+    runner, store, executor = _runner(
+        [
+            _model_result(_plan()),
+            _model_result(_adaptation("replan")),
+            _model_result(_plan()),
+        ],
+        tool_outcomes=(ToolOutcome.FAILED, ToolOutcome.FAILED),
+    )
 
     result = runner.run_until_blocked(store.run.id)
 
     assert result.status is RunStatus.FAILED
     assert result.error is not None
-    assert result.error.code == "feature_unavailable"
-    assert result.tool_call_count == 1
-    assert store.steps[-1].output["tool_result"] is not None
+    assert result.error.code == "repeated_tool_failure"
+    assert "feature_unavailable" in result.error.message
+    assert len(executor.calls) == 2
 
 
 def test_iteration_limit_stops_a_continue_loop_before_another_effect() -> None:
@@ -550,7 +610,11 @@ def test_adaptation_review_without_actionable_target_fails_closed() -> None:
 
 def test_unexpected_read_only_executor_exception_is_persisted_safely() -> None:
     runner, store, executor = _runner(
-        [_model_result(_plan())],
+        [
+            _model_result(_plan()),
+            _model_result(_adaptation("replan")),
+            _model_result(_plan()),
+        ],
         tool_exception=RuntimeError("private adapter detail"),
     )
 
@@ -558,10 +622,10 @@ def test_unexpected_read_only_executor_exception_is_persisted_safely() -> None:
 
     assert result.status is RunStatus.FAILED
     assert result.error is not None
-    assert result.error.code == "tool_executor_error"
-    assert result.error.message == "Unexpected orchestration failure"
+    assert result.error.code == "repeated_tool_failure"
+    assert "tool_executor_error" in result.error.message
     assert store.steps[-1].status is StepStatus.FAILED
-    assert len(executor.calls) == 1
+    assert len(executor.calls) == 2
 
 
 def test_unexpected_write_executor_exception_pauses_uncertain_effect_for_review() -> None:

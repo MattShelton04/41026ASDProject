@@ -6,7 +6,8 @@ The project is PropertyScope NSW. Feature 1, owned by Matthew Shelton, provides 
 operations and property-discovery platform. The repository contains a reproducible Python
 workspace, strict shared contracts/test utilities, a
 framework-independent bounded agent state machine, and an AI-mode foundation with
-SQLite workflow persistence, versioned prompts, OpenAI Responses API integration, health and
+SQLite workflow persistence, versioned prompts, OpenAI Responses API integration, an opt-in
+Gemini OpenAI-compatible development provider, health and
 agent-run APIs, a serial background worker, feature-scoped HTTP tools, resumable safe
 events, request idempotency, and human-review gating. The non-product
 `examples/integration-test-feature` proves the shared boundaries over real HTTP and
@@ -100,6 +101,16 @@ command atomically materialises it into a Git-ignored runtime file and Compose m
 into AI-mode as a service-scoped secret. The value never enters rendered configuration, the
 container environment, or an image. To work on deterministic data flows without an API key, use
 `uv run scripts/dev.py up --offline`; AI calls are unavailable, but Feature 1 remains operational.
+
+For Gemini development, create a Git-ignored `.env.gemini` with `AI_MODE_LLM_PROVIDER=gemini`,
+`GEMINI_API_KEY`, and `AI_MODE_DEFAULT_MODEL_PROFILE=gemini-development.v1`, then run:
+
+```text
+uv run scripts/dev.py up --env-file .env.gemini
+```
+
+The helper still converts the credential to a service-scoped Compose file secret. Select
+`gemini-quality.v1` only for an intentional Gemini 3.7 quality/cost comparison.
 
 Then open the unified PropertyScope home at <http://localhost:5100>, Feature 1 at
 <http://localhost:5200>, or the non-product integration fixture at <http://localhost:5190>.

@@ -114,6 +114,24 @@ def test_console_entrypoint_selects_a_role_declared_by_profile(
     assert provider.requests[0].role is ModelRole.PLANNER
 
 
+def test_gemini_dry_run_reports_selected_endpoint_and_credential(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("sys.argv", ["ai-mode-provider-smoke", "--dry-run"])
+    monkeypatch.setenv("AI_MODE_LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setenv("AI_MODE_DEFAULT_MODEL_PROFILE", "gemini-development.v1")
+
+    assert provider_diagnostics.main() == 0
+
+    report = json.loads(capsys.readouterr().out)
+    assert report["provider"] == "gemini"
+    assert report["credential_configured"] is True
+    assert report["base_url"].endswith("/v1beta/openai")
+    assert report["prompt_cache_enabled"] is False
+
+
 def test_console_entrypoint_returns_nonzero_with_safe_error(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

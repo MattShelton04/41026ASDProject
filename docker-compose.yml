@@ -39,11 +39,13 @@ services:
       # Feature 1 consumes the durable, redacted run index for diagnosis history.
       AI_MODE_OPERATIONS_ENABLED: ${AI_MODE_OPERATIONS_ENABLED:-true}
       AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml
-      AI_MODE_LLM_PROVIDER: openai
+      AI_MODE_LLM_PROVIDER: ${AI_MODE_LLM_PROVIDER:-openai}
       AI_MODE_REQUIRE_PROVIDER_READY: ${AI_MODE_REQUIRE_PROVIDER_READY:-true}
       AI_MODE_DEFAULT_MODEL_PROFILE: ${AI_MODE_DEFAULT_MODEL_PROFILE:-remote-standard.v1}
       OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      GEMINI_API_KEY_FILE: /run/secrets/openai_api_key
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       OPENAI_HEALTH_TIMEOUT_SECONDS: ${OPENAI_HEALTH_TIMEOUT_SECONDS:-2}
       OPENAI_HEALTH_CACHE_SECONDS: ${OPENAI_HEALTH_CACHE_SECONDS:-60}
       OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-120}

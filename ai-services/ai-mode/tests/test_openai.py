@@ -59,6 +59,25 @@ def _success_body(*, text: str = '{"ok":true}') -> dict[str, object]:
     }
 
 
+def _chat_success_body(*, text: str = '{"ok":true}') -> dict[str, object]:
+    return {
+        "id": "chatcmpl_test",
+        "model": "gemini-3.5-flash-lite",
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": text},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 20,
+            "completion_tokens": 7,
+            "prompt_tokens_details": {"cached_tokens": 2},
+            "completion_tokens_details": {"reasoning_tokens": 3},
+        },
+    }
+
+
 def _provider(
     handler: httpx.MockTransport,
     *,
@@ -135,6 +154,54 @@ def test_responses_payload_auth_and_metrics_are_provider_native() -> None:
     assert result.metrics.reasoning_tokens == 3
     assert result.metrics.retry_count == 0
     assert result.provider_request_id == "req_test"
+
+
+def test_chat_completions_compatibility_payload_and_metrics() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["path"] = request.url.path
+        captured["payload"] = json.loads(request.content)
+        return httpx.Response(200, json=_chat_success_body())
+
+    provider = OpenAIProvider(
+        api_key="test-key",
+        base_url="https://ignored.test/v1",
+        provider_name="gemini",
+        api_style="chat_completions",
+        profiles={
+            "remote-standard.v1": OpenAIModelProfile(
+                models={ModelRole.PLANNER: "gemini-3.5-flash-lite"},
+                reasoning_effort=ModelReasoningEffort.LOW,
+            )
+        },
+        timeout_seconds=5,
+        max_retries=0,
+        max_response_bytes=100_000,
+        client=httpx.Client(
+            base_url="https://generativelanguage.googleapis.test/v1",
+            transport=httpx.MockTransport(handler),
+        ),
+    )
+
+    result = provider.generate_structured(_request())
+
+    assert captured["path"] == "/v1/chat/completions"
+    payload = captured["payload"]
+    assert isinstance(payload, dict)
+    assert payload["model"] == "gemini-3.5-flash-lite"
+    assert payload["messages"][0]["role"] == "system"
+    assert payload["messages"][0]["content"].startswith("Return JSON.\n\nReturn only one JSON")
+    assert payload["messages"][1] == {"role": "user", "content": "Confirm readiness."}
+    assert payload["reasoning_effort"] == "low"
+    assert payload["response_format"] == {"type": "json_object"}
+    assert "store" not in payload
+    assert result.content == {"ok": True}
+    assert result.provider == "gemini"
+    assert result.metrics.prompt_tokens == 20
+    assert result.metrics.output_tokens == 7
+    assert result.metrics.cached_prompt_tokens == 2
+    assert result.metrics.reasoning_tokens == 3
 
 
 def test_profile_routes_implementer_and_reviewer_roles_to_distinct_models() -> None:
@@ -478,6 +545,8 @@ def test_invalid_or_refused_success_responses_are_rejected(body: object, code: s
         provider.generate_structured(_request())
 
     assert raised.value.code == code
+    if code == "model_response_incomplete":
+        assert raised.value.retryable is True
 
 
 def test_malformed_model_text_is_returned_for_bounded_repair() -> None:

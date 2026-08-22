@@ -23,6 +23,8 @@ def test_defaults_have_one_typed_runtime_source() -> None:
     assert settings.llm_provider == "openai"
     assert settings.openai_base_url == "https://api.openai.com/v1"
     assert settings.openai_api_key is None
+    assert settings.gemini_base_url == ("https://generativelanguage.googleapis.com/v1beta/openai")
+    assert settings.gemini_api_key is None
     assert settings.openai_prompt_cache_enabled is True
     assert settings.openai_allow_insecure_http is False
     assert settings.openai_health_cache_seconds == 60
@@ -51,6 +53,22 @@ def test_openai_configuration_reads_a_bounded_secret_file(tmp_path: Path) -> Non
 
     assert settings.openai_api_key == "file-secret"
     assert "file-secret" not in repr(settings)
+
+
+def test_gemini_configuration_uses_its_compatible_endpoint_and_secret() -> None:
+    settings = Settings.from_env(
+        {
+            "AI_MODE_LLM_PROVIDER": "gemini",
+            "GEMINI_API_KEY": "gemini-secret",
+            "AI_MODE_DEFAULT_MODEL_PROFILE": "gemini-development.v1",
+        }
+    )
+
+    assert settings.llm_provider == "gemini"
+    assert settings.gemini_api_key == "gemini-secret"
+    assert settings.gemini_base_url.endswith("/v1beta/openai")
+    assert settings.default_model_profile == "gemini-development.v1"
+    assert "gemini-secret" not in repr(settings)
 
 
 def test_non_loopback_http_requires_an_explicit_local_development_opt_in() -> None:
@@ -85,6 +103,10 @@ def test_non_loopback_http_requires_an_explicit_local_development_opt_in() -> No
             "set only one",
         ),
         ({"OPENAI_API_KEY_FILE": "/missing/openai-key"}, "could not be read"),
+        (
+            {"AI_MODE_LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "bad\nkey"},
+            "GEMINI_API_KEY is invalid",
+        ),
         ({"AI_MODE_MAX_MODEL_RESPONSE_BYTES": "10"}, "must be between"),
         ({"AI_MODE_MAX_MODEL_RESPONSE_BYTES": "many"}, "must be an integer"),
         ({"AI_MODE_MAX_REQUEST_BYTES": "10"}, "must be between"),

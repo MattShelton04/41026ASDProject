@@ -294,6 +294,31 @@ def test_tool_catalog_exactly_covers_declared_ai_capabilities() -> None:
     assert names == set(manifest.ai_capabilities)
 
 
+def test_release_inspection_tool_declares_all_composed_evidence() -> None:
+    catalog = load_tool_catalog(ROOT / "tool-catalog.yaml")
+    registration = next(
+        item for item in catalog.tools if item.definition.name == "data.release_inspect.v1"
+    )
+    schema = registration.definition.output_schema
+
+    expected = {
+        "release",
+        "quality_results",
+        "quality_summary",
+        "receipts",
+        "accepted_predecessor",
+        "release_contract",
+    }
+    properties = schema["properties"]
+    required = schema["required"]
+    assert isinstance(properties, dict)
+    assert isinstance(required, list)
+    required_names = {item for item in required if isinstance(item, str)}
+    assert len(required_names) == len(required)
+    assert set(properties) == expected
+    assert required_names == expected
+
+
 def test_feature_manifest_uses_the_canonical_shared_edge_route() -> None:
     manifest = load_feature_manifest(ROOT / "feature.yaml")
 

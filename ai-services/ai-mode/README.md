@@ -1,9 +1,10 @@
 # AI-mode shared agent orchestrator
 
 `ai-mode` owns the HTTP orchestration boundary, workflow-state SQLite database,
-versioned prompts, OpenAI Responses API integration, and concurrency-one background worker.
+versioned prompts, OpenAI Responses API integration, an opt-in Gemini Chat Completions-compatible
+development path, and concurrency-one background worker.
 The name follows the assignment's **AI mode** capability; operationally this container
-is the shared agent orchestrator. OpenAI owns remote model inference; AI-mode owns all
+is the shared agent orchestrator. The selected remote provider owns inference; AI-mode owns all
 application orchestration, validation, persistence, and tool policy.
 
 ## HTTP surface
@@ -31,12 +32,18 @@ the configured limit.
 
 ## Configuration
 
-The adapter uses the official OpenAI Python SDK to call `POST /v1/responses` with `store: false`,
+The adapter uses the official OpenAI Python SDK. OpenAI calls `POST /v1/responses` with `store: false`,
 low reasoning effort, bounded output, a client request ID, and a JSON Schema format. The Plan contract contains dynamic
 tool-argument objects, which are incompatible with OpenAI's closed/all-required strict
 schema subset, so API strict mode is deliberately disabled. Agent-core still validates the
-complete application contract and permits at most one repair turn. Readiness retrieves only
+complete application and selected tool contracts and permits at most two configured repair turns.
+Readiness retrieves only
 the selected models through `GET /v1/models/{model}` and caches that readiness result briefly.
+Gemini development instead uses Google's OpenAI-compatible `POST /chat/completions` endpoint;
+Google's compatibility layer does not implement Responses create and rejects the Plan contract's
+dynamic tool-argument map in structured-output schema mode. Gemini therefore uses JSON-object mode
+with the full schema in its system instruction, followed by the same application-owned validation,
+bounded repair, deadline, response-size, and tool policies.
 The configured context window is conservatively enforced before dispatch. Stable versioned
 system prompts use explicit prompt-cache breakpoints and a deterministic cache key; cache read,
 write, retry, and provider request-ID evidence is retained with the run.
@@ -48,6 +55,9 @@ write, retry, and provider request-ID evidence is retained with the run.
 | `OPENAI_API_KEY` | unset; direct host-process credential |
 | `OPENAI_API_KEY_FILE` | unset; mutually exclusive file-mounted credential used by Compose |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` |
+| `GEMINI_API_KEY` | unset; direct host-process Gemini credential |
+| `GEMINI_API_KEY_FILE` | unset; mutually exclusive file-mounted Gemini credential |
+| `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` |
 | `OPENAI_ALLOW_INSECURE_HTTP` | `false` |
 | `OPENAI_TIMEOUT_SECONDS` | `120` |
 | `OPENAI_HEALTH_TIMEOUT_SECONDS` | `2` |
@@ -122,6 +132,8 @@ role-routed provider model IDs:
 | Profile | Implementer (planner) | Reviewer (adapter/reviewer) | Runtime context | Output maximum | Reasoning |
 |---|---|---|---:|---:|---|
 | `remote-standard.v1` | `gpt-5.6-luna` | `gpt-5.6-terra` | 128K | 16K | low |
+| `gemini-development.v1` | `gemini-3.5-flash-lite` | `gemini-3.6-flash` | 128K | 16K | low |
+| `gemini-quality.v1` | `gemini-3.7-flash` | `gemini-3.7-flash` | 128K | 16K | low |
 
 The provider advertises a much larger context for both models, but this application deliberately
 caps the profile at 128K and does not target the 1.05M window. Individual agent requests retain
@@ -134,6 +146,10 @@ it uses the service's configured default. Intended roles are enforced rather tha
 descriptive metadata: Release 0 runs require planner and adapter support, and every
 provider call rejects a mismatched role before network I/O. Readiness verifies access to every
 distinct model routed by the selected profile.
+
+Profiles are provider-specific. Set `AI_MODE_LLM_PROVIDER=gemini` with a Gemini profile, or retain
+the default `openai` provider with `remote-standard.v1`; composition rejects a cross-provider
+default profile before network I/O.
 
 The registry YAML is deliberate source configuration and can be replaced as a whole
 with `AI_MODE_MODEL_REGISTRY_PATH`. It is validated offline at startup and by:
@@ -148,17 +164,30 @@ For a containerised custom registry, mount the file read-only and set
 `AI_MODE_MODEL_REGISTRY_PATH` to its path inside the container; a host path is not
 implicitly visible in Docker.
 
-The default `default.v3` prompt set keeps the explicit generic output skeletons and
-adds an evidence-completeness policy for ordered multi-action objectives. Immutable
-`default.v1` and `default.v2` remain accepted for replaying runs created with the
-earlier prompt assets.
+The default `default.v4` prompt set keeps explicit generic output skeletons, maps every
+objective requirement to observable success criteria, carries the original objective into
+adaptation, and gives replanning a bounded history of prior tool attempts. Its final result is
+an evidence-backed brief with findings, a safe next step, a safety boundary, and exact evidence
+references. Immutable `default.v1` through `default.v3` remain accepted for replaying runs
+created with earlier prompt assets.
 
 Planner and adapter are roles in one persisted orchestrator, not separate long-lived
 agents. Each role is a separate stateless OpenAI request with its own versioned system
-prompt. The planner receives the objective and allowlisted tools; the adapter receives
-the active plan's ordered persisted action/results and current observation. Successful
+prompt. The planner receives the objective, allowlisted tools, and bounded prior call outcomes;
+the adapter receives the original objective, active plan's ordered persisted action/results,
+and current observation. Successful
 intermediate actions continue by deterministic orchestration policy, avoiding an
 unnecessary adapter inference while preserving an auditable ADAPT step.
+
+Tool-name and argument mistakes are returned to the model as schema-informed bounded repairs
+before execution. A first failed read-only tool result is persisted as a failed ACT step and
+continues through Observe and Adapt, allowing another planned action or a safer replan. The same
+tool, arguments, and error code failing a second time stops deterministically with
+`repeated_tool_failure`. One incomplete provider response is retried with an explicit completion
+instruction inside the original deadline; a repeated incomplete response is terminal. Planner
+responses reserve 2,048 output tokens and the more detailed adaptation brief reserves 4,096.
+Write uncertainty, approval policy, provider exhaustion, invalid result
+identity, and hard run limits still fail closed or pause for human review.
 
 The SQLite adapter enables foreign keys, WAL mode, a busy timeout, forward schema
 versioning, optimistic run versions, create-request idempotency, and safe append-only

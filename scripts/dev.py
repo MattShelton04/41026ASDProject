@@ -49,6 +49,7 @@ FULL_DATA_PROJECT_NAME = "41026-asd-propertyscope-full-data"
 DEFAULT_PROJECT_NAME = "41026-asd-project"
 RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
 OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"
+SUPPORTED_LLM_PROVIDERS = frozenset({"gemini", "openai"})
 PROPERTYSCOPE_API_URL = "http://127.0.0.1:5200/api/data-platform/v1"
 JOB_PROFILE_DIRECTORY = REPOSITORY_ROOT / "student-1" / "config" / "job-profiles"
 COLLECTION_JOBS = (
@@ -89,16 +90,46 @@ def _ensure_docker() -> None:
 
 
 def _openai_credential(*, offline: bool) -> str:
-    """Resolve an explicit live credential or the documented offline placeholder."""
+    """Resolve the configured remote credential or the documented offline placeholder."""
     if offline:
         return OFFLINE_OPENAI_CREDENTIAL
-    credential = os.environ.get("OPENAI_API_KEY", "").strip()
+    provider = os.environ.get("AI_MODE_LLM_PROVIDER", "openai").strip().lower()
+    if provider not in SUPPORTED_LLM_PROVIDERS:
+        raise RuntimeError(
+            f"AI_MODE_LLM_PROVIDER must be one of: {', '.join(sorted(SUPPORTED_LLM_PROVIDERS))}"
+        )
+    variable = "GEMINI_API_KEY" if provider == "gemini" else "OPENAI_API_KEY"
+    credential = os.environ.get(variable, "").strip()
     if not credential:
         raise RuntimeError(
-            "OPENAI_API_KEY is required for the complete stack. Set a real key for OpenAI "
-            "or pass --offline to run data and non-AI workflows with provider readiness disabled."
+            f"{variable} is required for the complete stack when AI_MODE_LLM_PROVIDER={provider}. "
+            "Set a real key or pass --offline to run data and non-AI workflows with provider "
+            "readiness disabled."
         )
     return credential
+
+
+def _load_environment_file(path: Path) -> None:
+    """Load a small explicit dotenv file without exposing values or overriding the shell."""
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"could not read environment file: {path}") from exc
+    if len(content.encode("utf-8")) > 65_536:
+        raise RuntimeError(f"environment file is too large: {path}")
+    for line_number, raw_line in enumerate(content.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        name, separator, value = line.partition("=")
+        if not separator or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None:
+            raise RuntimeError(f"invalid environment assignment at {path}:{line_number}")
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+        os.environ.setdefault(name, value)
 
 
 def _runtime_secret_path(*, full_data: bool) -> Path:
@@ -256,7 +287,10 @@ def _compose_environment(*, full_data: bool, offline: bool) -> Mapping[str, str]
     credential = _openai_credential(offline=offline)
     environment = os.environ.copy()
     environment.pop("OPENAI_API_KEY", None)
-    environment["OPENAI_API_KEY_FILE"] = str(_write_openai_secret(credential, full_data=full_data))
+    environment.pop("GEMINI_API_KEY", None)
+    secret_path = str(_write_openai_secret(credential, full_data=full_data))
+    environment["OPENAI_API_KEY_FILE"] = secret_path
+    environment["GEMINI_API_KEY_FILE"] = secret_path
     if offline:
         environment["AI_MODE_REQUIRE_PROVIDER_READY"] = "false"
     if full_data:
@@ -355,8 +389,13 @@ def _doctor(*, full_data: bool) -> None:
     _ensure_docker()
     _run(("docker", "compose", "version"))
     _run(_compose_command("config", "--quiet", full_data=full_data))
-    credential_state = "available" if os.environ.get("OPENAI_API_KEY", "").strip() else "missing"
-    print(f"OpenAI credential: {credential_state} (--offline remains available)", flush=True)
+    provider = os.environ.get("AI_MODE_LLM_PROVIDER", "openai").strip().lower()
+    variable = "GEMINI_API_KEY" if provider == "gemini" else "OPENAI_API_KEY"
+    credential_state = "available" if os.environ.get(variable, "").strip() else "missing"
+    print(
+        f"{provider.title()} credential: {credential_state} (--offline remains available)",
+        flush=True,
+    )
     if full_data:
         print(f"Cached PSI annual archives: {len(_psi_cache_years())}", flush=True)
         print(f"Cached PSI weekly archives: {len(_psi_cache_weeks())}", flush=True)
@@ -525,7 +564,7 @@ def _parser() -> argparse.ArgumentParser:
         description="Run the assignment-aligned local stack with fast source reloads."
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    parser.set_defaults(full_data=False)
+    parser.set_defaults(full_data=False, env_file=None)
 
     def add_full_data_option(command: argparse.ArgumentParser) -> None:
         command.add_argument(
@@ -538,12 +577,20 @@ def _parser() -> argparse.ArgumentParser:
         command.add_argument(
             "--offline",
             action="store_true",
-            help="Start data/non-AI workflows without requiring a live OpenAI credential",
+            help="Start data/non-AI workflows without requiring a live provider credential",
+        )
+
+    def add_env_file_option(command: argparse.ArgumentParser) -> None:
+        command.add_argument(
+            "--env-file",
+            type=Path,
+            help="Load provider settings from an explicit Git-ignored dotenv file",
         )
 
     up = commands.add_parser("up", help="Start the complete development stack")
     add_full_data_option(up)
     add_offline_option(up)
+    add_env_file_option(up)
 
     rebuild = commands.add_parser(
         "rebuild",
@@ -557,12 +604,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     add_full_data_option(rebuild)
     add_offline_option(rebuild)
+    add_env_file_option(rebuild)
 
     restart = commands.add_parser(
         "restart", help="Recreate application containers without rebuilding"
     )
     add_full_data_option(restart)
     add_offline_option(restart)
+    add_env_file_option(restart)
     down = commands.add_parser("down", help="Stop containers while preserving durable volumes")
     add_full_data_option(down)
     reset = commands.add_parser(
@@ -571,6 +620,7 @@ def _parser() -> argparse.ArgumentParser:
     add_full_data_option(reset)
     doctor = commands.add_parser("doctor", help="Validate Docker and the merged Compose model")
     add_full_data_option(doctor)
+    add_env_file_option(doctor)
     status = commands.add_parser("status", help="Show current service and health state")
     add_full_data_option(status)
     config_command = commands.add_parser("config", help="Validate the merged Compose configuration")
@@ -635,6 +685,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Execute one documented development action."""
     arguments = _parser().parse_args(argv)
     try:
+        if arguments.env_file is not None:
+            _load_environment_file(arguments.env_file)
         if arguments.command == "up":
             _up(full_data=arguments.full_data, offline=arguments.offline)
         elif arguments.command == "rebuild":
