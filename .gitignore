@@ -55,6 +55,7 @@ uploads/
 logs/
 cache/
 .propertyscope-source-cache/
+.propertyscope-runtime/
 tmp/
 temp/
 *.tmp

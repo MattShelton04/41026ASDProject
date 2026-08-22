@@ -15,7 +15,6 @@ class StoreSettings:
     artifact_root: Path
     internal_token: str
     auto_migrate: bool = True
-    auto_seed: bool = True
 
     @classmethod
     def from_environment(cls) -> StoreSettings:
@@ -33,7 +32,6 @@ class StoreSettings:
             ).resolve(),
             internal_token=token,
             auto_migrate=_boolean("PROPERTYSCOPE_AUTO_MIGRATE", default=True),
-            auto_seed=_boolean("PROPERTYSCOPE_AUTO_SEED", default=True),
         )
 
 

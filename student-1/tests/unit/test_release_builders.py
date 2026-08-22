@@ -65,7 +65,7 @@ def _property_row(index: int = 1) -> dict[str, Any]:
     return {
         "source_address_id": f"FIX-{index:03d}",
         "property_ref": None,
-        "display_address": f"{index} TEST STREET PARRAMATTA NSW 2150",
+        "address_display": f"{index} TEST STREET PARRAMATTA NSW 2150",
         "flat_type": None,
         "unit_number": None,
         "street_number_first": index,

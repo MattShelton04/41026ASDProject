@@ -30,25 +30,38 @@ TERMINAL_RUN_STATES = frozenset({"succeeded", "failed", "cancelled"})
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_IMPORT_STATES = frozenset({"succeeded", "failed", "cancelled"})
 
-PREVIEW_SPECS: dict[str, tuple[str, str, tuple[str, ...]]] = {
-    "gnaf-nsw": (
-        """SELECT gnaf_pid,property_ref,address_display,locality,postcode,source_status,
-        geocode_type,source_crs,ST_AsGeoJSON(geom)::jsonb AS geometry
+PROPERTY_RECORD_SPEC = (
+    """SELECT gnaf_pid AS source_address_id,property_ref,address_display,
+        flat_type,unit_number,street_number_first,street_number_suffix,street_number_last,
+        street_name,street_type,locality,postcode,source_status,geocode_type,source_crs,
+        ST_AsGeoJSON(geom)::jsonb AS geometry,source_row_sha256,normalisation_version
         FROM warehouse.gnaf_address WHERE dataset_release_id=%s
         ORDER BY locality,postcode,address_display,gnaf_pid LIMIT %s OFFSET %s""",
-        "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
-        (
-            "gnaf_pid",
-            "property_ref",
-            "address_display",
-            "locality",
-            "postcode",
-            "source_status",
-            "geocode_type",
-            "source_crs",
-            "geometry",
-        ),
+    "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
+    (
+        "source_address_id",
+        "property_ref",
+        "address_display",
+        "flat_type",
+        "unit_number",
+        "street_number_first",
+        "street_number_suffix",
+        "street_number_last",
+        "street_name",
+        "street_type",
+        "locality",
+        "postcode",
+        "source_status",
+        "geocode_type",
+        "source_crs",
+        "geometry",
+        "source_row_sha256",
+        "normalisation_version",
     ),
+)
+
+PREVIEW_SPECS: dict[str, tuple[str, str, tuple[str, ...]]] = {
+    "gnaf-nsw": PROPERTY_RECORD_SPEC,
     "psi-sales": (
         """SELECT source_business_key,source_revision,source_era,district_code,property_id,
         dealing_id,contract_date::text,settlement_date::text,price_aud,
@@ -119,28 +132,7 @@ PREVIEW_SPECS: dict[str, tuple[str, str, tuple[str, ...]]] = {
             "geometry",
         ),
     ),
-    "property-fixture": (
-        """SELECT DISTINCT property.property_ref,property.address_display,property.locality,
-        property.postcode,property.state,property.resolution_status,
-        ST_AsGeoJSON(property.geom)::jsonb AS geometry
-        FROM registry.property property JOIN registry.property_identifier identifier
-          ON identifier.property_ref=property.property_ref
-        WHERE identifier.source_release_id=%s AND identifier.is_current
-        ORDER BY property.address_display,property.property_ref LIMIT %s OFFSET %s""",
-        """SELECT count(DISTINCT property.property_ref) AS count
-        FROM registry.property property JOIN registry.property_identifier identifier
-          ON identifier.property_ref=property.property_ref
-        WHERE identifier.source_release_id=%s AND identifier.is_current""",
-        (
-            "property_ref",
-            "address_display",
-            "locality",
-            "postcode",
-            "state",
-            "resolution_status",
-            "geometry",
-        ),
-    ),
+    "property-fixture": PROPERTY_RECORD_SPEC,
 }
 
 
@@ -167,9 +159,8 @@ class PropertyScopeStore:
         with self._pool.connection() as connection:
             yield connection
 
-    def initialize(self, *, seed: bool = True) -> str:
-        """Migrate from empty; seed migration remains idempotent and profile-safe."""
-        del seed  # The checked showcase seed is an idempotent migration in Release 0.
+    def initialize(self) -> str:
+        """Migrate from empty, including the idempotent Release 0 showcase baseline."""
         with self.connection() as connection:
             migrate(connection)
             return schema_fingerprint(connection)

@@ -68,16 +68,20 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Lint and apply safe fixes | `uv run ruff check --fix .` |
 | Type-check every canonical path | `uv run python scripts/check.py` (includes strict mypy over packages, the integration fixture, and typed scripts) |
 | Run tests | `uv run pytest` |
-| Run tests with coverage | `uv run pytest --cov --cov-report=term-missing` |
+| Run tests with enforced coverage | `uv run python scripts/check.py` (90% core branch coverage; 60% Feature 1 ratchet) |
 | Generate contract artefacts | `uv run python scripts/generate_contracts.py` |
 | Validate repository boundaries | `uv run python scripts/validate_architecture.py` |
 | Validate the model registry | `uv run python scripts/validate_model_registry.py` |
 | Validate feature tool catalogues | `uv run python scripts/validate_tool_catalogs.py` |
 | Start the AI-mode service | `uv run flask --app ai_mode:create_app run --port 5005` |
 | Start the complete reloadable stack | `uv run scripts/dev.py up` |
+| Start data flows without a live model | `uv run scripts/dev.py up --offline` |
+| Check Docker and Compose prerequisites | `uv run scripts/dev.py doctor` |
+| Run a code-driven fixture acquisition | `uv run scripts/dev.py collect fixture-property --profile test` |
 | Follow local stack logs | `uv run scripts/dev.py logs` |
 | Rebuild changed container images | `uv run scripts/dev.py rebuild` |
 | Stop the stack and preserve data | `uv run scripts/dev.py down` |
+| Delete only this stack's durable data | `uv run scripts/dev.py reset` |
 
 The local service exposes health endpoints and the versioned `/api/v1/agent-runs`
 create/read/cancel/review surface. Its default feature-tool registry remains empty until
@@ -90,7 +94,9 @@ for a short edit-refresh loop while retaining the same service-to-service HTTP a
 database-ownership boundaries used by the production-like stack. PropertyScope source-scale
 work requires the explicit `--full-data` option. It adds `docker-compose.full-data.yml` under
 an isolated Compose project; ordinary `up` cannot silently enable live acquisition or reuse
-the full-data PostgreSQL volume.
+the full-data PostgreSQL volume. `up` performs a cache-backed build reconciliation so dependency
+changes from a pull cannot silently reuse stale images. `reset [--full-data]` is intentionally
+destructive but label-scoped; it does not delete the host-side source cache.
 
 ## Dependencies and workspace projects
 

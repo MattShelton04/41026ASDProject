@@ -459,7 +459,7 @@ class RegisteredReleaseBuilder:
                     str(row.get("property_ref") or _stable_property_ref(source_id))
                 ),
                 source_address_id=source_id,
-                display_address=str(row["display_address"]),
+                display_address=str(row["address_display"]),
                 flat_type=row.get("flat_type"),
                 unit_number=row.get("unit_number"),
                 street_number_first=row.get("street_number_first"),

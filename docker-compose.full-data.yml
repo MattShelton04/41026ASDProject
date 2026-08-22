@@ -3,8 +3,6 @@
 services:
   propertyscope-database-api:
     profiles: [full-data]
-    environment:
-      PROPERTYSCOPE_AUTO_SEED: "false"
     mem_limit: ${PROPERTYSCOPE_DATABASE_MEMORY_LIMIT:-4g}
     cpus: ${PROPERTYSCOPE_DATABASE_CPU_LIMIT:-4.0}
 

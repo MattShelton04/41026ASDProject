@@ -18,7 +18,7 @@ def create_app(
     resolved = settings or StoreSettings.from_environment()
     repository = store or PropertyScopeStore(resolved.database_url)
     if resolved.auto_migrate:
-        repository.initialize(seed=resolved.auto_seed)
+        repository.initialize()
     app = Flask("propertyscope-database-api")
     app.config["MAX_CONTENT_LENGTH"] = 256 * 1024
     app.extensions["propertyscope_store"] = repository

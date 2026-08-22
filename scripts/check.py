@@ -8,6 +8,19 @@ import sys
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+CORE_TEST_PATHS = (
+    "shared/contracts/tests",
+    "shared/testkit/tests",
+    "ai-services/agent-core/tests",
+    "ai-services/ai-mode/tests",
+    "examples/integration-test-feature/tests",
+    "scripts/tests",
+)
+FRONTEND_TEST_PATHS = (
+    "student-1/tests/frontend/core.test.mjs",
+    "shared/frontend/dashboard.test.mjs",
+    "shared/frontend/operations/ai-mode/polling.test.mjs",
+)
 
 COMMANDS: tuple[tuple[str, ...], ...] = (
     (sys.executable, "-m", "ruff", "format", "--check", "."),
@@ -44,7 +57,19 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
         "--cov=shared_contracts",
         "--cov=shared_testkit",
         "--cov-report=term-missing",
+        *CORE_TEST_PATHS,
     ),
+    (
+        sys.executable,
+        "-m",
+        "pytest",
+        "--cov=propertyscope_data_platform",
+        "--cov=propertyscope_data_store",
+        "--cov-report=term-missing",
+        "--cov-fail-under=60",
+        "student-1/tests",
+    ),
+    ("node", "--test", *FRONTEND_TEST_PATHS),
 )
 
 

@@ -55,6 +55,10 @@ uv sync --locked --all-packages --all-groups
 uv run scripts/dev.py up
 ```
 
+Use `uv run scripts/dev.py up --offline` when validating Feature 1 without an OpenAI credential.
+Database migrations and the deterministic showcase baseline are automatic in both modes; no SQL,
+seed script, or Docker Desktop action is required.
+
 Open <http://localhost:5200>. The normal operator path is:
 
 1. Open **Jobs**, choose a registered job and select **Run now** or **Backfill**.
@@ -68,6 +72,18 @@ Open <http://localhost:5200>. The normal operator path is:
 6. Open **AI diagnosis** to start or revisit persistent shared AI-mode investigations. Leaving the
    page does not discard their history.
 
+The acquisition path can also run without browser actions. This queues the registered deterministic
+fixture, waits for all runner and loader stages, and reports the retained candidate release:
+
+```text
+uv run scripts/dev.py collect fixture-property --profile test
+```
+
+Use `schools-master`, `bocsar-crime`, `gnaf-nsw`, or `psi-sales` with `--profile full-data` after
+starting the full-data stack. Add `--no-wait` for a long job. These commands automate discovery,
+acquisition, validation, import, normalisation, quality checks, and candidate construction. They do
+not bypass the separate human decision to submit, accept, or reject a candidate.
+
 Run `uv run scripts/dev.py down` when finished. Named AI history, PostgreSQL and artifact
 volumes are preserved.
 
@@ -79,6 +95,10 @@ Real acquisition is isolated in a separate Compose project and PostgreSQL volume
 uv run scripts/dev.py sync-psi --all
 uv run scripts/dev.py up --full-data
 ```
+
+A complete project reset is also code-driven: `uv run scripts/dev.py reset --full-data` removes
+only the isolated project's labelled Docker volumes. The following `up --full-data` recreates
+PostgreSQL, migrates it, and restores the deterministic operator baseline automatically.
 
 | Import profile | Full-data status | Upstream behaviour |
 |---|---|---|

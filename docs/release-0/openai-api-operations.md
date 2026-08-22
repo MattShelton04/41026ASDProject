@@ -39,9 +39,9 @@ terminal transcripts, screenshots, tickets, or committed `.env` files. Root `.gi
 excludes `.env` and `.env.*` except templates, but ignore rules are not a substitute for secret
 review. Use the deployment platform's secret manager outside local development, rotate any key
 that may have been exposed, and do not print the settings object or authorization headers.
-Compose turns the host value into a service-scoped secret mounted at
-`/run/secrets/openai_api_key`; it does not interpolate the credential into the container
-environment or rendered Compose configuration.
+`scripts/dev.py` writes the host value atomically to a Git-ignored, mode-restricted runtime file.
+Compose mounts that file as `/run/secrets/openai_api_key`; it does not interpolate the credential
+into the container environment or rendered Compose configuration.
 
 ## Configuration
 
@@ -49,7 +49,7 @@ environment or rendered Compose configuration.
 |---|---|---|
 | `AI_MODE_LLM_PROVIDER` | Provider implementation selector | `openai` |
 | `OPENAI_API_KEY` | Bearer credential; required for generation/readiness | unset |
-| `OPENAI_API_KEY_FILE` | Mutually exclusive mounted credential path | unset; Compose supplies it |
+| `OPENAI_API_KEY_FILE` | Mutually exclusive mounted credential path | runtime file supplied by `scripts/dev.py` |
 | `OPENAI_BASE_URL` | Responses/Models API root | `https://api.openai.com/v1` |
 | `OPENAI_ALLOW_INSECURE_HTTP` | Permit non-loopback HTTP for a trusted local compatible endpoint | `false` |
 | `OPENAI_TIMEOUT_SECONDS` | Per-generation ceiling before the run deadline is applied | `120` |
@@ -74,6 +74,12 @@ uv run scripts/dev.py up
 uv run scripts/dev.py status
 uv run scripts/dev.py logs ai-mode
 ```
+
+The helper copies the shell credential into `.propertyscope-runtime/`, which is Git-ignored, and
+passes only that file path to Compose. This file-backed secret is compatible with the read-only
+AI-mode container on Compose implementations that cannot materialise environment-backed secrets
+there. `down` removes the corresponding runtime file. Use `up --offline` for deterministic data
+work without live model readiness.
 
 For AI-mode on the host:
 
