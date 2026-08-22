@@ -1362,8 +1362,8 @@ class PropertyScopeStore:
             WITH candidates AS (
                 SELECT property_ref,address_display,locality,postcode,state,resolution_status,
                        ST_X(geom) AS longitude,ST_Y(geom) AS latitude,
-                       greatest(similarity(address_search,%s), CASE WHEN address_search=%s THEN 1 ELSE 0 END) AS score,
-                       CASE WHEN address_search=%s THEN 0 WHEN address_search LIKE %s || '%%' THEN 1 ELSE 2 END AS exact_rank
+                       greatest(similarity(concat_ws(' ',address_search,postcode),%s), CASE WHEN concat_ws(' ',address_search,postcode)=%s THEN 1 ELSE 0 END) AS score,
+                       CASE WHEN concat_ws(' ',address_search,postcode)=%s THEN 0 WHEN concat_ws(' ',address_search,postcode) LIKE %s || '%%' THEN 1 ELSE 2 END AS exact_rank
                 FROM registry.property property
                 WHERE state=%s
                   AND EXISTS (
@@ -1372,7 +1372,7 @@ class PropertyScopeStore:
                         ON accepted.dataset_release_id=identifier.source_release_id
                       WHERE identifier.property_ref=property.property_ref AND identifier.is_current
                   )
-                  AND (address_search ILIKE '%%' || %s || '%%' OR address_search %% %s)
+                  AND (concat_ws(' ',address_search,postcode) ILIKE '%%' || %s || '%%' OR concat_ws(' ',address_search,postcode) %% %s)
             ), ranked AS (
                 SELECT candidates.*,max(score) OVER () AS best_score FROM candidates
             )

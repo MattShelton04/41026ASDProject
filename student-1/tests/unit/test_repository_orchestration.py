@@ -372,6 +372,7 @@ def test_property_search_requires_an_accepted_identity_generation() -> None:
     assert "JOIN serving.accepted_generation accepted" in store.query
     assert "accepted.dataset_release_id=identifier.source_release_id" in store.query
     assert "identifier.is_current" in store.query
+    assert "concat_ws(' ',address_search,postcode)" in store.query
     assert "best_score - 0.08" in store.query
 
 

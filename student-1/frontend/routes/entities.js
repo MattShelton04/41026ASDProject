@@ -53,6 +53,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
             await rerender();
           } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }
         }));
+        for (const control of actions.querySelectorAll("button, a")) control.setAttribute("aria-label", `${control.textContent.trim()} ${item.name}`);
         if (isSource) append(row, cell(primaryCell(item.name, item.id)), cell(item.publisher), cell(item.adapter_key, "mono"), cell(item.cadence), cell(badge(item.status)), cell(actions, "actions-cell"));
         else append(row, cell(primaryCell(item.name, item.profile_key)), cell(primaryCell(item.dataset_id || item.target?.contract, researchAreaLabel(item.target_feature || item.target?.feature))), cell(humanise(item.refresh_strategy)), cell(`${formatNumber(item.max_rows ?? item.limits?.max_rows)} rows`, "numeric"), cell(badge(item.status)), cell(actions, "actions-cell"));
         return row;

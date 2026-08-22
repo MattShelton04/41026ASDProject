@@ -36,6 +36,7 @@ button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { color: var(--ocean-dark); }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: var(--ps-focus-outline); outline-offset: var(--ps-focus-offset); }
+.page-heading h1[tabindex="-1"]:focus { outline: none; }
 button:disabled { cursor: not-allowed; opacity: .55; }
 h1, h2, h3, p { overflow-wrap: anywhere; }
 

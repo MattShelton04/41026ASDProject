@@ -8,7 +8,7 @@ import { waitForDialog } from "./components/dialogs.js";
 import { formField } from "./components/forms.js";
 import { renderLoading } from "./components/states.js";
 import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=8";
-import { createEntityRoutes } from "./routes/entities.js?v=7";
+import { createEntityRoutes } from "./routes/entities.js?v=9";
 import { createDataProductRoutes } from "./routes/data-products.js";
 import { createEvidenceRoutes } from "./routes/evidence.js";
 import { renderOverview } from "./routes/overview.js?v=7";
@@ -180,8 +180,8 @@ const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, 
 const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender: renderRoute });
 
 async function checkHealth() {
-  try { await request(healthUrl, { timeoutMs: 4000 }); serviceState.className = "service-state online"; serviceState.lastElementChild.textContent = "Data service available"; }
-  catch { serviceState.className = "service-state offline"; serviceState.lastElementChild.textContent = "Data service unavailable"; }
+  try { await request(healthUrl, { timeoutMs: 4000 }); serviceState.className = "service-state online"; serviceState.lastElementChild.textContent = "Data service available"; serviceState.setAttribute("aria-label", "Data service available"); }
+  catch { serviceState.className = "service-state offline"; serviceState.lastElementChild.textContent = "Data service unavailable"; serviceState.setAttribute("aria-label", "Data service unavailable"); }
 }
 
 async function renderRoute({ focus = false } = {}) {
