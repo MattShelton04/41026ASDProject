@@ -77,6 +77,7 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Start the complete reloadable stack | `uv run scripts/dev.py up` |
 | Start data flows without a live model | `uv run scripts/dev.py up --offline` |
 | Check Docker and Compose prerequisites | `uv run scripts/dev.py doctor` |
+| Run a code-driven fixture acquisition | `uv run scripts/dev.py collect fixture-property --profile test` |
 | Follow local stack logs | `uv run scripts/dev.py logs` |
 | Rebuild changed container images | `uv run scripts/dev.py rebuild` |
 | Stop the stack and preserve data | `uv run scripts/dev.py down` |

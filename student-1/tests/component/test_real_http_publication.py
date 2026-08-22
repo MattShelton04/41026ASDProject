@@ -76,7 +76,7 @@ def _product_case(name: str) -> tuple[str, BuildContext, list[dict[str, Any]]]:
             if profile == "property-fixture"
             else "GNAF-HTTP-001",
             "property_ref": None,
-            "display_address": "1 HTTP STREET PARRAMATTA NSW 2150",
+            "address_display": "1 HTTP STREET PARRAMATTA NSW 2150",
             "flat_type": None,
             "unit_number": None,
             "street_number_first": 1,

@@ -132,6 +132,17 @@ uv run scripts/dev.py reset --full-data
 uv run scripts/dev.py up --full-data --offline
 ```
 
+Collection does not require browser interaction. For example, the following command validates the
+registered plan, queues the official schools acquisition, waits for the durable runner/loader
+pipeline, and reports its candidate release:
+
+```text
+uv run scripts/dev.py collect schools-master --profile full-data
+```
+
+Acquisition and candidate generation are automatic. Publication is deliberately not automatic:
+the accepted-data pointer changes only after explicit human review and approval.
+
 See [student-1/README.md](student-1/README.md) for the operator workflow, release-scoped dataset
 preview, optional local G-NAF cache, real-source status and shared AI-mode boundary.
 

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from datetime import date
+from pathlib import Path
 
 import httpx
 import pytest
@@ -185,3 +187,85 @@ def test_default_stack_does_not_enable_full_data(
     command = captured_commands[-1]
     assert dev.FULL_DATA_COMPOSE_FILE not in command
     assert "full-data" not in command
+
+
+def test_collection_command_runs_registered_pipeline_to_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    profile_directory = tmp_path / "job-profiles"
+    profile_directory.mkdir()
+    (profile_directory / "fixture-property.yaml").write_text(
+        """key: fixture-property-full
+scope_profiles:
+  test: {maximum_records: 20}
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dev, "JOB_PROFILE_DIRECTORY", profile_directory)
+    run_responses = iter(
+        (
+            {"run": {"id": "run-1", "status": "queued"}},
+            {"run": {"id": "run-1", "status": "succeeded", "error_json": None}},
+        )
+    )
+
+    def propertyscope(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/jobs"):
+            return httpx.Response(
+                200,
+                json={"items": [{"id": "job-1", "profile_key": "fixture-property-full"}]},
+            )
+        if path.endswith("/plans"):
+            assert json.loads(request.content)["scope"]["profile"] == "test"
+            return httpx.Response(200, json={"network_required": False})
+        if path.endswith("/runs") and request.method == "POST":
+            return httpx.Response(201, json=next(run_responses))
+        if path.endswith("/ingestion-runs/run-1"):
+            return httpx.Response(200, json=next(run_responses))
+        if path.endswith("/dataset-releases"):
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": "release-1",
+                            "ingestion_run_id": "run-1",
+                            "status": "candidate",
+                            "record_count": 20,
+                        }
+                    ]
+                },
+            )
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    with httpx.Client(
+        base_url="https://propertyscope.test/api/data-platform/v1/",
+        transport=httpx.MockTransport(propertyscope),
+    ) as client:
+        result = dev._collect_with_client(
+            client,
+            job_profile="fixture-property",
+            profile="test",
+            wait=True,
+            timeout_seconds=5,
+            poll_seconds=0,
+        )
+
+    assert result["run"]["status"] == "succeeded"
+    assert result["release"]["status"] == "candidate"
+
+
+def test_collection_rejects_unregistered_scope_profile(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(dev, "JOB_PROFILE_DIRECTORY", tmp_path)
+    (tmp_path / "fixture-property.yaml").write_text(
+        "key: fixture-property-full\nscope_profiles: {test: {maximum_records: 20}}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="does not define"):
+        dev._collection_definition("fixture-property", "full-data")

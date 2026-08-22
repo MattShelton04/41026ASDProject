@@ -72,6 +72,18 @@ Open <http://localhost:5200>. The normal operator path is:
 6. Open **AI diagnosis** to start or revisit persistent shared AI-mode investigations. Leaving the
    page does not discard their history.
 
+The acquisition path can also run without browser actions. This queues the registered deterministic
+fixture, waits for all runner and loader stages, and reports the retained candidate release:
+
+```text
+uv run scripts/dev.py collect fixture-property --profile test
+```
+
+Use `schools-master`, `bocsar-crime`, `gnaf-nsw`, or `psi-sales` with `--profile full-data` after
+starting the full-data stack. Add `--no-wait` for a long job. These commands automate discovery,
+acquisition, validation, import, normalisation, quality checks, and candidate construction. They do
+not bypass the separate human decision to submit, accept, or reject a candidate.
+
 Run `uv run scripts/dev.py down` when finished. Named AI history, PostgreSQL and artifact
 volumes are preserved.
 

@@ -23,6 +23,11 @@ rebuilds. `up --offline` keeps data workflows available without an OpenAI creden
 with that exact Compose project label. Add `--full-data` to reset the isolated source-scale
 project; the Git-ignored host source cache is not removed.
 
+`collect <job> --profile <test|showcase|full-data>` drives the same registered public HTTP path as
+the browser: it validates the plan, creates an idempotent durable run, waits by default, and prints
+the retained candidate release. Use `--no-wait` for very long source-scale jobs. The command never
+publishes a release; human review remains an intentional product safety boundary.
+
 PropertyScope's bounded showcase profile is part of the default stack at
 <http://localhost:5200>. Source-scale acquisition is deliberately separate: append
 `--full-data` to `up`, `status`, `logs`, `rebuild`, or `down`. That option adds the

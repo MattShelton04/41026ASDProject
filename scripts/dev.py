@@ -5,19 +5,24 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import json
 import os
 import re
 import shlex
 import subprocess
 import sys
+import time
+import uuid
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import Any
 from zipfile import BadZipFile, ZipFile
 
 import httpx
+import yaml
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILES = (
@@ -44,6 +49,16 @@ FULL_DATA_PROJECT_NAME = "41026-asd-propertyscope-full-data"
 DEFAULT_PROJECT_NAME = "41026-asd-project"
 RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
 OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"
+PROPERTYSCOPE_API_URL = "http://127.0.0.1:5200/api/data-platform/v1"
+JOB_PROFILE_DIRECTORY = REPOSITORY_ROOT / "student-1" / "config" / "job-profiles"
+COLLECTION_JOBS = (
+    "fixture-property",
+    "schools-master",
+    "bocsar-crime",
+    "gnaf-nsw",
+    "psi-sales",
+)
+TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{partition}.zip"
 PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{partition}.zip"
 PSI_ARCHIVE_BYTE_LIMIT = 750_000_000
@@ -347,6 +362,164 @@ def _doctor(*, full_data: bool) -> None:
         print(f"Cached PSI weekly archives: {len(_psi_cache_weeks())}", flush=True)
 
 
+def _json_response(response: httpx.Response) -> dict[str, Any]:
+    response.raise_for_status()
+    value = response.json()
+    if not isinstance(value, dict):
+        raise RuntimeError("PropertyScope returned a malformed JSON response")
+    return value
+
+
+def _collection_definition(job_profile: str, profile: str) -> tuple[str, dict[str, Any]]:
+    path = JOB_PROFILE_DIRECTORY / f"{job_profile}.yaml"
+    if not path.is_file():
+        raise RuntimeError(f"Unknown registered collection job: {job_profile}")
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict) or not isinstance(raw.get("key"), str):
+        raise RuntimeError(f"Registered job profile is malformed: {path.name}")
+    profiles = raw.get("scope_profiles")
+    scope = profiles.get(profile) if isinstance(profiles, dict) else None
+    if not isinstance(scope, dict):
+        raise RuntimeError(f"{job_profile} does not define the {profile!r} acquisition profile")
+    resolved_scope = dict(scope)
+    resolved_scope["profile"] = profile
+    return raw["key"], resolved_scope
+
+
+def _collect_with_client(
+    client: httpx.Client,
+    *,
+    job_profile: str,
+    profile: str,
+    wait: bool,
+    timeout_seconds: int,
+    poll_seconds: float = 1.0,
+) -> dict[str, Any]:
+    """Plan and launch one registered Feature 1 collection over its public HTTP API."""
+    profile_key, scope = _collection_definition(job_profile, profile)
+    jobs = _json_response(client.get("jobs", params={"limit": 100})).get("items")
+    if not isinstance(jobs, list):
+        raise RuntimeError("PropertyScope did not return its registered jobs")
+    job = next(
+        (
+            item
+            for item in jobs
+            if isinstance(item, dict) and item.get("profile_key") == profile_key
+        ),
+        None,
+    )
+    if job is None:
+        raise RuntimeError(f"Registered job is missing from the running database: {profile_key}")
+
+    request_body = {"run_mode": "full_refresh", "scope": scope}
+    plan = _json_response(client.post(f"jobs/{job['id']}/plans", json=request_body))
+    print(
+        "Collection plan validated: "
+        f"{profile_key} ({profile}); network_required={plan.get('network_required', False)}; "
+        f"source_cache_required={plan.get('source_cache_required', False)}",
+        flush=True,
+    )
+    operation_id = str(uuid.uuid4())
+    created = _json_response(
+        client.post(
+            f"jobs/{job['id']}/runs",
+            json=request_body,
+            headers={
+                "Idempotency-Key": f"dev-collect-{operation_id}",
+                "X-Request-ID": operation_id,
+            },
+        )
+    )
+    run = created.get("run")
+    if not isinstance(run, dict) or not isinstance(run.get("id"), str):
+        raise RuntimeError("PropertyScope did not return the queued ingestion run")
+    run_id = run["id"]
+    print(f"Collection run queued: {run_id}", flush=True)
+    if not wait:
+        return {"run": run, "release": None}
+
+    deadline = time.monotonic() + timeout_seconds
+    previous_status: str | None = None
+    while True:
+        run_payload = _json_response(client.get(f"ingestion-runs/{run_id}"))
+        current = run_payload.get("run")
+        if not isinstance(current, dict):
+            raise RuntimeError("PropertyScope returned malformed ingestion-run evidence")
+        status = str(current.get("status", "unknown"))
+        if status != previous_status:
+            print(f"Collection run {run_id}: {status}", flush=True)
+            previous_status = status
+        if status in TERMINAL_COLLECTION_STATES:
+            run = current
+            break
+        if time.monotonic() >= deadline:
+            raise RuntimeError(
+                f"Collection run {run_id} did not finish within {timeout_seconds} seconds; "
+                "it remains durable and can be inspected in the Runs screen"
+            )
+        time.sleep(poll_seconds)
+
+    if run["status"] != "succeeded":
+        error = json.dumps(run.get("error_json", {}), sort_keys=True)
+        raise RuntimeError(f"Collection run {run_id} ended as {run['status']}: {error}")
+    release: dict[str, Any] | None = None
+    offset = 0
+    for _page in range(100):
+        page = _json_response(
+            client.get("dataset-releases", params={"limit": 100, "offset": offset})
+        )
+        releases = page.get("items")
+        if not isinstance(releases, list):
+            raise RuntimeError("PropertyScope returned malformed release evidence")
+        release = next(
+            (
+                item
+                for item in releases
+                if isinstance(item, dict) and item.get("ingestion_run_id") == run_id
+            ),
+            None,
+        )
+        next_offset = page.get("next_offset")
+        if release is not None or next_offset is None:
+            break
+        if (
+            not isinstance(next_offset, int)
+            or isinstance(next_offset, bool)
+            or next_offset <= offset
+        ):
+            raise RuntimeError("PropertyScope returned an invalid release-evidence cursor")
+        offset = next_offset
+    if release is None:
+        raise RuntimeError(f"Collection run {run_id} succeeded without retained release evidence")
+    print(
+        f"Candidate release ready: {release['id']} ({release['status']}, "
+        f"{release.get('record_count', 0):,} records).",
+        flush=True,
+    )
+    print("Publication remains blocked until explicit human review and approval.", flush=True)
+    return {"run": run, "release": release}
+
+
+def _collect(
+    *,
+    job_profile: str,
+    profile: str,
+    wait: bool,
+    timeout_seconds: int,
+    base_url: str,
+) -> None:
+    if timeout_seconds < 1:
+        raise RuntimeError("--timeout must be at least one second")
+    with httpx.Client(base_url=base_url.rstrip("/") + "/", timeout=30.0) as client:
+        _collect_with_client(
+            client,
+            job_profile=job_profile,
+            profile=profile,
+            wait=wait,
+            timeout_seconds=timeout_seconds,
+        )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run the assignment-aligned local stack with fast source reloads."
@@ -411,6 +584,32 @@ def _parser() -> argparse.ArgumentParser:
         help="Optional services to follow (all application services by default)",
     )
     add_full_data_option(logs)
+
+    collect = commands.add_parser(
+        "collect",
+        help="Plan, queue, and optionally wait for a registered Feature 1 acquisition",
+    )
+    collect.add_argument("job", choices=COLLECTION_JOBS, help="Registered acquisition job")
+    collect.add_argument(
+        "--profile",
+        choices=("test", "showcase", "full-data"),
+        default="showcase",
+        help="Declared scope profile (default: showcase)",
+    )
+    collect.add_argument(
+        "--wait",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Wait for retained terminal run and release evidence (default: true)",
+    )
+    collect.add_argument(
+        "--timeout", type=int, default=900, help="Maximum seconds to wait (default: 900)"
+    )
+    collect.add_argument(
+        "--base-url",
+        default=PROPERTYSCOPE_API_URL,
+        help="PropertyScope public API root",
+    )
 
     commands.add_parser("test", help="Run the deterministic integration-feature tests")
     commands.add_parser("check", help="Run the complete canonical quality gate")
@@ -489,6 +688,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                     full_data=arguments.full_data,
                 )
             )
+        elif arguments.command == "collect":
+            _collect(
+                job_profile=arguments.job,
+                profile=arguments.profile,
+                wait=arguments.wait,
+                timeout_seconds=arguments.timeout,
+                base_url=arguments.base_url,
+            )
         elif arguments.command == "test":
             _run(
                 (
@@ -528,6 +735,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except subprocess.CalledProcessError as exc:
         print(f"Development command failed with exit code {exc.returncode}.", file=sys.stderr)
         return exc.returncode
+    except httpx.HTTPError as exc:
+        print(f"Development HTTP request failed: {exc}", file=sys.stderr)
+        return 1
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 1
