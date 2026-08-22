@@ -50,8 +50,9 @@ the canonical gate, preserves validation during immutable state evolution, enfor
 internally coherent persisted snapshots, rejects model/profile role mismatches before network
 I/O, centralises Problem Details responses, and verifies truthful feature-side idempotency
 replay status. The opt-in operations projection and browser dashboard are implemented for
-trusted local use. The canonical gate includes deterministic tests and enforces branch
-coverage of at least 90%.
+trusted local use. The canonical gate includes deterministic Python and frontend tests,
+enforces at least 90% branch coverage for the shared/AI core, and separately ratchets Feature 1
+at 60% while its broader integration-heavy suite is improved.
 
 This does not complete the five-feature shared-foundation definition of done. Owners must
 still supply approved manifests and endpoints for Features 2–5; the product edge, complete

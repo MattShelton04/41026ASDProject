@@ -68,7 +68,7 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Lint and apply safe fixes | `uv run ruff check --fix .` |
 | Type-check every canonical path | `uv run python scripts/check.py` (includes strict mypy over packages, the integration fixture, and typed scripts) |
 | Run tests | `uv run pytest` |
-| Run tests with coverage | `uv run pytest --cov --cov-report=term-missing` |
+| Run tests with enforced coverage | `uv run python scripts/check.py` (90% core branch coverage; 60% Feature 1 ratchet) |
 | Generate contract artefacts | `uv run python scripts/generate_contracts.py` |
 | Validate repository boundaries | `uv run python scripts/validate_architecture.py` |
 | Validate the model registry | `uv run python scripts/validate_model_registry.py` |

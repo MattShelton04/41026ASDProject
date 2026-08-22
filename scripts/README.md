@@ -1,6 +1,8 @@
 # Automation scripts
 
-- `check.py`: cross-platform deterministic formatting, lint, type, test, and coverage gate
+- `check.py`: cross-platform deterministic formatting, lint, type, Python/frontend test, and
+  coverage gate; it keeps the 90% shared/AI core threshold separate from the 60% Feature 1
+  ratchet so uncovered feature code cannot hide behind core coverage
 - `dev.py`: one-command Compose lifecycle with fast source reloads for the integration stack
 - `generate_contracts.py`: generate or drift-check public JSON Schema and OpenAPI snapshots
 - `validate_architecture.py`: enforce workspace dependency, Python import, PostgreSQL credential,
