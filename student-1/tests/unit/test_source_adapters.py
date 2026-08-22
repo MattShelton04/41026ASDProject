@@ -179,8 +179,8 @@ def test_psi_archive_applies_member_and_expansion_budgets_across_nested_zips() -
         nested_archives.append(nested.getvalue())
     outer = io.BytesIO()
     with ZipFile(outer, "w", compression=ZIP_DEFLATED) as archive:
-        for index, nested in enumerate(nested_archives):
-            archive.writestr(f"week-{index}.zip", nested)
+        for index, nested_payload in enumerate(nested_archives):
+            archive.writestr(f"week-{index}.zip", nested_payload)
 
     with pytest.raises(ValueError, match="uncompressed byte limit"):
         tuple(

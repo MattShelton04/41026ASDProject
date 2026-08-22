@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import httpx
 import pytest
 
@@ -43,7 +45,7 @@ def test_small_source_rejects_unregistered_or_oversized_responses(
         )
 
 
-def test_psi_range_failure_cleans_temporary_archive(tmp_path) -> None:
+def test_psi_range_failure_cleans_temporary_archive(tmp_path: Path) -> None:
     def source(request: httpx.Request) -> httpx.Response:
         if "Range" not in request.headers:
             return httpx.Response(403)

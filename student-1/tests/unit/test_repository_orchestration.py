@@ -10,7 +10,8 @@ from flask import Flask
 
 from propertyscope_data_store.api import create_blueprint, register_error_handlers
 from propertyscope_data_store.errors import ConflictError
-from propertyscope_data_store.repository import PropertyScopeStore, _run_projection
+from propertyscope_data_store.persistence_support import project_run
+from propertyscope_data_store.repository import PropertyScopeStore
 
 
 class ScriptedConnection:
@@ -156,17 +157,17 @@ def test_resume_requeues_cancelled_unfinished_task_from_interrupted_run() -> Non
 
 def test_run_projection_truthfully_describes_retry_execution() -> None:
     assert (
-        _run_projection({"parent_run_id": None, "run_mode": "full_refresh"})["execution_semantics"]
+        project_run({"parent_run_id": None, "run_mode": "full_refresh"})["execution_semantics"]
         == "new_pipeline_run"
     )
     assert (
-        _run_projection({"parent_run_id": uuid.uuid4(), "run_mode": "full_refresh"})[
+        project_run({"parent_run_id": uuid.uuid4(), "run_mode": "full_refresh"})[
             "execution_semantics"
         ]
         == "full_pipeline_retry"
     )
     assert (
-        _run_projection({"parent_run_id": uuid.uuid4(), "run_mode": "reprocess_cached"})[
+        project_run({"parent_run_id": uuid.uuid4(), "run_mode": "reprocess_cached"})[
             "execution_semantics"
         ]
         == "cached_artifact_reprocess"
