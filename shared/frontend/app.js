@@ -1,15 +1,15 @@
 import { append, el, link, notice, parseShellRoute } from "./core.js";
-import { createEvidenceRoute } from "./routes/evidence.js";
-import { createFeaturesRoute } from "./routes/features.js";
-import { createRoadmapRoute } from "./routes/roadmap.js";
-import { createStatusRoute } from "./routes/status.js";
-import { featureRegistry } from "./features.js";
+import { createEvidenceRoute } from "./routes/evidence.js?v=9";
+import { createFeaturesRoute } from "./routes/features.js?v=9";
+import { createRoadmapRoute } from "./routes/roadmap.js?v=9";
+import { createStatusRoute } from "./routes/status.js?v=9";
+import { featureRegistry } from "./features.js?v=9";
 
 const defaults = Object.freeze({
   propertyDiscovery: "/features/data-platform/#properties",
   dataOperations: "/features/data-platform/#overview",
   releaseDetail: "/features/data-platform/#releases/",
-  agentRuns: "/operations/ai-mode/",
+  agentRuns: "/operations/ai-mode/?feature_key=student-1-propertyscope-data-platform",
 });
 const config = Object.freeze({ ...defaults, ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const main = document.querySelector("#main-content");
@@ -133,7 +133,7 @@ async function renderRoute() {
     await routes[route](dashboard);
     if (generation !== renderGeneration) return;
     applyConfigLinks(dashboard);
-    const routeTitle = route === "features" ? "Research areas" : route === "system-status" ? "Data status" : route === "evidence" ? "Evidence ledger" : "What’s available";
+    const routeTitle = route === "features" ? "Research areas" : route === "system-status" ? "Data status" : route === "evidence" ? "Sources and history" : "What’s available";
     document.title = `${routeTitle} | PropertyScope NSW`;
     announce(`${routeTitle} loaded.`);
     main.focus({ preventScroll: true });

@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light">
-    <title>PropertyScope | Agent activity</title>
+    <title>PropertyScope | Activity history</title>
     <link rel="stylesheet" href="/operations/ai-mode/design-system/tokens.css">
-    <link rel="stylesheet" href="/operations/ai-mode/assets/styles.css?v=4">
+    <link rel="stylesheet" href="/operations/ai-mode/assets/styles.css?v=5">
   </head>
   <body>
     <a class="skip-link" href="#run-detail">Skip to run detail</a>
@@ -20,10 +20,17 @@
         </a>
         <span class="topbar-divider" aria-hidden="true"></span>
         <div>
-          <h1>Agent activity</h1>
-          <p>Recorded assisted activity</p>
+          <h1>Activity history</h1>
+          <p>Recorded AI reviews</p>
         </div>
       </div>
+      <nav class="operations-nav" aria-label="PropertyScope navigation">
+        <a href="/#home">Home</a>
+        <a href="/features/data-platform/#properties">Property search</a>
+        <a href="/#features">Research areas</a>
+        <a href="/#system-status">Data status</a>
+        <a href="/#evidence">Sources &amp; history</a>
+      </nav>
       <div class="connection" role="status" aria-live="polite">
         <span id="connection-dot" class="connection-dot" aria-hidden="true"></span>
         <span id="connection-state">Connecting…</span>
@@ -31,18 +38,18 @@
     </header>
 
     <main id="workspace" class="workspace">
-      <aside class="run-browser" aria-label="Agent run browser">
+      <aside class="run-browser" aria-label="AI review browser">
         <div class="run-browser-toolbar">
           <div>
-            <h2>Agent runs</h2>
-            <p id="page-summary" class="muted">Loading persisted work…</p>
+            <h2>AI reviews</h2>
+            <p id="page-summary" class="muted">Loading recorded reviews…</p>
           </div>
           <button id="refresh-runs" class="quiet-button" type="button">Refresh</button>
         </div>
 
-        <p class="scope-note">Review plans, tool observations, failures and decisions from assisted work. Start property research from the <a href="/">PropertyScope workspace</a>.</p>
+        <p class="scope-note">Review AI results, source checks and failures from PropertyScope data reviews.</p>
 
-        <div id="quick-filters" class="quick-filters" role="group" aria-label="Quick run filters">
+        <div id="quick-filters" class="quick-filters" role="group" aria-label="Quick review filters">
           <button type="button" data-filter="all" aria-pressed="true">All</button>
           <button type="button" data-filter="active" aria-pressed="false"><span aria-hidden="true">●</span> Active</button>
           <button type="button" data-filter="review" aria-pressed="false"><span aria-hidden="true">‖</span> Review</button>
@@ -62,13 +69,13 @@
             <select id="status-filter" name="status">
               <option value="">All statuses</option>
               <option value="queued">Queued</option>
-              <option value="planning">Planning</option>
+              <option value="planning">Preparing</option>
               <option value="ready">Ready</option>
-              <option value="acting">Acting</option>
-              <option value="observing">Observing</option>
-              <option value="adapting">Adapting</option>
-              <option value="review_required">Review required</option>
-              <option value="succeeded">Succeeded</option>
+              <option value="acting">Checking sources</option>
+              <option value="observing">Recording results</option>
+              <option value="adapting">Deciding next step</option>
+              <option value="review_required">Needs review</option>
+              <option value="succeeded">Completed</option>
               <option value="failed">Failed</option>
               <option value="cancelled">Cancelled</option>
             </select>
@@ -87,33 +94,33 @@
           <span><strong id="count-active">0</strong> active</span>
           <span><strong id="count-review">0</strong> review</span>
           <span><strong id="count-failed">0</strong> failed</span>
-          <span><strong id="count-complete">0</strong> succeeded</span>
+          <span><strong id="count-complete">0</strong> completed</span>
         </section>
 
-        <ol id="run-list" class="run-list" aria-label="Persisted agent runs">
-          <li class="empty">Loading persisted runs…</li>
+        <ol id="run-list" class="run-list" aria-label="Recorded AI reviews">
+          <li class="empty">Loading recorded reviews…</li>
         </ol>
         <button id="load-more" class="load-more quiet-button" type="button" hidden>Load older runs</button>
       </aside>
 
-      <section id="run-detail" class="run-detail" tabindex="-1" aria-label="Selected run detail">
+      <section id="run-detail" class="run-detail" tabindex="-1" aria-label="Selected review detail">
         <div id="empty-detail" class="empty-detail">
-          <h2>No run selected</h2>
-          <p>Choose a run to inspect its current work, durable cycles, outcome, and safe evidence.</p>
+          <h2>No review selected</h2>
+          <p>Choose an AI review to see its result, source checks and any failures.</p>
         </div>
 
         <div id="detail-content" hidden>
           <header class="detail-header">
-            <button id="back-to-runs" class="mobile-back quiet-button" type="button">← Runs</button>
+            <button id="back-to-runs" class="mobile-back quiet-button" type="button">← Reviews</button>
             <div class="detail-title">
               <div class="title-line">
                 <span id="run-status" class="status-mark"></span>
                 <span id="stale-state" class="stale-state" hidden>Connection stale</span>
               </div>
-              <h2 id="run-objective">Agent run</h2>
+              <h2 id="run-objective">AI review</h2>
               <p id="run-subtitle" class="muted"></p>
               <details id="objective-details" class="objective-details">
-                <summary>Full workload objective</summary>
+                <summary>Full review request</summary>
                 <p id="run-objective-full"></p>
               </details>
             </div>
@@ -127,19 +134,19 @@
             </div>
             <div>
               <h3 id="current-work-title">Waiting for the worker.</h3>
-              <p id="current-work-detail" class="muted">No phase step is durable yet.</p>
+              <p id="current-work-detail" class="muted">No work has been recorded yet.</p>
             </div>
             <div class="elapsed-readout">
               <strong id="live-elapsed">0 s</strong>
-              <span>run elapsed</span>
+              <span>review elapsed</span>
             </div>
           </section>
 
           <section id="outcome-summary" class="outcome-summary" aria-labelledby="outcome-title" hidden>
             <div class="outcome-heading">
               <div>
-                <p id="outcome-eyebrow" class="outcome-eyebrow">Evidence-backed outcome</p>
-                <h3 id="outcome-title">Workload result</h3>
+                <p id="outcome-eyebrow" class="outcome-eyebrow">AI review result</p>
+                <h3 id="outcome-title">Review result</h3>
               </div>
               <span id="outcome-badge" class="outcome-badge"></span>
             </div>
@@ -148,51 +155,43 @@
 
           <section class="cycle-panel" aria-labelledby="cycle-title">
             <div class="section-heading">
-              <h3 id="cycle-title">Plan and iteration history</h3>
+              <h3 id="cycle-title">Review decisions</h3>
               <span id="cycle-summary" class="muted"></span>
             </div>
             <ol id="cycle-history" class="cycle-history"></ol>
           </section>
 
-          <section class="run-overview" aria-label="Run overview">
+          <section class="run-overview" aria-label="Review overview">
             <dl id="run-overview"></dl>
           </section>
 
-          <section class="workload-telemetry" aria-labelledby="workload-telemetry-title">
-            <div class="section-heading">
-              <div>
-                <h3 id="workload-telemetry-title">AI workload telemetry</h3>
-                <p class="muted">Model usage and bounded recovery across this persisted run.</p>
-              </div>
-            </div>
+          <details class="workload-telemetry">
+            <summary><strong>Technical performance</strong> <span class="muted">Model usage and retries</span></summary>
             <dl id="workload-metrics" class="workload-metrics"></dl>
-          </section>
+          </details>
 
-          <section class="correlation" aria-labelledby="correlation-title">
-            <div class="section-heading">
-              <h3 id="correlation-title">Correlation</h3>
-              <span class="muted">Copy an identifier to trace the exact operation.</span>
-            </div>
+          <details class="correlation">
+            <summary><strong>Technical references</strong> <span class="muted">Identifiers for this review</span></summary>
             <div id="correlation-identifiers" class="identifier-list"></div>
-          </section>
+          </details>
 
           <details class="metadata-panel">
-            <summary>Run metadata and limits <span id="last-updated" class="muted"></span></summary>
+            <summary>Review metadata and limits <span id="last-updated" class="muted"></span></summary>
             <dl id="run-metadata" class="metadata-grid"></dl>
           </details>
 
           <section class="execution-panel" aria-labelledby="execution-title">
             <div class="section-heading">
               <div>
-                <h3 id="execution-title">Execution evidence</h3>
-                <p class="muted">Persisted facts only; source labels distinguish model, tool, and orchestration work.</p>
+                <h3 id="execution-title">Review steps</h3>
+                <p class="muted">Recorded model, source-check and workflow steps.</p>
               </div>
             </div>
             <div id="execution" class="execution"></div>
           </section>
 
           <details class="event-panel">
-            <summary>Durable event journal <span id="event-cursor" class="mono muted">cursor #0</span></summary>
+            <summary>Event history <span id="event-cursor" class="mono muted">cursor #0</span></summary>
             <ol id="event-list" class="event-list"></ol>
           </details>
 
@@ -206,6 +205,6 @@
     </main>
 
     <div id="announcement" class="visually-hidden" role="status" aria-live="polite"></div>
-    <script type="module" src="/operations/ai-mode/assets/app.js?v=4"></script>
+    <script type="module" src="/operations/ai-mode/assets/app.js?v=7"></script>
   </body>
 </html>

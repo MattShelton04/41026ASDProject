@@ -1,4 +1,4 @@
-import { featureRegistry } from "./features.js";
+import { featureRegistry } from "./features.js?v=9";
 
 export const RELEASE_STAGES = Object.freeze([
   {
@@ -6,7 +6,7 @@ export const RELEASE_STAGES = Object.freeze([
     label: "Property records and data operations",
     state: "current",
     summary: "Search NSW property records, inspect their evidence and maintain the datasets behind them.",
-    capabilities: ["Property identity search", "Source and processing history", "Published dataset review", "Recorded assisted diagnosis"],
+    capabilities: ["Property identity search", "Source and update history", "Published data review", "Recorded AI reviews"],
   },
   {
     id: "Planned next",
@@ -31,7 +31,7 @@ export function capabilityManifest(config = {}) {
     features: featureRegistry(config),
     services: [
       { id: "shared-shell", label: "Shared product shell", implemented: true, enabled: true, detail: "Navigation, availability and shared operational views." },
-      { id: "ai-mode", label: "Agent activity", implemented: true, enabled: true, href: config.agentRuns, detail: "Durable bounded agent-run evidence." },
+      { id: "ai-mode", label: "AI review history", implemented: true, enabled: true, href: config.agentRuns, detail: "Recorded AI reviews, source checks and results." },
       { id: "mcp", label: "Structured tool access", implemented: false, enabled: false, detail: "Planned; not active." },
       { id: "rag", label: "Cited document retrieval", implemented: false, enabled: false, detail: "Planned; not active." },
       { id: "multi-agent", label: "Coordinated research roles", implemented: false, enabled: false, detail: "Planned; not active." },
@@ -41,6 +41,6 @@ export function capabilityManifest(config = {}) {
 
 export function capabilityState(item) {
   if (!item.implemented) return { label: "Planned", tone: "planned" };
-  if (!item.enabled) return { label: "Disabled", tone: "partial" };
-  return { label: "Enabled", tone: "confirmed" };
+  if (!item.enabled) return { label: "Unavailable", tone: "partial" };
+  return { label: "Available", tone: "confirmed" };
 }

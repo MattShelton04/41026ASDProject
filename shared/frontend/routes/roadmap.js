@@ -1,4 +1,4 @@
-import { capabilityManifest, capabilityState, RELEASE_STAGES } from "../capabilities.js";
+import { capabilityManifest, capabilityState, RELEASE_STAGES } from "../capabilities.js?v=9";
 import { append, badge, cell, el, link, notice, pageHeader, panel, table } from "../core.js";
 
 function stageCard(stage) {
@@ -16,26 +16,26 @@ function stageCard(stage) {
 export function createRoadmapRoute({ config }) {
   return function renderRoadmap(root) {
     const manifest = capabilityManifest(config);
-    append(root, pageHeader("PropertyScope", "What’s available", "See what can be used today and what is still planned. Unavailable research areas are never redirected to unrelated tools.", [link("View data status", "#system-status", "ps-button ps-button--primary")]));
-    const mode = notice("success", "Property records are available", "Address search, property evidence, data operations and activity history are ready. Planned research areas remain clearly unavailable.");
+    append(root, pageHeader("PropertyScope", "What’s available", "See which research tools you can use today and what is coming later.", [link("View data status", "#system-status", "ps-button ps-button--primary")]));
+    const mode = notice("success", "Property records are available", "Address search, source details, data updates and AI review history are ready to use.");
     append(root, mode);
     const stages = el("div", "ps-grid ps-grid-3 roadmap-grid");
     append(stages, ...RELEASE_STAGES.map(stageCard));
     append(root, stages);
 
-    const capabilityPanel = panel("Detailed availability", `${manifest.deploymentMode} workspace. A planned item is shown separately from an unavailable live service.`);
+    const capabilityPanel = panel("Detailed availability", "Planned tools are shown separately from services that are temporarily unavailable.");
     const rows = [
       ...manifest.features.map((item) => ({ ...item, group: "Research area" })),
       ...manifest.services.map((item) => ({ ...item, group: "Shared service" })),
     ];
-    append(capabilityPanel.body, table(["Capability", "Kind", "Implemented", "Enabled", "Availability"], rows, (item) => {
+    append(capabilityPanel.body, table(["Tool", "Type", "Availability", "What it provides"], rows, (item) => {
       const tr = el("tr");
       const name = el("div", "table-primary");
-      append(name, item.href ? link(item.label, item.href) : el("strong", "", item.label), el("span", "table-secondary", item.detail));
+      append(name, item.href ? link(item.label, item.href) : el("strong", "", item.label));
       const state = capabilityState(item);
-      append(tr, cell(name), cell(item.group), cell(item.implemented ? "Yes" : "No"), cell(item.enabled ? "Yes" : "No"), cell(badge(state.label, state.tone)));
+      append(tr, cell(name), cell(item.group), cell(badge(state.label, state.tone)), cell(item.detail));
       return tr;
-    }, "Current deployment capability manifest"));
+    }, "PropertyScope availability"));
     append(root, capabilityPanel.card);
   };
 }

@@ -99,12 +99,14 @@ test("design tokens expose shared type, control, focus and layering contracts", 
 test("AI workload dashboard leads with outcome and bounded recovery evidence", () => {
   const html = readFileSync(new URL("./operations/ai-mode/index.html", import.meta.url), "utf8");
   const app = readFileSync(new URL("./operations/ai-mode/app.js", import.meta.url), "utf8");
-  assert.match(html, /Evidence-backed outcome/);
-  assert.match(html, /AI workload telemetry/);
+  assert.match(html, /AI review result/);
+  assert.match(html, /aria-label="PropertyScope navigation"/);
+  assert.match(html, /Technical performance/);
   for (const evidence of ["Schema repairs", "Provider retries", "Tool failures", "Replans"]) {
     assert.match(app, new RegExp(evidence));
   }
-  assert.match(app, /Recovery brief/);
-  assert.match(app, /Safety boundary/);
+  assert.match(app, /Review summary/);
+  assert.match(app, /What did not change/);
+  assert.doesNotMatch(app, /safe failure/i);
   assert.doesNotMatch(app, /innerHTML/);
 });

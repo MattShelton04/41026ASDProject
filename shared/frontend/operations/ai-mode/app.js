@@ -114,13 +114,13 @@ function elapsedSince(value, now = Date.now()) {
 function statusPresentation(status) {
   const presentations = {
     queued: ["○", "Queued"],
-    planning: ["●", "Planning"],
+    planning: ["●", "Preparing"],
     ready: ["●", "Ready"],
-    acting: ["●", "Acting"],
-    observing: ["●", "Observing"],
-    adapting: ["●", "Adapting"],
-    review_required: ["‖", "Review required"],
-    succeeded: ["✓", "Succeeded"],
+    acting: ["●", "Checking sources"],
+    observing: ["●", "Recording results"],
+    adapting: ["●", "Deciding next step"],
+    review_required: ["‖", "Needs review"],
+    succeeded: ["✓", "Completed"],
     failed: ["!", "Failed"],
     cancelled: ["×", "Cancelled"],
     pending: ["○", "Pending"],
@@ -206,7 +206,7 @@ async function loadRuns({ append = false } = {}) {
   } catch (error) {
     if (error.name === "AbortError" || !state.listGuard.isCurrent(generation)) return;
     state.listFailures += 1;
-    setConnection("disconnected", `Run index unavailable · ${error.message}`);
+    setConnection("disconnected", `Review history unavailable · ${error.message}`);
     if (!state.runs.length) ui["run-list"].replaceChildren(node("li", "empty", error.message));
   } finally {
     if (state.listController === controller) state.listController = null;
@@ -311,11 +311,11 @@ async function selectRun(runId) {
   renderRunList();
   ui["empty-detail"].hidden = true;
   ui["detail-content"].hidden = false;
-  ui["run-objective"].textContent = "Loading durable evidence…";
+  ui["run-objective"].textContent = "Loading recorded activity…";
   ui["run-objective-full"].textContent = "";
   ui["run-subtitle"].textContent = runId;
   ui["current-work-title"].textContent = "Loading current work…";
-  ui["event-list"].replaceChildren(node("li", "empty", "Restoring the bounded event journal…"));
+  ui["event-list"].replaceChildren(node("li", "empty", "Loading event history…"));
   await refreshSelected(generation, { forceDetail: true, hydrate: true });
 }
 
@@ -391,12 +391,12 @@ async function refreshSelected(generation, { forceDetail = false, hydrate = fals
     if (!state.detailGuard.isCurrent(generation)) return;
     if (state.detail && (terminal || TERMINAL_STATUSES.has(state.detail.run.status))) {
       state.detailFailures = 0;
-      setConnection("connected", `Run ${label(state.detail.run.status)} · up to date`);
+      setConnection("connected", `Review ${label(state.detail.run.status)} · up to date`);
       scheduleDetail(generation, null);
       return;
     }
     state.detailFailures = 0;
-    setConnection("connected", "Following durable events");
+    setConnection("connected", "Activity is up to date");
   } catch (error) {
     if (error.name === "AbortError" || !state.detailGuard.isCurrent(generation)) return;
     state.detailFailures += 1;
@@ -459,19 +459,19 @@ function currentStep(steps) {
 }
 
 function waitingCopy(run, step) {
-  if (run.status === "queued") return ["Waiting for the worker.", "No phase step is durable yet."];
+  if (run.status === "queued") return ["Waiting to start.", "No work has been recorded yet."];
   if (run.status === "review_required") return ["Waiting for authorized review.", "No operation will resume without a valid review decision."];
   if (TERMINAL_STATUSES.has(run.status)) {
-    const outcome = run.status === "succeeded" ? "Run completed successfully." : run.status === "failed" ? "Run stopped with a safe failure." : "Run was cancelled.";
-    return [outcome, `Durable workflow version ${run.version}.`];
+    const outcome = run.status === "succeeded" ? "Review completed successfully." : run.status === "failed" ? "Review stopped after a recorded failure." : "Review was cancelled.";
+    return [outcome, `Recorded workflow version ${run.version}.`];
   }
   const copy = {
-    plan: ["Waiting for planner response.", "The planner call has no token-level progress signal."],
-    act: ["Waiting for tool response.", "The allowlisted tool call is in flight."],
-    observe: ["Recording tool observations.", "Deterministic evidence is being persisted."],
-    adapt: ["Waiting for adapter response.", "The adapter is deciding from persisted evidence."],
+    plan: ["Preparing the review plan.", "Waiting for the next recorded step."],
+    act: ["Checking a source.", "Waiting for the source response."],
+    observe: ["Recording source results.", "Review details are being saved."],
+    adapt: ["Deciding the next step.", "The review is using the recorded source results."],
   };
-  return copy[step?.phase] || ["Preparing the next safe action.", "The durable run state is active."];
+  return copy[step?.phase] || ["Preparing the next action.", "The review is active."];
 }
 
 function renderCurrentWork(run, steps) {
@@ -517,7 +517,7 @@ function groupCycles(steps) {
 function renderCycles(steps) {
   ui["cycle-history"].replaceChildren();
   const { groups, planNumber, iterationNumber } = groupCycles(steps);
-  if (!groups.length) ui["cycle-history"].append(node("li", "cycle-empty", "No durable phase yet"));
+  if (!groups.length) ui["cycle-history"].append(node("li", "cycle-empty", "No recorded step yet"));
   for (const group of groups) {
     const item = node("li", `cycle-group cycle-${group.kind}`);
     item.append(node("span", "cycle-label", group.kind === "plan" ? `Plan ${group.number}` : group.kind === "iteration" ? `Iteration ${group.number}` : "Phase"));
@@ -599,7 +599,7 @@ function renderDetail() {
 
   ui["run-metadata"].replaceChildren();
   addDefinition(ui["run-metadata"], [
-    ["Prompt set", run.prompt_set], ["Run version", run.version],
+    ["Prompt set", run.prompt_set], ["Review version", run.version],
     ["Time budget", duration(limits.time_budget_ms)], ["Model repairs", limits.max_model_repairs],
     ["Cancellation requested", cancelRequested ? "Yes" : "No"],
     ["Created", localTime(run.created_at)], ["Updated", localTime(run.updated_at)],
@@ -607,7 +607,7 @@ function renderDetail() {
   ]);
   renderExecution(steps, reviews);
   ui["raw-projection"].textContent = pretty(state.detail);
-  ui.announcement.textContent = `Run ${run.id} updated to ${label(run.status)}, version ${run.version}.`;
+  ui.announcement.textContent = `Review ${run.id} updated to ${label(run.status)}, version ${run.version}.`;
   updateLiveElapsed();
 }
 
@@ -651,8 +651,8 @@ function renderOutcome(run, finalResult, error) {
   ui["outcome-content"].replaceChildren();
 
   if (finalResult) {
-    ui["outcome-eyebrow"].textContent = "Evidence-backed outcome";
-    ui["outcome-title"].textContent = "Recovery brief";
+    ui["outcome-eyebrow"].textContent = "AI review result";
+    ui["outcome-title"].textContent = "Review summary";
     const summary = typeof finalResult.summary === "string" ? finalResult.summary : null;
     if (summary) ui["outcome-content"].append(node("p", "outcome-lede", summary));
 
@@ -660,13 +660,13 @@ function renderOutcome(run, finalResult, error) {
     const findings = Array.isArray(finalResult.findings) ? finalResult.findings : [];
     if (findings.length) {
       const section = node("section", "outcome-findings");
-      section.append(node("h4", "", "What the evidence says"));
+      section.append(node("h4", "", "Key findings"));
       appendList(section, findings, "finding-list");
       grid.append(section);
     }
     for (const [key, title, className] of [
       ["recommended_next_step", "Recommended next step", "outcome-next"],
-      ["safety_note", "Safety boundary", "outcome-safety"],
+      ["safety_note", "What did not change", "outcome-safety"],
     ]) {
       if (typeof finalResult[key] !== "string") continue;
       const section = node("section", className);
@@ -691,12 +691,12 @@ function renderOutcome(run, finalResult, error) {
   }
 
   const cancelled = run.status === "cancelled";
-  ui["outcome-eyebrow"].textContent = cancelled ? "Workload cancelled" : "Safe stop";
-  ui["outcome-title"].textContent = cancelled ? "No final result was produced" : label(error?.code || run.error_code || "Run failed");
+  ui["outcome-eyebrow"].textContent = cancelled ? "Review cancelled" : "Review stopped";
+  ui["outcome-title"].textContent = cancelled ? "No final result was produced" : label(error?.code || run.error_code || "Review failed");
   ui["outcome-content"].append(node(
     "p",
     "outcome-lede",
-    error?.message || (cancelled ? "The run was cancelled before completion." : "The workload stopped without returning a final result."),
+    error?.message || (cancelled ? "The review was cancelled before completion." : "The review stopped without returning a final result."),
   ));
 }
 
@@ -745,7 +745,7 @@ function evidenceSummary(step) {
   if (step.tool) return `${step.tool.tool_name} · ${label(step.tool.outcome || step.tool.approval_status)}`;
   if (step.observation) return `${step.observation.facts.length} persisted fact${step.observation.facts.length === 1 ? "" : "s"}`;
   if (step.adaptation) return `Decision: ${label(step.adaptation.decision)}`;
-  return step.model_invocation ? "Model invocation evidence" : "Step evidence";
+  return step.model_invocation ? "Model call details" : "Step details";
 }
 
 function renderStep(step, isLatest) {
@@ -827,7 +827,7 @@ function renderStep(step, isLatest) {
       metric("Repairs", String(model.repair_count)),
       metric("Incomplete-response retries", String(model.provider_retry_count ?? 0)),
     );
-    body.append(node("h5", "", "Model evidence"), metrics);
+    body.append(node("h5", "", "Model details"), metrics);
   }
   if (step.error) body.append(node("p", "safe-error", `${step.error.code}: ${step.error.message}`));
   details.append(body);
@@ -838,7 +838,7 @@ function renderStep(step, isLatest) {
 
 function renderExecution(steps, reviews) {
   ui.execution.replaceChildren();
-  if (!steps.length) ui.execution.append(node("p", "empty", "The run is queued; no phase step is durable yet."));
+  if (!steps.length) ui.execution.append(node("p", "empty", "The review is queued; no work has been recorded yet."));
   steps.forEach((step, index) => ui.execution.append(renderStep(step, index === steps.length - 1)));
   for (const review of reviews) {
     const card = node("article", "review-row");
@@ -922,7 +922,7 @@ ui["refresh-runs"].addEventListener("click", () => {
   scheduleList(0);
 });
 ui["load-more"].addEventListener("click", () => loadRuns({ append: true }));
-ui["copy-link"].addEventListener("click", () => copyValue(window.location.href, "Run deep link copied."));
+ui["copy-link"].addEventListener("click", () => copyValue(window.location.href, "Review link copied."));
 ui["correlation-identifiers"].addEventListener("click", (event) => {
   const button = event.target.closest("button[data-copy-value]");
   if (button) copyValue(button.dataset.copyValue, `${button.querySelector(".copy-label").textContent} identifier copied.`);
