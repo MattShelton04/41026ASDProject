@@ -259,6 +259,12 @@ test("release details render bounded paginated dataset records", async () => {
   assert.match(releases, /Next page/);
 });
 
+test("data product catalogue distinguishes missing contract-valid release evidence", async () => {
+  const products = await readFile(new URL("../../frontend/routes/data-products.js", import.meta.url), "utf8");
+  assert.match(products, /No contract-valid release yet/);
+  assert.doesNotMatch(products, /\|\| "None"/);
+});
+
 test("operator UI exposes working submit controls, backfills and durable histories", async () => {
   const source = [
     await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
