@@ -541,6 +541,7 @@ class AgentRunner:
             "provider": generated.invocation.provider,
             "model": generated.invocation.model,
             "model_digest": generated.invocation.model_digest,
+            "provider_request_id": generated.invocation.provider_request_id,
             "metrics": generated.invocation.metrics.model_dump(mode="json"),
             "prompt_id": request.prompt_id,
             "prompt_version": request.prompt_version,

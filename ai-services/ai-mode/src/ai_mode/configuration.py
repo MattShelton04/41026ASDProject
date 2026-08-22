@@ -13,7 +13,10 @@ DEFAULT_LLM_PROVIDER = "openai"
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_OPENAI_TIMEOUT_SECONDS = 120.0
 DEFAULT_OPENAI_HEALTH_TIMEOUT_SECONDS = 2.0
+DEFAULT_OPENAI_HEALTH_CACHE_SECONDS = 60.0
 DEFAULT_OPENAI_MAX_RETRIES = 2
+DEFAULT_OPENAI_PROMPT_CACHE_ENABLED = True
+DEFAULT_OPENAI_ALLOW_INSECURE_HTTP = False
 DEFAULT_MAX_MODEL_RESPONSE_BYTES = 1_048_576
 DEFAULT_MAX_REQUEST_BYTES = 65_536
 DEFAULT_MAX_TOOL_REQUEST_BYTES = 262_144
@@ -43,7 +46,10 @@ class Settings:
     openai_base_url: str = DEFAULT_OPENAI_BASE_URL
     openai_timeout_seconds: float = DEFAULT_OPENAI_TIMEOUT_SECONDS
     openai_health_timeout_seconds: float = DEFAULT_OPENAI_HEALTH_TIMEOUT_SECONDS
+    openai_health_cache_seconds: float = DEFAULT_OPENAI_HEALTH_CACHE_SECONDS
     openai_max_retries: int = DEFAULT_OPENAI_MAX_RETRIES
+    openai_prompt_cache_enabled: bool = DEFAULT_OPENAI_PROMPT_CACHE_ENABLED
+    openai_allow_insecure_http: bool = DEFAULT_OPENAI_ALLOW_INSECURE_HTTP
     max_model_response_bytes: int = DEFAULT_MAX_MODEL_RESPONSE_BYTES
     require_provider_ready: bool = False
     max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES
@@ -71,7 +77,14 @@ class Settings:
                 f"AI_MODE_LLM_PROVIDER must be one of: {', '.join(sorted(SUPPORTED_LLM_PROVIDERS))}"
             )
         base_url = values.get("OPENAI_BASE_URL", DEFAULT_OPENAI_BASE_URL).rstrip("/")
-        _validate_provider_url(base_url)
+        allow_insecure_http = _boolean(
+            values.get(
+                "OPENAI_ALLOW_INSECURE_HTTP",
+                str(DEFAULT_OPENAI_ALLOW_INSECURE_HTTP),
+            ),
+            "OpenAI insecure HTTP opt-in",
+        )
+        _validate_provider_url(base_url, allow_insecure_http=allow_insecure_http)
         api_key = _configured_secret(
             values,
             value_name="OPENAI_API_KEY",
@@ -87,6 +100,15 @@ class Settings:
                 str(DEFAULT_OPENAI_HEALTH_TIMEOUT_SECONDS),
             ),
             "OpenAI health timeout",
+        )
+        health_cache = _bounded_float(
+            values.get(
+                "OPENAI_HEALTH_CACHE_SECONDS",
+                str(DEFAULT_OPENAI_HEALTH_CACHE_SECONDS),
+            ),
+            "OpenAI health cache",
+            minimum=1.0,
+            maximum=3_600.0,
         )
         max_retries = _bounded_int(
             values.get("OPENAI_MAX_RETRIES", str(DEFAULT_OPENAI_MAX_RETRIES)),
@@ -164,7 +186,16 @@ class Settings:
             openai_base_url=base_url,
             openai_timeout_seconds=timeout,
             openai_health_timeout_seconds=health_timeout,
+            openai_health_cache_seconds=health_cache,
             openai_max_retries=max_retries,
+            openai_prompt_cache_enabled=_boolean(
+                values.get(
+                    "OPENAI_PROMPT_CACHE_ENABLED",
+                    str(DEFAULT_OPENAI_PROMPT_CACHE_ENABLED),
+                ),
+                "OpenAI prompt caching",
+            ),
+            openai_allow_insecure_http=allow_insecure_http,
             max_model_response_bytes=max_bytes,
             require_provider_ready=_boolean(
                 values.get("AI_MODE_REQUIRE_PROVIDER_READY", "false"),
@@ -201,14 +232,21 @@ class Settings:
         return ()
 
 
-def _validate_provider_url(value: str) -> None:
+def _validate_provider_url(value: str, *, allow_insecure_http: bool) -> None:
     parsed = urlparse(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ConfigurationError("OPENAI_BASE_URL must be an absolute http or https URL")
     if parsed.username is not None or parsed.password is not None:
         raise ConfigurationError("OPENAI_BASE_URL must not contain credentials")
-    if parsed.scheme == "http" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
-        raise ConfigurationError("OPENAI_BASE_URL must use https except for loopback development")
+    if (
+        parsed.scheme == "http"
+        and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
+        and not allow_insecure_http
+    ):
+        raise ConfigurationError(
+            "OPENAI_BASE_URL must use https; set OPENAI_ALLOW_INSECURE_HTTP=true "
+            "only for trusted local development"
+        )
 
 
 def _optional_secret(value: str | None, label: str) -> str | None:
@@ -261,6 +299,22 @@ def _positive_float(value: str, label: str) -> float:
         raise ConfigurationError(f"{label} must be numeric") from exc
     if parsed <= 0:
         raise ConfigurationError(f"{label} must be greater than zero")
+    return parsed
+
+
+def _bounded_float(
+    value: str,
+    label: str,
+    *,
+    minimum: float,
+    maximum: float,
+) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise ConfigurationError(f"{label} must be numeric") from exc
+    if not minimum <= parsed <= maximum:
+        raise ConfigurationError(f"{label} must be between {minimum:g} and {maximum:g}")
     return parsed
 
 

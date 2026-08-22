@@ -53,7 +53,7 @@ def _success_body(*, text: str = '{"ok":true}') -> dict[str, object]:
         "usage": {
             "input_tokens": 20,
             "output_tokens": 7,
-            "input_tokens_details": {"cached_tokens": 5},
+            "input_tokens_details": {"cached_tokens": 5, "cache_write_tokens": 11},
             "output_tokens_details": {"reasoning_tokens": 3},
         },
     }
@@ -92,17 +92,31 @@ def test_responses_payload_auth_and_metrics_are_provider_native() -> None:
         captured["payload"] = json.loads(request.content)
         captured["authorization"] = request.headers.get("authorization")
         captured["client_request_id"] = request.headers.get("x-client-request-id")
-        return httpx.Response(200, json=_success_body())
+        return httpx.Response(200, json=_success_body(), headers={"x-request-id": "req_test"})
 
     result = _provider(httpx.MockTransport(handler)).generate_structured(_request())
 
     payload = captured["payload"]
     assert isinstance(payload, dict)
     assert payload["model"] == "gpt-5.6-luna"
-    assert payload["instructions"] == "Return JSON."
-    assert payload["input"] == [{"role": "user", "content": "Confirm readiness."}]
+    assert payload["input"] == [
+        {
+            "role": "developer",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": "Return JSON.",
+                    "prompt_cache_breakpoint": {"mode": "explicit"},
+                }
+            ],
+        },
+        {"role": "user", "content": "Confirm readiness."},
+    ]
+    assert payload["prompt_cache_options"] == {"mode": "explicit", "ttl": "30m"}
+    assert len(payload["prompt_cache_key"]) == 64
     assert payload["reasoning"] == {"effort": "low"}
     assert payload["store"] is False
+    assert payload["truncation"] == "disabled"
     assert payload["text"]["format"] == {
         "type": "json_schema",
         "name": "planner_planner_v1",
@@ -117,7 +131,10 @@ def test_responses_payload_auth_and_metrics_are_provider_native() -> None:
     assert result.metrics.prompt_tokens == 20
     assert result.metrics.output_tokens == 7
     assert result.metrics.cached_prompt_tokens == 5
+    assert result.metrics.cache_write_prompt_tokens == 11
     assert result.metrics.reasoning_tokens == 3
+    assert result.metrics.retry_count == 0
+    assert result.provider_request_id == "req_test"
 
 
 def test_profile_routes_implementer_and_reviewer_roles_to_distinct_models() -> None:
@@ -187,6 +204,22 @@ def test_none_reasoning_preserves_requested_temperature() -> None:
     assert captured["temperature"] == 0
 
 
+def test_prompt_cache_extensions_can_be_disabled_for_compatible_endpoints() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, json=_success_body())
+
+    provider = _provider(httpx.MockTransport(handler))
+    provider._prompt_cache_enabled = False
+    provider.generate_structured(_request())
+
+    assert captured["instructions"] == "Return JSON."
+    assert "prompt_cache_key" not in captured
+    assert "prompt_cache_options" not in captured
+
+
 def test_missing_credentials_fail_without_network_or_secret_repr() -> None:
     calls = 0
 
@@ -241,6 +274,40 @@ def test_unknown_profile_role_and_output_limit_fail_before_network() -> None:
     assert unknown.value.code == "model_profile_not_found"
     assert role.value.code == "model_role_not_supported"
     assert output.value.code == "model_output_limit_exceeded"
+    assert calls == 0
+
+
+def test_context_limit_is_enforced_before_network() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500)
+
+    provider = OpenAIProvider(
+        api_key="test-key",
+        base_url="https://ignored.test/v1",
+        profiles={
+            "remote-standard.v1": OpenAIModelProfile(
+                models={ModelRole.PLANNER: "gpt-5.6-luna"},
+                maximum_output_tokens=512,
+                context_tokens=1_600,
+            )
+        },
+        timeout_seconds=5,
+        max_retries=0,
+        max_response_bytes=100_000,
+        client=httpx.Client(
+            base_url="https://api.openai.test/v1",
+            transport=httpx.MockTransport(handler),
+        ),
+    )
+
+    with pytest.raises(ModelProviderError) as raised:
+        provider.generate_structured(_request())
+
+    assert raised.value.code == "model_context_limit_exceeded"
     assert calls == 0
 
 
@@ -306,6 +373,7 @@ def test_retryable_responses_use_bounded_retry_after_and_one_correlation_id() ->
     assert calls == 2
     assert delays == [1.5]
     assert len(set(client_request_ids)) == 1
+    assert result.metrics.retry_count == 1
 
 
 @pytest.mark.parametrize(
@@ -360,6 +428,23 @@ def test_network_failure_and_oversized_response_are_typed() -> None:
     with pytest.raises(ModelProviderError) as size_error:
         provider.generate_structured(_request())
     assert size_error.value.code == "model_response_too_large"
+
+
+def test_success_response_rejects_an_unexpected_media_type() -> None:
+    provider = _provider(
+        httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                content=json.dumps(_success_body()).encode(),
+                headers={"content-type": "text/plain"},
+            )
+        )
+    )
+
+    with pytest.raises(ModelProviderError) as raised:
+        provider.generate_structured(_request())
+
+    assert raised.value.code == "invalid_model_response"
 
 
 @pytest.mark.parametrize(
@@ -440,6 +525,28 @@ def test_health_checks_only_selected_models_with_short_timeout() -> None:
     assert requested_paths == ["/v1/models/gpt-5.6-luna", "/v1/models/gpt-5.6-terra"]
     assert isinstance(captured_timeout, dict)
     assert captured_timeout["read"] == 1.25
+
+
+def test_health_result_is_cached_for_the_configured_ttl() -> None:
+    calls = 0
+    now = [100.0]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        model = request.url.path.rsplit("/", 1)[-1]
+        return httpx.Response(200, json={"id": model, "object": "model"})
+
+    provider = _provider(httpx.MockTransport(handler))
+    provider._clock = lambda: now[0]
+    provider._health_cache_seconds = 10
+
+    assert provider.health().reachable is True
+    assert provider.health().reachable is True
+    assert calls == 1
+    now[0] += 11
+    assert provider.health().reachable is True
+    assert calls == 2
 
 
 @pytest.mark.parametrize("status", [401, 404, 429])

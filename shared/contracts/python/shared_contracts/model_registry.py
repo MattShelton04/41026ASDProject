@@ -41,10 +41,14 @@ class SupportedModel(ContractModel):
 
     key: Identifier
     provider: ModelProviderName
-    model_id: str = Field(min_length=1, max_length=200, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    model_id: str = Field(
+        min_length=1,
+        max_length=200,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
+    )
     maximum_context_tokens: int = Field(ge=1_024, le=2_000_000)
     maximum_output_tokens: int = Field(ge=1, le=1_000_000)
-    source_url: str = Field(pattern=r"^https://developers\.openai\.com/")
+    source_url: str = Field(pattern=r"^https://")
     description: str = Field(min_length=1, max_length=500)
 
 

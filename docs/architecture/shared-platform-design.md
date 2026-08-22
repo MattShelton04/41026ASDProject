@@ -114,7 +114,7 @@ The main architectural constraints are:
 - local MCP and RAG in Release 1;
 - local Planner, Worker, Reviewer, and human review in Release 2;
 - Azure or AWS deployment in Release 2;
-- AI-mode and Ollama enabled in the cloud while MCP, RAG, and multi-agent services are
+- AI-mode with remote OpenAI model access enabled in the cloud while MCP, RAG, and multi-agent services are
   disabled; and
 - individual workflows, integrated testing, diagrams, execution evidence, and reports.
 
@@ -496,9 +496,11 @@ and provider limits can support it.
 ### 9.1 Provider boundary
 
 `agent-core` defines an `LLMProvider` protocol for structured generation, health, and
-invocation metrics. `ai-mode` supplies an OpenAI Responses API implementation using its
-existing `httpx` boundary. It requests JSON-Schema-guided output, records token/timing
-metrics, disables provider storage, and performs bounded retries. No feature backend imports
+invocation metrics. `ai-mode` supplies an OpenAI Responses API implementation using the
+official SDK inside its adapter boundary. It requests JSON-Schema-guided output, records
+token/timing/cache/request-ID metrics, disables response storage, enforces configured context,
+and performs bounded retries within the persisted deadline. Stable prompt prefixes use explicit
+provider caching and model readiness uses a short TTL. No feature backend imports
 or calls a model-provider SDK/API.
 
 Configuration selects a model profile rather than embedding model names in feature

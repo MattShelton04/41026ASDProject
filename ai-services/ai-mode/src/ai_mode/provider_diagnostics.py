@@ -104,6 +104,35 @@ def _diagnostic_role(registry: ModelRegistry, model_profile: str) -> ModelRole:
     return ModelRole(next(iter(profile.role_models)).value)
 
 
+def configuration_report(
+    settings: Settings,
+    registry: ModelRegistry,
+    model_profile: str,
+) -> Mapping[str, object]:
+    """Return a secret-safe, network-free deployment preflight report."""
+    profile = registry.profile(model_profile)
+    if profile is None:
+        raise ValueError(f"model profile is not registered: {model_profile}")
+    role_models: dict[str, str] = {}
+    for role, model_key in profile.role_models.items():
+        model = registry.model(model_key)
+        if model is None:  # ModelRegistry validation already rejects this.
+            raise ValueError(f"model profile references unknown model: {model_key}")
+        role_models[role.value] = model.model_id
+    return {
+        "status": "configuration-valid",
+        "provider": settings.llm_provider,
+        "base_url": settings.openai_base_url,
+        "credential_configured": settings.openai_api_key is not None,
+        "profile": model_profile,
+        "role_models": role_models,
+        "context_tokens": profile.context_tokens,
+        "maximum_output_tokens": profile.maximum_output_tokens,
+        "prompt_cache_enabled": settings.openai_prompt_cache_enabled,
+        "network_checked": False,
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -117,6 +146,11 @@ def _parser() -> argparse.ArgumentParser:
         help="Override the registry's default logical profile for this check",
     )
     parser.add_argument("--timeout-seconds", type=float, default=None)
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate configuration and model routing without making a network request",
+    )
     return parser
 
 
@@ -134,6 +168,15 @@ def main() -> int:
             environment["OPENAI_TIMEOUT_SECONDS"] = str(args.timeout_seconds)
         settings = Settings.from_env(environment)
         registry, model_profile = configured_model_registry(settings)
+        if args.dry_run:
+            print(
+                json.dumps(
+                    configuration_report(settings, registry, model_profile),
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
         provider = build_provider(
             settings,
             registry=registry,

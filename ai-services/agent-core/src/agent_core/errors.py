@@ -40,10 +40,18 @@ class ConcurrentRunUpdateError(AgentCoreError):
 class ModelProviderError(AgentCoreError):
     """A model provider failed without exposing implementation details."""
 
-    def __init__(self, message: str, *, code: str, retryable: bool) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str,
+        retryable: bool,
+        provider_request_id: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.retryable = retryable
+        self.provider_request_id = provider_request_id
 
 
 class ModelOutputValidationError(AgentCoreError):

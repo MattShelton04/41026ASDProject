@@ -84,6 +84,25 @@ def test_console_entrypoint_reports_success_and_closes_provider(
     assert provider.closed is True
 
 
+def test_console_dry_run_validates_without_building_or_contacting_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def unexpected(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("dry-run must not build a network provider")
+
+    monkeypatch.setattr(provider_diagnostics, "build_provider", unexpected)
+    monkeypatch.setattr("sys.argv", ["ai-mode-provider-smoke", "--dry-run"])
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    assert provider_diagnostics.main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "configuration-valid"
+    assert report["credential_configured"] is False
+    assert report["network_checked"] is False
+    assert report["role_models"]["planner"] == "gpt-5.6-luna"
+
+
 def test_console_entrypoint_selects_a_role_declared_by_profile(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

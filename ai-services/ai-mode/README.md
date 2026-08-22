@@ -31,12 +31,15 @@ the configured limit.
 
 ## Configuration
 
-The adapter calls `POST /v1/responses` with `store: false`, low reasoning effort, bounded
-output, a client request ID, and a JSON Schema format. The Plan contract contains dynamic
+The adapter uses the official OpenAI Python SDK to call `POST /v1/responses` with `store: false`,
+low reasoning effort, bounded output, a client request ID, and a JSON Schema format. The Plan contract contains dynamic
 tool-argument objects, which are incompatible with OpenAI's closed/all-required strict
 schema subset, so API strict mode is deliberately disabled. Agent-core still validates the
 complete application contract and permits at most one repair turn. Readiness retrieves only
-the selected model through `GET /v1/models/{model}`.
+the selected models through `GET /v1/models/{model}` and caches that readiness result briefly.
+The configured context window is conservatively enforced before dispatch. Stable versioned
+system prompts use explicit prompt-cache breakpoints and a deterministic cache key; cache read,
+write, retry, and provider request-ID evidence is retained with the run.
 
 | Variable | Default |
 |---|---|
@@ -45,9 +48,12 @@ the selected model through `GET /v1/models/{model}`.
 | `OPENAI_API_KEY` | unset; direct host-process credential |
 | `OPENAI_API_KEY_FILE` | unset; mutually exclusive file-mounted credential used by Compose |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` |
+| `OPENAI_ALLOW_INSECURE_HTTP` | `false` |
 | `OPENAI_TIMEOUT_SECONDS` | `120` |
 | `OPENAI_HEALTH_TIMEOUT_SECONDS` | `2` |
+| `OPENAI_HEALTH_CACHE_SECONDS` | `60` |
 | `OPENAI_MAX_RETRIES` | `2` |
+| `OPENAI_PROMPT_CACHE_ENABLED` | `true` |
 | `AI_MODE_DEFAULT_MODEL_PROFILE` | registry default (`remote-standard.v1`) |
 | `AI_MODE_MODEL_REGISTRY_PATH` | bundled `registry.v2.yaml` |
 | `AI_MODE_MAX_MODEL_RESPONSE_BYTES` | `1048576` |
@@ -105,6 +111,8 @@ The `ai-mode-provider-smoke` console command performs a real provider-level stru
 output diagnostic without owning Docker lifecycle or feature behavior. It uses the same
 settings parser, logical model profile, and provider factory as the running service, and
 selects a role explicitly declared by that profile so role enforcement is exercised too.
+Use `uv run ai-mode-provider-smoke --dry-run` first to validate configuration, model routing,
+and limits without a credential or network request.
 
 ### Supported models and profiles
 

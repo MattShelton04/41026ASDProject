@@ -8,6 +8,7 @@ dependencies = [
     "flask>=3.1,<4",
     "gunicorn>=23,<24",
     "httpx>=0.28,<1",
+    "openai>=2.0,<3",
     "pyyaml>=6.0,<7",
     "shared-contracts",
 ]

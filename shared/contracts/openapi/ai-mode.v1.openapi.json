@@ -1328,6 +1328,20 @@
             "title": "Provider",
             "type": "string"
           },
+          "provider_request_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider Request Id"
+          },
           "rendered_input_hash": {
             "pattern": "^[0-9a-f]{64}$",
             "title": "Rendered Input Hash",
@@ -1357,6 +1371,19 @@
         "additionalProperties": false,
         "description": "Portable model timings and counts safe for developer display.",
         "properties": {
+          "cache_write_prompt_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cache Write Prompt Tokens"
+          },
           "cached_prompt_tokens": {
             "anyOf": [
               {
@@ -1447,6 +1474,13 @@
             ],
             "default": null,
             "title": "Reasoning Tokens"
+          },
+          "retry_count": {
+            "default": 0,
+            "maximum": 5,
+            "minimum": 0,
+            "title": "Retry Count",
+            "type": "integer"
           },
           "total_duration_ms": {
             "minimum": 0,
@@ -2001,7 +2035,7 @@
           "model_id": {
             "maxLength": 200,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
             "title": "Model Id",
             "type": "string"
           },
@@ -2009,7 +2043,7 @@
             "$ref": "#/components/schemas/ModelProviderName"
           },
           "source_url": {
-            "pattern": "^https://developers\\.openai\\.com/",
+            "pattern": "^https://",
             "title": "Source Url",
             "type": "string"
           }

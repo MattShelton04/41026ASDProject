@@ -43,6 +43,7 @@ def build_provider(
             role_models[ModelRole(role.value)] = model.model_id
         profiles[profile.key] = OpenAIModelProfile(
             models=role_models,
+            context_tokens=profile.context_tokens,
             maximum_output_tokens=profile.maximum_output_tokens,
             reasoning_effort=profile.reasoning_effort,
         )
@@ -53,6 +54,8 @@ def build_provider(
         readiness_profiles=frozenset({readiness_profile}),
         timeout_seconds=settings.openai_timeout_seconds,
         health_timeout_seconds=settings.openai_health_timeout_seconds,
+        health_cache_seconds=settings.openai_health_cache_seconds,
         max_retries=settings.openai_max_retries,
         max_response_bytes=settings.max_model_response_bytes,
+        prompt_cache_enabled=settings.openai_prompt_cache_enabled,
     )

@@ -20,7 +20,21 @@ def captured_commands(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
 
     monkeypatch.setattr(dev, "_run", capture)
     monkeypatch.setattr(dev, "_psi_cache_years", lambda: ())
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     return commands
+
+
+def test_up_fails_before_docker_when_openai_credential_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(dev, "_run", lambda command, **_kwargs: commands.append(tuple(command)))
+
+    assert dev.main(["up"]) == 1
+    assert commands == []
+    assert "OPENAI_API_KEY is required" in capsys.readouterr().err
 
 
 def test_up_starts_complete_stack(
@@ -79,6 +93,7 @@ def test_full_data_exposes_psi_and_advertises_cached_years(
     monkeypatch.setattr(dev, "_run", capture)
     monkeypatch.setattr(dev, "_psi_cache_years", lambda: (2024, 2025))
     monkeypatch.setattr(dev, "_psi_cache_weeks", lambda: ("2026-08-03", "2026-08-10"))
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     assert dev.main(["up", "--full-data"]) == 0
 

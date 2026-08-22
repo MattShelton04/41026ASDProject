@@ -23,6 +23,9 @@ def test_defaults_have_one_typed_runtime_source() -> None:
     assert settings.llm_provider == "openai"
     assert settings.openai_base_url == "https://api.openai.com/v1"
     assert settings.openai_api_key is None
+    assert settings.openai_prompt_cache_enabled is True
+    assert settings.openai_allow_insecure_http is False
+    assert settings.openai_health_cache_seconds == 60
 
 
 def test_openai_configuration_accepts_a_loopback_compatible_api() -> None:
@@ -50,6 +53,17 @@ def test_openai_configuration_reads_a_bounded_secret_file(tmp_path: Path) -> Non
     assert "file-secret" not in repr(settings)
 
 
+def test_non_loopback_http_requires_an_explicit_local_development_opt_in() -> None:
+    settings = Settings.from_env(
+        {
+            "OPENAI_BASE_URL": "http://host.docker.internal:8080/v1",
+            "OPENAI_ALLOW_INSECURE_HTTP": "true",
+        }
+    )
+
+    assert settings.openai_allow_insecure_http is True
+
+
 @pytest.mark.parametrize(
     ("values", "message"),
     [
@@ -60,6 +74,9 @@ def test_openai_configuration_reads_a_bounded_secret_file(tmp_path: Path) -> Non
         ({"OPENAI_TIMEOUT_SECONDS": "0"}, "greater than zero"),
         ({"OPENAI_TIMEOUT_SECONDS": "slow"}, "must be numeric"),
         ({"OPENAI_HEALTH_TIMEOUT_SECONDS": "0"}, "greater than zero"),
+        ({"OPENAI_HEALTH_CACHE_SECONDS": "0"}, "must be between"),
+        ({"OPENAI_PROMPT_CACHE_ENABLED": "sometimes"}, "must be true or false"),
+        ({"OPENAI_ALLOW_INSECURE_HTTP": "sometimes"}, "must be true or false"),
         ({"OPENAI_MAX_RETRIES": "6"}, "must be between"),
         ({"OPENAI_MAX_RETRIES": "many"}, "must be an integer"),
         ({"OPENAI_API_KEY": "bad\nkey"}, "OPENAI_API_KEY is invalid"),

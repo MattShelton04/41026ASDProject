@@ -69,6 +69,15 @@ def _ensure_docker() -> None:
     _run(("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"))
 
 
+def _ensure_openai_credential() -> None:
+    """Fail clearly before Compose tries to materialise its OpenAI secret."""
+    if not os.environ.get("OPENAI_API_KEY", "").strip():
+        raise RuntimeError(
+            "OPENAI_API_KEY is required for the complete stack. Set a real key for OpenAI "
+            "or a non-empty local-development value for your OpenAI-compatible endpoint."
+        )
+
+
 def _psi_cache_years() -> tuple[int, ...]:
     root = REPOSITORY_ROOT / ".propertyscope-source-cache" / "psi"
     if not root.is_dir():
@@ -205,6 +214,7 @@ def _compose_environment(*, full_data: bool) -> Mapping[str, str] | None:
 
 
 def _up(*, full_data: bool) -> None:
+    _ensure_openai_credential()
     _ensure_docker()
     compose_environment = _compose_environment(full_data=full_data)
     if compose_environment is not None:
@@ -230,6 +240,7 @@ def _up(*, full_data: bool) -> None:
 
 
 def _rebuild(services: Sequence[str], *, full_data: bool) -> None:
+    _ensure_openai_credential()
     _ensure_docker()
     selected = tuple(services) or APPLICATION_SERVICES
     compose_environment = _compose_environment(full_data=full_data)
@@ -330,6 +341,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif arguments.command == "rebuild":
             _rebuild(arguments.services, full_data=arguments.full_data)
         elif arguments.command == "restart":
+            _ensure_openai_credential()
             _ensure_docker()
             compose_environment = _compose_environment(full_data=arguments.full_data)
             _run(

@@ -27,11 +27,12 @@ OpenAI adapter using the Responses API.
   `remote-standard.v1`. Planner implementation turns route to cost-sensitive `gpt-5.6-luna`;
   adaptation and reviewer turns route to balanced `gpt-5.6-terra`. This uses both models in the
   current loop when adaptation is needed without enabling the later multi-agent service.
-- The adapter requests JSON-Schema-guided output, sets `store: false`, uses explicit `low`
+- The adapter uses the official OpenAI Python SDK, requests JSON-Schema-guided output, sets
+  `store: false`, uses explicit prompt-prefix caching and `low`
   reasoning effort, enforces a 128K operational context profile plus 16K maximum output/deadline limits,
-  bounds response bytes, and maps
+  conservatively rejects oversized context before dispatch, bounds response bytes, and maps
   transport/provider failures into safe `ModelProviderError` values.
-- Provider readiness uses bounded, authenticated `GET /v1/models/{model}` calls for every distinct
+- Provider readiness uses bounded, authenticated, short-lived cached `GET /v1/models/{model}` calls for every distinct
   model routed by the selected profile. A missing
   key is a degraded provider state, not a reason for liveness or deterministic CRUD to fail.
 - `OPENAI_API_KEY` is accepted only from server-side runtime configuration. It is never stored in
@@ -43,6 +44,9 @@ OpenAI adapter using the Responses API.
   workflow are removed.
 - A live remote-provider diagnostic remains explicit and optional; deterministic CI mocks the
   HTTPS boundary and never requires a credential or network access.
+- An alternate base URL is supported when it implements Responses create and Models retrieve.
+  Cache extensions can be disabled for compatible implementations. Non-loopback HTTP requires an
+  explicit development-only opt-in.
 
 The orchestrator continues to execute feature tools itself. OpenAI hosted tools and server-side
 conversation state are not enabled by this decision.
@@ -75,4 +79,4 @@ release claims.
 - **Delegate tools/state to the provider:** rejected because the current deterministic runner and
   persisted phase boundaries are the security, audit, idempotency, and recovery authority.
 - **Embed a vendor SDK in `agent-core`:** rejected because the core must remain framework and
-  provider independent. AI-mode's adapter uses the documented HTTP API at its existing boundary.
+  provider independent. The SDK exists only inside AI-mode's concrete adapter.

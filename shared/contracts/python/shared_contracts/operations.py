@@ -100,7 +100,9 @@ class ModelMetricsEvidence(ContractModel):
     prompt_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
     cached_prompt_tokens: int | None = Field(default=None, ge=0)
+    cache_write_prompt_tokens: int | None = Field(default=None, ge=0)
     reasoning_tokens: int | None = Field(default=None, ge=0)
+    retry_count: int = Field(default=0, ge=0, le=5)
 
 
 class ModelInvocationEvidence(ContractModel):
@@ -109,6 +111,7 @@ class ModelInvocationEvidence(ContractModel):
     provider: str = Field(min_length=1, max_length=100)
     model: str = Field(min_length=1, max_length=200)
     model_digest: str | None = Field(default=None, max_length=200)
+    provider_request_id: str | None = Field(default=None, min_length=1, max_length=200)
     prompt_id: Identifier
     prompt_version: Identifier
     prompt_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
