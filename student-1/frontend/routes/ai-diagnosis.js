@@ -7,7 +7,10 @@ import { badge, detailList, pageHeading, panel, technicalDetails } from "../comp
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
 
-const AGENT_ACTIVITY_URL = "http://localhost:5005/operations/ai-mode/";
+const AGENT_ACTIVITY_URL = window.PROPERTYSCOPE_AGENT_ACTIVITY_URL
+  || (window.location.pathname.startsWith("/features/data-platform/")
+    ? "/operations/ai-mode/"
+    : `${window.location.protocol}//${window.location.hostname}:5005/operations/ai-mode/`);
 const OBJECTIVES = Object.freeze({
   compare: "Compare this candidate with its accepted predecessor, identify deterministic quality or consumer failures, preserve accepted data, and propose only a reviewed safe recovery.",
   quality: "Inspect this candidate's exact ingestion run and deterministic quality evidence, identify blocking checks, preserve prior observations, and propose only a reviewed bounded reprocess.",

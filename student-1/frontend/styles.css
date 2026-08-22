@@ -35,7 +35,7 @@ body { min-width: 320px; min-height: 100vh; margin: 0; background: var(--canvas)
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { color: var(--ocean-dark); }
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 3px solid rgb(21 148 149 / 38%); outline-offset: 2px; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: var(--ps-focus-outline); outline-offset: var(--ps-focus-offset); }
 button:disabled { cursor: not-allowed; opacity: .55; }
 h1, h2, h3, p { overflow-wrap: anywhere; }
 
@@ -43,7 +43,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .skip-link:focus { top: 0; }
 .visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
-.topbar { position: sticky; top: 0; z-index: 20; height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(1rem, 3vw, 2rem); border-bottom: 1px solid rgb(255 255 255 / 12%); background: var(--navy); color: white; }
+.topbar { position: sticky; top: 0; z-index: var(--ps-z-navigation); height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(1rem, 3vw, 2rem); border-bottom: 1px solid rgb(255 255 255 / 12%); background: var(--navy); color: white; }
 .brand { display: inline-flex; align-items: center; gap: .7rem; color: white; text-decoration: none; }
 .brand-mark { width: 38px; height: 38px; fill: none; stroke: #81d8dc; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
 .brand strong, .brand small { display: block; }
@@ -83,7 +83,7 @@ main { min-width: 0; }
 .page-heading .lede { max-width: 52rem; margin: .45rem 0 0; color: var(--muted); font-size: .9rem; line-height: 1.55; }
 .heading-actions, .button-row, .toolbar, .filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; }
 
-.button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: .4rem; padding: .54rem .85rem; border: 1px solid transparent; border-radius: 8px; cursor: pointer; font-size: .78rem; font-weight: 750; text-decoration: none; }
+.button { min-height: var(--ps-control-height); display: inline-flex; align-items: center; justify-content: center; gap: .4rem; padding: .54rem .85rem; border: 1px solid transparent; border-radius: 8px; cursor: pointer; font-size: .78rem; font-weight: var(--ps-weight-bold); text-decoration: none; }
 .button.primary { background: var(--ocean); color: white; }
 .button.primary:hover { background: var(--ocean-dark); }
 .button.secondary { border-color: var(--line-strong); background: white; color: var(--navy); }

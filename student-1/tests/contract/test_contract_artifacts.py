@@ -292,3 +292,10 @@ def test_tool_catalog_exactly_covers_declared_ai_capabilities() -> None:
     catalog = load_tool_catalog(ROOT / "tool-catalog.yaml")
     names = {registration.definition.name for registration in catalog.tools}
     assert names == set(manifest.ai_capabilities)
+
+
+def test_feature_manifest_uses_the_canonical_shared_edge_route() -> None:
+    manifest = load_feature_manifest(ROOT / "feature.yaml")
+
+    assert manifest.frontend_base_path == "/features/data-platform/"
+    assert manifest.backend_base_path == "/api/data-platform/v1"

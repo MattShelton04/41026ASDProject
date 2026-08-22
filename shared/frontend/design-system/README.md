@@ -7,14 +7,15 @@ the shared directory into a domain-component monolith.
 ## Import order
 
 ```html
-<link rel="stylesheet" href="/shared/design-system/tokens.css">
-<link rel="stylesheet" href="/shared/design-system/base.css">
-<link rel="stylesheet" href="/shared/design-system/components.css">
-<link rel="stylesheet" href="/feature/styles.css">
+<link rel="stylesheet" href="./design-system/tokens.css">
+<link rel="stylesheet" href="./design-system/base.css">
+<link rel="stylesheet" href="./design-system/components.css">
+<link rel="stylesheet" href="./styles.css">
 ```
 
-Relative paths are also valid while each frontend is served independently. The feature stylesheet
-comes last and may compose shared primitives, but should not redefine token values locally.
+These base-path-compatible relative imports work when a frontend is served independently or below
+its canonical `/features/<slug>/` edge path. The feature stylesheet comes last and may compose
+shared primitives, but should not redefine token values locally.
 
 ## Stable public surface
 
@@ -27,6 +28,19 @@ comes last and may compose shared primitives, but should not redefine token valu
 - `.ps-sr-only` and `.ps-skip-link`
 
 Classes without the `ps-` prefix remain private to a page or feature.
+
+## Token categories
+
+Use shared tokens for concepts that should look and behave alike across features:
+
+- `--ps-type-*`, `--ps-leading-*` and `--ps-weight-*` for the common type scale;
+- `--ps-ink-*`, `--ps-ocean-*`, surface and semantic-state tokens for colour;
+- `--ps-space-*`, `--ps-content-max`, `--ps-control-height*` and `--ps-shell-*` for rhythm and shell sizing;
+- `--ps-radius-*` and `--ps-shadow-*` for shape and elevation; and
+- `--ps-duration`, `--ps-ease`, `--ps-focus-*` and `--ps-z-*` for shared interaction behaviour.
+
+Feature styles may introduce private layout variables, but must not redeclare a `--ps-*` token.
+If the shared value is unsuitable, propose a new semantic token instead of silently overriding it.
 
 ## Evidence vocabulary
 

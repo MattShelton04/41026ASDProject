@@ -1,3 +1,5 @@
+import { featureRegistry } from "./features.js";
+
 export const RELEASE_STAGES = Object.freeze([
   {
     id: "Available now",
@@ -26,13 +28,7 @@ export function capabilityManifest(config = {}) {
   return {
     release: "release-0",
     deploymentMode: "local",
-    features: [
-      { id: "property-records", label: "Property records", implemented: true, enabled: true, href: config.propertyDiscovery, detail: "Identity, provenance, ingestion and accepted data." },
-      { id: "sales-market", label: "Sales and market", implemented: false, enabled: false, detail: "Not available yet." },
-      { id: "suburb-context", label: "Suburb context", implemented: false, enabled: false, detail: "Not available yet." },
-      { id: "site-planning", label: "Site and planning", implemented: false, enabled: false, detail: "Not available yet." },
-      { id: "buyer-workspace", label: "Buyer workspace", implemented: false, enabled: false, detail: "Not available yet." },
-    ],
+    features: featureRegistry(config),
     services: [
       { id: "shared-shell", label: "Shared product shell", implemented: true, enabled: true, detail: "Navigation, availability and shared operational views." },
       { id: "ai-mode", label: "Agent activity", implemented: true, enabled: true, href: config.agentRuns, detail: "Durable bounded agent-run evidence." },

@@ -1,4 +1,5 @@
 import { append, badge, cell, el, formatDate, link, notice, pageHeader, panel, requestJson, table } from "../core.js";
+import { featureRegistry } from "../features.js";
 
 export function classifyHealth(payload) {
   const raw = String(payload?.status || "unknown").toLowerCase();
@@ -75,10 +76,12 @@ export function createStatusRoute({ config, announce }) {
     append(root, summary, cards, contracts.card);
 
     async function load() {
+      const features = featureRegistry(config);
+      const enabledFeatures = features.filter((feature) => feature.implemented && feature.enabled);
       root.setAttribute("aria-busy", "true");
       refresh.disabled = true;
       cards.replaceChildren();
-      append(cards, ...["Shared product shell", "Property records", "Property data store", "Agent activity", "AI provider"].map((name) => {
+      append(cards, ...["Shared product shell", ...enabledFeatures.map((feature) => feature.label), "Agent activity"].map((name) => {
         const card = el("div", "ps-card health-card health-card--loading");
         append(card, el("div", "ps-card__body", `Checking ${name}…`));
         return card;
@@ -91,21 +94,32 @@ export function createStatusRoute({ config, announce }) {
       }).catch((error) => ({ name: "Shared product shell", kind: "Frontend", owner: "Shared platform", detail: `The shell health check failed: ${error.message}.`, href: "#home", enabled: true, latency: null, requestId: "Browser-local check", readiness: "unavailable", label: "Unavailable", tone: "partial" }));
       const primaryComponents = await Promise.all([
         shellCheck,
-        check("Property records", "Public API", "Property data service", "/api/shared-health/data-platform", "Deterministic property reads and operations remain available without AI.", config.dataOperations),
+        ...enabledFeatures.map((feature) => check(
+          feature.label,
+          "Feature API",
+          feature.owner,
+          feature.healthPath,
+          `${feature.summary} Readiness is observed independently from its deployment gate.`,
+          feature.href,
+        )),
         check("Agent activity", "Shared API", "Shared platform", "/api/shared-health/ai-mode", "Durable agent evidence and its configured model dependency.", config.agentRuns),
       ]);
-      const propertyApi = primaryComponents[1];
-      const agentApi = primaryComponents[2];
-      const components = [
-        primaryComponents[0],
-        propertyApi,
-        dependencyComponent(propertyApi, {
+      const shellApi = primaryComponents[0];
+      const featureApis = primaryComponents.slice(1, 1 + enabledFeatures.length);
+      const propertyIndex = enabledFeatures.findIndex((feature) => feature.slug === "data-platform");
+      const propertyApi = propertyIndex >= 0 ? featureApis[propertyIndex] : undefined;
+      const agentApi = primaryComponents.at(-1);
+      const components = [shellApi, ...featureApis];
+      if (propertyApi) {
+        components.push(dependencyComponent(propertyApi, {
           name: "Property data store",
           kind: "Owned dependency",
           owner: "Property data service",
           rawStatus: propertyApi.payload?.dependencies?.database,
           detail: propertyApi.payload?.dependencies?.database === true ? "The public Property records API reports its owned database dependency ready." : "The owned data-store readiness check did not pass.",
-        }),
+        }));
+      }
+      components.push(
         agentApi,
         dependencyComponent(agentApi, {
           name: "AI provider",
@@ -114,17 +128,19 @@ export function createStatusRoute({ config, announce }) {
           rawStatus: agentApi.payload?.checks?.llm_provider?.status,
           detail: agentApi.payload?.checks?.llm_provider?.detail,
         }),
-      ];
+      );
       const overall = overallReadiness(components);
       const checkedAt = new Date().toISOString();
       summary.replaceChildren(notice(overall === "ready" ? "success" : "warning", overall === "ready" ? "PropertyScope is ready" : "Some live services need attention", `Checked ${formatDate(checkedAt)}. Planned research areas are not counted as failures.`));
       cards.replaceChildren(...components.map(healthCard));
 
       const planned = [
-        ["Sales and market", "Research area", "Planned", "No live route yet"],
-        ["Suburb context", "Research area", "Planned", "No live route yet"],
-        ["Site and planning", "Research area", "Planned", "No live route yet"],
-        ["Buyer workspace", "Research workspace", "Planned", "No live route yet"],
+        ...features.filter((feature) => !feature.implemented || !feature.enabled).map((feature) => [
+          feature.label,
+          feature.owner,
+          feature.implemented ? "Disabled" : "Planned",
+          feature.implemented ? "Deployment gate is disabled" : "No live route until the complete feature slice is integrated",
+        ]),
         ["Cited document research", "Shared capability", "Planned", "Property search does not depend on it"],
         ["Coordinated research roles", "Shared capability", "Planned", "Not active in this workspace"],
       ];

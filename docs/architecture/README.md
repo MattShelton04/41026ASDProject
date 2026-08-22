@@ -9,6 +9,9 @@ Architecture sources, decisions, and exported diagrams belong here.
 - `propertyscope-product-and-feature-plan.md` is the proposed PropertyScope NSW product,
   five-feature, data, UI, API, AI, and delivery plan. It remains subject to team and tutor
   approval and does not supersede the domain-neutral shared-platform decisions.
+- `feature-integration-and-experience-contract.md` is the implementable cross-feature baseline for
+  edge routes, browser context hand-off, HTTP dependencies, publication/composition flows, common
+  styling, failure behaviour, onboarding and group integration tests.
 - `agent-run-state-machine.md` is the implemented operational specification for run
   transitions, durable phase checkpoints, tool turns, idempotency, and restart recovery.
 - `shared-run-observability-proposal.md` records the implemented local read-only baseline

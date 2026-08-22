@@ -46,7 +46,7 @@ export function researchAreaLabel(value) {
 
 export function parseShellRoute(hash = "") {
   const value = String(hash).replace(/^#\/?/, "").split("?")[0];
-  if (["system-status", "evidence", "release-roadmap"].includes(value)) return value;
+  if (["features", "system-status", "evidence", "release-roadmap"].includes(value)) return value;
   return "home";
 }
 

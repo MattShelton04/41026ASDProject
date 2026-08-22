@@ -8,7 +8,7 @@
 | Last verified | 21 August 2026 |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
-| Related record | `docs/architecture/repository-architecture.md` |
+| Related records | `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
 
 ### Implementation status (15 August 2026)
 
@@ -339,18 +339,19 @@ Every student owns a validated `feature.yaml` containing:
 
 ```yaml
 schema_version: 1
-feature_key: student-1-feature
-display_name: To be decided
+feature_key: student-1-propertyscope-data-platform
+display_name: PropertyScope Data Platform and Property Discovery
 owner: student-1
-frontend_base_path: /features/student-1
-backend_base_path: /api/features/student-1/v1
+frontend_base_path: /features/data-platform/
+backend_base_path: /api/data-platform/v1
 health_path: /health/ready
 ai_capabilities: []
 ```
 
-The shared home page, integration tests, and architecture evidence use these manifests.
-Compose service definitions remain explicit; manifests do not generate hidden runtime
-topology.
+The shared home page's deployable browser registry projects these manifests together with
+product-facing labels and reserved placeholders. Integration tests cross-check each implemented
+entry against its manifest. Compose service definitions remain explicit; manifests do not generate
+hidden runtime topology.
 
 ### 7.3 Agent contract model
 

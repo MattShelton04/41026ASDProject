@@ -28,7 +28,11 @@ const actionDialog = document.querySelector("#action-dialog");
 const actionForm = document.querySelector("#action-form");
 const toast = document.querySelector("#toast");
 
-const productHomeUrl = window.PROPERTYSCOPE_HOME_URL || "http://localhost:5100/";
+const productHomeUrl = window.PROPERTYSCOPE_HOME_URL
+  || (window.location.pathname.startsWith("/features/data-platform/") ? "/" : "http://localhost:5100/");
+const healthUrl = window.location.pathname.startsWith("/features/data-platform/")
+  ? "/api/shared-health/data-platform"
+  : "/health/ready";
 for (const item of document.querySelectorAll("[data-product-home]")) item.href = productHomeUrl;
 
 const state = { pollTimer: null, lastRunStatus: "", lastAgentStatus: "", requests: new Map() };
@@ -172,7 +176,7 @@ const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, 
 const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender: renderRoute });
 
 async function checkHealth() {
-  try { await request("/health/ready", { timeoutMs: 4000 }); serviceState.className = "service-state online"; serviceState.lastElementChild.textContent = "Data service available"; }
+  try { await request(healthUrl, { timeoutMs: 4000 }); serviceState.className = "service-state online"; serviceState.lastElementChild.textContent = "Data service available"; }
   catch { serviceState.className = "service-state offline"; serviceState.lastElementChild.textContent = "Data service unavailable"; }
 }
 

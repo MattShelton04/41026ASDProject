@@ -87,6 +87,7 @@ jobs:
     timeout-minutes: 20
     env:
       OPENAI_API_KEY_FILE: /dev/null
+      AI_MODE_REQUIRE_PROVIDER_READY: "false"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
@@ -108,11 +109,13 @@ jobs:
         with:
           source: .
           files: docker-compose.yml
-          targets: propertyscope-shared-frontend,propertyscope-database-api,propertyscope-database-loader,propertyscope-backend,propertyscope-runner,propertyscope-frontend
+          targets: propertyscope-shared-frontend,ai-mode,propertyscope-database-api,propertyscope-database-loader,propertyscope-backend,propertyscope-runner,propertyscope-frontend
           load: true
           set: |
             propertyscope-shared-frontend.cache-from=type=gha,scope=student1-shared-frontend
             propertyscope-shared-frontend.cache-to=type=gha,mode=max,scope=student1-shared-frontend
+            ai-mode.cache-from=type=gha,scope=student1-ai-mode
+            ai-mode.cache-to=type=gha,mode=max,scope=student1-ai-mode
             propertyscope-database-api.cache-from=type=gha,scope=student1-database-api
             propertyscope-database-api.cache-to=type=gha,mode=max,scope=student1-database-api
             propertyscope-database-loader.cache-from=type=gha,scope=student1-database-loader
@@ -125,12 +128,22 @@ jobs:
             propertyscope-frontend.cache-to=type=gha,mode=max,scope=student1-frontend
       - name: Start bounded fixture stack
         run: |
-          docker compose --profile release-0 up --detach --wait --wait-timeout 180 propertyscope-shared-frontend propertyscope-database-api propertyscope-database-loader propertyscope-backend propertyscope-runner propertyscope-frontend
+          docker compose --profile release-0 up --detach --wait --wait-timeout 180 propertyscope-shared-frontend ai-mode propertyscope-database-api propertyscope-database-loader propertyscope-backend propertyscope-runner propertyscope-frontend
       - name: Verify browser and service health
         run: |
           curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/
+          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/config.js
+          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/features/data-platform/
+          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/features/data-platform/app.js
+          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/features/data-platform/design-system/tokens.css
+          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/operations/ai-mode/
           curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5200/
           curl --fail --retry 10 --retry-all-errors 'http://127.0.0.1:5200/api/data-platform/v1/properties/search?q=Example&state=NSW&limit=10'
+          curl --fail --retry 10 --retry-all-errors 'http://127.0.0.1:5100/api/data-platform/v1/properties/search?q=Example&state=NSW&limit=10'
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:5100/features/market-intelligence/)" = "307"
+          curl --silent --head http://127.0.0.1:5100/features/market-intelligence/ | grep --fixed-strings 'Location: /#features'
+          test "$(curl --silent --output /tmp/propertyscope-problem.json --write-out '%{http_code}' http://127.0.0.1:5100/api/does-not-exist)" = "404"
+          python -c "import json; problem=json.load(open('/tmp/propertyscope-problem.json', encoding='utf-8')); assert problem['code']=='route_not_found' and problem['request_id'], problem"
           docker compose exec -T propertyscope-database-api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5202/health/ready', timeout=2)"
           docker compose exec -T propertyscope-backend python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5201/health/ready', timeout=2)"
       - name: Verify every persistent showcase table has ten records

@@ -531,7 +531,7 @@ The detailed PostgreSQL types, constraints, import profiles, normalisation contr
 
 **Frontend:** suburb hero, comparison picker, school list/map, practical access cards, multi-series crime chart, category/period/count-rate controls, absolute/percentage-change cards, source/denominator notes, data freshness/coverage drawer, saved-comparison CRUD, and AI trend explanation. Every map/chart also has a table/text alternative.
 
-**Backend contracts:** suburb facts, nearby places, school detail, bounded crime series/comparison/summary, selected area series, and saved-comparison CRUD. It calls Feature 2 only for optional market cards rather than copying sale summaries.
+**Backend contracts:** suburb facts, nearby places, school detail, bounded crime series/comparison/summary, selected area series, and saved-comparison CRUD. Feature 3 does not call Feature 2 at runtime. Optional market cards are composed by Feature 5 or loaded independently by the browser from Feature 2, so Feature 3 never copies or interprets sale summaries.
 
 **AI objective example:** “Compare the selected offence trends for Parramatta and the chosen peer over the same period. Distinguish counts from rates, cite the periods and source release, state missing data, and describe observations without claiming causes, predicting crime, or labelling either suburb safe/unsafe.”
 
