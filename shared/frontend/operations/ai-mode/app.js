@@ -391,7 +391,7 @@ async function refreshSelected(generation, { forceDetail = false, hydrate = fals
     if (!state.detailGuard.isCurrent(generation)) return;
     if (state.detail && (terminal || TERMINAL_STATUSES.has(state.detail.run.status))) {
       state.detailFailures = 0;
-      setConnection("connected", `Review ${label(state.detail.run.status)} · up to date`);
+      setConnection("connected", `Review ${statusPresentation(state.detail.run.status)[1].toLowerCase()} · up to date`);
       scheduleDetail(generation, null);
       return;
     }
