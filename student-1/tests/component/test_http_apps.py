@@ -310,6 +310,52 @@ def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
     assert response.get_json()["code"] == "consumer_publication_failed"
 
 
+@pytest.mark.parametrize("status_code", [200, 422])
+def test_typed_consumer_rejection_preserves_receipt_evidence(status_code: int) -> None:
+    publication = ConsumerPublicationRequest(
+        release_id="60000000-0000-0000-0000-000000000099",
+        dataset_id="bocsar-crime",
+        schema_version="crime-series.v1",
+        content_sha256="a" * 64,
+        record_count=3,
+        manifest={},
+        artifact_path=(
+            "/api/data-platform/v1/dataset-releases/60000000-0000-0000-0000-000000000099/artifact"
+        ),
+        idempotency_key="publish-release",
+    )
+    response = httpx.Response(
+        status_code,
+        json={
+            "consumer_operation_id": "publish-release",
+            "status": "rejected",
+            "schema_version": "crime-series.v1",
+            "content_sha256": "a" * 64,
+            "rows_received": 3,
+            "rows_accepted": 0,
+            "rows_rejected": 3,
+            "error": {
+                "code": "unsupported_period",
+                "message": "The release period is outside the supported range",
+                "retryable": False,
+                "details": {"supported_from": "2024-01"},
+            },
+        },
+    )
+    client = ConsumerImportClient(
+        {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},
+        client=httpx.Client(transport=httpx.MockTransport(lambda _: response)),
+    )
+
+    receipt = client.publish("feature-3", publication, {})
+
+    assert receipt.status == "rejected"
+    assert receipt.rows_received == 3
+    assert receipt.rows_rejected == 3
+    assert receipt.error is not None
+    assert receipt.error.code == "unsupported_period"
+
+
 def test_local_artifact_verification_failure_records_receipt_and_preserves_release(
     tmp_path: Path,
 ) -> None:

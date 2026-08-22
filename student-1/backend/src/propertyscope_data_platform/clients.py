@@ -157,22 +157,24 @@ class ConsumerImportClient:
             return self._failed(publication, "consumer_unavailable", "Consumer is unavailable")
         try:
             payload = response.json()
-            if response.status_code < 400:
+            try:
                 result = PublicationReceiptResult.model_validate(payload)
-                if (
-                    result.consumer_operation_id != publication.idempotency_key
-                    or result.schema_version != publication.schema_version
-                    or result.content_sha256 != publication.content_sha256
-                    or result.rows_received != publication.record_count
-                    or result.rows_accepted != publication.record_count
-                    or result.rows_rejected != 0
-                ):
+            except ValidationError:
+                result = None
+            if result is not None:
+                if not self._matches_publication(result, publication, response.status_code):
                     return self._failed(
                         publication,
                         "consumer_evidence_mismatch",
                         "Consumer receipt does not match the published release",
                     )
                 return result
+            if response.status_code < 400:
+                return self._failed(
+                    publication,
+                    "consumer_response_invalid",
+                    "Consumer returned an invalid publication receipt",
+                )
             code = (
                 str(payload.get("code", "consumer_rejected"))
                 if isinstance(payload, dict)
@@ -186,6 +188,28 @@ class ConsumerImportClient:
             else "Consumer import failed"
         )
         return self._failed(publication, code, message)
+
+    @staticmethod
+    def _matches_publication(
+        result: PublicationReceiptResult,
+        publication: ConsumerPublicationRequest,
+        status_code: int,
+    ) -> bool:
+        if (
+            result.consumer_operation_id != publication.idempotency_key
+            or result.schema_version != publication.schema_version
+            or result.content_sha256 != publication.content_sha256
+            or result.rows_received > publication.record_count
+        ):
+            return False
+        if result.status == "accepted":
+            return (
+                status_code < 400
+                and result.rows_received == publication.record_count
+                and result.rows_accepted == publication.record_count
+                and result.rows_rejected == 0
+            )
+        return True
 
     @staticmethod
     def _failed(

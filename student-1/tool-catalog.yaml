@@ -31,11 +31,10 @@ tools:
       name: data.runs.v1
       version: v1
       feature_key: student-1-propertyscope-data-platform
-      description: List bounded ingestion run summaries filtered by registered source, job, or status.
+      description: List bounded ingestion run summaries filtered by status.
       input_schema:
         type: object
         properties:
-          source_key: {type: string, pattern: "^[a-z0-9][a-z0-9._-]*$"}
           status: {type: string, pattern: "^[a-z_]+$"}
           limit: {type: integer, minimum: 1, maximum: 50, default: 25}
         additionalProperties: false
@@ -226,9 +225,8 @@ tools:
         type: object
         properties:
           run_id: {type: string, format: uuid}
-          profile_key: {type: string, pattern: "^[a-z0-9][a-z0-9._-]*$"}
           idempotency_key: {type: string, minLength: 8, maxLength: 200}
-        required: [run_id, profile_key, idempotency_key]
+        required: [run_id, idempotency_key]
         additionalProperties: false
       output_schema:
         type: object

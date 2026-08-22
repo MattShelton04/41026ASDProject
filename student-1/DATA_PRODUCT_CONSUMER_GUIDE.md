@@ -19,6 +19,73 @@ Feature 4 and Feature 5 have no registered source jobs. Spatial database capabil
 product, and this feature does not invent planning, hazard, zoning, strata, building, or dossier
 data.
 
+## Five-minute consumer quickstart
+
+A consuming feature implements exactly one callback route:
+
+```text
+POST /api/data-import/v1/propertyscope-releases
+```
+
+Feature 1 calls that route on the consumer backend origin configured by
+`PROPERTYSCOPE_FEATURE_2_URL`, `PROPERTYSCOPE_FEATURE_3_URL`, or
+`PROPERTYSCOPE_FEATURE_4_URL`. In Compose, set the value to the consumer's internal service origin,
+for example `http://feature-3-backend:5000`; do not publish a database-service address. The callback
+must:
+
+1. Validate the JSON body with `contracts/consumer-publication-request.v1.schema.json`, which also
+   validates the complete nested release manifest.
+2. Treat the `Idempotency-Key` header and body `idempotency_key` as the same durable operation key.
+   Replays return the original receipt without importing twice.
+3. Resolve `artifact_path` only against the consumer's configured Feature 1 origin, download without
+   following redirects, and validate bytes, SHA-256, product schema, release ID and record count.
+4. Import through the consumer's own database API in one atomic operation. The consumer owns its
+   domain validation and keeps normal reads independent of Feature 1.
+5. Return a body matching `contracts/consumer-publication-receipt.v1.schema.json`. A domain rejection
+   is a typed receipt—normally HTTP `422`, though Feature 1 also accepts a valid typed rejection in a
+   `2xx` response—and is preserved verbatim as evidence.
+
+Minimal accepted response:
+
+```json
+{
+  "consumer_operation_id": "the-request-idempotency-key",
+  "status": "accepted",
+  "schema_version": "propertyscope.crime-series.v1",
+  "content_sha256": "the-64-character-request-hash",
+  "rows_received": 125,
+  "rows_accepted": 125,
+  "rows_rejected": 0,
+  "error": null
+}
+```
+
+Minimal rejected response:
+
+```json
+{
+  "consumer_operation_id": "the-request-idempotency-key",
+  "status": "rejected",
+  "schema_version": "propertyscope.crime-series.v1",
+  "content_sha256": "the-64-character-request-hash",
+  "rows_received": 125,
+  "rows_accepted": 0,
+  "rows_rejected": 125,
+  "error": {
+    "code": "unsupported_period",
+    "message": "The release period is outside this feature's supported range",
+    "retryable": false,
+    "details": {"supported_from": "2024-01"}
+  }
+}
+```
+
+Copy-pasteable complete request and receipt examples live in
+`contracts/fixtures/consumer-publication-request.valid.json` and
+`contracts/fixtures/consumer-publication-receipt.valid.json`. The independent real-HTTP reference
+consumer is exercised by `uv run pytest student-1/tests/component/test_real_http_publication.py`;
+that test is the quickest executable onboarding proof and imports no Feature 1 production code.
+
 ## Stable consumer API
 
 All routes below are relative to `/api/data-platform/v1` and are described in OpenAPI 3.1.
@@ -188,9 +255,10 @@ uv run scripts/dev.py up
 
 Open <http://localhost:5200>, then use **Data-product catalogue** to inspect registrations. Launch a
 showcase job, inspect the candidate release count/bytes/checksum/coverage/licence/quality evidence,
-submit it for review, and publish. Stop or reject a test consumer to demonstrate a retained
-predecessor, then restore it and retry with a new idempotency key. Reconcile with the accepted-product
-endpoint. Ordinary `uv run scripts/dev.py down` preserves evidence volumes.
+and submit it for review. Use the real-HTTP publication test above for the independent consumer
+accept/reject demonstration; the normal Compose profile intentionally does not pretend that an
+unallocated feature backend exists. Reconcile accepted evidence with the accepted-product endpoint.
+Ordinary `uv run scripts/dev.py down` preserves evidence volumes.
 
 The official-source measurements in `MARKING_EVIDENCE.md` are historical evidence and are not
 silently re-labelled as results of the deterministic fixture tests.
