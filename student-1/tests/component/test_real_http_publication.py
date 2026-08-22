@@ -378,9 +378,7 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
     def import_release() -> Any:
         publication = request.get_json()
         publication_schema = json.loads(
-            (ROOT / "contracts" / "consumer-publication-request.v1.schema.json").read_text(
-                "utf-8"
-            )
+            (ROOT / "contracts" / "consumer-publication-request.v1.schema.json").read_text("utf-8")
         )
         jsonschema.validate(publication, publication_schema)
         response = httpx.get(

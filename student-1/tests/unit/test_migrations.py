@@ -113,9 +113,7 @@ def test_runtime_scopes_match_declarative_profiles_and_psi_partition_scope() -> 
 
 def test_public_catalogue_migration_retires_padding_and_aligns_registered_products() -> None:
     migration = (
-        files(MIGRATION_PACKAGE)
-        .joinpath("018_public_catalogue_consistency.sql")
-        .read_text("utf-8")
+        files(MIGRATION_PACKAGE).joinpath("018_public_catalogue_consistency.sql").read_text("utf-8")
     )
 
     assert "Internal assessment fixture" in migration
