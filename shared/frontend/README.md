@@ -32,7 +32,7 @@ The shared edge now uses canonical same-origin routes by default:
 ```text
 Property discovery  http://localhost:5100/features/data-platform/#properties
 Data operations     http://localhost:5100/features/data-platform/#overview
-Agent runs          http://localhost:5005/operations/ai-mode/
+Agent runs          http://localhost:5100/operations/ai-mode/
 ```
 
 Feature 1 remains directly reachable at `http://localhost:5200` for isolated development. Its
@@ -40,17 +40,19 @@ relative static assets and namespaced public API allow the same image to work at
 Features 2–5 have reserved registry/base-path entries but no live edge route until their complete
 feature slice is implemented and enabled.
 
-A future edge/container may override them before `app.js` loads:
+A deployment may override them in the same-origin `config.js` loaded before `app.js`:
 
-```html
-<script>
-  window.PROPERTYSCOPE_CONFIG = {
-    propertyDiscovery: "/features/data-platform/#properties",
-    dataOperations: "/features/data-platform/#overview",
-    agentRuns: "/operations/ai-mode/"
-  };
-</script>
+```js
+window.PROPERTYSCOPE_CONFIG = {
+  propertyDiscovery: "/features/data-platform/#properties",
+  dataOperations: "/features/data-platform/#overview",
+  agentRuns: "/operations/ai-mode/",
+};
 ```
+
+The default file contains an empty object and is safe to replace or mount per environment. It must
+not contain secrets. Keeping configuration in this external asset satisfies the shell's
+`script-src 'self'` Content Security Policy; inline configuration is unsupported.
 
 The shell presents product research areas rather than assignment feature/release terminology. Only
 Property records is linked as a live user journey; the other areas remain visibly unavailable and

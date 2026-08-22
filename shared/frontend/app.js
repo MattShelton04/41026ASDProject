@@ -9,7 +9,7 @@ const defaults = Object.freeze({
   propertyDiscovery: "/features/data-platform/#properties",
   dataOperations: "/features/data-platform/#overview",
   releaseDetail: "/features/data-platform/#releases/",
-  agentRuns: "http://localhost:5005/operations/ai-mode/",
+  agentRuns: "/operations/ai-mode/",
 });
 const config = Object.freeze({ ...defaults, ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const main = document.querySelector("#main-content");
