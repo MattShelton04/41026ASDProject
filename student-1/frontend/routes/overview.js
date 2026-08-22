@@ -1,6 +1,6 @@
 import { collection } from "../core/api.js";
 import { append, el, link } from "../core/dom.js";
-import { formatDate, humanise, isInternalAssessmentFixture, statusTone } from "../core/formats.js?v=7";
+import { formatDate, humanise, statusTone } from "../core/formats.js?v=11";
 import { ACTIVE_RUN_STATES } from "../core/polling.js";
 import { badge, pageHeading, panel } from "../components/layout.js";
 import { cell, makeTable } from "../components/tables.js";
@@ -11,9 +11,9 @@ export async function renderOverview({ view, request }) {
   const results = await Promise.allSettled([
     request("sources?limit=100"), request("ingestion-runs?limit=25"), request("dataset-releases?limit=100"), request("overview"),
   ]);
-  const sources = results[0].status === "fulfilled" ? collection(results[0].value.body).filter((item) => !isInternalAssessmentFixture(item)) : [];
+  const sources = results[0].status === "fulfilled" ? collection(results[0].value.body).filter((item) => item.status !== "retired") : [];
   const runs = results[1].status === "fulfilled" ? collection(results[1].value.body) : [];
-  const releases = results[2].status === "fulfilled" ? collection(results[2].value.body).filter((item) => !isInternalAssessmentFixture(item)) : [];
+  const releases = results[2].status === "fulfilled" ? collection(results[2].value.body) : [];
   const coverage = releases.filter((release) => release.status === "accepted").map((release) => ({
     dataset: release.dataset_id,
     locality: release.coverage_json?.locality || release.coverage_json?.state || "NSW",

@@ -124,13 +124,12 @@ def test_public_catalogue_migration_retires_padding_and_aligns_registered_produc
     assert "THEN '[\"feature-3\"]'::jsonb" in migration
 
 
-def test_internal_assessment_cardinality_is_restored_but_excluded_from_projections() -> None:
+def test_assessment_padding_is_removed_without_deleting_the_repeatable_fixture() -> None:
     migration = (
-        files(MIGRATION_PACKAGE)
-        .joinpath("019_internal_assessment_cardinality.sql")
-        .read_text("utf-8")
+        files(MIGRATION_PACKAGE).joinpath("020_remove_assessment_padding.sql").read_text("utf-8")
     )
 
-    assert "INSERT INTO serving.accepted_generation" in migration
-    assert "internal-assessment-fixture" in migration
-    assert "status = 'accepted'" in migration
+    assert "DELETE FROM ops.source_definition" in migration
+    assert "DELETE FROM ops.job_definition" in migration
+    assert "DELETE FROM ops.dataset_release" in migration
+    assert "000000000010" not in migration

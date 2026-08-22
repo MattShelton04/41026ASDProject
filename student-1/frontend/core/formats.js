@@ -20,15 +20,6 @@ export function confidenceLabel(value) {
   return `${strength} match (${percentage}%)`;
 }
 
-const INTERNAL_ASSESSMENT_SOURCE_IDS = new Set(
-  [5, 6, 7, 8, 9].map((value) => `10000000-0000-0000-0000-${String(value).padStart(12, "0")}`),
-);
-
-export function isInternalAssessmentFixture(item) {
-  const sourceId = item?.source_definition_id || item?.id;
-  return INTERNAL_ASSESSMENT_SOURCE_IDS.has(String(sourceId || ""));
-}
-
 export function formatBytes(value) {
   const bytes = Number(value);
   if (!Number.isFinite(bytes)) return "—";

@@ -1,6 +1,6 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { formatDate, formatNumber, humanise, isInternalAssessmentFixture, releaseComparison, researchAreaLabel } from "../core/formats.js?v=7";
+import { formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=11";
 import { parseJsonField } from "../core/forms.js";
 import { formField, filterToolbar } from "../components/forms.js";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
@@ -70,7 +70,7 @@ export function createReleaseRoutes({
       const params = new URLSearchParams(location.hash.split("?")[1] || "");
       const filters = { q: params.get("q") || "", status: params.get("status") || "" };
       const { body } = await request(`dataset-releases${queryString({ status: filters.status, limit: 100 })}`);
-      const releases = collection(body).filter((release) => !isInternalAssessmentFixture(release));
+      const releases = collection(body);
       const visible = filters.q ? releases.filter((release) => [release.dataset_id, release.release_version, release.target_feature]
         .some((value) => String(value || "").toLowerCase().includes(filters.q.toLowerCase()))) : releases;
       view.replaceChildren();

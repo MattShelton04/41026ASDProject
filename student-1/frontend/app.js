@@ -11,9 +11,9 @@ import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=8";
 import { createEntityRoutes } from "./routes/entities.js?v=9";
 import { createDataProductRoutes } from "./routes/data-products.js?v=10";
 import { createEvidenceRoutes } from "./routes/evidence.js";
-import { renderOverview } from "./routes/overview.js?v=7";
+import { renderOverview } from "./routes/overview.js?v=11";
 import { createPropertyRoutes } from "./routes/properties.js?v=7";
-import { createReleaseRoutes } from "./routes/releases.js?v=7";
+import { createReleaseRoutes } from "./routes/releases.js?v=11";
 import { createRunPlanner } from "./routes/run-plan.js";
 import { createRunRoutes } from "./routes/runs.js?v=7";
 
