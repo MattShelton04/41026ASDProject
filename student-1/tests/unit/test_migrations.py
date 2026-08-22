@@ -109,3 +109,18 @@ def test_runtime_scopes_match_declarative_profiles_and_psi_partition_scope() -> 
     assert '"end_month":"2025-12"' in migration
     assert '"maximum_records":2500' in migration
     assert '"maximum_records":250000' in migration
+
+
+def test_public_catalogue_migration_retires_padding_and_aligns_registered_products() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("018_public_catalogue_consistency.sql")
+        .read_text("utf-8")
+    )
+
+    assert "Internal assessment fixture" in migration
+    assert "SET status = 'retired'" in migration
+    assert "SET status = 'superseded'" in migration
+    assert "DELETE FROM serving.accepted_generation" in migration
+    assert "THEN 'gnaf-nsw'" in migration
+    assert "THEN '[\"feature-3\"]'::jsonb" in migration

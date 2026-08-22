@@ -1,8 +1,8 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { coverageRows, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js";
+import { confidenceLabel, coverageRows, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js?v=6";
 import { routeQuery } from "../core/router.js";
-import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
+import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=6";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
 
@@ -24,7 +24,7 @@ export function createPropertyRoutes({ view, request, announce }) {
     const search = button("Search", "button primary");
     search.type = "submit";
     append(form, input, search);
-    append(hero, form, el("p", "search-help", "NSW addresses · Up to 25 results · Address matching does not depend on AI"));
+    append(hero, form, el("p", "search-help", "NSW addresses · Best matches first · Address matching does not depend on AI"));
     append(view, hero);
     const resultHost = el("div");
     append(resultHost, emptyState("Start with a street address", "Include a street number and suburb or postcode for the clearest match."));
@@ -56,11 +56,11 @@ export function createPropertyRoutes({ view, request, announce }) {
     const layout = el("div", "property-results");
     const listBody = el("div", "result-list");
     listBody.setAttribute("aria-label", "Property matches");
-    items.forEach((item) => {
+    items.slice(0, 5).forEach((item) => {
       const result = el("button", "result-card");
       result.type = "button";
       result.setAttribute("aria-label", `Open ${item.address_display}`);
-      append(result, el("strong", "", item.address_display), el("span", "", `${humanise(item.resolution_status || item.match?.status)} address · ${item.locality || ""} ${item.state || "NSW"} ${item.postcode || ""} · confidence ${item.score ?? item.match?.score ?? "not supplied"}`));
+      append(result, el("strong", "", item.address_display), el("span", "", `${confidenceLabel(item.score ?? item.match?.score)} · ${item.locality || ""} ${item.state || "NSW"} ${item.postcode || ""}`));
       result.addEventListener("click", () => { location.hash = `#properties/${encodeURIComponent(item.property_ref)}${queryString({ q: query })}`; });
       append(listBody, result);
     });
@@ -68,7 +68,7 @@ export function createPropertyRoutes({ view, request, announce }) {
       [{ label: "Address" }, { label: "Property reference" }, { label: "Latitude" }, { label: "Longitude" }, { label: "Resolution" }], items,
       (item) => { const row = el("tr"); append(row, cell(item.address_display, "primary-cell"), cell(item.property_ref, "mono"), cell(item.latitude ?? "Unknown"), cell(item.longitude ?? "Unknown"), cell(badge(item.resolution_status || "unknown"))); return row; },
     );
-    append(layout, panel(`${items.length} ${items.length === 1 ? "property" : "properties"}`, "Stable property records, not real-estate listings", listBody), panel("Location details", "Coordinates are also provided as text for accessible review", coordinateRows));
+    append(layout, panel(`${items.length} ${items.length === 1 ? "match" : "matches"}`, items.length > 5 ? "Showing the five best matches · choose one to continue" : "Choose a property to continue", listBody), disclosurePanel("All match details", "Technical references and coordinates for every result", coordinateRows));
     host.replaceChildren(layout);
   }
 
@@ -91,7 +91,7 @@ export function createPropertyRoutes({ view, request, announce }) {
       const identityHero = el("section", "property-identity-hero");
       append(identityHero, pageHeading("Verified NSW property", property.address_display || property.display_address || "Property record", `${property.locality || "NSW"} · ${property.state || "NSW"} ${property.postcode || ""} · Updated ${formatDate(property.updated_at)}`, [link("Back to search", `#properties${queryString({ q: query })}`, "button secondary")]));
       const referenceStrip = el("div", "property-reference-strip");
-      append(referenceStrip, el("span", "", humanise(property.resolution_status || "unknown")), el("span", "", `${detailPayload.identifiers?.length || 0} source identifiers`), el("span", "", `${coverage.length} coverage records`), el("span", "mono", property.property_ref));
+      append(referenceStrip, el("span", "", humanise(property.resolution_status || "unknown")), el("span", "", `${detailPayload.identifiers?.length || 0} source identifiers checked`), el("span", "", `${coverage.length} research datasets available`));
       append(identityHero, referenceStrip);
       append(view, identityHero);
       const body = el("div", "stack");
@@ -99,12 +99,15 @@ export function createPropertyRoutes({ view, request, announce }) {
       const latitude = map.latitude ?? map.coordinates?.latitude ?? property.latitude ?? property.coordinates?.latitude;
       const longitude = map.longitude ?? map.coordinates?.longitude ?? property.longitude ?? property.coordinates?.longitude;
       append(mapPanel, el("span", "map-pin", "⌖"), el("div", "map-caption", `${latitude ?? "Unknown latitude"}, ${longitude ?? "unknown longitude"} · Visual coordinate context; the table below is the authoritative accessible fallback.`));
-      append(body, mapPanel, makeTable([{ label: "Coordinate evidence" }, { label: "Value" }], [{ label: "Latitude", value: latitude ?? "Unknown" }, { label: "Longitude", value: longitude ?? "Unknown" }, { label: "Geometry type", value: map.geometry?.type || property.geometry?.type || "Unknown" }], (item) => { const row = el("tr"); append(row, cell(item.label, "primary-cell"), cell(String(item.value), item.label === "Geometry type" ? "" : "mono")); return row; }));
-      append(body, detailList([["Canonical address", property.address_display || property.display_address], ["PropertyScope reference", el("code", "mono", property.property_ref)], ["Locality", property.locality], ["State", property.state], ["Postcode", property.postcode], ["Identity status", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)], ["Request ID", el("code", "mono", detailResult.value.requestId)]]));
-      append(body, evidenceTable("Identifiers and match evidence", detailPayload.identifiers || [], [
+      append(body, mapPanel);
+      append(body, detailList([["Canonical address", property.address_display || property.display_address], ["Locality", property.locality], ["State", property.state], ["Postcode", property.postcode], ["Identity status", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)]]));
+      const technicalBody = el("div", "stack");
+      append(technicalBody, detailList([["PropertyScope reference", el("code", "mono", property.property_ref)], ["Request ID", el("code", "mono", detailResult.value.requestId)]]));
+      append(technicalBody, makeTable([{ label: "Coordinate evidence" }, { label: "Value" }], [{ label: "Latitude", value: latitude ?? "Unknown" }, { label: "Longitude", value: longitude ?? "Unknown" }, { label: "Geometry type", value: map.geometry?.type || property.geometry?.type || "Unknown" }], (item) => { const row = el("tr"); append(row, cell(item.label, "primary-cell"), cell(String(item.value), item.label === "Geometry type" ? "" : "mono")); return row; }));
+      append(technicalBody, evidenceTable("Identifiers and match evidence", detailPayload.identifiers || [], [
         ["Scheme", (item) => item.scheme], ["Identifier", (item) => item.identifier_value], ["Match method", (item) => humanise(item.match_method)], ["Confidence", (item) => item.match_confidence ?? "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"], ["Evidence", (item) => item.evidence_json ? technicalDetails(item.evidence_json, "Inspect") : "Unknown"],
       ], "No source identifiers are recorded. Identity confidence is therefore unknown."));
-      append(body, evidenceTable("Address aliases", detailPayload.aliases || [], [
+      append(technicalBody, evidenceTable("Address aliases", detailPayload.aliases || [], [
         ["Alias", (item) => item.alias_display], ["Kind", (item) => humanise(item.alias_kind)], ["Source identifier", (item) => item.source_identifier || "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"],
       ], "No address aliases are recorded for this property."));
       const cards = el("div", "coverage-grid");
@@ -115,7 +118,8 @@ export function createPropertyRoutes({ view, request, announce }) {
       }
       if (coverage.length) append(body, el("h2", "", "Available research coverage"), cards);
       else append(body, emptyState("Coverage is unknown", coverageResult.status === "rejected" ? `Coverage evidence is temporarily unavailable.${problemSuffix(coverageResult.reason)}` : "No accepted coverage entries are recorded. This does not confirm absence."));
-      append(body, renderPropertyReportSection(reportResult.status === "fulfilled" ? reportResult.value : { error: reportResult.reason }));
+      append(technicalBody, renderPropertyReportSection(reportResult.status === "fulfilled" ? reportResult.value : { error: reportResult.reason }));
+      append(body, disclosurePanel("Advanced identity evidence", "Technical identifiers, coordinates, aliases and cross-feature response evidence", technicalBody));
       if (mapResult.status === "rejected") append(body, el("div", "notice warning", `Spatial context is temporarily unavailable; canonical identity remains usable.${problemSuffix(mapResult.reason)}`));
       append(view, panel("Property identity and evidence", "Source-attributed address, location and coverage details", body));
     } catch (error) {

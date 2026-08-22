@@ -3,17 +3,17 @@ import { append, el } from "./core/dom.js";
 import { humanise } from "./core/formats.js";
 import { parseJsonField } from "./core/forms.js";
 import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
-import { parseRoute } from "./core/router.js";
+import { parseRoute } from "./core/router.js?v=6";
 import { waitForDialog } from "./components/dialogs.js";
 import { formField } from "./components/forms.js";
 import { renderLoading } from "./components/states.js";
-import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js";
+import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=6";
 import { createEntityRoutes } from "./routes/entities.js";
 import { createDataProductRoutes } from "./routes/data-products.js";
 import { createEvidenceRoutes } from "./routes/evidence.js";
-import { renderOverview } from "./routes/overview.js";
-import { createPropertyRoutes } from "./routes/properties.js";
-import { createReleaseRoutes } from "./routes/releases.js";
+import { renderOverview } from "./routes/overview.js?v=6";
+import { createPropertyRoutes } from "./routes/properties.js?v=6";
+import { createReleaseRoutes } from "./routes/releases.js?v=6";
 import { createRunPlanner } from "./routes/run-plan.js";
 import { createRunRoutes } from "./routes/runs.js";
 
@@ -56,13 +56,17 @@ function setActiveNavigation(route) {
     if (item.dataset.route === route) item.setAttribute("aria-current", "page");
     else item.removeAttribute("aria-current");
   }
+  const advanced = document.querySelector(".advanced-nav");
+  if (advanced?.querySelector(`[data-route="${route}"]`)) advanced.open = true;
   sidebar.classList.remove("open");
   navToggle.setAttribute("aria-expanded", "false");
+  navToggle.querySelector(".visually-hidden").textContent = "Open navigation";
 }
 
 function closeNavigation({ restoreFocus = false } = {}) {
   sidebar.classList.remove("open");
   navToggle.setAttribute("aria-expanded", "false");
+  navToggle.querySelector(".visually-hidden").textContent = "Open navigation";
   if (restoreFocus) navToggle.focus();
 }
 
@@ -180,8 +184,11 @@ async function checkHealth() {
   catch { serviceState.className = "service-state offline"; serviceState.lastElementChild.textContent = "Data service unavailable"; }
 }
 
-async function renderRoute() {
+async function renderRoute({ focus = false } = {}) {
   generationGuard.next(); clearTimeout(state.pollTimer); state.lastRunStatus = ""; state.lastAgentStatus = "";
+  liveRegion.textContent = "";
+  if (entityDialog.open) entityDialog.close("cancel");
+  if (actionDialog.open) actionDialog.close("cancel");
   const { route, id } = parseRoute(location.hash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
   try {
     if (route === "overview") await renderOverview({ view, request });
@@ -194,15 +201,23 @@ async function renderRoute() {
     else if (route === "properties") await renderProperties(id);
     else if (route === "ai") await renderAi(id);
   } catch (error) { view.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`)); }
-  finally { view.setAttribute("aria-busy", "false"); }
+  finally {
+    view.setAttribute("aria-busy", "false");
+    const heading = view.querySelector("h1");
+    if (heading) document.title = `PropertyScope | ${heading.textContent}`;
+    if (focus && heading) {
+      heading.tabIndex = -1;
+      heading.focus();
+    }
+  }
 }
 
 entityForm.addEventListener("submit", (event) => { event.preventDefault(); if (event.submitter?.value === "cancel") entityDialog.close("cancel"); else if (entityForm.reportValidity()) entityDialog.close("save"); });
 actionForm.addEventListener("submit", (event) => { event.preventDefault(); actionDialog.close(event.submitter?.value || "cancel"); });
-navToggle.addEventListener("click", () => { const open = sidebar.classList.toggle("open"); navToggle.setAttribute("aria-expanded", String(open)); });
+navToggle.addEventListener("click", () => { const open = sidebar.classList.toggle("open"); navToggle.setAttribute("aria-expanded", String(open)); navToggle.querySelector(".visually-hidden").textContent = open ? "Close navigation" : "Open navigation"; });
 sidebar.addEventListener("click", (event) => { if (event.target.closest("a")) closeNavigation(); });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && sidebar.classList.contains("open")) closeNavigation({ restoreFocus: true }); });
-window.addEventListener("hashchange", renderRoute);
+window.addEventListener("hashchange", () => renderRoute({ focus: true }));
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) return;
   const current = parseRoute(location.hash);

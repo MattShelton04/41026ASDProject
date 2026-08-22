@@ -11,6 +11,24 @@ export function formatNumber(value) {
   return Number.isFinite(number) ? new Intl.NumberFormat("en-AU").format(number) : "—";
 }
 
+export function confidenceLabel(value) {
+  if (value === null || value === undefined || value === "") return "Match confidence not supplied";
+  const score = Number(value);
+  if (!Number.isFinite(score)) return "Match confidence not supplied";
+  const percentage = Math.round(Math.max(0, Math.min(1, score)) * 100);
+  const strength = score >= 0.9 ? "Very strong" : score >= 0.75 ? "Strong" : score >= 0.5 ? "Possible" : "Broad";
+  return `${strength} match (${percentage}%)`;
+}
+
+const INTERNAL_ASSESSMENT_SOURCE_IDS = new Set(
+  [5, 6, 7, 8, 9].map((value) => `10000000-0000-0000-0000-${String(value).padStart(12, "0")}`),
+);
+
+export function isInternalAssessmentFixture(item) {
+  const sourceId = item?.source_definition_id || item?.id;
+  return INTERNAL_ASSESSMENT_SOURCE_IDS.has(String(sourceId || ""));
+}
+
 export function formatBytes(value) {
   const bytes = Number(value);
   if (!Number.isFinite(bytes)) return "—";

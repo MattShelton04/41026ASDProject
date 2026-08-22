@@ -19,14 +19,15 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
   async function renderEntityList(kind) {
     const isSource = kind === "sources";
     const params = routeQuery(location.hash);
-    const filters = { q: params.get("q") || "", status: params.get("status") || "" };
+    const selectedStatus = params.has("status") ? params.get("status") || "all" : "active";
+    const filters = { q: params.get("q") || "", status: selectedStatus };
     renderLoading(view, `Loading ${kind}`);
     try {
-      const { body } = await request(`${kind}${queryString({ ...filters, limit: 100 })}`);
+      const { body } = await request(`${kind}${queryString({ q: filters.q, status: filters.status === "all" ? "" : filters.status, limit: 100 })}`);
       const items = collection(body);
       view.replaceChildren();
       append(view, pageHeading("Property records", isSource ? "Source registry" : "Import jobs", isSource ? "Manage the publishers, licences and update schedules behind property data." : "Configure repeatable data updates and preview the work before starting a processing run.", [button(`Create ${isSource ? "source" : "job"}`, "button primary", () => openEntityDialog(isSource ? "source" : "job"))]));
-      append(view, filterToolbar({ ...filters, statuses: ["", "draft", "active", "disabled", "retired"], placeholder: isSource ? "Source or publisher" : "Job or dataset", onApply: (values) => { location.hash = `#${kind}${queryString(values)}`; rerender(); } }));
+      append(view, filterToolbar({ ...filters, statuses: ["active", "draft", "disabled", "retired", "all"], placeholder: isSource ? "Source or publisher" : "Job or dataset", onApply: (values) => { location.hash = `#${kind}${queryString(values)}`; rerender(); } }));
       if (!items.length) {
         append(view, emptyState(`No ${isSource ? "sources" : "import jobs"} found`, filters.q || filters.status ? "Try clearing the current filters." : `Create the first ${isSource ? "source record" : "import job"}.`));
         return;

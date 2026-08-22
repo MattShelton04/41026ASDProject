@@ -19,7 +19,7 @@ export function filterToolbar({ search = "", status = "", statuses = [], placeho
     const select = el("select");
     select.name = "status";
     for (const value of statuses) {
-      const option = el("option", "", value ? humanise(value) : "All statuses");
+      const option = el("option", "", value === "all" || !value ? "All statuses" : humanise(value));
       option.value = value;
       option.selected = value === status;
       append(select, option);
