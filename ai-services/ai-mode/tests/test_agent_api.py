@@ -39,6 +39,8 @@ def test_create_validates_media_type_and_contract(app: Flask) -> None:
 
 def test_model_registry_is_visible_and_unknown_profiles_are_rejected(app: Flask) -> None:
     client = app.test_client()
+    services = app.extensions["ai_mode_services"]
+    services.default_model_profile = "gemini-development.v1"
 
     catalogue = client.get("/api/v1/model-profiles")
     rejected = client.post(
@@ -51,7 +53,7 @@ def test_model_registry_is_visible_and_unknown_profiles_are_rejected(app: Flask)
     )
 
     assert catalogue.status_code == 200
-    assert catalogue.get_json()["default_profile"] == "remote-standard.v1"
+    assert catalogue.get_json()["default_profile"] == "gemini-development.v1"
     assert {item["provider"] for item in catalogue.get_json()["models"]} == {
         "gemini",
         "openai",
@@ -65,7 +67,6 @@ def test_model_registry_is_visible_and_unknown_profiles_are_rejected(app: Flask)
     }
     assert_problem_detail(rejected.get_json(), status=422, code="model_profile_not_supported")
 
-    services = app.extensions["ai_mode_services"]
     profile = services.model_registry.profiles[0]
     services.model_registry = services.model_registry.model_copy(
         update={

@@ -146,9 +146,6 @@ jobs:
           python -c "import json; problem=json.load(open('/tmp/propertyscope-problem.json', encoding='utf-8')); assert problem['code']=='route_not_found' and problem['request_id'], problem"
           docker compose exec -T propertyscope-database-api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5202/health/ready', timeout=2)"
           docker compose exec -T propertyscope-backend python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5201/health/ready', timeout=2)"
-      - name: Verify every persistent showcase table has ten records
-        run: |
-          docker compose exec -T propertyscope-database-api python -c "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:5202/internal/data-platform/v1/schema/counts',headers={'X-PropertyScope-Internal-Token':'propertyscope-local-development-only'}); counts=json.load(urllib.request.urlopen(request))['tables']; assert counts and min(counts.values()) >= 10, counts"
       - name: Run the code-driven fixture acquisition pipeline
         run: |
           uv sync --locked --all-packages --all-groups

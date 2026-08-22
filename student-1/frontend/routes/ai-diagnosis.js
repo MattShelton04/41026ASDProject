@@ -2,8 +2,8 @@ import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js";
 import { nextAgentPollDelay } from "../core/polling.js";
-import { parseRoute } from "../core/router.js";
-import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
+import { parseRoute, routeQuery } from "../core/router.js?v=7";
+import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=7";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
 
@@ -23,18 +23,20 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     try {
       const [releasesResult, historyResult] = await Promise.all([
         request("dataset-releases?limit=100"),
-        request("agent-runs?limit=50").catch((error) => ({ error, body: { items: [] } })),
+        request("agent-runs?limit=10").catch((error) => ({ error, body: { items: [] } })),
       ]);
       const releases = collection(releasesResult.body);
-      const candidates = releases.filter((release) => !["accepted", "superseded"].includes(release.status));
+      const actionable = releases.filter((release) => !["accepted", "superseded", "draft"].includes(release.status));
+      const selectedReleaseId = context.startsWith("release:") ? context.slice("release:".length) : "";
+      const selectedRelease = releases.find((release) => release.id === selectedReleaseId);
+      const candidates = selectedRelease
+        ? [selectedRelease, ...actionable.filter((release) => release.id !== selectedRelease.id).slice(0, 7)]
+        : actionable.slice(0, 8);
       const history = collection(historyResult.body);
       const selectedAgentRun = context && !context.startsWith("release:") ? context : "";
       view.replaceChildren();
       append(view, pageHeading("Data recovery", "Assisted diagnosis", "Investigate one unpublished dataset and its processing run. The assistant can gather evidence and propose a recovery, but a person must decide what happens next.", selectedAgentRun ? [link("New diagnosis", "#ai", "button secondary"), sharedRunLink(selectedAgentRun, "Open activity history")] : [link("Open activity history", AGENT_ACTIVITY_URL, "button secondary")]));
       append(view, el("div", "notice", "Property search, sources, import jobs, published datasets and quality evidence remain available if the local model is offline. Previously recorded observations are never hidden by a later failure."));
-      if (historyResult.error) append(view, el("div", "notice warning", `Diagnosis history is temporarily unavailable.${problemSuffix(historyResult.error)}`));
-      else if (!history.length) append(view, emptyState("No diagnosis history", "Start the first bounded investigation below. Its durable evidence will remain available after navigation or reload."));
-      else append(view, diagnosisHistory(history, selectedAgentRun));
       if (selectedAgentRun) {
         const traceHost = el("div");
         traceHost.dataset.agentTrace = selectedAgentRun;
@@ -42,19 +44,21 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
         append(view, traceHost);
         await renderAgentTrace(selectedAgentRun, traceHost);
       }
-      append(view, await diagnosisForm(candidates, context));
+      if (!selectedAgentRun) append(view, await diagnosisForm(candidates, context));
+      if (historyResult.error) append(view, el("div", "notice warning", `Diagnosis history is temporarily unavailable.${problemSuffix(historyResult.error)}`));
+      else if (!history.length) append(view, emptyState("No diagnosis history", "Start the first bounded investigation above. Its durable evidence will remain available after navigation or reload."));
+      else append(view, diagnosisHistory(history, selectedAgentRun));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
   }
 
   function diagnosisHistory(history, selectedAgentRun) {
-    return panel("Diagnosis history", `${history.length} recorded investigations · newest first`, makeTable(
-      [{ label: "Diagnosis" }, { label: "State" }, { label: "Latest phase" }, { label: "Tool calls" }, { label: "Started" }, { label: "Evidence" }], history,
+    return disclosurePanel("Recent diagnosis history", `${history.length} recorded investigations · newest first`, makeTable(
+      [{ label: "Diagnosis" }, { label: "State" }, { label: "Evidence calls" }, { label: "Started" }, { label: "Evidence" }], history,
       (run) => {
         const row = el("tr"); row.dataset.agentRunId = run.id;
         const status = cell(badge(run.status)); status.dataset.agentField = "status";
-        const phase = cell(humanise(run.latest_phase)); phase.dataset.agentField = "phase";
         const tools = cell(formatNumber(run.tool_call_count), "numeric"); tools.dataset.agentField = "tools";
-        append(row, cell(primaryCell(run.objective_preview || "Bounded diagnosis", run.id)), status, phase, tools, cell(formatDate(run.created_at)), cell(link(run.id === selectedAgentRun ? "Viewing trace" : "View trace", `#ai/${run.id}`, "button secondary small"), "actions-cell"));
+        append(row, cell(primaryCell(diagnosisTitle(run), `Read-only review · ${String(run.id).slice(0, 8)}`)), status, tools, cell(formatDate(run.created_at)), cell(link(run.id === selectedAgentRun ? "Viewing result" : "View result", `#ai/${run.id}`, "button secondary small"), "actions-cell"));
         return row;
       },
     ));
@@ -66,12 +70,14 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     if (!candidates.length) { append(body, emptyState("Nothing needs diagnosis", "A draft, candidate, review or rejected dataset will appear here when it needs investigation.")); return host; }
     const form = el("form", "form-grid");
     const releaseLabel = el("label", "wide"); releaseLabel.htmlFor = "diagnosis-release"; append(releaseLabel, el("span", "", "Dataset to investigate")); const releaseSelect = el("select"); releaseSelect.id = "diagnosis-release"; releaseSelect.required = true;
-    for (const release of candidates) { const option = el("option", "", `${release.dataset_id} ${release.release_version} · ${humanise(release.status)} · run ${release.ingestion_run_id}`); option.value = release.id; option.selected = context === `release:${release.id}`; append(releaseSelect, option); }
+    for (const release of candidates) { const option = el("option", "", `${humanise(release.dataset_id)} · ${release.release_version} · ${humanise(release.status)}`); option.value = release.id; option.selected = context === `release:${release.id}`; append(releaseSelect, option); }
     append(releaseLabel, releaseSelect);
     const objectiveLabel = el("label", "wide"); objectiveLabel.htmlFor = "diagnosis-objective"; append(objectiveLabel, el("span", "", "Investigation goal")); const objective = el("select"); objective.id = "diagnosis-objective"; objective.required = true;
     append(objective, option("compare", "Compare candidate, predecessor and failures"), option("quality", "Inspect blocking quality evidence"), option("consumer", "Inspect consumer publication failure")); append(objectiveLabel, objective);
+    const requestedGoal = routeQuery(location.hash).get("goal");
+    if (Object.hasOwn(OBJECTIVES, requestedGoal)) objective.value = requestedGoal;
     const scope = el("div", "notice wide"); scope.setAttribute("aria-live", "polite");
-    const updateScope = () => { const release = candidates.find((item) => item.id === releaseSelect.value) || candidates[0]; scope.textContent = `Evidence boundary: release ${release.id}; ingestion run ${release.ingestion_run_id}; accepted predecessor for ${release.dataset_id} and ${researchAreaLabel(release.target_feature)}; bounded release, run, quality, coverage and receipt metadata only.`; };
+    const updateScope = () => { const release = candidates.find((item) => item.id === releaseSelect.value) || candidates[0]; scope.replaceChildren(document.createTextNode(`The assistant will inspect ${humanise(release.dataset_id)} ${release.release_version}, its processing evidence and the previous accepted version for ${researchAreaLabel(release.target_feature)}. It can only read evidence and propose a next step.`), technicalDetails({ release_id: release.id, ingestion_run_id: release.ingestion_run_id }, "Technical evidence boundary")); };
     releaseSelect.addEventListener("change", updateScope); updateScope();
     const review = el("label", "wide review-acknowledgement"); const check = el("input"); check.type = "checkbox"; check.required = true; append(review, check, el("span", "", "I understand this run can propose a recovery, but cannot approve, publish or execute a protected mutation on my behalf."));
     const submit = button("Start diagnosis", "button primary"); submit.type = "submit";
@@ -106,7 +112,8 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     const repairCount = steps.reduce((total, step) => total + Number(step.output?.model_invocation?.repair_count || 0), 0);
     const providerRetryCount = steps.reduce((total, step) => total + Number(step.output?.model_invocation?.provider_retry_count || 0), 0);
     const body = el("div", "stack");
-    append(body, detailList([["State", badge(run.status)], ["Model profile", run.model_profile || "Not recorded"], ["Evidence calls", formatNumber(run.tool_call_count)], ["Iterations", formatNumber(run.iteration_count)], ["Agent run", el("code", "mono", run.id || id)], ["Request ID", el("code", "mono", run.request_id || detailResult.value?.requestId || "Not available")]]));
+    append(body, detailList([["State", badge(run.status)], ["Evidence calls", formatNumber(run.tool_call_count)], ["Iterations", formatNumber(run.iteration_count)]]));
+    if (run.final_result) append(body, panel("Recommended recovery", "Evidence-backed summary for a human decision", recoveryBrief(run.final_result)));
     append(body, el("div", "notice", "This assistant can inspect bounded evidence and recommend a next step. It cannot silently publish, retry, approve or replace accepted data."));
     if (detailError) append(body, el("div", "notice warning", `Latest run summary is unavailable. Previously recorded events remain below.${problemSuffix(detailError)}`));
     if (eventsError) append(body, el("div", "notice warning", `Durable event retrieval failed; no prior observation has been replaced by a negative conclusion.${problemSuffix(eventsError)}`));
@@ -118,12 +125,14 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     else {
       const timeline = el("ol", "timeline");
       for (const step of steps) append(timeline, traceStep(step));
-      append(body, timeline);
+      append(body, run.final_result
+        ? disclosurePanel("How the assistant reached this answer", "Plan · Act · Observe · Adapt with every durable evidence call", timeline)
+        : panel("Live evidence trail", "Plan · Act · Observe · Adapt", timeline));
     }
     if (["review_required", "awaiting_review"].includes(run.status)) append(body, el("div", "notice warning", "Proposed action only: a protected retry or publication is paused. Review and execution are separate human-controlled steps in Agent activity; no write has occurred."));
-    if (run.final_result) append(body, panel("Evidence-backed recovery brief", "A decision-useful diagnosis grounded in the durable tool trace", recoveryBrief(run.final_result)));
+    append(body, technicalDetails({ model_profile: run.model_profile, agent_run_id: run.id || id, request_id: run.request_id || detailResult.value?.requestId || null }, "Technical run references"));
     const controls = el("div", "dialog-actions"); append(controls, sharedRunLink(id, "Open durable run detail"), button("Refresh evidence", "button secondary", () => renderAgentTrace(id, host))); append(body, controls);
-    host.replaceChildren(panel("Plan · Act · Observe · Adapt", "Durable events from this exact Agent activity run", body));
+    host.replaceChildren(panel(run.final_result ? "Assisted diagnosis result" : "Diagnosis in progress", "Grounded in bounded, durable Feature 1 evidence", body));
     host.setAttribute("aria-busy", "false");
     host.dataset.agentStatus = run.status;
     updateHistorySummary(id, run);
@@ -135,8 +144,6 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     const row = [...view.querySelectorAll("[data-agent-run-id]")].find((item) => item.dataset.agentRunId === id);
     if (!row) return;
     row.querySelector('[data-agent-field="status"]')?.replaceChildren(badge(run.status));
-    const phase = row.querySelector('[data-agent-field="phase"]');
-    if (phase) phase.textContent = humanise(run.latest_phase);
     const tools = row.querySelector('[data-agent-field="tools"]');
     if (tools) tools.textContent = formatNumber(run.tool_call_count);
   }
@@ -162,6 +169,13 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
 }
 
 function option(value, label) { const item = el("option", "", label); item.value = value; return item; }
+function diagnosisTitle(run) {
+  const objective = String(run.objective_preview || "").toLowerCase();
+  if (objective.includes("quality")) return "Quality-check investigation";
+  if (objective.includes("consumer")) return "Consumer delivery investigation";
+  if (objective.includes("compare")) return "Candidate comparison";
+  return "Bounded data investigation";
+}
 function sharedRunLink(runId, label) { return link(label, `${AGENT_ACTIVITY_URL}?run=${encodeURIComponent(runId)}&feature_key=student-1-propertyscope-data-platform`, "button secondary"); }
 function problemSuffix(error) { return error?.requestId ? ` Request ID ${error.requestId}.` : ""; }
 

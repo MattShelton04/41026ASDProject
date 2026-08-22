@@ -1,6 +1,6 @@
 import { collection } from "../core/api.js";
 import { append, el, link } from "../core/dom.js";
-import { formatDate, humanise, statusTone } from "../core/formats.js";
+import { formatDate, humanise, statusTone } from "../core/formats.js?v=11";
 import { ACTIVE_RUN_STATES } from "../core/polling.js";
 import { badge, pageHeading, panel } from "../components/layout.js";
 import { cell, makeTable } from "../components/tables.js";
@@ -11,7 +11,7 @@ export async function renderOverview({ view, request }) {
   const results = await Promise.allSettled([
     request("sources?limit=100"), request("ingestion-runs?limit=25"), request("dataset-releases?limit=100"), request("overview"),
   ]);
-  const sources = results[0].status === "fulfilled" ? collection(results[0].value.body) : [];
+  const sources = results[0].status === "fulfilled" ? collection(results[0].value.body).filter((item) => item.status !== "retired") : [];
   const runs = results[1].status === "fulfilled" ? collection(results[1].value.body) : [];
   const releases = results[2].status === "fulfilled" ? collection(results[2].value.body) : [];
   const coverage = releases.filter((release) => release.status === "accepted").map((release) => ({
@@ -24,7 +24,15 @@ export async function renderOverview({ view, request }) {
   append(view, pageHeading("Property records", "Data operations overview", "Manage the sources and processing work that keep NSW property records current, checked and ready for research.", [link("Browse import jobs", "#jobs", "button primary"), link("Register a source", "#sources", "button secondary")]));
   if (failures.length) append(view, el("div", "notice warning", `${failures.length} supporting feed${failures.length === 1 ? " is" : "s are"} temporarily unavailable. The information that could be loaded is still shown below.`));
   const active = runs.filter((run) => ACTIVE_RUN_STATES.has(String(run.status).toLowerCase())).length;
-  const failed = runs.filter((run) => String(run.status).toLowerCase() === "failed").length;
+  const latestByJob = [];
+  const seenJobs = new Set();
+  for (const run of runs) {
+    const jobKey = run.job_definition_id || run.job_name;
+    if (!jobKey || seenJobs.has(jobKey)) continue;
+    seenJobs.add(jobKey);
+    latestByJob.push(run);
+  }
+  const failed = latestByJob.filter((run) => ["failed", "interrupted"].includes(String(run.status).toLowerCase())).length;
   const stale = releases.filter((release) => ["stale", "expired"].includes(String(release.freshness_status || release.status).toLowerCase())).length;
   const accepted = releases.filter((release) => String(release.status).toLowerCase() === "accepted").length;
   const stats = el("section", "stat-grid");
@@ -41,7 +49,7 @@ export async function renderOverview({ view, request }) {
   }
   append(view, stats);
 
-  const latestFailure = runs.find((run) => String(run.status).toLowerCase() === "failed");
+  const latestFailure = latestByJob.find((run) => ["failed", "interrupted"].includes(String(run.status).toLowerCase()));
   if (latestFailure) {
     const alert = el("div", "notice negative notice-actions");
     const copy = el("div");

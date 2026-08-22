@@ -116,10 +116,13 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
 @api.get("/model-profiles")
 def get_model_profiles() -> tuple[Response, int]:
     """Return safe supported-model metadata and operational profile limits."""
-    registry = _services().model_registry
+    services = _services()
+    registry = services.model_registry
     if registry is None:
         return _problem(503, "model_registry_unavailable", "Model registry is unavailable")
-    return jsonify(registry.model_dump(mode="json")), 200
+    payload = registry.model_dump(mode="json")
+    payload["default_profile"] = services.default_model_profile
+    return jsonify(payload), 200
 
 
 @api.get("/agent-runs/<uuid:run_id>")

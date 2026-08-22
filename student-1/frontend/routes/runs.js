@@ -91,7 +91,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
       if (availability.cancel) runAction("cancel", "Cancel", "Request cooperative cancellation. Completed evidence will remain available.", "danger");
       if (availability.diagnose) {
         const failed = run.status === "failed";
-        actions.push(button(failed ? "Diagnose failure" : "Ask AI about run", `button ${failed ? "primary" : "secondary"}`, () => { location.hash = linkedRelease ? `#ai/release:${linkedRelease.id}` : "#ai"; }));
+        actions.push(button(failed ? "Explain this failure" : "Ask AI about run", `button ${failed ? "primary" : "secondary"}`, () => { location.hash = linkedRelease ? `#ai/release:${linkedRelease.id}?goal=${failed ? "quality" : "compare"}` : "#ai"; }));
       }
       append(view, pageHeading("Processing run", run.job_name || `Run ${String(id).slice(0, 8)}`, `${humanise(run.run_mode)} · started ${formatDate(run.requested_at)}`, actions));
       if (run.error_json) append(view, el("div", "notice negative", `${run.error_json.message || run.error_json.detail || "The run recorded a classified failure."} The previously accepted release remains unchanged.`));

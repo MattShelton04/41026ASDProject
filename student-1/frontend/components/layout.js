@@ -29,6 +29,22 @@ export function panel(title, subtitle = "", body = null, action = null) {
   return section;
 }
 
+export function disclosurePanel(title, subtitle = "", body = null, { open = false } = {}) {
+  const details = el("details", "panel disclosure-panel");
+  details.open = open;
+  const summary = el("summary", "panel-heading");
+  const copy = el("span", "disclosure-copy");
+  append(copy, el("span", "disclosure-title", title));
+  if (subtitle) append(copy, el("span", "disclosure-subtitle", subtitle));
+  append(summary, copy, el("span", "disclosure-action", "Show details"));
+  append(details, summary);
+  if (body) {
+    if (!body.classList.contains("table-wrap")) body.classList.add("panel-body");
+    append(details, body);
+  }
+  return details;
+}
+
 export function badge(status) {
   const display = stateLabel(status);
   const node = el("span", `badge ${display.tone}`);

@@ -6,6 +6,7 @@ import {
   ApiError,
   actionAvailability,
   collection,
+  confidenceLabel,
   createGenerationGuard,
   coverageRows,
   entity,
@@ -108,7 +109,8 @@ test("query construction excludes empty values and remains encoded", () => {
 test("hash routing is isolated, bounded, and preserves encoded query values", () => {
   assert.deepEqual(parseRoute("#runs/run%201"), { route: "runs", id: "run 1", action: "" });
   assert.deepEqual(parseRoute("#data-products/nsw-psi-sales"), { route: "data-products", id: "nsw-psi-sales", action: "" });
-  assert.deepEqual(parseRoute("#not-a-route"), { route: "overview", id: "", action: "" });
+  assert.deepEqual(parseRoute("#not-a-route"), { route: "properties", id: "", action: "" });
+  assert.deepEqual(parseRoute(""), { route: "properties", id: "", action: "" });
   assert.equal(routeQuery("#sources?q=crime+data&status=active").get("q"), "crime data");
 });
 
@@ -210,6 +212,8 @@ test("formatting pairs states with text and handles byte boundaries", () => {
   assert.deepEqual(stateLabel("stale"), { text: "Stale", tone: "warning", symbol: "△" });
   assert.equal(formatBytes(1024), "1.00 KB");
   assert.equal(formatBytes(10 * 1024 * 1024), "10.0 MB");
+  assert.equal(confidenceLabel(0.85714287), "Strong match (86%)");
+  assert.equal(confidenceLabel(null), "Match confidence not supplied");
   assert.equal(researchAreaLabel("feature-1"), "Property records");
   assert.equal(researchAreaLabel("feature-4"), "Site & planning");
   assert.equal(researchAreaLabel("future-area"), "Future Area");
@@ -255,6 +259,12 @@ test("release details render bounded paginated dataset records", async () => {
   assert.match(releases, /Next page/);
 });
 
+test("data product catalogue distinguishes missing contract-valid release evidence", async () => {
+  const products = await readFile(new URL("../../frontend/routes/data-products.js", import.meta.url), "utf8");
+  assert.match(products, /No contract-valid release yet/);
+  assert.doesNotMatch(products, /\|\| "None"/);
+});
+
 test("operator UI exposes working submit controls, backfills and durable histories", async () => {
   const source = [
     await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
@@ -272,7 +282,7 @@ test("operator UI exposes working submit controls, backfills and durable histori
   assert.match(source, /Complete PSI history/);
   assert.match(source, /Preview deterministic plan/);
   assert.match(source, /link\("Run history"/);
-  assert.match(source, /`#ai\/release:\$\{linkedRelease\.id\}`/);
+  assert.match(source, /`#ai\/release:\$\{linkedRelease\.id\}\?goal=\$\{failed \? "quality" : "compare"\}`/);
 });
 
 test("production frontend imports focused core and component modules", async () => {
@@ -302,7 +312,9 @@ test("property discovery consumes shell search queries and stays product-facing"
   assert.match(source, /which evidence is available/);
   assert.doesNotMatch(source, /Feature [1-5]|buyer features|Dossier report/);
   assert.match(source, /#properties\/\$\{encodeURIComponent\(item\.property_ref\)\}/);
-  assert.match(source, /Coordinates are also provided as text/);
+  assert.match(source, /Technical references and coordinates for every result/);
+  assert.match(source, /confidenceLabel/);
+  assert.match(source, /Advanced identity evidence/);
 });
 
 test("live acquisition controls use truthful runtime capability evidence", async () => {
@@ -321,8 +333,8 @@ test("live acquisition controls use truthful runtime capability evidence", async
 
 test("AI diagnosis history is loaded from the durable shared service projection", async () => {
   const source = await readFile(new URL("../../frontend/routes/ai-diagnosis.js", import.meta.url), "utf8");
-  assert.match(source, /request\("agent-runs\?limit=50"\)/);
-  assert.match(source, /panel\("Diagnosis history"/);
+  assert.match(source, /request\("agent-runs\?limit=10"\)/);
+  assert.match(source, /disclosurePanel\("Recent diagnosis history"/);
   assert.match(source, /`#ai\/\$\{run\.id\}`/);
   assert.match(source, /selectedAgentRun/);
   assert.match(source, /OBJECTIVES = Object\.freeze/);
@@ -331,7 +343,7 @@ test("AI diagnosis history is loaded from the durable shared service projection"
   assert.match(source, /nextAgentPollDelay/);
   assert.match(source, /recordedSteps\?\.length \? recordedSteps : events/);
   assert.match(source, /aria-live/);
-  assert.match(source, /Evidence-backed recovery brief/);
+  assert.match(source, /Recommended recovery/);
   assert.match(source, /Recovered automatically from/);
   assert.match(source, /recommended_next_step/);
   assert.match(source, /function traceStep/);

@@ -25,7 +25,6 @@ from propertyscope_data_platform.clients import (
     ConsumerImportClient,
     DataStoreClient,
 )
-from propertyscope_data_platform.domain import ConsumerPublicationRequest
 from propertyscope_data_platform.release_builders import BuildContext, resolve_release_builder
 from propertyscope_data_platform.runner import AcquisitionRunner, RunnerSettings
 
@@ -377,15 +376,19 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
 
     @consumer.post("/api/data-import/v1/propertyscope-releases")
     def import_release() -> Any:
-        publication = ConsumerPublicationRequest.model_validate(request.get_json())
+        publication = request.get_json()
+        publication_schema = json.loads(
+            (ROOT / "contracts" / "consumer-publication-request.v1.schema.json").read_text("utf-8")
+        )
+        jsonschema.validate(publication, publication_schema)
         response = httpx.get(
-            provider_origin["url"] + publication.artifact_path,
+            provider_origin["url"] + publication["artifact_path"],
             follow_redirects=False,
             timeout=5,
         )
         assert response.status_code == 200
-        assert hashlib.sha256(response.content).hexdigest() == publication.content_sha256
-        expected_digest = base64.b64encode(bytes.fromhex(publication.content_sha256)).decode()
+        assert hashlib.sha256(response.content).hexdigest() == publication["content_sha256"]
+        expected_digest = base64.b64encode(bytes.fromhex(publication["content_sha256"])).decode()
         assert response.headers["Digest"] == f"sha-256=:{expected_digest}:"
         payload = response.json()
         schema = json.loads(
@@ -404,12 +407,12 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
             assert payload["records"][0]["operational_status"] == "Closed"
         return jsonify(
             {
-                "consumer_operation_id": publication.idempotency_key,
+                "consumer_operation_id": publication["idempotency_key"],
                 "status": "accepted",
-                "schema_version": publication.schema_version,
-                "content_sha256": publication.content_sha256,
-                "rows_received": publication.record_count,
-                "rows_accepted": publication.record_count,
+                "schema_version": publication["schema_version"],
+                "content_sha256": publication["content_sha256"],
+                "rows_received": publication["record_count"],
+                "rows_accepted": publication["record_count"],
                 "rows_rejected": 0,
                 "error": None,
             }

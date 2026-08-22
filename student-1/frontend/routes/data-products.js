@@ -46,7 +46,7 @@ export function createDataProductRoutes({ view, request, loading, rerender }) {
               cell(product.product_schema_version, "mono"),
               cell(formatNumber(product.max_rows), "numeric"),
               cell(badge(product.capability_state)),
-              cell(product.latest_accepted_release?.release_version || "None"),
+              cell(product.latest_accepted_release?.release_version || "No contract-valid release yet"),
               cell(product.download_permitted ? "Permitted" : "Restricted"),
             );
             return row;
@@ -81,7 +81,7 @@ export function createDataProductRoutes({ view, request, loading, rerender }) {
         ["Bounds", `${formatNumber(product.max_rows)} rows / ${formatNumber(product.max_bytes)} bytes`],
         ["Redistribution", `${product.redistribution_decision} (${product.download_permitted ? "download permitted" : "download restricted"})`],
         ["Capability", badge(product.capability_state)],
-        ["Accepted release", accepted ? technicalDetails(accepted, "Inspect accepted release") : "None"],
+        ["Accepted release", accepted ? technicalDetails(accepted, "Inspect accepted release") : "No contract-valid release yet"],
         ["Known limitations", product.known_limitations.join(" ")],
       ]),
     ));

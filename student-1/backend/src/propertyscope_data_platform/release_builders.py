@@ -813,6 +813,10 @@ def product_schema_documents() -> dict[str, dict[str, Any]]:
     documents: dict[str, dict[str, Any]] = {}
     for filename, model in models.items():
         schema = model.model_json_schema(mode="validation")
+        if filename == "consumer-publication-request.v1.schema.json":
+            schema["properties"]["manifest"] = ReleaseManifestV1.model_json_schema(
+                mode="validation"
+            )
         schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
         schema["$id"] = f"https://propertyscope.local/contracts/{filename}"
         documents[filename] = schema

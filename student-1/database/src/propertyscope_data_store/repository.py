@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -808,11 +809,12 @@ class PropertyScopeStore:
         limit: int,
         offset: int,
     ) -> list[JsonObject]:
-        query = "SELECT * FROM ops.dataset_release"
+        query = """SELECT release.* FROM ops.dataset_release release
+        JOIN ops.source_definition source ON source.id=release.source_definition_id"""
         params: list[Any] = []
-        predicates: list[str] = []
+        predicates: list[str] = ["source.status<>'retired'"]
         if status:
-            predicates.append("status=%s")
+            predicates.append("release.status=%s")
             params.append(status)
         for column, value in (
             ("dataset_id", dataset_id),
@@ -821,11 +823,10 @@ class PropertyScopeStore:
             ("ingestion_run_id", ingestion_run_id),
         ):
             if value:
-                predicates.append(f"{column}=%s")
+                predicates.append(f"release.{column}=%s")
                 params.append(value)
-        if predicates:
-            query += " WHERE " + " AND ".join(predicates)
-        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        query += " WHERE " + " AND ".join(predicates)
+        query += " ORDER BY release.created_at DESC LIMIT %s OFFSET %s"
         params.extend((limit, offset))
         return self._fetch_all(query, params)
 
@@ -1355,25 +1356,33 @@ class PropertyScopeStore:
 
     # Property discovery reads only accepted serving evidence.
     def search_properties(self, query: str, *, state: str, limit: int) -> list[JsonObject]:
-        normalised = " ".join(query.lower().split())
+        normalised = re.sub(r"[^a-z0-9]+", " ", query.lower()).strip()
         return self._fetch_all(
             """
+            WITH candidates AS (
+                SELECT property_ref,address_display,locality,postcode,state,resolution_status,
+                       ST_X(geom) AS longitude,ST_Y(geom) AS latitude,
+                       greatest(similarity(concat_ws(' ',address_search,postcode),%s), CASE WHEN concat_ws(' ',address_search,postcode)=%s THEN 1 ELSE 0 END) AS score,
+                       CASE WHEN concat_ws(' ',address_search,postcode)=%s THEN 0 WHEN concat_ws(' ',address_search,postcode) LIKE %s || '%%' THEN 1 ELSE 2 END AS exact_rank
+                FROM registry.property property
+                WHERE state=%s
+                  AND EXISTS (
+                      SELECT 1 FROM registry.property_identifier identifier
+                      JOIN serving.accepted_generation accepted
+                        ON accepted.dataset_release_id=identifier.source_release_id
+                      WHERE identifier.property_ref=property.property_ref AND identifier.is_current
+                  )
+                  AND (concat_ws(' ',address_search,postcode) ILIKE '%%' || %s || '%%' OR concat_ws(' ',address_search,postcode) %% %s)
+            ), ranked AS (
+                SELECT candidates.*,max(score) OVER () AS best_score FROM candidates
+            )
             SELECT property_ref,address_display,locality,postcode,state,resolution_status,
-                   ST_X(geom) AS longitude,ST_Y(geom) AS latitude,
-                   greatest(similarity(address_search,%s), CASE WHEN address_search=%s THEN 1 ELSE 0 END) AS score
-            FROM registry.property property
-            WHERE state=%s
-              AND EXISTS (
-                  SELECT 1 FROM registry.property_identifier identifier
-                  JOIN serving.accepted_generation accepted
-                    ON accepted.dataset_release_id=identifier.source_release_id
-                  WHERE identifier.property_ref=property.property_ref AND identifier.is_current
-              )
-              AND (address_search ILIKE '%%' || %s || '%%' OR address_search %% %s)
-            ORDER BY CASE WHEN address_search=%s THEN 0 WHEN address_search LIKE %s || '%%' THEN 1 ELSE 2 END,
-                     score DESC,address_display LIMIT %s
+                   longitude,latitude,score
+            FROM ranked
+            WHERE score >= greatest(0.30,best_score - 0.08)
+            ORDER BY exact_rank,score DESC,address_display LIMIT %s
             """,
-            (normalised, normalised, state, normalised, normalised, normalised, normalised, limit),
+            (normalised, normalised, normalised, normalised, state, normalised, normalised, limit),
         )
 
     def property_snapshot(self, property_ref: uuid.UUID) -> JsonObject:

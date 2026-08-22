@@ -3,7 +3,7 @@ import { append, button, el, link } from "../core/dom.js";
 import { formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js";
 import { isPsiJob } from "../core/forms.js";
 import { routeQuery } from "../core/router.js";
-import { filterToolbar } from "../components/forms.js";
+import { filterToolbar } from "../components/forms.js?v=7";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
@@ -19,14 +19,15 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
   async function renderEntityList(kind) {
     const isSource = kind === "sources";
     const params = routeQuery(location.hash);
-    const filters = { q: params.get("q") || "", status: params.get("status") || "" };
+    const selectedStatus = params.has("status") ? params.get("status") || "all" : "active";
+    const filters = { q: params.get("q") || "", status: selectedStatus };
     renderLoading(view, `Loading ${kind}`);
     try {
-      const { body } = await request(`${kind}${queryString({ ...filters, limit: 100 })}`);
+      const { body } = await request(`${kind}${queryString({ q: filters.q, status: filters.status === "all" ? "" : filters.status, limit: 100 })}`);
       const items = collection(body);
       view.replaceChildren();
       append(view, pageHeading("Property records", isSource ? "Source registry" : "Import jobs", isSource ? "Manage the publishers, licences and update schedules behind property data." : "Configure repeatable data updates and preview the work before starting a processing run.", [button(`Create ${isSource ? "source" : "job"}`, "button primary", () => openEntityDialog(isSource ? "source" : "job"))]));
-      append(view, filterToolbar({ ...filters, statuses: ["", "draft", "active", "disabled", "retired"], placeholder: isSource ? "Source or publisher" : "Job or dataset", onApply: (values) => { location.hash = `#${kind}${queryString(values)}`; rerender(); } }));
+      append(view, filterToolbar({ ...filters, statuses: ["active", "draft", "disabled", "retired", "all"], placeholder: isSource ? "Source or publisher" : "Job or dataset", onApply: (values) => { location.hash = `#${kind}${queryString(values)}`; rerender(); } }));
       if (!items.length) {
         append(view, emptyState(`No ${isSource ? "sources" : "import jobs"} found`, filters.q || filters.status ? "Try clearing the current filters." : `Create the first ${isSource ? "source record" : "import job"}.`));
         return;
@@ -52,6 +53,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
             await rerender();
           } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }
         }));
+        for (const control of actions.querySelectorAll("button, a")) control.setAttribute("aria-label", `${control.textContent.trim()} ${item.name}`);
         if (isSource) append(row, cell(primaryCell(item.name, item.id)), cell(item.publisher), cell(item.adapter_key, "mono"), cell(item.cadence), cell(badge(item.status)), cell(actions, "actions-cell"));
         else append(row, cell(primaryCell(item.name, item.profile_key)), cell(primaryCell(item.dataset_id || item.target?.contract, researchAreaLabel(item.target_feature || item.target?.feature))), cell(humanise(item.refresh_strategy)), cell(`${formatNumber(item.max_rows ?? item.limits?.max_rows)} rows`, "numeric"), cell(badge(item.status)), cell(actions, "actions-cell"));
         return row;

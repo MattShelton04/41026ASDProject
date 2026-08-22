@@ -9,8 +9,8 @@
     <link rel="stylesheet" href="./design-system/tokens.css?v=0.2">
     <link rel="stylesheet" href="./design-system/base.css?v=0.2">
     <link rel="stylesheet" href="./design-system/components.css?v=0.2">
-    <link rel="stylesheet" href="./styles.css?v=5">
-    <script type="module" src="./app.js?v=5"></script>
+    <link rel="stylesheet" href="./styles.css?v=9">
+    <script type="module" src="./app.js?v=11"></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -39,21 +39,22 @@
           <div><strong>Property records</strong><small>Search and maintain</small></div>
         </a>
         <nav>
-          <p class="nav-label">Explore</p>
+          <p class="nav-label">Start here</p>
           <a href="#properties" data-route="properties"><span aria-hidden="true">⌖</span>Property search</a>
-          <p class="nav-label">Manage property data</p>
-          <a href="#overview" data-route="overview"><span aria-hidden="true">◫</span>Operations overview</a>
-          <a href="#data-products" data-route="data-products"><span aria-hidden="true">▤</span>Data-product catalogue</a>
-          <a href="#sources" data-route="sources"><span aria-hidden="true">◉</span>Source registry</a>
-          <a href="#jobs" data-route="jobs"><span aria-hidden="true">◇</span>Import jobs</a>
+          <p class="nav-label">Keep data ready</p>
+          <a href="#overview" data-route="overview"><span aria-hidden="true">◫</span>Data health</a>
+          <a href="#jobs" data-route="jobs"><span aria-hidden="true">◇</span>Data updates</a>
           <a href="#runs" data-route="runs"><span aria-hidden="true">▷</span>Processing runs</a>
           <a href="#releases" data-route="releases"><span aria-hidden="true">▱</span>Published datasets</a>
-          <p class="nav-label">Review evidence</p>
-          <a href="#quality" data-route="quality"><span aria-hidden="true">✓</span>Quality checks</a>
-          <a href="#artifacts" data-route="artifacts"><span aria-hidden="true">⬡</span>Files &amp; lineage</a>
-          <a href="#coverage" data-route="coverage"><span aria-hidden="true">▦</span>Data coverage</a>
-          <p class="nav-label">Recovery</p>
           <a href="#ai" data-route="ai"><span aria-hidden="true">✦</span>Assisted diagnosis</a>
+          <details class="advanced-nav">
+            <summary>Advanced operations</summary>
+            <a href="#data-products" data-route="data-products"><span aria-hidden="true">▤</span>Product contracts</a>
+            <a href="#sources" data-route="sources"><span aria-hidden="true">◉</span>Source registry</a>
+            <a href="#quality" data-route="quality"><span aria-hidden="true">✓</span>Quality checks</a>
+            <a href="#artifacts" data-route="artifacts"><span aria-hidden="true">⬡</span>Files &amp; lineage</a>
+            <a href="#coverage" data-route="coverage"><span aria-hidden="true">▦</span>Data coverage</a>
+          </details>
         </nav>
         <div class="sidebar-note">
           <a data-product-home href="http://localhost:5100/">← Back to PropertyScope</a>
