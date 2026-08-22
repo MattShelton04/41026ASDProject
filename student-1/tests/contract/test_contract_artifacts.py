@@ -309,8 +309,14 @@ def test_release_inspection_tool_declares_all_composed_evidence() -> None:
         "accepted_predecessor",
         "release_contract",
     }
-    assert set(schema["properties"]) == expected
-    assert set(schema["required"]) == expected
+    properties = schema["properties"]
+    required = schema["required"]
+    assert isinstance(properties, dict)
+    assert isinstance(required, list)
+    required_names = {item for item in required if isinstance(item, str)}
+    assert len(required_names) == len(required)
+    assert set(properties) == expected
+    assert required_names == expected
 
 
 def test_feature_manifest_uses_the_canonical_shared_edge_route() -> None:
