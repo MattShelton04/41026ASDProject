@@ -58,6 +58,8 @@ deployment.
 - `AGENTS.md`: durable repository instructions for coding agents
 - `docs/architecture/repository-architecture.md`: scaffold plan, architectural
   decisions, AI-assisted process record, and validation evidence
+- `docs/architecture/feature-integration-and-experience-contract.md`: canonical feature routes,
+  cross-feature data/API flows, shared UI contract, onboarding gates, and integration tests
 
 ## Developer quick start
 

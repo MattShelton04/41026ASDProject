@@ -8,7 +8,7 @@
 | Last verified | 21 August 2026 |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
-| Related record | `docs/architecture/repository-architecture.md` |
+| Related records | `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
 
 ### Implementation status (15 August 2026)
 
