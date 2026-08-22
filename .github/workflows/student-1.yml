@@ -141,6 +141,7 @@ jobs:
           curl --fail --retry 10 --retry-all-errors 'http://127.0.0.1:5200/api/data-platform/v1/properties/search?q=Example&state=NSW&limit=10'
           curl --fail --retry 10 --retry-all-errors 'http://127.0.0.1:5100/api/data-platform/v1/properties/search?q=Example&state=NSW&limit=10'
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:5100/features/market-intelligence/)" = "307"
+          curl --silent --head http://127.0.0.1:5100/features/market-intelligence/ | grep --fixed-strings 'Location: /#features'
           test "$(curl --silent --output /tmp/propertyscope-problem.json --write-out '%{http_code}' http://127.0.0.1:5100/api/does-not-exist)" = "404"
           python -c "import json; problem=json.load(open('/tmp/propertyscope-problem.json', encoding='utf-8')); assert problem['code']=='route_not_found' and problem['request_id'], problem"
           docker compose exec -T propertyscope-database-api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5202/health/ready', timeout=2)"

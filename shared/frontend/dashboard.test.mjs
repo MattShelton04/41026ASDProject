@@ -79,6 +79,7 @@ test("shared routes use public same-origin projections and safe DOM rendering", 
   assert.match(nginx, /location \/operations\/ai-mode\//);
   assert.match(nginx, /proxy_pass \$data_platform_frontend_upstream/);
   assert.match(nginx, /resolver 127\.0\.0\.11/);
+  assert.match(nginx, /absolute_redirect off/);
   assert.match(nginx, /proxy_pass \$data_platform_upstream/);
   assert.match(nginx, /proxy_pass \$ai_mode_upstream/);
   assert.doesNotMatch(statusRoute, /innerHTML/);
