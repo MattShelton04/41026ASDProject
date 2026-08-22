@@ -10,9 +10,12 @@ from agent_core import create_run
 from ai_mode.prompts import PromptRegistry, PromptRegistryError, RegistryPromptBuilder
 from shared_contracts import (
     AgentRunRequest,
+    AgentStep,
     Observation,
     Plan,
     SideEffectClass,
+    StepPhase,
+    StepStatus,
     ToolDefinition,
     ToolOutcome,
     ToolResult,
@@ -71,7 +74,9 @@ def test_builder_keeps_stable_instructions_before_untrusted_dynamic_data() -> No
     assert "software-controlled" in request.messages[0].content
     assert request.messages[1].role == "user"
     assert "untrusted task data" in request.messages[1].content
-    assert request.prompt_hash == PromptRegistry(PROMPT_ROOT).load("planner", "v3").content_hash
+    assert request.prompt_hash == PromptRegistry(PROMPT_ROOT).load("planner", "v4").content_hash
+    assert request.prompt_version == "v4"
+    assert request.max_output_tokens == 2_048
     assert len(request.rendered_input_hash) == 64
 
 
@@ -105,7 +110,50 @@ def test_builder_constructs_evidence_based_adaptation_request() -> None:
     assert '"count":1' in request.messages[1].content
     assert '"completed_actions"' in request.messages[1].content
     assert '"has_remaining_action":false' in request.messages[1].content
+    assert '"objective":"Find records"' in request.messages[1].content
     assert request.prompt_id == "adapter"
-    assert request.prompt_version == "v3"
+    assert request.prompt_version == "v4"
+    assert request.max_output_tokens == 4_096
     assert "every success criterion" in request.messages[0].content
-    assert "decision must agree with your justification" in request.messages[0].content
+    assert "same failed call" in request.messages[0].content
+
+
+def test_replanner_receives_bounded_prior_failed_call_context() -> None:
+    run = _run()
+    definition = ToolDefinition(
+        name="student_1.records.search.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Search records",
+        input_schema={"type": "object"},
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    failed = AgentStep(
+        id=uuid4(),
+        run_id=run.id,
+        sequence=1,
+        phase=StepPhase.ACT,
+        status=StepStatus.FAILED,
+        input={
+            "tool_call": {
+                "tool_name": "student_1.records.search.v1",
+                "arguments": {"query": "bad"},
+            }
+        },
+        output={
+            "tool_result": {
+                "outcome": "failed",
+                "error": {"code": "tool_request_rejected", "message": "Rejected"},
+                "evidence_references": ["status:422"],
+            }
+        },
+    )
+
+    request = RegistryPromptBuilder(PromptRegistry(PROMPT_ROOT)).build_plan_request(
+        run, (definition,), (failed,)
+    )
+
+    assert '"prior_tool_attempts"' in request.messages[1].content
+    assert '"query":"bad"' in request.messages[1].content
+    assert '"tool_request_rejected"' in request.messages[1].content

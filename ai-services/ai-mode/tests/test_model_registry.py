@@ -7,12 +7,15 @@ import pytest
 from ai_mode.model_registry import ModelRegistryError, load_model_registry
 
 
-def test_bundled_registry_has_openai_model_and_bounded_profiles() -> None:
+def test_bundled_registry_has_openai_and_gemini_models_with_bounded_profiles() -> None:
     registry = load_model_registry()
 
     assert registry.schema_version == 2
-    assert {model.provider.value for model in registry.models} == {"openai"}
+    assert {model.provider.value for model in registry.models} == {"gemini", "openai"}
     assert {model.model_id for model in registry.models} == {
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
         "gpt-5.6-luna",
         "gpt-5.6-terra",
     }

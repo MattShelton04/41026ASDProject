@@ -77,6 +77,7 @@ def test_enabled_run_index_filters_and_returns_projected_detail(
     assert page.headers[REQUEST_ID_HEADER]
     assert [item["id"] for item in page.get_json()["items"]] == [run_id]
     assert evidence.status_code == 200
+    assert evidence.headers["ETag"].startswith('W/"operations-v2:')
     assert evidence.get_json()["objective"] == "Inspect safe records"
     assert evidence.get_json()["correlation"]["request_id"] == "operations-api-test"
     assert unchanged.status_code == 304

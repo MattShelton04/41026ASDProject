@@ -116,7 +116,8 @@ class ModelInvocationEvidence(ContractModel):
     prompt_version: Identifier
     prompt_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     rendered_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    repair_count: int = Field(ge=0, le=1)
+    repair_count: int = Field(ge=0, le=2)
+    provider_retry_count: int = Field(default=0, ge=0, le=1)
     metrics: ModelMetricsEvidence
 
 

@@ -44,6 +44,7 @@ from shared_contracts import (
     TRACEPARENT_HEADER,
     AgentRun,
     AgentRunRequest,
+    AgentStep,
     Observation,
     Plan,
     RunStatus,
@@ -107,6 +108,7 @@ class _PromptBuilder:
         self,
         run: AgentRun,
         definitions: tuple[ToolDefinition, ...],
+        prior_steps: tuple[AgentStep, ...] = (),
     ) -> StructuredModelRequest:
         assert [definition.name for definition in definitions] == [
             "integration_test.records.search.v1",

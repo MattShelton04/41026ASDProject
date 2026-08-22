@@ -95,7 +95,8 @@ def _detail() -> AgentRunDetail:
                 "prompt_version": "v1",
                 "prompt_hash": "a" * 64,
                 "rendered_input_hash": "b" * 64,
-                "repair_count": 0,
+                "repair_count": 2,
+                "provider_retry_count": 1,
             },
         },
     )
@@ -210,6 +211,9 @@ def test_projection_attributes_evidence_and_redacts_nested_secrets() -> None:
     assert projected.objective == "Inspect records with [REDACTED]"
     assert projected.steps[0].source == "model"
     assert projected.steps[0].plan is not None
+    assert projected.steps[0].model_invocation is not None
+    assert projected.steps[0].model_invocation.repair_count == 2
+    assert projected.steps[0].model_invocation.provider_retry_count == 1
     assert projected.steps[0].plan.actions[0].purpose == "Find matching records"
     assert projected.steps[1].source == "tool"
     tool = projected.steps[1].tool

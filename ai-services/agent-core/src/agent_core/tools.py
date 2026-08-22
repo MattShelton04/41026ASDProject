@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from enum import StrEnum
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
 
 from agent_core.errors import (
@@ -129,7 +129,7 @@ class ToolRegistry:
         value: Mapping[str, object],
     ) -> None:
         try:
-            Draft202012Validator(schema).validate(value)
+            Draft202012Validator(schema, format_checker=FormatChecker()).validate(value)
         except ValidationError as exc:
             path = ".".join(str(part) for part in exc.absolute_path) or "$"
             raise ToolSchemaValidationError(

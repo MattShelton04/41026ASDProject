@@ -507,11 +507,12 @@
             "type": "string"
           },
           "prompt_set": {
-            "default": "default.v3",
+            "default": "default.v4",
             "enum": [
               "default.v1",
               "default.v2",
-              "default.v3"
+              "default.v3",
+              "default.v4"
             ],
             "title": "Prompt Set",
             "type": "string"
@@ -1342,13 +1343,20 @@
             "default": null,
             "title": "Provider Request Id"
           },
+          "provider_retry_count": {
+            "default": 0,
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Provider Retry Count",
+            "type": "integer"
+          },
           "rendered_input_hash": {
             "pattern": "^[0-9a-f]{64}$",
             "title": "Rendered Input Hash",
             "type": "string"
           },
           "repair_count": {
-            "maximum": 1,
+            "maximum": 2,
             "minimum": 0,
             "title": "Repair Count",
             "type": "integer"
@@ -1556,6 +1564,7 @@
       "ModelProviderName": {
         "description": "Remote model providers supported by the current AI-mode composition.",
         "enum": [
+          "gemini",
           "openai"
         ],
         "title": "ModelProviderName",
@@ -1929,7 +1938,7 @@
           },
           "max_model_repairs": {
             "default": 1,
-            "maximum": 1,
+            "maximum": 2,
             "minimum": 0,
             "title": "Max Model Repairs",
             "type": "integer"

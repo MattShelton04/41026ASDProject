@@ -11,7 +11,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 import httpx
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 
 from agent_core import ToolExecutor
@@ -209,7 +209,10 @@ class HttpToolExecutor(ToolExecutor):
                 evidence=status_evidence,
             )
         try:
-            Draft202012Validator(definition.output_schema).validate(content)
+            Draft202012Validator(
+                definition.output_schema,
+                format_checker=FormatChecker(),
+            ).validate(content)
         except ValidationError:
             return self._failure(
                 call,

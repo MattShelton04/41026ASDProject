@@ -27,8 +27,19 @@ def build_provider(
     """Build the configured production provider used by the service and diagnostics."""
     if registry is None or readiness_profile is None:
         registry, readiness_profile = configured_model_registry(settings)
-    if settings.llm_provider != ModelProviderName.OPENAI.value:
-        raise ConfigurationError(f"unsupported LLM provider: {settings.llm_provider}")
+    provider_name = ModelProviderName(settings.llm_provider)
+    default = registry.profile(readiness_profile)
+    if default is None:  # Defensive: configured_model_registry already validates this.
+        raise ConfigurationError(f"unknown readiness profile: {readiness_profile}")
+    default_providers = {
+        registry.model(model_key).provider  # type: ignore[union-attr]
+        for model_key in default.role_models.values()
+    }
+    if default_providers != {provider_name}:
+        raise ConfigurationError(
+            f"model profile {readiness_profile} does not use the configured "
+            f"{provider_name.value} provider"
+        )
     profiles: dict[str, OpenAIModelProfile] = {}
     for profile in registry.profiles:
         role_models: dict[ModelRole, str] = {}
@@ -36,11 +47,12 @@ def build_provider(
             model = registry.model(model_key)
             if model is None:  # Defensive: ModelRegistry validation already rejects this.
                 raise ConfigurationError(f"model profile references unknown model: {profile.key}")
-            if model.provider is not ModelProviderName.OPENAI:
-                raise ConfigurationError(
-                    f"model profile {profile.key} does not use the configured OpenAI provider"
-                )
+            if model.provider is not provider_name:
+                role_models = {}
+                break
             role_models[ModelRole(role.value)] = model.model_id
+        if not role_models:
+            continue
         profiles[profile.key] = OpenAIModelProfile(
             models=role_models,
             context_tokens=profile.context_tokens,
@@ -48,8 +60,18 @@ def build_provider(
             reasoning_effort=profile.reasoning_effort,
         )
     return OpenAIProvider(
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url,
+        api_key=(
+            settings.gemini_api_key
+            if provider_name is ModelProviderName.GEMINI
+            else settings.openai_api_key
+        ),
+        base_url=(
+            settings.gemini_base_url
+            if provider_name is ModelProviderName.GEMINI
+            else settings.openai_base_url
+        ),
+        provider_name=provider_name.value,
+        api_style="chat_completions" if provider_name is ModelProviderName.GEMINI else "responses",
         profiles=profiles,
         readiness_profiles=frozenset({readiness_profile}),
         timeout_seconds=settings.openai_timeout_seconds,
@@ -57,5 +79,9 @@ def build_provider(
         health_cache_seconds=settings.openai_health_cache_seconds,
         max_retries=settings.openai_max_retries,
         max_response_bytes=settings.max_model_response_bytes,
-        prompt_cache_enabled=settings.openai_prompt_cache_enabled,
+        prompt_cache_enabled=(
+            settings.openai_prompt_cache_enabled
+            if provider_name is ModelProviderName.OPENAI
+            else False
+        ),
     )

@@ -14,7 +14,7 @@
         },
         "max_model_repairs": {
           "default": 1,
-          "maximum": 1,
+          "maximum": 2,
           "minimum": 0,
           "title": "Max Model Repairs",
           "type": "integer"

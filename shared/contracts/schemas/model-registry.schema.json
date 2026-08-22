@@ -62,6 +62,7 @@
     "ModelProviderName": {
       "description": "Remote model providers supported by the current AI-mode composition.",
       "enum": [
+        "gemini",
         "openai"
       ],
       "title": "ModelProviderName",

@@ -179,6 +179,17 @@ pre.json { max-height: 350px; overflow: auto; padding: .75rem; border-radius: 8p
 .timeline-marker.info { border-color: var(--info); color: var(--info); }
 .timeline h3 { margin: .08rem 0 .18rem; font-size: .78rem; }
 .timeline p { margin: 0; color: var(--muted); font-size: .68rem; }
+.timeline-meta { display: block; margin-top: .28rem; color: var(--ocean-dark); font-size: .62rem; font-weight: 700; }
+.timeline-tool { display: inline-block; margin-top: .3rem; font-size: .62rem; }
+.timeline-detail details.technical { margin-top: .42rem; }
+.recovery-brief { display: grid; gap: .9rem; }
+.recovery-summary { margin: 0; color: var(--navy); font-size: .88rem; font-weight: 650; line-height: 1.55; }
+.recovery-brief h3 { margin: 0 0 .35rem; color: var(--navy); font-size: .75rem; }
+.finding-list, .evidence-list { display: grid; gap: .38rem; margin: 0; padding-left: 1.1rem; color: var(--ink); font-size: .72rem; line-height: 1.5; }
+.evidence-list { color: var(--muted); font-family: "SFMono-Regular", Consolas, monospace; font-size: .64rem; }
+.result-callout { padding: .8rem .9rem; border: 1px solid var(--line); border-left: 4px solid var(--ocean); border-radius: 8px; background: var(--sky); }
+.result-callout.safety { border-left-color: var(--positive); background: var(--positive-bg); }
+.result-callout p { margin: 0; color: var(--ink); font-size: .72rem; line-height: 1.5; }
 
 .metric-strip { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .metric-strip div { padding: .75rem; border-right: 1px solid var(--line); }
@@ -220,6 +231,7 @@ pre.json { max-height: 350px; overflow: auto; padding: .75rem; border-radius: 8p
 .notice { margin-bottom: 1rem; padding: .8rem .9rem; border: 1px solid #c3dce4; border-left: 4px solid var(--info); border-radius: 8px; background: var(--info-bg); color: #315d70; font-size: .75rem; line-height: 1.5; }
 .notice.warning { border-color: #ead29a; border-left-color: #ce8a0e; background: var(--warning-bg); color: #735116; }
 .notice.negative { border-color: #e9b7b7; border-left-color: var(--negative); background: var(--negative-bg); color: #833434; }
+.notice.positive { border-color: #b8dacb; border-left-color: var(--positive); background: var(--positive-bg); color: #235f4b; }
 .notice strong { color: inherit; }
 .notice-actions { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 

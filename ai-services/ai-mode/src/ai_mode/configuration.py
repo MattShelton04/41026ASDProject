@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 DEFAULT_DATABASE_PATH = Path("instance/agent-state.sqlite3")
 DEFAULT_LLM_PROVIDER = "openai"
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 DEFAULT_OPENAI_TIMEOUT_SECONDS = 120.0
 DEFAULT_OPENAI_HEALTH_TIMEOUT_SECONDS = 2.0
 DEFAULT_OPENAI_HEALTH_CACHE_SECONDS = 60.0
@@ -28,7 +29,7 @@ DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_OPERATIONS_ASSETS_PATH = (
     Path(__file__).resolve().parents[4] / "shared" / "frontend" / "operations" / "ai-mode"
 )
-SUPPORTED_LLM_PROVIDERS = frozenset({"openai"})
+SUPPORTED_LLM_PROVIDERS = frozenset({"gemini", "openai"})
 SUPPORTED_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
 
 
@@ -44,6 +45,8 @@ class Settings:
     llm_provider: str = DEFAULT_LLM_PROVIDER
     openai_api_key: str | None = field(default=None, repr=False)
     openai_base_url: str = DEFAULT_OPENAI_BASE_URL
+    gemini_api_key: str | None = field(default=None, repr=False)
+    gemini_base_url: str = DEFAULT_GEMINI_BASE_URL
     openai_timeout_seconds: float = DEFAULT_OPENAI_TIMEOUT_SECONDS
     openai_health_timeout_seconds: float = DEFAULT_OPENAI_HEALTH_TIMEOUT_SECONDS
     openai_health_cache_seconds: float = DEFAULT_OPENAI_HEALTH_CACHE_SECONDS
@@ -77,6 +80,7 @@ class Settings:
                 f"AI_MODE_LLM_PROVIDER must be one of: {', '.join(sorted(SUPPORTED_LLM_PROVIDERS))}"
             )
         base_url = values.get("OPENAI_BASE_URL", DEFAULT_OPENAI_BASE_URL).rstrip("/")
+        gemini_base_url = values.get("GEMINI_BASE_URL", DEFAULT_GEMINI_BASE_URL).rstrip("/")
         allow_insecure_http = _boolean(
             values.get(
                 "OPENAI_ALLOW_INSECURE_HTTP",
@@ -85,10 +89,24 @@ class Settings:
             "OpenAI insecure HTTP opt-in",
         )
         _validate_provider_url(base_url, allow_insecure_http=allow_insecure_http)
-        api_key = _configured_secret(
-            values,
-            value_name="OPENAI_API_KEY",
-            file_name="OPENAI_API_KEY_FILE",
+        _validate_provider_url(gemini_base_url, allow_insecure_http=allow_insecure_http)
+        api_key = (
+            _configured_secret(
+                values,
+                value_name="OPENAI_API_KEY",
+                file_name="OPENAI_API_KEY_FILE",
+            )
+            if provider == "openai"
+            else None
+        )
+        gemini_api_key = (
+            _configured_secret(
+                values,
+                value_name="GEMINI_API_KEY",
+                file_name="GEMINI_API_KEY_FILE",
+            )
+            if provider == "gemini"
+            else None
         )
         timeout = _positive_float(
             values.get("OPENAI_TIMEOUT_SECONDS", str(DEFAULT_OPENAI_TIMEOUT_SECONDS)),
@@ -184,6 +202,8 @@ class Settings:
             llm_provider=provider,
             openai_api_key=api_key,
             openai_base_url=base_url,
+            gemini_api_key=gemini_api_key,
+            gemini_base_url=gemini_base_url,
             openai_timeout_seconds=timeout,
             openai_health_timeout_seconds=health_timeout,
             openai_health_cache_seconds=health_cache,

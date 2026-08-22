@@ -331,6 +331,10 @@ test("AI diagnosis history is loaded from the durable shared service projection"
   assert.match(source, /nextAgentPollDelay/);
   assert.match(source, /recordedSteps\?\.length \? recordedSteps : events/);
   assert.match(source, /aria-live/);
+  assert.match(source, /Evidence-backed recovery brief/);
+  assert.match(source, /Recovered automatically from/);
+  assert.match(source, /recommended_next_step/);
+  assert.match(source, /function traceStep/);
 });
 
 test("evidence explorers require an exact run and preserve unknown states", async () => {

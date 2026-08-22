@@ -13,9 +13,14 @@ from shared_contracts.http import IdempotencyKey, RequestId, Traceparent
 
 Identifier = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-z0-9][a-z0-9_.-]*$")]
 JsonObject = dict[str, JsonValue]
-PromptSet = Literal["default.v1", "default.v2", "default.v3"]
-SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = ("default.v1", "default.v2", "default.v3")
-DEFAULT_PROMPT_SET: PromptSet = "default.v3"
+PromptSet = Literal["default.v1", "default.v2", "default.v3", "default.v4"]
+SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = (
+    "default.v1",
+    "default.v2",
+    "default.v3",
+    "default.v4",
+)
+DEFAULT_PROMPT_SET: PromptSet = "default.v4"
 DEFAULT_EVENT_PAGE_SIZE = 100
 MAX_EVENT_PAGE_SIZE = 200
 MAX_EVENT_CURSOR = 2**63 - 1
@@ -104,7 +109,7 @@ class RunLimits(ContractModel):
     max_iterations: int = Field(default=6, ge=1, le=20)
     max_tool_calls: int = Field(default=12, ge=1, le=50)
     time_budget_ms: int = Field(default=120_000, ge=1_000, le=900_000)
-    max_model_repairs: int = Field(default=1, ge=0, le=1)
+    max_model_repairs: int = Field(default=1, ge=0, le=2)
 
 
 class AgentRunRequest(ContractModel):

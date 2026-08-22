@@ -12,8 +12,8 @@ shared package, and student slice owns its dependencies in a local `pyproject.to
   install or browser test stack is required
 - Docker Desktop or another Docker Engine with Compose support for container builds,
   integration checks, and the assignment-aligned runtime
-- An OpenAI API key with access to the configured model for live AI-mode requests; deterministic
-  tests do not need credentials or internet access
+- An OpenAI or Gemini API key with access to the configured model profile for live AI-mode
+  requests; deterministic tests do not need credentials or internet access
 
 Do not install project dependencies globally. `uv` creates and maintains `.venv` in the
 repository root.
