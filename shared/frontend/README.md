@@ -9,11 +9,13 @@ independently buildable `student-N/frontend/` services.
 
 - `index.html` — unified entry point covering all five features and shared operational surfaces.
 - `app.js` — shell composition root for home/search, bounded hash routing and mobile navigation.
+- `features.js` — the bounded five-area navigation registry and canonical feature ingress paths.
 - `core.js` — safe DOM, formatting, table and correlated public-request helpers.
 - `capabilities.js` — static Release 0 deployment capability manifest; implemented and enabled remain separate.
 - `routes/status.js` — live health summary for implemented shared and Property records services.
 - `routes/evidence.js` — read-only accepted-release and durable agent-run reference index.
 - `routes/roadmap.js` — honest current/planned capability roadmap.
+- `routes/features.js` — registry-driven research-area directory without domain data composition.
 - `styles.css` — shell-specific composition.
 - `Dockerfile` and `nginx.conf` — unprivileged static shell container with health and security headers.
 - `design-system/tokens.css` — colour, typography, spacing, radius, shadow and evidence-state tokens.
@@ -25,13 +27,18 @@ independently buildable `student-N/frontend/` services.
 
 ## Runtime links
 
-Defaults target the current local services:
+The shared edge now uses canonical same-origin routes by default:
 
 ```text
-Property discovery  http://localhost:5200/#properties
-Data operations     http://localhost:5200/#overview
+Property discovery  http://localhost:5100/features/data-platform/#properties
+Data operations     http://localhost:5100/features/data-platform/#overview
 Agent runs          http://localhost:5005/operations/ai-mode/
 ```
+
+Feature 1 remains directly reachable at `http://localhost:5200` for isolated development. Its
+relative static assets and namespaced public API allow the same image to work at either ingress.
+Features 2–5 have reserved registry/base-path entries but no live edge route until their complete
+feature slice is implemented and enabled.
 
 A future edge/container may override them before `app.js` loads:
 
@@ -52,9 +59,10 @@ The shell does not infer service health from a static page or claim future funct
 
 ## Shared dashboards
 
-The framework-free shell exposes three hash routes:
+The framework-free shell exposes four shared hash routes:
 
 ```text
+http://localhost:5100/#features
 http://localhost:5100/#system-status
 http://localhost:5100/#evidence
 http://localhost:5100/#release-roadmap

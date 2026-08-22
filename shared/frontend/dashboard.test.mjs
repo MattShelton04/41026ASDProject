@@ -4,6 +4,7 @@ import test from "node:test";
 
 import { capabilityManifest, capabilityState } from "./capabilities.js";
 import { parseShellRoute, researchAreaLabel } from "./core.js";
+import { featureRegistry, findFeature } from "./features.js";
 import { acceptedReleaseReferences, agentRunReferences } from "./routes/evidence.js";
 import { classifyHealth, overallReadiness } from "./routes/status.js";
 
@@ -11,8 +12,19 @@ test("shared hash routes are bounded and unknown fragments return home", () => {
   assert.equal(parseShellRoute("#system-status"), "system-status");
   assert.equal(parseShellRoute("#/evidence?view=accepted"), "evidence");
   assert.equal(parseShellRoute("#release-roadmap"), "release-roadmap");
+  assert.equal(parseShellRoute("#features"), "features");
   assert.equal(parseShellRoute("#operations"), "home");
   assert.equal(parseShellRoute("#future-student-feature"), "home");
+});
+
+test("feature registry is the bounded source for shell routes and availability", () => {
+  const features = featureRegistry();
+  assert.equal(features.length, 5);
+  assert.equal(features.filter((item) => item.href).length, 1);
+  assert.equal(findFeature("data-platform").href, "/features/data-platform/#properties");
+  assert.equal(findFeature("student-4-due-diligence").frontendBase, "/features/due-diligence/");
+  assert.equal(findFeature("market-intelligence").href, undefined);
+  assert.equal(featureRegistry({ propertyDiscovery: "/custom/#properties" })[0].href, "/custom/#properties");
 });
 
 test("capability manifest separates implemented, enabled and planned states", () => {
@@ -59,6 +71,8 @@ test("shared routes use public same-origin projections and safe DOM rendering", 
   assert.match(nginx, /location = \/api\/shared-health\/data-platform/);
   assert.match(nginx, /location \/api\/data-platform\//);
   assert.match(nginx, /location \/api\/ai-mode\//);
+  assert.match(nginx, /location \/features\/data-platform\//);
+  assert.match(nginx, /proxy_pass \$data_platform_frontend_upstream/);
   assert.match(nginx, /resolver 127\.0\.0\.11/);
   assert.match(nginx, /proxy_pass \$data_platform_upstream/);
   assert.match(nginx, /proxy_pass \$ai_mode_upstream/);

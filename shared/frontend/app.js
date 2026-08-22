@@ -1,12 +1,14 @@
-import { append, el, notice, parseShellRoute } from "./core.js";
+import { append, el, link, notice, parseShellRoute } from "./core.js";
 import { createEvidenceRoute } from "./routes/evidence.js";
+import { createFeaturesRoute } from "./routes/features.js";
 import { createRoadmapRoute } from "./routes/roadmap.js";
 import { createStatusRoute } from "./routes/status.js";
+import { featureRegistry } from "./features.js";
 
 const defaults = Object.freeze({
-  propertyDiscovery: "http://localhost:5200/#properties",
-  dataOperations: "http://localhost:5200/#overview",
-  releaseDetail: "http://localhost:5200/#releases/",
+  propertyDiscovery: "/features/data-platform/#properties",
+  dataOperations: "/features/data-platform/#overview",
+  releaseDetail: "/features/data-platform/#releases/",
   agentRuns: "http://localhost:5005/operations/ai-mode/",
 });
 const config = Object.freeze({ ...defaults, ...(window.PROPERTYSCOPE_CONFIG || {}) });
@@ -50,6 +52,7 @@ function openPropertySearch(query = "") {
 
 function bindHomeInteractions() {
   applyConfigLinks(main);
+  renderHomeFeatures();
   main.querySelectorAll("[data-planned]").forEach((button) => {
     button.addEventListener("click", () => {
       showToast(button.dataset.planned || "This capability is planned for a later implementation slice.");
@@ -60,6 +63,23 @@ function bindHomeInteractions() {
     event.preventDefault();
     openPropertySearch(String(main.querySelector("#property-search")?.value || "").trim());
   });
+}
+
+function homeFeatureRow(feature) {
+  const article = el("article", `area-row${feature.href ? " area-row--available" : ""}`);
+  const icon = el("div", "area-icon", feature.icon);
+  icon.setAttribute("aria-hidden", "true");
+  const copy = el("div");
+  append(copy, el("span", "area-kicker", feature.href ? "Available now" : "Planned"), el("h3", "", feature.label), el("p", "", feature.summary));
+  append(article, icon, copy);
+  if (feature.href) append(article, link("Open research area", feature.href, "ps-button ps-button--primary"));
+  else append(article, el("span", "area-state", "Not available yet"));
+  return article;
+}
+
+function renderHomeFeatures() {
+  const list = main.querySelector("#feature-area-list");
+  if (list) list.replaceChildren(...featureRegistry(config).map(homeFeatureRow));
 }
 
 function closeNavigation({ restoreFocus = false } = {}) {
@@ -78,6 +98,7 @@ function updateNavigation(route) {
 }
 
 const routes = {
+  features: createFeaturesRoute({ config }),
   "system-status": createStatusRoute({ config, announce }),
   evidence: createEvidenceRoute({ config, announce }),
   "release-roadmap": createRoadmapRoute({ config }),
@@ -112,7 +133,7 @@ async function renderRoute() {
     await routes[route](dashboard);
     if (generation !== renderGeneration) return;
     applyConfigLinks(dashboard);
-    const routeTitle = route === "system-status" ? "Data status" : route === "evidence" ? "Evidence ledger" : "What’s available";
+    const routeTitle = route === "features" ? "Research areas" : route === "system-status" ? "Data status" : route === "evidence" ? "Evidence ledger" : "What’s available";
     document.title = `${routeTitle} | PropertyScope NSW`;
     announce(`${routeTitle} loaded.`);
     main.focus({ preventScroll: true });

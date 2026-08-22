@@ -145,6 +145,20 @@
 .roadmap-list li { display: flex; gap: .5rem; }
 .roadmap-list li::before { content: "—"; color: var(--ps-ocean-600); }
 
+.feature-directory-grid { align-items: stretch; }
+.feature-directory-card { min-height: 100%; }
+.feature-directory-card .ps-card__body { min-height: 100%; display: flex; flex-direction: column; }
+.feature-directory-card__heading { display: flex; align-items: flex-start; gap: var(--ps-space-3); }
+.feature-directory-card__heading h2 { margin-bottom: var(--ps-space-3); font-size: clamp(1.35rem, 2.2vw, 1.8rem); }
+.feature-directory-card__icon { width: 42px; height: 42px; flex: 0 0 auto; display: grid; place-items: center; border-radius: var(--ps-radius-md); background: var(--ps-ocean-50); color: var(--ps-ocean-800); font-size: 1.15rem; font-weight: 800; }
+.feature-directory-card__facts { display: grid; gap: var(--ps-space-2); margin: auto 0 var(--ps-space-5); }
+.feature-directory-card__facts div { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); gap: var(--ps-space-2); }
+.feature-directory-card__facts dt { color: var(--ps-ink-600); font-size: .72rem; font-weight: 760; text-transform: uppercase; }
+.feature-directory-card__facts dd { min-width: 0; margin: 0; color: var(--ps-ink-800); overflow-wrap: anywhere; }
+.feature-directory-card__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ps-space-3); padding-top: var(--ps-space-4); border-top: 1px solid var(--ps-line); }
+.feature-directory-card__unavailable { color: var(--ps-ink-600); font-size: .8rem; }
+.feature-directory-boundary { margin-top: var(--ps-space-6); }
+
 .disclaimer { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .9rem; padding: 1.1rem; border: 1px solid var(--ps-line); border-radius: var(--ps-radius-md); background: var(--ps-paper-warm); }
 .disclaimer svg { width: 20px; height: 20px; color: var(--ps-sand-700); margin-top: .1rem; }
 .disclaimer strong { display: block; margin-bottom: .25rem; color: var(--ps-ink-900); }

@@ -28,7 +28,8 @@ const actionDialog = document.querySelector("#action-dialog");
 const actionForm = document.querySelector("#action-form");
 const toast = document.querySelector("#toast");
 
-const productHomeUrl = window.PROPERTYSCOPE_HOME_URL || "http://localhost:5100/";
+const productHomeUrl = window.PROPERTYSCOPE_HOME_URL
+  || (window.location.pathname.startsWith("/features/data-platform/") ? "/" : "http://localhost:5100/");
 for (const item of document.querySelectorAll("[data-product-home]")) item.href = productHomeUrl;
 
 const state = { pollTimer: null, lastRunStatus: "", lastAgentStatus: "", requests: new Map() };

@@ -181,6 +181,9 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.match(html, /id="action-confirm"[^>]+type="submit"/);
   assert.doesNotMatch(html, /<script(?![^>]+src=)/);
   assert.doesNotMatch(html, /style="/);
+  assert.match(html, /href="\.\/design-system\/tokens\.css/);
+  assert.match(html, /src="\.\/app\.js/);
+  assert.match(app, /pathname\.startsWith\("\/features\/data-platform\/"\)/);
   assert.match(app, /event\.key === "Escape"/);
   assert.match(app, /closeNavigation\(\{ restoreFocus: true \}\)/);
 });
