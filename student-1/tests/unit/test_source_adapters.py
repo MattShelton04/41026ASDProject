@@ -4,7 +4,7 @@ import io
 from datetime import date
 from pathlib import Path
 from typing import cast
-from zipfile import ZipFile
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import httpx
 import pytest
@@ -17,7 +17,9 @@ from propertyscope_data_platform.adapters.gnaf import (
 )
 from propertyscope_data_platform.adapters.psi import (
     iter_psi_archive,
+    iter_psi_archive_path,
     parse_psi_archive,
+    parse_psi_archive_path,
     parse_psi_b_record,
 )
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
@@ -167,6 +169,39 @@ def test_psi_archive_parses_nested_current_format_and_caps_records() -> None:
     assert sales[0].area_square_metres == 15000
 
 
+def test_psi_archive_applies_member_and_expansion_budgets_across_nested_zips() -> None:
+    row = "B;001;P1;2;20250101;;1;10;ROAD;SYDNEY;2000;1.5;H;20250101;20250201;900000;R;R;;;X;;;D1\n"
+    nested_archives: list[bytes] = []
+    for index in range(2):
+        nested = io.BytesIO()
+        with ZipFile(nested, "w", compression=ZIP_DEFLATED) as archive:
+            archive.writestr(f"week-{index}.DAT", row * 7)
+        nested_archives.append(nested.getvalue())
+    outer = io.BytesIO()
+    with ZipFile(outer, "w", compression=ZIP_DEFLATED) as archive:
+        for index, nested_payload in enumerate(nested_archives):
+            archive.writestr(f"week-{index}.zip", nested_payload)
+
+    with pytest.raises(ValueError, match="uncompressed byte limit"):
+        tuple(
+            iter_psi_archive(
+                outer.getvalue(),
+                source_year=2025,
+                maximum_members=10,
+                maximum_uncompressed_bytes=1_000,
+            )
+        )
+    with pytest.raises(ValueError, match="member count"):
+        tuple(
+            iter_psi_archive(
+                outer.getvalue(),
+                source_year=2025,
+                maximum_members=3,
+                maximum_uncompressed_bytes=10_000,
+            )
+        )
+
+
 def test_psi_archive_full_parse_has_no_implicit_record_cap() -> None:
     stream = io.BytesIO()
     with ZipFile(stream, "w") as archive:
@@ -287,10 +322,34 @@ def test_psi_downloader_uses_verified_ranges_after_publisher_403(tmp_path: Path)
         RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30, True),
         client=httpx.Client(transport=httpx.MockTransport(source)),
     )
-    downloaded = runner._download_psi_archive(
-        "https://www.valuergeneral.nsw.gov.au/x.zip", maximum_bytes=100_000
+    progress: list[int] = []
+    with runner.source_transport.psi_archive_path(
+        "https://www.valuergeneral.nsw.gov.au/x.zip",
+        directory=tmp_path,
+        maximum_bytes=100_000,
+        progress=progress.append,
+    ) as downloaded:
+        assert downloaded.read_bytes() == payload
+        temporary_path = downloaded
+
+    assert progress == [len(payload)]
+    assert not temporary_path.exists()
+
+
+def test_disk_backed_psi_parser_matches_the_bytes_contract(tmp_path: Path) -> None:
+    archive = io.BytesIO()
+    row = "B;001;P1;1;20250101;;1;10;ROAD;SYDNEY;2000;500;M;20250101;20250201;800000;R;R;;;X;;;D1\n"
+    with ZipFile(archive, "w") as stream:
+        stream.writestr("20250101.DAT", row + row)
+    path = tmp_path / "2025.zip"
+    path.write_bytes(archive.getvalue())
+
+    assert parse_psi_archive_path(path, source_year=2025) == parse_psi_archive(
+        archive.getvalue(), source_year=2025
     )
-    assert downloaded == payload
+    assert tuple(iter_psi_archive_path(path, source_year=2025, maximum_records=1)) == (
+        parse_psi_archive(archive.getvalue(), source_year=2025)[0],
+    )
 
 
 def test_live_psi_reuses_bounded_official_archive_cache(tmp_path: Path) -> None:

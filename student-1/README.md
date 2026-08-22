@@ -42,9 +42,11 @@ durable run, content-addressed artifact, serial loader, candidate generation, qu
 publication path as the showcase profile. Resource limits remain enforced in full-data mode.
 
 The PSI adapter is verified against real publisher archives and parses every annual archive from
-1990 onward plus current Monday weekly updates. Ordinary publisher requests may receive HTTP 403,
-so acquisition retries through validated bounded Range requests; a read-only cache can avoid repeat
-downloads. Fixture runs never silently stand in for a requested live run.
+1990 onward plus current Monday weekly updates. Archives download into bounded temporary files and
+DAT members are consumed as streams, so the archive and expanded records are not duplicated in
+application memory. Ordinary publisher requests may receive HTTP 403, so acquisition retries
+through validated bounded Range requests; a read-only cache can avoid repeat downloads. Fixture
+runs never silently stand in for a requested live run.
 
 ## Run it locally
 
@@ -147,9 +149,27 @@ serial loader is the only process besides the database API that owns those crede
 AI-mode loads Feature 1's allowlisted tool catalogue, calls its bounded HTTP tools and stores
 diagnosis history in AI-mode's own database. It never reads PropertyScope PostgreSQL directly.
 
-“Written tutor/team approval evidence for the ADR-016 PostgreSQL/PostGIS exception must still be
-attached before submission.” The implementation and executable architecture checks do not invent
-that governance evidence.
+Tutor approval for the narrow ADR-016 PostgreSQL/PostGIS exception has been confirmed. A durable
+link or copy of that written approval should still be attached to the submission evidence; the
+implementation and executable architecture checks cannot substitute for that record.
+
+## Backend structure and correlation
+
+`api.py` is the HTTP composition surface. Generic Flask response/proxy mechanics live in
+`http_support.py`; registered run-scope rules live in the framework-independent
+`scope_policy.py`; protected tool approval matching lives in `approval.py`; and registered source
+acquisition lives in `source_transport.py`. Source-format parsing remains under `adapters/`, while
+`runner.py` coordinates durable tasks and heartbeats rather than owning transport policy.
+
+The database service keeps transaction-owning SQL in `repository.py`, while immutable release
+preview/builder projections live in `query_specs.py`, retry/task sequencing lives in
+`orchestration_policy.py`, and serialization/replay projections live in
+`persistence_support.py`. This keeps PostgreSQL atomicity visible in one facade without burying
+pure policy and public projection contracts inside a two-thousand-line repository module.
+
+At the shared proxy and every Feature 1 HTTP hop, `X-Request-ID`, `X-Agent-Run-ID`, `traceparent`
+and `Idempotency-Key` are forwarded case-insensitively under canonical names. Invalid request/span
+identifiers are replaced or dropped at ingress rather than becoming misleading correlation data.
 
 ## Frontend structure
 
@@ -158,6 +178,6 @@ behavior is split under `frontend/core/` (API/Problem Details, routing, formatti
 forms and polling guards), reusable DOM primitives live under `frontend/components/`, and migrated
 screens live under `frontend/routes/`. Overview, sources/jobs, run planning, runs/run detail and
 property discovery/detail are route-owned; `app.js` remains the transition composition root for
-releases, evidence and AI diagnosis until those routes move in the same behavior-preserving sequence. The independently
-built frontend image copies shared design-system v0.1 assets, while the development overlay mounts
-the same source files for reload.
+releases, evidence and AI diagnosis until those routes move in the same behavior-preserving
+sequence. The independently built frontend image copies shared design-system v0.1 assets, while
+the development overlay mounts the same source files for reload.

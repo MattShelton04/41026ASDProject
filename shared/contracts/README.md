@@ -12,8 +12,10 @@ through full validation so state changes cannot bypass type or cross-field invar
 Persisted timestamps must be timezone-aware, and run/step/detail snapshots reject
 inconsistent lifecycle, ordering, or ownership data.
 
-The model-registry contract restricts entries to assignment-approved Qwen, Llama, and
-DeepSeek families and validates profile references plus context/output budgets.
+The provider-neutral model-registry contract validates stable profile references,
+role-to-model assignments, source metadata, and explicit context/output/reasoning budgets.
+AI-mode's current registry maps those roles to the approved OpenAI models; provider-specific
+availability checks remain in AI-mode rather than in this shared package.
 
 `load_feature_manifest` and `load_feature_manifests` parse YAML, enforce owner/key and
 same-origin route safety, reject duplicate feature identities/routes, and return a

@@ -8,14 +8,16 @@ from pathlib import Path
 
 from flask import Flask, Response, g, request
 
-from propertyscope_data_platform.api import create_blueprint, register_error_handlers
+from propertyscope_data_platform.api import create_blueprint
 from propertyscope_data_platform.clients import (
     AiModeClient,
     ConsumerEndpoint,
     ConsumerImportClient,
     DataStoreClient,
 )
+from propertyscope_data_platform.http_support import register_error_handlers
 from propertyscope_data_platform.release_builders import validate_feature_registration
+from shared_contracts import is_valid_request_id, is_valid_traceparent
 
 
 def create_app(
@@ -114,9 +116,11 @@ def create_app(
     @app.before_request
     def establish_correlation() -> None:
         supplied = request.headers.get("X-Request-ID", "").strip()
-        request_id = supplied if 1 <= len(supplied) <= 100 else str(uuid.uuid4())
+        request_id = supplied if is_valid_request_id(supplied) else str(uuid.uuid4())
         request.environ["HTTP_X_REQUEST_ID"] = request_id
         g.request_id = request_id
+        supplied_traceparent = request.headers.get("traceparent", "").strip().lower()
+        g.traceparent = supplied_traceparent if is_valid_traceparent(supplied_traceparent) else None
 
     @app.before_request
     def protect_worker_api() -> tuple[dict[str, object], int] | None:
@@ -134,9 +138,8 @@ def create_app(
     @app.after_request
     def return_correlation(response: Response) -> Response:
         response.headers.setdefault("X-Request-ID", g.request_id)
-        traceparent = request.headers.get("traceparent")
-        if traceparent:
-            response.headers.setdefault("traceparent", traceparent)
+        if g.traceparent is not None:
+            response.headers.setdefault("traceparent", g.traceparent)
         return response
 
     register_error_handlers(app)

@@ -93,6 +93,12 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "application/problem+json" in nginx
     assert "location /operations/ai-mode/" in nginx
     assert "database" not in evidence.lower()
+    assert "map $http_x_request_id $correlation_request_id" in nginx
+    assert '"~^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"' in nginx
+    assert "proxy_hide_header X-Request-ID" in nginx
+    assert nginx.count("proxy_set_header X-Request-ID $correlation_request_id") == 7
+    assert "add_header X-Request-ID $correlation_request_id always" in nginx
+    assert '"request_id":"$correlation_request_id"' in nginx
 
 
 def test_property_data_and_agent_operations_link_back_to_product_home() -> None:

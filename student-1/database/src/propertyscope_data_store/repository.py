@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -24,116 +23,33 @@ from propertyscope_data_store.import_profiles import (
     execute_stream_import,
 )
 from propertyscope_data_store.migrations import migrate, schema_fingerprint
-
-JsonObject = dict[str, Any]
-TERMINAL_RUN_STATES = frozenset({"succeeded", "failed", "cancelled"})
-TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
-TERMINAL_IMPORT_STATES = frozenset({"succeeded", "failed", "cancelled"})
-
-PROPERTY_RECORD_SPEC = (
-    """SELECT gnaf_pid AS source_address_id,property_ref,address_display,
-        flat_type,unit_number,street_number_first,street_number_suffix,street_number_last,
-        street_name,street_type,locality,postcode,source_status,geocode_type,source_crs,
-        ST_AsGeoJSON(geom)::jsonb AS geometry,source_row_sha256,normalisation_version
-        FROM warehouse.gnaf_address WHERE dataset_release_id=%s
-        ORDER BY locality,postcode,address_display,gnaf_pid LIMIT %s OFFSET %s""",
-    "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
-    (
-        "source_address_id",
-        "property_ref",
-        "address_display",
-        "flat_type",
-        "unit_number",
-        "street_number_first",
-        "street_number_suffix",
-        "street_number_last",
-        "street_name",
-        "street_type",
-        "locality",
-        "postcode",
-        "source_status",
-        "geocode_type",
-        "source_crs",
-        "geometry",
-        "source_row_sha256",
-        "normalisation_version",
-    ),
+from propertyscope_data_store.orchestration_policy import (
+    TERMINAL_RUN_STATES,
+    task_plan,
+    validate_retry_parent,
+)
+from propertyscope_data_store.persistence_support import cancellation_error as _cancellation_error
+from propertyscope_data_store.persistence_support import json_document as _json
+from propertyscope_data_store.persistence_support import lease_expired_error as _lease_expired_error
+from propertyscope_data_store.persistence_support import normalise_row as _dict
+from propertyscope_data_store.persistence_support import normalise_rows as _rows
+from propertyscope_data_store.persistence_support import project_run as _run_projection
+from propertyscope_data_store.persistence_support import (
+    receipt_matches_values as _receipt_matches_values,
+)
+from propertyscope_data_store.persistence_support import require_source_snapshot as _source_snapshot
+from propertyscope_data_store.persistence_support import (
+    validate_artifact_replay as _validate_artifact_replay,
+)
+from propertyscope_data_store.query_specs import (
+    PREVIEW_SPECS,
+    normalise_product_rows,
+    release_product_query,
 )
 
-PREVIEW_SPECS: dict[str, tuple[str, str, tuple[str, ...]]] = {
-    "gnaf-nsw": PROPERTY_RECORD_SPEC,
-    "psi-sales": (
-        """SELECT source_business_key,source_revision,source_era,district_code,property_id,
-        dealing_id,contract_date::text,settlement_date::text,price_aud,
-        area_square_metres::text,property_ref,match_tier,match_confidence::float8,
-        geographic_precision FROM warehouse.psi_sale WHERE dataset_release_id=%s
-        ORDER BY contract_date NULLS LAST,source_business_key,source_revision LIMIT %s OFFSET %s""",
-        "SELECT count(*) AS count FROM warehouse.psi_sale WHERE dataset_release_id=%s",
-        (
-            "source_business_key",
-            "source_revision",
-            "source_era",
-            "district_code",
-            "property_id",
-            "dealing_id",
-            "contract_date",
-            "settlement_date",
-            "price_aud",
-            "area_square_metres",
-            "property_ref",
-            "match_tier",
-            "match_confidence",
-            "geographic_precision",
-        ),
-    ),
-    "bocsar-sparse": (
-        """SELECT observation.geography_kind,observation.geography_value,
-        observation.source_category_key,observation.offence_label,
-        observation.subcategory_label,observation.month::text,observation.count,
-        coverage.first_month::text,coverage.last_month::text,coverage.month_count,
-        coverage.blank_means_observed_zero FROM warehouse.bocsar_observation observation
-        LEFT JOIN warehouse.bocsar_coverage coverage
-          ON coverage.dataset_release_id=observation.dataset_release_id
-         AND coverage.geography_kind=observation.geography_kind
-         AND coverage.geography_value=observation.geography_value
-         AND coverage.source_category_key=observation.source_category_key
-        WHERE observation.dataset_release_id=%s
-        ORDER BY observation.geography_kind,observation.geography_value,
-        observation.source_category_key,observation.month LIMIT %s OFFSET %s""",
-        "SELECT count(*) AS count FROM warehouse.bocsar_observation WHERE dataset_release_id=%s",
-        (
-            "geography_kind",
-            "geography_value",
-            "source_category_key",
-            "offence_label",
-            "subcategory_label",
-            "month",
-            "count",
-            "first_month",
-            "last_month",
-            "month_count",
-            "blank_means_observed_zero",
-        ),
-    ),
-    "schools-master": (
-        """SELECT school_code,school_name,school_type,status,locality_original,
-        locality_normalised,lga_name,ST_AsGeoJSON(geom)::jsonb AS geometry
-        FROM warehouse.school WHERE dataset_release_id=%s
-        ORDER BY school_name,school_code LIMIT %s OFFSET %s""",
-        "SELECT count(*) AS count FROM warehouse.school WHERE dataset_release_id=%s",
-        (
-            "school_code",
-            "school_name",
-            "school_type",
-            "status",
-            "locality_original",
-            "locality_normalised",
-            "lga_name",
-            "geometry",
-        ),
-    ),
-    "property-fixture": PROPERTY_RECORD_SPEC,
-}
+JsonObject = dict[str, Any]
+TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
+TERMINAL_IMPORT_STATES = frozenset({"succeeded", "failed", "cancelled"})
 
 
 class PropertyScopeStore:
@@ -503,12 +419,7 @@ class PropertyScopeStore:
         parent: JsonObject | None = None
         if parent_run_id is not None:
             parent = self.get_run(parent_run_id)
-            if parent["job_definition_id"] != str(job_id):
-                raise ConflictError("retry parent belongs to a different job")
-            if mode == "full_refresh" and parent["status"] not in {"failed", "cancelled"}:
-                raise ConflictError("full pipeline retry requires a failed or cancelled parent")
-            if mode == "reprocess_cached" and parent["status"] not in TERMINAL_RUN_STATES:
-                raise ConflictError("cached reprocessing requires a terminal parent")
+            attempt_number = validate_retry_parent(job_id, mode, parent)
             if (
                 mode == "reprocess_cached"
                 and self._fetch_one(
@@ -519,7 +430,6 @@ class PropertyScopeStore:
                 is None
             ):
                 raise ConflictError("cached reprocessing requires a verified canonical artifact")
-            attempt_number = int(parent["attempt_number"]) + 1
         now = datetime.now(UTC)
         run_id = uuid.uuid4()
         with self.connection() as connection:
@@ -551,24 +461,9 @@ class PropertyScopeStore:
                     ),
                 ).fetchone()
                 task_ids: dict[str, uuid.UUID] = {}
-                for stage_index, stage in enumerate(
-                    (
-                        "discover",
-                        "acquire",
-                        "validate_artifact",
-                        "import",
-                        "normalise",
-                        "quality",
-                        "build_release",
-                    )
-                ):
+                for planned_task in task_plan(mode):
                     task_id = uuid.uuid4()
-                    task_ids[stage] = task_id
-                    cached_prerequisite = mode == "reprocess_cached" and stage in {
-                        "discover",
-                        "acquire",
-                        "validate_artifact",
-                    }
+                    task_ids[planned_task.stage] = task_id
                     connection.execute(
                         """
                         INSERT INTO ops.run_task (
@@ -579,11 +474,11 @@ class PropertyScopeStore:
                         (
                             task_id,
                             run_id,
-                            f"{stage_index:02d}/{stage}",
+                            planned_task.logical_key,
                             _json(scope),
-                            stage,
-                            "skipped" if cached_prerequisite else "pending",
-                            now if cached_prerequisite else None,
+                            planned_task.stage,
+                            "skipped" if planned_task.skipped else "pending",
+                            now if planned_task.skipped else None,
                             now,
                             now,
                         ),
@@ -1048,16 +943,15 @@ class PropertyScopeStore:
         spec = PREVIEW_SPECS.get(profile)
         if spec is None:
             raise ConflictError("release import profile does not support bounded preview")
-        query, count_query, columns = spec
-        items = self._fetch_all(query, (release_id, limit, offset))
-        total_row = self._required(count_query, (release_id,))
+        items = self._fetch_all(spec.select_sql, (release_id, limit, offset))
+        total_row = self._required(spec.count_sql, (release_id,))
         return {
             "release": {
                 key: context[key]
                 for key in ("id", "dataset_id", "release_version", "status", "record_count")
             },
             "profile": profile,
-            "columns": list(columns),
+            "columns": list(spec.columns),
             "items": items,
             "count": len(items),
             "total": int(total_row["count"]),
@@ -1111,87 +1005,17 @@ class PropertyScopeStore:
             (release_id,),
         )
         profile = str(context["import_profile_key"])
-        if profile in {"property-fixture", "gnaf-nsw"}:
-            rows = self._fetch_all(
-                """SELECT COALESCE(property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid)
-                    AS property_ref,gnaf_pid AS source_address_id,address_display,flat_type,
-                    unit_number,street_number_first,street_number_suffix,street_number_last,
-                    street_name,street_type,locality,postcode,source_status,geocode_type,
-                    source_crs,ST_AsGeoJSON(geom)::jsonb AS geometry,source_row_sha256,
-                    normalisation_version FROM warehouse.gnaf_address
-                WHERE dataset_release_id=%s ORDER BY property_ref,gnaf_pid LIMIT %s OFFSET %s""",
-                (release_id, limit, offset),
-            )
-            count = self._required(
-                "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
-                (release_id,),
-            )
-        elif profile == "psi-sales":
-            year_filter = context["coverage_json"].get("release_scope", context["coverage_json"])
-            years = year_filter.get("years", []) if isinstance(year_filter, dict) else []
-            if not isinstance(years, list) or not years:
-                raise ConflictError(
-                    "PSI release construction requires an explicit bounded year scope"
-                )
-            rows = self._fetch_all(
-                """SELECT source_business_key,source_revision,source_era,district_code,
-                property_id,dealing_id,contract_date::text,settlement_date::text,price_aud,
-                area_original::text,area_unit,area_square_metres::text,property_ref,match_tier,
-                match_confidence::text,geographic_precision,source_row_sha256,normalisation_version
-                FROM warehouse.psi_sale WHERE dataset_release_id=%s
-                  AND source_partition_year=ANY(%s)
-                ORDER BY source_business_key,source_revision LIMIT %s OFFSET %s""",
-                (release_id, years, limit, offset),
-            )
-            count = self._required(
-                """SELECT count(*) AS count FROM warehouse.psi_sale
-                WHERE dataset_release_id=%s AND source_partition_year=ANY(%s)""",
-                (release_id, years),
-            )
-        elif profile == "bocsar-sparse":
-            rows = self._fetch_all(
-                """SELECT * FROM (
-                    SELECT 'observation'::text AS record_kind,geography_kind,geography_value,
-                    source_category_key,offence_label,subcategory_label,month::text,count,
-                    NULL::date[] AS observed_months,NULL::text AS first_month,
-                    NULL::text AS last_month,NULL::integer AS month_count,
-                    NULL::boolean AS blank_means_observed_zero,
-                    NULL::text AS completeness_sha256,source_row_sha256,normalisation_version
-                    FROM warehouse.bocsar_observation WHERE dataset_release_id=%s
-                    UNION ALL
-                    SELECT 'coverage',geography_kind,geography_value,source_category_key,
-                    NULL,NULL,NULL,NULL,observed_months,first_month::text,last_month::text,
-                    month_count,blank_means_observed_zero,completeness_sha256,
-                    source_row_sha256,normalisation_version
-                    FROM warehouse.bocsar_coverage WHERE dataset_release_id=%s
-                ) product ORDER BY geography_kind,geography_value,source_category_key,
-                    record_kind,month NULLS LAST LIMIT %s OFFSET %s""",
-                (release_id, release_id, limit, offset),
-            )
-            for row in rows:
-                if row.get("observed_months"):
-                    row["observed_months"] = [value.isoformat() for value in row["observed_months"]]
-            count = self._required(
-                """SELECT (SELECT count(*) FROM warehouse.bocsar_observation
-                    WHERE dataset_release_id=%s) +
-                    (SELECT count(*) FROM warehouse.bocsar_coverage
-                    WHERE dataset_release_id=%s) AS count""",
-                (release_id, release_id),
-            )
-        elif profile == "schools-master":
-            rows = self._fetch_all(
-                """SELECT school_code,school_name,school_type,status,locality_original,
-                locality_normalised,lga_name,ST_AsGeoJSON(geom)::jsonb AS geometry,
-                source_row_sha256,normalisation_version FROM warehouse.school
-                WHERE dataset_release_id=%s ORDER BY school_code LIMIT %s OFFSET %s""",
-                (release_id, limit, offset),
-            )
-            count = self._required(
-                "SELECT count(*) AS count FROM warehouse.school WHERE dataset_release_id=%s",
-                (release_id,),
-            )
-        else:
-            raise ConflictError("release import profile has no registered product projection")
+        query = release_product_query(
+            profile,
+            release_id,
+            context["coverage_json"],
+            limit=limit,
+            offset=offset,
+        )
+        rows = normalise_product_rows(
+            profile, self._fetch_all(query.select_sql, query.select_params)
+        )
+        count = self._required(query.count_sql, query.count_params)
         total = int(count["count"])
         return {
             "release_id": str(release_id),
@@ -2009,103 +1833,3 @@ class PropertyScopeStore:
         with self.connection() as connection:
             rows = connection.execute(query, params).fetchall()
         return _rows(rows)
-
-
-def _json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
-
-
-def _run_projection(run: JsonObject) -> JsonObject:
-    """Add explicit retry semantics without pretending a child can reuse parent artifacts."""
-    projected = dict(run)
-    if projected.get("parent_run_id") is None:
-        projected["execution_semantics"] = "new_pipeline_run"
-    elif projected.get("run_mode") == "reprocess_cached":
-        projected["execution_semantics"] = "cached_artifact_reprocess"
-    else:
-        projected["execution_semantics"] = "full_pipeline_retry"
-    return projected
-
-
-def _validate_artifact_replay(existing: Mapping[str, Any], values: Mapping[str, Any]) -> None:
-    expected = (
-        values["content_sha256"],
-        values["storage_key"],
-        values["media_type"],
-        int(values["bytes"]),
-    )
-    actual = (
-        existing["content_sha256"],
-        existing["storage_key"],
-        existing["media_type"],
-        int(existing["bytes"]),
-    )
-    if expected != actual:
-        raise ConflictError("artifact idempotency key arguments do not match")
-
-
-def _receipt_matches_values(
-    receipt: Mapping[str, Any], release_id: uuid.UUID, values: Mapping[str, Any]
-) -> bool:
-    expected = (
-        str(release_id),
-        values["status"],
-        values["schema_version"],
-        values["content_sha256"],
-        int(values["rows_received"]),
-        int(values["rows_accepted"]),
-        int(values["rows_rejected"]),
-    )
-    actual = (
-        str(receipt["dataset_release_id"]),
-        receipt["status"],
-        receipt["schema_version"],
-        receipt["content_sha256"],
-        int(receipt["rows_received"]),
-        int(receipt["rows_accepted"]),
-        int(receipt["rows_rejected"]),
-    )
-    return expected == actual
-
-
-def _source_snapshot(values: Mapping[str, Any]) -> Mapping[str, Any]:
-    snapshot = values.get("source_snapshot")
-    if not isinstance(snapshot, dict):
-        raise ConflictError("source snapshot metadata is required")
-    source_release = snapshot.get("source_release")
-    if not isinstance(source_release, str) or not 1 <= len(source_release) <= 100:
-        raise ConflictError("source snapshot release evidence is invalid")
-    objects = snapshot.get("objects")
-    if not isinstance(objects, list) or not objects:
-        raise ConflictError("source snapshot object evidence is invalid")
-    return snapshot
-
-
-def _cancellation_error() -> JsonObject:
-    return {"code": "operator_cancelled", "message": "Run cancelled by operator"}
-
-
-def _lease_expired_error() -> JsonObject:
-    return {
-        "code": "task_lease_expired",
-        "message": "Worker heartbeat expired; explicit resume is required",
-        "retryable": True,
-    }
-
-
-def _dict(row: Mapping[str, Any] | None) -> JsonObject:
-    if row is None:
-        raise RuntimeError("expected database row")
-    return {key: _normalise(value) for key, value in row.items()}
-
-
-def _rows(rows: Sequence[Mapping[str, Any]]) -> list[JsonObject]:
-    return [_dict(row) for row in rows]
-
-
-def _normalise(value: Any) -> Any:
-    if isinstance(value, (datetime,)):
-        return value.isoformat()
-    if isinstance(value, uuid.UUID):
-        return str(value)
-    return value
