@@ -13,12 +13,18 @@ def _read(relative_path: str) -> str:
 
 def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
     page = _read("shared/frontend/index.html")
+    registry = _read("shared/frontend/features.js")
+    script = _read("shared/frontend/app.js")
 
     assert "Research a property." in page
     assert "See what is known." in page
     assert 'id="property-search-form"' in page
     assert "Build the picture around a property" in page
-    assert page.count("Not available yet") == 4
+    assert registry.count("featureKey:") == 5
+    assert registry.count("implemented: false") == 4
+    assert registry.count("enabled: false") == 4
+    assert 'id="feature-area-list"' in page
+    assert '"Not available yet"' in script
     assert "The remaining research areas will appear here as their data becomes available." in page
     assert "Start a property review" in page
     assert 'id="operations"' in page
@@ -36,13 +42,18 @@ def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
 def test_shared_home_routes_only_live_product_and_operator_surfaces() -> None:
     page = _read("shared/frontend/index.html")
     script = _read("shared/frontend/app.js")
+    registry = _read("shared/frontend/features.js")
 
     assert 'data-config-link="propertyDiscovery"' in page
     assert 'data-config-link="dataOperations"' in page
     assert 'data-config-link="agentRuns"' in page
     assert "docs/prototype" not in page
     assert "prototype:" not in script
-    assert page.count('class="area-row"') == 4
+    assert 'id="feature-area-list"' in page
+    assert "featureRegistry(config).map(homeFeatureRow)" in script
+    assert registry.count("frontendBase:") == 5
+    assert registry.count("implemented: true") == 1
+    assert 'frontendBase: "/features/data-platform/"' in registry
 
 
 def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -> None:
@@ -51,15 +62,17 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     status = _read("shared/frontend/routes/status.js")
     evidence = _read("shared/frontend/routes/evidence.js")
     roadmap = _read("shared/frontend/routes/roadmap.js")
+    features = _read("shared/frontend/routes/features.js")
     nginx = _read("shared/frontend/nginx.conf")
 
-    for route in ("system-status", "evidence", "release-roadmap"):
+    for route in ("features", "system-status", "evidence", "release-roadmap"):
         assert f'href="#{route}"' in page
         assert route in script
 
     assert "Data status" in status
     assert "Published datasets" in evidence
     assert "Detailed availability" in roadmap
+    assert "PropertyScope research areas" in features
     assert "resolver 127.0.0.11" in nginx
     assert "proxy_pass $data_platform_upstream" in nginx
     assert "proxy_pass $ai_mode_upstream" in nginx
