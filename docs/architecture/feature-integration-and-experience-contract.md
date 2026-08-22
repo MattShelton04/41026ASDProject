@@ -190,6 +190,12 @@ Every feature frontend must provide:
 - a visible route for its assessed CRUD aggregate and its bounded AI action; and
 - a responsive navigation control with keyboard focus management.
 
+The shared header is reserved for product-wide destinations. A link that leaves the shared
+workspace for a feature must name the destination research area and use a visually distinct
+transition affordance; it must not look like another same-shell navigation item. Once entered, the
+feature keeps its research-area name visible and separates global destinations from its local task
+navigation. Shared views reached from a feature provide an equally explicit return to that area.
+
 Feature navigation must not copy the complete local navigation of every other feature. Cross-feature
 destinations belong in the shared header or in explicit contextual links. Primary local navigation
 must describe a small number of user tasks. Specialist contract, quality, file, coverage and trace

@@ -18,8 +18,8 @@ const EVENT_LIMIT = 200;
 const REQUEST_TIMEOUT_MS = 8000;
 const MOBILE_QUERY = "(max-width: 720px)";
 const RESEARCH_AREA_LABELS = Object.freeze({
-  "student-1-propertyscope-data-platform": "Property records",
-  "feature-1": "Property records",
+  "student-1-propertyscope-data-platform": "Property data",
+  "feature-1": "Property data",
   "feature-2": "Sales & market",
   "feature-3": "Suburb context",
   "feature-4": "Site & planning",

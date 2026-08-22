@@ -1,6 +1,6 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js?v=16";
+import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js?v=17";
 import { nextAgentPollDelay } from "../core/polling.js";
 import { parseRoute, routeQuery } from "../core/router.js?v=7";
 import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";

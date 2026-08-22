@@ -1,4 +1,4 @@
-import { append, badge, cell, el, formatDate, formatNumber, humanise, link, notice, pageHeader, panel, researchAreaLabel, requestJson, table } from "../core.js";
+import { append, badge, cell, el, formatDate, formatNumber, humanise, link, notice, pageHeader, panel, researchAreaLabel, requestJson, table } from "../core.js?v=10";
 
 export function acceptedReleaseReferences(payload) {
   const items = Array.isArray(payload?.items) ? payload.items : [];
@@ -34,7 +34,7 @@ function statusTone(value) {
 
 export function createEvidenceRoute({ config, announce }) {
   return async function renderEvidence(root) {
-    append(root, pageHeader("About the data", "Sources and history", "See the published datasets and AI reviews behind PropertyScope results.", [link("Open property data", config.dataOperations, "ps-button")]));
+    append(root, pageHeader("About the data", "Sources and history", "See the published datasets and AI reviews behind PropertyScope results.", [link("Open Property data", config.dataOperations, "ps-button")]));
     const state = el("div", "dashboard-state", "Loading current records…");
     state.setAttribute("role", "status");
     const releasePanel = panel("Published datasets", "The versions currently available to property research.");
@@ -69,7 +69,7 @@ export function createEvidenceRoute({ config, announce }) {
       if (releases.length) append(releasePanel.body, table(["Dataset", "Research area", "Published version", "Records", "Coverage", "Published"], releases, (item) => {
         const tr = el("tr");
         const dataset = el("div", "table-primary");
-        append(dataset, link(item.dataset, `${config.releaseDetail}${encodeURIComponent(item.id)}`), el("code", "table-secondary mono", item.hash ? `${item.hash.slice(0, 12)}…` : "Hash unknown"));
+        append(dataset, link(item.dataset, `${config.releaseDetail}${encodeURIComponent(item.id)}`), el("span", "table-secondary area-transition-label", "Opens in Property data"), el("code", "table-secondary mono", item.hash ? `${item.hash.slice(0, 12)}…` : "Hash unknown"));
         append(tr, cell(dataset), cell(item.area), cell(item.version, "mono"), cell(formatNumber(item.records), "numeric"), cell(badge(humanise(item.coverage), statusTone(item.coverage))), cell(formatDate(item.acceptedAt)));
         return tr;
       }, "Published dataset references"));

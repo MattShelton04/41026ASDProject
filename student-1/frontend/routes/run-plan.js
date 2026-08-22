@@ -1,6 +1,6 @@
 import { entity } from "../core/api.js";
 import { append, button, el } from "../core/dom.js";
-import { humanise } from "../core/formats.js?v=16";
+import { humanise } from "../core/formats.js?v=17";
 import { isPsiJob, liveProfileLabel, parseJsonField, psiYearRange } from "../core/forms.js";
 import { technicalDetails } from "../components/layout.js?v=17";
 

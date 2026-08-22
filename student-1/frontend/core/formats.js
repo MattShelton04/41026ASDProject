@@ -81,7 +81,7 @@ export function stateLabel(status) {
 }
 
 const RESEARCH_AREA_LABELS = Object.freeze({
-  "feature-1": "Property records",
+  "feature-1": "Property data",
   "feature-2": "Sales & market",
   "feature-3": "Suburb context",
   "feature-4": "Site & planning",

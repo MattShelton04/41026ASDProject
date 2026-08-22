@@ -106,13 +106,13 @@ def test_property_data_and_agent_operations_link_back_to_product_home() -> None:
     operations_page = _read("shared/frontend/operations/ai-mode/index.html")
 
     assert feature_page.count("data-product-home") >= 2
-    assert "Property records" in feature_page
+    assert "Property data" in feature_page
     assert "Property search" in feature_page
     assert "Published data" in feature_page
     assert "Property records available" in feature_page
 
     assert "PropertyScope | Activity history" in operations_page
-    assert "Recorded AI reviews" in operations_page
+    assert "Shared view · Property data" in operations_page
     assert "Research areas" in operations_page
     assert 'meta name="color-scheme" content="light"' in operations_page
     assert "http://localhost:5100" not in operations_page

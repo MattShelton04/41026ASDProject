@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#10262e">
     <meta name="description" content="PropertyScope property discovery and data evidence">
-    <title>PropertyScope | Property records</title>
+    <title>PropertyScope | Property data</title>
     <link rel="stylesheet" href="./design-system/tokens.css?v=0.2">
     <link rel="stylesheet" href="./design-system/base.css?v=0.2">
     <link rel="stylesheet" href="./design-system/components.css?v=0.2">
-    <link rel="stylesheet" href="./styles.css?v=10">
-  <script type="module" src="./app.js?v=17"></script>
+    <link rel="stylesheet" href="./styles.css?v=11">
+  <script type="module" src="./app.js?v=18"></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -21,12 +21,11 @@
       </a>
       <form id="header-property-search" class="topbar-search" role="search">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-        <label class="visually-hidden" for="header-property-query">Search properties</label>
-        <input id="header-property-query" type="search" placeholder="Search an address or PropertyScope reference" autocomplete="street-address">
+        <label class="visually-hidden" for="header-property-query">Search Property data</label>
+        <input id="header-property-query" type="search" placeholder="Search Property data by address or reference" autocomplete="street-address">
       </form>
       <nav class="global-nav" aria-label="PropertyScope navigation">
         <a data-product-path="#home" href="http://localhost:5100/#home">Home</a>
-        <a href="#properties" aria-current="page">Property search</a>
         <a data-product-path="#features" href="http://localhost:5100/#features">Research areas</a>
         <a data-product-path="#system-status" href="http://localhost:5100/#system-status">Data status</a>
         <a data-product-path="#evidence" href="http://localhost:5100/#evidence">Sources &amp; history</a>
@@ -42,13 +41,13 @@
       </div>
     </header>
 
-    <div class="workspace-strip" aria-label="Workspace status"><span><i aria-hidden="true"></i> Property records available</span><span>NSW coverage</span><span>Sources and uncertainty shown</span></div>
+    <div class="workspace-strip" aria-label="Current research area and data status"><span class="workspace-strip__area"><b>Current research area</b> Property data</span><span><i aria-hidden="true"></i> Property records available</span><span>NSW coverage</span><span>Sources and uncertainty shown</span></div>
 
     <div class="app-shell">
       <aside id="primary-nav" class="sidebar" aria-label="Primary navigation">
         <a class="context-card" href="#properties">
           <span class="context-icon" aria-hidden="true">⌁</span>
-          <div><strong>Property data</strong><small>Search and updates</small></div>
+          <div><small>Current research area</small><strong>Property data</strong></div>
         </a>
         <nav>
           <p class="nav-label">Property research</p>
@@ -60,7 +59,7 @@
           <a href="#releases" data-route="releases"><span aria-hidden="true">▱</span>Published data</a>
         </nav>
         <div class="sidebar-note">
-          <a data-product-home href="http://localhost:5100/">← PropertyScope home</a>
+          <a data-product-home href="http://localhost:5100/">← Back to research workspace</a>
           <a data-product-path="operations/ai-mode/?feature_key=student-1-propertyscope-data-platform" href="http://localhost:5100/operations/ai-mode/?feature_key=student-1-propertyscope-data-platform">Activity history</a>
           <span>Specialist quality, file and coverage details are available from the relevant update or dataset.</span>
         </div>

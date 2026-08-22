@@ -1,6 +1,6 @@
 import { API_BASE, newRequestId, requestJson } from "./core/api.js";
 import { append, el } from "./core/dom.js";
-import { humanise } from "./core/formats.js?v=16";
+import { humanise } from "./core/formats.js?v=17";
 import { parseJsonField } from "./core/forms.js";
 import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
 import { parseRoute } from "./core/router.js?v=7";

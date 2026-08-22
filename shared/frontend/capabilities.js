@@ -1,9 +1,9 @@
-import { featureRegistry } from "./features.js?v=9";
+import { featureRegistry } from "./features.js?v=10";
 
 export const RELEASE_STAGES = Object.freeze([
   {
     id: "Available now",
-    label: "Property records and data operations",
+    label: "Property data",
     state: "current",
     summary: "Search NSW property records, inspect their evidence and maintain the datasets behind them.",
     capabilities: ["Property identity search", "Source and update history", "Published data review", "Recorded AI reviews"],

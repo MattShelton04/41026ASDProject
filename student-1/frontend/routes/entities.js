@@ -1,6 +1,6 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js?v=16";
+import { displayName, formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js?v=17";
 import { isPsiJob } from "../core/forms.js";
 import { routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js?v=17";

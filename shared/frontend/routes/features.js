@@ -1,6 +1,6 @@
-import { capabilityState } from "../capabilities.js?v=9";
-import { featureRegistry } from "../features.js?v=9";
-import { append, badge, el, link, pageHeader } from "../core.js";
+import { capabilityState } from "../capabilities.js?v=10";
+import { featureRegistry } from "../features.js?v=10";
+import { append, badge, el, link, pageHeader } from "../core.js?v=10";
 
 function featureCard(feature) {
   const card = el("article", "ps-card feature-directory-card");
@@ -15,7 +15,7 @@ function featureCard(feature) {
   append(body, heading, el("p", "", feature.summary));
   const actions = el("div", "feature-directory-card__actions");
   append(actions, badge(state.label, state.tone));
-  if (feature.href) append(actions, link("Open research area", feature.href, "ps-button ps-button--primary"));
+  if (feature.href) append(actions, link(`Open ${feature.label}`, feature.href, "ps-button ps-button--primary"));
   else append(actions, el("span", "feature-directory-card__unavailable", "Coming later"));
   append(body, actions);
   append(card, body);
@@ -30,7 +30,7 @@ export function createFeaturesRoute({ config }) {
     append(root, grid);
 
     const boundary = el("aside", "product-disclaimer feature-directory-boundary");
-    append(boundary, el("strong", "", "Property records are available now."), document.createTextNode(" Other research areas are clearly marked as planned and cannot be opened until they are ready."));
+    append(boundary, el("strong", "", "Property data is available now."), document.createTextNode(" Other research areas are clearly marked as planned and cannot be opened until they are ready."));
     append(root, boundary);
   };
 }

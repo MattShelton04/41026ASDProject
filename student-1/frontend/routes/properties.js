@@ -1,6 +1,6 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { confidenceLabel, coverageRows, displayName, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js?v=16";
+import { confidenceLabel, coverageRows, displayName, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js?v=17";
 import { routeQuery } from "../core/router.js";
 import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState } from "../components/states.js";

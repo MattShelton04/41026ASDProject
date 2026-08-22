@@ -177,6 +177,10 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.match(html, /<nav>/);
   assert.match(html, /id="header-property-search"/);
   assert.match(html, /aria-label="PropertyScope navigation"/);
+  assert.match(html, /Current research area[^<]*<\/b> Property data/);
+  assert.match(html, /Search Property data by address or reference/);
+  assert.match(html, /Back to research workspace/);
+  assert.doesNotMatch(html, /<a href="#properties" aria-current="page">Property search<\/a>/);
   assert.doesNotMatch(html, /Accepted data stays available during review/);
   assert.doesNotMatch(html, /Assisted diagnosis|Advanced operations/);
   assert.match(html, /<main id="main-content" tabindex="-1">/);
@@ -219,7 +223,7 @@ test("formatting pairs states with text and handles byte boundaries", () => {
   assert.equal(formatBytes(10 * 1024 * 1024), "10.0 MB");
   assert.equal(confidenceLabel(0.85714287), "Strong match (86%)");
   assert.equal(confidenceLabel(null), "Match confidence not supplied");
-  assert.equal(researchAreaLabel("feature-1"), "Property records");
+  assert.equal(researchAreaLabel("feature-1"), "Property data");
   assert.equal(researchAreaLabel("feature-4"), "Site & planning");
   assert.equal(researchAreaLabel("future-area"), "Future Area");
   assert.equal(displayName("Deterministic property critical-path fixture"), "Example property records update");

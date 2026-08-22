@@ -333,6 +333,8 @@ pre.json { max-height: 350px; overflow: auto; padding: .75rem; border-radius: 8p
 .workspace-strip span { display: inline-flex; align-items: center; gap: .35rem; }
 .workspace-strip span + span::before { content: "•"; margin-right: .6rem; color: var(--line-strong); }
 .workspace-strip i { width: 6px; height: 6px; border-radius: 50%; background: var(--positive); }
+.workspace-strip .workspace-strip__area { color: var(--navy); }
+.workspace-strip__area b { color: var(--ocean-dark); font-size: .56rem; letter-spacing: .06em; text-transform: uppercase; }
 .app-shell { min-height: calc(100vh - 93px); grid-template-columns: 218px minmax(0, 1fr); }
 .sidebar { top: 93px; height: calc(100vh - 93px); padding: .9rem .7rem; background: #f8faf9; }
 .context-card { margin-bottom: .8rem; padding: .58rem; background: var(--sky); }

@@ -1,9 +1,9 @@
-import { append, el, link, notice, parseShellRoute } from "./core.js";
-import { createEvidenceRoute } from "./routes/evidence.js?v=9";
-import { createFeaturesRoute } from "./routes/features.js?v=9";
-import { createRoadmapRoute } from "./routes/roadmap.js?v=9";
-import { createStatusRoute } from "./routes/status.js?v=9";
-import { featureRegistry } from "./features.js?v=9";
+import { append, el, link, notice, parseShellRoute } from "./core.js?v=10";
+import { createEvidenceRoute } from "./routes/evidence.js?v=10";
+import { createFeaturesRoute } from "./routes/features.js?v=10";
+import { createRoadmapRoute } from "./routes/roadmap.js?v=10";
+import { createStatusRoute } from "./routes/status.js?v=10";
+import { featureRegistry } from "./features.js?v=10";
 
 const defaults = Object.freeze({
   propertyDiscovery: "/features/data-platform/#properties",
@@ -72,7 +72,7 @@ function homeFeatureRow(feature) {
   const copy = el("div");
   append(copy, el("span", "area-kicker", feature.href ? "Available now" : "Planned"), el("h3", "", feature.label), el("p", "", feature.summary));
   append(article, icon, copy);
-  if (feature.href) append(article, link("Open research area", feature.href, "ps-button ps-button--primary"));
+  if (feature.href) append(article, link(`Open ${feature.label}`, feature.href, "ps-button ps-button--primary"));
   else append(article, el("span", "area-state", "Not available yet"));
   return article;
 }

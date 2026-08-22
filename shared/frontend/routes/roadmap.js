@@ -1,5 +1,5 @@
-import { capabilityManifest, capabilityState, RELEASE_STAGES } from "../capabilities.js?v=9";
-import { append, badge, cell, el, link, notice, pageHeader, panel, table } from "../core.js";
+import { capabilityManifest, capabilityState, RELEASE_STAGES } from "../capabilities.js?v=10";
+import { append, badge, cell, el, link, notice, pageHeader, panel, table } from "../core.js?v=10";
 
 function stageCard(stage) {
   const card = el("article", `ps-card roadmap-card roadmap-card--${stage.state}`);
@@ -17,7 +17,7 @@ export function createRoadmapRoute({ config }) {
   return function renderRoadmap(root) {
     const manifest = capabilityManifest(config);
     append(root, pageHeader("PropertyScope", "What’s available", "See which research tools you can use today and what is coming later.", [link("View data status", "#system-status", "ps-button ps-button--primary")]));
-    const mode = notice("success", "Property records are available", "Address search, source details, data updates and AI review history are ready to use.");
+    const mode = notice("success", "Property data is available", "Address search, source details, data updates and AI review history are ready to use.");
     append(root, mode);
     const stages = el("div", "ps-grid ps-grid-3 roadmap-grid");
     append(stages, ...RELEASE_STAGES.map(stageCard));

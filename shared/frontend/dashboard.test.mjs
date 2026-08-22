@@ -26,6 +26,16 @@ test("feature registry is the bounded source for shell routes and availability",
   assert.equal(findFeature("market-intelligence").href, undefined);
   assert.ok(features.every((item) => item.healthPath?.startsWith("/api/shared-health/")));
   assert.equal(featureRegistry({ propertyDiscovery: "/custom/#properties" })[0].href, "/custom/#properties");
+  assert.equal(features[0].label, "Property data");
+});
+
+test("shared navigation distinguishes global destinations from research-area transitions", () => {
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  assert.match(html, /class="area-launcher"/);
+  assert.match(html, /Open research area/);
+  assert.match(html, /class="rail-area-link"/);
+  assert.match(html, /Address search continues in the <strong>Property data<\/strong> research area/);
+  assert.doesNotMatch(html, /<a data-config-link="propertyDiscovery"[^>]*>Property search<\/a>/);
 });
 
 test("capability manifest separates implemented, enabled and planned states", () => {
@@ -54,7 +64,7 @@ test("evidence projections retain IDs, ownership labels, hashes and unknown cove
     release_version: "2026.08", record_count: 10, content_sha256: "abc", accepted_at: "2026-08-15T00:00:00Z",
   }] });
   assert.deepEqual(releases[0], {
-    id: "release-1", dataset: "addresses", area: "Property records", version: "2026.08",
+    id: "release-1", dataset: "addresses", area: "Property data", version: "2026.08",
     records: 10, acceptedAt: "2026-08-15T00:00:00Z", coverage: "unknown", hash: "abc",
   });
   const runs = agentRunReferences({ items: [{ id: "run-1", feature_key: "feature-4", status: "failed" }] });
@@ -101,6 +111,9 @@ test("AI workload dashboard leads with outcome and bounded recovery evidence", (
   const app = readFileSync(new URL("./operations/ai-mode/app.js", import.meta.url), "utf8");
   assert.match(html, /AI review result/);
   assert.match(html, /aria-label="PropertyScope navigation"/);
+  assert.match(html, /class="research-area-return"/);
+  assert.match(html, /Back to research area/);
+  assert.doesNotMatch(html, /<a href="\/features\/data-platform\/#properties">Property search<\/a>/);
   assert.match(html, /Technical performance/);
   for (const evidence of ["Schema repairs", "Provider retries", "Tool failures", "Replans"]) {
     assert.match(app, new RegExp(evidence));

@@ -1,6 +1,6 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=16";
+import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=17";
 import { parseJsonField } from "../core/forms.js";
 import { formField, filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";

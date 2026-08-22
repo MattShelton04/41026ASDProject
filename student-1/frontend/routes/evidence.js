@@ -1,6 +1,6 @@
 import { collection } from "../core/api.js";
 import { append, el, link } from "../core/dom.js";
-import { displayName, formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js?v=16";
+import { displayName, formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js?v=17";
 import { badge, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";

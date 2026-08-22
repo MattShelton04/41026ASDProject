@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light">
     <title>PropertyScope | Activity history</title>
     <link rel="stylesheet" href="/operations/ai-mode/design-system/tokens.css">
-    <link rel="stylesheet" href="/operations/ai-mode/assets/styles.css?v=5">
+    <link rel="stylesheet" href="/operations/ai-mode/assets/styles.css?v=6">
   </head>
   <body>
     <a class="skip-link" href="#run-detail">Skip to review detail</a>
@@ -21,16 +21,20 @@
         <span class="topbar-divider" aria-hidden="true"></span>
         <div>
           <h1>Activity history</h1>
-          <p>Recorded AI reviews</p>
+          <p>Shared view · Property data</p>
         </div>
       </div>
       <nav class="operations-nav" aria-label="PropertyScope navigation">
         <a href="/#home">Home</a>
-        <a href="/features/data-platform/#properties">Property search</a>
         <a href="/#features">Research areas</a>
         <a href="/#system-status">Data status</a>
         <a href="/#evidence">Sources &amp; history</a>
       </nav>
+      <a class="research-area-return" href="/features/data-platform/#properties" aria-label="Back to the Property data research area">
+        <span aria-hidden="true">⌁</span>
+        <span><small>Back to research area</small><strong>Property data</strong></span>
+        <b aria-hidden="true">→</b>
+      </a>
       <div class="connection" role="status" aria-live="polite">
         <span id="connection-dot" class="connection-dot" aria-hidden="true"></span>
         <span id="connection-state">Connecting…</span>
@@ -61,7 +65,7 @@
             <span>Research area</span>
             <select id="feature-filter" name="feature_key">
               <option value="">All areas</option>
-              <option value="student-1-propertyscope-data-platform">Property records</option>
+              <option value="student-1-propertyscope-data-platform">Property data</option>
             </select>
           </label>
           <label>
@@ -205,6 +209,6 @@
     </main>
 
     <div id="announcement" class="visually-hidden" role="status" aria-live="polite"></div>
-    <script type="module" src="/operations/ai-mode/assets/app.js?v=8"></script>
+    <script type="module" src="/operations/ai-mode/assets/app.js?v=9"></script>
   </body>
 </html>

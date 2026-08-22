@@ -1,5 +1,5 @@
-import { append, badge, cell, el, formatDate, link, notice, pageHeader, panel, requestJson, table } from "../core.js";
-import { featureRegistry } from "../features.js?v=9";
+import { append, badge, cell, el, formatDate, link, notice, pageHeader, panel, requestJson, table } from "../core.js?v=10";
+import { featureRegistry } from "../features.js?v=10";
 
 export function classifyHealth(payload) {
   const raw = String(payload?.status || "unknown").toLowerCase();
@@ -29,7 +29,10 @@ function healthCard(component) {
     append(facts, row);
   }
   append(body, facts);
-  if (component.href) append(body, link("Open operational detail", component.href, "ps-button ps-button--quiet health-card__link"));
+  if (component.href) {
+    const action = component.kind === "Feature API" ? `Open ${component.name}` : component.name === "AI review history" ? "Open Activity history" : "Open workspace";
+    append(body, link(action, component.href, "ps-button ps-button--quiet health-card__link"));
+  }
   append(card, body);
   return card;
 }
@@ -116,7 +119,7 @@ export function createStatusRoute({ config, announce }) {
           kind: "Owned dependency",
           owner: "Property data service",
           rawStatus: propertyApi.payload?.dependencies?.database,
-          detail: propertyApi.payload?.dependencies?.database === true ? "The public Property records API reports its owned database dependency ready." : "The owned data-store readiness check did not pass.",
+          detail: propertyApi.payload?.dependencies?.database === true ? "The Property data service reports its data store ready." : "The owned data-store readiness check did not pass.",
         }));
       }
       components.push(
