@@ -9,6 +9,7 @@ import {
   confidenceLabel,
   createGenerationGuard,
   coverageRows,
+  displayName,
   entity,
   formatBytes,
   isPsiJob,
@@ -174,6 +175,10 @@ test("the application shell exposes keyboard landmarks, live status and native d
   const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
   assert.match(html, /href="#main-content">Skip to main content/);
   assert.match(html, /<nav>/);
+  assert.match(html, /id="header-property-search"/);
+  assert.match(html, /aria-label="PropertyScope navigation"/);
+  assert.doesNotMatch(html, /Accepted data stays available during review/);
+  assert.doesNotMatch(html, /Assisted diagnosis|Advanced operations/);
   assert.match(html, /<main id="main-content" tabindex="-1">/);
   assert.match(html, /id="live-region"[^>]+aria-live="polite"/);
   assert.match(html, /<dialog id="entity-dialog"/);
@@ -208,7 +213,7 @@ test("coverage matrices flatten into accessible table rows", () => {
 });
 
 test("formatting pairs states with text and handles byte boundaries", () => {
-  assert.deepEqual(stateLabel("accepted"), { text: "Accepted", tone: "positive", symbol: "✓" });
+  assert.deepEqual(stateLabel("accepted"), { text: "Published", tone: "positive", symbol: "✓" });
   assert.deepEqual(stateLabel("stale"), { text: "Stale", tone: "warning", symbol: "△" });
   assert.equal(formatBytes(1024), "1.00 KB");
   assert.equal(formatBytes(10 * 1024 * 1024), "10.0 MB");
@@ -217,6 +222,8 @@ test("formatting pairs states with text and handles byte boundaries", () => {
   assert.equal(researchAreaLabel("feature-1"), "Property records");
   assert.equal(researchAreaLabel("feature-4"), "Site & planning");
   assert.equal(researchAreaLabel("future-area"), "Future Area");
+  assert.equal(displayName("Deterministic property critical-path fixture"), "Example property records update");
+  assert.equal(displayName("G-NAF NSW address registry"), "G-NAF NSW address registry");
 });
 
 test("release comparison keeps candidate and accepted evidence visibly distinct", () => {
@@ -241,12 +248,13 @@ test("release CRUD and report-section routes are represented in the browser clie
     await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8"),
     await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8"),
   ].join("\n");
-  assert.match(source, /Create draft dataset/);
+  assert.match(source, /Create draft version/);
   assert.match(source, /method: item \? "PUT" : "POST"/);
   assert.match(source, /method: "DELETE"/);
   assert.match(source, /properties\/\$\{encodeURIComponent\(propertyRef\)\}\/report-section/);
-  assert.match(source, /Candidate and accepted predecessor/);
-  assert.match(source, /Deterministic quality review/);
+  assert.match(source, /New and published versions/);
+  assert.match(source, /Data checks/);
+  assert.doesNotMatch(source, /Deterministic quality review/);
   assert.match(source, /item\.release_version \|\| item\.dataset_release_id/);
   assert.match(source, /badge\(item\.coverage_status\)/);
 });
@@ -255,13 +263,14 @@ test("release details render bounded paginated dataset records", async () => {
   const releases = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
   assert.match(releases, /dataset-releases\/\$\{id\}\/records\?limit=25&offset=0/);
   assert.match(releases, /function releasePreviewPanel/);
-  assert.match(releases, /No other release is mixed into this view/);
+  assert.match(releases, /No other version is included/);
   assert.match(releases, /Next page/);
 });
 
-test("data product catalogue distinguishes missing contract-valid release evidence", async () => {
+test("data product catalogue clearly identifies a missing published version", async () => {
   const products = await readFile(new URL("../../frontend/routes/data-products.js", import.meta.url), "utf8");
-  assert.match(products, /No contract-valid release yet/);
+  assert.match(products, /No published version yet/);
+  assert.doesNotMatch(products, /contract-valid release/);
   assert.doesNotMatch(products, /\|\| "None"/);
 });
 
@@ -276,12 +285,12 @@ test("operator UI exposes working submit controls, backfills and durable histori
   ].join("\n");
   assert.match(source, /search\.type = "submit"/);
   assert.match(source, /apply\.type = "submit"/);
-  assert.match(source, /button\("Run now"/);
-  assert.match(source, /button\("Backfill"/);
+  assert.match(source, /button\("Start update"/);
+  assert.match(source, /button\("Load earlier data"/);
   assert.match(source, /First annual archive/);
-  assert.match(source, /Complete PSI history/);
-  assert.match(source, /Preview deterministic plan/);
-  assert.match(source, /link\("Run history"/);
+  assert.match(source, /Complete sales history/);
+  assert.match(source, /Preview update/);
+  assert.match(source, /link\("Update history"/);
   assert.match(source, /`#ai\/release:\$\{linkedRelease\.id\}\?goal=\$\{failed \? "quality" : "compare"\}`/);
 });
 
@@ -309,12 +318,13 @@ test("property discovery consumes shell search queries and stays product-facing"
   assert.match(source, /routeQuery\(location\.hash\)\.get\("q"\)/);
   assert.match(source, /if \(input\.value\) queueMicrotask/);
   assert.match(source, /Explore NSW properties/);
-  assert.match(source, /which evidence is available/);
+  assert.match(source, /which sources and research data are available/);
   assert.doesNotMatch(source, /Feature [1-5]|buyer features|Dossier report/);
   assert.match(source, /#properties\/\$\{encodeURIComponent\(item\.property_ref\)\}/);
-  assert.match(source, /Technical references and coordinates for every result/);
+  assert.match(source, /Property references and coordinates/);
   assert.match(source, /confidenceLabel/);
-  assert.match(source, /Advanced identity evidence/);
+  assert.match(source, /Property identifiers and coordinates/);
+  assert.doesNotMatch(source, /Advanced identity evidence/);
 });
 
 test("live acquisition controls use truthful runtime capability evidence", async () => {
@@ -323,7 +333,7 @@ test("live acquisition controls use truthful runtime capability evidence", async
     await readFile(new URL("../../frontend/routes/run-plan.js", import.meta.url), "utf8"),
   ].join("\n");
   assert.match(app, /request\("runtime-capabilities"\)/);
-  assert.match(app, /requires --full-data/);
+  assert.match(app, /Official source imports are disabled in this workspace/);
   assert.match(app, /implemented_live_profiles/);
   assert.match(app, /liveOption\.disabled = !liveAvailable/);
   assert.match(app, /Maximum addresses/);
@@ -331,28 +341,28 @@ test("live acquisition controls use truthful runtime capability evidence", async
   assert.match(app, /Detected official archive years/);
 });
 
-test("AI diagnosis history is loaded from the durable shared service projection", async () => {
+test("AI review history is loaded from the shared service projection without redundant consent", async () => {
   const source = await readFile(new URL("../../frontend/routes/ai-diagnosis.js", import.meta.url), "utf8");
   assert.match(source, /request\("agent-runs\?limit=10"\)/);
-  assert.match(source, /disclosurePanel\("Recent diagnosis history"/);
+  assert.match(source, /disclosurePanel\("Recent AI reviews"/);
   assert.match(source, /`#ai\/\$\{run\.id\}`/);
   assert.match(source, /selectedAgentRun/);
   assert.match(source, /OBJECTIVES = Object\.freeze/);
   assert.doesNotMatch(source, /el\("textarea"\)/);
-  assert.match(source, /\?run=\$\{encodeURIComponent\(runId\)\}/);
+  assert.doesNotMatch(source, /review-acknowledgement|type = "checkbox"/);
+  assert.match(source, /url\.searchParams\.set\("run", runId\)/);
   assert.match(source, /nextAgentPollDelay/);
   assert.match(source, /recordedSteps\?\.length \? recordedSteps : events/);
   assert.match(source, /aria-live/);
-  assert.match(source, /Recommended recovery/);
-  assert.match(source, /Recovered automatically from/);
+  assert.match(source, /Recommended next step/);
+  assert.match(source, /The review recovered from/);
   assert.match(source, /recommended_next_step/);
   assert.match(source, /function traceStep/);
 });
 
-test("evidence explorers require an exact run and preserve unknown states", async () => {
+test("specialist detail views require an exact data update", async () => {
   const source = await readFile(new URL("../../frontend/routes/evidence.js", import.meta.url), "utf8");
-  assert.match(source, /Choose a processing run/);
-  assert.match(source, /Evidence from different runs is kept separate/);
-  assert.match(source, /unknown evidence state, not a confirmed negative/);
+  assert.match(source, /Choose a data update/);
+  assert.match(source, /The selected update has no recorded/);
   assert.match(source, /#\$\{kind\}\/\$\{run\.id\}/);
 });

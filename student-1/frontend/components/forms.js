@@ -1,5 +1,5 @@
 import { append, button, el } from "../core/dom.js";
-import { humanise } from "../core/formats.js";
+import { humanise } from "../core/formats.js?v=16";
 
 export function filterToolbar({ search = "", status = "", statuses = [], placeholder = "Filter results", onApply }) {
   const form = el("form", "toolbar");

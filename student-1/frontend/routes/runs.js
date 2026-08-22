@@ -1,10 +1,10 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { formatDate, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js";
+import { displayName, formatDate, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=16";
 import { actionAvailability, nextPollDelay } from "../core/polling.js";
 import { parseRoute, routeQuery } from "../core/router.js";
-import { filterToolbar } from "../components/forms.js";
-import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
+import { filterToolbar } from "../components/forms.js?v=17";
+import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
 
@@ -19,7 +19,7 @@ function runTimeline(tasks) {
     const marker = el("span", `timeline-marker ${tone}`, stateLabel(task.status).symbol);
     const detail = el("div");
     append(detail, el("h3", "", `${humanise(task.stage)} · ${task.logical_key || "Task"}`), el("p", "", `${humanise(task.status)} · attempt ${task.attempt_number ?? 1} · ${formatNumber(task.rows_out)} rows out`));
-    if (task.error_json) append(detail, technicalDetails(task.error_json, "Safe failure evidence"));
+    if (task.error_json) append(detail, technicalDetails(task.error_json, "Failure details"));
     append(item, marker, detail);
     append(list, item);
   }
@@ -38,24 +38,24 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
       const runs = allRuns.filter((run) => (!filters.job || run.job_definition_id === filters.job)
         && (!search || [run.id, run.job_name, run.request_id, run.dataset_id].some((value) => String(value || "").toLowerCase().includes(search))));
       view.replaceChildren();
-      append(view, pageHeading("Property records", "Processing runs", "Follow each data update from download to quality review. A failed run never replaces the dataset already available to property research.", [link("Start from an import job", "#jobs", "button primary")]));
+      append(view, pageHeading("Property data", "Update history", "Track each data update from download through checks and publication review.", [link("Choose a data update", "#jobs", "button primary")]));
       if (filters.job) {
         const jobFilter = el("div", "notice notice-actions");
         append(jobFilter, el("span", "", `Showing history for job ${filters.job}.`), link("Clear job filter", "#runs", "button secondary small"));
         append(view, jobFilter);
       }
-      append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: RUN_FILTERS, placeholder: "Run, job or request ID", onApply: (values) => { location.hash = `#runs${queryString({ ...values, job: filters.job })}`; rerender(); } }));
-      if (!runs.length) { append(view, emptyState("No runs found", "Launch a validated job plan or adjust the current filters.", link("Open jobs", "#jobs", "button primary"))); return; }
-      const table = makeTable([{ label: "Run" }, { label: "Mode" }, { label: "Progress" }, { label: "Rows accepted" }, { label: "Requested" }, { label: "Request ID" }], runs, (run) => {
+      append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: RUN_FILTERS, placeholder: "Update name or reference", onApply: (values) => { location.hash = `#runs${queryString({ ...values, job: filters.job })}`; rerender(); } }));
+      if (!runs.length) { append(view, emptyState("No updates found", "Start a saved data update or adjust the current filters.", link("View data updates", "#jobs", "button primary"))); return; }
+      const table = makeTable([{ label: "Update" }, { label: "Method" }, { label: "Status" }, { label: "Rows loaded" }, { label: "Started" }, { label: "Reference" }], runs, (run) => {
         const row = el("tr");
-        append(row, cell(primaryCell(run.job_name || `Run ${String(run.id).slice(0, 8)}`, run.id)), cell(humanise(run.run_mode)), cell(badge(run.status)), cell(formatNumber(run.rows_accepted), "numeric"), cell(formatDate(run.requested_at)), cell(run.request_id || "—", "mono"));
+        append(row, cell(primaryCell(displayName(run.job_name || `Update ${String(run.id).slice(0, 8)}`), run.id)), cell(humanise(run.run_mode)), cell(badge(run.status)), cell(formatNumber(run.rows_accepted), "numeric"), cell(formatDate(run.requested_at)), cell(run.request_id || "—", "mono"));
         row.tabIndex = 0;
         row.setAttribute("aria-label", `Open run ${run.id}`);
         row.addEventListener("click", () => { location.hash = `#runs/${run.id}`; });
         row.addEventListener("keydown", (event) => { if (event.key === "Enter") location.hash = `#runs/${run.id}`; });
         return row;
-      }, "Processing run history");
-      append(view, panel(`${runs.length} runs`, "Newest first", table));
+      }, "Data update history");
+      append(view, panel(`${runs.length} updates`, "Newest first", table));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
   }
 
@@ -85,18 +85,18 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
           else renderRunDetail(id);
         } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }
       }));
-      if (availability.resume) runAction("resume", "Resume", "Continue the existing non-terminal run from durable task evidence.");
-      if (availability.retry) runAction("retry", "Retry failed", "Create a linked full-pipeline retry with the failed run retained as its parent evidence.");
-      if (availability.reprocess) runAction("reprocess-cached", "Reprocess cached", "Create a linked child run using verified cached artifacts and current transforms.");
-      if (availability.cancel) runAction("cancel", "Cancel", "Request cooperative cancellation. Completed evidence will remain available.", "danger");
+      if (availability.resume) runAction("resume", "Resume update", "Continue this interrupted update from its last saved step.");
+      if (availability.retry) runAction("retry", "Retry update", "Start the full update again while keeping this failed attempt in the history.");
+      if (availability.reprocess) runAction("reprocess-cached", "Use downloaded file", "Start again with the already downloaded and verified file.");
+      if (availability.cancel) runAction("cancel", "Cancel update", "Stop the update. Completed steps will remain in its history.", "danger");
       if (availability.diagnose) {
         const failed = run.status === "failed";
         actions.push(button(failed ? "Explain this failure" : "Ask AI about run", `button ${failed ? "primary" : "secondary"}`, () => { location.hash = linkedRelease ? `#ai/release:${linkedRelease.id}?goal=${failed ? "quality" : "compare"}` : "#ai"; }));
       }
-      append(view, pageHeading("Processing run", run.job_name || `Run ${String(id).slice(0, 8)}`, `${humanise(run.run_mode)} · started ${formatDate(run.requested_at)}`, actions));
+      append(view, pageHeading("Data update", displayName(run.job_name || `Update ${String(id).slice(0, 8)}`), `${humanise(run.run_mode)} · started ${formatDate(run.requested_at)}`, actions));
       if (run.error_json) append(view, el("div", "notice negative", `${run.error_json.message || run.error_json.detail || "The run recorded a classified failure."} The previously accepted release remains unchanged.`));
       const metrics = el("div", "metric-strip");
-      for (const [label, value] of [["Discovered", formatNumber(run.rows_discovered)], ["Staged", formatNumber(run.rows_staged)], ["Accepted", formatNumber(run.rows_accepted)], ["Rejected", formatNumber(run.rows_rejected)]]) {
+      for (const [label, value] of [["Found", formatNumber(run.rows_discovered)], ["Prepared", formatNumber(run.rows_staged)], ["Loaded", formatNumber(run.rows_accepted)], ["Rejected", formatNumber(run.rows_rejected)]]) {
         const metric = el("div"); append(metric, el("span", "", label), el("strong", "", value)); append(metrics, metric);
       }
       append(view, metrics);
@@ -105,11 +105,11 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
       append(runBody, runTimeline(tasks));
       const evidence = el("div", "stack");
       append(evidence,
-        panel("Run status", "Current recorded state", detailList([["Status", badge(run.status)], ["Last heartbeat", formatDate(run.heartbeat_at)], ["Attempt", run.attempt_number], ["Previous run", run.parent_run_id ? link(String(run.parent_run_id), `#runs/${run.parent_run_id}`) : "None"], ["Request ID", el("code", "mono", run.request_id || detailResult.requestId)], ["Finished", formatDate(run.finished_at)]])),
-        panel("Processing checkpoints", "Progress here does not change published data", detailList([["Input checkpoint", JSON.stringify(run.input_checkpoint_json || {})], ["Candidate checkpoint", JSON.stringify(run.output_checkpoint_json || {})], ["Published watermark", JSON.stringify(run.accepted_watermark_json || {})]])),
-        panel("Evidence from this run", "Quality and file records", detailList([["Quality checks", link(`${quality.length} results`, `#quality/${id}`)], ["Files & lineage", link(`${artifacts.length} records`, `#artifacts/${id}`)]])),
+        panel("Update status", "Current state", detailList([["Status", badge(run.status)], ["Last activity", formatDate(run.heartbeat_at)], ["Attempt", run.attempt_number], ["Previous update", run.parent_run_id ? link(String(run.parent_run_id), `#runs/${run.parent_run_id}`) : "None"], ["Reference", el("code", "mono", run.request_id || detailResult.requestId)], ["Finished", formatDate(run.finished_at)]])),
+        panel("Saved progress", "Technical checkpoints used if the update must resume", detailList([["Input checkpoint", JSON.stringify(run.input_checkpoint_json || {})], ["Candidate checkpoint", JSON.stringify(run.output_checkpoint_json || {})], ["Published watermark", JSON.stringify(run.accepted_watermark_json || {})]])),
+        panel("Checks and files", "Specialist details for this update", detailList([["Quality checks", link(`${quality.length} results`, `#quality/${id}`)], ["Files and lineage", link(`${artifacts.length} records`, `#artifacts/${id}`)]])),
       );
-      append(grid, panel("Processing timeline", `${tasks.length} recorded tasks`, runBody), evidence);
+      append(grid, panel("Update timeline", `${tasks.length} recorded steps`, runBody), evidence);
       append(view, grid);
       append(view, panel("Technical run details", "Expandable record for troubleshooting and audit", technicalDetails(detailResult.body)));
       if (polling) window.scrollTo({ top: scrollTop });

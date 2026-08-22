@@ -1,8 +1,8 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { confidenceLabel, coverageRows, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js?v=7";
+import { confidenceLabel, coverageRows, displayName, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js?v=16";
 import { routeQuery } from "../core/router.js";
-import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=7";
+import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
 
@@ -11,7 +11,7 @@ export function createPropertyRoutes({ view, request, announce }) {
     if (propertyRef) return renderPropertyDetail(propertyRef);
     view.replaceChildren();
     const hero = el("section", "discovery-hero");
-    append(hero, el("p", "eyebrow", "Property search"), el("h1", "", "Explore NSW properties"), el("p", "", "Find a stable property record before you begin further research. Every result shows how the address was resolved and which evidence is available."));
+    append(hero, el("p", "eyebrow", "Property search"), el("h1", "", "Explore NSW properties"), el("p", "", "Find a NSW address and see which sources and research data are available for it."));
     const form = el("form", "search-box");
     const input = el("input");
     input.type = "search";
@@ -68,12 +68,12 @@ export function createPropertyRoutes({ view, request, announce }) {
       [{ label: "Address" }, { label: "Property reference" }, { label: "Latitude" }, { label: "Longitude" }, { label: "Resolution" }], items,
       (item) => { const row = el("tr"); append(row, cell(item.address_display, "primary-cell"), cell(item.property_ref, "mono"), cell(item.latitude ?? "Unknown"), cell(item.longitude ?? "Unknown"), cell(badge(item.resolution_status || "unknown"))); return row; },
     );
-    append(layout, panel(`${items.length} ${items.length === 1 ? "match" : "matches"}`, items.length > 5 ? "Showing the five best matches · choose one to continue" : "Choose a property to continue", listBody), disclosurePanel("All match details", "Technical references and coordinates for every result", coordinateRows));
+    append(layout, panel(`${items.length} ${items.length === 1 ? "match" : "matches"}`, items.length > 5 ? "Showing the five best matches · choose one to continue" : "Choose a property to continue", listBody), disclosurePanel("All match details", "Property references and coordinates", coordinateRows));
     host.replaceChildren(layout);
   }
 
   async function renderPropertyDetail(propertyRef) {
-    view.replaceChildren(el("section", "loading-state", "Loading canonical property evidence…"));
+    view.replaceChildren(el("section", "loading-state", "Loading property details…"));
     try {
       const [detailResult, mapResult, coverageResult, reportResult] = await Promise.allSettled([
         request(`properties/${encodeURIComponent(propertyRef)}`),
@@ -98,14 +98,14 @@ export function createPropertyRoutes({ view, request, announce }) {
       const mapPanel = el("div", "map-context");
       const latitude = map.latitude ?? map.coordinates?.latitude ?? property.latitude ?? property.coordinates?.latitude;
       const longitude = map.longitude ?? map.coordinates?.longitude ?? property.longitude ?? property.coordinates?.longitude;
-      append(mapPanel, el("span", "map-pin", "⌖"), el("div", "map-caption", `${latitude ?? "Unknown latitude"}, ${longitude ?? "unknown longitude"} · Visual coordinate context; the table below is the authoritative accessible fallback.`));
+      append(mapPanel, el("span", "map-pin", "⌖"), el("div", "map-caption", `${latitude ?? "Unknown latitude"}, ${longitude ?? "unknown longitude"} · Coordinates are also listed below.`));
       append(body, mapPanel);
-      append(body, detailList([["Canonical address", property.address_display || property.display_address], ["Locality", property.locality], ["State", property.state], ["Postcode", property.postcode], ["Identity status", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)]]));
+      append(body, detailList([["Address", property.address_display || property.display_address], ["Locality", property.locality], ["State", property.state], ["Postcode", property.postcode], ["Match status", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)]]));
       const technicalBody = el("div", "stack");
       append(technicalBody, detailList([["PropertyScope reference", el("code", "mono", property.property_ref)], ["Request ID", el("code", "mono", detailResult.value.requestId)]]));
-      append(technicalBody, makeTable([{ label: "Coordinate evidence" }, { label: "Value" }], [{ label: "Latitude", value: latitude ?? "Unknown" }, { label: "Longitude", value: longitude ?? "Unknown" }, { label: "Geometry type", value: map.geometry?.type || property.geometry?.type || "Unknown" }], (item) => { const row = el("tr"); append(row, cell(item.label, "primary-cell"), cell(String(item.value), item.label === "Geometry type" ? "" : "mono")); return row; }));
-      append(technicalBody, evidenceTable("Identifiers and match evidence", detailPayload.identifiers || [], [
-        ["Scheme", (item) => item.scheme], ["Identifier", (item) => item.identifier_value], ["Match method", (item) => humanise(item.match_method)], ["Confidence", (item) => item.match_confidence ?? "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"], ["Evidence", (item) => item.evidence_json ? technicalDetails(item.evidence_json, "Inspect") : "Unknown"],
+      append(technicalBody, makeTable([{ label: "Coordinate" }, { label: "Value" }], [{ label: "Latitude", value: latitude ?? "Unknown" }, { label: "Longitude", value: longitude ?? "Unknown" }, { label: "Geometry type", value: map.geometry?.type || property.geometry?.type || "Unknown" }], (item) => { const row = el("tr"); append(row, cell(item.label, "primary-cell"), cell(String(item.value), item.label === "Geometry type" ? "" : "mono")); return row; }));
+      append(technicalBody, evidenceTable("Source identifiers", detailPayload.identifiers || [], [
+        ["Scheme", (item) => item.scheme], ["Identifier", (item) => item.identifier_value], ["Match method", (item) => humanise(item.match_method)], ["Confidence", (item) => item.match_confidence ?? "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"], ["Details", (item) => item.evidence_json ? technicalDetails(item.evidence_json, "Inspect") : "Unknown"],
       ], "No source identifiers are recorded. Identity confidence is therefore unknown."));
       append(technicalBody, evidenceTable("Address aliases", detailPayload.aliases || [], [
         ["Alias", (item) => item.alias_display], ["Kind", (item) => humanise(item.alias_kind)], ["Source identifier", (item) => item.source_identifier || "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"],
@@ -113,15 +113,15 @@ export function createPropertyRoutes({ view, request, announce }) {
       const cards = el("div", "coverage-grid");
       for (const item of coverage) {
         const card = el("div", `coverage-card ${statusTone(item.status || item.coverage_status || item.state)}`);
-        append(card, el("strong", "", item.dataset || item.dataset_id || researchAreaLabel(item.feature || item.target_feature)), el("span", "", `${humanise(item.status || item.coverage_status || item.state)}${item.release_version ? ` · ${item.release_version}` : ""}${item.limitation ? ` · ${item.limitation}` : ""}`));
+        append(card, el("strong", "", displayName(item.dataset || item.dataset_id || researchAreaLabel(item.feature || item.target_feature))), el("span", "", `${humanise(item.status || item.coverage_status || item.state)}${item.release_version ? ` · ${item.release_version}` : ""}${item.limitation ? ` · ${item.limitation}` : ""}`));
         append(cards, card);
       }
       if (coverage.length) append(body, el("h2", "", "Available research coverage"), cards);
-      else append(body, emptyState("Coverage is unknown", coverageResult.status === "rejected" ? `Coverage evidence is temporarily unavailable.${problemSuffix(coverageResult.reason)}` : "No accepted coverage entries are recorded. This does not confirm absence."));
+      else append(body, emptyState("Coverage is unknown", coverageResult.status === "rejected" ? `Coverage details are temporarily unavailable.${problemSuffix(coverageResult.reason)}` : "No published coverage has been recorded for this property."));
       append(technicalBody, renderPropertyReportSection(reportResult.status === "fulfilled" ? reportResult.value : { error: reportResult.reason }));
-      append(body, disclosurePanel("Advanced identity evidence", "Technical identifiers, coordinates, aliases and cross-feature response evidence", technicalBody));
+      append(body, disclosurePanel("Property identifiers and coordinates", "Source identifiers, coordinates and address aliases", technicalBody));
       if (mapResult.status === "rejected") append(body, el("div", "notice warning", `Spatial context is temporarily unavailable; canonical identity remains usable.${problemSuffix(mapResult.reason)}`));
-      append(view, panel("Property identity and evidence", "Source-attributed address, location and coverage details", body));
+      append(view, panel("Property details", "Address, location and available research data", body));
     } catch (error) {
       view.replaceChildren(errorState(error, () => renderPropertyDetail(propertyRef)));
     }
@@ -131,12 +131,12 @@ export function createPropertyRoutes({ view, request, announce }) {
     const section = el("section", "panel report-section");
     const heading = el("div", "panel-heading");
     const copy = el("div");
-    append(copy, el("h3", "", "Evidence summary"), el("p", "", "Bounded identity and accepted dataset facts for reuse in reports"));
+    append(copy, el("h3", "", "Source summary"), el("p", "", "Property identity and published dataset details that can be reused in reports"));
     append(heading, copy);
     append(section, heading);
     const body = el("div", "panel-body");
     if (result?.error) {
-      append(body, el("div", "notice warning", `Report evidence is temporarily unavailable. Property discovery remains usable.${result.error.requestId ? ` Request ID ${result.error.requestId}` : ""}`));
+      append(body, el("div", "notice warning", `The source summary is temporarily unavailable. Property search remains usable.${result.error.requestId ? ` Request ID ${result.error.requestId}` : ""}`));
       append(section, body);
       return section;
     }
@@ -148,20 +148,20 @@ export function createPropertyRoutes({ view, request, announce }) {
       ["G-NAF PID", identity.gnaf_pid || "Not supplied"],
       ["Resolution", humanise(identity.resolution_status)],
       ["Locality", identity.locality || "Not supplied"],
-      ["Evidence entries", formatNumber(report.evidence_count)],
+      ["Sources recorded", formatNumber(report.evidence_count)],
     ]));
     const releases = reportReleaseRows(report);
-    if (!releases.length) append(body, el("p", "", "No accepted dataset evidence is available for this summary."));
+    if (!releases.length) append(body, el("p", "", "No published datasets are available for this summary."));
     else append(body, makeTable(
-      [{ label: "Dataset" }, { label: "Research area" }, { label: "Release" }, { label: "Status" }, { label: "Accepted" }, { label: "Coverage" }],
+      [{ label: "Dataset" }, { label: "Research area" }, { label: "Version" }, { label: "Status" }, { label: "Published" }, { label: "Coverage" }],
       releases,
       (item) => {
         const row = el("tr");
-        append(row, cell(item.dataset_id || "—", "primary-cell"), cell(researchAreaLabel(item.target_feature)), cell(item.release_version || item.dataset_release_id || "—"), cell(badge(item.coverage_status)), cell(formatDate(item.accepted_at || item.checked_at)), cell(item.coverage_scope ? technicalDetails(item.coverage_scope, "Inspect") : "—"));
+        append(row, cell(displayName(item.dataset_id || "—"), "primary-cell"), cell(researchAreaLabel(item.target_feature)), cell(item.release_version || item.dataset_release_id || "—"), cell(badge(item.coverage_status)), cell(formatDate(item.accepted_at || item.checked_at)), cell(item.coverage_scope ? technicalDetails(item.coverage_scope, "Inspect") : "—"));
         return row;
       },
     ));
-    if (identity.geometry) append(body, technicalDetails(identity.geometry, "Report coordinate evidence"));
+    if (identity.geometry) append(body, technicalDetails(identity.geometry, "Report coordinates"));
     append(section, body);
     return section;
   }

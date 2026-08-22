@@ -1,7 +1,7 @@
 schema_version: propertyscope.source-register.v1
 sources:
   - key: fixture-property
-    display_name: Deterministic synthetic property snapshot
+    display_name: Example NSW property records
     publisher: PropertyScope project
     adapter_key: fixture-snapshot
     source_url: https://example.invalid/propertyscope/fixtures/property.csv

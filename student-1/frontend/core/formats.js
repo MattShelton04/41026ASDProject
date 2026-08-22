@@ -1,8 +1,36 @@
 import { collection } from "./api.js";
 import { ACTIVE_RUN_STATES } from "./polling.js";
 
+const PRODUCT_LABELS = Object.freeze({
+  "deterministic property critical-path fixture": "Example property records update",
+  "deterministic property fixture full refresh": "Example property records update",
+  "deterministic synthetic property snapshot": "Example NSW property records",
+  "fixture-property": "Example property records",
+  "fixture-property-full": "Example property update profile",
+  "fixture-snapshot": "Example data source",
+  "fixture backed": "Example data",
+  "fixture_backed": "Example data",
+  "full_refresh": "Replace current data",
+  "reprocess_cached": "Recheck downloaded data",
+  "backfill": "Load earlier data",
+  "candidate": "Ready for review",
+  "accepted": "Published",
+  "superseded": "Replaced",
+  "nsw-psi-sales": "NSW property sales",
+  "bocsar-crime": "NSW recorded crime",
+  "nsw-government-schools": "NSW government schools",
+  "gnaf-nsw": "NSW address records",
+});
+
+export function displayName(value) {
+  if (value === null || value === undefined || value === "") return "Not recorded";
+  return PRODUCT_LABELS[String(value).toLowerCase()] || String(value);
+}
+
 export function humanise(value) {
   if (value === null || value === undefined || value === "") return "Not recorded";
+  const knownLabel = PRODUCT_LABELS[String(value).toLowerCase()];
+  if (knownLabel) return knownLabel;
   return String(value).replaceAll("_", " ").replaceAll("-", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
