@@ -1,7 +1,8 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=17";
-import { parseJsonField } from "../core/forms.js";
+import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js";
+import { runDialogForm } from "../components/dialogs.js";
 import { formField, filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState } from "../components/states.js";
@@ -12,22 +13,31 @@ const RELEASE_FIELDS = [
   { name: "source_definition_id", label: "Source definition ID", required: true, createOnly: true },
   { name: "ingestion_run_id", label: "Ingestion run ID", required: true, createOnly: true },
   { name: "target_feature", label: "Research area key", required: true, createOnly: true },
-  { name: "release_version", label: "Release version", required: true },
+  { name: "release_version", label: "Release version", required: true, maxLength: 100 },
   { name: "schema_version", label: "Schema version", required: true },
   { name: "coverage", label: "Coverage evidence", type: "json", wide: true },
   { name: "record_count", label: "Record count", type: "number", min: 0, required: true },
-  { name: "content_sha256", label: "Content SHA-256", required: true, wide: true, pattern: "[0-9a-f]{64}" },
+  { name: "content_sha256", label: "Content SHA-256", required: true, wide: true, pattern: "[0-9a-f]{64}", help: "Exactly 64 lowercase hexadecimal characters." },
   { name: "artifact_record_id", label: "Artifact record ID", required: true, createOnly: true },
   { name: "manifest", label: "Dataset manifest", type: "json", wide: true },
-  { name: "review_comment", label: "Review note", type: "textarea", wide: true },
+  { name: "review_comment", label: "Review note", type: "textarea", wide: true, maxLength: 2000, help: "Up to 2,000 characters; optional until this version is submitted for review." },
 ];
+
+export function releaseLifecycleContext(status) {
+  if (status === "accepted") return { tone: "positive", message: "This is the published version currently available to its PropertyScope research area." };
+  if (status === "superseded") return { tone: "warning", message: "This published version has been replaced by a newer accepted version and remains available as history." };
+  if (status === "rejected") return { tone: "negative", message: "This version was rejected and is not published. The current published version remains in use." };
+  if (["review", "review_required", "awaiting_review"].includes(status)) return { tone: "warning", message: "This version is awaiting human review and is not yet published. The current published version remains in use." };
+  if (["validated", "candidate"].includes(status)) return { tone: "warning", message: "This version is ready for review but is not published. The current published version remains in use." };
+  return { tone: "", message: "This draft version is not published. The current published version remains in use while it is prepared." };
+}
 
 function hasBlockingFailures(results) {
   return results.some((item) => item.severity === "blocking" && ["fail", "failed", "error"].includes(item.status));
 }
 
 export function createReleaseRoutes({
-  view, request, loading, entityDialog, entityForm, confirmAction, mutate, showToast, rerender,
+  view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, rerender,
 }) {
   async function openReleaseDialog(item = null) {
     document.querySelector("#entity-kicker").textContent = "Dataset release";
@@ -37,30 +47,34 @@ export function createReleaseRoutes({
     fieldHost.replaceChildren(...RELEASE_FIELDS.map((definition) => formField(
       { ...definition, disabled: Boolean(item && definition.createOnly) }, valueFor(definition.name),
     )));
-    document.querySelector("#entity-error").textContent = "";
-    entityDialog.returnValue = "";
-    entityDialog.showModal();
-    entityDialog.querySelector("input:not(:disabled), select:not(:disabled), textarea:not(:disabled)")?.focus();
-    const closed = new Promise((resolve) => entityDialog.addEventListener("close", () => resolve(entityDialog.returnValue), { once: true }));
-    if (await closed !== "save") return;
-    const data = Object.fromEntries(new FormData(entityForm));
-    try {
-      data.coverage = parseJsonField(data.coverage, "Coverage evidence");
-      data.manifest = parseJsonField(data.manifest, "Manifest");
-      data.record_count = Number(data.record_count);
-      data.review_comment = data.review_comment?.trim() || null;
-      if (item) data.version = item.version;
-      else data.status = "draft";
-      const result = await request(`dataset-releases${item ? `/${encodeURIComponent(item.id)}` : ""}`, {
-        method: item ? "PUT" : "POST", body: data,
-      });
-      showToast(`Draft release ${item ? "updated" : "created"}. Request ID ${result.requestId}`);
-      const saved = entity(result.body, "release");
-      if (!item && saved?.id) location.hash = `#releases/${saved.id}`;
-      else await rerender();
-    } catch (error) {
-      showToast(`${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`);
-    }
+    let savedRelease = null;
+    const saved = await runDialogForm({
+      dialog: entityDialog,
+      form: entityForm,
+      submitButton: document.querySelector("#entity-save"),
+      errorHost: document.querySelector("#entity-error"),
+      acceptedValue: "save",
+      progressLabel: item ? "Saving metadata…" : "Creating draft…",
+      discardMessage: "Discard your unsaved draft release changes?",
+      confirmDiscard,
+      onSubmit: async () => {
+        const data = Object.fromEntries(new FormData(entityForm));
+        data.coverage = parseJsonField(data.coverage, "Coverage evidence", "coverage");
+        data.manifest = parseJsonField(data.manifest, "Dataset manifest", "manifest");
+        data.record_count = parseIntegerField(data.record_count, "Record count", { fieldName: "record_count", minimum: 0 });
+        data.review_comment = data.review_comment?.trim() || null;
+        if (item) data.version = item.version;
+        else data.status = "draft";
+        const result = await request(`dataset-releases${item ? `/${encodeURIComponent(item.id)}` : ""}`, {
+          method: item ? "PUT" : "POST", body: data,
+        });
+        savedRelease = entity(result.body, "release");
+        showToast(`Draft release ${item ? "updated" : "created"}. Request ID ${result.requestId}`);
+      },
+    });
+    if (!saved) return;
+    if (!item && savedRelease?.id) location.hash = `#releases/${savedRelease.id}`;
+    else await rerender();
   }
 
   async function renderReleases(id = "") {
@@ -75,11 +89,11 @@ export function createReleaseRoutes({
         .some((value) => String(value || "").toLowerCase().includes(filters.q.toLowerCase()))) : releases;
       view.replaceChildren();
       append(view, pageHeading("Property data", "Published data", "Review new data before it replaces the version currently used in property research.", [button("Create draft version", "button primary", () => openReleaseDialog())]));
-      append(view, filterToolbar({ ...filters, statuses: ["", "draft", "candidate", "awaiting_review", "accepted", "rejected", "superseded"], placeholder: "Dataset, version or research area", onApply: (values) => { location.hash = `#releases${queryString(values)}`; rerender(); } }));
+      append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: ["", "draft", "candidate", "awaiting_review", "accepted", "rejected", "superseded"], placeholder: "Dataset, version or research area", onApply: (values) => { location.hash = `#releases${queryString(values)}`; } }));
       if (!visible.length) { append(view, emptyState("No datasets found", filters.q || filters.status ? "Try clearing the current filters." : "A completed processing run can create a dataset for review.")); return; }
       append(view, panel(`${visible.length} data versions`, "New versions stay separate until they are reviewed and published", makeTable(
         [{ label: "Dataset / version" }, { label: "Research area" }, { label: "Records" }, { label: "State" }, { label: "Published" }, { label: "Checksum" }], visible,
-        (release) => { const row = el("tr"); append(row, cell(link(displayName(release.dataset_id || "Dataset"), `#releases/${release.id}`), "primary-cell"), cell(researchAreaLabel(release.target_feature)), cell(formatNumber(release.record_count), "numeric"), cell(badge(release.status)), cell(formatDate(release.accepted_at)), cell(String(release.content_sha256 || "—").slice(0, 12), "mono")); return row; },
+        (release) => { const row = el("tr"); const releaseLink = link(displayName(release.dataset_id || "Dataset"), `#releases/${release.id}`); append(row, cell(primaryCell(releaseLink, release.release_version || "Version not recorded"), "primary-cell"), cell(researchAreaLabel(release.target_feature)), cell(formatNumber(release.record_count), "numeric"), cell(badge(release.status)), cell(formatDate(release.accepted_at)), cell(String(release.content_sha256 || "—").slice(0, 12), "mono")); return row; },
       )));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
   }
@@ -103,33 +117,65 @@ export function createReleaseRoutes({
     const actions = [];
     if (["draft", "candidate"].includes(release.status)) actions.push(button("Edit metadata", "button secondary", () => openReleaseDialog(release)));
     if (["draft", "rejected"].includes(release.status)) actions.push(button("Delete", "button danger", async () => {
-      const ok = await confirmAction({ title: `Delete ${release.release_version}?`, description: "Only unused draft or rejected versions can be deleted. Existing checks and publishing records are kept.", label: "Delete version" });
+      const ok = await confirmAction({
+        title: `Delete ${release.release_version}?`,
+        description: "Only unused draft or rejected versions can be deleted. Existing checks and publishing records are kept.",
+        label: "Delete version",
+        progressLabel: "Deleting…",
+        onConfirm: () => mutate(`dataset-releases/${id}`, { method: "DELETE", body: undefined, success: "Release deleted" }),
+      });
       if (!ok) return;
-      try { await mutate(`dataset-releases/${id}`, { method: "DELETE", body: undefined, success: "Release deleted" }); location.hash = "#releases"; } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }
+      location.hash = "#releases";
     }));
     if (["validated", "candidate"].includes(release.status)) actions.push(button("Submit for review", "button secondary", async () => {
       const comment = requiredReviewText("Reviewer context");
-      const ok = await confirmAction({ title: "Submit this version for review?", description: "Failed required checks cannot be bypassed. This version stays separate until it is published.", label: "Submit for review", tone: "primary", extra: comment });
-      if (ok && comment.value.trim()) { await mutate(`dataset-releases/${id}/submit-review`, { body: { version: release.version, comment: comment.value.trim() }, success: "Candidate submitted" }); rerender(); }
-      else if (ok) showToast("A review comment is required.");
+      const ok = await confirmAction({
+        title: "Submit this version for review?",
+        description: "Failed required checks cannot be bypassed. This version stays separate until it is published.",
+        label: "Submit for review",
+        tone: "primary",
+        extra: comment,
+        progressLabel: "Submitting…",
+        discardMessage: "Discard your reviewer context?",
+        onConfirm: () => mutate(`dataset-releases/${id}/submit-review`, { body: { version: release.version, comment: requiredReviewValue(comment, "Reviewer context") }, success: "Candidate submitted" }),
+      });
+      if (ok) rerender();
     }));
     if (["review", "review_required", "awaiting_review"].includes(release.status) && !blocking) actions.push(button("Publish", "button primary", async () => {
       const comment = requiredReviewText("Approval note");
-      const ok = await confirmAction({ title: "Publish this version?", description: "Publishing sends this version to its destination. The current version stays in use unless the new version is published successfully.", label: "Publish version", tone: "primary", extra: comment });
-      if (ok && comment.value.trim()) { await mutate(`dataset-releases/${id}/publish`, { body: { approved: true, version: release.version, comment: comment.value.trim() }, success: "Publication requested" }); rerender(); }
-      else if (ok) showToast("An approval note is required.");
+      const ok = await confirmAction({
+        title: "Publish this version?",
+        description: "Publishing sends this version to its destination. The current version stays in use unless the new version is published successfully.",
+        label: "Publish version",
+        tone: "primary",
+        extra: comment,
+        progressLabel: "Publishing…",
+        discardMessage: "Discard your approval note?",
+        onConfirm: () => mutate(`dataset-releases/${id}/publish`, { body: { approved: true, version: release.version, comment: requiredReviewValue(comment, "Approval note") }, success: "Publication requested" }),
+      });
+      if (ok) rerender();
     }));
     if (["candidate", "review", "review_required", "awaiting_review"].includes(release.status)) actions.push(button("Reject", "button danger", async () => {
       const reason = requiredReviewText("Reason for rejection");
-      const ok = await confirmAction({ title: "Reject this version?", description: "The reason is recorded with the review. The current published data does not change.", label: "Reject version", extra: reason });
-      if (ok && reason.value.trim()) { await mutate(`dataset-releases/${id}/reject`, { body: { reason: reason.value.trim(), version: release.version }, success: "Candidate rejected" }); rerender(); }
-      else if (ok) showToast("A rejection reason is required.");
+      const ok = await confirmAction({
+        title: "Reject this version?",
+        description: "The reason is recorded with the review. The current published data does not change.",
+        label: "Reject version",
+        extra: reason,
+        progressLabel: "Rejecting…",
+        discardMessage: "Discard your rejection reason?",
+        onConfirm: () => mutate(`dataset-releases/${id}/reject`, { body: { reason: requiredReviewValue(reason, "Reason for rejection"), version: release.version }, success: "Candidate rejected" }),
+      });
+      if (ok) rerender();
     }));
     actions.push(button("Review with AI", "button secondary", () => { location.hash = `#ai/release:${id}`; }));
 
     view.replaceChildren();
     append(view, pageHeading("Dataset review", `${displayName(release.dataset_id)} ${release.release_version}`, `${researchAreaLabel(release.target_feature)} · ${formatNumber(release.record_count)} records`, actions));
-    if (!["accepted", "superseded"].includes(release.status)) append(view, el("div", "notice warning", "This version is not published. The current published version remains in use while you review it."));
+    const lifecycle = releaseLifecycleContext(release.status);
+    const lifecycleNotice = el("div", `notice ${lifecycle.tone}`.trim());
+    append(lifecycleNotice, badge(release.status), document.createTextNode(` ${lifecycle.message}`));
+    append(view, lifecycleNotice);
     if (blocking) append(view, el("div", "notice negative", "Required data checks failed, so this version cannot be published. Review the failures, then retry or reject it."));
     const layout = el("div", "detail-layout");
     const releaseBody = el("div");
@@ -150,9 +196,15 @@ export function createReleaseRoutes({
   function requiredReviewText(label) {
     const field = el("label", "dialog-review-field");
     append(field, el("span", "", `${label} (required)`));
-    const input = el("textarea"); input.required = true; input.maxLength = 2000; append(field, input);
+    const input = el("textarea"); input.id = "review-comment"; input.name = "review_comment"; input.required = true; input.maxLength = 2000; input.placeholder = "Record the evidence and next step for this decision"; append(field, input, el("small", "field-help", "Required · up to 2,000 characters. This note is recorded with the review decision."));
     Object.defineProperty(field, "value", { get: () => input.value });
     return field;
+  }
+
+  function requiredReviewValue(field, label) {
+    const value = field.value.trim();
+    if (!value) throw new FieldValidationError("review_comment", `${label} must include text, not only spaces.`, (candidate) => Boolean(String(candidate || "").trim()));
+    return value;
   }
 
   function releasePreviewPanel(releaseId, initialPage) {

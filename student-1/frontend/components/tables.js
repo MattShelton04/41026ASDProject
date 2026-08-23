@@ -1,7 +1,7 @@
 import { append, el } from "../core/dom.js";
+import { createTableRegion } from "../browser/index.js?v=3";
 
 export function makeTable(columns, rows, rowBuilder, captionText = "Data results") {
-  const wrap = el("div", "table-wrap");
   const table = el("table");
   const caption = el("caption", "visually-hidden", captionText);
   const thead = el("thead");
@@ -15,8 +15,7 @@ export function makeTable(columns, rows, rowBuilder, captionText = "Data results
   const tbody = el("tbody");
   rows.forEach((item, index) => append(tbody, rowBuilder(item, index)));
   append(table, caption, thead, tbody);
-  append(wrap, table);
-  return wrap;
+  return createTableRegion(table, captionText, { className: "table-wrap" });
 }
 
 export function cell(content, className = "") {
@@ -26,7 +25,8 @@ export function cell(content, className = "") {
 }
 
 export function primaryCell(primary, secondary = "") {
-  const node = el("span", "primary-cell", primary || "Untitled");
+  const node = el("span", "primary-cell");
+  append(node, primary instanceof Node ? primary : document.createTextNode(String(primary || "Untitled")));
   if (secondary) append(node, el("span", "sub-cell", secondary));
   return node;
 }

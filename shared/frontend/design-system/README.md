@@ -21,10 +21,12 @@ shared primitives, but should not redefine token values locally.
 
 - `--ps-*` custom properties in `tokens.css`
 - `.ps-container`, `.ps-cluster`, `.ps-stack`, `.ps-grid*`
-- `.ps-button` and its documented modifiers
+- `.ps-density--compact` and `.ps-density--comfortable`
+- `.ps-button` with primary, danger, quiet, small, disabled and busy states
 - `.ps-badge` and evidence/release modifiers
 - `.ps-card` and card elements
 - `.ps-input-shell`, `.ps-status-list`, `.ps-toast`
+- `.ps-table-region` and `.ps-table-scroll-hint` for named, contained horizontal table scrolling
 - `.ps-sr-only` and `.ps-skip-link`
 
 Classes without the `ps-` prefix remain private to a page or feature.
@@ -35,9 +37,14 @@ Use shared tokens for concepts that should look and behave alike across features
 
 - `--ps-type-*`, `--ps-leading-*` and `--ps-weight-*` for the common type scale;
 - `--ps-ink-*`, `--ps-ocean-*`, surface and semantic-state tokens for colour;
-- `--ps-space-*`, `--ps-content-max`, `--ps-control-height*` and `--ps-shell-*` for rhythm and shell sizing;
+- `--ps-space-*`, semantic layout gaps, responsive gutters, content widths, density-specific
+  `--ps-control-height*` values and `--ps-shell-*` for rhythm and shell sizing;
 - `--ps-radius-*` and `--ps-shadow-*` for shape and elevation; and
-- `--ps-duration`, `--ps-ease`, `--ps-focus-*` and `--ps-z-*` for shared interaction behaviour.
+- `--ps-motion-*`, `--ps-ease-*`, `--ps-focus-*` and named `--ps-z-*` layers for shared interaction behaviour.
+
+The rendered development reference is `design-system/gallery.html`. It uses the existing layout
+helpers; gallery-specific presentation classes are not a public component API. The full inventory,
+migration notes and raw-value convention are documented in `docs/ui/design-token-foundation.md`.
 
 Feature styles may introduce private layout variables, but must not redeclare a `--ps-*` token.
 If the shared value is unsuitable, propose a new semantic token instead of silently overriding it.
@@ -64,6 +71,16 @@ HTMX or native HTML cannot express well, such as maps, charts, adaptive polling 
 review dialogs.
 
 Do not place feature API clients, entities or business rules in this directory.
+
+Domain-neutral JavaScript is a separate public surface. Import DOM helpers from
+`browser/index.js` and mapping behavior from `mapping/index.js`; do not deep-import files beside
+those barrels. A feature-specific shell projection belongs in that feature's frontend integration
+directory, not in this design-system package.
+
+The browser barrel also exposes the small interaction helpers used by real call sites: mobile
+drawer focus containment, replacing status toasts and named table-scroll regions. Native dialogs
+retain platform focus trapping; Feature 1 owns its form-specific dirty-state
+and mutation lifecycle.
 
 ## Accessibility baseline
 

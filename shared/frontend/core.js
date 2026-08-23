@@ -1,14 +1,5 @@
-export function el(tag, className = "", text = undefined) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = String(text);
-  return node;
-}
-
-export function append(target, ...children) {
-  target.append(...children.filter((child) => child !== null && child !== undefined));
-  return target;
-}
+export { append, el } from "./browser/index.js";
+import { append, createTableRegion, el } from "./browser/index.js?v=3";
 
 export function humanise(value) {
   if (value === null || value === undefined || value === "") return "Unknown";
@@ -30,18 +21,6 @@ export function formatNumber(value) {
   if (value === null || value === undefined || value === "") return "Unknown";
   const number = Number(value);
   return Number.isFinite(number) ? new Intl.NumberFormat("en-AU").format(number) : String(value);
-}
-
-export function researchAreaLabel(value) {
-  const labels = {
-    "feature-1": "Property data",
-    "student-1-propertyscope-data-platform": "Property data",
-    "feature-2": "Sales and market",
-    "feature-3": "Suburb context",
-    "feature-4": "Site and planning",
-    "feature-5": "Buyer workspace",
-  };
-  return labels[value] || humanise(value);
 }
 
 export function parseShellRoute(hash = "") {
@@ -88,18 +67,21 @@ export function link(label, href, className = "") {
 }
 
 export function table(headers, rows, rowRenderer, captionText = "") {
-  const scroller = el("div", "dashboard-table-wrap");
   const tableNode = el("table", "dashboard-table");
-  if (captionText) append(tableNode, el("caption", "ps-sr-only", captionText));
+  const tableLabel = captionText || "Data results";
+  append(tableNode, el("caption", "ps-sr-only", tableLabel));
   const head = el("thead");
   const headRow = el("tr");
-  for (const header of headers) append(headRow, el("th", "", header));
+  for (const header of headers) {
+    const heading = el("th", "", header);
+    heading.scope = "col";
+    append(headRow, heading);
+  }
   append(head, headRow);
   const body = el("tbody");
   for (const row of rows) append(body, rowRenderer(row));
   append(tableNode, head, body);
-  append(scroller, tableNode);
-  return scroller;
+  return createTableRegion(tableNode, tableLabel, { className: "dashboard-table-wrap" });
 }
 
 export function cell(content, className = "") {
@@ -138,6 +120,24 @@ export async function requestJson(path, { timeoutMs = 6000 } = {}) {
       throw timeout;
     }
     if (!error.requestId) error.requestId = id;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function requestText(path, { timeoutMs = 6000 } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(path, {
+      headers: { Accept: "text/plain" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.text();
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error(`Timed out after ${timeoutMs / 1000} seconds`);
     throw error;
   } finally {
     clearTimeout(timer);

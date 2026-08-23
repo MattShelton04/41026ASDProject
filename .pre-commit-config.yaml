@@ -13,21 +13,7 @@ repos:
         types_or: [python, pyi]
       - id: mypy
         name: mypy
-        entry: >-
-          uv run --locked mypy
-          shared/contracts/python/shared_contracts
-          shared/testkit/python/shared_testkit
-          ai-services/agent-core/src/agent_core
-          ai-services/ai-mode/src/ai_mode
-          examples/integration-test-feature/src/integration_test_feature
-          student-1/backend/src/propertyscope_data_platform
-          student-1/database/src/propertyscope_data_store
-          scripts/check.py
-          scripts/dev.py
-          scripts/generate_contracts.py
-          scripts/validate_architecture.py
-          scripts/validate_model_registry.py
-          scripts/validate_tool_catalogs.py
+        entry: uv run --locked python scripts/check.py typecheck
         language: system
         pass_filenames: false
         types_or: [python, pyi]

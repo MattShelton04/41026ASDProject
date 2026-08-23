@@ -12,26 +12,38 @@ import {
   shouldRefreshDetail,
   statusesForFilter,
 } from "/operations/ai-mode/assets/polling.js";
+import { resolveResearchAreaContext } from "/operations/ai-mode/assets/contexts.js?v=1";
 
 const API_ROOT = "/api/v1";
 const EVENT_LIMIT = 200;
 const REQUEST_TIMEOUT_MS = 8000;
 const MOBILE_QUERY = "(max-width: 720px)";
-const RESEARCH_AREA_LABELS = Object.freeze({
-  "student-1-propertyscope-data-platform": "Property data",
-  "feature-1": "Property data",
-  "feature-2": "Sales & market",
-  "feature-3": "Suburb context",
-  "feature-4": "Site & planning",
-  "feature-5": "Buyer workspace",
-});
-
 function researchAreaLabel(value) {
-  return RESEARCH_AREA_LABELS[value] || String(value || "Unknown area").replaceAll("_", " ").replaceAll("-", " ");
+  const option = [...document.querySelectorAll("#feature-filter option")].find((item) => (
+    item.value === value || String(item.dataset.aliases || "").split(" ").includes(value)
+  ));
+  return option?.textContent || String(value || "Unknown area").replaceAll("_", " ").replaceAll("-", " ");
+}
+
+function applyResearchAreaContext(params) {
+  const context = resolveResearchAreaContext(params);
+  if (!context) return;
+  if (![...document.querySelectorAll("#feature-filter option")].some((item) => item.value === context.key)) {
+    const option = document.createElement("option");
+    option.value = context.key;
+    option.textContent = context.label;
+    option.dataset.aliases = context.aliases.join(" ");
+    ui["feature-filter"].append(option);
+  }
+  document.querySelector("#research-area-context").textContent = `Shared view · ${context.label}`;
+  document.querySelector("#research-area-return-label").textContent = context.label;
+  document.querySelector("#research-area-scope").textContent = `Review AI results, source checks and failures from ${context.label} reviews.`;
+  document.querySelector("#research-area-return").setAttribute("aria-label", `Back to the ${context.label} research area`);
+  document.querySelector("#research-area-return").href = context.returnTo;
 }
 
 const ui = Object.fromEntries([
-  "announcement", "connection-dot", "connection-state", "workspace", "page-summary",
+  "announcement", "feedback", "connection-dot", "connection-state", "workspace", "page-summary",
   "quick-filters", "filters", "feature-filter", "status-filter", "model-filter",
   "clear-filters", "count-active", "count-review", "count-failed", "count-complete",
   "run-list", "refresh-runs", "load-more", "run-detail", "empty-detail", "detail-content",
@@ -886,8 +898,21 @@ function updateLiveElapsed() {
 }
 
 async function copyValue(value, successMessage) {
-  await navigator.clipboard.writeText(value);
-  ui.announcement.textContent = successMessage;
+  clearTimeout(copyValue.timer);
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable.");
+    await navigator.clipboard.writeText(value);
+    ui.feedback.dataset.tone = "success";
+    ui.feedback.textContent = successMessage;
+    ui.announcement.textContent = successMessage;
+  } catch {
+    const message = "Could not copy automatically. Select the value and copy it manually.";
+    ui.feedback.dataset.tone = "error";
+    ui.feedback.textContent = message;
+    ui.announcement.textContent = message;
+  }
+  ui.feedback.hidden = false;
+  copyValue.timer = setTimeout(() => { ui.feedback.hidden = true; }, 5000);
 }
 
 ui.filters.addEventListener("submit", (event) => {
@@ -950,6 +975,7 @@ document.addEventListener("visibilitychange", () => {
 
 async function start() {
   const initial = new URL(window.location.href).searchParams;
+  applyResearchAreaContext(initial);
   ui["feature-filter"].value = initial.get("feature_key") || "";
   ui["model-filter"].value = initial.get("model_profile") || "";
   const initialStatuses = initial.getAll("status");

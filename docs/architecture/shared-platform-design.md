@@ -327,6 +327,37 @@ a student database directly, and a feature never imports orchestration implement
 Release 1 may expose the same feature tools through MCP without changing their owner or
 duplicating their business logic.
 
+### 6.4 Frontend ownership and public exports
+
+The same compile-time rule applies to browser code. `shared/frontend` owns domain-neutral tokens,
+DOM helpers, mapping behavior and accessibility utilities; it must not import a
+`student-N/frontend` implementation. A feature owns response-envelope projection, labels and
+workflow routing. Release 0 has one explicit, bounded Feature 1 runtime bridge served below that
+feature's existing ingress. It is not a speculative generic plugin protocol: another feature needs
+a reviewed real call site and its own allowlisted public ingress. The Shared shell renders before
+the short optional adapter load, so a service outage degrades that projection rather than blocking
+the shell or creating a compile-time dependency.
+
+Public Shared browser imports are intentionally narrow:
+
+| Public entrypoint | Shared responsibility | Feature responsibility |
+|---|---|---|
+| `browser/index.js` | Safe, domain-neutral DOM construction | Labels, actions and screen composition |
+| `mapping/index.js` | Map lifecycle, provider validation and bounded GeoJSON behavior | API calls, layer meaning, popup fields and evidence claims |
+| `design-system/` documented assets | `--ps-*` tokens and `.ps-*` primitives | Density, domain tables/forms and feature-specific layout |
+
+Files beside an `index.js` barrel are private. `scripts/validate_architecture.py` checks JavaScript
+imports as part of the canonical gate: Shared cannot import feature source, one feature cannot import
+another, network-URL module imports fail closed, and consumers of the Shared browser/mapping packages
+must use their public barrels. For
+example, a property release payload is projected in `student-1/frontend/integration/shell.js`; a
+generic readiness card remains in Shared. Exact database readiness fields, accepted-release filters
+and Property data routes therefore stay with Feature 1.
+
+Feature transitions into the Shared AI activity view use one bounded metadata tuple. Unknown keys,
+spoofed labels, protocol-relative destinations and any non-matching return route are ignored; query
+parameters are not a general-purpose branding or redirect contract.
+
 ## 7. Shared contracts
 
 ### 7.1 General conventions

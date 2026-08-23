@@ -61,6 +61,11 @@ Use `uv run scripts/dev.py up --offline` when validating Feature 1 without an Op
 Database migrations and the deterministic showcase baseline are automatic in both modes; no SQL,
 seed script, or Docker Desktop action is required.
 
+For frontend-only browser work, `uv run scripts/dev.py ui` serves Shared and Feature 1 together on
+loopback with explicit deterministic UI scenarios and no Docker, database or model credential. See
+[`docs/ui/feature-1-fixture-mode.md`](../docs/ui/feature-1-fixture-mode.md) for URLs and the
+Playwright smoke command. This audit host is separate from the production-like showcase path below.
+
 Open <http://localhost:5200>. The main product path is:
 
 1. Use **Property search** to find a NSW address and review the sources available for it.
@@ -181,6 +186,14 @@ contracts, quality checks, files and coverage remain available as contextual spe
 are not presented as competing top-level workflows. `app.js` is the transition composition root.
 The independently built frontend image copies shared design-system v0.1 assets, while the
 development overlay mounts the same source files for reload.
+
+`frontend/integration/shell.js` is Feature 1's public adapter for the Shared product shell. Its
+`createFeature1ShellAdapter()` export owns
+Feature 1 search routing, release-envelope projection, data-store readiness interpretation and
+feature-scoped activity links. Shared loads the adapter over the feature's existing HTTP ingress;
+there is no compile-time Shared-to-Feature import. Feature code consumes Shared JavaScript through
+the public `browser/index.js` and `mapping/index.js` barrels copied/mounted by the existing frontend
+image workflow.
 
 Property detail uses the shared MapLibre/OpenFreeMap provider under
 `shared/frontend/mapping/` rather than a decorative map placeholder. The feature supplies the

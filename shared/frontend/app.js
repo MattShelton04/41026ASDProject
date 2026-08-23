@@ -3,15 +3,13 @@ import { createEvidenceRoute } from "./routes/evidence.js?v=10";
 import { createFeaturesRoute } from "./routes/features.js?v=10";
 import { createRoadmapRoute } from "./routes/roadmap.js?v=10";
 import { createStatusRoute } from "./routes/status.js?v=10";
-import { featureRegistry } from "./features.js?v=10";
+import { featureRegistry, findFeature } from "./features.js?v=10";
+import { loadFeature1Bridge } from "./feature-1-bridge.js?v=12";
+import { createToastController } from "./browser/index.js?v=3";
 
-const defaults = Object.freeze({
-  propertyDiscovery: "/features/data-platform/#properties",
-  dataOperations: "/features/data-platform/#overview",
-  releaseDetail: "/features/data-platform/#releases/",
-  agentRuns: "/operations/ai-mode/?feature_key=student-1-propertyscope-data-platform",
-});
-const config = Object.freeze({ ...defaults, ...(window.PROPERTYSCOPE_CONFIG || {}) });
+const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
+const config = { ...externalConfig };
+let feature1Adapter = null;
 const main = document.querySelector("#main-content");
 const homeMarkup = main.innerHTML;
 const homeRail = main.querySelector(".product-rail")?.cloneNode(true);
@@ -19,7 +17,7 @@ const toast = document.querySelector("#toast");
 const announcement = document.querySelector("#route-announcement");
 const navToggle = document.querySelector("#nav-toggle");
 const primaryNav = document.querySelector("#primary-navigation");
-let toastTimer = 0;
+const toastController = createToastController(toast, { duration: 3600 });
 let renderGeneration = 0;
 
 function announce(message) {
@@ -27,11 +25,7 @@ function announce(message) {
 }
 
 function showToast(message) {
-  if (!toast) return;
-  window.clearTimeout(toastTimer);
-  toast.textContent = message;
-  toast.dataset.visible = "true";
-  toastTimer = window.setTimeout(() => { toast.dataset.visible = "false"; }, 3600);
+  toastController.show(message);
 }
 
 function applyConfigLinks(root = document) {
@@ -41,13 +35,10 @@ function applyConfigLinks(root = document) {
   });
 }
 
-function openPropertySearch(query = "") {
-  const target = new URL(config.propertyDiscovery, window.location.href);
-  if (query) {
-    const hashBase = target.hash.split("?")[0] || "#properties";
-    target.hash = `${hashBase}?q=${encodeURIComponent(query)}`;
-  }
-  window.location.assign(target.toString());
+function openPrimarySearch(query = "") {
+  const target = feature1Adapter?.primarySearchHref(query, window.location.href)
+    || new URL(findFeature("property-records").href, window.location.href).href;
+  window.location.assign(target);
 }
 
 function bindHomeInteractions() {
@@ -61,7 +52,7 @@ function bindHomeInteractions() {
   });
   main.querySelector("#property-search-form")?.addEventListener("submit", (event) => {
     event.preventDefault();
-    openPropertySearch(String(main.querySelector("#property-search")?.value || "").trim());
+    openPrimarySearch(String(main.querySelector("#property-search")?.value || "").trim());
   });
 }
 
@@ -79,7 +70,7 @@ function homeFeatureRow(feature) {
 
 function renderHomeFeatures() {
   const list = main.querySelector("#feature-area-list");
-  if (list) list.replaceChildren(...featureRegistry(config).map(homeFeatureRow));
+  if (list) list.replaceChildren(...featureRegistry({ featureHrefs: config.featureHrefs }).map(homeFeatureRow));
 }
 
 function closeNavigation({ restoreFocus = false } = {}) {
@@ -99,8 +90,8 @@ function updateNavigation(route) {
 
 const routes = {
   features: createFeaturesRoute({ config }),
-  "system-status": createStatusRoute({ config, announce }),
-  evidence: createEvidenceRoute({ config, announce }),
+  "system-status": createStatusRoute({ config, getFeature1Adapter: () => feature1Adapter, announce }),
+  evidence: createEvidenceRoute({ config, getFeature1Adapter: () => feature1Adapter, announce }),
   "release-roadmap": createRoadmapRoute({ config }),
 };
 
@@ -156,7 +147,7 @@ primaryNav?.addEventListener("click", (event) => {
 });
 document.querySelector("#header-search-form")?.addEventListener("submit", (event) => {
   event.preventDefault();
-  openPropertySearch(String(document.querySelector("#header-search")?.value || "").trim());
+  openPrimarySearch(String(document.querySelector("#header-search")?.value || "").trim());
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && navToggle?.getAttribute("aria-expanded") === "true") closeNavigation({ restoreFocus: true });
@@ -164,3 +155,19 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("hashchange", renderRoute);
 applyConfigLinks();
 renderRoute();
+
+function installFeature1Adapter(adapter) {
+  if (!adapter) return;
+  feature1Adapter = adapter;
+  Object.assign(config, adapter.links, { featureHrefs: { "property-records": adapter.links.propertyDiscovery } });
+  applyConfigLinks();
+  if (parseShellRoute(location.hash) === "home") {
+    renderHomeFeatures();
+  } else {
+    renderRoute();
+  }
+}
+
+loadFeature1Bridge({ overrides: externalConfig, onLateAdapter: installFeature1Adapter })
+  .then(installFeature1Adapter)
+  .catch(() => {});

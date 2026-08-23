@@ -1,43 +1,59 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { confidenceLabel, coverageRows, displayName, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js?v=17";
-import { routeQuery } from "../core/router.js";
+import { createSubmissionGuard, propertySearchQuery } from "../core/forms.js";
+import { parseRoute, routeQuery } from "../core/router.js";
 import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
 import { createMap, createOpenFreeMapProvider, featureCollection, pointFeature } from "../mapping/index.js";
 
-export function createPropertyRoutes({ view, request, announce }) {
+export function createPropertyRoutes({ view, request, announce, rerender }) {
+  let routeGeneration = 0;
+  let pendingSearchOrigin = null;
+
   async function renderProperties(propertyRef = "") {
-    if (propertyRef) return renderPropertyDetail(propertyRef);
+    const generation = ++routeGeneration;
+    if (propertyRef) return renderPropertyDetail(propertyRef, generation);
     view.replaceChildren();
     const hero = el("section", "discovery-hero");
     append(hero, el("p", "eyebrow", "Property search"), el("h1", "", "Explore NSW properties"), el("p", "", "Find a NSW address and see which sources and research data are available for it."));
     const form = el("form", "search-box");
+    form.setAttribute("role", "search");
+    const searchField = el("label", "search-field");
+    searchField.htmlFor = "property-search-query";
+    append(searchField, el("span", "", "NSW street address (required)"));
     const input = el("input");
+    input.id = "property-search-query";
     input.type = "search";
     input.name = "q";
     input.placeholder = "Try 11 Example Street, Sydney NSW 2000";
     input.autocomplete = "street-address";
-    input.maxLength = 250;
+    input.minLength = 2;
+    input.maxLength = 200;
     input.required = true;
+    input.setAttribute("aria-describedby", "property-search-help property-search-error");
     input.value = routeQuery(location.hash).get("q") || "";
+    append(searchField, input);
     const search = button("Search", "button primary");
     search.type = "submit";
-    append(form, input, search);
-    append(hero, form, el("p", "search-help", "NSW addresses · Best matches first · Address matching does not depend on AI"));
+    append(form, searchField, search);
+    const searchError = el("p", "form-error"); searchError.id = "property-search-error"; searchError.setAttribute("role", "alert");
+    const searchHelp = el("p", "search-help", "NSW addresses · 2–200 characters · Best matches first · Address matching does not depend on AI"); searchHelp.id = "property-search-help";
+    append(hero, form, searchError, searchHelp);
     append(view, hero);
     const resultHost = el("div");
     append(resultHost, emptyState("Start with a street address", "Include a street number and suburb or postcode for the clearest match."));
     append(view, resultHost);
 
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const query = input.value.trim();
-      history.replaceState(null, "", `#properties${queryString({ q: query })}`);
+    let queryGeneration = 0;
+    const submission = createSubmissionGuard(async (query, { preserveReturn = false } = {}) => {
+      const searchGeneration = ++queryGeneration;
+      updateSearchHistory(query, { preserveReturn });
       resultHost.replaceChildren(el("section", "loading-state", "Searching NSW property records…"));
       try {
         const result = await request(`properties/search${queryString({ q: query, state: "NSW", limit: 25 })}`);
+        if (searchGeneration !== queryGeneration || !canHydrate(generation, routeGeneration, resultHost, "") || input.value.trim() !== query) return;
         const items = collection(result.body);
         if (result.body.supported === false) resultHost.replaceChildren(el("div", "notice warning", "This query is outside the supported NSW coverage. Try an NSW street address."));
         else if (!items.length) resultHost.replaceChildren(emptyState("No property found", "Try including a street number, suburb and four-digit postcode. We will not silently broaden your search."));
@@ -46,11 +62,58 @@ export function createPropertyRoutes({ view, request, announce }) {
           announce(`${items.length} property matches found.`);
         }
       } catch (error) {
+        if (searchGeneration !== queryGeneration || !canHydrate(generation, routeGeneration, resultHost, "") || input.value.trim() !== query) return;
         resultHost.replaceChildren(errorState(error, () => form.requestSubmit()));
       }
+    }, (pending) => {
+      if (pending) {
+        search.dataset.label = search.textContent;
+        search.style.minWidth = `${Math.ceil(search.offsetWidth)}px`;
+        search.textContent = "Searching…";
+      } else {
+        search.textContent = search.dataset.label || "Search";
+        search.style.minWidth = "";
+      }
+      search.setAttribute("aria-disabled", String(pending));
+      search.setAttribute("aria-busy", String(pending));
+    });
+    const validateSearchInput = ({ report = false } = {}) => {
+      try {
+        propertySearchQuery(input.value);
+        input.setCustomValidity("");
+        input.removeAttribute("aria-invalid");
+        searchError.textContent = "";
+        return true;
+      } catch (error) {
+        input.setCustomValidity(error.message);
+        input.setAttribute("aria-invalid", "true");
+        searchError.textContent = error.message;
+        if (report) {
+          input.focus();
+          input.reportValidity();
+        }
+        return false;
+      }
+    };
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (validateSearchInput({ report: true })) submission.submit(propertySearchQuery(input.value));
+    });
+    form.addEventListener("invalid", (event) => {
+      if (event.target !== input) return;
+      validateSearchInput();
+    }, true);
+    input.addEventListener("input", () => {
+      queryGeneration += 1;
+      validateSearchInput();
+      if (submission.pending) resultHost.replaceChildren(emptyState("Search changed", "Press Search when the address is ready. Results from the earlier request will not replace this query."));
     });
 
-    if (input.value) queueMicrotask(() => form.requestSubmit());
+    if (input.value) queueMicrotask(() => {
+      if (validateSearchInput({ report: true })) {
+        submission.submit(propertySearchQuery(input.value), { preserveReturn: true });
+      }
+    });
   }
 
   function renderPropertyResults(host, items, query) {
@@ -58,11 +121,14 @@ export function createPropertyRoutes({ view, request, announce }) {
     const listBody = el("div", "result-list");
     listBody.setAttribute("aria-label", "Property matches");
     items.slice(0, 5).forEach((item) => {
-      const result = el("button", "result-card");
-      result.type = "button";
+      const target = `#properties/${encodeURIComponent(item.property_ref)}${queryString({ q: query })}`;
+      const result = link("", target, "result-card");
+      result.dataset.propertyRef = item.property_ref;
       result.setAttribute("aria-label", `Open ${item.address_display}`);
-      append(result, el("strong", "", item.address_display), el("span", "", `${confidenceLabel(item.score ?? item.match?.score)} · ${item.locality || ""} ${item.state || "NSW"} ${item.postcode || ""}`));
-      result.addEventListener("click", () => { location.hash = `#properties/${encodeURIComponent(item.property_ref)}${queryString({ q: query })}`; });
+      append(result, el("strong", "", item.address_display), el("span", "", `${confidenceLabel(item.score ?? item.match?.score)} · ${humanise(item.resolution_status || "unknown")} identity`));
+      result.addEventListener("click", (event) => {
+        pendingSearchOrigin = rememberSearchReturn(event, { query, propertyRef: item.property_ref });
+      });
       append(listBody, result);
     });
     const coordinateRows = makeTable(
@@ -71,59 +137,110 @@ export function createPropertyRoutes({ view, request, announce }) {
     );
     append(layout, panel(`${items.length} ${items.length === 1 ? "match" : "matches"}`, items.length > 5 ? "Showing the five best matches · choose one to continue" : "Choose a property to continue", listBody), disclosurePanel("All match details", "Property references and coordinates", coordinateRows));
     host.replaceChildren(layout);
+    restoreSearchReturn(listBody, query, routeGeneration);
   }
 
-  async function renderPropertyDetail(propertyRef) {
+  async function renderPropertyDetail(propertyRef, generation) {
+    const query = routeQuery(location.hash).get("q") || "";
+    const searchOrigin = matchingSearchOrigin(historyState().propertyDiscoveryOrigin || pendingSearchOrigin, { query, propertyRef });
+    pendingSearchOrigin = null;
+    if (searchOrigin) {
+      history.replaceState({ ...historyState(), propertyDiscoveryOrigin: searchOrigin }, "", location.href);
+    }
     view.replaceChildren(el("section", "loading-state", "Loading property details…"));
+    const encodedRef = encodeURIComponent(propertyRef);
+    const mapResult = settled(request(`properties/${encodedRef}/map-context`));
+    const coverageResult = settled(request(`properties/${encodedRef}/coverage`));
+    const reportResult = settled(request(`properties/${encodedRef}/report-section`));
     try {
-      const [detailResult, mapResult, coverageResult, reportResult] = await Promise.allSettled([
-        request(`properties/${encodeURIComponent(propertyRef)}`),
-        request(`properties/${encodeURIComponent(propertyRef)}/map-context`),
-        request(`properties/${encodeURIComponent(propertyRef)}/coverage`),
-        request(`properties/${encodeURIComponent(propertyRef)}/report-section`),
-      ]);
-      if (detailResult.status === "rejected") throw detailResult.reason;
-      const detailPayload = detailResult.value.body;
+      const detailResult = await request(`properties/${encodedRef}`);
+      if (!isCurrentRoute(generation, routeGeneration, propertyRef)) return;
+      const detailPayload = detailResult.body;
       const property = entity(detailPayload, "property");
-      const map = mapResult.status === "fulfilled" ? entity(mapResult.value.body) : {};
-      const coverage = coverageResult.status === "fulfilled" && coverageRows(coverageResult.value.body).length ? coverageRows(coverageResult.value.body) : (detailPayload.coverage || []);
-      const query = routeQuery(location.hash).get("q") || "";
+      const initialCoverage = detailPayload.coverage || [];
       view.replaceChildren();
       const identityHero = el("section", "property-identity-hero");
-      append(identityHero, pageHeading("Verified NSW property", property.address_display || property.display_address || "Property record", `${property.locality || "NSW"} · ${property.state || "NSW"} ${property.postcode || ""} · Updated ${formatDate(property.updated_at)}`, [link("Back to search", `#properties${queryString({ q: query })}`, "button secondary")]));
+      append(identityHero, pageHeading("Verified NSW property", property.address_display || property.display_address || "Property record", `${property.locality || "NSW"} · ${property.state || "NSW"} ${property.postcode || ""} · Updated ${formatDate(property.updated_at)}`, [propertyBackLink(query, propertyRef)]));
       const referenceStrip = el("div", "property-reference-strip");
-      append(referenceStrip, el("span", "", humanise(property.resolution_status || "unknown")), el("span", "", `${detailPayload.identifiers?.length || 0} source identifiers checked`), el("span", "", `${coverage.length} research datasets available`));
+      const coverageCount = el("span", "", `${initialCoverage.length} research datasets available`);
+      append(referenceStrip, el("span", "", humanise(property.resolution_status || "unknown")), el("span", "", `${detailPayload.identifiers?.length || 0} source identifiers checked`), coverageCount);
       append(identityHero, referenceStrip);
       append(view, identityHero);
       const body = el("div", "stack");
-      const latitude = map.latitude ?? map.coordinates?.latitude ?? property.latitude ?? property.coordinates?.latitude;
-      const longitude = map.longitude ?? map.coordinates?.longitude ?? property.longitude ?? property.coordinates?.longitude;
-      append(body, propertyMap({ property, latitude, longitude, announce }));
       append(body, detailList([["Address", property.address_display || property.display_address], ["Locality", property.locality], ["State", property.state], ["Postcode", property.postcode], ["Match status", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)]]));
+      const mapHost = pendingSection("Loading spatial context…");
+      append(body, mapHost);
+      const coverageHost = pendingSection("Loading available research coverage…");
+      append(body, coverageHost);
       const technicalBody = el("div", "stack");
-      append(technicalBody, detailList([["PropertyScope reference", el("code", "mono", property.property_ref)], ["Request ID", el("code", "mono", detailResult.value.requestId)]]));
-      append(technicalBody, makeTable([{ label: "Coordinate" }, { label: "Value" }], [{ label: "Latitude", value: latitude ?? "Unknown" }, { label: "Longitude", value: longitude ?? "Unknown" }, { label: "Geometry type", value: map.geometry?.type || property.geometry?.type || "Unknown" }], (item) => { const row = el("tr"); append(row, cell(item.label, "primary-cell"), cell(String(item.value), item.label === "Geometry type" ? "" : "mono")); return row; }));
+      append(technicalBody, detailList([["PropertyScope reference", el("code", "mono", property.property_ref)], ["Request ID", el("code", "mono", detailResult.requestId)]]));
+      const coordinateHost = pendingSection("Loading recorded coordinates…");
+      append(technicalBody, coordinateHost);
       append(technicalBody, evidenceTable("Source identifiers", detailPayload.identifiers || [], [
         ["Scheme", (item) => item.scheme], ["Identifier", (item) => item.identifier_value], ["Match method", (item) => humanise(item.match_method)], ["Confidence", (item) => item.match_confidence ?? "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"], ["Details", (item) => item.evidence_json ? technicalDetails(item.evidence_json, "Inspect") : "Unknown"],
       ], "No source identifiers are recorded. Identity confidence is therefore unknown."));
       append(technicalBody, evidenceTable("Address aliases", detailPayload.aliases || [], [
         ["Alias", (item) => item.alias_display], ["Kind", (item) => humanise(item.alias_kind)], ["Source identifier", (item) => item.source_identifier || "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"],
       ], "No address aliases are recorded for this property."));
-      const cards = el("div", "coverage-grid");
-      for (const item of coverage) {
-        const card = el("div", `coverage-card ${statusTone(item.status || item.coverage_status || item.state)}`);
-        append(card, el("strong", "", displayName(item.dataset || item.dataset_id || researchAreaLabel(item.feature || item.target_feature))), el("span", "", `${humanise(item.status || item.coverage_status || item.state)}${item.release_version ? ` · ${item.release_version}` : ""}${item.limitation ? ` · ${item.limitation}` : ""}`));
-        append(cards, card);
-      }
-      if (coverage.length) append(body, el("h2", "", "Available research coverage"), cards);
-      else append(body, emptyState("Coverage is unknown", coverageResult.status === "rejected" ? `Coverage details are temporarily unavailable.${problemSuffix(coverageResult.reason)}` : "No published coverage has been recorded for this property."));
-      append(technicalBody, renderPropertyReportSection(reportResult.status === "fulfilled" ? reportResult.value : { error: reportResult.reason }));
+      const reportHost = pendingSection("Loading source summary…");
+      append(technicalBody, reportHost);
       append(body, disclosurePanel("Property identifiers and coordinates", "Source identifiers, coordinates and address aliases", technicalBody));
-      if (mapResult.status === "rejected") append(body, el("div", "notice warning", `Spatial context is temporarily unavailable; canonical identity remains usable.${problemSuffix(mapResult.reason)}`));
       append(view, panel("Property details", "Address, location and available research data", body));
+
+      void mapResult.then((result) => {
+        if (!canHydrate(generation, routeGeneration, mapHost, propertyRef)) return;
+        const map = result.status === "fulfilled" ? entity(result.value.body) : {};
+        const latitude = map.latitude ?? map.coordinates?.latitude ?? property.latitude ?? property.coordinates?.latitude;
+        const longitude = map.longitude ?? map.coordinates?.longitude ?? property.longitude ?? property.coordinates?.longitude;
+        resolvePendingSection(mapHost);
+        resolvePendingSection(coordinateHost);
+        mapHost.replaceChildren(propertyMap({ property, latitude, longitude, announce }));
+        coordinateHost.replaceChildren(coordinateTable({ map, property, latitude, longitude }));
+        if (result.status === "rejected") {
+          append(mapHost, el("div", "notice warning", `Spatial context is temporarily unavailable; canonical identity remains usable.${problemSuffix(result.reason)}`));
+        }
+      });
+      void coverageResult.then((result) => {
+        if (!canHydrate(generation, routeGeneration, coverageHost, propertyRef)) return;
+        const responseCoverage = result.status === "fulfilled" ? coverageRows(result.value.body) : [];
+        const coverage = responseCoverage.length ? responseCoverage : initialCoverage;
+        coverageCount.textContent = `${coverage.length} research datasets available`;
+        resolvePendingSection(coverageHost);
+        coverageHost.replaceChildren(coverageSection(coverage, result));
+      });
+      void reportResult.then((result) => {
+        if (!canHydrate(generation, routeGeneration, reportHost, propertyRef)) return;
+        resolvePendingSection(reportHost);
+        reportHost.replaceChildren(renderPropertyReportSection(result.status === "fulfilled" ? result.value : { error: result.reason }));
+      });
     } catch (error) {
-      view.replaceChildren(errorState(error, () => renderPropertyDetail(propertyRef)));
+      if (!isCurrentRoute(generation, routeGeneration, propertyRef)) return;
+      const failure = errorState(error, () => rerender({ focus: true }));
+      const actions = el("div", "property-error-actions");
+      const retry = failure.querySelector(".button");
+      if (retry) { retry.style.marginTop = ""; append(actions, retry); }
+      append(actions, propertyBackLink(query, propertyRef));
+      append(failure.firstElementChild, actions);
+      view.replaceChildren(failure);
     }
+  }
+
+  function restoreSearchReturn(listBody, query, generation) {
+    const context = historyState().propertyDiscoveryReturn;
+    if (!context || context.query !== query || typeof context.propertyRef !== "string") return;
+    const target = [...listBody.querySelectorAll("[data-property-ref]")]
+      .find((item) => item.dataset.propertyRef === context.propertyRef);
+    if (!target) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!canHydrate(generation, routeGeneration, listBody, "") || routeQuery(location.hash).get("q") !== query) return;
+      target.focus({ preventScroll: true });
+      const maximum = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const top = Math.min(maximum, Math.max(0, Number(context.scrollY) || 0));
+      const priorScrollBehavior = document.documentElement.style.scrollBehavior;
+      document.documentElement.style.scrollBehavior = "auto";
+      window.scrollTo(0, top);
+      document.documentElement.style.scrollBehavior = priorScrollBehavior;
+    }));
   }
 
   function renderPropertyReportSection(result) {
@@ -166,6 +283,107 @@ export function createPropertyRoutes({ view, request, announce }) {
   }
 
   return { renderProperties };
+}
+
+function updateSearchHistory(query, { preserveReturn }) {
+  const next = { ...historyState() };
+  if (!preserveReturn || next.propertyDiscoveryReturn?.query !== query) {
+    delete next.propertyDiscoveryReturn;
+  }
+  history.replaceState(next, "", `#properties${queryString({ q: query })}`);
+}
+
+function rememberSearchReturn(event, { query, propertyRef }) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
+  if (routeQuery(location.hash).get("q") !== query) return null;
+  const context = { query, propertyRef, scrollY: window.scrollY };
+  history.replaceState({
+    ...historyState(),
+    propertyDiscoveryReturn: context,
+  }, "", location.href);
+  return context;
+}
+
+function matchingSearchOrigin(context, { query, propertyRef }) {
+  return context?.query === query && context?.propertyRef === propertyRef ? context : null;
+}
+
+function propertyBackLink(query, propertyRef) {
+  const back = link("Back to search", `#properties${queryString({ q: query })}`, "button secondary");
+  back.addEventListener("click", (event) => {
+    const origin = matchingSearchOrigin(historyState().propertyDiscoveryOrigin, { query, propertyRef });
+    if (!origin || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    history.back();
+  });
+  return back;
+}
+
+function historyState() {
+  return history.state && typeof history.state === "object" ? history.state : {};
+}
+
+function isCurrentRoute(generation, currentGeneration, propertyRef) {
+  const route = parseRoute(location.hash);
+  return generation === currentGeneration && route.route === "properties" && route.id === propertyRef;
+}
+
+function canHydrate(generation, currentGeneration, host, propertyRef) {
+  return host.isConnected && isCurrentRoute(generation, currentGeneration, propertyRef);
+}
+
+function settled(promise) {
+  return promise.then(
+    (value) => ({ status: "fulfilled", value }),
+    (reason) => ({ status: "rejected", reason }),
+  );
+}
+
+function pendingSection(message) {
+  const status = el("div", "notice property-section-loading", message);
+  status.setAttribute("role", "status");
+  return status;
+}
+
+function resolvePendingSection(section) {
+  section.classList.remove("notice", "property-section-loading");
+  section.removeAttribute("role");
+}
+
+function coordinateTable({ map, property, latitude, longitude }) {
+  return makeTable(
+    [{ label: "Coordinate" }, { label: "Value" }],
+    [
+      { label: "Latitude", value: latitude ?? "Unknown" },
+      { label: "Longitude", value: longitude ?? "Unknown" },
+      { label: "Geometry type", value: map.geometry?.type || property.geometry?.type || "Unknown" },
+    ],
+    (item) => {
+      const row = el("tr");
+      append(row, cell(item.label, "primary-cell"), cell(String(item.value), item.label === "Geometry type" ? "" : "mono"));
+      return row;
+    },
+    "Property coordinates",
+  );
+}
+
+function coverageSection(coverage, result) {
+  const section = el("section", "stack property-coverage");
+  if (result.status === "rejected" && coverage.length) {
+    append(section, el("div", "notice warning", `Coverage details are temporarily unavailable; recorded property coverage remains below.${problemSuffix(result.reason)}`));
+  }
+  if (!coverage.length) {
+    append(section, emptyState("Coverage is unknown", result.status === "rejected" ? `Coverage details are temporarily unavailable.${problemSuffix(result.reason)}` : "No published coverage has been recorded for this property."));
+    return section;
+  }
+  const cards = el("div", "coverage-grid");
+  for (const item of coverage) {
+    const card = el("div", `coverage-card ${statusTone(item.status || item.coverage_status || item.state)}`);
+    append(card, el("strong", "", displayName(item.dataset || item.dataset_id || researchAreaLabel(item.feature || item.target_feature))), el("span", "", `${humanise(item.status || item.coverage_status || item.state)}${item.release_version ? ` · ${item.release_version}` : ""}${item.limitation ? ` · ${item.limitation}` : ""}`));
+    append(cards, card);
+  }
+  append(section, el("h2", "", "Available research coverage"), cards);
+  return section;
 }
 
 function propertyMap({ property, latitude, longitude, announce }) {

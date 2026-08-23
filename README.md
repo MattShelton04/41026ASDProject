@@ -125,6 +125,22 @@ rebuild. `doctor`, `status`, `logs`, `test`, `restart`, and `down` cover the res
 `down` preserves AI-mode run history, PropertyScope data/artifacts, and example records. The
 explicit `reset` command deletes only volumes labelled for the selected Compose project.
 
+For browser/UI work that does not need Docker, databases or a model credential, start Shared and
+Feature 1 against deterministic same-origin fixtures:
+
+```text
+uv run scripts/dev.py ui
+```
+
+The loopback-only host defaults to <http://127.0.0.1:5300> and prints the Shared, Property Discovery
+and Data Operations URLs after its health check passes. Scenario selection, alternate ports and the
+Playwright smoke command are documented in
+[`docs/ui/feature-1-fixture-mode.md`](docs/ui/feature-1-fixture-mode.md).
+Run `uv run scripts/dev.py ui-audit-quick` for the deterministic laptop/mobile interaction gate or
+`uv run scripts/dev.py ui-audit-full` for the explicit route/state/four-viewport matrix. Resume,
+shard, severity and artifact details are in
+[`docs/ui/feature-1-audit.md`](docs/ui/feature-1-audit.md).
+
 The default PropertyScope stack uses deterministic showcase data and never launches live or
 source-scale acquisition. The explicit full-data path uses a separate Compose project and
 therefore a separate PostgreSQL volume. It connects official schools, BOCSAR, G-NAF and PSI
