@@ -2,6 +2,7 @@ import { entity } from "../core/api.js";
 import { append, button, el } from "../core/dom.js";
 import { humanise } from "../core/formats.js?v=17";
 import { FieldValidationError, createSubmissionGuard, isPsiJob, liveProfileLabel, parseIntegerField, parseJsonField, psiYearRange } from "../core/forms.js";
+import { presentFormError } from "../components/dialogs.js";
 import { technicalDetails } from "../components/layout.js?v=17";
 
 export function createRunPlanner({ request, mutate, confirmAction }) {
@@ -22,7 +23,7 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
 
     const modeLabel = el("label", "field");
     append(modeLabel, el("span", "", "Update method (required)"));
-    const mode = el("select"); mode.name = "run_mode"; mode.required = true;
+    const mode = el("select"); mode.name = "run_mode"; mode.id = "run-mode"; mode.required = true;
     for (const value of capabilities?.supported_modes || capabilities?.run_modes || ["full_refresh", "reprocess_cached"]) {
       const option = el("option", "", humanise(value));
       option.value = value;
@@ -35,7 +36,7 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
 
     const profileLabel = el("label", "field");
     append(profileLabel, el("span", "", "Data source (required)"));
-    const scopeProfile = el("select"); scopeProfile.name = "scope_profile"; scopeProfile.required = true;
+    const scopeProfile = el("select"); scopeProfile.name = "scope_profile"; scopeProfile.id = "scope-profile"; scopeProfile.required = true;
     const showcaseOption = el("option", "", "Example data (recommended)"); showcaseOption.value = "showcase";
     const testOption = el("option", "", "Small test sample"); testOption.value = "test";
     append(scopeProfile, showcaseOption, testOption);
@@ -62,14 +63,14 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
       const startingYear = Number(job.scope_json?.source_year || job.scope_json?.years?.[0] || currentYear);
       const firstLabel = el("label", "field");
       append(firstLabel, el("span", "", "First annual archive (required)"));
-      firstYear = el("input"); firstYear.type = "number"; firstYear.name = "psi_start_year"; firstYear.min = "1990"; firstYear.max = String(currentYear); firstYear.step = "1"; firstYear.inputMode = "numeric"; firstYear.required = true; firstYear.value = String(scopeProfile.value === "full-data" ? 1990 : (isBackfill ? Math.max(1990, startingYear - 1) : startingYear));
+      firstYear = el("input"); firstYear.type = "number"; firstYear.name = "psi_start_year"; firstYear.id = "psi-start-year"; firstYear.min = "1990"; firstYear.max = String(currentYear); firstYear.step = "1"; firstYear.inputMode = "numeric"; firstYear.required = true; firstYear.value = String(scopeProfile.value === "full-data" ? 1990 : (isBackfill ? Math.max(1990, startingYear - 1) : startingYear));
       append(firstLabel, firstYear, el("small", "field-help", cachedPsiYears.length
         ? `Detected official archive years: ${cachedPsiYears.join(", ")}.`
         : "PSI years are explicit source partitions, not an opaque incremental cursor."));
       append(scopeFields, firstLabel);
       const lastLabel = el("label", "field");
       append(lastLabel, el("span", "", "Last annual archive (required)"));
-      lastYear = el("input"); lastYear.type = "number"; lastYear.name = "psi_end_year"; lastYear.min = "1990"; lastYear.max = String(currentYear); lastYear.step = "1"; lastYear.inputMode = "numeric"; lastYear.required = true; lastYear.value = String(scopeProfile.value === "full-data" ? currentYear - 1 : startingYear);
+      lastYear = el("input"); lastYear.type = "number"; lastYear.name = "psi_end_year"; lastYear.id = "psi-end-year"; lastYear.min = "1990"; lastYear.max = String(currentYear); lastYear.step = "1"; lastYear.inputMode = "numeric"; lastYear.required = true; lastYear.value = String(scopeProfile.value === "full-data" ? currentYear - 1 : startingYear);
       append(lastLabel, lastYear, el("small", "field-help", "Complete mode uses annual archives from 1990 through last year, then every published Monday archive in the current year."));
       append(scopeFields, lastLabel);
       append(wrapper, scopeFields);
@@ -91,6 +92,7 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
       maximumRecords = el("input");
       maximumRecords.type = "number";
       maximumRecords.name = "maximum_records";
+      maximumRecords.id = "maximum-records";
       maximumRecords.min = "1";
       maximumRecords.max = String(Math.min(Number(job.max_rows || 50000), 50000));
       maximumRecords.step = "1";
@@ -144,7 +146,7 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
         evidence.replaceChildren(el("div", "notice", `Update checked · ${scopeSummary}. Review the work and limits before starting.`), technicalDetails(result.body, "Technical plan details"));
       } catch (error) {
         evidence.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}.` : ""} Your update settings are unchanged.`));
-        if (error.fieldName) wrapper.querySelector(`[name="${error.fieldName}"]`)?.focus();
+        if (error instanceof FieldValidationError && scope.form) presentFormError(scope.form, scope.form.querySelector(".form-error"), error);
       }
     }, (pending) => {
       preview.disabled = pending;

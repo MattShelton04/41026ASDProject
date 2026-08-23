@@ -1,5 +1,7 @@
 import { FieldValidationError, createSubmissionGuard, formState, formStateChanged } from "../core/forms.js";
 
+const activeDialogs = new WeakMap();
+
 function requestIdSuffix(error) {
   return error?.requestId ? ` Request ID ${error.requestId}.` : "";
 }
@@ -11,8 +13,8 @@ function fieldLabel(field) {
     || "the highlighted field";
 }
 
-function clearFieldError(field) {
-  field.setCustomValidity?.("");
+function clearFieldError(field, { clearValidity = true } = {}) {
+  if (clearValidity) field.setCustomValidity?.("");
   const errorId = field.dataset?.formErrorId;
   if (errorId) document.getElementById(errorId)?.remove();
   if (errorId && field.getAttribute?.("aria-describedby")) {
@@ -24,11 +26,11 @@ function clearFieldError(field) {
   field.removeAttribute?.("aria-invalid");
 }
 
-function showFieldError(form, fieldName, message) {
+function showFieldError(form, fieldName, message, { custom = true, report = true } = {}) {
   const field = form.elements?.namedItem?.(fieldName) || form.querySelector?.(`[name="${CSS.escape(fieldName)}"]`);
   if (!field) return null;
-  clearFieldError(field);
-  field.setCustomValidity?.(message);
+  clearFieldError(field, { clearValidity: custom });
+  if (custom) field.setCustomValidity?.(message);
   field.setAttribute?.("aria-invalid", "true");
   if (field.id && field.insertAdjacentElement) {
     const error = document.createElement("small");
@@ -40,8 +42,26 @@ function showFieldError(form, fieldName, message) {
     field.dataset.formErrorId = error.id;
   }
   field.focus?.();
-  field.reportValidity?.();
+  if (report) field.reportValidity?.();
   return field;
+}
+
+export function presentFormError(form, errorHost, error) {
+  if (error instanceof FieldValidationError) {
+    const field = showFieldError(form, error.fieldName, error.message);
+    errorHost.textContent = `Please correct ${fieldLabel(field)} before continuing.`;
+    return field;
+  }
+  errorHost.textContent = `The service could not save your changes. ${error.message}${requestIdSuffix(error)} Your entered values are still here; correct the issue or retry.`;
+  errorHost.tabIndex = -1;
+  errorHost.focus?.();
+  return null;
+}
+
+export function requestActiveDialogClose(dialog) {
+  const controller = activeDialogs.get(dialog);
+  if (!controller) return true;
+  return controller.requestClose();
 }
 
 function setButtonPending(button, pending, progressLabel, original) {
@@ -71,6 +91,7 @@ export function runDialogForm({
   discardMessage = "Discard your unsaved changes?",
   onSubmit,
 }) {
+  if (dialog.open || activeDialogs.has(dialog)) throw new Error("This dialog already has an active form controller.");
   errorHost.textContent = "";
   const initial = formState(form);
   const buttonState = { text: "", minWidth: "" };
@@ -78,21 +99,28 @@ export function runDialogForm({
   let resolveDialog;
   const result = new Promise((resolve) => { resolveDialog = resolve; });
 
+  const controller = {
+    requestClose: () => requestClose(),
+  };
+  const isCurrent = () => activeDialogs.get(dialog) === controller;
   const finish = (accepted) => {
     if (settled) return;
     settled = true;
     cleanup();
+    if (isCurrent()) activeDialogs.delete(dialog);
     resolveDialog(accepted);
   };
   const close = (value) => {
+    if (!isCurrent()) return;
     dialog.returnValue = value;
     dialog.close(value);
   };
   const shouldDiscard = () => formStateChanged(initial, formState(form));
   const requestClose = () => {
-    if (guard.pending) return;
-    if (shouldDiscard() && !window.confirm(discardMessage)) return;
+    if (guard.pending) return false;
+    if (shouldDiscard() && !window.confirm(discardMessage)) return false;
     close("cancel");
+    return true;
   };
   const invalidSummary = () => {
     const invalid = form.querySelector?.(":invalid");
@@ -102,27 +130,25 @@ export function runDialogForm({
     invalid.reportValidity?.();
   };
   const guard = createSubmissionGuard(async () => {
+    if (!isCurrent()) return false;
     errorHost.textContent = "";
-    if (form.checkValidity && !form.checkValidity()) {
+    const valid = form.reportValidity ? form.reportValidity() : form.checkValidity ? form.checkValidity() : true;
+    if (!valid) {
       invalidSummary();
       return false;
     }
     try {
       await onSubmit();
+      if (!isCurrent()) return false;
       close(acceptedValue);
       return true;
     } catch (error) {
-      if (error instanceof FieldValidationError) showFieldError(form, error.fieldName, error.message);
-      errorHost.textContent = error instanceof FieldValidationError
-        ? `Please correct ${fieldLabel(form.elements?.namedItem?.(error.fieldName))} before continuing.`
-        : `The service could not save your changes. ${error.message}${requestIdSuffix(error)} Your entered values are still here; correct the issue or retry.`;
-      if (!(error instanceof FieldValidationError)) {
-        errorHost.tabIndex = -1;
-        errorHost.focus?.();
-      }
+      if (!isCurrent()) return false;
+      presentFormError(form, errorHost, error);
       return false;
     }
   }, (pending) => {
+    if (!isCurrent()) return;
     setButtonPending(submitButton, pending, progressLabel, buttonState);
     form.setAttribute?.("aria-busy", String(pending));
     for (const control of form.querySelectorAll?.('[type="submit"][value="cancel"]') || []) control.disabled = pending;
@@ -138,20 +164,39 @@ export function runDialogForm({
     requestClose();
   };
   const closed = () => finish(dialog.returnValue === acceptedValue);
+  const invalidated = (event) => {
+    if (!isCurrent()) return;
+    const field = event.target;
+    field.setAttribute?.("aria-invalid", "true");
+    if (!field.dataset?.formErrorId && field.validationMessage) showFieldError(form, field.name, field.validationMessage, { custom: false, report: false });
+    if (!errorHost.textContent) errorHost.textContent = `Please correct ${fieldLabel(field)} before continuing.`;
+  };
   const input = (event) => {
-    if (event.target?.dataset?.formErrorId || event.target?.validationMessage) clearFieldError(event.target);
+    const field = event.target;
+    if (!field?.matches?.("input, select, textarea")) return;
+    if (field.dataset?.formErrorId) clearFieldError(field);
+    if (!field.checkValidity?.()) {
+      field.setAttribute?.("aria-invalid", "true");
+      if (field.validationMessage) showFieldError(form, field.name, field.validationMessage, { custom: false, report: false });
+    } else {
+      clearFieldError(field, { clearValidity: false });
+      if (!form.querySelector?.(":invalid")) errorHost.textContent = "";
+    }
   };
   const cleanup = () => {
     form.removeEventListener("submit", submitted);
     form.removeEventListener("input", input);
+    form.removeEventListener("invalid", invalidated, true);
     dialog.removeEventListener("cancel", cancelled);
     dialog.removeEventListener("close", closed);
   };
 
   form.addEventListener("submit", submitted);
   form.addEventListener("input", input);
+  form.addEventListener("invalid", invalidated, true);
   dialog.addEventListener("cancel", cancelled);
   dialog.addEventListener("close", closed);
+  activeDialogs.set(dialog, controller);
   dialog.returnValue = "";
   dialog.showModal();
   form.querySelector?.("input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)")?.focus?.();

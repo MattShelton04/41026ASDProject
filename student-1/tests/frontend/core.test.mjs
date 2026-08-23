@@ -142,6 +142,8 @@ test("Feature 1 form parsers reject coercion and explain the required correction
   assert.throws(() => parseIntegerField("", "Rows", { minimum: 1 }), /at least 1/);
   assert.deepEqual(parseJsonTextList('["feature-1"]', "Research areas"), ["feature-1"]);
   assert.throws(() => parseJsonTextList("[]", "Research areas"), /non-empty JSON list/);
+  assert.throws(() => parseJsonTextList('["a","b"]', "Research areas", "target_features", { maximum: 1 }), /at most 1/);
+  assert.throws(() => parseJsonTextList('["a","a"]', "Research areas", "target_features", { unique: true }), /duplicate/);
   assert.throws(
     () => parseJsonField("[]", "Scope", "advanced_scope"),
     (error) => error instanceof FieldValidationError && error.fieldName === "advanced_scope" && /JSON object/.test(error.message),
@@ -318,9 +320,11 @@ test("every existing Feature 1 form is wired to explicit retention and submissio
   const sources = {
     shell: await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
     forms: await readFile(new URL("../../frontend/components/forms.js", import.meta.url), "utf8"),
+    entities: await readFile(new URL("../../frontend/routes/entities.js", import.meta.url), "utf8"),
     properties: await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8"),
     plan: await readFile(new URL("../../frontend/routes/run-plan.js", import.meta.url), "utf8"),
     releases: await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8"),
+    runs: await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8"),
     ai: await readFile(new URL("../../frontend/routes/ai-diagnosis.js", import.meta.url), "utf8"),
   };
   assert.match(sources.shell, /runDialogForm\(\{/); // source and job create/edit
@@ -331,10 +335,13 @@ test("every existing Feature 1 form is wired to explicit retention and submissio
   assert.match(sources.properties, /createSubmissionGuard/);
   assert.match(sources.plan, /onConfirm: async \(\) =>/); // run planner and confirmation
   assert.match(sources.plan, /discardMessage: "Discard your changed update scope\?"/);
+  assert.match(sources.entities, /onConfirm: \(\) => mutate\(`\$\{kind\}\/\$\{item\.id\}`/);
   assert.match(sources.releases, /runDialogForm\(\{/); // release create/edit
-  assert.equal((sources.releases.match(/onConfirm: \(\) => mutate/g) || []).length, 3); // submit, publish, reject
+  assert.equal((sources.releases.match(/onConfirm: \(\) => mutate/g) || []).length, 4); // delete, submit, publish, reject
+  assert.match(sources.runs, /onConfirm: async \(\) => \{ created = await mutate/);
   assert.match(sources.ai, /createSubmissionGuard/); // AI review
   assert.doesNotMatch(sources.shell, /entityDialog\.close\("save"\)/);
+  assert.match(sources.shell, /requestActiveDialogClose/);
 });
 
 test("job source detection and explicit year partitions are bounded", () => {

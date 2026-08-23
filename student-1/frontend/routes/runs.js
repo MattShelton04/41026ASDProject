@@ -26,7 +26,7 @@ function runTimeline(tasks) {
   return list;
 }
 
-export function createRunRoutes({ view, request, mutate, confirmAction, showToast, announce, state, generationGuard, rerender }) {
+export function createRunRoutes({ view, request, mutate, confirmAction, announce, state, generationGuard, rerender }) {
   async function renderRuns() {
     const params = routeQuery(location.hash);
     const filters = { q: params.get("q") || "", status: params.get("status") || "", job: params.get("job") || "" };
@@ -44,7 +44,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
         append(jobFilter, el("span", "", `Showing history for job ${filters.job}.`), link("Clear job filter", "#runs", "button secondary small"));
         append(view, jobFilter);
       }
-      append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: RUN_FILTERS, placeholder: "Update name or reference", onApply: (values) => { location.hash = `#runs${queryString({ ...values, job: filters.job })}`; rerender(); } }));
+      append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: RUN_FILTERS, placeholder: "Update name or reference", onApply: (values) => { location.hash = `#runs${queryString({ ...values, job: filters.job })}`; } }));
       if (!runs.length) { append(view, emptyState("No updates found", "Start a saved data update or adjust the current filters.", link("View data updates", "#jobs", "button primary"))); return; }
       const table = makeTable([{ label: "Update" }, { label: "Method" }, { label: "Status" }, { label: "Rows loaded" }, { label: "Started" }, { label: "Reference" }], runs, (run) => {
         const row = el("tr");
@@ -76,14 +76,19 @@ export function createRunRoutes({ view, request, mutate, confirmAction, showToas
       const availability = actionAvailability(run.status);
       const actions = [];
       const runAction = (key, label, description, tone = "secondary") => actions.push(button(label, `button ${tone}`, async () => {
-        const confirmed = await confirmAction({ title: `${label} this run?`, description, label, tone: tone === "secondary" ? "primary" : tone });
+        let created = null;
+        const confirmed = await confirmAction({
+          title: `${label} this run?`,
+          description,
+          label,
+          tone: tone === "secondary" ? "primary" : tone,
+          progressLabel: `${label.replace(/ update$/, "")}…`,
+          onConfirm: async () => { created = await mutate(`ingestion-runs/${id}/${key}`, { success: `${label} requested` }); },
+        });
         if (!confirmed) return;
-        try {
-          const created = await mutate(`ingestion-runs/${id}/${key}`, { success: `${label} requested` });
-          const child = entity(created, "run");
-          if (child?.id && child.id !== id) location.hash = `#runs/${child.id}`;
-          else renderRunDetail(id);
-        } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }
+        const child = entity(created, "run");
+        if (child?.id && child.id !== id) location.hash = `#runs/${child.id}`;
+        else renderRunDetail(id);
       }));
       if (availability.resume) runAction("resume", "Resume update", "Continue this interrupted update from its last saved step.");
       if (availability.retry) runAction("retry", "Retry update", "Start the full update again while keeping this failed attempt in the history.");

@@ -40,11 +40,14 @@ export function createPropertyRoutes({ view, request, announce }) {
     append(resultHost, emptyState("Start with a street address", "Include a street number and suburb or postcode for the clearest match."));
     append(view, resultHost);
 
+    let queryGeneration = 0;
     const submission = createSubmissionGuard(async (query) => {
+      const generation = ++queryGeneration;
       history.replaceState(null, "", `#properties${queryString({ q: query })}`);
       resultHost.replaceChildren(el("section", "loading-state", "Searching NSW property records…"));
       try {
         const result = await request(`properties/search${queryString({ q: query, state: "NSW", limit: 25 })}`);
+        if (generation !== queryGeneration || input.value.trim() !== query) return;
         const items = collection(result.body);
         if (result.body.supported === false) resultHost.replaceChildren(el("div", "notice warning", "This query is outside the supported NSW coverage. Try an NSW street address."));
         else if (!items.length) resultHost.replaceChildren(emptyState("No property found", "Try including a street number, suburb and four-digit postcode. We will not silently broaden your search."));
@@ -53,6 +56,7 @@ export function createPropertyRoutes({ view, request, announce }) {
           announce(`${items.length} property matches found.`);
         }
       } catch (error) {
+        if (generation !== queryGeneration || input.value.trim() !== query) return;
         resultHost.replaceChildren(errorState(error, () => form.requestSubmit()));
       }
     }, (pending) => {
@@ -81,7 +85,19 @@ export function createPropertyRoutes({ view, request, announce }) {
         input.reportValidity();
       }
     });
-    input.addEventListener("input", () => { input.setCustomValidity(""); input.removeAttribute("aria-invalid"); searchError.textContent = ""; });
+    form.addEventListener("invalid", (event) => {
+      if (event.target !== input) return;
+      input.setAttribute("aria-invalid", "true");
+      try { propertySearchQuery(input.value); }
+      catch (error) { searchError.textContent = error.message; }
+    }, true);
+    input.addEventListener("input", () => {
+      queryGeneration += 1;
+      input.setCustomValidity("");
+      input.removeAttribute("aria-invalid");
+      searchError.textContent = "";
+      if (submission.pending) resultHost.replaceChildren(emptyState("Search changed", "Press Search when the address is ready. Results from the earlier request will not replace this query."));
+    });
 
     if (input.value) queueMicrotask(() => form.requestSubmit());
   }

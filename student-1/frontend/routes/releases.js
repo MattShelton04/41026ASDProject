@@ -13,7 +13,7 @@ const RELEASE_FIELDS = [
   { name: "source_definition_id", label: "Source definition ID", required: true, createOnly: true },
   { name: "ingestion_run_id", label: "Ingestion run ID", required: true, createOnly: true },
   { name: "target_feature", label: "Research area key", required: true, createOnly: true },
-  { name: "release_version", label: "Release version", required: true },
+  { name: "release_version", label: "Release version", required: true, maxLength: 100 },
   { name: "schema_version", label: "Schema version", required: true },
   { name: "coverage", label: "Coverage evidence", type: "json", wide: true },
   { name: "record_count", label: "Record count", type: "number", min: 0, required: true },
@@ -79,7 +79,7 @@ export function createReleaseRoutes({
         .some((value) => String(value || "").toLowerCase().includes(filters.q.toLowerCase()))) : releases;
       view.replaceChildren();
       append(view, pageHeading("Property data", "Published data", "Review new data before it replaces the version currently used in property research.", [button("Create draft version", "button primary", () => openReleaseDialog())]));
-      append(view, filterToolbar({ ...filters, statuses: ["", "draft", "candidate", "awaiting_review", "accepted", "rejected", "superseded"], placeholder: "Dataset, version or research area", onApply: (values) => { location.hash = `#releases${queryString(values)}`; rerender(); } }));
+      append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: ["", "draft", "candidate", "awaiting_review", "accepted", "rejected", "superseded"], placeholder: "Dataset, version or research area", onApply: (values) => { location.hash = `#releases${queryString(values)}`; } }));
       if (!visible.length) { append(view, emptyState("No datasets found", filters.q || filters.status ? "Try clearing the current filters." : "A completed processing run can create a dataset for review.")); return; }
       append(view, panel(`${visible.length} data versions`, "New versions stay separate until they are reviewed and published", makeTable(
         [{ label: "Dataset / version" }, { label: "Research area" }, { label: "Records" }, { label: "State" }, { label: "Published" }, { label: "Checksum" }], visible,
@@ -107,9 +107,15 @@ export function createReleaseRoutes({
     const actions = [];
     if (["draft", "candidate"].includes(release.status)) actions.push(button("Edit metadata", "button secondary", () => openReleaseDialog(release)));
     if (["draft", "rejected"].includes(release.status)) actions.push(button("Delete", "button danger", async () => {
-      const ok = await confirmAction({ title: `Delete ${release.release_version}?`, description: "Only unused draft or rejected versions can be deleted. Existing checks and publishing records are kept.", label: "Delete version" });
+      const ok = await confirmAction({
+        title: `Delete ${release.release_version}?`,
+        description: "Only unused draft or rejected versions can be deleted. Existing checks and publishing records are kept.",
+        label: "Delete version",
+        progressLabel: "Deleting…",
+        onConfirm: () => mutate(`dataset-releases/${id}`, { method: "DELETE", body: undefined, success: "Release deleted" }),
+      });
       if (!ok) return;
-      try { await mutate(`dataset-releases/${id}`, { method: "DELETE", body: undefined, success: "Release deleted" }); location.hash = "#releases"; } catch (error) { showToast(`${error.message} Request ID ${error.requestId}`); }
+      location.hash = "#releases";
     }));
     if (["validated", "candidate"].includes(release.status)) actions.push(button("Submit for review", "button secondary", async () => {
       const comment = requiredReviewText("Reviewer context");

@@ -22,14 +22,19 @@ export function parseJsonField(value, label, fieldName = "") {
   }
 }
 
-export function parseJsonTextList(value, label, fieldName = "") {
+export function parseJsonTextList(value, label, fieldName = "", { maximum = null, unique = false } = {}) {
+  let result;
   try {
-    const result = JSON.parse(String(value || "[]"));
-    if (!Array.isArray(result) || !result.length || result.some((item) => typeof item !== "string" || !item.trim())) throw new Error();
-    return result;
+    result = JSON.parse(String(value || "[]"));
   } catch {
     return validationError(fieldName, `${label} must be a non-empty JSON list of text values, for example ["feature-1"].`);
   }
+  if (!Array.isArray(result) || !result.length || result.some((item) => typeof item !== "string" || !item.trim())) {
+    return validationError(fieldName, `${label} must be a non-empty JSON list of text values, for example ["feature-1"].`);
+  }
+  if (maximum !== null && result.length > maximum) return validationError(fieldName, `${label} can contain at most ${maximum} values.`);
+  if (unique && new Set(result).size !== result.length) return validationError(fieldName, `${label} must not contain duplicate values.`);
+  return result;
 }
 
 export function parseIntegerField(value, label, { fieldName = "", minimum = null, maximum = null } = {}) {
