@@ -111,9 +111,13 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
             "dataset_id": DATASET_ID,
             "refresh_strategy": "full_snapshot",
             "default_run_mode": "full_refresh",
-            "scope_json": {"profile": "showcase", "maximum_records": 20},
-            "quality_policy_key": "property-identity-v1",
-            "quality_policy_version": "1",
+            "scope_json": {
+                "profile": "showcase",
+                "localities": ["PARRAMATTA", "MOSMAN", "WOLLONGONG"],
+                "maximum_records": 100,
+            },
+            "quality_policy_key": "property-fixture.v1",
+            "quality_policy_version": "1.0.0",
             "max_parallelism": 1,
             "timeout_seconds": 60,
             "max_objects": 2,
@@ -164,7 +168,7 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
                 "complete": True,
                 "limitation": status_text,
             },
-            "manifest_json": {"fixture": True, "scenario": scenario},
+            "manifest_json": {},
             "review_comment": "Deterministic fixture publication.",
             "accepted_at": TIMESTAMP,
             "created_at": TIMESTAMP,
@@ -190,6 +194,8 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
             },
         ]
     )
+    for release in releases:
+        release["manifest_json"] = _release_manifest(release)
     properties = [
         {
             "property_ref": PROPERTY_ID,
@@ -237,6 +243,47 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
         "releases": releases,
         "properties": properties,
         "products": products,
+    }
+
+
+def _release_manifest(release: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "manifest_schema_version": "propertyscope.release-manifest.v1",
+        "product_schema_version": PRODUCT_SCHEMA,
+        "release_id": release["id"],
+        "release_version": release["release_version"],
+        "dataset_id": release["dataset_id"],
+        "target_feature": release["target_feature"],
+        "builder_key": "property-snapshot",
+        "builder_version": "1.0.0",
+        "import_profile": "property-fixture",
+        "normalisation_version": "1.0.0",
+        "publisher": "PropertyScope project",
+        "source": "fixture-property",
+        "source_release": "fixture-property-v1",
+        "source_retrieved_at": TIMESTAMP,
+        "source_effective_at": TIMESTAMP,
+        "candidate_generation_id": release["id"],
+        "record_count": release["record_count"],
+        "record_count_definition": "number of property identity records",
+        "content_sha256": release["content_sha256"],
+        "media_type": "application/json",
+        "content_encoding": None,
+        "byte_count": 2048,
+        "geography_coverage": ["NSW:PARRAMATTA", "NSW:MOSMAN", "NSW:WOLLONGONG"],
+        "temporal_coverage": None,
+        "measures": [],
+        "entity_types": ["property_identity"],
+        "source_licence": "synthetic-test-data",
+        "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "redistribution_decision": "committed-synthetic-fixture",
+        "download_permitted": True,
+        "known_limitations": [
+            "Address identity is not legal title, parcel, ownership, valuation, "
+            "or occupancy evidence."
+        ],
+        "created_at": release["created_at"],
+        "supersedes_release_id": None,
     }
 
 
@@ -340,11 +387,20 @@ def fixture_response(
             {
                 "status": "healthy",
                 "service": "ai-mode",
+                "version": "0+ui-fixture",
                 "checks": {
+                    "application": {
+                        "status": "healthy",
+                        "detail": "Fixture application factory initialised.",
+                    },
+                    "state_store": {
+                        "status": "healthy",
+                        "detail": "Deterministic in-memory fixture records are available.",
+                    },
                     "llm_provider": {
-                        "status": "ready",
+                        "status": "healthy",
                         "detail": "Deterministic fixture provider; no credentials or network used.",
-                    }
+                    },
                 },
             },
             delay_seconds=delay,
@@ -401,9 +457,20 @@ def fixture_response(
         return FixtureResponse(
             200,
             {
-                "profile": "showcase",
                 "full_data_enabled": False,
-                "source_profiles": ["showcase", "test"],
+                "implemented_live_profiles": [
+                    "schools-master",
+                    "bocsar-sparse",
+                    "gnaf-nsw",
+                    "psi-sales",
+                ],
+                "host_verified_profiles": ["psi-sales"],
+                "connected_live_profiles": [],
+                "cached_live_profiles": [],
+                "cached_source_years": {"psi-sales": []},
+                "cached_source_weeks": {"psi-sales": []},
+                "catalogued_profiles": ["psi-sales"],
+                "showcase_available": True,
             },
             delay_seconds=delay,
         )
@@ -424,16 +491,22 @@ def fixture_response(
         return FixtureResponse(200, _property_response(route, prop, scenario), delay_seconds=delay)
     if route == "sources":
         return FixtureResponse(
-            200, _mutation_or_collection(method, sources, scenario), delay_seconds=delay
+            201 if method == "POST" else 200,
+            _mutation_or_collection(method, sources, scenario, entity_key="source"),
+            delay_seconds=delay,
         )
     if route.startswith("sources/"):
         source = _select(_expanded(sources, scenario), "id", route.split("/")[1])
         if source is None:
             return _not_found("Source", route.split("/")[1], "source_not_found")
+        if method == "DELETE":
+            return FixtureResponse(204, {}, delay_seconds=delay)
         return FixtureResponse(200, {"source": source}, delay_seconds=delay)
     if route == "jobs":
         return FixtureResponse(
-            200, _mutation_or_collection(method, jobs, scenario), delay_seconds=delay
+            201 if method == "POST" else 200,
+            _mutation_or_collection(method, jobs, scenario, entity_key="job"),
+            delay_seconds=delay,
         )
     if route.startswith("jobs/"):
         job = _select(_expanded(jobs, scenario), "id", route.split("/")[1])
@@ -445,6 +518,8 @@ def fixture_response(
             return FixtureResponse(200, _job_plan(), delay_seconds=delay)
         if route.endswith("/runs"):
             return FixtureResponse(201, {"run": runs[0]}, delay_seconds=delay)
+        if method == "DELETE":
+            return FixtureResponse(204, {}, delay_seconds=delay)
         return FixtureResponse(200, {"job": job}, delay_seconds=delay)
     if route == "ingestion-runs":
         return FixtureResponse(200, _collection(runs, scenario), delay_seconds=delay)
@@ -454,17 +529,27 @@ def fixture_response(
             return _not_found("Ingestion run", route.split("/")[1], "ingestion_run_not_found")
         if partial_optional:
             return _optional_unavailable()
-        return FixtureResponse(200, _run_response(route, run, scenario), delay_seconds=delay)
+        status = (
+            201 if method == "POST" and route.endswith(("/retry", "/reprocess-cached")) else 200
+        )
+        return FixtureResponse(status, _run_response(route, run, scenario), delay_seconds=delay)
     if route == "dataset-releases":
+        release_items = releases
+        if statuses := params.get("status"):
+            release_items = [item for item in releases if item["status"] == statuses[-1]]
         return FixtureResponse(
             200 if method == "GET" else 201,
-            _mutation_or_collection(method, releases, scenario, entity_key="release"),
+            _mutation_or_collection(method, release_items, scenario, entity_key="release"),
             delay_seconds=delay,
         )
     if route.startswith("dataset-releases/"):
         release = _select(_expanded(releases, scenario), "id", route.split("/")[1])
         if release is None:
             return _not_found("Dataset release", route.split("/")[1], "release_not_found")
+        if method == "POST" and route.endswith("/agent-runs"):
+            return FixtureResponse(201, _created_agent_run(scenario), delay_seconds=delay)
+        if method == "DELETE":
+            return FixtureResponse(204, {}, delay_seconds=delay)
         return FixtureResponse(
             200,
             _release_response(route, release, scenario),
@@ -582,24 +667,58 @@ def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[
 
 def _job_capabilities() -> dict[str, Any]:
     return {
-        "run_modes": ["full_refresh", "reprocess_cached"],
-        "source_profiles": ["showcase", "test"],
-        "scope_profiles": {
-            "showcase": {"maximum_records": 20},
-            "test": {"maximum_records": 5},
+        "job_id": JOB_ID,
+        "profile_key": "fixture-property-full",
+        "refresh_strategy": "full_snapshot",
+        "supported_modes": ["full_refresh", "reprocess_cached"],
+        "limits": {
+            "max_objects": 2,
+            "max_bytes": 1_000_000,
+            "max_rows": 1_000,
+            "timeout_seconds": 60,
+            "max_parallelism": 1,
         },
-        "network_required": False,
+        "registered": {
+            "adapter": "fixture-snapshot",
+            "release_builder": "property-snapshot",
+            "import_profile": "fixture-property",
+            "quality_policy": "property-fixture.v1",
+        },
     }
 
 
 def _job_plan() -> dict[str, Any]:
+    stages = (
+        "discover",
+        "acquire",
+        "validate_artifact",
+        "import",
+        "normalise",
+        "quality",
+        "build_release",
+    )
     return {
-        "job_definition_id": JOB_ID,
+        "valid": True,
+        "job_id": JOB_ID,
         "run_mode": "full_refresh",
+        "scope": {
+            "profile": "showcase",
+            "localities": ["PARRAMATTA", "MOSMAN", "WOLLONGONG"],
+            "maximum_records": 100,
+        },
         "network_required": False,
-        "scope": {"profile": "showcase", "maximum_records": 20},
-        "tasks": ["acquire", "validate", "load", "build-release"],
-        "warnings": [],
+        "source_cache_required": False,
+        "tasks": [
+            {"sequence": index + 1, "stage": stage, "logical_key": f"{index:02d}/{stage}"}
+            for index, stage in enumerate(stages)
+        ],
+        "hard_limits": {
+            "max_objects": 2,
+            "max_bytes": 1_000_000,
+            "max_rows": 1_000,
+            "timeout_seconds": 60,
+        },
+        "accepted_watermark_unchanged_until_publication": True,
     }
 
 
@@ -612,7 +731,7 @@ def _quality_results(scenario: str) -> list[dict[str, Any]]:
             "rule_key": "fixture-row-count",
             "dimension": "completeness",
             "severity": "blocking",
-            "status": "passed",
+            "status": "pass",
             "observed_value_json": {"rows": 20},
             "expected_value_json": {"minimum": 1},
             "message": message,
@@ -656,17 +775,18 @@ def _run_response(route: str, run: dict[str, Any], scenario: str) -> dict[str, A
     if any(
         route.endswith(f"/{action}") for action in ("resume", "retry", "reprocess-cached", "cancel")
     ):
-        return {"run": run}
+        return {
+            "run": run,
+            **({"created": True} if route.endswith(("/retry", "/reprocess-cached")) else {}),
+        }
     return {"run": run}
 
 
 def _release_response(route: str, release: dict[str, Any], scenario: str) -> dict[str, Any]:
     if route.endswith("/manifest"):
-        return {
-            "fixture": True,
-            "schema_version": PRODUCT_SCHEMA,
-            "files": ["property-identities.ndjson"],
-        }
+        manifest = release["manifest_json"]
+        assert isinstance(manifest, dict)
+        return manifest
     if route.endswith("/records"):
         items = [] if scenario == "empty" else _expanded(_records(scenario)["properties"], scenario)
         return {
@@ -699,12 +819,47 @@ def _release_response(route: str, release: dict[str, Any], scenario: str) -> dic
             "offset": 0,
             "next_offset": 25 if len(items) > 25 else None,
         }
-    if any(
-        route.endswith(f"/{action}")
-        for action in ("submit-review", "publish", "reject", "agent-runs")
-    ):
+    if any(route.endswith(f"/{action}") for action in ("submit-review", "publish", "reject")):
         return {"release": release}
-    return {"release": release, "receipts": [], "manifest": release["manifest_json"]}
+    quality_results = _quality_results(scenario)
+    accepted_predecessor = None
+    if release["status"] != "accepted":
+        accepted_predecessor = _records(scenario)["releases"][0]
+    return {
+        "release": release,
+        "quality_results": quality_results,
+        "quality_summary": {
+            "total": len(quality_results),
+            "passed": sum(item["status"] == "pass" for item in quality_results),
+            "failed": sum(item["status"] == "fail" for item in quality_results),
+            "blocking_failures": sum(
+                item["status"] == "fail" and item["severity"] == "blocking"
+                for item in quality_results
+            ),
+        },
+        "receipts": [],
+        "accepted_predecessor": accepted_predecessor,
+        "release_contract": _release_contract(release),
+    }
+
+
+def _release_contract(release: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: release.get(key)
+        for key in (
+            "id",
+            "dataset_id",
+            "target_feature",
+            "release_version",
+            "schema_version",
+            "status",
+            "record_count",
+            "content_sha256",
+            "manifest_json",
+            "supersedes_release_id",
+            "version",
+        )
+    } | {"receipts": []}
 
 
 def _preview_record(prop: dict[str, Any]) -> dict[str, Any]:
@@ -814,6 +969,38 @@ def _agent_run_detail(summary: dict[str, Any], scenario: str) -> dict[str, Any]:
         },
         "steps": [],
         "reviews": [],
+    }
+
+
+def _created_agent_run(scenario: str) -> dict[str, Any]:
+    objective = (
+        LONG_TEXT
+        if scenario == "long-content"
+        else "Review the candidate property fixture release."
+    )
+    return {
+        "id": AGENT_RUN_ID,
+        "request_id": REQUEST_ID,
+        "traceparent": None,
+        "feature_key": AGENT_FEATURE_KEY,
+        "objective": objective,
+        "status": "queued",
+        "prompt_set": "default.v4",
+        "model_profile": "fixture-model",
+        "limits": {
+            "max_iterations": 6,
+            "max_tool_calls": 12,
+            "time_budget_ms": 300_000,
+            "max_model_repairs": 2,
+        },
+        "iteration_count": 0,
+        "tool_call_count": 0,
+        "version": 0,
+        "cancel_requested": False,
+        "created_at": TIMESTAMP,
+        "updated_at": TIMESTAMP,
+        "final_result": None,
+        "error": None,
     }
 
 

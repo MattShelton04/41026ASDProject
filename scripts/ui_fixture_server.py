@@ -95,7 +95,11 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
             response = fixture_response(self.command, target.path, target.query, scenario)
             if response.delay_seconds:
                 time.sleep(response.delay_seconds)
-            payload = json.dumps(response.body, sort_keys=True, separators=(",", ":")).encode()
+            payload = (
+                b""
+                if response.status == HTTPStatus.NO_CONTENT
+                else json.dumps(response.body, sort_keys=True, separators=(",", ":")).encode()
+            )
             self._send_bytes(
                 response.status,
                 payload,

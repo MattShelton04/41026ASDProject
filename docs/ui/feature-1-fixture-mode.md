@@ -71,9 +71,10 @@ uv run scripts/dev.py ui-smoke --all-routes
 The smoke opens Shared Home, a populated Property Discovery search and Data Operations overview at
 1440x1000. It fails on a page exception, any console error, a missing route heading or a missing
 property result. Missing Chromium and occupied ports produce an actionable error. The broader
-command additionally covers Shared status and evidence, every populated Feature 1 route family,
-and the shared AI activity detail projection. The broader route/state/viewport audit remains the
-responsibility of the resumable Prompt 2 harness.
+command additionally covers Shared status and accepted-release evidence, every populated Feature 1
+route family, the shared AI activity detail projection, and the real AI-review submit-to-detail
+flow. The broader route/state/viewport audit remains the responsibility of the resumable Prompt 2
+harness.
 
 ## Compose coordination preflight
 

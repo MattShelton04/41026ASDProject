@@ -18,6 +18,7 @@ from playwright.sync_api import Page, sync_playwright
 from scripts.ui_fixture_server import DEFAULT_PORT, LOOPBACK_HOST
 from scripts.ui_fixtures import (
     AGENT_RUN_ID,
+    CANDIDATE_RELEASE_ID,
     DATASET_ID,
     JOB_ID,
     PROPERTY_ID,
@@ -102,6 +103,39 @@ def _verify_page(
     print(f"PASS {expected_heading}: {url}", flush=True)
 
 
+def _verify_ai_submit(page: Page, base_url: str, scenario: str) -> None:
+    failures: list[str] = []
+    page.on("pageerror", lambda error: failures.append(f"page exception: {error}"))
+    page.on(
+        "console",
+        lambda message: (
+            failures.append(f"console error: {message.text}") if message.type == "error" else None
+        ),
+    )
+    url = (
+        f"{base_url}/features/data-platform/?scenario={scenario}#ai/release:{CANDIDATE_RELEASE_ID}"
+    )
+    page.goto(url, wait_until="networkidle")
+    submit = page.get_by_role("button", name="Start AI review")
+    submit.wait_for(state="visible")
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith(f"/dataset-releases/{CANDIDATE_RELEASE_ID}/agent-runs")
+        )
+    ) as response_info:
+        submit.click()
+    if response_info.value.status != 201:
+        raise RuntimeError(f"AI review fixture returned HTTP {response_info.value.status}, not 201")
+    page.wait_for_url(f"**#ai/{AGENT_RUN_ID}")
+    page.locator(f'[data-agent-trace="{AGENT_RUN_ID}"][aria-busy="false"]').wait_for(
+        state="visible"
+    )
+    if failures:
+        raise RuntimeError(f"{url} emitted unexpected browser errors: {'; '.join(failures)}")
+    print(f"PASS AI submit-to-detail: {url}", flush=True)
+
+
 def _populated_routes(base_url: str, scenario: str) -> tuple[tuple[str, str, str | None], ...]:
     shared = f"{base_url}/?scenario={scenario}"
     feature = f"{base_url}/features/data-platform/?scenario={scenario}"
@@ -174,7 +208,21 @@ def run_smoke(*, port: int, scenario: str, all_routes: bool = False) -> None:
                         for url, heading, selector in _populated_routes(base_url, scenario):
                             page = context.new_page()
                             _verify_page(page, url, heading, ready_selector=selector)
+                            if heading == "Sources and history":
+                                page.get_by_text("2026.08.23-fixture", exact=False).first.wait_for(
+                                    state="visible"
+                                )
+                                if page.get_by_text(
+                                    "2026.08.24-fixture-candidate", exact=False
+                                ).count():
+                                    raise RuntimeError(
+                                        "Shared Evidence rendered a candidate despite "
+                                        "status=accepted"
+                                    )
                             page.close()
+                        page = context.new_page()
+                        _verify_ai_submit(page, base_url, scenario)
+                        page.close()
                     context.close()
                 finally:
                     browser.close()

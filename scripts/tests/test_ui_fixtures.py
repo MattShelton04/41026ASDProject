@@ -26,8 +26,18 @@ from scripts.ui_fixtures import (
     fixture_response,
 )
 
-from propertyscope_data_platform.release_builders import DataProductCatalogueEntry
-from shared_contracts import AgentRunDetail, AgentRunEventPage, AgentRunPage
+from propertyscope_data_platform.release_builders import (
+    DataProductCatalogueEntry,
+    ReleaseDetailContract,
+    ReleaseManifestV1,
+)
+from shared_contracts import (
+    AgentRun,
+    AgentRunDetail,
+    AgentRunEventPage,
+    AgentRunPage,
+    HealthResponse,
+)
 from shared_contracts.operations import AgentRunEvidenceDetail
 
 
@@ -75,6 +85,14 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
     assert response.status == 404
     assert response.getheader("Content-Type") == "application/problem+json; charset=utf-8"
     assert problem["code"] == "fixture_route_not_found"
+    connection.close()
+
+    connection = HTTPConnection(LOOPBACK_HOST, int(fixture_origin.rsplit(":", 1)[1]))
+    connection.request("DELETE", f"/api/data-platform/v1/sources/{SOURCE_ID}")
+    response = connection.getresponse()
+    assert response.status == 204
+    assert response.read() == b""
+    connection.close()
 
 
 def test_query_scenario_sets_session_cookie_used_by_api(fixture_origin: str) -> None:
@@ -140,6 +158,16 @@ def test_data_product_routes_match_the_direct_production_catalogue_shape(
     } <= set(product)
     assert product["product_schema_version"] == PRODUCT_SCHEMA
     DataProductCatalogueEntry.model_validate(product)
+
+
+@pytest.mark.parametrize("status", ("accepted", "candidate", "awaiting_review"))
+def test_dataset_release_status_filter_returns_only_exact_matches(status: str) -> None:
+    response = fixture_response(
+        "GET", "/api/data-platform/v1/dataset-releases", f"status={status}", "populated"
+    )
+
+    assert response.body["count"] == 1
+    assert [item["status"] for item in response.body["items"]] == [status]
 
 
 def test_required_scenarios_have_distinct_deterministic_behaviour() -> None:
@@ -232,12 +260,115 @@ def test_shared_health_evidence_and_ai_operations_projections_are_contract_valid
     )
 
     assert health.body["dependencies"] == {"database": True}
-    assert ai_health.body["checks"]["llm_provider"]["status"] == "ready"
+    HealthResponse.model_validate(ai_health.body)
+    assert ai_health.body["checks"]["llm_provider"]["status"] == "healthy"
+    assert releases.body["count"] == 1
+    assert [item["status"] for item in releases.body["items"]] == ["accepted"]
     assert releases.body["items"][0]["target_feature"] == "feature-1"
     AgentRunPage.model_validate(page.body)
     AgentRunEvidenceDetail.model_validate(detail.body)
     AgentRunEventPage.model_validate(events.body)
     AgentRunDetail.model_validate(feature_detail.body)
+
+
+def test_release_ai_creation_and_operator_mutation_statuses_match_production() -> None:
+    created_agent = fixture_response(
+        "POST",
+        f"/api/data-platform/v1/dataset-releases/{RELEASE_ID}/agent-runs",
+        "",
+        "populated",
+    )
+    source_created = fixture_response("POST", "/api/data-platform/v1/sources", "", "populated")
+    job_created = fixture_response("POST", "/api/data-platform/v1/jobs", "", "populated")
+    source_deleted = fixture_response(
+        "DELETE", f"/api/data-platform/v1/sources/{SOURCE_ID}", "", "populated"
+    )
+    job_deleted = fixture_response(
+        "DELETE", f"/api/data-platform/v1/jobs/{JOB_ID}", "", "populated"
+    )
+    retry = fixture_response(
+        "POST", f"/api/data-platform/v1/ingestion-runs/{RUN_ID}/retry", "", "populated"
+    )
+    reprocess = fixture_response(
+        "POST",
+        f"/api/data-platform/v1/ingestion-runs/{RUN_ID}/reprocess-cached",
+        "",
+        "populated",
+    )
+
+    assert created_agent.status == 201
+    AgentRun.model_validate(created_agent.body)
+    assert source_created.status == job_created.status == 201
+    assert set(source_created.body) == {"source"}
+    assert set(job_created.body) == {"job"}
+    assert source_deleted.status == job_deleted.status == 204
+    assert source_deleted.body == job_deleted.body == {}
+    assert retry.status == reprocess.status == 201
+    assert retry.body["created"] is reprocess.body["created"] is True
+
+
+def test_capabilities_plan_manifest_and_release_inspection_match_production_shapes() -> None:
+    runtime = fixture_response("GET", "/api/data-platform/v1/runtime-capabilities", "", "populated")
+    capabilities = fixture_response(
+        "GET", f"/api/data-platform/v1/jobs/{JOB_ID}/capabilities", "", "populated"
+    )
+    plan = fixture_response("POST", f"/api/data-platform/v1/jobs/{JOB_ID}/plans", "", "populated")
+    manifest = fixture_response(
+        "GET", f"/api/data-platform/v1/dataset-releases/{RELEASE_ID}/manifest", "", "populated"
+    )
+    inspection = fixture_response(
+        "GET", f"/api/data-platform/v1/dataset-releases/{RELEASE_ID}", "", "populated"
+    )
+
+    assert set(runtime.body) == {
+        "full_data_enabled",
+        "implemented_live_profiles",
+        "host_verified_profiles",
+        "connected_live_profiles",
+        "cached_live_profiles",
+        "cached_source_years",
+        "cached_source_weeks",
+        "catalogued_profiles",
+        "showcase_available",
+    }
+    assert set(capabilities.body) == {
+        "job_id",
+        "profile_key",
+        "refresh_strategy",
+        "supported_modes",
+        "limits",
+        "registered",
+    }
+    assert set(plan.body) == {
+        "valid",
+        "job_id",
+        "run_mode",
+        "scope",
+        "network_required",
+        "source_cache_required",
+        "tasks",
+        "hard_limits",
+        "accepted_watermark_unchanged_until_publication",
+    }
+    assert [task["stage"] for task in plan.body["tasks"]] == [
+        "discover",
+        "acquire",
+        "validate_artifact",
+        "import",
+        "normalise",
+        "quality",
+        "build_release",
+    ]
+    ReleaseManifestV1.model_validate(manifest.body)
+    assert set(inspection.body) == {
+        "release",
+        "quality_results",
+        "quality_summary",
+        "receipts",
+        "accepted_predecessor",
+        "release_contract",
+    }
+    ReleaseDetailContract.model_validate(inspection.body["release_contract"])
 
 
 def test_projection_values_match_report_preview_overview_and_uuid_contracts() -> None:
