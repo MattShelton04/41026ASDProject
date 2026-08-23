@@ -295,6 +295,9 @@ def test_real_config_destructive_actions_use_exact_button_semantics(tmp_path: Pa
     thread.start()
     try:
         with sync_playwright() as playwright:
+            executable = Path(playwright.chromium.executable_path)
+            if not executable.is_file():
+                pytest.skip("Playwright Chromium is not installed")
             browser = playwright.chromium.launch(headless=True)
             try:
                 base_url = f"http://{LOOPBACK_HOST}:{server.server_port}"
