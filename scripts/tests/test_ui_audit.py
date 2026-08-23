@@ -25,11 +25,8 @@ def test_real_config_accounts_for_every_required_route_state() -> None:
         )
         == 180
     )
-    assert sum(len(route.deferred_states) for route in config.routes) == 3
-    assert {state for route in config.routes for state in route.deferred_states} == {
-        "long-content",
-        "partial",
-    }
+    assert sum(len(route.deferred_states) for route in config.routes) == 2
+    assert {state for route in config.routes for state in route.deferred_states} == {"long-content"}
     assert len(compile_batches(config, profile="quick")) == 6
     assert {batch.route_id for batch in compile_batches(config, profile="quick")} == {
         "shared-home",
