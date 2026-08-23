@@ -2,6 +2,17 @@
 
 All notable changes to the shared PropertyScope frontend design system are recorded here.
 
+## 0.3.0 — 2026-08-23
+
+- Added semantic colour and typography roles over the existing palette and type scales.
+- Added compact/comfortable density, responsive gutters/content widths, border, motion and named
+  overlay-layer tokens.
+- Expanded the CSS layout surface with page-container, inline, responsive-grid, section and toolbar
+  primitives.
+- Added a backend-free design-foundation gallery and a checked-in raw-colour/off-scale-spacing gate.
+- Migrated Shared, Feature 1 and AI activity call sites in a bounded pass without rewriting local
+  table, map or decorative geometry.
+
 ## 0.2.0 — 2026-08-22
 
 - Added stable type-scale, line-height and weight tokens.

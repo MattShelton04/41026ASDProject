@@ -21,6 +21,8 @@ shared primitives, but should not redefine token values locally.
 
 - `--ps-*` custom properties in `tokens.css`
 - `.ps-container`, `.ps-cluster`, `.ps-stack`, `.ps-grid*`
+- `.ps-page-container`, `.ps-inline`, `.ps-responsive-grid`, `.ps-section`, `.ps-toolbar`
+- `.ps-density--compact` and `.ps-density--comfortable`
 - `.ps-button` and its documented modifiers
 - `.ps-badge` and evidence/release modifiers
 - `.ps-card` and card elements
@@ -35,9 +37,13 @@ Use shared tokens for concepts that should look and behave alike across features
 
 - `--ps-type-*`, `--ps-leading-*` and `--ps-weight-*` for the common type scale;
 - `--ps-ink-*`, `--ps-ocean-*`, surface and semantic-state tokens for colour;
-- `--ps-space-*`, `--ps-content-max`, `--ps-control-height*` and `--ps-shell-*` for rhythm and shell sizing;
+- `--ps-space-*`, semantic layout gaps, responsive gutters, content widths, density-specific
+  `--ps-control-height*` values and `--ps-shell-*` for rhythm and shell sizing;
 - `--ps-radius-*` and `--ps-shadow-*` for shape and elevation; and
-- `--ps-duration`, `--ps-ease`, `--ps-focus-*` and `--ps-z-*` for shared interaction behaviour.
+- `--ps-motion-*`, `--ps-ease-*`, `--ps-focus-*` and named `--ps-z-*` layers for shared interaction behaviour.
+
+The rendered development reference is `design-system/gallery.html`. The full inventory, migration
+notes and raw-value convention are documented in `docs/ui/design-token-foundation.md`.
 
 Feature styles may introduce private layout variables, but must not redeclare a `--ps-*` token.
 If the shared value is unsuitable, propose a new semantic token instead of silently overriding it.

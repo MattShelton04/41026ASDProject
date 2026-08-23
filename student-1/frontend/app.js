@@ -195,6 +195,7 @@ async function renderRoute({ focus = false } = {}) {
   if (entityDialog.open) entityDialog.close("cancel");
   if (actionDialog.open) actionDialog.close("cancel");
   const { route, id } = parseRoute(location.hash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
+  view.dataset.density = route === "properties" ? "comfortable" : "compact";
   try {
     if (route === "overview") await renderOverview({ view, request });
     else if (route === "data-products") await renderDataProducts(id);

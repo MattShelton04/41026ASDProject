@@ -145,7 +145,8 @@ test("design tokens expose shared type, control, focus and layering contracts", 
   for (const token of ["--ps-type-body", "--ps-leading-body", "--ps-control-height", "--ps-focus-outline", "--ps-z-navigation"]) {
     assert.match(tokens, new RegExp(`${token}:`));
   }
-  assert.match(tokens, /--ps-focus-outline: 3px solid var\(--ps-ocean-800\)/);
+  assert.match(tokens, /--ps-color-focus: var\(--ps-ocean-800\)/);
+  assert.match(tokens, /--ps-focus-outline: 3px solid var\(--ps-color-focus\)/);
   assert.doesNotMatch(tokens, /--ps-focus-outline:[^;]*rgba/);
 });
 

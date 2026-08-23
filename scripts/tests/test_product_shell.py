@@ -119,3 +119,53 @@ def test_property_data_and_agent_operations_link_back_to_product_home() -> None:
     assert "Research areas" in operations_page
     assert 'meta name="color-scheme" content="light"' in operations_page
     assert "http://localhost:5100" not in operations_page
+
+
+def test_design_foundation_gallery_renders_public_tokens_and_layouts() -> None:
+    tokens = _read("shared/frontend/design-system/tokens.css")
+    components = _read("shared/frontend/design-system/components.css")
+    gallery = _read("shared/frontend/design-system/gallery.html")
+    feature_app = _read("student-1/frontend/app.js")
+
+    for token in (
+        "--ps-color-background",
+        "--ps-color-surface-elevated",
+        "--ps-color-text-muted",
+        "--ps-color-focus",
+        "--ps-color-success",
+        "--ps-color-warning",
+        "--ps-color-danger",
+        "--ps-color-disabled-surface",
+        "--ps-control-height-compact",
+        "--ps-control-height-comfortable",
+        "--ps-page-gutter",
+        "--ps-z-drawer",
+        "--ps-z-toast",
+    ):
+        assert token in tokens
+
+    for primitive in (
+        ".ps-page-container",
+        ".ps-inline",
+        ".ps-responsive-grid",
+        ".ps-section",
+        ".ps-toolbar",
+    ):
+        assert primitive in components
+
+    assert "ps-density--comfortable" in gallery
+    assert "ps-density--compact" in gallery
+    assert (
+        'view.dataset.density = route === "properties" ? "comfortable" : "compact"' in feature_app
+    )
+
+
+def test_production_styles_do_not_use_transition_all() -> None:
+    for path in (
+        "shared/frontend/design-system/base.css",
+        "shared/frontend/design-system/components.css",
+        "shared/frontend/styles.css",
+        "shared/frontend/operations/ai-mode/styles.css",
+        "student-1/frontend/styles.css",
+    ):
+        assert "transition: all" not in _read(path).lower()

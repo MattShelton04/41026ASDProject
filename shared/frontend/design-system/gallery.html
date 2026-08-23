@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>PropertyScope design foundation gallery</title>
+    <link rel="stylesheet" href="tokens.css">
+    <link rel="stylesheet" href="base.css">
+    <link rel="stylesheet" href="components.css">
+    <link rel="stylesheet" href="gallery.css">
+  </head>
+  <body>
+    <a class="ps-skip-link" href="#gallery-main">Skip to gallery</a>
+    <header class="gallery-header">
+      <div class="ps-page-container ps-stack--small">
+        <p class="ps-eyebrow">Development reference</p>
+        <h1>Design foundation</h1>
+        <p>Domain-neutral semantic tokens and layout primitives shared by the product shell, Property Discovery and Data Operations.</p>
+      </div>
+    </header>
+    <main class="ps-page-container ps-stack--large gallery-main" id="gallery-main">
+      <section class="ps-stack" aria-labelledby="colour-heading">
+        <div><p class="ps-eyebrow">Semantic roles</p><h2 id="colour-heading">Colour</h2></div>
+        <div class="gallery-swatches">
+          <article class="gallery-swatch swatch-background"><span></span><strong>Background</strong><code>--ps-color-background</code></article>
+          <article class="gallery-swatch swatch-surface"><span></span><strong>Surface</strong><code>--ps-color-surface</code></article>
+          <article class="gallery-swatch swatch-elevated"><span></span><strong>Elevated surface</strong><code>--ps-color-surface-elevated</code></article>
+          <article class="gallery-swatch swatch-text"><span></span><strong>Text</strong><code>--ps-color-text</code></article>
+          <article class="gallery-swatch swatch-muted"><span></span><strong>Muted text</strong><code>--ps-color-text-muted</code></article>
+          <article class="gallery-swatch swatch-border"><span></span><strong>Border</strong><code>--ps-color-border</code></article>
+          <article class="gallery-swatch swatch-focus"><span></span><strong>Focus</strong><code>--ps-color-focus</code></article>
+          <article class="gallery-swatch swatch-accent"><span></span><strong>Accent</strong><code>--ps-color-accent</code></article>
+          <article class="gallery-swatch swatch-success"><span></span><strong>Success</strong><code>--ps-color-success</code></article>
+          <article class="gallery-swatch swatch-warning"><span></span><strong>Warning</strong><code>--ps-color-warning</code></article>
+          <article class="gallery-swatch swatch-danger"><span></span><strong>Danger</strong><code>--ps-color-danger</code></article>
+          <article class="gallery-swatch swatch-disabled"><span></span><strong>Disabled</strong><code>--ps-color-disabled-surface</code></article>
+        </div>
+      </section>
+
+      <section class="gallery-panel ps-stack" aria-labelledby="type-heading">
+        <div><p class="ps-eyebrow">Roles over one scale</p><h2 id="type-heading">Typography</h2></div>
+        <div class="gallery-type"><p class="type-display">Display role</p><p class="type-heading-large">Large heading role</p><p class="type-heading-medium">Medium heading role</p><p class="type-heading-small">Small heading role</p><p class="type-body-large">Large body role explains a leading task.</p><p class="type-body">Body role supports ordinary reading across workspaces.</p><p class="type-caption">Caption role · supporting metadata</p></div>
+      </section>
+
+      <section class="ps-stack" aria-labelledby="density-heading">
+        <div><p class="ps-eyebrow">Shared geometry, distinct contexts</p><h2 id="density-heading">Density</h2></div>
+        <div class="ps-grid ps-grid-2">
+          <article class="gallery-panel ps-density--comfortable ps-stack"><h3>Discovery · comfortable</h3><label>Property search<input value="11 Example Street, Sydney NSW"></label><div class="ps-inline"><button class="ps-button ps-button--primary" type="button">Search property data</button><button class="ps-button" type="button">Clear</button></div></article>
+          <article class="gallery-panel ps-density--compact ps-stack"><h3>Operations · compact</h3><label>Update status<select><option>Needs review</option></select></label><div class="ps-inline"><button class="ps-button ps-button--primary" type="button">Apply filters</button><button class="ps-button" type="button">Reset</button></div></article>
+        </div>
+      </section>
+
+      <section class="gallery-panel ps-stack" aria-labelledby="layout-heading">
+        <div><p class="ps-eyebrow">Composition primitives</p><h2 id="layout-heading">Layout</h2></div>
+        <div class="ps-toolbar"><strong>Toolbar distributes context and actions</strong><div class="ps-inline"><button class="ps-button" type="button">Secondary</button><button class="ps-button ps-button--primary" type="button">Primary</button></div></div>
+        <div class="ps-responsive-grid"><article class="ps-card"><div class="ps-card__body"><h3>Responsive grid</h3><p>Cards wrap from available space without page-specific breakpoints.</p></div></article><article class="ps-card"><div class="ps-card__body"><h3>Stack</h3><p>Vertical rhythm comes from the shared four-pixel spacing scale.</p></div></article><article class="ps-card"><div class="ps-card__body"><h3>Inline cluster</h3><p>Actions wrap while preserving their intended relationship.</p></div></article></div>
+      </section>
+
+      <section class="gallery-panel ps-stack" aria-labelledby="state-heading">
+        <div><p class="ps-eyebrow">Visible interaction contract</p><h2 id="state-heading">States and layers</h2></div>
+        <div class="ps-inline"><span class="ps-badge ps-badge--confirmed">Confirmed</span><span class="ps-badge ps-badge--partial">Partial</span><span class="ps-badge ps-badge--info">Information</span><span class="ps-badge ps-badge--planned">Planned</span></div>
+        <div class="ps-inline"><button class="ps-button ps-button--primary" type="button">Default</button><button class="ps-button" type="button" disabled>Disabled</button><a class="ps-button ps-button--quiet" href="#colour-heading">Quiet link</a></div>
+        <p class="gallery-layer-note">Layer order: shell → sticky → dropdown → popover → drawer → dialog → toast → skip link.</p>
+      </section>
+    </main>
+  </body>
+</html>
