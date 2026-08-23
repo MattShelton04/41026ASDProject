@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://propertyscope.local/schemas/ui-audit-report.v1.json",
+  "title": "PropertyScope UI audit report",
+  "type": "object",
+  "required": ["schemaVersion", "run", "summary", "batches"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "run": {
+      "type": "object",
+      "required": ["profile", "startedAt", "finishedAt", "gitSha", "configDigest", "artifactRoot", "shard"],
+      "properties": {
+        "profile": {"enum": ["quick", "full"]},
+        "startedAt": {"type": "string", "format": "date-time"},
+        "finishedAt": {"type": "string", "format": "date-time"},
+        "gitSha": {"type": "string"},
+        "configDigest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "artifactRoot": {"type": "string"},
+        "shard": {
+          "type": "object",
+          "required": ["index", "total"],
+          "properties": {"index": {"type": "integer", "minimum": 0}, "total": {"type": "integer", "minimum": 1}}
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {"type": "object"},
+    "batches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "fingerprint", "workspace", "routeGroup", "routeId", "case", "viewport", "status", "findings"],
+        "properties": {
+          "id": {"type": "string"},
+          "fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "workspace": {"type": "string"},
+          "routeGroup": {"type": "string"},
+          "routeId": {"type": "string"},
+          "case": {"type": "object"},
+          "viewport": {"type": "object"},
+          "status": {"enum": ["passed", "failed"]},
+          "findings": {"type": "array", "items": {"type": "object"}}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

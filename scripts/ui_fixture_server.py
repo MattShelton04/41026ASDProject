@@ -27,6 +27,23 @@ LOOPBACK_HOST = "127.0.0.1"
 DEFAULT_PORT = 5300
 SCENARIO_COOKIE = "propertyscope_ui_scenario"
 
+CANARY_PAGES = {
+    "/__ui-fixture__/canary/clean": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Clean UI audit canary</title></head>
+<body><main><h1>Clean UI audit canary</h1><button type="button">Safe action</button></main></body>
+</html>""",
+    "/__ui-fixture__/canary/overflow": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Overflow UI audit canary</title>
+<style>html,body{margin:0}.canary-overflow{width:calc(100vw + 24px);height:80px}</style></head>
+<body><main><h1>Overflow UI audit canary</h1>
+<div class="canary-overflow">overflow</div></main></body>
+</html>""",
+    "/__ui-fixture__/canary/console-error": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Console UI audit canary</title></head>
+<body><main><h1>Console UI audit canary</h1></main>
+<script>console.error("ui-audit-canary");</script></body></html>""",
+}
+
 
 class UIFixtureServer(ThreadingHTTPServer):
     """HTTP server carrying the immutable default fixture scenario."""
@@ -80,6 +97,14 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
             return
         target = urlsplit(self.path)
         scenario, selected_by_query = self._scenario(target.query)
+        if target.path in CANARY_PAGES:
+            self._send_bytes(
+                HTTPStatus.OK,
+                CANARY_PAGES[target.path].encode(),
+                "text/html; charset=utf-8",
+                include_body=include_body,
+            )
+            return
         if target.path == "/healthz":
             self._send_bytes(
                 HTTPStatus.OK,

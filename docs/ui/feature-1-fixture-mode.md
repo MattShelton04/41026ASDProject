@@ -76,6 +76,11 @@ route family, the shared AI activity detail projection, and the real AI-review s
 flow. The broader route/state/viewport audit remains the responsibility of the resumable Prompt 2
 harness.
 
+Run that harness with `uv run scripts/dev.py ui-audit-quick` or
+`uv run scripts/dev.py ui-audit-full`. Its scenario matrix, resume/shard controls, generated
+artifacts, severity policy and stateless destructive-action guard are documented in
+[`feature-1-audit.md`](feature-1-audit.md).
+
 ## Compose coordination preflight
 
 `dev.py up`, `restart` and `rebuild` validate the final configured host ports before writing the

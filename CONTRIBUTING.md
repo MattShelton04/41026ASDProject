@@ -82,6 +82,8 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Rebuild changed container images | `uv run scripts/dev.py rebuild` |
 | Stop the stack and preserve data | `uv run scripts/dev.py down` |
 | Delete only this stack's durable data | `uv run scripts/dev.py reset` |
+| Run the quick Shared/Feature 1 UI audit | `uv run scripts/dev.py ui-audit-quick` |
+| Run the full resumable UI matrix | `uv run scripts/dev.py ui-audit-full` |
 
 The local service exposes health endpoints and the versioned `/api/v1/agent-runs`
 create/read/cancel/review surface. Its default feature-tool registry remains empty until

@@ -828,6 +828,18 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Exercise every populated Shared and Feature 1 route family",
     )
+    for command_name, profile in (
+        ("ui-audit-quick", "quick"),
+        ("ui-audit-full", "full"),
+    ):
+        audit = commands.add_parser(
+            command_name,
+            help=f"Run the {profile} resumable browser UI audit against owned fixtures",
+        )
+        audit.set_defaults(ui_audit_profile=profile)
+        audit.add_argument("--port", type=int, default=None, help="Loopback fixture port")
+        audit.add_argument("--output", type=Path, default=None, help="Artifact directory")
+        audit.add_argument("--resume", type=Path, default=None, help="Resume artifact directory")
     sync_psi = commands.add_parser(
         "sync-psi", help="Acquire official PSI annual/weekly archives into the read-only app cache"
     )
@@ -952,6 +964,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "--scenario",
                     arguments.scenario,
                     *(("--all-routes",) if arguments.all_routes else ()),
+                )
+            )
+        elif arguments.command in {"ui-audit-quick", "ui-audit-full"}:
+            _run(
+                (
+                    sys.executable,
+                    "-m",
+                    "scripts.ui_audit",
+                    arguments.ui_audit_profile,
+                    "--port",
+                    str(_ui_fixture_port(arguments.port)),
+                    *(("--output", str(arguments.output)) if arguments.output else ()),
+                    *(("--resume", str(arguments.resume)) if arguments.resume else ()),
                 )
             )
         elif arguments.command == "sync-psi":
