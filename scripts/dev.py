@@ -46,6 +46,15 @@ APPLICATION_SERVICES = (
     "propertyscope-frontend",
 )
 BUILD_SERVICES = APPLICATION_SERVICES
+PRODUCTION_BUILD_SERVICES = (
+    "propertyscope-shared-frontend",
+    "ai-mode",
+    "propertyscope-database-api",
+    "propertyscope-database-loader",
+    "propertyscope-backend",
+    "propertyscope-runner",
+    "propertyscope-frontend",
+)
 FULL_DATA_PROJECT_NAME = "41026-asd-propertyscope-full-data"
 DEFAULT_PROJECT_NAME = "41026-asd-project"
 RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
@@ -101,6 +110,10 @@ def _compose_command(*arguments: str, full_data: bool = False) -> tuple[str, ...
 def _run(command: Sequence[str], *, environment: Mapping[str, str] | None = None) -> None:
     print(f"> {shlex.join(command)}", flush=True)
     subprocess.run(command, cwd=REPOSITORY_ROOT, check=True, env=environment)
+
+
+def _repeated_options(option: str, values: Sequence[str]) -> tuple[str, ...]:
+    return tuple(part for value in values for part in (option, value))
 
 
 def _ensure_docker() -> None:
@@ -497,6 +510,24 @@ def _rebuild(services: Sequence[str], *, full_data: bool, offline: bool) -> None
     )
 
 
+def _production_build(services: Sequence[str]) -> None:
+    """Build immutable Release 0 images without starting or changing a runtime."""
+    _ensure_docker()
+    selected = tuple(services) or PRODUCTION_BUILD_SERVICES
+    _run(
+        (
+            "docker",
+            "compose",
+            "--file",
+            "docker-compose.yml",
+            "--profile",
+            "release-0",
+            "build",
+            *selected,
+        )
+    )
+
+
 def _down(*, full_data: bool, remove_volumes: bool = False) -> None:
     _ensure_docker()
     arguments = ["down", "--remove-orphans"]
@@ -732,6 +763,17 @@ def _parser() -> argparse.ArgumentParser:
     add_offline_option(up)
     add_env_file_option(up)
 
+    build = commands.add_parser(
+        "build",
+        help="Build production-like Release 0 images without starting services",
+    )
+    build.add_argument(
+        "services",
+        nargs="*",
+        choices=PRODUCTION_BUILD_SERVICES,
+        help="Optional image services to build (all Release 0 application images by default)",
+    )
+
     rebuild = commands.add_parser(
         "rebuild",
         help="Rebuild images after dependency or Dockerfile changes",
@@ -801,7 +843,7 @@ def _parser() -> argparse.ArgumentParser:
         help="PropertyScope public API root",
     )
 
-    commands.add_parser("test", help="Run the deterministic integration-feature tests")
+    commands.add_parser("test", help="Run the canonical deterministic Python/frontend tests")
     commands.add_parser("check", help="Run the complete canonical quality gate")
     ui = commands.add_parser(
         "ui",
@@ -840,6 +882,14 @@ def _parser() -> argparse.ArgumentParser:
         audit.add_argument("--port", type=int, default=None, help="Loopback fixture port")
         audit.add_argument("--output", type=Path, default=None, help="Artifact directory")
         audit.add_argument("--resume", type=Path, default=None, help="Resume artifact directory")
+        audit.add_argument("--workspace", action="append", default=[])
+        audit.add_argument("--route-group", action="append", default=[])
+        audit.add_argument("--route", action="append", default=[])
+        audit.add_argument("--scenario", action="append", default=[])
+        audit.add_argument("--viewport", action="append", default=[])
+        audit.add_argument("--shard-index", type=int, default=0)
+        audit.add_argument("--shard-total", type=int, default=1)
+        audit.add_argument("--allow-destructive", action="store_true")
     sync_psi = commands.add_parser(
         "sync-psi", help="Acquire official PSI annual/weekly archives into the read-only app cache"
     )
@@ -866,6 +916,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _load_environment_file(arguments.env_file)
         if arguments.command == "up":
             _up(full_data=arguments.full_data, offline=arguments.offline)
+        elif arguments.command == "build":
+            _production_build(arguments.services)
         elif arguments.command == "rebuild":
             _rebuild(
                 arguments.services,
@@ -930,15 +982,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 base_url=arguments.base_url,
             )
         elif arguments.command == "test":
-            _run(
-                (
-                    sys.executable,
-                    "-m",
-                    "pytest",
-                    "examples/integration-test-feature/tests",
-                    "student-1/tests",
-                )
-            )
+            _run((sys.executable, "scripts/check.py", "test"))
         elif arguments.command == "check":
             _run((sys.executable, "scripts/check.py"))
         elif arguments.command == "ui":
@@ -977,6 +1021,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                     str(_ui_fixture_port(arguments.port)),
                     *(("--output", str(arguments.output)) if arguments.output else ()),
                     *(("--resume", str(arguments.resume)) if arguments.resume else ()),
+                    *_repeated_options("--workspace", arguments.workspace),
+                    *_repeated_options("--route-group", arguments.route_group),
+                    *_repeated_options("--route", arguments.route),
+                    *_repeated_options("--scenario", arguments.scenario),
+                    *_repeated_options("--viewport", arguments.viewport),
+                    "--shard-index",
+                    str(arguments.shard_index),
+                    "--shard-total",
+                    str(arguments.shard_total),
+                    *(("--allow-destructive",) if arguments.allow_destructive else ()),
                 )
             )
         elif arguments.command == "sync-psi":

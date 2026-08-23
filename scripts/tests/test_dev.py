@@ -246,6 +246,82 @@ def test_rebuild_defaults_to_all_application_services(
     assert recreate[-len(dev.BUILD_SERVICES) :] == dev.BUILD_SERVICES
 
 
+def test_production_build_uses_only_the_release_compose_model(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["build", "propertyscope-shared-frontend", "propertyscope-frontend"]) == 0
+
+    assert captured_commands == [
+        ("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"),
+        (
+            "docker",
+            "compose",
+            "--file",
+            "docker-compose.yml",
+            "--profile",
+            "release-0",
+            "build",
+            "propertyscope-shared-frontend",
+            "propertyscope-frontend",
+        ),
+    ]
+    assert all(filename not in captured_commands[-1] for filename in dev.COMPOSE_FILES[1:])
+
+
+def test_test_command_delegates_to_the_canonical_quality_runner(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["test"]) == 0
+
+    assert captured_commands == [(dev.sys.executable, "scripts/check.py", "test")]
+
+
+def test_audit_command_forwards_filters_and_stable_shard_coordinates(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert (
+        dev.main(
+            [
+                "ui-audit-full",
+                "--port",
+                "5342",
+                "--workspace",
+                "feature-1",
+                "--viewport",
+                "laptop-compact",
+                "--scenario",
+                "slow",
+                "--shard-index",
+                "1",
+                "--shard-total",
+                "4",
+            ]
+        )
+        == 0
+    )
+
+    command = captured_commands[-1]
+    assert command[:5] == (
+        dev.sys.executable,
+        "-m",
+        "scripts.ui_audit",
+        "full",
+        "--port",
+    )
+    assert command[-10:] == (
+        "--workspace",
+        "feature-1",
+        "--scenario",
+        "slow",
+        "--viewport",
+        "laptop-compact",
+        "--shard-index",
+        "1",
+        "--shard-total",
+        "4",
+    )
+
+
 def test_down_preserves_named_volumes(captured_commands: list[tuple[str, ...]]) -> None:
     assert dev.main(["down"]) == 0
 
