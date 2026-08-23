@@ -1,5 +1,5 @@
 import { append, el } from "../core/dom.js";
-import { createTableRegion } from "../browser/index.js?v=2";
+import { createTableRegion } from "../browser/index.js?v=3";
 
 export function makeTable(columns, rows, rowBuilder, captionText = "Data results") {
   const table = el("table");

@@ -292,7 +292,9 @@ test("shared feedback and table helpers are bounded", () => {
   assert.equal(toast.dataset.visible, "true");
   assert.equal(toast.hidden, false);
   controller.hide();
-  assert.equal(toast.hidden, true);
+  assert.equal(toast.hidden, false);
+  assert.equal(toast.dataset.visible, "false");
+  assert.equal(toast.textContent, "");
   const documentNode = new FakeDocument();
   const table = new FakeElement(documentNode);
   const region = createTableRegion(table, "Saved updates", { className: "table-wrap" });
@@ -520,6 +522,7 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.doesNotMatch(html, /Assisted diagnosis|Advanced operations/);
   assert.match(html, /<main id="main-content" tabindex="-1">/);
   assert.match(html, /id="live-region"[^>]+aria-live="polite"/);
+  assert.match(html, /id="toast"[^>]+role="status"(?![^>]+hidden)/);
   assert.match(html, /<dialog id="entity-dialog"/);
   assert.match(html, /<dialog id="action-dialog"/);
   assert.match(html, /<dialog id="discard-dialog"/);
@@ -536,6 +539,8 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.match(app, /request\(healthUrl/);
   assert.match(app, /createDrawerController\(\{/);
   assert.match(app, /confirmDiscard/);
+  assert.match(app, /pendingGuardedNavigation\?\.generation !== generation/);
+  assert.match(app, /location\.hash = pending\.requestedHash/);
   assert.match(app, /mediaQuery: window\.matchMedia\("\(max-width: 780px\)"\)/);
 });
 

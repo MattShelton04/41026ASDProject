@@ -32,7 +32,7 @@ test("feature registry is the bounded source for shell routes and availability",
 
 test("shared navigation distinguishes global destinations from research-area transitions", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  assert.match(html, /src="app\.js\?v=12"/);
+  assert.match(html, /src="app\.js\?v=13"/);
   assert.match(html, /class="area-launcher"/);
   assert.match(html, /Open research area/);
   assert.match(html, /class="rail-area-link"/);
@@ -170,7 +170,9 @@ test("AI workload dashboard leads with outcome and bounded recovery evidence", (
   }
   assert.match(app, /Review summary/);
   assert.match(app, /What did not change/);
-  assert.match(html, /id="feedback"[^>]+role="status"/);
+  assert.match(html, /id="feedback" class="inline-feedback" hidden/);
+  assert.doesNotMatch(html, /id="feedback"[^>]+role=/);
+  assert.match(html, /id="announcement"[^>]+role="status"/);
   assert.match(app, /Could not copy automatically/);
   assert.match(app, /if \(!navigator\.clipboard\?\.writeText\)/);
   assert.doesNotMatch(app, /safe failure/i);

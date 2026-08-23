@@ -5,7 +5,7 @@ import { parseIntegerField, parseJsonField, parseJsonTextList, propertySearchQue
 import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
 import { parseRoute } from "./core/router.js?v=7";
 import { requestActiveDialogClose, runDialogForm } from "./components/dialogs.js";
-import { createDrawerController, createToastController } from "./browser/index.js?v=2";
+import { createDrawerController, createToastController } from "./browser/index.js?v=3";
 import { formField } from "./components/forms.js?v=17";
 import { renderLoading } from "./components/states.js";
 import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=17";
@@ -49,6 +49,8 @@ for (const item of document.querySelectorAll("[data-product-path]")) {
 const state = { pollTimer: null, lastRunStatus: "", lastAgentStatus: "", requests: new Map() };
 const generationGuard = createGenerationGuard();
 let lastRenderedHash = location.hash;
+let guardedNavigationGeneration = 0;
+let pendingGuardedNavigation = null;
 
 function announce(message) {
   liveRegion.textContent = "";
@@ -290,11 +292,31 @@ headerPropertySearch.addEventListener("invalid", (event) => {
 }, true);
 headerPropertyQuery.addEventListener("input", () => validateHeaderPropertyQuery());
 window.addEventListener("hashchange", () => {
-  if (![entityDialog, actionDialog].every((dialog) => requestActiveDialogClose(dialog))) {
+  const requestedHash = location.hash;
+  const generation = ++guardedNavigationGeneration;
+  const blockedDialog = [entityDialog, actionDialog]
+    .find((dialog) => !requestActiveDialogClose(dialog));
+  if (blockedDialog) {
+    if (pendingGuardedNavigation) {
+      pendingGuardedNavigation.dialog.removeEventListener("close", pendingGuardedNavigation.resume);
+    }
     history.replaceState(null, "", lastRenderedHash || "#properties");
     announce("Finish or cancel the open form before leaving this page.");
+    const resume = () => {
+      queueMicrotask(() => {
+        if (pendingGuardedNavigation?.generation !== generation) return;
+        const pending = pendingGuardedNavigation;
+        pendingGuardedNavigation = null;
+        if (blockedDialog.returnValue !== "cancel" || location.hash !== lastRenderedHash) return;
+        location.hash = pending.requestedHash;
+      });
+    };
+    pendingGuardedNavigation = { generation, requestedHash, dialog: blockedDialog, resume };
+    blockedDialog.addEventListener("close", resume, { once: true });
     return;
   }
+  pendingGuardedNavigation?.dialog.removeEventListener("close", pendingGuardedNavigation.resume);
+  pendingGuardedNavigation = null;
   renderRoute({ focus: true });
 });
 document.addEventListener("visibilitychange", () => {

@@ -1,5 +1,5 @@
 export { append, el } from "./browser/index.js";
-import { append, createTableRegion, el } from "./browser/index.js?v=2";
+import { append, createTableRegion, el } from "./browser/index.js?v=3";
 
 export function humanise(value) {
   if (value === null || value === undefined || value === "") return "Unknown";

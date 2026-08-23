@@ -100,18 +100,17 @@ export function createToastController(toast, { duration = 4200 } = {}) {
       clearTimeout(timer);
       toast.textContent = String(message);
       toast.dataset.tone = tone;
-      toast.hidden = false;
       toast.dataset.visible = "true";
       timer = setTimeout(() => {
         toast.dataset.visible = "false";
-        toast.hidden = true;
+        toast.textContent = "";
       }, duration);
     },
     hide() {
       clearTimeout(timer);
       if (!toast) return;
       toast.dataset.visible = "false";
-      toast.hidden = true;
+      toast.textContent = "";
     },
   };
 }

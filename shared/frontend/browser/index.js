@@ -5,4 +5,4 @@ export {
   createDrawerController,
   createTableRegion,
   createToastController,
-} from "./interactions.js";
+} from "./interactions.js?v=3";
