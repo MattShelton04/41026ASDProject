@@ -12,6 +12,8 @@ const DEFINITIONS = [
     frontendBase: "/features/data-platform/",
     defaultHash: "#properties",
     healthPath: "/api/shared-health/data-platform",
+    integrationModule: "/features/data-platform/integration/shell.js?v=1",
+    aliases: ["feature-1"],
     implemented: true,
     enabled: true,
   },
@@ -30,6 +32,7 @@ const DEFINITIONS = [
     healthPath: "/api/shared-health/market-intelligence",
     implemented: false,
     enabled: false,
+    aliases: ["feature-2"],
   },
   {
     id: "suburb-context",
@@ -46,6 +49,7 @@ const DEFINITIONS = [
     healthPath: "/api/shared-health/suburb-analytics",
     implemented: false,
     enabled: false,
+    aliases: ["feature-3"],
   },
   {
     id: "site-planning",
@@ -62,6 +66,7 @@ const DEFINITIONS = [
     healthPath: "/api/shared-health/due-diligence",
     implemented: false,
     enabled: false,
+    aliases: ["feature-4"],
   },
   {
     id: "buyer-workspace",
@@ -78,13 +83,17 @@ const DEFINITIONS = [
     healthPath: "/api/shared-health/buyer-workspaces",
     implemented: false,
     enabled: false,
+    aliases: ["feature-5"],
   },
 ];
 
-export const FEATURE_DEFINITIONS = Object.freeze(DEFINITIONS.map((item) => Object.freeze({ ...item })));
+export const FEATURE_DEFINITIONS = Object.freeze(DEFINITIONS.map((item) => Object.freeze({
+  ...item,
+  aliases: Object.freeze([...item.aliases]),
+})));
 
 function configuredHref(definition, config) {
-  if (definition.id === "property-records" && config.propertyDiscovery) return config.propertyDiscovery;
+  if (config.featureHrefs?.[definition.id]) return config.featureHrefs[definition.id];
   return `${definition.frontendBase}${definition.defaultHash}`;
 }
 
@@ -96,5 +105,12 @@ export function featureRegistry(config = {}) {
 }
 
 export function findFeature(id, config = {}) {
-  return featureRegistry(config).find((item) => item.id === id || item.slug === id || item.featureKey === id);
+  return featureRegistry(config).find((item) => item.id === id || item.slug === id || item.featureKey === id || item.aliases.includes(id));
+}
+
+export function researchAreaLabel(value, config = {}) {
+  const feature = findFeature(value, config);
+  if (feature) return feature.label;
+  const text = String(value ?? "").replaceAll("_", " ").replaceAll("-", " ");
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "Unknown area";
 }

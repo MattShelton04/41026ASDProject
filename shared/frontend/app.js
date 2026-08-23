@@ -4,14 +4,22 @@ import { createFeaturesRoute } from "./routes/features.js?v=10";
 import { createRoadmapRoute } from "./routes/roadmap.js?v=10";
 import { createStatusRoute } from "./routes/status.js?v=10";
 import { featureRegistry } from "./features.js?v=10";
+import { loadFeatureIntegration, unavailableFeatureIntegration } from "./integrations.js?v=10";
 
-const defaults = Object.freeze({
-  propertyDiscovery: "/features/data-platform/#properties",
-  dataOperations: "/features/data-platform/#overview",
-  releaseDetail: "/features/data-platform/#releases/",
-  agentRuns: "/operations/ai-mode/?feature_key=student-1-propertyscope-data-platform",
+const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
+const primaryFeature = featureRegistry().find((feature) => feature.implemented && feature.enabled);
+let integration;
+try {
+  const modulePath = externalConfig.featureIntegrations?.[primaryFeature.id] || primaryFeature.integrationModule;
+  integration = await loadFeatureIntegration(modulePath, externalConfig);
+} catch {
+  integration = unavailableFeatureIntegration(primaryFeature, externalConfig);
+}
+const config = Object.freeze({
+  ...externalConfig,
+  ...integration.links,
+  featureHrefs: integration.featureHrefs,
 });
-const config = Object.freeze({ ...defaults, ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const main = document.querySelector("#main-content");
 const homeMarkup = main.innerHTML;
 const homeRail = main.querySelector(".product-rail")?.cloneNode(true);
@@ -41,13 +49,8 @@ function applyConfigLinks(root = document) {
   });
 }
 
-function openPropertySearch(query = "") {
-  const target = new URL(config.propertyDiscovery, window.location.href);
-  if (query) {
-    const hashBase = target.hash.split("?")[0] || "#properties";
-    target.hash = `${hashBase}?q=${encodeURIComponent(query)}`;
-  }
-  window.location.assign(target.toString());
+function openPrimarySearch(query = "") {
+  window.location.assign(integration.primarySearchHref(query, window.location.href));
 }
 
 function bindHomeInteractions() {
@@ -61,7 +64,7 @@ function bindHomeInteractions() {
   });
   main.querySelector("#property-search-form")?.addEventListener("submit", (event) => {
     event.preventDefault();
-    openPropertySearch(String(main.querySelector("#property-search")?.value || "").trim());
+    openPrimarySearch(String(main.querySelector("#property-search")?.value || "").trim());
   });
 }
 
@@ -79,7 +82,7 @@ function homeFeatureRow(feature) {
 
 function renderHomeFeatures() {
   const list = main.querySelector("#feature-area-list");
-  if (list) list.replaceChildren(...featureRegistry(config).map(homeFeatureRow));
+  if (list) list.replaceChildren(...featureRegistry({ featureHrefs: integration.featureHrefs }).map(homeFeatureRow));
 }
 
 function closeNavigation({ restoreFocus = false } = {}) {
@@ -99,8 +102,8 @@ function updateNavigation(route) {
 
 const routes = {
   features: createFeaturesRoute({ config }),
-  "system-status": createStatusRoute({ config, announce }),
-  evidence: createEvidenceRoute({ config, announce }),
+  "system-status": createStatusRoute({ config, integration, announce }),
+  evidence: createEvidenceRoute({ config, integration, announce }),
   "release-roadmap": createRoadmapRoute({ config }),
 };
 
@@ -156,7 +159,7 @@ primaryNav?.addEventListener("click", (event) => {
 });
 document.querySelector("#header-search-form")?.addEventListener("submit", (event) => {
   event.preventDefault();
-  openPropertySearch(String(document.querySelector("#header-search")?.value || "").trim());
+  openPrimarySearch(String(document.querySelector("#header-search")?.value || "").trim());
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && navToggle?.getAttribute("aria-expanded") === "true") closeNavigation({ restoreFocus: true });

@@ -92,6 +92,67 @@ def test_cross_student_import_is_rejected_even_in_tests(tmp_path: Path) -> None:
     assert "owned by student-2" in violations[0].message
 
 
+def test_shared_frontend_cannot_import_feature_implementation(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    source = root / "shared" / "frontend" / "app.js"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        'import { projectRelease } from "../../student-1/frontend/releases.js";\n',
+        encoding="utf-8",
+    )
+
+    violations = validate_repository(root)
+
+    assert len(violations) == 1
+    assert str(violations[0]) == (
+        "shared/frontend/app.js:1: Shared frontend must not import feature-owned module "
+        "../../student-1/frontend/releases.js"
+    )
+
+
+def test_student_frontend_must_use_shared_public_entrypoints(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    source = root / "student-1" / "frontend" / "properties.js"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        'import { loadMapLibreRenderer } from "../mapping/renderer.js";\n',
+        encoding="utf-8",
+    )
+
+    violations = validate_repository(root)
+
+    assert len(violations) == 1
+    assert "must import Shared mapping through mapping/index.js" in violations[0].message
+
+
+def test_student_frontend_public_entrypoints_pass(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    source = root / "student-1" / "frontend" / "properties.js"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        'import { createMap } from "../mapping/index.js";\n'
+        'import { el } from "../browser/index.js";\n',
+        encoding="utf-8",
+    )
+
+    assert validate_repository(root) == ()
+
+
+def test_student_frontend_test_cannot_reach_past_shared_public_barrel(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    source = root / "student-1" / "tests" / "frontend" / "contract.test.mjs"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        'readFile("../../../shared/frontend/mapping/renderer.js");\n',
+        encoding="utf-8",
+    )
+
+    violations = validate_repository(root)
+
+    assert len(violations) == 1
+    assert "must use a Shared frontend public index" in violations[0].message
+
+
 def test_forbidden_workspace_dependency_is_rejected(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
     manifest = root / "student-1" / "pyproject.toml"

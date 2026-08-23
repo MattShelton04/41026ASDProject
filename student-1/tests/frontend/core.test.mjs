@@ -28,6 +28,10 @@ import {
   routeQuery,
   stateLabel,
 } from "../../frontend/core.js";
+import {
+  acceptedReleaseReferences,
+  createShellIntegration,
+} from "../../frontend/integration/shell.js";
 
 function response(body, { status = 200, headers = {} } = {}) {
   return {
@@ -210,17 +214,32 @@ test("the frontend proxy keeps browser traffic on the public backend boundary", 
   assert.match(nginx, /worker-src blob:/);
 });
 
-test("property discovery uses the shared mapping provider and self-hosted renderer", async () => {
+test("property discovery uses the shared mapping public entrypoint", async () => {
   const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
   const properties = await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8");
   assert.match(html, /mapping\/mapping\.css/);
   assert.match(properties, /from "\.\.\/mapping\/index\.js"/);
-  const renderer = await readFile(new URL("../../../shared/frontend/mapping/renderer.js", import.meta.url), "utf8");
-  assert.match(renderer, /vendor\/maplibre-gl\.js/);
-  assert.match(renderer, /data-propertyscope-maplibre/);
   assert.match(properties, /createOpenFreeMapProvider\(\)/);
   assert.match(properties, /pointFeature\(/);
   assert.doesNotMatch(properties, /map-pin/);
+});
+
+test("Feature 1 owns its Shared-shell response and workflow adapter", () => {
+  const releases = acceptedReleaseReferences({ items: [{
+    id: "release-1", dataset_id: "addresses", target_feature: "feature-1",
+    release_version: "2026.08", record_count: 10, content_sha256: "abc", accepted_at: "2026-08-15T00:00:00Z",
+  }] });
+  assert.deepEqual(releases[0], {
+    id: "release-1", dataset: "addresses", areaKey: "feature-1", version: "2026.08",
+    records: 10, acceptedAt: "2026-08-15T00:00:00Z", coverage: "unknown", hash: "abc",
+  });
+  const integration = createShellIntegration({ propertyDiscovery: "/custom/#properties" });
+  assert.equal(
+    integration.primarySearchHref("1 Farrer Place", "https://example.test/"),
+    "https://example.test/custom/#properties?q=1%20Farrer%20Place",
+  );
+  assert.equal(integration.healthDependencies({ payload: { dependencies: { database: true } } })[0].rawStatus, true);
+  assert.equal(integration.evidence.agentRunHref("run-1", "https://example.test/").includes("feature_key=student-1-propertyscope-data-platform"), true);
 });
 
 test("coverage matrices flatten into accessible table rows", () => {

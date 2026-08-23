@@ -327,6 +327,30 @@ a student database directly, and a feature never imports orchestration implement
 Release 1 may expose the same feature tools through MCP without changing their owner or
 duplicating their business logic.
 
+### 6.4 Frontend ownership and public exports
+
+The same compile-time rule applies to browser code. `shared/frontend` owns domain-neutral tokens,
+DOM helpers, mapping behavior, accessibility utilities and integration protocols; it must not import
+a `student-N/frontend` implementation. A feature owns response-envelope projection, labels and
+workflow routing. The Shared shell composes those decisions through a feature-owned runtime adapter
+served below the feature's existing ingress, so a service outage degrades that projection rather
+than creating a compile-time dependency.
+
+Public Shared browser imports are intentionally narrow:
+
+| Public entrypoint | Shared responsibility | Feature responsibility |
+|---|---|---|
+| `browser/index.js` | Safe, domain-neutral DOM construction | Labels, actions and screen composition |
+| `mapping/index.js` | Map lifecycle, provider validation and bounded GeoJSON behavior | API calls, layer meaning, popup fields and evidence claims |
+| `design-system/` documented assets | `--ps-*` tokens and `.ps-*` primitives | Density, domain tables/forms and feature-specific layout |
+
+Files beside an `index.js` barrel are private. `scripts/validate_architecture.py` checks JavaScript
+imports as part of the canonical gate: Shared cannot import feature source, one feature cannot import
+another, and consumers of the Shared browser/mapping packages must use their public barrels. For
+example, a property release payload is projected in `student-1/frontend/integration/shell.js`; a
+generic readiness card remains in Shared. Exact database readiness fields, accepted-release filters
+and Property data routes therefore stay with Feature 1.
+
 ## 7. Shared contracts
 
 ### 7.1 General conventions

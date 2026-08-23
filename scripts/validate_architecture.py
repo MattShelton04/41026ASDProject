@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import re
 import tomllib
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -29,6 +30,12 @@ PROPERTYSCOPE_ARTIFACT_VOLUME = "propertyscope_artifacts"
 PROPERTYSCOPE_DATABASE_SERVICES = frozenset(
     {"propertyscope-database-api", "propertyscope-database-loader"}
 )
+FRONTEND_IMPORT_PATTERN = re.compile(
+    r"(?:\bimport\s+(?:[^;\n]*?\s+from\s+)?|\bexport\s+[^;\n]*?\s+from\s+)"
+    r"[\"'](?P<static>[^\"']+)[\"']|\bimport\(\s*[\"'](?P<dynamic>[^\"']+)[\"']\s*\)"
+)
+SHARED_FRONTEND_LITERAL_PATTERN = re.compile(r"[\"'](?P<path>[^\"']*shared/frontend/[^\"']+)[\"']")
+PUBLIC_FRONTEND_ENTRYPOINTS = frozenset({"browser/index.js", "mapping/index.js"})
 
 ALLOWED_WORKSPACE_DEPENDENCIES: Mapping[str, frozenset[str]] = {
     SHARED_CONTRACTS: frozenset(),
@@ -78,9 +85,103 @@ def validate_repository(root: Path = REPOSITORY_ROOT) -> tuple[ArchitectureViola
     violations = [
         *_validate_declared_dependencies(root, projects),
         *_validate_python_imports(root, projects),
+        *_validate_frontend_imports(root),
         *_validate_compose_boundaries(root),
     ]
     return tuple(sorted(violations))
+
+
+def _validate_frontend_imports(root: Path) -> Iterable[ArchitectureViolation]:
+    source_roots = [(root / "shared" / "frontend", "shared")]
+    for number in range(1, 6):
+        owner = f"student-{number}"
+        source_roots.extend(
+            [
+                (root / owner / "frontend", owner),
+                (root / owner / "tests" / "frontend", owner),
+            ]
+        )
+    for source_root, owner in source_roots:
+        if not source_root.is_dir():
+            continue
+        for path in sorted((*source_root.rglob("*.js"), *source_root.rglob("*.mjs"))):
+            if "vendor" in path.relative_to(source_root).parts:
+                continue
+            try:
+                source = path.read_text(encoding="utf-8")
+            except OSError as exc:
+                yield ArchitectureViolation(
+                    _relative(root, path), 0, f"could not inspect frontend imports: {exc}"
+                )
+                continue
+            import_spans: list[tuple[int, int]] = []
+            for match in FRONTEND_IMPORT_PATTERN.finditer(source):
+                import_spans.append(match.span())
+                specifier = (match.group("static") or match.group("dynamic")).split("?", 1)[0]
+                line = source.count("\n", 0, match.start()) + 1
+                yield from _validate_frontend_specifier(root, path, owner, specifier, line)
+            if owner != "shared":
+                for match in SHARED_FRONTEND_LITERAL_PATTERN.finditer(source):
+                    if any(start <= match.start() < end for start, end in import_spans):
+                        continue
+                    specifier = match.group("path").split("?", 1)[0]
+                    line = source.count("\n", 0, match.start()) + 1
+                    if not any(
+                        specifier.endswith(entrypoint) for entrypoint in PUBLIC_FRONTEND_ENTRYPOINTS
+                    ):
+                        yield ArchitectureViolation(
+                            _relative(root, path),
+                            line,
+                            f"{owner} must use a Shared frontend public index instead of "
+                            f"{specifier}",
+                        )
+
+
+def _validate_frontend_specifier(
+    root: Path,
+    path: Path,
+    owner: str,
+    specifier: str,
+    line: int,
+) -> Iterable[ArchitectureViolation]:
+    normalized = specifier.replace("\\", "/")
+    student_references = set(re.findall(r"student-[1-5]", normalized))
+    if owner == "shared" and student_references:
+        yield ArchitectureViolation(
+            _relative(root, path),
+            line,
+            f"Shared frontend must not import feature-owned module {specifier}",
+        )
+        return
+    if owner.startswith("student-") and any(item != owner for item in student_references):
+        yield ArchitectureViolation(
+            _relative(root, path),
+            line,
+            f"{owner} frontend must not import another student's module {specifier}",
+        )
+        return
+    if owner.startswith("student-"):
+        for package in ("browser", "mapping"):
+            marker = f"/{package}/"
+            if marker in f"/{normalized}" and not normalized.endswith(f"/{package}/index.js"):
+                yield ArchitectureViolation(
+                    _relative(root, path),
+                    line,
+                    f"{owner} frontend must import Shared {package} through {package}/index.js",
+                )
+    if not normalized.startswith("."):
+        return
+    resolved = (path.parent / normalized).resolve()
+    try:
+        relative = resolved.relative_to(root.resolve())
+    except ValueError:
+        return
+    if owner == "shared" and relative.parts and relative.parts[0].startswith("student-"):
+        yield ArchitectureViolation(
+            _relative(root, path),
+            line,
+            f"Shared frontend must not import feature-owned module {specifier}",
+        )
 
 
 def _load_workspace_projects(root: Path) -> tuple[WorkspaceProject, ...]:

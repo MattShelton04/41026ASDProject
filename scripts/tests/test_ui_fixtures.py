@@ -91,6 +91,16 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
         timeout=2,
     ) as response:
         assert b"Data overview" in response.read()
+    with urlopen(
+        f"{fixture_origin}/features/data-platform/integration/shell.js",
+        timeout=2,
+    ) as response:
+        assert b"createShellIntegration" in response.read()
+    with urlopen(
+        f"{fixture_origin}/features/data-platform/browser/index.js",
+        timeout=2,
+    ) as response:
+        assert b"append, el" in response.read()
     with urlopen(f"{fixture_origin}/operations/ai-mode/assets/app.js", timeout=2) as response:
         assert b'const API_ROOT = "/api/v1"' in response.read()
     with urlopen(f"{fixture_origin}/healthz", timeout=2) as response:

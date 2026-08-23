@@ -10,6 +10,8 @@ independently buildable `student-N/frontend/` services.
 - `index.html` — unified entry point covering all five features and shared operational surfaces.
 - `app.js` — shell composition root for home/search, bounded hash routing and mobile navigation.
 - `features.js` — the bounded five-area navigation registry and canonical feature ingress paths.
+- `browser/index.js` — stable public JavaScript barrel for domain-neutral DOM helpers.
+- `integrations.js` — validation and failure-safe loading for feature-owned shell adapters.
 - `core.js` — safe DOM, formatting, table and correlated public-request helpers.
 - `capabilities.js` — static Release 0 deployment capability manifest; implemented and enabled remain separate.
 - `routes/status.js` — live health summary for implemented shared and Property records services.
@@ -60,6 +62,22 @@ The shell presents product research areas rather than assignment feature/release
 Property records is linked as a live user journey; the other areas remain visibly unavailable and
 do not fall through to Feature 1. Data and agent operations are secondary operator destinations.
 The shell does not infer service health from a static page or claim future functionality is running.
+
+## Public frontend boundary
+
+Feature frontends consume Shared JavaScript only through documented `index.js` barrels. The current
+public modules are `browser/index.js` for domain-neutral DOM construction and `mapping/index.js` for
+the map controller/provider contract. Files beside those barrels are implementation details and may
+change without a feature migration contract. CSS remains public only through the documented
+`design-system/` assets and `--ps-*`/`.ps-*` surface.
+
+An enabled feature may provide a shell adapter from its own frontend ingress. Feature 1 owns
+`/features/data-platform/integration/shell.js`, which projects its search route, published-release
+response, owned health dependencies and activity links into the domain-neutral shape consumed here.
+Shared loads that module at runtime and never imports Feature 1 source. If the feature is unavailable,
+the shell retains registry navigation and reports unavailable evidence without inventing domain data.
+`scripts/validate_architecture.py` enforces both the Shared-to-feature prohibition and public-barrel
+imports in the canonical quality gate.
 
 ## Shared dashboards
 

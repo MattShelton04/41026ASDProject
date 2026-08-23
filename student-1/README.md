@@ -187,6 +187,13 @@ are not presented as competing top-level workflows. `app.js` is the transition c
 The independently built frontend image copies shared design-system v0.1 assets, while the
 development overlay mounts the same source files for reload.
 
+`frontend/integration/shell.js` is Feature 1's public adapter for the Shared product shell. It owns
+Feature 1 search routing, release-envelope projection, data-store readiness interpretation and
+feature-scoped activity links. Shared loads the adapter over the feature's existing HTTP ingress;
+there is no compile-time Shared-to-Feature import. Feature code consumes Shared JavaScript through
+the public `browser/index.js` and `mapping/index.js` barrels copied/mounted by the existing frontend
+image workflow.
+
 Property detail uses the shared MapLibre/OpenFreeMap provider under
 `shared/frontend/mapping/` rather than a decorative map placeholder. The feature supplies the
 verified property point and popup meaning through its existing public `map-context` endpoint; the
