@@ -23,6 +23,7 @@ function clearFieldError(field, { clearValidity = true } = {}) {
     else field.removeAttribute("aria-describedby");
   }
   if (field.dataset) delete field.dataset.formErrorId;
+  if (field.dataset) delete field.dataset.semanticError;
   field.removeAttribute?.("aria-invalid");
 }
 
@@ -30,7 +31,10 @@ function showFieldError(form, fieldName, message, { custom = true, report = true
   const field = form.elements?.namedItem?.(fieldName) || form.querySelector?.(`[name="${CSS.escape(fieldName)}"]`);
   if (!field) return null;
   clearFieldError(field, { clearValidity: custom });
-  if (custom) field.setCustomValidity?.(message);
+  if (custom) {
+    field.setCustomValidity?.(message);
+    if (field.dataset) field.dataset.semanticError = "true";
+  }
   field.setAttribute?.("aria-invalid", "true");
   if (field.id && field.insertAdjacentElement) {
     const error = document.createElement("small");
@@ -174,6 +178,17 @@ export function runDialogForm({
   const input = (event) => {
     const field = event.target;
     if (!field?.matches?.("input, select, textarea")) return;
+    if (field.dataset?.semanticError) {
+      // Keep the useful domain error visible while the user edits. Clear only the
+      // browser validity flag so the next submit can rerun the semantic parser.
+      field.setCustomValidity?.("");
+      if (!field.checkValidity?.()) {
+        const message = field.validationMessage;
+        clearFieldError(field, { clearValidity: false });
+        if (message) showFieldError(form, field.name, message, { custom: false, report: false });
+      }
+      return;
+    }
     if (field.dataset?.formErrorId) clearFieldError(field);
     if (!field.checkValidity?.()) {
       field.setAttribute?.("aria-invalid", "true");

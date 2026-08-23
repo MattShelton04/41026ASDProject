@@ -2,7 +2,7 @@
 
 Run explicitly after installing Chromium:
 
-    uv run pytest student-1/tests/e2e/form_behaviour_playwright.py -q
+    uv run pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
 
 The suite owns a random loopback fixture port and never uses Docker or canonical demo ports.
 """
@@ -14,7 +14,7 @@ import socket
 import subprocess
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from urllib.request import urlopen
 
@@ -38,26 +38,38 @@ def _free_port() -> int:
 
 @pytest.fixture(scope="session")
 def fixture_origin() -> Iterator[str]:
-    port = _free_port()
-    process = subprocess.Popen(
-        [sys.executable, "-m", "scripts.ui_fixture_server", "--port", str(port)],
-        cwd=REPOSITORY_ROOT,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-    )
-    origin = f"http://127.0.0.1:{port}"
-    try:
+    process: subprocess.Popen[bytes] | None = None
+    origin = ""
+    for _port_attempt in range(5):
+        port = _free_port()
+        candidate = subprocess.Popen(
+            [sys.executable, "-m", "scripts.ui_fixture_server", "--port", str(port)],
+            cwd=REPOSITORY_ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
+        candidate_origin = f"http://127.0.0.1:{port}"
+        ready = False
         for _attempt in range(100):
-            if process.poll() is not None:
-                raise RuntimeError("UI fixture host exited before becoming ready")
+            if candidate.poll() is not None:
+                break
             try:
-                with urlopen(f"{origin}/__ui-fixture__/ready", timeout=0.2) as response:
+                with urlopen(f"{candidate_origin}/__ui-fixture__/ready", timeout=0.2) as response:
                     if response.status == 200:
+                        ready = True
                         break
             except OSError:
                 time.sleep(0.05)
-        else:
-            raise RuntimeError("UI fixture host did not become ready")
+        if ready:
+            process = candidate
+            origin = candidate_origin
+            break
+        if candidate.poll() is None:
+            candidate.terminate()
+            candidate.wait(timeout=5)
+    if process is None:
+        raise RuntimeError("UI fixture host did not become ready after five random-port attempts")
+    try:
         yield origin
     finally:
         process.terminate()
@@ -70,15 +82,10 @@ def fixture_origin() -> Iterator[str]:
 
 @pytest.fixture(scope="session")
 def browser() -> Iterator[Browser]:
-    try:
-        with sync_playwright() as playwright:
-            instance = playwright.chromium.launch(headless=True)
-            yield instance
-            instance.close()
-    except Exception as error:  # pragma: no cover - actionable local prerequisite
-        if "Executable doesn't exist" in str(error):
-            pytest.skip("Playwright Chromium is missing; run `uv run playwright install chromium`")
-        raise
+    with sync_playwright() as playwright:
+        instance = playwright.chromium.launch(headless=True)
+        yield instance
+        instance.close()
 
 
 @pytest.fixture
@@ -185,7 +192,16 @@ def test_source_job_and_release_create_edit_forms_retain_server_failures(
     page.locator("#entity-save").click()
     expect(page.locator("#entity-error")).to_contain_text("Please correct Research area keys")
     expect(targets).to_have_attribute("aria-describedby", "form-field-target_features-error")
+    targets.fill('["one","one"]')
+    expect(page.locator("#form-field-target_features-error")).to_contain_text("at most 5 values")
+    page.locator("#entity-save").click()
+    expect(page.locator("#form-field-target_features-error")).to_contain_text(
+        "must not contain duplicate values"
+    )
     targets.fill('["feature-1"]')
+    expect(page.locator("#form-field-target_features-error")).to_contain_text(
+        "must not contain duplicate values"
+    )
     source_notes.fill("Retained source evidence")
     source_writes = _fail_first_write(page, "**/api/data-platform/v1/sources/*", method="PUT")
     page.locator("#entity-save").click()
@@ -263,11 +279,17 @@ def test_planner_release_decisions_and_ai_retry_in_the_open_form(
     _open(page, fixture_origin, f"releases/{CANDIDATE_ID}")
     page.get_by_role("button", name="Submit for review").click()
     review_note = page.get_by_label("Reviewer context (required)")
-    review_note.fill("Retained reviewer context")
     review_writes = _fail_first_write(
         page,
         f"**/api/data-platform/v1/dataset-releases/{CANDIDATE_ID}/submit-review",
     )
+    review_note.fill("   ")
+    page.locator("#action-confirm").click()
+    expect(page.locator("#action-error")).to_contain_text("Please correct Reviewer context")
+    expect(page.locator("#review-comment-error")).to_contain_text("not only spaces")
+    assert len(review_writes) == 0
+    review_note.fill("Retained reviewer context")
+    expect(page.locator("#review-comment-error")).to_contain_text("not only spaces")
     page.locator("#action-confirm").press("Enter")
     expect(page.locator("#action-error")).to_contain_text("values are still here")
     expect(review_note).to_have_value("Retained reviewer context")
@@ -373,7 +395,7 @@ def test_planner_year_and_address_bounds_have_associated_browser_errors(
 ) -> None:
     pattern = "**/api/data-platform/v1/jobs?*"
 
-    def rewrite(profile: str) -> object:
+    def rewrite(profile: str) -> Callable[[Route], None]:
         def handler(route: Route) -> None:
             response = route.fetch()
             payload = response.json()

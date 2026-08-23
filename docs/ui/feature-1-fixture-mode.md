@@ -81,6 +81,18 @@ Run that harness with `uv run scripts/dev.py ui-audit-quick` or
 artifacts, severity policy and stateless destructive-action guard are documented in
 [`feature-1-audit.md`](feature-1-audit.md).
 
+Feature 1's required form-behavior suite starts its own random-port fixture host and covers every
+existing Property Discovery and Data Operations form, including native keyboard submission,
+validation focus, retained server failures, duplicate-submit protection and guarded dialog close:
+
+```text
+uv run pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
+```
+
+The Student 1 workflow installs Chromium and runs this suite as a dedicated required job. The
+ordinary repository quality gate excludes it deliberately so source-only checks remain deterministic
+on machines that have not installed a browser.
+
 ## Compose coordination preflight
 
 `dev.py up`, `restart` and `rebuild` validate the final configured host ports before writing the

@@ -1,7 +1,7 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=17";
-import { parseIntegerField, parseJsonField } from "../core/forms.js";
+import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js";
 import { runDialogForm } from "../components/dialogs.js";
 import { formField, filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
@@ -127,7 +127,7 @@ export function createReleaseRoutes({
         extra: comment,
         progressLabel: "Submitting…",
         discardMessage: "Discard your reviewer context?",
-        onConfirm: () => mutate(`dataset-releases/${id}/submit-review`, { body: { version: release.version, comment: comment.value.trim() }, success: "Candidate submitted" }),
+        onConfirm: () => mutate(`dataset-releases/${id}/submit-review`, { body: { version: release.version, comment: requiredReviewValue(comment, "Reviewer context") }, success: "Candidate submitted" }),
       });
       if (ok) rerender();
     }));
@@ -141,7 +141,7 @@ export function createReleaseRoutes({
         extra: comment,
         progressLabel: "Publishing…",
         discardMessage: "Discard your approval note?",
-        onConfirm: () => mutate(`dataset-releases/${id}/publish`, { body: { approved: true, version: release.version, comment: comment.value.trim() }, success: "Publication requested" }),
+        onConfirm: () => mutate(`dataset-releases/${id}/publish`, { body: { approved: true, version: release.version, comment: requiredReviewValue(comment, "Approval note") }, success: "Publication requested" }),
       });
       if (ok) rerender();
     }));
@@ -154,7 +154,7 @@ export function createReleaseRoutes({
         extra: reason,
         progressLabel: "Rejecting…",
         discardMessage: "Discard your rejection reason?",
-        onConfirm: () => mutate(`dataset-releases/${id}/reject`, { body: { reason: reason.value.trim(), version: release.version }, success: "Candidate rejected" }),
+        onConfirm: () => mutate(`dataset-releases/${id}/reject`, { body: { reason: requiredReviewValue(reason, "Reason for rejection"), version: release.version }, success: "Candidate rejected" }),
       });
       if (ok) rerender();
     }));
@@ -183,9 +183,15 @@ export function createReleaseRoutes({
   function requiredReviewText(label) {
     const field = el("label", "dialog-review-field");
     append(field, el("span", "", `${label} (required)`));
-    const input = el("textarea"); input.name = "review_comment"; input.required = true; input.maxLength = 2000; input.placeholder = "Record the evidence and next step for this decision"; append(field, input, el("small", "field-help", "Required · up to 2,000 characters. This note is recorded with the review decision."));
+    const input = el("textarea"); input.id = "review-comment"; input.name = "review_comment"; input.required = true; input.maxLength = 2000; input.placeholder = "Record the evidence and next step for this decision"; append(field, input, el("small", "field-help", "Required · up to 2,000 characters. This note is recorded with the review decision."));
     Object.defineProperty(field, "value", { get: () => input.value });
     return field;
+  }
+
+  function requiredReviewValue(field, label) {
+    const value = field.value.trim();
+    if (!value) throw new FieldValidationError("review_comment", `${label} must include text, not only spaces.`);
+    return value;
   }
 
   function releasePreviewPanel(releaseId, initialPage) {

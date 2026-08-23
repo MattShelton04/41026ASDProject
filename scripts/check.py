@@ -71,6 +71,7 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
         "--cov=propertyscope_data_store",
         "--cov-report=term-missing",
         "--cov-fail-under=60",
+        "--ignore=student-1/tests/e2e/test_form_behaviour_playwright.py",
         "student-1/tests",
     ),
     ("node", "--test", *FRONTEND_TEST_PATHS),
