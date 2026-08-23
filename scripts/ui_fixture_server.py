@@ -80,7 +80,18 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
             return
         target = urlsplit(self.path)
         scenario, selected_by_query = self._scenario(target.query)
-        if target.path.startswith("/api/") or target.path in {"/healthz", "/health/ready"}:
+        if target.path == "/healthz":
+            self._send_bytes(
+                HTTPStatus.OK,
+                b"ok\n",
+                "text/plain; charset=utf-8",
+                include_body=include_body,
+            )
+            return
+        if target.path.startswith("/api/") or target.path in {
+            "/health/ready",
+            "/__ui-fixture__/ready",
+        }:
             response = fixture_response(self.command, target.path, target.query, scenario)
             if response.delay_seconds:
                 time.sleep(response.delay_seconds)
@@ -154,7 +165,15 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
     def _static_path(self, request_path: str) -> Path | None:
         decoded = unquote(request_path)
         feature_prefix = "/features/data-platform/"
-        if decoded.startswith(feature_prefix):
+        operations_assets = "/operations/ai-mode/assets/"
+        operations_tokens = "/operations/ai-mode/design-system/"
+        if decoded.startswith(operations_assets):
+            relative = decoded.removeprefix(operations_assets)
+            root = SHARED_FRONTEND / "operations" / "ai-mode"
+        elif decoded.startswith(operations_tokens):
+            relative = decoded.removeprefix(operations_tokens)
+            root = SHARED_FRONTEND / "design-system"
+        elif decoded.startswith(feature_prefix):
             relative = decoded.removeprefix(feature_prefix) or "index.html"
             if relative.startswith(("design-system/", "mapping/")):
                 root = SHARED_FRONTEND
@@ -206,7 +225,7 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
 
 def _wait_until_ready(port: int, timeout_seconds: float = 5.0) -> None:
     deadline = time.monotonic() + timeout_seconds
-    url = f"http://{LOOPBACK_HOST}:{port}/healthz"
+    url = f"http://{LOOPBACK_HOST}:{port}/__ui-fixture__/ready"
     while time.monotonic() < deadline:
         try:
             with urlopen(url, timeout=0.5) as response:

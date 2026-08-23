@@ -176,7 +176,7 @@ def test_empty_port_environment_uses_compose_default(monkeypatch: pytest.MonkeyP
     )
 
 
-def test_port_preflight_allows_only_the_selected_compose_project(
+def test_port_preflight_allows_only_the_exact_selected_compose_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(dev, "_host_port_is_available", lambda _port: False)
@@ -191,6 +191,22 @@ def test_port_preflight_allows_only_the_selected_compose_project(
         full_data=False,
     )
 
+    monkeypatch.setattr(
+        dev,
+        "_published_port_owners",
+        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "shared-frontend"),),
+    )
+    with pytest.raises(RuntimeError, match="service 'shared-frontend'"):
+        dev._preflight_compose_host_ports(
+            services=("propertyscope-frontend",),
+            full_data=False,
+        )
+
+    monkeypatch.setattr(
+        dev,
+        "_published_port_owners",
+        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "propertyscope-frontend"),),
+    )
     with pytest.raises(RuntimeError, match="before any build or container change"):
         dev._preflight_compose_host_ports(
             services=("propertyscope-frontend",),

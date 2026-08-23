@@ -7,10 +7,28 @@ import threading
 from collections.abc import Iterator
 from http.client import HTTPConnection
 from urllib.request import Request, urlopen
+from uuid import UUID
 
 import pytest
+from scripts import ui_smoke
 from scripts.ui_fixture_server import LOOPBACK_HOST, SCENARIO_COOKIE, UIFixtureServer
-from scripts.ui_fixtures import SCENARIOS, fixture_response
+from scripts.ui_fixtures import (
+    AGENT_RUN_ID,
+    DATASET_ID,
+    JOB_ID,
+    PRODUCT_SCHEMA,
+    PROPERTY_ID,
+    RELEASE_ID,
+    REPORT_SCHEMA,
+    RUN_ID,
+    SCENARIOS,
+    SOURCE_ID,
+    fixture_response,
+)
+
+from propertyscope_data_platform.release_builders import DataProductCatalogueEntry
+from shared_contracts import AgentRunDetail, AgentRunEventPage, AgentRunPage
+from shared_contracts.operations import AgentRunEvidenceDetail
 
 
 @pytest.fixture
@@ -42,6 +60,13 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
         timeout=2,
     ) as response:
         assert b"Data overview" in response.read()
+    with urlopen(f"{fixture_origin}/operations/ai-mode/assets/app.js", timeout=2) as response:
+        assert b'const API_ROOT = "/api/v1"' in response.read()
+    with urlopen(f"{fixture_origin}/healthz", timeout=2) as response:
+        assert response.headers.get_content_type() == "text/plain"
+        assert response.read() == b"ok\n"
+    ready, _headers = _json(f"{fixture_origin}/__ui-fixture__/ready")
+    assert ready == {"scenario": "populated", "status": "ready"}
 
     connection = HTTPConnection(LOOPBACK_HOST, int(fixture_origin.rsplit(":", 1)[1]))
     connection.request("GET", "/api/data-platform/v1/not-registered")
@@ -86,6 +111,37 @@ def test_fixture_payload_is_stable_and_uses_contract_envelopes() -> None:
     } <= set(first.body["items"][0])
 
 
+def test_data_product_routes_match_the_direct_production_catalogue_shape(
+    fixture_origin: str,
+) -> None:
+    listing, _headers = _json(f"{fixture_origin}/api/data-platform/v1/data-products")
+    product, _headers = _json(f"{fixture_origin}/api/data-platform/v1/data-products/{DATASET_ID}")
+
+    assert product == listing["items"][0]
+    assert "data_product" not in product
+    assert {
+        "dataset_id",
+        "display_name",
+        "target_feature",
+        "job_profile",
+        "import_profile",
+        "builder_key",
+        "builder_version",
+        "product_schema_version",
+        "ordering_rule",
+        "supported_scope_profiles",
+        "max_rows",
+        "max_bytes",
+        "redistribution_decision",
+        "download_permitted",
+        "capability_state",
+        "latest_accepted_release",
+        "known_limitations",
+    } <= set(product)
+    assert product["product_schema_version"] == PRODUCT_SCHEMA
+    DataProductCatalogueEntry.model_validate(product)
+
+
 def test_required_scenarios_have_distinct_deterministic_behaviour() -> None:
     assert SCENARIOS == (
         "populated",
@@ -119,13 +175,13 @@ def test_required_scenarios_have_distinct_deterministic_behaviour() -> None:
 def test_partial_scenario_preserves_primary_content_and_fails_optional_calls() -> None:
     detail = fixture_response(
         "GET",
-        "/api/data-platform/v1/properties/ps-fixture-0001",
+        f"/api/data-platform/v1/properties/{PROPERTY_ID}",
         "",
         "partial",
     )
     map_context = fixture_response(
         "GET",
-        "/api/data-platform/v1/properties/ps-fixture-0001/map-context",
+        f"/api/data-platform/v1/properties/{PROPERTY_ID}/map-context",
         "",
         "partial",
     )
@@ -138,6 +194,88 @@ def test_partial_scenario_preserves_primary_content_and_fails_optional_calls() -
     assert overview.status == 503
     assert sources.status == 200
     assert sources.body["items"]
+
+
+@pytest.mark.parametrize(
+    ("route", "code"),
+    (
+        ("properties/00000000-0000-4000-8000-000000000099", "property_not_found"),
+        ("sources/00000000-0000-4000-8000-000000000099", "source_not_found"),
+        ("jobs/00000000-0000-4000-8000-000000000099", "job_not_found"),
+        ("ingestion-runs/00000000-0000-4000-8000-000000000099", "ingestion_run_not_found"),
+        ("dataset-releases/00000000-0000-4000-8000-000000000099", "release_not_found"),
+        ("data-products/not-a-product", "data_product_not_found"),
+        ("agent-runs/00000000-0000-4000-8000-000000000099", "agent_run_not_found"),
+    ),
+)
+def test_detail_routes_do_not_fall_back_to_the_first_record(route: str, code: str) -> None:
+    response = fixture_response("GET", f"/api/data-platform/v1/{route}", "", "populated")
+
+    assert response.status == 404
+    assert response.content_type == "application/problem+json"
+    assert response.body["code"] == code
+
+
+def test_shared_health_evidence_and_ai_operations_projections_are_contract_valid() -> None:
+    health = fixture_response("GET", "/api/shared-health/data-platform", "", "populated")
+    ai_health = fixture_response("GET", "/api/shared-health/ai-mode", "", "populated")
+    releases = fixture_response(
+        "GET", "/api/data-platform/v1/dataset-releases", "status=accepted", "populated"
+    )
+    page = fixture_response("GET", "/api/v1/agent-runs", "", "populated")
+    detail = fixture_response(
+        "GET", f"/api/v1/operations/agent-runs/{AGENT_RUN_ID}", "", "populated"
+    )
+    events = fixture_response("GET", f"/api/v1/agent-runs/{AGENT_RUN_ID}/events", "", "populated")
+    feature_detail = fixture_response(
+        "GET", f"/api/data-platform/v1/agent-runs/{AGENT_RUN_ID}", "", "populated"
+    )
+
+    assert health.body["dependencies"] == {"database": True}
+    assert ai_health.body["checks"]["llm_provider"]["status"] == "ready"
+    assert releases.body["items"][0]["target_feature"] == "feature-1"
+    AgentRunPage.model_validate(page.body)
+    AgentRunEvidenceDetail.model_validate(detail.body)
+    AgentRunEventPage.model_validate(events.body)
+    AgentRunDetail.model_validate(feature_detail.body)
+
+
+def test_projection_values_match_report_preview_overview_and_uuid_contracts() -> None:
+    report = fixture_response(
+        "GET", f"/api/data-platform/v1/properties/{PROPERTY_ID}/report-section", "", "populated"
+    )
+    preview = fixture_response(
+        "GET", f"/api/data-platform/v1/dataset-releases/{RELEASE_ID}/records", "", "populated"
+    )
+    overview = fixture_response("GET", "/api/data-platform/v1/overview", "", "populated")
+    large = fixture_response("GET", "/api/data-platform/v1/jobs", "", "large")
+    generated_job = large.body["items"][-1]
+    generated_detail = fixture_response(
+        "GET", f"/api/data-platform/v1/jobs/{generated_job['id']}", "", "large"
+    )
+    referenced_source = fixture_response(
+        "GET",
+        f"/api/data-platform/v1/sources/{generated_job['source_definition_id']}",
+        "",
+        "large",
+    )
+
+    assert report.body["schema_version"] == REPORT_SCHEMA
+    assert {"state", "postcode", "longitude", "latitude", "geometry"} <= set(
+        report.body["identity"]
+    )
+    assert preview.body["profile"] == "property-fixture"
+    assert set(preview.body["columns"]) == set(preview.body["items"][0])
+    assert set(overview.body) == {
+        "runs",
+        "releases",
+        "failed_quality_checks",
+        "properties",
+    }
+    assert all(UUID(item["id"]) for item in large.body["items"])
+    assert UUID(SOURCE_ID) and UUID(JOB_ID) and UUID(RUN_ID) and UUID(RELEASE_ID)
+    assert generated_detail.status == 200
+    assert referenced_source.status == 200
 
 
 def test_host_header_and_traversal_are_rejected(fixture_origin: str) -> None:
@@ -155,3 +293,32 @@ def test_host_header_and_traversal_are_rejected(fixture_origin: str) -> None:
     assert response.status == 404
     response.read()
     connection.close()
+
+
+def test_smoke_cleans_up_owned_child_when_readiness_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailedChild:
+        terminated = False
+
+        def poll(self) -> int:
+            return 1
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def wait(self, *, timeout: int) -> int:
+            assert timeout == 5
+            return 1
+
+    child = FailedChild()
+    monkeypatch.setattr(ui_smoke, "_ready", lambda _base_url: False)
+    monkeypatch.setattr(ui_smoke.subprocess, "Popen", lambda *_args, **_kwargs: child)
+
+    with (
+        pytest.raises(RuntimeError, match="readiness check"),
+        ui_smoke.fixture_runtime(5319, "populated"),
+    ):
+        pass
+
+    assert child.terminated is True

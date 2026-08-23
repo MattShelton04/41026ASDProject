@@ -16,14 +16,23 @@ from urllib.request import urlopen
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, sync_playwright
 from scripts.ui_fixture_server import DEFAULT_PORT, LOOPBACK_HOST
-from scripts.ui_fixtures import SCENARIOS
+from scripts.ui_fixtures import (
+    AGENT_RUN_ID,
+    DATASET_ID,
+    JOB_ID,
+    PROPERTY_ID,
+    RELEASE_ID,
+    RUN_ID,
+    SCENARIOS,
+    SOURCE_ID,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _ready(base_url: str) -> bool:
     try:
-        with urlopen(f"{base_url}/healthz", timeout=0.4) as response:
+        with urlopen(f"{base_url}/__ui-fixture__/ready", timeout=0.4) as response:
             payload = json.load(response)
             return response.status == 200 and payload.get("scenario") in SCENARIOS
     except (OSError, URLError, ValueError):
@@ -35,27 +44,29 @@ def fixture_runtime(port: int, scenario: str) -> Iterator[str]:
     """Reuse a matching local host or own and clean up a new fixture child."""
     base_url = f"http://{LOOPBACK_HOST}:{port}"
     child: subprocess.Popen[bytes] | None = None
-    if not _ready(base_url):
-        child = subprocess.Popen(
-            (
-                sys.executable,
-                "-m",
-                "scripts.ui_fixture_server",
-                "--port",
-                str(port),
-                "--scenario",
-                scenario,
-            ),
-            cwd=REPOSITORY_ROOT,
-        )
-        deadline = time.monotonic() + 8
-        while time.monotonic() < deadline and not _ready(base_url):
-            if child.poll() is not None:
-                raise RuntimeError("UI fixture child exited before its health check passed")
-            time.sleep(0.1)
-        if not _ready(base_url):
-            raise RuntimeError(f"UI fixture child did not become ready at {base_url}/healthz")
     try:
+        if not _ready(base_url):
+            child = subprocess.Popen(
+                (
+                    sys.executable,
+                    "-m",
+                    "scripts.ui_fixture_server",
+                    "--port",
+                    str(port),
+                    "--scenario",
+                    scenario,
+                ),
+                cwd=REPOSITORY_ROOT,
+            )
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline and not _ready(base_url):
+                if child.poll() is not None:
+                    raise RuntimeError("UI fixture child exited before its readiness check passed")
+                time.sleep(0.1)
+            if not _ready(base_url):
+                raise RuntimeError(
+                    f"UI fixture child did not become ready at {base_url}/__ui-fixture__/ready"
+                )
         yield base_url
     finally:
         if child is not None:
@@ -91,7 +102,44 @@ def _verify_page(
     print(f"PASS {expected_heading}: {url}", flush=True)
 
 
-def run_smoke(*, port: int, scenario: str) -> None:
+def _populated_routes(base_url: str, scenario: str) -> tuple[tuple[str, str, str | None], ...]:
+    shared = f"{base_url}/?scenario={scenario}"
+    feature = f"{base_url}/features/data-platform/?scenario={scenario}"
+    return (
+        (f"{shared}#system-status", "Data status", ".health-card"),
+        (f"{shared}#evidence", "Sources and history", ".evidence-grid"),
+        (f"{feature}#properties/{PROPERTY_ID}", "11 Example Street", None),
+        (f"{feature}#sources", "Data sources", None),
+        (f"{feature}#sources/{SOURCE_ID}", "Example NSW property records", None),
+        (f"{feature}#jobs", "Data updates", None),
+        (f"{feature}#jobs/{JOB_ID}", "Example property records update", None),
+        (f"{feature}#runs", "Update history", None),
+        (f"{feature}#runs/{RUN_ID}", "Example property records update", None),
+        (f"{feature}#releases", "Published data", None),
+        (
+            f"{feature}#releases/{RELEASE_ID}",
+            "property-identities",
+            None,
+        ),
+        (f"{feature}#data-products", "Dataset publishing settings", None),
+        (f"{feature}#data-products/{DATASET_ID}", "Property identity register", None),
+        (f"{feature}#quality", "Data checks", None),
+        (f"{feature}#quality/{RUN_ID}", "Data checks", None),
+        (f"{feature}#artifacts", "Files and history", None),
+        (f"{feature}#artifacts/{RUN_ID}", "Files and history", None),
+        (f"{feature}#coverage", "Data coverage", None),
+        (f"{feature}#ai", "AI review", None),
+        (f"{feature}#ai/{AGENT_RUN_ID}", "AI review", None),
+        (
+            f"{base_url}/operations/ai-mode/?feature_key="
+            f"student-1-propertyscope-data-platform&run={AGENT_RUN_ID}",
+            "Activity history",
+            "#detail-content:not([hidden])",
+        ),
+    )
+
+
+def run_smoke(*, port: int, scenario: str, all_routes: bool = False) -> None:
     """Run three representative routes against one deterministic same-origin host."""
     with fixture_runtime(port, scenario) as base_url:
         try:
@@ -122,6 +170,11 @@ def run_smoke(*, port: int, scenario: str) -> None:
                         "Data overview",
                     )
                     page.close()
+                    if all_routes:
+                        for url, heading, selector in _populated_routes(base_url, scenario):
+                            page = context.new_page()
+                            _verify_page(page, url, heading, ready_selector=selector)
+                            page.close()
                     context.close()
                 finally:
                     browser.close()
@@ -138,13 +191,22 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--scenario", choices=SCENARIOS, default="populated")
+    parser.add_argument(
+        "--all-routes",
+        action="store_true",
+        help="Also exercise Shared status/evidence/AI activity and every populated route family",
+    )
     return parser
 
 
 def main() -> int:
     arguments = _parser().parse_args()
     try:
-        run_smoke(port=arguments.port, scenario=arguments.scenario)
+        run_smoke(
+            port=arguments.port,
+            scenario=arguments.scenario,
+            all_routes=arguments.all_routes,
+        )
     except (PlaywrightError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

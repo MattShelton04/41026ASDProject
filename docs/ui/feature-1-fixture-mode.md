@@ -20,8 +20,8 @@ uv sync --locked --all-packages --all-groups
 uv run scripts/dev.py ui
 ```
 
-The command waits for its own health response, prints all three URLs, stays in the foreground and
-closes its listener on Ctrl+C or startup failure. It uses port `5300` by default, away from the
+The command waits for its fixture-only JSON readiness response, prints all three URLs, stays in the
+foreground and closes its listener on Ctrl+C or startup failure. It uses port `5300` by default, away from the
 canonical Compose ports. Select another loopback port with either
 `PROPERTYSCOPE_UI_FIXTURE_PORT=5301` or `--port 5301`.
 
@@ -32,6 +32,7 @@ Shared              http://127.0.0.1:5300/?scenario=populated#home
 Property Discovery  http://127.0.0.1:5300/features/data-platform/?scenario=populated#properties
 Data Operations     http://127.0.0.1:5300/features/data-platform/?scenario=populated#overview
 Health              http://127.0.0.1:5300/healthz
+Fixture readiness   http://127.0.0.1:5300/__ui-fixture__/ready
 ```
 
 ## Deterministic scenarios
@@ -64,12 +65,15 @@ always cleans up a child it started when the browser succeeds or fails.
 ```text
 uv run playwright install chromium
 uv run scripts/dev.py ui-smoke
+uv run scripts/dev.py ui-smoke --all-routes
 ```
 
 The smoke opens Shared Home, a populated Property Discovery search and Data Operations overview at
 1440x1000. It fails on a page exception, any console error, a missing route heading or a missing
 property result. Missing Chromium and occupied ports produce an actionable error. The broader
-route/state/viewport audit remains the responsibility of the resumable Prompt 2 harness.
+command additionally covers Shared status and evidence, every populated Feature 1 route family,
+and the shared AI activity detail projection. The broader route/state/viewport audit remains the
+responsibility of the resumable Prompt 2 harness.
 
 ## Compose coordination preflight
 
@@ -78,4 +82,5 @@ runtime secret or invoking any Compose build/recreate operation. Empty environme
 Compose defaults; invalid, duplicated or externally occupied ports fail with the owning Docker
 Compose project/service where available. Containers already owned by the selected Compose project
 are allowed so an ordinary repeat startup remains idempotent. Printed URLs use the resolved port
-overrides.
+overrides. An occupied port is exempt only when its structured Compose labels identify the exact
+project and service currently being started.

@@ -203,7 +203,10 @@ def _preflight_compose_host_ports(*, services: Sequence[str], full_data: bool) -
         if _host_port_is_available(port):
             continue
         owners = _published_port_owners(port)
-        if owners and all(owner_project == project for owner_project, _ in owners):
+        if owners and all(
+            owner_project == project and owner_service == service
+            for owner_project, owner_service in owners
+        ):
             continue
         owner_text = ", ".join(
             f"Compose project {owner_project!r} service {owner_service!r}"
@@ -820,6 +823,11 @@ def _parser() -> argparse.ArgumentParser:
         choices=UI_FIXTURE_SCENARIOS,
         default="populated",
     )
+    ui_smoke.add_argument(
+        "--all-routes",
+        action="store_true",
+        help="Exercise every populated Shared and Feature 1 route family",
+    )
     sync_psi = commands.add_parser(
         "sync-psi", help="Acquire official PSI annual/weekly archives into the read-only app cache"
     )
@@ -938,6 +946,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     str(_ui_fixture_port(arguments.port)),
                     "--scenario",
                     arguments.scenario,
+                    *(("--all-routes",) if arguments.all_routes else ()),
                 )
             )
         elif arguments.command == "sync-psi":

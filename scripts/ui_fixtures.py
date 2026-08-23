@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qs
+from uuid import NAMESPACE_URL, uuid5
 
 SCENARIOS = (
     "populated",
@@ -30,6 +31,21 @@ class FixtureResponse:
 
 REQUEST_ID = "ui-fixture-request-0001"
 TIMESTAMP = "2026-08-23T00:00:00Z"
+SOURCE_ID = "10000000-0000-0000-0000-000000000001"
+JOB_ID = "20000000-0000-0000-0000-000000000001"
+RUN_ID = "30000000-0000-0000-0000-000000000001"
+TASK_ID = "40000000-0000-0000-0000-000000000001"
+ARTIFACT_ID = "50000000-0000-0000-0000-000000000001"
+RELEASE_ID = "60000000-0000-0000-0000-000000000001"
+CANDIDATE_RELEASE_ID = "60000000-0000-0000-0000-000000000011"
+REVIEW_RELEASE_ID = "60000000-0000-0000-0000-000000000012"
+PROPERTY_ID = "11111111-1111-4111-8111-111111111111"
+AGENT_RUN_ID = "70000000-0000-4000-8000-000000000001"
+DATASET_ID = "property-identities"
+FEATURE_KEY = "feature-1"
+AGENT_FEATURE_KEY = "student-1-propertyscope-data-platform"
+REPORT_SCHEMA = "propertyscope.report-section.v1"
+PRODUCT_SCHEMA = "propertyscope.property-snapshot.v1"
 LONG_TEXT = (
     "Long deterministic fixture content — Greater Sydney property evidence and operational "
     "status remain traceable even when a publisher supplies an unusually verbose name. "
@@ -56,23 +72,23 @@ def _problem(status: int, title: str, detail: str, code: str) -> FixtureResponse
 
 def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
     long = scenario == "long-content"
-    source_name = LONG_TEXT if long else "NSW Address Register"
+    source_name = LONG_TEXT if long else "Example NSW property records"
     address = LONG_TEXT if long else "11 Example Street, Sydney NSW 2000"
     status_text = LONG_TEXT if long else "Fixture records are current and ready for review."
     sources = [
         {
-            "id": "source-addresses",
+            "id": SOURCE_ID,
             "version": 3,
             "name": source_name,
-            "publisher": "PropertyScope deterministic fixture",
-            "source_url": "https://example.test/address-register",
-            "adapter_key": "fixture-addresses",
-            "cadence": "monthly",
-            "licence_id": "fixture-open-data-v1",
-            "licence_url": "https://example.test/licence",
-            "redistribution_policy": "Synthetic records may be redistributed for testing.",
-            "target_features": ["property-discovery"],
-            "target_features_json": ["property-discovery"],
+            "publisher": "PropertyScope project",
+            "source_url": "https://example.invalid/propertyscope/fixtures/property.csv",
+            "adapter_key": "fixture-snapshot",
+            "cadence": "on-demand",
+            "licence_id": "synthetic-test-data",
+            "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "redistribution_policy": "committed-synthetic-fixture",
+            "target_features": [FEATURE_KEY],
+            "target_features_json": [FEATURE_KEY],
             "status": "active",
             "notes": status_text,
             "created_at": TIMESTAMP,
@@ -81,28 +97,28 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
     ]
     jobs = [
         {
-            "id": "job-addresses",
+            "id": JOB_ID,
             "version": 5,
-            "source_definition_id": "source-addresses",
-            "name": LONG_TEXT if long else "Refresh NSW property identities",
+            "source_definition_id": SOURCE_ID,
+            "name": LONG_TEXT if long else "Example property records update",
             "profile_key": "fixture-property-full",
             "profile_version": "1",
-            "adapter_key": "fixture-addresses",
-            "release_builder_key": "property-identity",
+            "adapter_key": "fixture-snapshot",
+            "release_builder_key": "property-snapshot",
             "import_profile_key": "fixture-property",
             "import_profile_version": "1",
-            "target_feature": "property-discovery",
-            "dataset_id": "property-identities",
+            "target_feature": FEATURE_KEY,
+            "dataset_id": DATASET_ID,
             "refresh_strategy": "full_snapshot",
             "default_run_mode": "full_refresh",
             "scope_json": {"profile": "showcase", "maximum_records": 20},
             "quality_policy_key": "property-identity-v1",
             "quality_policy_version": "1",
             "max_parallelism": 1,
-            "timeout_seconds": 300,
-            "max_objects": 5,
+            "timeout_seconds": 60,
+            "max_objects": 2,
             "max_bytes": 1_000_000,
-            "max_rows": 500,
+            "max_rows": 1_000,
             "status": "active",
             "schedule_text": "On demand",
             "created_at": TIMESTAMP,
@@ -111,34 +127,37 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
     ]
     runs = [
         {
-            "id": "run-addresses-0001",
-            "job_definition_id": "job-addresses",
-            "job_name": LONG_TEXT if long else "Refresh NSW property identities",
-            "target_feature": "property-discovery",
+            "id": RUN_ID,
+            "job_definition_id": JOB_ID,
+            "job_name": LONG_TEXT if long else "Example property records update",
+            "target_feature": FEATURE_KEY,
             "run_mode": "full_refresh",
             "status": "succeeded",
             "requested_at": TIMESTAMP,
             "started_at": TIMESTAMP,
             "finished_at": "2026-08-23T00:00:03Z",
             "rows_processed": 20,
+            "rows_accepted": 20,
+            "request_id": REQUEST_ID,
+            "execution_semantics": "new_pipeline_run",
             "error_json": None,
             "status_message": status_text,
         }
     ]
     releases = [
         {
-            "id": "release-addresses-0001",
+            "id": RELEASE_ID,
             "version": 2,
-            "dataset_id": "property-identities",
-            "source_definition_id": "source-addresses",
-            "ingestion_run_id": "run-addresses-0001",
-            "target_feature": "property-discovery",
+            "dataset_id": DATASET_ID,
+            "source_definition_id": SOURCE_ID,
+            "ingestion_run_id": RUN_ID,
+            "target_feature": FEATURE_KEY,
             "release_version": "2026.08.23-fixture",
-            "schema_version": "1.0",
+            "schema_version": PRODUCT_SCHEMA,
             "status": "accepted",
             "record_count": 20,
             "content_sha256": "a" * 64,
-            "artifact_record_id": "artifact-addresses-0001",
+            "artifact_record_id": ARTIFACT_ID,
             "coverage_json": {
                 "state": "NSW",
                 "locality": "Sydney",
@@ -155,7 +174,7 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
         [
             {
                 **releases[0],
-                "id": "release-addresses-0002",
+                "id": CANDIDATE_RELEASE_ID,
                 "release_version": "2026.08.24-fixture-candidate",
                 "status": "candidate",
                 "accepted_at": None,
@@ -163,7 +182,7 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
             },
             {
                 **releases[0],
-                "id": "release-addresses-0003",
+                "id": REVIEW_RELEASE_ID,
                 "release_version": "2026.08.25-fixture-review",
                 "status": "awaiting_review",
                 "accepted_at": None,
@@ -173,7 +192,7 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
     )
     properties = [
         {
-            "property_ref": "ps-fixture-0001",
+            "property_ref": PROPERTY_ID,
             "address_display": address,
             "locality": "Sydney",
             "state": "NSW",
@@ -182,18 +201,33 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
             "longitude": 151.2093,
             "score": 0.98,
             "resolution_status": "verified",
+            "geometry": {"type": "Point", "coordinates": [151.2093, -33.8688]},
             "updated_at": TIMESTAMP,
         }
     ]
     products = [
         {
-            "dataset_id": "property-identities",
-            "name": LONG_TEXT if long else "Property identity register",
-            "target_feature": "property-discovery",
-            "schema_version": "1.0",
-            "accepted_release_id": "release-addresses-0001",
-            "accepted_release_version": "2026.08.23-fixture",
-            "limitations": status_text,
+            "dataset_id": DATASET_ID,
+            "display_name": LONG_TEXT if long else "Property identity register",
+            "source_key": "fixture-property",
+            "job_profile": "fixture-property-full",
+            "import_profile": "property-fixture",
+            "target_feature": FEATURE_KEY,
+            "product_schema_version": PRODUCT_SCHEMA,
+            "builder_key": "property-snapshot",
+            "builder_version": "1.0.0",
+            "supported_scope_profiles": ["showcase", "test"],
+            "redistribution_decision": "committed-synthetic-fixture",
+            "download_permitted": True,
+            "capability_state": "fixture_backed",
+            "ordering_rule": "property_ref, source_address_id",
+            "max_rows": 50_000,
+            "max_bytes": 50_000_000,
+            "known_limitations": [
+                "Address identity is not legal title, parcel, ownership, valuation, "
+                "or occupancy evidence."
+            ],
+            "latest_accepted_release": releases[0],
         }
     ]
     return {
@@ -209,12 +243,15 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
 def _expanded(items: list[dict[str, Any]], scenario: str) -> list[dict[str, Any]]:
     if scenario != "large" or not items:
         return items
-    expanded: list[dict[str, Any]] = []
-    for index in range(1, 81):
+    # Keep the canonical row so foreign keys between fixture families remain navigable.
+    expanded: list[dict[str, Any]] = [dict(items[0])]
+    for index in range(2, 81):
         item = dict(items[(index - 1) % len(items)])
         for key in ("id", "property_ref"):
             if key in item:
-                item[key] = f"{item[key]}-{index:03d}"
+                item[key] = str(uuid5(NAMESPACE_URL, f"propertyscope-ui:{item[key]}:{index}"))
+        if "dataset_id" in item and "id" not in item:
+            item["dataset_id"] = f"{item['dataset_id']}-{index:03d}"
         if "name" in item:
             item["name"] = f"{item['name']} {index:03d}"
         if "address_display" in item:
@@ -244,7 +281,7 @@ def fixture_response(
     if scenario not in SCENARIOS:
         return _problem(400, "Unknown UI fixture scenario", scenario, "unknown_fixture_scenario")
     delay = 1.25 if scenario == "slow" and path.startswith("/api/") else 0.0
-    if path in {"/healthz", "/health/ready"}:
+    if path in {"/healthz", "/health/ready", "/__ui-fixture__/ready"}:
         return FixtureResponse(200, {"status": "ready", "scenario": scenario}, delay_seconds=delay)
     if scenario == "error" and path.startswith("/api/"):
         response = _problem(
@@ -259,7 +296,7 @@ def fixture_response(
             response.content_type,
             delay,
         )
-    if scenario == "partial" and any(
+    partial_optional = scenario == "partial" and any(
         marker in path
         for marker in (
             "/overview",
@@ -269,13 +306,7 @@ def fixture_response(
             "/artifacts",
             "/events",
         )
-    ):
-        return _problem(
-            503,
-            "Optional fixture evidence unavailable",
-            "Primary records remain available while this optional section is unavailable.",
-            "fixture_optional_evidence_unavailable",
-        )
+    )
     if scenario == "validation-error" and method in {"POST", "PUT", "PATCH"}:
         return _problem(
             422,
@@ -293,42 +324,76 @@ def fixture_response(
     products = records["products"]
     params = parse_qs(query)
 
-    if path.startswith("/api/shared-health/"):
+    if path == "/api/shared-health/data-platform":
         return FixtureResponse(
             200,
             {
                 "status": "healthy",
-                "service": path.rsplit("/", 1)[-1],
+                "service": "data-platform",
                 "dependencies": {"database": True},
             },
             delay_seconds=delay,
         )
-    if path in {"/api/ai-mode/agent-runs", "/api/data-platform/v1/agent-runs"}:
+    if path == "/api/shared-health/ai-mode":
         return FixtureResponse(
-            200, _collection(_agent_runs(scenario), scenario), delay_seconds=delay
+            200,
+            {
+                "status": "healthy",
+                "service": "ai-mode",
+                "checks": {
+                    "llm_provider": {
+                        "status": "ready",
+                        "detail": "Deterministic fixture provider; no credentials or network used.",
+                    }
+                },
+            },
+            delay_seconds=delay,
         )
-    if path.startswith("/api/ai-mode/agent-runs/") or path.startswith(
-        "/api/data-platform/v1/agent-runs/"
+    if path in {
+        "/api/ai-mode/agent-runs",
+        "/api/data-platform/v1/agent-runs",
+        "/api/v1/agent-runs",
+    }:
+        return FixtureResponse(200, _agent_run_page(scenario), delay_seconds=delay)
+    for agent_prefix in (
+        "/api/ai-mode/agent-runs/",
+        "/api/data-platform/v1/agent-runs/",
+        "/api/v1/agent-runs/",
+        "/api/v1/operations/agent-runs/",
     ):
-        agent_body: dict[str, Any] = {
-            "run": _agent_runs(scenario)[0],
-            "events": _agent_events(scenario),
-        }
-        if path.endswith("/events"):
-            agent_body = {"items": _agent_events(scenario), "next_after": 2}
-        return FixtureResponse(200, agent_body, delay_seconds=delay)
+        if path.startswith(agent_prefix):
+            identifier = path.removeprefix(agent_prefix).split("/", 1)[0]
+            summary = _select(_expanded(_agent_runs(scenario), scenario), "id", identifier)
+            if summary is None:
+                return _not_found("Agent run", identifier, "agent_run_not_found")
+            if path.endswith("/events"):
+                if partial_optional:
+                    return _optional_unavailable()
+                return FixtureResponse(200, _agent_event_page(summary["id"]), delay_seconds=delay)
+            if agent_prefix == "/api/v1/operations/agent-runs/":
+                return FixtureResponse(
+                    200, _agent_evidence_detail(summary, scenario), delay_seconds=delay
+                )
+            return FixtureResponse(200, _agent_run_detail(summary, scenario), delay_seconds=delay)
     prefix = "/api/data-platform/v1/"
     if not path.startswith(prefix):
         return _problem(404, "Fixture route not found", path, "fixture_route_not_found")
     route = path.removeprefix(prefix).strip("/")
 
     if route == "overview":
+        if partial_optional:
+            return _optional_unavailable()
         return FixtureResponse(
             200,
             {
-                "status": "ready",
-                "summary": "Deterministic UI fixture overview",
-                "generated_at": TIMESTAMP,
+                "runs": [{"status": "succeeded", "count": 1}],
+                "releases": [
+                    {"status": "accepted", "count": 1},
+                    {"status": "candidate", "count": 1},
+                    {"status": "awaiting_review", "count": 1},
+                ],
+                "failed_quality_checks": 0,
+                "properties": 1,
             },
             delay_seconds=delay,
         )
@@ -352,6 +417,10 @@ def fixture_response(
         return FixtureResponse(200, search_body, delay_seconds=delay)
     if route.startswith("properties/"):
         prop = _select(_expanded(properties, scenario), "property_ref", route.split("/")[1])
+        if prop is None:
+            return _not_found("Property", route.split("/")[1], "property_not_found")
+        if partial_optional:
+            return _optional_unavailable()
         return FixtureResponse(200, _property_response(route, prop, scenario), delay_seconds=delay)
     if route == "sources":
         return FixtureResponse(
@@ -359,6 +428,8 @@ def fixture_response(
         )
     if route.startswith("sources/"):
         source = _select(_expanded(sources, scenario), "id", route.split("/")[1])
+        if source is None:
+            return _not_found("Source", route.split("/")[1], "source_not_found")
         return FixtureResponse(200, {"source": source}, delay_seconds=delay)
     if route == "jobs":
         return FixtureResponse(
@@ -366,6 +437,8 @@ def fixture_response(
         )
     if route.startswith("jobs/"):
         job = _select(_expanded(jobs, scenario), "id", route.split("/")[1])
+        if job is None:
+            return _not_found("Job", route.split("/")[1], "job_not_found")
         if route.endswith("/capabilities"):
             return FixtureResponse(200, _job_capabilities(), delay_seconds=delay)
         if route.endswith("/plans"):
@@ -377,6 +450,10 @@ def fixture_response(
         return FixtureResponse(200, _collection(runs, scenario), delay_seconds=delay)
     if route.startswith("ingestion-runs/"):
         run = _select(_expanded(runs, scenario), "id", route.split("/")[1])
+        if run is None:
+            return _not_found("Ingestion run", route.split("/")[1], "ingestion_run_not_found")
+        if partial_optional:
+            return _optional_unavailable()
         return FixtureResponse(200, _run_response(route, run, scenario), delay_seconds=delay)
     if route == "dataset-releases":
         return FixtureResponse(
@@ -386,16 +463,25 @@ def fixture_response(
         )
     if route.startswith("dataset-releases/"):
         release = _select(_expanded(releases, scenario), "id", route.split("/")[1])
+        if release is None:
+            return _not_found("Dataset release", route.split("/")[1], "release_not_found")
         return FixtureResponse(
             200,
             _release_response(route, release, scenario),
             delay_seconds=delay,
         )
     if route == "data-products":
-        return FixtureResponse(200, _collection(products, scenario), delay_seconds=delay)
+        selected_products = [] if scenario == "empty" else _expanded(products, scenario)
+        return FixtureResponse(
+            200,
+            {"items": selected_products, "count": len(selected_products), "next_cursor": None},
+            delay_seconds=delay,
+        )
     if route.startswith("data-products/"):
         product = _select(_expanded(products, scenario), "dataset_id", route.split("/")[1])
-        return FixtureResponse(200, {"data_product": product}, delay_seconds=delay)
+        if product is None:
+            return _not_found("Data product", route.split("/")[1], "data_product_not_found")
+        return FixtureResponse(200, product, delay_seconds=delay)
     return _problem(404, "Fixture route not found", route, "fixture_route_not_found")
 
 
@@ -411,8 +497,21 @@ def _mutation_or_collection(
     return {entity_key: items[0]}
 
 
-def _select(items: list[dict[str, Any]], key: str, value: str) -> dict[str, Any]:
-    return next((item for item in items if item.get(key) == value), items[0])
+def _select(items: list[dict[str, Any]], key: str, value: str) -> dict[str, Any] | None:
+    return next((item for item in items if item.get(key) == value), None)
+
+
+def _not_found(label: str, identifier: str, code: str) -> FixtureResponse:
+    return _problem(404, f"{label} not found", f"No fixture record matches {identifier}.", code)
+
+
+def _optional_unavailable() -> FixtureResponse:
+    return _problem(
+        503,
+        "Optional fixture evidence unavailable",
+        "Primary records remain available while this optional section is unavailable.",
+        "fixture_optional_evidence_unavailable",
+    )
 
 
 def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[str, Any]:
@@ -428,17 +527,15 @@ def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[
         }
     coverage = [
         {
-            "dataset_id": "property-identities",
-            "target_feature": "property-discovery",
-            "dataset_release_id": "release-addresses-0001",
-            "status": "accepted",
+            "dataset_id": DATASET_ID,
+            "target_feature": FEATURE_KEY,
+            "dataset_release_id": RELEASE_ID,
             "coverage_status": "accepted",
             "release_version": "2026.08.23-fixture",
-            "schema_version": "1.0",
+            "schema_version": PRODUCT_SCHEMA,
             "coverage_scope": {"state": "NSW", "locality": "Sydney"},
             "checked_at": TIMESTAMP,
             "accepted_at": TIMESTAMP,
-            "limitation": "Synthetic UI fixture only.",
         }
     ]
     if route.endswith("/coverage"):
@@ -446,7 +543,7 @@ def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[
         return {"items": items, "count": len(items)}
     if route.endswith("/report-section"):
         return {
-            "schema_version": "1.0",
+            "schema_version": REPORT_SCHEMA,
             "property_ref": prop["property_ref"],
             "address_display": prop["address_display"],
             "evidence_count": 1,
@@ -454,6 +551,11 @@ def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[
                 "gnaf_pid": "GNAF-FIXTURE-0001",
                 "resolution_status": "verified",
                 "locality": "Sydney",
+                "postcode": "2000",
+                "state": "NSW",
+                "longitude": prop["longitude"],
+                "latitude": prop["latitude"],
+                "geometry": {"type": "Point", "coordinates": [151.2093, -33.8688]},
             },
             "release_evidence": coverage,
         }
@@ -465,11 +567,12 @@ def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[
         "property": detail,
         "identifiers": [
             {
-                "scheme": "fixture",
+                "scheme": "gnaf_pid",
                 "identifier_value": "GNAF-FIXTURE-0001",
                 "match_method": "deterministic",
                 "match_confidence": 1,
                 "is_current": True,
+                "evidence_json": {"fixture": True},
             }
         ],
         "aliases": [],
@@ -491,7 +594,7 @@ def _job_capabilities() -> dict[str, Any]:
 
 def _job_plan() -> dict[str, Any]:
     return {
-        "job_definition_id": "job-addresses",
+        "job_definition_id": JOB_ID,
         "run_mode": "full_refresh",
         "network_required": False,
         "scope": {"profile": "showcase", "maximum_records": 20},
@@ -504,8 +607,8 @@ def _quality_results(scenario: str) -> list[dict[str, Any]]:
     message = LONG_TEXT if scenario == "long-content" else "All required fixture rows are present."
     return [
         {
-            "id": "quality-0001",
-            "run_id": "run-addresses-0001",
+            "id": "80000000-0000-4000-8000-000000000001",
+            "run_id": RUN_ID,
             "rule_key": "fixture-row-count",
             "dimension": "completeness",
             "severity": "blocking",
@@ -521,14 +624,14 @@ def _quality_results(scenario: str) -> list[dict[str, Any]]:
 def _artifacts() -> list[dict[str, Any]]:
     return [
         {
-            "id": "artifact-addresses-0001",
-            "run_id": "run-addresses-0001",
+            "id": ARTIFACT_ID,
+            "run_id": RUN_ID,
             "kind": "normalised-data",
             "filename": "property-identities.ndjson",
             "content_sha256": "a" * 64,
             "size_bytes": 2048,
             "created_at": TIMESTAMP,
-            "lineage_json": {"fixture": True, "source": "source-addresses"},
+            "lineage_json": {"fixture": True, "source": SOURCE_ID},
         }
     ]
 
@@ -538,7 +641,7 @@ def _run_response(route: str, run: dict[str, Any], scenario: str) -> dict[str, A
         return {
             "items": [
                 {
-                    "id": "task-0001",
+                    "id": TASK_ID,
                     "name": "Load deterministic records",
                     "status": "succeeded",
                     "started_at": TIMESTAMP,
@@ -559,14 +662,37 @@ def _run_response(route: str, run: dict[str, Any], scenario: str) -> dict[str, A
 
 def _release_response(route: str, release: dict[str, Any], scenario: str) -> dict[str, Any]:
     if route.endswith("/manifest"):
-        return {"fixture": True, "schema_version": "1.0", "files": ["property-identities.ndjson"]}
+        return {
+            "fixture": True,
+            "schema_version": PRODUCT_SCHEMA,
+            "files": ["property-identities.ndjson"],
+        }
     if route.endswith("/records"):
         items = [] if scenario == "empty" else _expanded(_records(scenario)["properties"], scenario)
         return {
             "release": {"id": release["id"], "status": release["status"]},
-            "profile": "property-identity",
-            "columns": ["property_ref", "address_display", "locality", "state", "postcode"],
-            "items": items[:25],
+            "profile": "property-fixture",
+            "columns": [
+                "source_address_id",
+                "property_ref",
+                "address_display",
+                "flat_type",
+                "unit_number",
+                "street_number_first",
+                "street_number_suffix",
+                "street_number_last",
+                "street_name",
+                "street_type",
+                "locality",
+                "postcode",
+                "source_status",
+                "geocode_type",
+                "source_crs",
+                "geometry",
+                "source_row_sha256",
+                "normalisation_version",
+            ],
+            "items": [_preview_record(item) for item in items[:25]],
             "count": min(len(items), 25),
             "total": len(items),
             "limit": 25,
@@ -581,27 +707,132 @@ def _release_response(route: str, release: dict[str, Any], scenario: str) -> dic
     return {"release": release, "receipts": [], "manifest": release["manifest_json"]}
 
 
+def _preview_record(prop: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "source_address_id": "fixture-address-0001",
+        "property_ref": prop["property_ref"],
+        "address_display": prop["address_display"],
+        "flat_type": None,
+        "unit_number": None,
+        "street_number_first": "11",
+        "street_number_suffix": None,
+        "street_number_last": None,
+        "street_name": "Example",
+        "street_type": "Street",
+        "locality": prop["locality"],
+        "postcode": prop["postcode"],
+        "source_status": "current",
+        "geocode_type": "property_centre",
+        "source_crs": "EPSG:4326",
+        "geometry": prop["geometry"],
+        "source_row_sha256": "d" * 64,
+        "normalisation_version": "1.0.0",
+    }
+
+
 def _agent_runs(scenario: str) -> list[dict[str, Any]]:
-    result = LONG_TEXT if scenario == "long-content" else "Fixture review found no blocking issue."
+    objective = (
+        LONG_TEXT if scenario == "long-content" else "Review the accepted property fixture release."
+    )
     return [
         {
-            "id": "agent-run-0001",
+            "id": AGENT_RUN_ID,
+            "feature_key": AGENT_FEATURE_KEY,
+            "objective_preview": objective[:160],
             "status": "succeeded",
-            "objective": "Review release-addresses-0001",
-            "result": result,
+            "latest_phase": "adapt",
+            "latest_step_status": "succeeded",
+            "model_profile": "fixture-model",
+            "prompt_set": "default.v4",
+            "iteration_count": 1,
+            "tool_call_count": 1,
+            "version": 4,
+            "review_required": False,
+            "error_code": None,
             "created_at": TIMESTAMP,
             "updated_at": TIMESTAMP,
+            "duration_ms": 3000,
         }
     ]
 
 
-def _agent_events(scenario: str) -> list[dict[str, Any]]:
-    return [
-        {
-            "id": "agent-event-0001",
-            "sequence": 1,
-            "kind": "status",
-            "message": LONG_TEXT if scenario == "long-content" else "Review completed.",
-            "created_at": TIMESTAMP,
-        }
-    ]
+def _agent_run_page(scenario: str) -> dict[str, Any]:
+    items = [] if scenario == "empty" else _expanded(_agent_runs(scenario), scenario)
+    return {"items": items, "next_cursor": None, "as_of": TIMESTAMP}
+
+
+def _agent_event_page(run_id: str) -> dict[str, Any]:
+    return {
+        "items": [
+            {
+                "id": 1,
+                "run_id": run_id,
+                "run_version": 4,
+                "event_type": "run_succeeded",
+                "status": "succeeded",
+                "occurred_at": TIMESTAMP,
+                "step_id": None,
+                "step_phase": None,
+                "step_status": None,
+            }
+        ],
+        "next_cursor": 1,
+        "terminal": True,
+    }
+
+
+def _limits() -> dict[str, int]:
+    return {
+        "max_iterations": 6,
+        "max_tool_calls": 12,
+        "time_budget_ms": 120_000,
+        "max_model_repairs": 1,
+    }
+
+
+def _agent_run_detail(summary: dict[str, Any], scenario: str) -> dict[str, Any]:
+    result = LONG_TEXT if scenario == "long-content" else "No blocking issue was found."
+    return {
+        "run": {
+            "id": summary["id"],
+            "request_id": REQUEST_ID,
+            "traceparent": None,
+            "feature_key": summary["feature_key"],
+            "objective": "Review the accepted property fixture release.",
+            "status": summary["status"],
+            "prompt_set": summary["prompt_set"],
+            "model_profile": summary["model_profile"],
+            "limits": _limits(),
+            "iteration_count": summary["iteration_count"],
+            "tool_call_count": summary["tool_call_count"],
+            "version": summary["version"],
+            "cancel_requested": False,
+            "created_at": summary["created_at"],
+            "updated_at": summary["updated_at"],
+            "final_result": {"summary": result},
+            "error": None,
+        },
+        "steps": [],
+        "reviews": [],
+    }
+
+
+def _agent_evidence_detail(summary: dict[str, Any], scenario: str) -> dict[str, Any]:
+    detail = _agent_run_detail(summary, scenario)["run"]
+    return {
+        "run": summary,
+        "objective": detail["objective"],
+        "limits": _limits(),
+        "cancel_requested": False,
+        "final_result": detail["final_result"],
+        "error": None,
+        "steps": [],
+        "reviews": [],
+        "correlation": {
+            "request_id": REQUEST_ID,
+            "run_id": summary["id"],
+            "traceparent": None,
+            "trace_id": None,
+            "telemetry_url": None,
+        },
+    }
