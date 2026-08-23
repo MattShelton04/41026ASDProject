@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schemaVersion": 1,
+  "product": "PropertyScope NSW",
+  "baseline": {
+    "document": "docs/ui/feature-1-baseline.md",
+    "evidenceMode": "source-and-deterministic-tests",
+    "liveBrowserConfirmed": true,
+    "liveBrowserCoverage": "targeted-spike-not-full-matrix",
+    "artifactRoot": "C:\\Users\\mattt\\.codex\\visualizations\\2026\\08\\23\\01a02c87-485e-7bc2-8f31-405261cd9cf7\\ui-baseline",
+    "destructiveActionsDefault": "confirmation-only"
+  },
+  "origins": {
+    "shared": "http://localhost:5100/",
+    "feature1Direct": "http://localhost:5200/",
+    "feature1Edge": "http://localhost:5100/features/data-platform/",
+    "aiActivityEdge": "http://localhost:5100/operations/ai-mode/"
+  },
+  "viewports": [
+    {
+      "id": "laptop-wide",
+      "width": 1440,
+      "height": 1000,
+      "gate": "release-critical-full-matrix"
+    },
+    {
+      "id": "laptop-compact",
+      "width": 1024,
+      "height": 768,
+      "gate": "release-critical-full-matrix"
+    },
+    {
+      "id": "tablet-portrait",
+      "width": 768,
+      "height": 1024,
+      "gate": "required-capture-bounded-resilience"
+    },
+    {
+      "id": "mobile",
+      "width": 390,
+      "height": 844,
+      "gate": "required-capture-bounded-resilience"
+    }
+  ],
+  "viewportPolicy": {
+    "releaseCritical": [
+      "laptop-wide",
+      "laptop-compact"
+    ],
+    "boundedResilience": [
+      "tablet-portrait",
+      "mobile"
+    ],
+    "boundedResilienceFailures": [
+      "page-horizontal-overflow",
+      "clipped-primary-action",
+      "broken-navigation",
+      "broken-property-search",
+      "unusable-dialog-or-confirmation",
+      "blocked-core-task",
+      "keyboard-trap"
+    ],
+    "advisoryAtNarrowWidths": [
+      "dense-operator-table-card-alternative",
+      "full-operator-feature-parity",
+      "non-critical-column-prioritisation"
+    ]
+  },
+  "stateCatalog": {
+    "loading": "A request is pending and context remains identifiable.",
+    "empty": "A valid zero-result response has a truthful next action.",
+    "populated": "Representative deterministic records render.",
+    "validation": "Client or API validation keeps input and explains recovery.",
+    "permission": "A forbidden/read-only response preserves context without exposing mutation.",
+    "partial": "Independent successful sections remain when one dependency fails.",
+    "error": "A classified failure includes retry or safe next action and request ID where supplied.",
+    "long-content": "Long and hostile text cannot inject markup, overflow the page, or hide actions.",
+    "slow": "Delayed responses do not cause stale replacement, duplicate action, or unexplained layout shift."
+  },
+  "globalAssertions": [
+    "no-unexpected-page-exception",
+    "no-unexpected-console-error",
+    "no-page-horizontal-overflow",
+    "no-clipped-primary-action",
+    "one-main-landmark",
+    "keyboard-visible-focus",
+    "route-heading-and-title",
+    "request-failures-classified",
+    "mobile-navigation-usable",
+    "destructive-controls-open-confirmation-without-mutation"
+  ],
+  "routeGroups": [
+    {
+      "id": "shared-shell",
+      "workspace": "shared",
+      "baseOrigin": "shared",
+      "routes": [
+        {
+          "id": "shared-home",
+          "path": "#home",
+          "aliases": ["", "#top", "#research-areas", "#operations"],
+          "source": "shared/frontend/index.html; shared/frontend/app.js",
+          "requiredStates": ["populated", "planned-capabilities", "long-content"],
+          "api": [],
+          "interactions": ["header-search", "hero-search", "hash-navigation", "feature-ingress", "activity-ingress", "mobile-menu"]
+        },
+        {
+          "id": "shared-features",
+          "path": "#features",
+          "source": "shared/frontend/routes/features.js",
+          "requiredStates": ["populated", "planned-capabilities", "long-content"],
+          "api": [],
+          "interactions": ["availability-link", "roadmap-link", "mobile-menu"]
+        },
+        {
+          "id": "shared-status",
+          "path": "#system-status",
+          "source": "shared/frontend/routes/status.js",
+          "requiredStates": ["loading", "populated", "partial", "error", "slow", "long-content"],
+          "api": ["GET /healthz", "GET /api/shared-health/data-platform", "GET /api/shared-health/ai-mode"],
+          "interactions": ["refresh-status", "service-link", "mobile-menu"]
+        },
+        {
+          "id": "shared-evidence",
+          "path": "#evidence",
+          "source": "shared/frontend/routes/evidence.js",
+          "requiredStates": ["loading", "populated", "empty", "partial", "error", "slow", "long-content"],
+          "api": ["GET /api/data-platform/v1/dataset-releases?status=accepted&limit=20", "GET /api/ai-mode/agent-runs?limit=10"],
+          "interactions": ["feature-ingress", "release-detail-link", "activity-detail-link", "mobile-menu"]
+        },
+        {
+          "id": "shared-roadmap",
+          "path": "#release-roadmap",
+          "source": "shared/frontend/routes/roadmap.js",
+          "requiredStates": ["populated", "planned-capabilities", "long-content"],
+          "api": [],
+          "interactions": ["status-link", "enabled-capability-link", "mobile-menu"]
+        }
+      ]
+    },
+    {
+      "id": "property-discovery",
+      "workspace": "feature-1-property-discovery",
+      "baseOrigin": "feature1Edge",
+      "routes": [
+        {
+          "id": "property-search",
+          "path": "#properties",
+          "query": ["q"],
+          "source": "student-1/frontend/routes/properties.js",
+          "requiredStates": ["landing", "loading", "populated", "empty", "unsupported", "error", "slow", "long-content"],
+          "api": ["GET /api/data-platform/v1/properties/search?q={query}&state=NSW&limit=25"],
+          "interactions": ["submit-search", "open-match", "toggle-all-match-details", "retry", "mobile-menu"]
+        },
+        {
+          "id": "property-detail",
+          "path": "#properties/{property_ref}",
+          "query": ["q"],
+          "source": "student-1/frontend/routes/properties.js",
+          "requiredStates": ["loading", "populated", "partial", "unknown-coverage", "invalid-coordinate", "map-fallback", "error", "slow", "long-content"],
+          "api": [
+            "GET /api/data-platform/v1/properties/{property_ref}",
+            "GET /api/data-platform/v1/properties/{property_ref}/map-context",
+            "GET /api/data-platform/v1/properties/{property_ref}/coverage",
+            "GET /api/data-platform/v1/properties/{property_ref}/report-section"
+          ],
+          "interactions": ["back-to-search", "map-pan-zoom-popup", "toggle-identity-details", "toggle-report-details", "retry", "mobile-menu"]
+        }
+      ]
+    },
+    {
+      "id": "data-operations-primary",
+      "workspace": "feature-1-data-operations",
+      "baseOrigin": "feature1Edge",
+      "routes": [
+        {
+          "id": "operations-overview",
+          "path": "#overview",
+          "source": "student-1/frontend/routes/overview.js",
+          "requiredStates": ["loading", "populated", "empty", "partial", "error", "long-content"],
+          "api": ["GET sources?limit=100", "GET ingestion-runs?limit=25", "GET dataset-releases?limit=100", "GET overview"],
+          "interactions": ["open-jobs", "open-sources", "open-run", "open-release", "open-history", "mobile-menu"]
+        },
+        {
+          "id": "jobs-list",
+          "path": "#jobs",
+          "query": ["q", "status"],
+          "source": "student-1/frontend/routes/entities.js; student-1/frontend/routes/run-plan.js",
+          "requiredStates": ["loading", "populated", "empty", "filtered-empty", "disabled", "validation", "permission", "conflict", "error", "slow", "long-content"],
+          "api": ["GET/POST /api/data-platform/v1/jobs", "PUT/DELETE /api/data-platform/v1/jobs/{id}", "GET runtime-capabilities", "POST jobs/{id}/plans", "POST jobs/{id}/runs"],
+          "interactions": ["apply-filter", "create-job", "edit-job", "delete-confirmation", "open-job", "start-update-confirmation", "backfill-confirmation", "preview-plan", "open-history", "mobile-menu"]
+        },
+        {
+          "id": "job-detail",
+          "path": "#jobs/{job_id}",
+          "source": "student-1/frontend/routes/entities.js; student-1/frontend/routes/run-plan.js",
+          "requiredStates": ["loading", "populated", "capabilities-unavailable", "disabled", "validation", "permission", "conflict", "error", "slow", "long-content"],
+          "api": ["GET/PUT /api/data-platform/v1/jobs/{id}", "GET jobs/{id}/capabilities", "GET runtime-capabilities", "POST jobs/{id}/plans", "POST jobs/{id}/runs"],
+          "interactions": ["edit-job", "open-history", "select-run-mode", "select-source-profile", "edit-bounded-scope", "toggle-advanced-json", "preview-plan", "start-update-confirmation", "backfill-confirmation", "mobile-menu"]
+        },
+        {
+          "id": "runs-list",
+          "path": "#runs",
+          "query": ["q", "status", "job"],
+          "source": "student-1/frontend/routes/runs.js",
+          "requiredStates": ["loading", "populated", "empty", "filtered-empty", "error", "slow", "long-content"],
+          "api": ["GET /api/data-platform/v1/ingestion-runs?status={status}&limit=100"],
+          "interactions": ["apply-filter", "clear-job-filter", "open-run-click", "open-run-enter", "open-jobs", "mobile-menu"]
+        },
+        {
+          "id": "run-detail",
+          "path": "#runs/{run_id}",
+          "source": "student-1/frontend/routes/runs.js",
+          "requiredStates": ["loading", "requested", "queued", "running", "succeeded", "failed", "cancelled", "interrupted", "partial", "permission", "conflict", "error", "slow", "long-content"],
+          "api": ["GET ingestion-runs/{id}", "GET ingestion-runs/{id}/tasks", "GET ingestion-runs/{id}/quality-results", "GET ingestion-runs/{id}/artifacts", "GET dataset-releases", "POST ingestion-runs/{id}/{resume|retry|reprocess-cached|cancel}"],
+          "interactions": ["resume-confirmation", "retry-confirmation", "reprocess-confirmation", "cancel-confirmation", "open-ai-review", "open-parent-run", "open-quality", "open-artifacts", "toggle-technical-details", "poll-status", "mobile-menu"]
+        },
+        {
+          "id": "releases-list",
+          "path": "#releases",
+          "query": ["q", "status"],
+          "source": "student-1/frontend/routes/releases.js",
+          "requiredStates": ["loading", "populated", "empty", "filtered-empty", "validation", "permission", "conflict", "error", "slow", "long-content"],
+          "api": ["GET/POST /api/data-platform/v1/dataset-releases"],
+          "interactions": ["apply-filter", "create-draft", "open-release", "mobile-menu"]
+        },
+        {
+          "id": "release-detail",
+          "path": "#releases/{release_id}",
+          "source": "student-1/frontend/routes/releases.js",
+          "requiredStates": ["loading", "draft", "validated", "candidate", "awaiting-review", "accepted", "rejected", "superseded", "blocking-quality", "preview-empty", "preview-unavailable", "partial", "permission", "conflict", "error", "slow", "long-content"],
+          "api": ["GET/PUT/DELETE dataset-releases/{id}", "GET dataset-releases/{id}/manifest", "GET dataset-releases/{id}/records", "GET ingestion-runs/{id}/quality-results", "POST dataset-releases/{id}/{submit-review|publish|reject}", "POST dataset-releases/{id}/agent-runs"],
+          "interactions": ["edit-release", "delete-confirmation", "submit-review-confirmation", "publish-confirmation", "reject-confirmation", "open-ai-review", "toggle-manifest", "toggle-coverage", "toggle-quality-sample", "preview-previous", "preview-next", "mobile-menu"]
+        }
+      ]
+    },
+    {
+      "id": "data-operations-specialist",
+      "workspace": "feature-1-data-operations",
+      "baseOrigin": "feature1Edge",
+      "routes": [
+        {
+          "id": "sources-list",
+          "path": "#sources",
+          "query": ["q", "status"],
+          "source": "student-1/frontend/routes/entities.js",
+          "requiredStates": ["loading", "populated", "empty", "filtered-empty", "validation", "permission", "conflict", "error", "long-content"],
+          "api": ["GET/POST sources", "PUT/DELETE sources/{id}"],
+          "interactions": ["apply-filter", "create-source", "edit-source", "delete-confirmation", "open-source", "mobile-menu"]
+        },
+        {
+          "id": "source-detail",
+          "path": "#sources/{source_id}",
+          "source": "student-1/frontend/routes/entities.js",
+          "requiredStates": ["loading", "populated", "permission", "error", "long-content"],
+          "api": ["GET/PUT sources/{id}"],
+          "interactions": ["edit-source", "toggle-technical-details", "mobile-menu"]
+        },
+        {
+          "id": "data-products-list",
+          "path": "#data-products",
+          "source": "student-1/frontend/routes/data-products.js",
+          "requiredStates": ["loading", "populated", "empty", "error", "long-content"],
+          "api": ["GET data-products"],
+          "interactions": ["open-data-product", "mobile-menu"]
+        },
+        {
+          "id": "data-product-detail",
+          "path": "#data-products/{dataset_id}",
+          "source": "student-1/frontend/routes/data-products.js",
+          "requiredStates": ["loading", "populated", "no-published-version", "error", "long-content"],
+          "api": ["GET data-products/{id}"],
+          "interactions": ["toggle-published-version-details", "mobile-menu"]
+        },
+        {
+          "id": "quality-picker",
+          "path": "#quality",
+          "source": "student-1/frontend/routes/evidence.js",
+          "requiredStates": ["loading", "populated", "empty", "error", "long-content"],
+          "api": ["GET ingestion-runs?limit=50"],
+          "interactions": ["open-quality-run", "mobile-menu"]
+        },
+        {
+          "id": "quality-detail",
+          "path": "#quality/{run_id}",
+          "source": "student-1/frontend/routes/evidence.js",
+          "requiredStates": ["loading", "populated", "empty", "partial", "error", "long-content"],
+          "api": ["GET ingestion-runs/{id}", "GET ingestion-runs/{id}/quality-results?limit=100"],
+          "interactions": ["choose-another-run", "toggle-observed-expected", "toggle-sample", "retry", "mobile-menu"]
+        },
+        {
+          "id": "artifacts-picker",
+          "path": "#artifacts",
+          "source": "student-1/frontend/routes/evidence.js",
+          "requiredStates": ["loading", "populated", "empty", "error", "long-content"],
+          "api": ["GET ingestion-runs?limit=50"],
+          "interactions": ["open-artifact-run", "mobile-menu"]
+        },
+        {
+          "id": "artifacts-detail",
+          "path": "#artifacts/{run_id}",
+          "source": "student-1/frontend/routes/evidence.js",
+          "requiredStates": ["loading", "populated", "empty", "partial", "error", "long-content"],
+          "api": ["GET ingestion-runs/{id}", "GET ingestion-runs/{id}/artifacts?limit=100"],
+          "interactions": ["choose-another-run", "toggle-lineage", "retry", "mobile-menu"]
+        },
+        {
+          "id": "coverage",
+          "path": "#coverage",
+          "source": "student-1/frontend/routes/evidence.js",
+          "requiredStates": ["loading", "populated", "empty", "partial", "stale", "unavailable", "error", "long-content"],
+          "api": ["GET dataset-releases?limit=100"],
+          "interactions": ["toggle-limitations", "mobile-menu"]
+        },
+        {
+          "id": "ai-review-new",
+          "path": "#ai",
+          "aliases": ["#ai/release:{release_id}"],
+          "query": ["goal"],
+          "source": "student-1/frontend/routes/ai-diagnosis.js",
+          "requiredStates": ["loading", "populated", "empty", "history-unavailable", "provider-unavailable", "validation", "permission", "error", "slow", "long-content"],
+          "api": ["GET dataset-releases?limit=100", "GET agent-runs?limit=10", "POST dataset-releases/{id}/agent-runs"],
+          "interactions": ["select-release", "select-objective", "start-ai-review", "toggle-history", "open-agent-run", "open-activity-history", "mobile-menu"]
+        },
+        {
+          "id": "ai-review-detail",
+          "path": "#ai/{agent_run_id}",
+          "source": "student-1/frontend/routes/ai-diagnosis.js",
+          "requiredStates": ["loading", "active", "succeeded", "failed", "review-required", "empty-events", "partial", "error", "slow", "long-content"],
+          "api": ["GET agent-runs/{id}", "GET agent-runs/{id}/events?after=0&limit=100"],
+          "interactions": ["new-ai-review", "open-activity-history", "refresh-result", "toggle-review-steps", "poll-events", "mobile-menu"]
+        }
+      ]
+    }
+  ]
+}
