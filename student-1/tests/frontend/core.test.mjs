@@ -829,6 +829,7 @@ test("AI review history is loaded from the shared service projection without red
   assert.doesNotMatch(source, /review-acknowledgement|type = "checkbox"/);
   assert.match(source, /url\.searchParams\.set\("run", runId\)/);
   assert.match(source, /nextAgentPollDelay/);
+  assert.match(source, /from "\.\.\/core\/polling\.js\?v=18"/);
   assert.match(source, /refreshGuard\.isCurrent\(refresh\)/);
   assert.match(source, /captureTraceRefreshState\(host\)/);
   assert.match(source, /restoreTraceRefreshState\(host, refreshState\)/);
