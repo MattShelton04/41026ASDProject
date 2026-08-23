@@ -70,11 +70,11 @@ configuration remain repository-relative; no local user or worktree path is requ
 3. After a successful release edit the route replaces the old trigger and focuses the new page
    heading. The generic audit expects focus on the removed trigger and reports it as unrestored;
    the resulting focus location is deliberate and coherent.
-4. The running full-data frontend container predates the Shared browser-module bind mount. Its
-   `/features/data-platform/browser/index.js` request returns the HTML fallback, so the module graph
-   stops before the route renders. Source and deterministic-server behavior are correct. Recreate
-   only `propertyscope-frontend` with the existing full-data Compose project to apply the current
-   mount; backend, runner, database and named volumes do not need recreation.
+4. The audit found that the running full-data frontend predated the Shared browser-module bind
+   mount, while the child mountpoint was also missing beneath the read-only Feature 1 source bind.
+   A tracked mountpoint now makes the Compose overlay valid. The scoped frontend recreation was
+   verified healthy and `/features/data-platform/browser/index.js` returns JavaScript; backend,
+   runner, database and named volumes were not recreated.
 
 ## Commands used
 
