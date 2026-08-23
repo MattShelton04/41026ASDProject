@@ -17,7 +17,8 @@ STYLE_ROOTS = (
 )
 EXCLUDED_PARTS = {"vendor"}
 EXCLUDED_FILES = {Path("shared/frontend/design-system/tokens.css")}
-CSS_DECLARATION = re.compile(r"(?P<property>--?[\w-]+|[\w-]+)\s*:\s*(?P<value>[^;{}]+)(?:;|$)")
+CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+CSS_DECLARATION = re.compile(r"(?P<property>--?[\w-]+|[\w-]+)\s*:\s*(?P<value>[^;{}]+)(?:;|(?=\}))")
 RAW_COLOUR = re.compile(
     r"#[0-9a-fA-F]{3,8}\b|(?:rgb|rgba|hsl|hsla|oklab|oklch|lab|lch|color|color-mix)\([^)]*\)",
 )
@@ -75,44 +76,58 @@ def _is_scale_value(number: float, unit: str) -> bool:
     return abs(pixels / 4 - round(pixels / 4)) < 0.0001
 
 
+def _strip_comments(source: str) -> tuple[str, set[int]]:
+    """Strip comments without moving declarations and retain valid inline allowance lines."""
+    justified_lines: set[int] = set()
+
+    def replace(match: re.Match[str]) -> str:
+        justification = JUSTIFICATION.search(match.group(0))
+        if justification and len(justification.group("reason").strip()) >= 8:
+            justified_lines.add(source.count("\n", 0, match.start()))
+        return "".join("\n" if character == "\n" else " " for character in match.group(0))
+
+    return CSS_COMMENT.sub(replace, source), justified_lines
+
+
 def collect_findings(paths: Iterable[Path], root: Path = REPOSITORY_ROOT) -> Counter[Finding]:
     """Collect raw colours and off-scale spacing without retaining machine paths."""
     findings: Counter[Finding] = Counter()
     for path in paths:
         relative = _relative(path, root)
-        for line in path.read_text(encoding="utf-8").splitlines():
-            justification = JUSTIFICATION.search(line)
-            if justification and len(justification.group("reason").strip()) >= 8:
+        source = path.read_text(encoding="utf-8")
+        stylesheet, justified_lines = _strip_comments(source)
+        for declaration in CSS_DECLARATION.finditer(stylesheet):
+            declaration_end_line = stylesheet.count("\n", 0, declaration.end())
+            if declaration_end_line in justified_lines:
                 continue
-            for declaration in CSS_DECLARATION.finditer(line):
-                property_name = declaration.group("property").lower()
-                value = declaration.group("value")
-                for match in RAW_COLOUR.finditer(value):
-                    findings[(relative, "raw-colour", "", match.group(0).lower())] += 1
-                colour_context = property_name.startswith("--") or any(
-                    part in property_name
-                    for part in (
-                        "color",
-                        "background",
-                        "border",
-                        "shadow",
-                        "fill",
-                        "stroke",
-                        "outline",
-                        "caret",
-                        "accent",
-                        "decoration",
-                    )
+            property_name = declaration.group("property").lower()
+            value = declaration.group("value")
+            for match in RAW_COLOUR.finditer(value):
+                findings[(relative, "raw-colour", "", match.group(0).lower())] += 1
+            colour_context = property_name.startswith("--") or any(
+                part in property_name
+                for part in (
+                    "color",
+                    "background",
+                    "border",
+                    "shadow",
+                    "fill",
+                    "stroke",
+                    "outline",
+                    "caret",
+                    "accent",
+                    "decoration",
                 )
-                if colour_context:
-                    literal_value = NON_LITERAL_VALUE.sub("", value)
-                    for match in COLOUR_WORD.finditer(literal_value):
-                        colour = match.group(0).lower()
-                        if colour in CSS_NAMED_COLOURS:
-                            findings[(relative, "raw-colour", "", colour)] += 1
-            for declaration in SPACING_DECLARATION.finditer(line):
-                property_name = declaration.group("property")
-                for dimension in DIMENSION.finditer(declaration.group("value")):
+            )
+            if colour_context:
+                literal_value = NON_LITERAL_VALUE.sub("", value)
+                for match in COLOUR_WORD.finditer(literal_value):
+                    colour = match.group(0).lower()
+                    if colour in CSS_NAMED_COLOURS:
+                        findings[(relative, "raw-colour", "", colour)] += 1
+            spacing = SPACING_DECLARATION.fullmatch(f"{property_name}:{value}")
+            if spacing:
+                for dimension in DIMENSION.finditer(value):
                     number = float(dimension.group("number"))
                     unit = dimension.group("unit")
                     if not _is_scale_value(number, unit):

@@ -67,9 +67,21 @@ def test_named_and_modern_css_colours_need_review(tmp_path: Path) -> None:
     stylesheet = root / "shared" / "frontend" / "modern.css"
     stylesheet.parent.mkdir(parents=True)
     stylesheet.write_text(
-        ".modern { color: oklch(70% .1 180); background: color(display-p3 0 1 0); "
-        "border-color: white; outline-color: currentColor; caret-color: transparent; "
-        "box-shadow: 0 0 var(--red); }\n",
+        "/* .ignored { background: red; padding: .3rem; } */\n"
+        ".modern {\n"
+        "  color: oklch(70% .1 180);\n"
+        "  background: color(display-p3 0 1 0);\n"
+        "  border-color: white;\n"
+        "  outline-color: currentColor;\n"
+        "  caret-color: transparent;\n"
+        "  box-shadow: 0 0 var(--red);\n"
+        "}\n"
+        ".multiline {\n"
+        "  background:\n"
+        "    linear-gradient(white, oklch(60% .2 30), rgba(\n"
+        "      1, 2, 3, .5\n"
+        "    ));\n"
+        "}\n",
         encoding="utf-8",
     )
 
@@ -79,8 +91,11 @@ def test_named_and_modern_css_colours_need_review(tmp_path: Path) -> None:
     assert (
         findings[("shared/frontend/modern.css", "raw-colour", "", "color(display-p3 0 1 0)")] == 1
     )
-    assert findings[("shared/frontend/modern.css", "raw-colour", "", "white")] == 1
-    assert not any(value in {"currentcolor", "transparent", "red"} for *_, value in findings)
+    assert findings[("shared/frontend/modern.css", "raw-colour", "", "white")] == 2
+    values = {value for *_, value in findings}
+    assert any(value.startswith("rgba(") and "\n" in value for value in values)
+    assert "oklch(60% .2 30)" in values
+    assert not any(value in {"currentcolor", "transparent", "red", ".3rem"} for value in values)
 
 
 @pytest.mark.parametrize(

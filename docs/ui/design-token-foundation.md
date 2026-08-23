@@ -53,7 +53,7 @@ uv run python scripts/validate_frontend_styles.py
 ```
 
 The checked-in `frontend-style-baseline.json` contains repository-relative reviewed exceptions.
-The baseline records 112 reviewed raw-colour and 403 reviewed off-scale-spacing occurrences across
+The baseline records 113 reviewed raw-colour and 403 reviewed off-scale-spacing occurrences across
 non-vendored production CSS. Raw colours include hex, RGB/HSL, modern colour functions and CSS
 named colours; semantic keywords such as `currentColor`, `inherit` and `transparent` remain valid.
 New occurrences fail the gate. A genuinely local exception needs an inline

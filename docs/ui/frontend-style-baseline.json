@@ -4,6 +4,7 @@
   "entries": [
     {"path":"shared/frontend/design-system/base.css","kind":"off-scale-spacing","property":"margin","value":"-1px","count":1},
     {"path":"shared/frontend/design-system/base.css","kind":"off-scale-spacing","property":"padding","value":".7rem","count":1},
+    {"path":"shared/frontend/design-system/base.css","kind":"raw-colour","property":"","value":"rgba(114, 196, 193, 0.18)","count":1},
     {"path":"shared/frontend/design-system/components.css","kind":"off-scale-spacing","property":"gap","value":".36rem","count":1},
     {"path":"shared/frontend/design-system/components.css","kind":"off-scale-spacing","property":"gap","value":".48rem","count":1},
     {"path":"shared/frontend/design-system/components.css","kind":"off-scale-spacing","property":"gap","value":".62rem","count":1},
