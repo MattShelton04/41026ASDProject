@@ -101,6 +101,10 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
         timeout=2,
     ) as response:
         assert b"append, el" in response.read()
+    with urlopen(f"{fixture_origin}/design-system/gallery.html", timeout=2) as response:
+        gallery = response.read()
+        assert b"Design foundation" in gallery
+        assert b"ps-density--comfortable" in gallery
     with urlopen(f"{fixture_origin}/operations/ai-mode/assets/app.js", timeout=2) as response:
         assert b'const API_ROOT = "/api/v1"' in response.read()
     with urlopen(f"{fixture_origin}/healthz", timeout=2) as response:

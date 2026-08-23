@@ -3,12 +3,12 @@ html { min-width: 320px; min-height: 100%; scroll-behavior: smooth; }
 body {
   min-height: 100vh;
   margin: 0;
-  color: var(--ps-ink-900);
+  color: var(--ps-color-text);
   background:
     radial-gradient(circle at 82% -12%, rgba(114, 196, 193, 0.18), transparent 35rem),
-    var(--ps-canvas);
+    var(--ps-color-background);
   font-family: var(--ps-font-sans);
-  font-size: var(--ps-type-body);
+  font-size: var(--ps-text-body);
   line-height: var(--ps-leading-body);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -25,11 +25,11 @@ textarea:focus-visible, [tabindex]:focus-visible, summary:focus-visible {
 ::selection { color: var(--ps-ink-950); background: var(--ps-ocean-200); }
 
 h1, h2, h3, p { margin-top: 0; }
-h1, h2, h3 { color: var(--ps-ink-950); font-family: var(--ps-font-display); text-wrap: balance; }
-h1 { font-size: var(--ps-type-display); line-height: .98; letter-spacing: -.055em; }
-h2 { font-size: clamp(1.7rem, 3vw, 2.5rem); line-height: var(--ps-leading-tight); letter-spacing: -.035em; }
-h3 { font-size: 1.05rem; line-height: 1.25; letter-spacing: -.012em; }
-p { color: var(--ps-ink-700); }
+h1, h2, h3 { color: var(--ps-color-text-strong); font-family: var(--ps-font-display); text-wrap: balance; }
+h1 { font-size: var(--ps-text-display); line-height: .98; letter-spacing: -.055em; }
+h2 { font-size: var(--ps-text-heading-medium); line-height: var(--ps-leading-tight); letter-spacing: -.035em; }
+h3 { font-size: var(--ps-text-heading-small); line-height: 1.25; letter-spacing: -.012em; }
+p { color: var(--ps-color-text-muted); }
 code, .mono { font-family: var(--ps-font-mono); }
 
 .ps-sr-only {
@@ -50,9 +50,9 @@ code, .mono { font-family: var(--ps-font-mono); }
   left: 1rem;
   padding: .7rem 1rem;
   border-radius: 0 0 var(--ps-radius-sm) var(--ps-radius-sm);
-  background: var(--ps-paper);
+  background: var(--ps-color-surface);
   box-shadow: var(--ps-shadow-md);
-  color: var(--ps-ocean-800);
+  color: var(--ps-color-accent-hover);
   font-weight: var(--ps-weight-bold);
   text-decoration: none;
 }

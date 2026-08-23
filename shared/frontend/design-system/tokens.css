@@ -18,6 +18,16 @@
   --ps-weight-bold: 750;
   --ps-weight-heavy: 810;
 
+  /* Semantic type roles. Palette-scale tokens above remain available for composition. */
+  --ps-text-caption: var(--ps-type-xs);
+  --ps-text-label: var(--ps-type-sm);
+  --ps-text-body: var(--ps-type-body);
+  --ps-text-body-large: var(--ps-type-lg);
+  --ps-text-heading-small: 1.05rem;
+  --ps-text-heading-medium: clamp(1.7rem, 3vw, 2.5rem);
+  --ps-text-heading-large: var(--ps-type-title);
+  --ps-text-display: var(--ps-type-display);
+
   /* Ink and surfaces */
   --ps-ink-950: #10262e;
   --ps-ink-900: #17333d;
@@ -71,6 +81,40 @@
   --ps-line-strong: rgba(23, 51, 61, 0.22);
   --ps-line-inverse: rgba(255, 255, 255, 0.15);
 
+  /* Semantic colour roles used by Shared and feature aliases. */
+  --ps-color-background: var(--ps-canvas);
+  --ps-color-surface: var(--ps-paper);
+  --ps-color-surface-elevated: var(--ps-paper-warm);
+  --ps-color-surface-subtle: var(--ps-ink-50);
+  --ps-color-text: var(--ps-ink-900);
+  --ps-color-text-strong: var(--ps-ink-950);
+  --ps-color-text-muted: var(--ps-ink-700);
+  --ps-color-text-subtle: var(--ps-ink-500);
+  --ps-color-border: var(--ps-line);
+  --ps-color-border-strong: var(--ps-line-strong);
+  --ps-color-focus: var(--ps-ocean-800);
+  --ps-color-focus-inverse: var(--ps-ocean-200);
+  --ps-color-accent: var(--ps-ocean-700);
+  --ps-color-accent-hover: var(--ps-ocean-800);
+  --ps-color-success: var(--ps-confirmed);
+  --ps-color-success-surface: var(--ps-confirmed-bg);
+  --ps-color-success-on-inverse: var(--ps-ocean-300);
+  --ps-color-warning: var(--ps-partial);
+  --ps-color-warning-surface: var(--ps-partial-bg);
+  --ps-color-warning-on-inverse: var(--ps-sand-300);
+  --ps-color-danger: var(--ps-danger);
+  --ps-color-danger-surface: var(--ps-danger-bg);
+  --ps-color-danger-on-inverse: var(--ps-coral-500);
+  --ps-color-disabled-text: var(--ps-ink-500);
+  --ps-color-disabled-surface: var(--ps-ink-100);
+  --ps-color-disabled-border: var(--ps-ink-200);
+  --ps-color-inverse: var(--ps-paper);
+  --ps-color-inverse-muted: rgb(255 255 255 / 72%);
+  --ps-color-inverse-subtle: rgb(255 255 255 / 58%);
+  --ps-color-inverse-border: rgb(255 255 255 / 20%);
+  --ps-color-inverse-hover: rgb(255 255 255 / 10%);
+  --ps-color-overlay: rgb(16 41 52 / 60%);
+
   /* Semantic evidence states */
   --ps-confirmed: var(--ps-ocean-700);
   --ps-confirmed-bg: var(--ps-ocean-50);
@@ -90,6 +134,8 @@
   --ps-shadow-sm: 0 3px 10px rgba(13, 38, 47, 0.07);
   --ps-shadow-md: 0 12px 32px rgba(13, 38, 47, 0.10);
   --ps-shadow-lg: 0 24px 64px rgba(13, 38, 47, 0.16);
+  --ps-border-width: 1px;
+  --ps-border-width-strong: 2px;
   --ps-radius-xs: 5px;
   --ps-radius-sm: 8px;
   --ps-radius-md: 12px;
@@ -106,16 +152,36 @@
   --ps-space-10: 2.5rem;
   --ps-space-12: 3rem;
   --ps-space-16: 4rem;
+  --ps-layout-gap-small: var(--ps-space-2);
+  --ps-layout-gap: var(--ps-space-4);
+  --ps-layout-gap-large: var(--ps-space-6);
   --ps-content-max: 1240px;
-  --ps-control-height: 42px;
+  --ps-content-wide: 1460px;
+  --ps-content-readable: 760px;
+  --ps-page-gutter: clamp(var(--ps-space-4), 3vw, var(--ps-space-8));
+  --ps-control-height-compact: 34px;
+  --ps-control-height-comfortable: 42px;
+  --ps-control-height: var(--ps-control-height-comfortable);
   --ps-control-height-large: 58px;
   --ps-shell-topbar-height: 66px;
   --ps-shell-rail-width: 224px;
-  --ps-duration: 160ms;
-  --ps-ease: cubic-bezier(.2, .8, .2, 1);
-  --ps-focus-outline: 3px solid var(--ps-ocean-800);
+  --ps-motion-fast: 100ms;
+  --ps-motion-normal: 160ms;
+  --ps-motion-slow: 240ms;
+  --ps-duration: var(--ps-motion-normal);
+  --ps-ease-standard: cubic-bezier(.2, .8, .2, 1);
+  --ps-ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --ps-ease: var(--ps-ease-standard);
+  --ps-focus-outline: 3px solid var(--ps-color-focus);
+  --ps-focus-outline-inverse: 3px solid var(--ps-color-focus-inverse);
   --ps-focus-offset: 2px;
-  --ps-z-navigation: 30;
-  --ps-z-dialog: 100;
+  --ps-z-shell: 20;
+  --ps-z-sticky: 30;
+  --ps-z-navigation: var(--ps-z-sticky);
+  --ps-z-dropdown: 40;
+  --ps-z-popover: 50;
+  --ps-z-drawer: 60;
+  --ps-z-dialog: 70;
+  --ps-z-toast: 80;
   --ps-z-skip-link: 1000;
 }
