@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { runDialogForm } from "../../frontend/components/dialogs.js";
+import { requestActiveDialogClose, runDialogForm } from "../../frontend/components/dialogs.js";
 import {
   createDrawerController,
   createTableRegion,
@@ -429,6 +429,33 @@ test("dirty dialogs use the native discard confirmation without losing the open 
   assert.equal(prompts, 1);
   resolveDiscard(true);
   assert.equal(await result, false);
+});
+
+test("the latest guarded close observes a declined or accepted discard decision", async () => {
+  const fixture = fakeDialogFixture();
+  let resolveDiscard;
+  const decisions = [];
+  const result = runDialogForm({
+    ...fixture,
+    submitButton: fixture.submit,
+    acceptedValue: "save",
+    confirmDiscard: () => new Promise((resolve) => { resolveDiscard = resolve; }),
+    onSubmit: async () => {},
+  });
+  fixture.field.value = "changed by keyboard";
+  assert.equal(requestActiveDialogClose(fixture.dialog, { onDiscardDecision: (value) => decisions.push(["old", value]) }), false);
+  await Promise.resolve();
+  assert.equal(requestActiveDialogClose(fixture.dialog, { onDiscardDecision: (value) => decisions.push(["latest", value]) }), false);
+  resolveDiscard(false);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(decisions, [["latest", false]]);
+  assert.equal(fixture.dialog.open, true);
+
+  assert.equal(requestActiveDialogClose(fixture.dialog, { onDiscardDecision: (value) => decisions.push(["accepted", value]) }), false);
+  await Promise.resolve();
+  resolveDiscard(true);
+  assert.equal(await result, false);
+  assert.deepEqual(decisions, [["latest", false], ["accepted", true]]);
 });
 
 test("every existing Feature 1 form is wired to explicit retention and submission behavior", async () => {

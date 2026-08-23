@@ -102,10 +102,10 @@ export function presentFormError(form, errorHost, error) {
   return null;
 }
 
-export function requestActiveDialogClose(dialog) {
+export function requestActiveDialogClose(dialog, { onDiscardDecision = null } = {}) {
   const controller = activeDialogs.get(dialog);
   if (!controller) return true;
-  return controller.requestClose();
+  return controller.requestClose({ onDiscardDecision });
 }
 
 function setButtonPending(button, pending, progressLabel, original) {
@@ -143,11 +143,12 @@ export function runDialogForm({
   const buttonState = { text: "", minWidth: "" };
   let settled = false;
   let discardPending = false;
+  let discardDecisionListener = null;
   let resolveDialog;
   const result = new Promise((resolve) => { resolveDialog = resolve; });
 
   const controller = {
-    requestClose: () => requestClose(),
+    requestClose: (options) => requestClose(options),
   };
   const isCurrent = () => activeDialogs.get(dialog) === controller;
   const finish = (accepted) => {
@@ -163,10 +164,14 @@ export function runDialogForm({
     dialog.close(value);
   };
   const shouldDiscard = () => formStateChanged(initial, formState(form));
-  const requestClose = () => {
+  const requestClose = ({ onDiscardDecision = null } = {}) => {
     if (guard.pending) return false;
     if (shouldDiscard()) {
+      if (onDiscardDecision) discardDecisionListener = onDiscardDecision;
       if (!confirmDiscard) {
+        const listener = discardDecisionListener;
+        discardDecisionListener = null;
+        listener?.(false);
         errorHost.textContent = "Keep editing or use the provided discard action before closing this form.";
         return false;
       }
@@ -176,10 +181,16 @@ export function runDialogForm({
           .then(() => confirmDiscard(discardMessage))
           .then((confirmed) => {
             discardPending = false;
+            const listener = discardDecisionListener;
+            discardDecisionListener = null;
             if (confirmed && isCurrent() && !guard.pending) close("cancel");
+            listener?.(Boolean(confirmed));
           })
           .catch(() => {
             discardPending = false;
+            const listener = discardDecisionListener;
+            discardDecisionListener = null;
+            listener?.(false);
             if (isCurrent()) errorHost.textContent = "The discard confirmation could not open. Your changes are still here.";
           });
       }

@@ -294,8 +294,13 @@ headerPropertyQuery.addEventListener("input", () => validateHeaderPropertyQuery(
 window.addEventListener("hashchange", () => {
   const requestedHash = location.hash;
   const generation = ++guardedNavigationGeneration;
+  const discardDecided = (confirmed) => {
+    if (confirmed || pendingGuardedNavigation?.generation !== generation) return;
+    pendingGuardedNavigation.dialog.removeEventListener("close", pendingGuardedNavigation.resume);
+    pendingGuardedNavigation = null;
+  };
   const blockedDialog = [entityDialog, actionDialog]
-    .find((dialog) => !requestActiveDialogClose(dialog));
+    .find((dialog) => !requestActiveDialogClose(dialog, { onDiscardDecision: discardDecided }));
   if (blockedDialog) {
     if (pendingGuardedNavigation) {
       pendingGuardedNavigation.dialog.removeEventListener("close", pendingGuardedNavigation.resume);
