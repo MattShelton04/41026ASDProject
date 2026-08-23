@@ -930,11 +930,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif arguments.command == "check":
             _run((sys.executable, "scripts/check.py"))
         elif arguments.command == "ui":
-            from scripts.ui_fixture_server import serve_ui_fixtures
-
-            serve_ui_fixtures(
-                port=_ui_fixture_port(arguments.port),
-                scenario=arguments.scenario,
+            _run(
+                (
+                    sys.executable,
+                    "-m",
+                    "scripts.ui_fixture_server",
+                    "--port",
+                    str(_ui_fixture_port(arguments.port)),
+                    "--scenario",
+                    arguments.scenario,
+                )
             )
         elif arguments.command == "ui-smoke":
             _run(

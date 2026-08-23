@@ -254,6 +254,24 @@ def test_down_preserves_named_volumes(captured_commands: list[tuple[str, ...]]) 
     assert "--volumes" not in command
 
 
+def test_ui_command_launches_fixture_server_as_repository_module(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["ui", "--port", "5332", "--scenario", "partial"]) == 0
+
+    assert captured_commands == [
+        (
+            dev.sys.executable,
+            "-m",
+            "scripts.ui_fixture_server",
+            "--port",
+            "5332",
+            "--scenario",
+            "partial",
+        )
+    ]
+
+
 def test_full_data_is_explicit_and_uses_isolated_project(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
