@@ -20,12 +20,15 @@ from scripts.ui_fixtures import (
     PROPERTY_ID,
     RELEASE_ID,
     REPORT_SCHEMA,
+    REVIEW_RELEASE_ID,
     RUN_ID,
     SCENARIOS,
     SOURCE_ID,
     fixture_response,
 )
 
+from propertyscope_data_platform.api import release_detail_contract
+from propertyscope_data_platform.domain import PublicationReceiptResult
 from propertyscope_data_platform.release_builders import (
     DataProductCatalogueEntry,
     ReleaseDetailContract,
@@ -77,6 +80,8 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
         assert response.read() == b"ok\n"
     ready, _headers = _json(f"{fixture_origin}/__ui-fixture__/ready")
     assert ready == {"scenario": "populated", "status": "ready"}
+    feature_ready, _headers = _json(f"{fixture_origin}/health/ready")
+    assert feature_ready == {"status": "healthy", "dependencies": {"database": True}}
 
     connection = HTTPConnection(LOOPBACK_HOST, int(fixture_origin.rsplit(":", 1)[1]))
     connection.request("GET", "/api/data-platform/v1/not-registered")
@@ -305,6 +310,28 @@ def test_release_ai_creation_and_operator_mutation_statuses_match_production() -
     assert source_deleted.body == job_deleted.body == {}
     assert retry.status == reprocess.status == 201
     assert retry.body["created"] is reprocess.body["created"] is True
+
+
+def test_release_update_and_publish_use_production_envelopes() -> None:
+    update = fixture_response(
+        "PUT", f"/api/data-platform/v1/dataset-releases/{RELEASE_ID}", "", "populated"
+    )
+    publication = fixture_response(
+        "POST",
+        f"/api/data-platform/v1/dataset-releases/{REVIEW_RELEASE_ID}/publish",
+        "",
+        "populated",
+    )
+
+    assert update.status == 200
+    assert set(update.body) == {"release"}
+    assert update.body["release"]["id"] == RELEASE_ID
+    assert publication.status == 200
+    assert set(publication.body) == {"release", "receipt", "replayed"}
+    assert publication.body["release"]["status"] == "accepted"
+    assert publication.body["replayed"] is False
+    PublicationReceiptResult.model_validate(publication.body["receipt"])
+    release_detail_contract(publication.body["release"])
 
 
 def test_capabilities_plan_manifest_and_release_inspection_match_production_shapes() -> None:

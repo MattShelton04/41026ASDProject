@@ -328,7 +328,9 @@ def fixture_response(
     if scenario not in SCENARIOS:
         return _problem(400, "Unknown UI fixture scenario", scenario, "unknown_fixture_scenario")
     delay = 1.25 if scenario == "slow" and path.startswith("/api/") else 0.0
-    if path in {"/healthz", "/health/ready", "/__ui-fixture__/ready"}:
+    if path == "/health/ready":
+        return FixtureResponse(200, {"status": "healthy", "dependencies": {"database": True}})
+    if path in {"/healthz", "/__ui-fixture__/ready"}:
         return FixtureResponse(200, {"status": "ready", "scenario": scenario}, delay_seconds=delay)
     if scenario == "error" and path.startswith("/api/"):
         response = _problem(
@@ -548,6 +550,10 @@ def fixture_response(
             return _not_found("Dataset release", route.split("/")[1], "release_not_found")
         if method == "POST" and route.endswith("/agent-runs"):
             return FixtureResponse(201, _created_agent_run(scenario), delay_seconds=delay)
+        if method == "PUT":
+            return FixtureResponse(200, {"release": release}, delay_seconds=delay)
+        if method == "POST" and route.endswith("/publish"):
+            return FixtureResponse(200, _publication_result(release), delay_seconds=delay)
         if method == "DELETE":
             return FixtureResponse(204, {}, delay_seconds=delay)
         return FixtureResponse(
@@ -860,6 +866,29 @@ def _release_contract(release: dict[str, Any]) -> dict[str, Any]:
             "version",
         )
     } | {"receipts": []}
+
+
+def _publication_result(release: dict[str, Any]) -> dict[str, Any]:
+    published = {
+        **release,
+        "status": "accepted",
+        "accepted_at": TIMESTAMP,
+        "version": int(release["version"]) + 1,
+    }
+    return {
+        "release": published,
+        "receipt": {
+            "consumer_operation_id": "fixture-publication-0001",
+            "status": "accepted",
+            "schema_version": release["schema_version"],
+            "content_sha256": release["content_sha256"],
+            "rows_received": release["record_count"],
+            "rows_accepted": release["record_count"],
+            "rows_rejected": 0,
+            "error": None,
+        },
+        "replayed": False,
+    }
 
 
 def _preview_record(prop: dict[str, Any]) -> dict[str, Any]:
