@@ -5,6 +5,7 @@ import { routeQuery } from "../core/router.js";
 import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
+import { createMap, createOpenFreeMapProvider, featureCollection, pointFeature } from "../mapping/index.js";
 
 export function createPropertyRoutes({ view, request, announce }) {
   async function renderProperties(propertyRef = "") {
@@ -95,11 +96,9 @@ export function createPropertyRoutes({ view, request, announce }) {
       append(identityHero, referenceStrip);
       append(view, identityHero);
       const body = el("div", "stack");
-      const mapPanel = el("div", "map-context");
       const latitude = map.latitude ?? map.coordinates?.latitude ?? property.latitude ?? property.coordinates?.latitude;
       const longitude = map.longitude ?? map.coordinates?.longitude ?? property.longitude ?? property.coordinates?.longitude;
-      append(mapPanel, el("span", "map-pin", "⌖"), el("div", "map-caption", `${latitude ?? "Unknown latitude"}, ${longitude ?? "unknown longitude"} · Coordinates are also listed below.`));
-      append(body, mapPanel);
+      append(body, propertyMap({ property, latitude, longitude, announce }));
       append(body, detailList([["Address", property.address_display || property.display_address], ["Locality", property.locality], ["State", property.state], ["Postcode", property.postcode], ["Match status", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)]]));
       const technicalBody = el("div", "stack");
       append(technicalBody, detailList([["PropertyScope reference", el("code", "mono", property.property_ref)], ["Request ID", el("code", "mono", detailResult.value.requestId)]]));
@@ -167,6 +166,66 @@ export function createPropertyRoutes({ view, request, announce }) {
   }
 
   return { renderProperties };
+}
+
+function propertyMap({ property, latitude, longitude, announce }) {
+  const host = el("div", "map-context ps-map");
+  const canvas = el("div", "ps-map__canvas");
+  const status = el("div", "ps-map__status", "Loading interactive map…");
+  status.setAttribute("role", "status");
+  status.dataset.state = "loading";
+  const caption = el(
+    "div",
+    "ps-map__caption",
+    `${latitude ?? "Unknown latitude"}, ${longitude ?? "unknown longitude"} · Drag to pan, scroll or use the controls to zoom.`,
+  );
+  append(host, canvas, status, caption);
+  const numericLatitude = Number(latitude);
+  const numericLongitude = Number(longitude);
+  if (!Number.isFinite(numericLatitude) || !Number.isFinite(numericLongitude)) {
+    status.dataset.state = "error";
+    status.textContent = "No valid map coordinate is available for this property.";
+    return host;
+  }
+  queueMicrotask(async () => {
+    if (!host.isConnected) return;
+    try {
+      await createMap({
+        container: canvas,
+        provider: createOpenFreeMapProvider(),
+        layers: [{
+          id: "selected-property",
+          label: "Selected property",
+          kind: "point",
+          data: featureCollection([pointFeature(
+            numericLongitude,
+            numericLatitude,
+            {
+              address: property.address_display || property.display_address || "Selected property",
+              locality: property.locality || "NSW",
+            },
+            property.property_ref,
+          )]),
+          popup: {
+            title: "address",
+            fields: [{ label: "Locality", property: "locality" }],
+          },
+        }],
+        view: { center: [numericLongitude, numericLatitude], zoom: 16 },
+        onStatus(event) {
+          status.dataset.state = event.state;
+          status.textContent = event.message;
+          if (event.state === "fallback") announce("The basemap is unavailable; the verified property point remains visible.");
+        },
+      });
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+      status.dataset.state = "error";
+      status.textContent = "The interactive map could not start; coordinates remain available below.";
+      console.error("property map failed", error);
+    }
+  });
+  return host;
 }
 
 function evidenceTable(title, items, columns, emptyCopy) {

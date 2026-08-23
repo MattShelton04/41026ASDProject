@@ -30,6 +30,8 @@ Architecture sources, decisions, and exported diagrams belong here.
   Feature 1-only PostgreSQL/PostGIS exception for PropertyScope's verified statewide data
   scale. The repository owner authorised implementation; formal tutor/team approval evidence
   must still be linked before the team makes assessed-release claims.
+- `decisions/ADR-020-shared-browser-mapping-provider.md` records the domain-neutral MapLibre,
+  provider, GeoJSON safety and viewport-loading seam while preserving feature-owned map layers.
 - `reviews/` retains external/adversarial review inputs. Findings are not
   authoritative until verified and dispositioned in the architecture record.
 - Future artefacts should cover individual microservices, the integrated application,

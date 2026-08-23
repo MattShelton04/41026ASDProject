@@ -206,6 +206,21 @@ test("the frontend proxy keeps browser traffic on the public backend boundary", 
   assert.match(nginx, /location \/api\/data-platform\//);
   assert.match(nginx, /proxy_pass http:\/\/propertyscope-backend:5201/);
   assert.doesNotMatch(nginx, /propertyscope-database/);
+  assert.match(nginx, /https:\/\/tiles\.openfreemap\.org/);
+  assert.match(nginx, /worker-src blob:/);
+});
+
+test("property discovery uses the shared mapping provider and self-hosted renderer", async () => {
+  const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
+  const properties = await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8");
+  assert.match(html, /mapping\/mapping\.css/);
+  assert.match(properties, /from "\.\.\/mapping\/index\.js"/);
+  const renderer = await readFile(new URL("../../../shared/frontend/mapping/renderer.js", import.meta.url), "utf8");
+  assert.match(renderer, /vendor\/maplibre-gl\.js/);
+  assert.match(renderer, /data-propertyscope-maplibre/);
+  assert.match(properties, /createOpenFreeMapProvider\(\)/);
+  assert.match(properties, /pointFeature\(/);
+  assert.doesNotMatch(properties, /map-pin/);
 });
 
 test("coverage matrices flatten into accessible table rows", () => {

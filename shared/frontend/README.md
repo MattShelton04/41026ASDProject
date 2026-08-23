@@ -23,6 +23,8 @@ independently buildable `student-N/frontend/` services.
 - `design-system/components.css` — shared buttons, badges, cards, grids, search shell and toast.
 - `design-system/README.md` — adoption contract, import order, evidence vocabulary and ownership rules.
 - `design-system/CHANGELOG.md` — versioned record of shared visual/API changes.
+- `mapping/` — MapLibre/OpenFreeMap provider abstraction, bounded GeoJSON rendering, viewport
+  loading, accessible layer controls, vendored renderer and adoption guide.
 - `operations/ai-mode/` — existing read-only AI-mode run evidence interface, intentionally retained.
 
 ## Runtime links
