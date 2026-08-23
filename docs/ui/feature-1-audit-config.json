@@ -71,11 +71,14 @@
     "empty": "A valid zero-result response has a truthful next action.",
     "populated": "Representative deterministic records render.",
     "validation": "Client or API validation keeps input and explains recovery.",
-    "permission": "A forbidden/read-only response preserves context without exposing mutation.",
+    "permission": "Conditional only after an approved authentication/permission contract exists: a forbidden/read-only response preserves context without exposing mutation.",
     "partial": "Independent successful sections remain when one dependency fails.",
     "error": "A classified failure includes retry or safe next action and request ID where supplied.",
     "long-content": "Long and hostile text cannot inject markup, overflow the page, or hide actions.",
     "slow": "Delayed responses do not cause stale replacement, duplicate action, or unexplained layout shift."
+  },
+  "conditionalStates": {
+    "permission": "Deferred: the current product has no approved authentication or permission model, so fixture and release-gate coverage must not invent one."
   },
   "globalAssertions": [
     "no-unexpected-page-exception",
@@ -186,7 +189,7 @@
           "path": "#jobs",
           "query": ["q", "status"],
           "source": "student-1/frontend/routes/entities.js; student-1/frontend/routes/run-plan.js",
-          "requiredStates": ["loading", "populated", "empty", "filtered-empty", "disabled", "validation", "permission", "conflict", "error", "slow", "long-content"],
+          "requiredStates": ["loading", "populated", "empty", "filtered-empty", "disabled", "validation", "conflict", "error", "slow", "long-content"],
           "api": ["GET/POST /api/data-platform/v1/jobs", "PUT/DELETE /api/data-platform/v1/jobs/{id}", "GET runtime-capabilities", "POST jobs/{id}/plans", "POST jobs/{id}/runs"],
           "interactions": ["apply-filter", "create-job", "edit-job", "delete-confirmation", "open-job", "start-update-confirmation", "backfill-confirmation", "preview-plan", "open-history", "mobile-menu"]
         },
@@ -194,7 +197,7 @@
           "id": "job-detail",
           "path": "#jobs/{job_id}",
           "source": "student-1/frontend/routes/entities.js; student-1/frontend/routes/run-plan.js",
-          "requiredStates": ["loading", "populated", "capabilities-unavailable", "disabled", "validation", "permission", "conflict", "error", "slow", "long-content"],
+          "requiredStates": ["loading", "populated", "capabilities-unavailable", "disabled", "validation", "conflict", "error", "slow", "long-content"],
           "api": ["GET/PUT /api/data-platform/v1/jobs/{id}", "GET jobs/{id}/capabilities", "GET runtime-capabilities", "POST jobs/{id}/plans", "POST jobs/{id}/runs"],
           "interactions": ["edit-job", "open-history", "select-run-mode", "select-source-profile", "edit-bounded-scope", "toggle-advanced-json", "preview-plan", "start-update-confirmation", "backfill-confirmation", "mobile-menu"]
         },
@@ -211,7 +214,7 @@
           "id": "run-detail",
           "path": "#runs/{run_id}",
           "source": "student-1/frontend/routes/runs.js",
-          "requiredStates": ["loading", "requested", "queued", "running", "succeeded", "failed", "cancelled", "interrupted", "partial", "permission", "conflict", "error", "slow", "long-content"],
+          "requiredStates": ["loading", "requested", "queued", "running", "succeeded", "failed", "cancelled", "interrupted", "partial", "conflict", "error", "slow", "long-content"],
           "api": ["GET ingestion-runs/{id}", "GET ingestion-runs/{id}/tasks", "GET ingestion-runs/{id}/quality-results", "GET ingestion-runs/{id}/artifacts", "GET dataset-releases", "POST ingestion-runs/{id}/{resume|retry|reprocess-cached|cancel}"],
           "interactions": ["resume-confirmation", "retry-confirmation", "reprocess-confirmation", "cancel-confirmation", "open-ai-review", "open-parent-run", "open-quality", "open-artifacts", "toggle-technical-details", "poll-status", "mobile-menu"]
         },
@@ -220,7 +223,7 @@
           "path": "#releases",
           "query": ["q", "status"],
           "source": "student-1/frontend/routes/releases.js",
-          "requiredStates": ["loading", "populated", "empty", "filtered-empty", "validation", "permission", "conflict", "error", "slow", "long-content"],
+          "requiredStates": ["loading", "populated", "empty", "filtered-empty", "validation", "conflict", "error", "slow", "long-content"],
           "api": ["GET/POST /api/data-platform/v1/dataset-releases"],
           "interactions": ["apply-filter", "create-draft", "open-release", "mobile-menu"]
         },
@@ -228,7 +231,7 @@
           "id": "release-detail",
           "path": "#releases/{release_id}",
           "source": "student-1/frontend/routes/releases.js",
-          "requiredStates": ["loading", "draft", "validated", "candidate", "awaiting-review", "accepted", "rejected", "superseded", "blocking-quality", "preview-empty", "preview-unavailable", "partial", "permission", "conflict", "error", "slow", "long-content"],
+          "requiredStates": ["loading", "draft", "validated", "candidate", "awaiting-review", "accepted", "rejected", "superseded", "blocking-quality", "preview-empty", "preview-unavailable", "partial", "conflict", "error", "slow", "long-content"],
           "api": ["GET/PUT/DELETE dataset-releases/{id}", "GET dataset-releases/{id}/manifest", "GET dataset-releases/{id}/records", "GET ingestion-runs/{id}/quality-results", "POST dataset-releases/{id}/{submit-review|publish|reject}", "POST dataset-releases/{id}/agent-runs"],
           "interactions": ["edit-release", "delete-confirmation", "submit-review-confirmation", "publish-confirmation", "reject-confirmation", "open-ai-review", "toggle-manifest", "toggle-coverage", "toggle-quality-sample", "preview-previous", "preview-next", "mobile-menu"]
         }
@@ -244,7 +247,7 @@
           "path": "#sources",
           "query": ["q", "status"],
           "source": "student-1/frontend/routes/entities.js",
-          "requiredStates": ["loading", "populated", "empty", "filtered-empty", "validation", "permission", "conflict", "error", "long-content"],
+          "requiredStates": ["loading", "populated", "empty", "filtered-empty", "validation", "conflict", "error", "long-content"],
           "api": ["GET/POST sources", "PUT/DELETE sources/{id}"],
           "interactions": ["apply-filter", "create-source", "edit-source", "delete-confirmation", "open-source", "mobile-menu"]
         },
@@ -252,7 +255,7 @@
           "id": "source-detail",
           "path": "#sources/{source_id}",
           "source": "student-1/frontend/routes/entities.js",
-          "requiredStates": ["loading", "populated", "permission", "error", "long-content"],
+          "requiredStates": ["loading", "populated", "error", "long-content"],
           "api": ["GET/PUT sources/{id}"],
           "interactions": ["edit-source", "toggle-technical-details", "mobile-menu"]
         },
@@ -318,7 +321,7 @@
           "aliases": ["#ai/release:{release_id}"],
           "query": ["goal"],
           "source": "student-1/frontend/routes/ai-diagnosis.js",
-          "requiredStates": ["loading", "populated", "empty", "history-unavailable", "provider-unavailable", "validation", "permission", "error", "slow", "long-content"],
+          "requiredStates": ["loading", "populated", "empty", "history-unavailable", "provider-unavailable", "validation", "error", "slow", "long-content"],
           "api": ["GET dataset-releases?limit=100", "GET agent-runs?limit=10", "POST dataset-releases/{id}/agent-runs"],
           "interactions": ["select-release", "select-objective", "start-ai-review", "toggle-history", "open-agent-run", "open-activity-history", "mobile-menu"]
         },
