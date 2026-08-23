@@ -134,7 +134,7 @@ export function runDialogForm({
   progressLabel = "Saving…",
   discardMessage = "Discard your unsaved changes?",
   confirmDiscard = null,
-  initialFocus = "input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)",
+  initialFocus = "input:not(:disabled), select:not(:disabled), textarea:not(:disabled)",
   onSubmit,
 }) {
   if (dialog.open || activeDialogs.has(dialog)) throw new Error("This dialog already has an active form controller.");

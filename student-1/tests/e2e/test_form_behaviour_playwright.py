@@ -199,6 +199,7 @@ def test_source_job_and_release_create_edit_forms_retain_server_failures(
 ) -> None:
     _open(page, fixture_origin, "sources")
     page.get_by_role("button", name="Create source").click()
+    expect(page.locator('[name="name"]')).to_be_focused()
     page.locator("#entity-save").click()
     expect(page.locator("#entity-error")).to_contain_text("Please correct Source name")
     expect(page.locator('[name="name"]')).to_be_focused()
