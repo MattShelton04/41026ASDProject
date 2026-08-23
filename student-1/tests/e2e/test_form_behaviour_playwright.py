@@ -30,6 +30,7 @@ CANDIDATE_ID = "60000000-0000-0000-0000-000000000011"
 REVIEW_ID = "60000000-0000-0000-0000-000000000012"
 PROPERTY_ID = "11111111-1111-4111-8111-111111111111"
 ACCEPTED_ID = "60000000-0000-0000-0000-000000000001"
+AGENT_RUN_ID = "70000000-0000-4000-8000-000000000001"
 
 
 def _free_port() -> int:
@@ -939,3 +940,73 @@ def test_failed_run_poll_keeps_the_current_view_and_backs_off(
     expect(technical_summary.locator("..")).to_have_attribute("open", "")
     expect(technical_summary).to_be_focused()
     assert detail_reads == 2
+
+
+def test_jobs_list_error_retry_restores_route_heading_focus(
+    page: Page, fixture_origin: str
+) -> None:
+    reads = 0
+
+    def fail_jobs_once(route: Route) -> None:
+        nonlocal reads
+        reads += 1
+        if reads == 1:
+            _temporary_read_failure(route, "jobs-list")
+        else:
+            route.continue_()
+
+    page.route("**/api/data-platform/v1/jobs?**", fail_jobs_once)
+    page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=populated&test={time.time_ns()}#jobs")
+    expect(page.get_by_role("heading", name="Service temporarily unavailable")).to_be_visible()
+
+    page.get_by_role("button", name="Try again").click()
+
+    heading = page.get_by_role("heading", name="Data updates", exact=True)
+    expect(heading).to_be_visible()
+    expect(heading).to_be_focused()
+    expect(page).to_have_title("PropertyScope | Data updates")
+    assert reads == 2
+
+
+def test_ai_manual_refresh_preserves_disclosure_and_refresh_focus(
+    page: Page, fixture_origin: str
+) -> None:
+    _open(page, fixture_origin, f"ai/{AGENT_RUN_ID}")
+    technical_summary = page.get_by_text("Technical run references", exact=True)
+    technical_summary.click()
+    refresh = page.get_by_role("button", name="Refresh result")
+
+    refresh.click()
+
+    refreshed_summary = page.get_by_text("Technical run references", exact=True)
+    expect(refreshed_summary.locator("..")).to_have_attribute("open", "")
+    expect(page.get_by_role("button", name="Refresh result")).to_be_focused()
+
+
+def test_ai_active_poll_preserves_disclosure_without_stealing_external_focus(
+    page: Page, fixture_origin: str
+) -> None:
+    detail_reads = 0
+
+    def active_agent_run(route: Route) -> None:
+        nonlocal detail_reads
+        detail_reads += 1
+        response = route.fetch()
+        payload = response.json()
+        payload["run"]["status"] = "acting"
+        route.fulfill(response=response, json=payload)
+
+    page.route(f"**/api/data-platform/v1/agent-runs/{AGENT_RUN_ID}", active_agent_run)
+    _open(page, fixture_origin, f"ai/{AGENT_RUN_ID}")
+    technical_summary = page.get_by_text("Technical run references", exact=True)
+    technical_summary.click()
+    external_focus = page.get_by_role("link", name="New AI review")
+    external_focus.focus()
+
+    page.wait_for_timeout(1_200)
+
+    assert detail_reads >= 2
+    expect(
+        page.get_by_text("Technical run references", exact=True).locator("..")
+    ).to_have_attribute("open", "")
+    expect(external_focus).to_be_focused()

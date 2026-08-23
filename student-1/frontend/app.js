@@ -8,7 +8,7 @@ import { requestActiveDialogClose, runDialogForm } from "./components/dialogs.js
 import { createDrawerController, createToastController } from "./browser/index.js?v=3";
 import { formField } from "./components/forms.js?v=17";
 import { renderLoading } from "./components/states.js";
-import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=17";
+import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=18";
 import { createEntityRoutes } from "./routes/entities.js?v=18";
 import { createDataProductRoutes } from "./routes/data-products.js?v=17";
 import { createEvidenceRoutes } from "./routes/evidence.js?v=17";
@@ -216,13 +216,14 @@ async function mutate(path, { method = "POST", body = {}, success = "Action comp
 }
 
 const openPlanDialog = createRunPlanner({ request, mutate, confirmAction });
-const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, rerender: renderRoute });
-const { renderRuns, renderRunDetail } = createRunRoutes({ view, request, mutate, confirmAction, announce, state, generationGuard, rerender: renderRoute });
-const { renderProperties } = createPropertyRoutes({ view, request, announce, rerender: renderRoute });
-const { renderDataProducts } = createDataProductRoutes({ view, request, loading, rerender: renderRoute });
-const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, rerender: renderRoute });
-const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request, loading, rerender: renderRoute });
-const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender: renderRoute });
+const retryRoute = () => renderRoute({ focus: true });
+const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, rerender: retryRoute });
+const { renderRuns, renderRunDetail } = createRunRoutes({ view, request, mutate, confirmAction, announce, state, generationGuard, rerender: retryRoute });
+const { renderProperties } = createPropertyRoutes({ view, request, announce, rerender: retryRoute });
+const { renderDataProducts } = createDataProductRoutes({ view, request, loading, rerender: retryRoute });
+const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, rerender: retryRoute });
+const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request, loading, rerender: retryRoute });
+const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender: retryRoute });
 
 async function checkHealth() {
   try { await request(healthUrl, { timeoutMs: 4000 }); serviceState.className = "service-state online"; serviceState.lastElementChild.textContent = "Data service available"; serviceState.setAttribute("aria-label", "Data service available"); }
@@ -235,7 +236,7 @@ async function renderRoute({ focus = false } = {}) {
   const { route, id } = parseRoute(location.hash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
   view.dataset.density = route === "properties" ? "comfortable" : "compact";
   try {
-    if (route === "overview") await renderOverview({ view, request, rerender: () => renderRoute({ focus: true }) });
+    if (route === "overview") await renderOverview({ view, request, rerender: retryRoute });
     else if (route === "data-products") await renderDataProducts(id);
     else if (route === "sources" || route === "jobs") id ? await renderEntityDetail(route, id) : await renderEntityList(route);
     else if (route === "runs") id ? await renderRunDetail(id) : await renderRuns();

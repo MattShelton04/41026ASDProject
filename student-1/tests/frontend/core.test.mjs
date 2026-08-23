@@ -767,7 +767,8 @@ test("run polling preserves the rendered view and isolates supporting feed failu
 test("route lifecycle titles and focuses the first page or error heading", async () => {
   const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
   assert.match(app, /view\.querySelector\("h1, h2"\)/);
-  assert.match(app, /renderOverview\(\{ view, request, rerender: \(\) => renderRoute\(\{ focus: true \}\) \}\)/);
+  assert.match(app, /const retryRoute = \(\) => renderRoute\(\{ focus: true \}\)/);
+  assert.equal([...app.matchAll(/rerender: retryRoute/g)].length, 8);
 });
 
 test("production frontend imports focused core and component modules", async () => {
@@ -828,6 +829,10 @@ test("AI review history is loaded from the shared service projection without red
   assert.doesNotMatch(source, /review-acknowledgement|type = "checkbox"/);
   assert.match(source, /url\.searchParams\.set\("run", runId\)/);
   assert.match(source, /nextAgentPollDelay/);
+  assert.match(source, /from "\.\.\/core\/polling\.js\?v=18"/);
+  assert.match(source, /refreshGuard\.isCurrent\(refresh\)/);
+  assert.match(source, /captureTraceRefreshState\(host\)/);
+  assert.match(source, /restoreTraceRefreshState\(host, refreshState\)/);
   assert.match(source, /recordedSteps\?\.length \? recordedSteps : events/);
   assert.match(source, /aria-live/);
   assert.match(source, /Recommended next step/);

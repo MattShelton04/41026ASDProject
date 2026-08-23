@@ -2,7 +2,7 @@ import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js?v=17";
 import { createSubmissionGuard } from "../core/forms.js";
-import { nextAgentPollDelay } from "../core/polling.js";
+import { createLatestRequestGuard, nextAgentPollDelay } from "../core/polling.js?v=18";
 import { parseRoute, routeQuery } from "../core/router.js?v=7";
 import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState } from "../components/states.js";
@@ -18,7 +18,52 @@ const OBJECTIVES = Object.freeze({
   consumer: "Review this unpublished version, its publishing records and the current published version. Explain each failed or retryable delivery. Make clear when a receipt is missing. Recommend one next step for human review. Do not publish or change data.",
 });
 
+function annotateTraceRefreshState(host) {
+  const disclosureKeys = new Map();
+  for (const details of host.querySelectorAll("details")) {
+    const label = details.querySelector("summary")?.textContent?.trim() || "Details";
+    const count = disclosureKeys.get(label) || 0;
+    disclosureKeys.set(label, count + 1);
+    details.dataset.traceRefreshKey = `${label}:${count}`;
+  }
+  const focusKeys = new Map();
+  for (const target of host.querySelectorAll("a[href], button, summary")) {
+    const base = target.matches("a[href]")
+      ? `link:${target.getAttribute("href")}`
+      : target.matches("summary")
+        ? `summary:${target.closest("details")?.dataset.traceRefreshKey || target.textContent?.trim()}`
+        : `button:${target.textContent?.trim()}`;
+    const count = focusKeys.get(base) || 0;
+    focusKeys.set(base, count + 1);
+    target.dataset.traceRefreshFocusKey = `${base}:${count}`;
+  }
+}
+
+function captureTraceRefreshState(host) {
+  const active = document.activeElement;
+  return {
+    focusKey: host.contains(active) ? active.dataset.traceRefreshFocusKey || "" : "",
+    disclosures: new Map(
+      [...host.querySelectorAll("details[data-trace-refresh-key]")]
+        .map((details) => [details.dataset.traceRefreshKey, details.open]),
+    ),
+  };
+}
+
+function restoreTraceRefreshState(host, snapshot) {
+  for (const details of host.querySelectorAll("details[data-trace-refresh-key]")) {
+    if (snapshot.disclosures.has(details.dataset.traceRefreshKey)) {
+      details.open = snapshot.disclosures.get(details.dataset.traceRefreshKey);
+    }
+  }
+  if (!snapshot.focusKey) return;
+  const target = [...host.querySelectorAll("[data-trace-refresh-focus-key]")]
+    .find((candidate) => candidate.dataset.traceRefreshFocusKey === snapshot.focusKey);
+  target?.focus({ preventScroll: true });
+}
+
 export function createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender }) {
+  const refreshGuard = createLatestRequestGuard();
   async function renderAi(context = "") {
     loading("Loading AI review");
     try {
@@ -105,12 +150,19 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
   }
 
   async function renderAgentTrace(id, host, failures = 0) {
+    const refresh = refreshGuard.next();
     const generation = generationGuard.current();
+    const isCurrent = () => refreshGuard.isCurrent(refresh)
+      && generationGuard.isCurrent(generation)
+      && parseRoute(location.hash).route === "ai"
+      && parseRoute(location.hash).id === id;
+    annotateTraceRefreshState(host);
+    const refreshState = captureTraceRefreshState(host);
     host.setAttribute("aria-busy", "true");
     const [detailResult, eventsResult] = await Promise.allSettled([
       request(`agent-runs/${id}`), request(`agent-runs/${id}/events${queryString({ after: 0, limit: 100 })}`),
     ]);
-    if (!generationGuard.isCurrent(generation)) return;
+    if (!isCurrent()) return;
     const detailError = detailResult.status === "rejected" ? detailResult.reason : null;
     const eventsError = eventsResult.status === "rejected" ? eventsResult.reason : null;
     const run = detailResult.status === "fulfilled" ? entity(detailResult.value.body, "agent_run") : { id, status: host.dataset.agentStatus || "unknown" };
@@ -142,6 +194,8 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     append(body, technicalDetails({ model_profile: run.model_profile, agent_run_id: run.id || id, request_id: run.request_id || detailResult.value?.requestId || null }, "Technical run references"));
     const controls = el("div", "dialog-actions"); append(controls, sharedRunLink(id, "Open full activity details"), button("Refresh result", "button secondary", () => renderAgentTrace(id, host))); append(body, controls);
     host.replaceChildren(panel(run.final_result ? "AI review result" : "AI review in progress", "Based on recorded Feature 1 checks", body));
+    annotateTraceRefreshState(host);
+    restoreTraceRefreshState(host, refreshState);
     host.setAttribute("aria-busy", "false");
     host.dataset.agentStatus = run.status;
     updateHistorySummary(id, run);
