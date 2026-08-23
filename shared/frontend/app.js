@@ -5,6 +5,7 @@ import { createRoadmapRoute } from "./routes/roadmap.js?v=10";
 import { createStatusRoute } from "./routes/status.js?v=10";
 import { featureRegistry, findFeature } from "./features.js?v=10";
 import { loadFeature1Bridge } from "./feature-1-bridge.js?v=12";
+import { createToastController } from "./browser/index.js?v=3";
 
 const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const config = { ...externalConfig };
@@ -16,7 +17,7 @@ const toast = document.querySelector("#toast");
 const announcement = document.querySelector("#route-announcement");
 const navToggle = document.querySelector("#nav-toggle");
 const primaryNav = document.querySelector("#primary-navigation");
-let toastTimer = 0;
+const toastController = createToastController(toast, { duration: 3600 });
 let renderGeneration = 0;
 
 function announce(message) {
@@ -24,11 +25,7 @@ function announce(message) {
 }
 
 function showToast(message) {
-  if (!toast) return;
-  window.clearTimeout(toastTimer);
-  toast.textContent = message;
-  toast.dataset.visible = "true";
-  toastTimer = window.setTimeout(() => { toast.dataset.visible = "false"; }, 3600);
+  toastController.show(message);
 }
 
 function applyConfigLinks(root = document) {

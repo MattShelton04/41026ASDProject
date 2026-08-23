@@ -5,6 +5,7 @@ import { parseIntegerField, parseJsonField, parseJsonTextList, propertySearchQue
 import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
 import { parseRoute } from "./core/router.js?v=7";
 import { requestActiveDialogClose, runDialogForm } from "./components/dialogs.js";
+import { createDrawerController, createToastController } from "./browser/index.js?v=3";
 import { formField } from "./components/forms.js?v=17";
 import { renderLoading } from "./components/states.js";
 import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=17";
@@ -22,13 +23,18 @@ const liveRegion = document.querySelector("#live-region");
 const serviceState = document.querySelector("#service-state");
 const sidebar = document.querySelector("#primary-nav");
 const navToggle = document.querySelector("#nav-toggle");
+const drawerScrim = document.querySelector("#drawer-scrim");
 const headerPropertySearch = document.querySelector("#header-property-search");
 const headerPropertyQuery = document.querySelector("#header-property-query");
 const entityDialog = document.querySelector("#entity-dialog");
 const entityForm = document.querySelector("#entity-form");
 const actionDialog = document.querySelector("#action-dialog");
 const actionForm = document.querySelector("#action-form");
+const discardDialog = document.querySelector("#discard-dialog");
+const discardForm = document.querySelector("#discard-form");
 const toast = document.querySelector("#toast");
+const toastController = createToastController(toast, { duration: 4500 });
+let drawerController = null;
 
 const productHomeUrl = window.PROPERTYSCOPE_HOME_URL
   || (window.location.pathname.startsWith("/features/data-platform/") ? "/" : "http://localhost:5100/");
@@ -43,6 +49,8 @@ for (const item of document.querySelectorAll("[data-product-path]")) {
 const state = { pollTimer: null, lastRunStatus: "", lastAgentStatus: "", requests: new Map() };
 const generationGuard = createGenerationGuard();
 let lastRenderedHash = location.hash;
+let guardedNavigationGeneration = 0;
+let pendingGuardedNavigation = null;
 
 function announce(message) {
   liveRegion.textContent = "";
@@ -50,11 +58,7 @@ function announce(message) {
 }
 
 function showToast(message) {
-  toast.textContent = message;
-  toast.hidden = false;
-  clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => { toast.hidden = true; }, 4500);
-  announce(message);
+  toastController.show(message);
 }
 
 function setActiveNavigation(route) {
@@ -64,16 +68,11 @@ function setActiveNavigation(route) {
   }
   const advanced = document.querySelector(".advanced-nav");
   if (advanced?.querySelector(`[data-route="${route}"]`)) advanced.open = true;
-  sidebar.classList.remove("open");
-  navToggle.setAttribute("aria-expanded", "false");
-  navToggle.querySelector(".visually-hidden").textContent = "Open navigation";
+  drawerController?.close({ restoreFocus: false });
 }
 
 function closeNavigation({ restoreFocus = false } = {}) {
-  sidebar.classList.remove("open");
-  navToggle.setAttribute("aria-expanded", "false");
-  navToggle.querySelector(".visually-hidden").textContent = "Open navigation";
-  if (restoreFocus) navToggle.focus();
+  drawerController?.close({ restoreFocus });
 }
 
 function loading(title = "Loading evidence") { renderLoading(view, title); }
@@ -149,6 +148,7 @@ async function openEntityDialog(kind, item = null) {
     acceptedValue: "save",
     progressLabel: item ? "Saving changes…" : `Creating ${kind}…`,
     discardMessage: `Discard your unsaved ${kind} changes?`,
+    confirmDiscard,
     onSubmit: async () => {
       const data = Object.fromEntries(new FormData(entityForm));
       for (const definition of fields.filter((field) => field.type === "json")) {
@@ -190,7 +190,23 @@ function confirmAction({ title, description, label = "Confirm", tone = "danger",
     acceptedValue: "confirm",
     progressLabel,
     discardMessage,
+    confirmDiscard,
+    initialFocus: '#action-form button[value="cancel"]:not(.close-button)',
     onSubmit: onConfirm || (async () => {}),
+  });
+}
+
+function confirmDiscard(message) {
+  document.querySelector("#discard-description").textContent = message;
+  return runDialogForm({
+    dialog: discardDialog,
+    form: discardForm,
+    submitButton: document.querySelector("#discard-confirm"),
+    errorHost: document.createElement("span"),
+    acceptedValue: "discard",
+    progressLabel: "Discarding…",
+    initialFocus: "#discard-cancel",
+    onSubmit: async () => {},
   });
 }
 
@@ -204,7 +220,7 @@ const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, requ
 const { renderRuns, renderRunDetail } = createRunRoutes({ view, request, mutate, confirmAction, announce, state, generationGuard, rerender: renderRoute });
 const { renderProperties } = createPropertyRoutes({ view, request, announce });
 const { renderDataProducts } = createDataProductRoutes({ view, request, loading, rerender: renderRoute });
-const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, mutate, showToast, rerender: renderRoute });
+const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, rerender: renderRoute });
 const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request, loading, rerender: renderRoute });
 const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender: renderRoute });
 
@@ -241,7 +257,12 @@ async function renderRoute({ focus = false } = {}) {
   }
 }
 
-navToggle.addEventListener("click", () => { const open = sidebar.classList.toggle("open"); navToggle.setAttribute("aria-expanded", String(open)); navToggle.querySelector(".visually-hidden").textContent = open ? "Close navigation" : "Open navigation"; });
+drawerController = createDrawerController({
+  drawer: sidebar,
+  toggle: navToggle,
+  scrim: drawerScrim,
+  mediaQuery: window.matchMedia("(max-width: 780px)"),
+});
 function validateHeaderPropertyQuery({ report = false } = {}) {
   if (!headerPropertyQuery.value.trim()) {
     headerPropertyQuery.setCustomValidity("");
@@ -270,14 +291,37 @@ headerPropertySearch.addEventListener("invalid", (event) => {
   if (event.target === headerPropertyQuery) validateHeaderPropertyQuery();
 }, true);
 headerPropertyQuery.addEventListener("input", () => validateHeaderPropertyQuery());
-sidebar.addEventListener("click", (event) => { if (event.target.closest("a")) closeNavigation(); });
-document.addEventListener("keydown", (event) => { if (event.key === "Escape" && sidebar.classList.contains("open")) closeNavigation({ restoreFocus: true }); });
 window.addEventListener("hashchange", () => {
-  if (![entityDialog, actionDialog].every((dialog) => requestActiveDialogClose(dialog))) {
+  const requestedHash = location.hash;
+  const generation = ++guardedNavigationGeneration;
+  const discardDecided = (confirmed) => {
+    if (confirmed || pendingGuardedNavigation?.generation !== generation) return;
+    pendingGuardedNavigation.dialog.removeEventListener("close", pendingGuardedNavigation.resume);
+    pendingGuardedNavigation = null;
+  };
+  const blockedDialog = [entityDialog, actionDialog]
+    .find((dialog) => !requestActiveDialogClose(dialog, { onDiscardDecision: discardDecided }));
+  if (blockedDialog) {
+    if (pendingGuardedNavigation) {
+      pendingGuardedNavigation.dialog.removeEventListener("close", pendingGuardedNavigation.resume);
+    }
     history.replaceState(null, "", lastRenderedHash || "#properties");
     announce("Finish or cancel the open form before leaving this page.");
+    const resume = () => {
+      queueMicrotask(() => {
+        if (pendingGuardedNavigation?.generation !== generation) return;
+        const pending = pendingGuardedNavigation;
+        pendingGuardedNavigation = null;
+        if (blockedDialog.returnValue !== "cancel" || location.hash !== lastRenderedHash) return;
+        location.hash = pending.requestedHash;
+      });
+    };
+    pendingGuardedNavigation = { generation, requestedHash, dialog: blockedDialog, resume };
+    blockedDialog.addEventListener("close", resume, { once: true });
     return;
   }
+  pendingGuardedNavigation?.dialog.removeEventListener("close", pendingGuardedNavigation.resume);
+  pendingGuardedNavigation = null;
   renderRoute({ focus: true });
 });
 document.addEventListener("visibilitychange", () => {

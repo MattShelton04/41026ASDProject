@@ -48,11 +48,8 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       if (!runs.length) { append(view, emptyState("No updates found", "Start a saved data update or adjust the current filters.", link("View data updates", "#jobs", "button primary"))); return; }
       const table = makeTable([{ label: "Update" }, { label: "Method" }, { label: "Status" }, { label: "Rows loaded" }, { label: "Started" }, { label: "Reference" }], runs, (run) => {
         const row = el("tr");
-        append(row, cell(primaryCell(displayName(run.job_name || `Update ${String(run.id).slice(0, 8)}`), run.id)), cell(humanise(run.run_mode)), cell(badge(run.status)), cell(formatNumber(run.rows_accepted), "numeric"), cell(formatDate(run.requested_at)), cell(run.request_id || "—", "mono"));
-        row.tabIndex = 0;
-        row.setAttribute("aria-label", `Open run ${run.id}`);
-        row.addEventListener("click", () => { location.hash = `#runs/${run.id}`; });
-        row.addEventListener("keydown", (event) => { if (event.key === "Enter") location.hash = `#runs/${run.id}`; });
+        const runLink = link(displayName(run.job_name || `Update ${String(run.id).slice(0, 8)}`), `#runs/${encodeURIComponent(run.id)}`);
+        append(row, cell(primaryCell(runLink, run.id)), cell(humanise(run.run_mode)), cell(badge(run.status)), cell(formatNumber(run.rows_accepted), "numeric"), cell(formatDate(run.requested_at)), cell(run.request_id || "—", "mono"));
         return row;
       }, "Data update history");
       append(view, panel(`${runs.length} updates`, "Newest first", table));

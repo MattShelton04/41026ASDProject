@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { runDialogForm } from "../../frontend/components/dialogs.js";
+import { requestActiveDialogClose, runDialogForm } from "../../frontend/components/dialogs.js";
+import {
+  createDrawerController,
+  createTableRegion,
+  createToastController,
+} from "../../../shared/frontend/browser/index.js";
 
 import {
   ApiError,
@@ -218,6 +223,86 @@ function fakeDialogFixture({ value = "unchanged", valid = true } = {}) {
   return { field, submit, cancel, form, dialog, errorHost };
 }
 
+class FakeClassList {
+  constructor() { this.values = new Set(); }
+  add(value) { this.values.add(value); }
+  remove(value) { this.values.delete(value); }
+  contains(value) { return this.values.has(value); }
+}
+
+class FakeElement extends EventTarget {
+  constructor(ownerDocument = null) {
+    super();
+    this.ownerDocument = ownerDocument;
+    this.attributes = new Map();
+    this.classList = new FakeClassList();
+    this.dataset = {};
+    this.children = [];
+    this.hidden = false;
+    this.inert = false;
+  }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.get(name) ?? null; }
+  removeAttribute(name) { this.attributes.delete(name); }
+  append(...children) { this.children.push(...children); }
+  focus() { if (this.ownerDocument) this.ownerDocument.activeElement = this; this.focused = true; }
+  querySelector() { return this.focusables?.[0] || null; }
+  querySelectorAll() { return this.focusables || []; }
+}
+
+class FakeDocument extends EventTarget {
+  constructor() {
+    super();
+    this.body = new FakeElement(this);
+    this.activeElement = null;
+  }
+  createElement() { return new FakeElement(this); }
+}
+
+test("the mobile drawer removes closed links from the focus order and restores focus on Escape", async () => {
+  const documentNode = new FakeDocument();
+  const drawer = new FakeElement(documentNode);
+  const first = new FakeElement(documentNode);
+  const last = new FakeElement(documentNode);
+  drawer.focusables = [first, last];
+  const toggle = new FakeElement(documentNode);
+  const scrim = new FakeElement(documentNode);
+  const media = new EventTarget();
+  media.matches = true;
+  const controller = createDrawerController({ drawer, toggle, scrim, mediaQuery: media });
+  assert.equal(drawer.inert, true);
+  assert.equal(drawer.getAttribute("aria-hidden"), "true");
+  controller.open();
+  await Promise.resolve();
+  assert.equal(drawer.inert, false);
+  assert.equal(first.focused, true);
+  const escape = new Event("keydown", { cancelable: true });
+  Object.defineProperty(escape, "key", { value: "Escape" });
+  documentNode.dispatchEvent(escape);
+  assert.equal(drawer.inert, true);
+  assert.equal(toggle.focused, true);
+  assert.equal(documentNode.body.classList.contains("ps-drawer-open"), false);
+});
+
+test("shared feedback and table helpers are bounded", () => {
+  const toast = new FakeElement();
+  const controller = createToastController(toast, { duration: 20 });
+  controller.show("Saved", { tone: "success" });
+  assert.equal(toast.textContent, "Saved");
+  assert.equal(toast.dataset.visible, "true");
+  assert.equal(toast.hidden, false);
+  controller.hide();
+  assert.equal(toast.hidden, false);
+  assert.equal(toast.dataset.visible, "false");
+  assert.equal(toast.textContent, "");
+  const documentNode = new FakeDocument();
+  const table = new FakeElement(documentNode);
+  const region = createTableRegion(table, "Saved updates", { className: "table-wrap" });
+  assert.equal(region.getAttribute("role"), "region");
+  assert.match(region.getAttribute("aria-label"), /Saved updates.*Scroll horizontally/);
+  assert.equal(region.children.at(-1), table);
+});
+
 test("dialog keyboard submission is single-flight and closes only after success", async () => {
   const originalWindow = globalThis.window;
   globalThis.window = { confirm: () => true };
@@ -290,10 +375,8 @@ test("recoverable server failure retains values and supports retry without doubl
 });
 
 test("Escape and close warn only after meaningful values change", async () => {
-  const originalWindow = globalThis.window;
   let allowDiscard = false;
   let prompts = 0;
-  globalThis.window = { confirm: () => { prompts += 1; return allowDiscard; } };
   const fixture = fakeDialogFixture();
   const initial = formState(fixture.form);
   const result = runDialogForm({ ...fixture, submitButton: fixture.submit, acceptedValue: "save", onSubmit: async () => {} });
@@ -304,16 +387,75 @@ test("Escape and close warn only after meaningful values change", async () => {
   assert.equal(formStateChanged(initial, formState(fixture.form)), false);
 
   const dirtyFixture = fakeDialogFixture();
-  const dirtyResult = runDialogForm({ ...dirtyFixture, submitButton: dirtyFixture.submit, acceptedValue: "save", onSubmit: async () => {} });
+  const dirtyResult = runDialogForm({
+    ...dirtyFixture,
+    submitButton: dirtyFixture.submit,
+    acceptedValue: "save",
+    confirmDiscard: async () => { prompts += 1; return allowDiscard; },
+    onSubmit: async () => {},
+  });
   dirtyFixture.field.value = "changed by keyboard";
   dirtyFixture.dialog.dispatchEvent(new Event("cancel", { cancelable: true }));
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(dirtyFixture.dialog.open, true);
   assert.equal(prompts, 1);
   allowDiscard = true;
   dirtyFixture.form.dispatchEvent(submitEvent(dirtyFixture.cancel));
+  await Promise.resolve();
   assert.equal(await dirtyResult, false);
   assert.equal(prompts, 2);
-  globalThis.window = originalWindow;
+});
+
+test("dirty dialogs use the native discard confirmation without losing the open form", async () => {
+  const fixture = fakeDialogFixture();
+  let resolveDiscard;
+  let prompts = 0;
+  const result = runDialogForm({
+    ...fixture,
+    submitButton: fixture.submit,
+    acceptedValue: "save",
+    confirmDiscard: () => {
+      prompts += 1;
+      return new Promise((resolve) => { resolveDiscard = resolve; });
+    },
+    onSubmit: async () => {},
+  });
+  fixture.field.value = "changed by keyboard";
+  fixture.dialog.dispatchEvent(new Event("cancel", { cancelable: true }));
+  await Promise.resolve();
+  assert.equal(fixture.dialog.open, true);
+  assert.equal(prompts, 1);
+  fixture.dialog.dispatchEvent(new Event("cancel", { cancelable: true }));
+  assert.equal(prompts, 1);
+  resolveDiscard(true);
+  assert.equal(await result, false);
+});
+
+test("the latest guarded close observes a declined or accepted discard decision", async () => {
+  const fixture = fakeDialogFixture();
+  let resolveDiscard;
+  const decisions = [];
+  const result = runDialogForm({
+    ...fixture,
+    submitButton: fixture.submit,
+    acceptedValue: "save",
+    confirmDiscard: () => new Promise((resolve) => { resolveDiscard = resolve; }),
+    onSubmit: async () => {},
+  });
+  fixture.field.value = "changed by keyboard";
+  assert.equal(requestActiveDialogClose(fixture.dialog, { onDiscardDecision: (value) => decisions.push(["old", value]) }), false);
+  await Promise.resolve();
+  assert.equal(requestActiveDialogClose(fixture.dialog, { onDiscardDecision: (value) => decisions.push(["latest", value]) }), false);
+  resolveDiscard(false);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(decisions, [["latest", false]]);
+  assert.equal(fixture.dialog.open, true);
+
+  assert.equal(requestActiveDialogClose(fixture.dialog, { onDiscardDecision: (value) => decisions.push(["accepted", value]) }), false);
+  await Promise.resolve();
+  resolveDiscard(true);
+  assert.equal(await result, false);
+  assert.deepEqual(decisions, [["latest", false], ["accepted", true]]);
 });
 
 test("every existing Feature 1 form is wired to explicit retention and submission behavior", async () => {
@@ -407,8 +549,11 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.doesNotMatch(html, /Assisted diagnosis|Advanced operations/);
   assert.match(html, /<main id="main-content" tabindex="-1">/);
   assert.match(html, /id="live-region"[^>]+aria-live="polite"/);
+  assert.match(html, /id="toast"[^>]+role="status"(?![^>]+hidden)/);
   assert.match(html, /<dialog id="entity-dialog"/);
   assert.match(html, /<dialog id="action-dialog"/);
+  assert.match(html, /<dialog id="discard-dialog"/);
+  assert.match(html, /aria-labelledby="action-title" aria-describedby="action-description"/);
   assert.match(html, /value="cancel" formnovalidate/);
   assert.match(html, /id="entity-save"[^>]+type="submit"/);
   assert.match(html, /id="action-confirm"[^>]+type="submit"/);
@@ -419,8 +564,27 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.match(app, /pathname\.startsWith\("\/features\/data-platform\/"\)/);
   assert.match(app, /"\/api\/shared-health\/data-platform"/);
   assert.match(app, /request\(healthUrl/);
-  assert.match(app, /event\.key === "Escape"/);
-  assert.match(app, /closeNavigation\(\{ restoreFocus: true \}\)/);
+  assert.match(app, /createDrawerController\(\{/);
+  assert.match(app, /confirmDiscard/);
+  assert.match(app, /pendingGuardedNavigation\?\.generation !== generation/);
+  assert.match(app, /location\.hash = pending\.requestedHash/);
+  assert.match(app, /mediaQuery: window\.matchMedia\("\(max-width: 780px\)"\)/);
+});
+
+test("property search has an explicit persistent label association", async () => {
+  const source = await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8");
+  assert.match(source, /searchField\.htmlFor = "property-search-query"/);
+  assert.match(source, /input\.id = "property-search-query"/);
+});
+
+test("tables use named contained scroll regions and native links instead of interactive rows", async () => {
+  const tables = await readFile(new URL("../../frontend/components/tables.js", import.meta.url), "utf8");
+  const runs = await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8");
+  const sharedCore = await readFile(new URL("../../../shared/frontend/core.js", import.meta.url), "utf8");
+  assert.match(tables, /createTableRegion\(table, captionText/);
+  assert.match(sharedCore, /heading\.scope = "col"/);
+  assert.match(runs, /const runLink = link\(/);
+  assert.doesNotMatch(runs, /row\.tabIndex|row\.addEventListener/);
 });
 
 test("the frontend proxy keeps browser traffic on the public backend boundary", async () => {

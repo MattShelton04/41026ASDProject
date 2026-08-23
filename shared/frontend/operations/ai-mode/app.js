@@ -43,7 +43,7 @@ function applyResearchAreaContext(params) {
 }
 
 const ui = Object.fromEntries([
-  "announcement", "connection-dot", "connection-state", "workspace", "page-summary",
+  "announcement", "feedback", "connection-dot", "connection-state", "workspace", "page-summary",
   "quick-filters", "filters", "feature-filter", "status-filter", "model-filter",
   "clear-filters", "count-active", "count-review", "count-failed", "count-complete",
   "run-list", "refresh-runs", "load-more", "run-detail", "empty-detail", "detail-content",
@@ -898,8 +898,21 @@ function updateLiveElapsed() {
 }
 
 async function copyValue(value, successMessage) {
-  await navigator.clipboard.writeText(value);
-  ui.announcement.textContent = successMessage;
+  clearTimeout(copyValue.timer);
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable.");
+    await navigator.clipboard.writeText(value);
+    ui.feedback.dataset.tone = "success";
+    ui.feedback.textContent = successMessage;
+    ui.announcement.textContent = successMessage;
+  } catch {
+    const message = "Could not copy automatically. Select the value and copy it manually.";
+    ui.feedback.dataset.tone = "error";
+    ui.feedback.textContent = message;
+    ui.announcement.textContent = message;
+  }
+  ui.feedback.hidden = false;
+  copyValue.timer = setTimeout(() => { ui.feedback.hidden = true; }, 5000);
 }
 
 ui.filters.addEventListener("submit", (event) => {
