@@ -12,7 +12,7 @@ import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=17";
 import { createEntityRoutes } from "./routes/entities.js?v=18";
 import { createDataProductRoutes } from "./routes/data-products.js?v=17";
 import { createEvidenceRoutes } from "./routes/evidence.js?v=17";
-import { renderOverview } from "./routes/overview.js?v=18";
+import { renderOverview } from "./routes/overview.js?v=19";
 import { createPropertyRoutes } from "./routes/properties.js?v=18";
 import { createReleaseRoutes } from "./routes/releases.js?v=18";
 import { createRunPlanner } from "./routes/run-plan.js?v=17";
@@ -235,7 +235,7 @@ async function renderRoute({ focus = false } = {}) {
   const { route, id } = parseRoute(location.hash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
   view.dataset.density = route === "properties" ? "comfortable" : "compact";
   try {
-    if (route === "overview") await renderOverview({ view, request });
+    if (route === "overview") await renderOverview({ view, request, rerender: () => renderRoute({ focus: true }) });
     else if (route === "data-products") await renderDataProducts(id);
     else if (route === "sources" || route === "jobs") id ? await renderEntityDetail(route, id) : await renderEntityList(route);
     else if (route === "runs") id ? await renderRunDetail(id) : await renderRuns();

@@ -22,22 +22,14 @@ export function projectOverviewFeeds(results) {
   };
 }
 
-export async function renderOverview({ view, request }) {
+export async function renderOverview({ view, request, rerender }) {
   renderLoading(view, "Loading operations overview");
   const results = await Promise.allSettled([
     request("sources?limit=100"), request("ingestion-runs?limit=25"), request("dataset-releases?limit=100"),
   ]);
   const feeds = projectOverviewFeeds(results);
   if (feeds.allUnavailable) {
-    const retry = async () => {
-      await renderOverview({ view, request });
-      const heading = view.querySelector("h1, h2");
-      if (heading) {
-        heading.tabIndex = -1;
-        heading.focus();
-      }
-    };
-    view.replaceChildren(errorState(feeds.failures[0].error, retry));
+    view.replaceChildren(errorState(feeds.failures[0].error, rerender));
     return;
   }
   const sourcesAvailable = feeds.sources !== null;

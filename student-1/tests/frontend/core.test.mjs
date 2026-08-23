@@ -734,6 +734,7 @@ test("operator state routes preserve partial evidence and explain lifecycle cont
 test("route lifecycle titles and focuses the first page or error heading", async () => {
   const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
   assert.match(app, /view\.querySelector\("h1, h2"\)/);
+  assert.match(app, /renderOverview\(\{ view, request, rerender: \(\) => renderRoute\(\{ focus: true \}\) \}\)/);
 });
 
 test("production frontend imports focused core and component modules", async () => {

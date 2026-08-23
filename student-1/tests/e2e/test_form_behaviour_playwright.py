@@ -729,6 +729,44 @@ def test_operations_overview_job_and_release_states_are_truthful(
     expect(error_heading).to_be_focused()
     expect(page).to_have_title("PropertyScope | Service temporarily unavailable")
 
+    overview_paths = {
+        "sources?limit=100",
+        "ingestion-runs?limit=25",
+        "dataset-releases?limit=100",
+    }
+    failed_once: set[str] = set()
+
+    def fail_overview_feed_once(route: Route) -> None:
+        relative_url = route.request.url.split("/api/data-platform/v1/", maxsplit=1)[-1]
+        if relative_url in overview_paths and relative_url not in failed_once:
+            failed_once.add(relative_url)
+            route.fulfill(
+                status=503,
+                content_type="application/problem+json",
+                body=json.dumps(
+                    {
+                        "type": "about:blank",
+                        "title": "Temporary overview failure",
+                        "detail": "This overview feed failed once.",
+                    }
+                ),
+            )
+            return
+        route.continue_()
+
+    overview_pattern = "**/api/data-platform/v1/**"
+    page.route(overview_pattern, fail_overview_feed_once)
+    page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=populated&test={time.time_ns()}#overview")
+    expect(error_heading).to_be_visible()
+    expect(page).to_have_title("PropertyScope | Service temporarily unavailable")
+    page.get_by_role("button", name="Try again").click()
+    overview_heading = page.get_by_role("heading", name="Data overview")
+    expect(overview_heading).to_be_visible()
+    expect(overview_heading).to_be_focused()
+    expect(page).to_have_title("PropertyScope | Data overview")
+    assert failed_once == overview_paths
+    page.unroute(overview_pattern, fail_overview_feed_once)
+
     capability_pattern = f"**/api/data-platform/v1/jobs/{JOB_ID}/capabilities"
 
     def fail_capabilities(route: Route) -> None:
