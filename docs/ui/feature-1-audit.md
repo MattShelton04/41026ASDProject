@@ -11,10 +11,9 @@ blocked so the checked-in neutral map fallback remains deterministic.
 The executable cases in `docs/ui/feature-1-audit-cases.json` account for every state in
 `docs/ui/feature-1-audit-config.json`. Each route state names its fixture scenario, optional
 request override, setup flow and readiness selector. A configured state is never inferred from a
-blind route-by-scenario Cartesian product. Three states are explicitly deferred because the
-rendered product cannot truthfully expose them: long dynamic content on the two static Shared
-catalogue routes, and a partial run-detail state whose current `Promise.all` composition becomes a
-full error.
+blind route-by-scenario Cartesian product. Two states are explicitly deferred because the rendered
+product cannot truthfully expose them: long dynamic content on the two static Shared catalogue
+routes. Run-detail supporting feeds now degrade independently and have an executable partial case.
 
 ## Commands
 
@@ -31,10 +30,12 @@ Operations overview at 1440x1000 and 390x844:
 uv run scripts/dev.py ui-audit-quick
 ```
 
-The quick profile is intentionally expected-red until the later product UI prompts land. Its
-current findings include undersized core mobile targets and the missing Property Search field
-label. A non-zero exit therefore means the harness found release-policy debt; it is not evidence
-that the runner crashed. Inspect `TRIAGE.md` and `audit.json` before classifying the run.
+The Property Search label and genuine Feature 1 core-control findings from the baseline have been
+fixed. Laptop route-group quick runs are expected to pass. The default profile still captures the
+narrow viewport, where small non-core brand or footer links are advisory under the bounded-
+resilience policy rather than a reason to expand the laptop-demo scope. A non-zero exit means the
+harness found policy debt; inspect `TRIAGE.md` and `audit.json` before deciding whether it is a hard
+failure, an advisory narrow-width finding or a false positive.
 Quick runs inventory the complete rendered document but bound replay to eight representative
 controls per batch; the full profile replays the complete recursively discovered inventory.
 

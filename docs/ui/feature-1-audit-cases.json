@@ -148,9 +148,10 @@
           {"method": "GET", "urlPattern": "/ingestion-runs/[^/?]+$", "patches": [{"pointer": "/run/status", "value": "failed"}]},
           {"method": "POST", "urlContains": "/retry", "status": 409, "problemCode": "version_conflict"}
         ], "setup": [{"action": "named-flow", "name": "retry-run-confirm"}]},
+        {"id": "supporting-feed-partial", "scenario": "populated", "states": ["partial"], "expectedFailures": [{"method": "GET", "target": "/api/data-platform/v1/ingestion-runs/30000000-0000-0000-0000-000000000001/tasks?limit=100", "statuses": [503]}], "overrides": [{"method": "GET", "urlContains": "/tasks", "status": 503, "problemCode": "dependency_unavailable"}]},
         "error", "long-content"
       ],
-      "deferredStates": {"partial": "The route uses Promise.all for its visible supporting feeds; one failure becomes the full error state, while the release lookup failure is silently swallowed."}
+      "deferredStates": {}
     },
     "releases-list": {
       "readiness": "#view h1, #view .error-state",
