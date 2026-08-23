@@ -2,6 +2,43 @@ import { FieldValidationError, createSubmissionGuard, formState, formStateChange
 
 const activeDialogs = new WeakMap();
 const semanticValidators = new WeakMap();
+const documentModalCounts = new WeakMap();
+
+function openModal(dialog, initialFocus) {
+  const documentNode = dialog.ownerDocument || globalThis.document;
+  const returnTarget = documentNode?.activeElement || null;
+  if (documentNode?.body) {
+    documentModalCounts.set(documentNode, (documentModalCounts.get(documentNode) || 0) + 1);
+    documentNode.body.classList.add("ps-modal-open");
+  }
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    if (documentNode?.body) {
+      const next = Math.max(0, (documentModalCounts.get(documentNode) || 1) - 1);
+      if (next) documentModalCounts.set(documentNode, next);
+      else {
+        documentModalCounts.delete(documentNode);
+        documentNode.body.classList.remove("ps-modal-open");
+      }
+    }
+    queueMicrotask(() => {
+      if (returnTarget?.isConnected !== false) returnTarget?.focus?.();
+    });
+  };
+  dialog.addEventListener("close", release, { once: true });
+  try {
+    dialog.showModal();
+  } catch (error) {
+    release();
+    throw error;
+  }
+  queueMicrotask(() => {
+    const target = typeof initialFocus === "string" ? dialog.querySelector?.(initialFocus) : initialFocus;
+    if (dialog.open) target?.focus?.();
+  });
+}
 
 function requestIdSuffix(error) {
   return error?.requestId ? ` Request ID ${error.requestId}.` : "";
@@ -96,6 +133,8 @@ export function runDialogForm({
   acceptedValue,
   progressLabel = "Saving…",
   discardMessage = "Discard your unsaved changes?",
+  confirmDiscard = null,
+  initialFocus = "input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)",
   onSubmit,
 }) {
   if (dialog.open || activeDialogs.has(dialog)) throw new Error("This dialog already has an active form controller.");
@@ -103,6 +142,7 @@ export function runDialogForm({
   const initial = formState(form);
   const buttonState = { text: "", minWidth: "" };
   let settled = false;
+  let discardPending = false;
   let resolveDialog;
   const result = new Promise((resolve) => { resolveDialog = resolve; });
 
@@ -125,7 +165,26 @@ export function runDialogForm({
   const shouldDiscard = () => formStateChanged(initial, formState(form));
   const requestClose = () => {
     if (guard.pending) return false;
-    if (shouldDiscard() && !window.confirm(discardMessage)) return false;
+    if (shouldDiscard()) {
+      if (!confirmDiscard) {
+        errorHost.textContent = "Keep editing or use the provided discard action before closing this form.";
+        return false;
+      }
+      if (!discardPending) {
+        discardPending = true;
+        Promise.resolve()
+          .then(() => confirmDiscard(discardMessage))
+          .then((confirmed) => {
+            discardPending = false;
+            if (confirmed && isCurrent() && !guard.pending) close("cancel");
+          })
+          .catch(() => {
+            discardPending = false;
+            if (isCurrent()) errorHost.textContent = "The discard confirmation could not open. Your changes are still here.";
+          });
+      }
+      return false;
+    }
     close("cancel");
     return true;
   };
@@ -223,7 +282,6 @@ export function runDialogForm({
   dialog.addEventListener("close", closed);
   activeDialogs.set(dialog, controller);
   dialog.returnValue = "";
-  dialog.showModal();
-  form.querySelector?.("input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)")?.focus?.();
+  openModal(dialog, initialFocus);
   return result;
 }

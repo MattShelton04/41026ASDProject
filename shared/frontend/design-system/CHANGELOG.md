@@ -12,6 +12,9 @@ All notable changes to the shared PropertyScope frontend design system are recor
 - Added a backend-free design-foundation gallery and a checked-in raw-colour/off-scale-spacing gate.
 - Migrated Shared, Feature 1 and AI activity call sites in a bounded pass without rewriting local
   table, map or decorative geometry.
+- Added the retained danger/busy button states and a named contained table-scroll region.
+- Added browser helpers for the existing mobile drawer, status toast and table-scroll call sites;
+  native Feature 1 dialogs now return focus and lock page scroll through their form lifecycle.
 
 ## 0.2.0 — 2026-08-22
 

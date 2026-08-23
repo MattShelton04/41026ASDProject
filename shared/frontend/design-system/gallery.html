@@ -58,6 +58,26 @@
         <div class="ps-cluster"><button class="ps-button" type="button">Secondary</button><button class="ps-button ps-button--primary" type="button">Primary</button></div>
       </section>
 
+      <section class="gallery-panel ps-stack" aria-labelledby="controls-heading">
+        <div><p class="ps-eyebrow">Retained product call sites</p><h2 id="controls-heading">Controls, feedback and data</h2></div>
+        <div class="ps-cluster">
+          <button class="ps-button ps-button--primary" type="button">Save changes</button>
+          <button class="ps-button" type="button">Cancel</button>
+          <button class="ps-button ps-button--danger" type="button">Delete definition</button>
+          <button class="ps-button ps-button--primary" type="button" aria-busy="true" disabled>Saving changes…</button>
+        </div>
+        <div class="ps-grid ps-grid-2">
+          <label for="gallery-source">Source name<input id="gallery-source" value="A deliberately long official-source definition name that wraps safely"></label>
+          <label for="gallery-status">Lifecycle status<select id="gallery-status"><option>Active</option><option>Draft</option><option>Disabled</option></select></label>
+          <label for="gallery-invalid">Release version<input id="gallery-invalid" value="" aria-invalid="true" aria-describedby="gallery-invalid-error"><small id="gallery-invalid-error">Enter a release version before continuing.</small></label>
+        </div>
+        <p class="gallery-inline-status" role="status">Dataset metadata saved. The status message does not take focus.</p>
+        <div class="ps-table-region gallery-table-region" role="region" tabindex="0" aria-label="Example data updates. Scroll horizontally to compare all columns when needed.">
+          <p class="ps-table-scroll-hint">Scroll horizontally to compare all columns.</p>
+          <table class="gallery-table"><caption class="ps-sr-only">Example data updates</caption><thead><tr><th scope="col">Update</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead><tbody><tr><td>NSW address registry refresh with a long retained name</td><td><span class="ps-badge ps-badge--partial">Needs review</span></td><td><a href="#controls-heading">View update</a></td></tr></tbody></table>
+        </div>
+      </section>
+
       <section class="gallery-panel ps-stack" aria-labelledby="foundation-heading">
         <div><p class="ps-eyebrow">Foundation values</p><h2 id="foundation-heading">Rhythm, shape and behaviour</h2></div>
         <div class="gallery-foundation-grid">

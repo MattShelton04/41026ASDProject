@@ -1,5 +1,5 @@
 export { append, el } from "./browser/index.js";
-import { append, el } from "./browser/index.js";
+import { append, createTableRegion, el } from "./browser/index.js?v=2";
 
 export function humanise(value) {
   if (value === null || value === undefined || value === "") return "Unknown";
@@ -67,18 +67,21 @@ export function link(label, href, className = "") {
 }
 
 export function table(headers, rows, rowRenderer, captionText = "") {
-  const scroller = el("div", "dashboard-table-wrap");
   const tableNode = el("table", "dashboard-table");
-  if (captionText) append(tableNode, el("caption", "ps-sr-only", captionText));
+  const tableLabel = captionText || "Data results";
+  append(tableNode, el("caption", "ps-sr-only", tableLabel));
   const head = el("thead");
   const headRow = el("tr");
-  for (const header of headers) append(headRow, el("th", "", header));
+  for (const header of headers) {
+    const heading = el("th", "", header);
+    heading.scope = "col";
+    append(headRow, heading);
+  }
   append(head, headRow);
   const body = el("tbody");
   for (const row of rows) append(body, rowRenderer(row));
   append(tableNode, head, body);
-  append(scroller, tableNode);
-  return scroller;
+  return createTableRegion(tableNode, tableLabel, { className: "dashboard-table-wrap" });
 }
 
 export function cell(content, className = "") {

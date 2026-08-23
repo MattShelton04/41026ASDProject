@@ -37,10 +37,25 @@
   transition: transform var(--ps-duration) var(--ps-ease), border-color var(--ps-duration), box-shadow var(--ps-duration), background var(--ps-duration);
 }
 .ps-button:hover { border-color: var(--ps-ocean-500); box-shadow: var(--ps-shadow-sm); transform: translateY(-1px); }
+.ps-button:active { transform: translateY(0); box-shadow: var(--ps-shadow-xs); }
 .ps-button--primary { border-color: var(--ps-color-accent); background: var(--ps-color-accent); color: var(--ps-color-inverse); }
 .ps-button--primary:hover { border-color: var(--ps-color-accent-hover); background: var(--ps-color-accent-hover); }
+.ps-button--danger { border-color: var(--ps-color-danger); background: var(--ps-color-danger); color: var(--ps-color-inverse); }
+.ps-button--danger:hover { filter: brightness(.88); }
+.ps-button--small { min-height: var(--ps-control-height-compact); padding: var(--ps-space-1) var(--ps-space-3); font-size: var(--ps-text-caption); }
 .ps-button--quiet { border-color: transparent; background: transparent; box-shadow: none; }
 .ps-button[aria-disabled="true"], .ps-button:disabled { border-color: var(--ps-color-disabled-border); background: var(--ps-color-disabled-surface); color: var(--ps-color-disabled-text); cursor: not-allowed; transform: none; box-shadow: none; }
+.ps-button[aria-busy="true"] { min-width: var(--ps-button-pending-width, auto); cursor: wait; }
+
+.ps-table-region {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+.ps-table-region:focus-visible { outline: var(--ps-focus-outline); outline-offset: calc(-1 * var(--ps-focus-offset)); }
+.ps-table-scroll-hint { display: none; }
 
 .ps-badge {
   display: inline-flex;
@@ -121,4 +136,14 @@
 
 @media (max-width: 860px) {
   .ps-grid-2, .ps-grid-3 { grid-template-columns: 1fr; }
+  .ps-table-scroll-hint {
+    position: sticky;
+    left: 0;
+    display: block;
+    width: max-content;
+    margin: 0;
+    padding: var(--ps-space-2) var(--ps-space-3);
+    color: var(--ps-color-text-muted);
+    font-size: var(--ps-text-caption);
+  }
 }

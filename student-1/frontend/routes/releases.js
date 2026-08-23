@@ -28,7 +28,7 @@ function hasBlockingFailures(results) {
 }
 
 export function createReleaseRoutes({
-  view, request, loading, entityDialog, entityForm, confirmAction, mutate, showToast, rerender,
+  view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, rerender,
 }) {
   async function openReleaseDialog(item = null) {
     document.querySelector("#entity-kicker").textContent = "Dataset release";
@@ -47,6 +47,7 @@ export function createReleaseRoutes({
       acceptedValue: "save",
       progressLabel: item ? "Saving metadata…" : "Creating draft…",
       discardMessage: "Discard your unsaved draft release changes?",
+      confirmDiscard,
       onSubmit: async () => {
         const data = Object.fromEntries(new FormData(entityForm));
         data.coverage = parseJsonField(data.coverage, "Coverage evidence", "coverage");

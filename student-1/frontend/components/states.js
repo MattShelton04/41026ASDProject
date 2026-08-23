@@ -3,6 +3,8 @@ import { append, button, el } from "../core/dom.js";
 export function renderLoading(view, title = "Loading evidence") {
   view.replaceChildren();
   const section = el("section", "loading-state");
+  section.setAttribute("role", "status");
+  section.setAttribute("aria-live", "polite");
   const box = el("div");
   const spinner = el("div", "spinner");
   spinner.setAttribute("aria-hidden", "true");
@@ -13,6 +15,7 @@ export function renderLoading(view, title = "Loading evidence") {
 
 export function emptyState(title, message, action = null) {
   const section = el("section", "empty-state");
+  section.setAttribute("role", "status");
   const box = el("div");
   append(box, el("span", "state-icon", "◇"), el("h2", "", title), el("p", "", message));
   if (action) { action.style.marginTop = ".8rem"; append(box, action); }
@@ -22,6 +25,7 @@ export function emptyState(title, message, action = null) {
 
 export function errorState(error, retry) {
   const section = el("section", "error-state");
+  section.setAttribute("role", "alert");
   const box = el("div");
   append(box, el("span", "state-icon", "!"), el("h2", "", error.status === 503 ? "Service temporarily unavailable" : "We couldn’t load this view"), el("p", "", error.message));
   if (error.requestId) append(box, el("code", "request-id", `Request ID: ${error.requestId}`));

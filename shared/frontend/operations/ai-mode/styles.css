@@ -23,6 +23,8 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body { margin: 0; overflow: hidden; background: var(--bg); color: var(--text); font-size: 14px; }
+.inline-feedback { position: fixed; z-index: var(--ps-z-toast); right: var(--ps-page-gutter); bottom: var(--ps-page-gutter); max-width: min(26rem, calc(100% - 2rem)); margin: 0; padding: var(--ps-space-3) var(--ps-space-4); border: 1px solid var(--ps-color-border-strong); border-radius: var(--ps-radius-md); background: var(--ps-color-text-strong); color: var(--ps-color-inverse); box-shadow: var(--ps-shadow-lg); font-size: var(--ps-text-label); }
+.inline-feedback[data-tone="error"] { border-color: var(--ps-color-danger); }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible,

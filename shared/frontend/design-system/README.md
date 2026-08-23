@@ -22,10 +22,11 @@ shared primitives, but should not redefine token values locally.
 - `--ps-*` custom properties in `tokens.css`
 - `.ps-container`, `.ps-cluster`, `.ps-stack`, `.ps-grid*`
 - `.ps-density--compact` and `.ps-density--comfortable`
-- `.ps-button` and its documented modifiers
+- `.ps-button` with primary, danger, quiet, small, disabled and busy states
 - `.ps-badge` and evidence/release modifiers
 - `.ps-card` and card elements
 - `.ps-input-shell`, `.ps-status-list`, `.ps-toast`
+- `.ps-table-region` and `.ps-table-scroll-hint` for named, contained horizontal table scrolling
 - `.ps-sr-only` and `.ps-skip-link`
 
 Classes without the `ps-` prefix remain private to a page or feature.
@@ -75,6 +76,11 @@ Domain-neutral JavaScript is a separate public surface. Import DOM helpers from
 `browser/index.js` and mapping behavior from `mapping/index.js`; do not deep-import files beside
 those barrels. A feature-specific shell projection belongs in that feature's frontend integration
 directory, not in this design-system package.
+
+The browser barrel also exposes the small interaction helpers used by real call sites: mobile
+drawer focus containment, replacing status toasts and named table-scroll regions. Native dialogs
+retain platform focus trapping; Feature 1 owns its form-specific dirty-state
+and mutation lifecycle.
 
 ## Accessibility baseline
 

@@ -17,8 +17,10 @@ export function createPropertyRoutes({ view, request, announce }) {
     const form = el("form", "search-box");
     form.setAttribute("role", "search");
     const searchField = el("label", "search-field");
+    searchField.htmlFor = "property-search-query";
     append(searchField, el("span", "", "NSW street address (required)"));
     const input = el("input");
+    input.id = "property-search-query";
     input.type = "search";
     input.name = "q";
     input.placeholder = "Try 11 Example Street, Sydney NSW 2000";
