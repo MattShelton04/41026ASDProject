@@ -27,6 +27,7 @@ button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible,
 summary:focus-visible, a:focus-visible { outline: var(--ps-focus-outline); outline-offset: var(--ps-focus-offset); }
+.topbar button:focus-visible, .topbar a:focus-visible { outline: var(--ps-focus-outline-inverse); }
 button:disabled { cursor: default; opacity: .55; }
 h1, h2, h3, h4, h5, p { overflow-wrap: anywhere; }
 

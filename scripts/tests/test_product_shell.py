@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from shared_contracts.feature import load_feature_manifest
@@ -11,6 +12,26 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 def _read(relative_path: str) -> str:
     return (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def _token_rgb(tokens: str, name: str) -> tuple[int, int, int]:
+    match = re.search(rf"{re.escape(name)}:\s*#(?P<hex>[0-9a-fA-F]{{6}})", tokens)
+    assert match, f"missing six-digit colour token {name}"
+    value = match.group("hex")
+    return tuple(int(value[index : index + 2], 16) for index in (0, 2, 4))  # type: ignore[return-value]
+
+
+def _contrast(first: tuple[int, int, int], second: tuple[int, int, int]) -> float:
+    def luminance(colour: tuple[int, int, int]) -> float:
+        channels = [value / 255 for value in colour]
+        linear = [
+            value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+            for value in channels
+        ]
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    lighter, darker = sorted((luminance(first), luminance(second)), reverse=True)
+    return (lighter + 0.05) / (darker + 0.05)
 
 
 def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
@@ -132,6 +153,7 @@ def test_design_foundation_gallery_renders_public_tokens_and_layouts() -> None:
         "--ps-color-surface-elevated",
         "--ps-color-text-muted",
         "--ps-color-focus",
+        "--ps-color-focus-inverse",
         "--ps-color-success",
         "--ps-color-warning",
         "--ps-color-danger",
@@ -139,25 +161,54 @@ def test_design_foundation_gallery_renders_public_tokens_and_layouts() -> None:
         "--ps-control-height-compact",
         "--ps-control-height-comfortable",
         "--ps-page-gutter",
+        "--ps-radius-lg",
+        "--ps-border-width-strong",
+        "--ps-shadow-md",
+        "--ps-content-readable",
+        "--ps-motion-normal",
         "--ps-z-drawer",
         "--ps-z-toast",
     ):
         assert token in tokens
 
-    for primitive in (
+    for primitive in (".ps-container", ".ps-cluster", ".ps-stack", ".ps-grid"):
+        assert primitive in components
+    for deferred in (
         ".ps-page-container",
         ".ps-inline",
         ".ps-responsive-grid",
         ".ps-section",
         ".ps-toolbar",
     ):
-        assert primitive in components
+        assert deferred not in components
 
     assert "ps-density--comfortable" in gallery
     assert "ps-density--compact" in gallery
+    for category in (
+        "Spacing",
+        "Radii, borders and elevation",
+        "Widths and gutter",
+        "Motion and reduced motion",
+        "Layer order",
+    ):
+        assert category in gallery
     assert (
         'view.dataset.density = route === "properties" ? "comfortable" : "compact"' in feature_app
     )
+
+
+def test_dark_headers_use_a_contrasting_inverse_focus_ring() -> None:
+    tokens = _read("shared/frontend/design-system/tokens.css")
+    shared_styles = _read("shared/frontend/styles.css")
+    feature_styles = _read("student-1/frontend/styles.css")
+    activity_styles = _read("shared/frontend/operations/ai-mode/styles.css")
+
+    assert "--ps-color-focus-inverse: var(--ps-ocean-200)" in tokens
+    assert "--ps-focus-outline-inverse: 3px solid var(--ps-color-focus-inverse)" in tokens
+    assert _contrast(_token_rgb(tokens, "--ps-ocean-200"), _token_rgb(tokens, "--ps-ink-950")) >= 3
+    for stylesheet in (shared_styles, feature_styles, activity_styles):
+        assert ".topbar" in stylesheet
+        assert "outline: var(--ps-focus-outline-inverse)" in stylesheet
 
 
 def test_production_styles_do_not_use_transition_all() -> None:

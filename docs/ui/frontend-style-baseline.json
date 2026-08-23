@@ -4,7 +4,6 @@
   "entries": [
     {"path":"shared/frontend/design-system/base.css","kind":"off-scale-spacing","property":"margin","value":"-1px","count":1},
     {"path":"shared/frontend/design-system/base.css","kind":"off-scale-spacing","property":"padding","value":".7rem","count":1},
-    {"path":"shared/frontend/design-system/base.css","kind":"raw-colour","property":"","value":"rgba(114, 196, 193, 0.18)","count":1},
     {"path":"shared/frontend/design-system/components.css","kind":"off-scale-spacing","property":"gap","value":".36rem","count":1},
     {"path":"shared/frontend/design-system/components.css","kind":"off-scale-spacing","property":"gap","value":".48rem","count":1},
     {"path":"shared/frontend/design-system/components.css","kind":"off-scale-spacing","property":"gap","value":".62rem","count":1},
@@ -24,6 +23,7 @@
     {"path":"shared/frontend/design-system/components.css","kind":"raw-colour","property":"","value":"rgba(255, 255, 255, .92)","count":1},
     {"path":"shared/frontend/design-system/components.css","kind":"raw-colour","property":"","value":"rgba(39, 95, 137, .2)","count":1},
     {"path":"shared/frontend/design-system/components.css","kind":"raw-colour","property":"","value":"rgba(8, 109, 112, .2)","count":1},
+    {"path":"shared/frontend/design-system/components.css","kind":"raw-colour","property":"","value":"white","count":1},
     {"path":"shared/frontend/mapping/mapping.css","kind":"off-scale-spacing","property":"gap","value":".2rem","count":1},
     {"path":"shared/frontend/mapping/mapping.css","kind":"off-scale-spacing","property":"gap","value":".45rem","count":1},
     {"path":"shared/frontend/mapping/mapping.css","kind":"off-scale-spacing","property":"gap","value":".4rem","count":1},
@@ -106,9 +106,11 @@
     {"path":"shared/frontend/operations/ai-mode/styles.css","kind":"off-scale-spacing","property":"padding-top","value":".6rem","count":1},
     {"path":"shared/frontend/operations/ai-mode/styles.css","kind":"raw-colour","property":"","value":"#050a09","count":1},
     {"path":"shared/frontend/operations/ai-mode/styles.css","kind":"raw-colour","property":"","value":"#bdd6ce","count":1},
+    {"path":"shared/frontend/operations/ai-mode/styles.css","kind":"raw-colour","property":"","value":"color-mix(in srgb, var(--surface)","count":1},
     {"path":"shared/frontend/operations/ai-mode/styles.css","kind":"raw-colour","property":"","value":"rgb(145 215 210 / 48%)","count":1},
     {"path":"shared/frontend/operations/ai-mode/styles.css","kind":"raw-colour","property":"","value":"rgb(21 80 84 / 72%)","count":1},
     {"path":"shared/frontend/operations/ai-mode/styles.css","kind":"raw-colour","property":"","value":"rgb(27 98 100 / 88%)","count":1},
+    {"path":"shared/frontend/operations/ai-mode/styles.css","kind":"raw-colour","property":"","value":"white","count":3},
     {"path":"shared/frontend/styles.css","kind":"off-scale-spacing","property":"gap","value":".12rem","count":2},
     {"path":"shared/frontend/styles.css","kind":"off-scale-spacing","property":"gap","value":".13rem","count":1},
     {"path":"shared/frontend/styles.css","kind":"off-scale-spacing","property":"gap","value":".2rem","count":2},
@@ -228,6 +230,7 @@
     {"path":"shared/frontend/styles.css","kind":"raw-colour","property":"","value":"rgba(8, 109, 112, .2)","count":1},
     {"path":"shared/frontend/styles.css","kind":"raw-colour","property":"","value":"rgba(8, 109, 112, .32)","count":1},
     {"path":"shared/frontend/styles.css","kind":"raw-colour","property":"","value":"rgba(8, 109, 112, .45)","count":1},
+    {"path":"shared/frontend/styles.css","kind":"raw-colour","property":"","value":"white","count":18},
     {"path":"student-1/frontend/styles.css","kind":"off-scale-spacing","property":"gap","value":".12rem","count":1},
     {"path":"student-1/frontend/styles.css","kind":"off-scale-spacing","property":"gap","value":".2rem","count":1},
     {"path":"student-1/frontend/styles.css","kind":"off-scale-spacing","property":"gap","value":".32rem","count":1},
@@ -321,6 +324,7 @@
     {"path":"student-1/frontend/styles.css","kind":"raw-colour","property":"","value":"rgb(255 255 255 / 16%)","count":1},
     {"path":"student-1/frontend/styles.css","kind":"raw-colour","property":"","value":"rgb(255 255 255 / 3%)","count":1},
     {"path":"student-1/frontend/styles.css","kind":"raw-colour","property":"","value":"rgb(255 255 255 / 4%)","count":1},
-    {"path":"student-1/frontend/styles.css","kind":"raw-colour","property":"","value":"rgb(255 255 255 / 76%)","count":1}
+    {"path":"student-1/frontend/styles.css","kind":"raw-colour","property":"","value":"rgb(255 255 255 / 76%)","count":1},
+    {"path":"student-1/frontend/styles.css","kind":"raw-colour","property":"","value":"white","count":10}
   ]
 }

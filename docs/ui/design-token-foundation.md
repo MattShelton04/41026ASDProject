@@ -29,23 +29,22 @@ scrolling rather than being mechanically cardified.
 
 ## Layout primitives
 
-The dependency-free CSS public surface now includes:
+The dependency-free CSS public surface remains intentionally small:
 
-- `ps-page-container` with standard, wide and readable modifiers;
-- `ps-stack` with small/default/large rhythm;
-- `ps-inline` / `ps-cluster` and a between modifier;
-- `ps-responsive-grid` plus the existing explicit two/three-column grids;
-- `ps-section` and `ps-toolbar`; and
+- `ps-container` for the shared content width and responsive gutter;
+- the existing `ps-stack`, `ps-cluster` and explicit `ps-grid-*` helpers; and
 - `ps-sr-only`, the existing visually-hidden primitive.
 
-These are composition helpers, not screen components. Feature-specific table columns, map geometry,
-workflow panels and property language stay in Feature 1.
+No gallery-only layout API was added. A new domain-neutral helper should wait until real production
+call sites need it. Feature-specific table columns, map geometry, workflow panels and property
+language stay in Feature 1.
 
 ## Reference and validation
 
 Serve the repository through its normal fixture or Shared host, then open
-`/design-system/gallery.html`. The page renders semantic colours, type roles, both density profiles,
-layout primitives and control states without a backend.
+`/design-system/gallery.html`. The page renders semantic colours, type roles, spacing, shape,
+elevation, widths/gutter, motion/reduced-motion guidance, layers, both density profiles, the retained
+layout helpers and control states without a backend.
 
 Run the lightweight source gate with:
 
@@ -54,10 +53,12 @@ uv run python scripts/validate_frontend_styles.py
 ```
 
 The checked-in `frontend-style-baseline.json` contains repository-relative reviewed exceptions.
-The current bounded migration leaves 80 raw-colour occurrences and 403 off-scale spacing
-occurrences across non-vendored production CSS. New occurrences fail the gate. A genuinely local
-exception needs an inline `style-check: allow(reason)` comment with a concrete reason; intentional
-baseline review is explicit through `--write-baseline`.
+The baseline records 112 reviewed raw-colour and 403 reviewed off-scale-spacing occurrences across
+non-vendored production CSS. Raw colours include hex, RGB/HSL, modern colour functions and CSS
+named colours; semantic keywords such as `currentColor`, `inherit` and `transparent` remain valid.
+New occurrences fail the gate. A genuinely local exception needs an inline
+`style-check: allow(reason)` comment with a concrete reason; intentional baseline review is explicit
+through `--write-baseline`.
 
 ## Intentional visual changes and deferred local values
 
@@ -66,6 +67,8 @@ baseline review is explicit through `--write-baseline`.
 - Shared and Feature 1 page padding now resolve through one responsive gutter. Existing content
   width and laptop composition remain otherwise stable.
 - Drawer, dialog, toast and skip-link layers now use named ordering rather than unrelated numbers.
+- Dark headers use a separate high-contrast inverse focus ring; the ordinary teal ring remains on
+  light surfaces.
 - Shared shadows, neutral tables, form borders and feedback surfaces consume semantic roles.
 
 Raw values remain where they describe local artwork or geometry rather than a reusable decision:

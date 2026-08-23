@@ -93,6 +93,7 @@
   --ps-color-border: var(--ps-line);
   --ps-color-border-strong: var(--ps-line-strong);
   --ps-color-focus: var(--ps-ocean-800);
+  --ps-color-focus-inverse: var(--ps-ocean-200);
   --ps-color-accent: var(--ps-ocean-700);
   --ps-color-accent-hover: var(--ps-ocean-800);
   --ps-color-success: var(--ps-confirmed);
@@ -172,6 +173,7 @@
   --ps-ease-exit: cubic-bezier(.4, 0, 1, 1);
   --ps-ease: var(--ps-ease-standard);
   --ps-focus-outline: 3px solid var(--ps-color-focus);
+  --ps-focus-outline-inverse: 3px solid var(--ps-color-focus-inverse);
   --ps-focus-offset: 2px;
   --ps-z-shell: 20;
   --ps-z-sticky: 30;

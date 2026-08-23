@@ -7,8 +7,8 @@ All notable changes to the shared PropertyScope frontend design system are recor
 - Added semantic colour and typography roles over the existing palette and type scales.
 - Added compact/comfortable density, responsive gutters/content widths, border, motion and named
   overlay-layer tokens.
-- Expanded the CSS layout surface with page-container, inline, responsive-grid, section and toolbar
-  primitives.
+- Normalised the existing container, cluster, stack and grid helpers without adding gallery-only
+  layout primitives.
 - Added a backend-free design-foundation gallery and a checked-in raw-colour/off-scale-spacing gate.
 - Migrated Shared, Feature 1 and AI activity call sites in a bounded pass without rewriting local
   table, map or decorative geometry.

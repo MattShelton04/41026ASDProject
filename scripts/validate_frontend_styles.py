@@ -7,7 +7,7 @@ import json
 import re
 from collections import Counter
 from collections.abc import Iterable
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = REPOSITORY_ROOT / "docs" / "ui" / "frontend-style-baseline.json"
@@ -17,8 +17,33 @@ STYLE_ROOTS = (
 )
 EXCLUDED_PARTS = {"vendor"}
 EXCLUDED_FILES = {Path("shared/frontend/design-system/tokens.css")}
+CSS_DECLARATION = re.compile(r"(?P<property>--?[\w-]+|[\w-]+)\s*:\s*(?P<value>[^;{}]+)(?:;|$)")
 RAW_COLOUR = re.compile(
-    r"#[0-9a-fA-F]{3,8}\b|(?:rgb|rgba|hsl|hsla)\([^)]*\)",
+    r"#[0-9a-fA-F]{3,8}\b|(?:rgb|rgba|hsl|hsla|oklab|oklch|lab|lch|color|color-mix)\([^)]*\)",
+)
+COLOUR_WORD = re.compile(r"\b[a-zA-Z]+\b")
+NON_LITERAL_VALUE = re.compile(r"(?:var|url)\([^)]*\)|(['\"]).*?\1", re.IGNORECASE)
+CSS_NAMED_COLOURS = frozenset(
+    """
+    aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond
+    blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue
+    cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey
+    darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon
+    darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet
+    deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen
+    fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew
+    hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon
+    lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey
+    lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey
+    lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine
+    mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen
+    mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite
+    navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen
+    paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple
+    rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell
+    sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal
+    thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen
+    """.split()  # noqa: SIM905 - the canonical keyword list is easier to audit in CSS order
 )
 SPACING_DECLARATION = re.compile(
     r"(?P<property>(?:margin|padding|gap|row-gap|column-gap)(?:-(?:top|right|bottom|left|inline|block))?)\s*:\s*(?P<value>[^;{}]+)",
@@ -59,8 +84,32 @@ def collect_findings(paths: Iterable[Path], root: Path = REPOSITORY_ROOT) -> Cou
             justification = JUSTIFICATION.search(line)
             if justification and len(justification.group("reason").strip()) >= 8:
                 continue
-            for match in RAW_COLOUR.finditer(line):
-                findings[(relative, "raw-colour", "", match.group(0).lower())] += 1
+            for declaration in CSS_DECLARATION.finditer(line):
+                property_name = declaration.group("property").lower()
+                value = declaration.group("value")
+                for match in RAW_COLOUR.finditer(value):
+                    findings[(relative, "raw-colour", "", match.group(0).lower())] += 1
+                colour_context = property_name.startswith("--") or any(
+                    part in property_name
+                    for part in (
+                        "color",
+                        "background",
+                        "border",
+                        "shadow",
+                        "fill",
+                        "stroke",
+                        "outline",
+                        "caret",
+                        "accent",
+                        "decoration",
+                    )
+                )
+                if colour_context:
+                    literal_value = NON_LITERAL_VALUE.sub("", value)
+                    for match in COLOUR_WORD.finditer(literal_value):
+                        colour = match.group(0).lower()
+                        if colour in CSS_NAMED_COLOURS:
+                            findings[(relative, "raw-colour", "", colour)] += 1
             for declaration in SPACING_DECLARATION.finditer(line):
                 property_name = declaration.group("property")
                 for dimension in DIMENSION.finditer(declaration.group("value")):
@@ -110,9 +159,20 @@ def deserialize(payload: object) -> Counter[Finding]:
         property_name = entry.get("property")
         value = entry.get("value")
         count = entry.get("count")
+        posix_path = PurePosixPath(path) if isinstance(path, str) else None
+        windows_path = PureWindowsPath(path) if isinstance(path, str) else None
+        non_portable_path = (
+            posix_path is None
+            or windows_path is None
+            or posix_path.is_absolute()
+            or windows_path.is_absolute()
+            or bool(windows_path.drive)
+            or ".." in posix_path.parts
+            or ".." in windows_path.parts
+        )
         if (
             not isinstance(path, str)
-            or Path(path).is_absolute()
+            or non_portable_path
             or kind not in {"raw-colour", "off-scale-spacing"}
             or not isinstance(property_name, str)
             or not isinstance(value, str)

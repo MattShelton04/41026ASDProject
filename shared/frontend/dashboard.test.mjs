@@ -146,7 +146,9 @@ test("design tokens expose shared type, control, focus and layering contracts", 
     assert.match(tokens, new RegExp(`${token}:`));
   }
   assert.match(tokens, /--ps-color-focus: var\(--ps-ocean-800\)/);
+  assert.match(tokens, /--ps-color-focus-inverse: var\(--ps-ocean-200\)/);
   assert.match(tokens, /--ps-focus-outline: 3px solid var\(--ps-color-focus\)/);
+  assert.match(tokens, /--ps-focus-outline-inverse: 3px solid var\(--ps-color-focus-inverse\)/);
   assert.doesNotMatch(tokens, /--ps-focus-outline:[^;]*rgba/);
 });
 

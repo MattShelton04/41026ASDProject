@@ -39,6 +39,7 @@
 .topbar__nav a[aria-current="page"] { color: var(--ps-color-inverse); background: var(--ps-color-inverse-hover); }
 .nav-toggle { display: none; width: var(--ps-control-height-comfortable); height: var(--ps-control-height-comfortable); place-items: center; border: var(--ps-border-width) solid var(--ps-color-inverse-border); border-radius: var(--ps-radius-md); background: transparent; color: var(--ps-color-inverse); }
 .nav-toggle svg { width: 22px; height: 22px; }
+.topbar a:focus-visible, .topbar button:focus-visible { outline: var(--ps-focus-outline-inverse); }
 
 .hero { padding: clamp(4rem, 9vw, 7.7rem) 0 clamp(3.2rem, 7vw, 6rem); }
 .hero__layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(310px, .72fr); align-items: center; gap: clamp(2rem, 7vw, 6rem); }

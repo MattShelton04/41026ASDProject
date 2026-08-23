@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from scripts.validate_frontend_styles import (
     collect_findings,
     deserialize,
@@ -61,12 +62,43 @@ def test_four_pixel_spacing_and_explicit_justifications_do_not_need_exceptions(
     assert not collect_findings([stylesheet], root=root)
 
 
-def test_absolute_baseline_paths_are_rejected() -> None:
+def test_named_and_modern_css_colours_need_review(tmp_path: Path) -> None:
+    root = tmp_path / "repository"
+    stylesheet = root / "shared" / "frontend" / "modern.css"
+    stylesheet.parent.mkdir(parents=True)
+    stylesheet.write_text(
+        ".modern { color: oklch(70% .1 180); background: color(display-p3 0 1 0); "
+        "border-color: white; outline-color: currentColor; caret-color: transparent; "
+        "box-shadow: 0 0 var(--red); }\n",
+        encoding="utf-8",
+    )
+
+    findings = collect_findings([stylesheet], root=root)
+
+    assert findings[("shared/frontend/modern.css", "raw-colour", "", "oklch(70% .1 180)")] == 1
+    assert (
+        findings[("shared/frontend/modern.css", "raw-colour", "", "color(display-p3 0 1 0)")] == 1
+    )
+    assert findings[("shared/frontend/modern.css", "raw-colour", "", "white")] == 1
+    assert not any(value in {"currentcolor", "transparent", "red"} for *_, value in findings)
+
+
+@pytest.mark.parametrize(
+    "unsafe_path",
+    (
+        "C:/Users/example/styles.css",
+        "C:\\Users\\example\\styles.css",
+        "/tmp/styles.css",
+        "../styles.css",
+        "shared/frontend/../styles.css",
+    ),
+)
+def test_absolute_and_traversal_baseline_paths_are_rejected(unsafe_path: str) -> None:
     payload = {
         "schemaVersion": 1,
         "entries": [
             {
-                "path": "C:/Users/example/styles.css",
+                "path": unsafe_path,
                 "kind": "raw-colour",
                 "property": "",
                 "value": "#fff",
@@ -75,9 +107,5 @@ def test_absolute_baseline_paths_are_rejected() -> None:
         ],
     }
 
-    try:
+    with pytest.raises(ValueError, match="absolute-path"):
         deserialize(payload)
-    except ValueError as error:
-        assert "absolute-path" in str(error)
-    else:
-        raise AssertionError("absolute baseline path should be rejected")

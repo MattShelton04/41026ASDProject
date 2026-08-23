@@ -13,13 +13,13 @@
   <body>
     <a class="ps-skip-link" href="#gallery-main">Skip to gallery</a>
     <header class="gallery-header">
-      <div class="ps-page-container ps-stack--small">
+      <div class="ps-container ps-stack">
         <p class="ps-eyebrow">Development reference</p>
         <h1>Design foundation</h1>
         <p>Domain-neutral semantic tokens and layout primitives shared by the product shell, Property Discovery and Data Operations.</p>
       </div>
     </header>
-    <main class="ps-page-container ps-stack--large gallery-main" id="gallery-main">
+    <main class="ps-container ps-stack gallery-main" id="gallery-main">
       <section class="ps-stack" aria-labelledby="colour-heading">
         <div><p class="ps-eyebrow">Semantic roles</p><h2 id="colour-heading">Colour</h2></div>
         <div class="gallery-swatches">
@@ -30,6 +30,7 @@
           <article class="gallery-swatch swatch-muted"><span></span><strong>Muted text</strong><code>--ps-color-text-muted</code></article>
           <article class="gallery-swatch swatch-border"><span></span><strong>Border</strong><code>--ps-color-border</code></article>
           <article class="gallery-swatch swatch-focus"><span></span><strong>Focus</strong><code>--ps-color-focus</code></article>
+          <article class="gallery-swatch swatch-focus-inverse"><span></span><strong>Focus on dark</strong><code>--ps-color-focus-inverse</code></article>
           <article class="gallery-swatch swatch-accent"><span></span><strong>Accent</strong><code>--ps-color-accent</code></article>
           <article class="gallery-swatch swatch-success"><span></span><strong>Success</strong><code>--ps-color-success</code></article>
           <article class="gallery-swatch swatch-warning"><span></span><strong>Warning</strong><code>--ps-color-warning</code></article>
@@ -46,21 +47,32 @@
       <section class="ps-stack" aria-labelledby="density-heading">
         <div><p class="ps-eyebrow">Shared geometry, distinct contexts</p><h2 id="density-heading">Density</h2></div>
         <div class="ps-grid ps-grid-2">
-          <article class="gallery-panel ps-density--comfortable ps-stack"><h3>Discovery · comfortable</h3><label>Property search<input value="11 Example Street, Sydney NSW"></label><div class="ps-inline"><button class="ps-button ps-button--primary" type="button">Search property data</button><button class="ps-button" type="button">Clear</button></div></article>
-          <article class="gallery-panel ps-density--compact ps-stack"><h3>Operations · compact</h3><label>Update status<select><option>Needs review</option></select></label><div class="ps-inline"><button class="ps-button ps-button--primary" type="button">Apply filters</button><button class="ps-button" type="button">Reset</button></div></article>
+          <article class="gallery-panel ps-density--comfortable ps-stack"><h3>Discovery · comfortable</h3><label>Property search<input value="11 Example Street, Sydney NSW"></label><div class="ps-cluster"><button class="ps-button ps-button--primary" type="button">Search property data</button><button class="ps-button" type="button">Clear</button></div></article>
+          <article class="gallery-panel ps-density--compact ps-stack"><h3>Operations · compact</h3><label>Update status<select><option>Needs review</option></select></label><div class="ps-cluster"><button class="ps-button ps-button--primary" type="button">Apply filters</button><button class="ps-button" type="button">Reset</button></div></article>
         </div>
       </section>
 
       <section class="gallery-panel ps-stack" aria-labelledby="layout-heading">
-        <div><p class="ps-eyebrow">Composition primitives</p><h2 id="layout-heading">Layout</h2></div>
-        <div class="ps-toolbar"><strong>Toolbar distributes context and actions</strong><div class="ps-inline"><button class="ps-button" type="button">Secondary</button><button class="ps-button ps-button--primary" type="button">Primary</button></div></div>
-        <div class="ps-responsive-grid"><article class="ps-card"><div class="ps-card__body"><h3>Responsive grid</h3><p>Cards wrap from available space without page-specific breakpoints.</p></div></article><article class="ps-card"><div class="ps-card__body"><h3>Stack</h3><p>Vertical rhythm comes from the shared four-pixel spacing scale.</p></div></article><article class="ps-card"><div class="ps-card__body"><h3>Inline cluster</h3><p>Actions wrap while preserving their intended relationship.</p></div></article></div>
+        <div><p class="ps-eyebrow">Existing composition helpers</p><h2 id="layout-heading">Layout</h2></div>
+        <div class="ps-grid ps-grid-3"><article class="ps-card"><div class="ps-card__body"><h3>Grid</h3><p>Explicit columns collapse at the existing shared breakpoint.</p></div></article><article class="ps-card"><div class="ps-card__body"><h3>Stack</h3><p>Vertical rhythm comes from the shared four-pixel spacing scale.</p></div></article><article class="ps-card"><div class="ps-card__body"><h3>Cluster</h3><p>Related actions wrap while preserving their relationship.</p></div></article></div>
+        <div class="ps-cluster"><button class="ps-button" type="button">Secondary</button><button class="ps-button ps-button--primary" type="button">Primary</button></div>
+      </section>
+
+      <section class="gallery-panel ps-stack" aria-labelledby="foundation-heading">
+        <div><p class="ps-eyebrow">Foundation values</p><h2 id="foundation-heading">Rhythm, shape and behaviour</h2></div>
+        <div class="gallery-foundation-grid">
+          <article class="ps-stack"><h3>Spacing</h3><div class="gallery-spacing"><span class="space-1"></span><code>4</code><span class="space-2"></span><code>8</code><span class="space-4"></span><code>16</code><span class="space-6"></span><code>24</code><span class="space-8"></span><code>32px</code></div></article>
+          <article class="ps-stack"><h3>Radii, borders and elevation</h3><div class="gallery-shapes"><span class="shape-small">Small</span><span class="shape-medium">Medium</span><span class="shape-large">Large</span></div></article>
+          <article class="ps-stack"><h3>Widths and gutter</h3><div class="gallery-widths"><span class="width-readable">Readable · 760px</span><span class="width-standard">Content · 1240px</span><span class="width-wide">Wide · 1460px</span></div><code>Gutter: 16–32px responsive</code></article>
+          <article class="ps-stack"><h3>Motion and reduced motion</h3><div class="gallery-motion-sample"><span aria-hidden="true"></span><strong>100 / 160 / 240ms</strong></div><p>Hover the sample. The base stylesheet reduces transitions and smooth scrolling when the user requests reduced motion.</p></article>
+          <article class="ps-stack"><h3>Layer order</h3><div class="gallery-layers" aria-label="Representative layer stack"><span class="layer-shell">Shell · 20</span><span class="layer-drawer">Drawer · 60</span><span class="layer-dialog">Dialog · 70</span><span class="layer-toast">Toast · 80</span></div></article>
+        </div>
       </section>
 
       <section class="gallery-panel ps-stack" aria-labelledby="state-heading">
         <div><p class="ps-eyebrow">Visible interaction contract</p><h2 id="state-heading">States and layers</h2></div>
-        <div class="ps-inline"><span class="ps-badge ps-badge--confirmed">Confirmed</span><span class="ps-badge ps-badge--partial">Partial</span><span class="ps-badge ps-badge--info">Information</span><span class="ps-badge ps-badge--planned">Planned</span></div>
-        <div class="ps-inline"><button class="ps-button ps-button--primary" type="button">Default</button><button class="ps-button" type="button" disabled>Disabled</button><a class="ps-button ps-button--quiet" href="#colour-heading">Quiet link</a></div>
+        <div class="ps-cluster"><span class="ps-badge ps-badge--confirmed">Confirmed</span><span class="ps-badge ps-badge--partial">Partial</span><span class="ps-badge ps-badge--info">Information</span><span class="ps-badge ps-badge--planned">Planned</span></div>
+        <div class="ps-cluster"><button class="ps-button ps-button--primary" type="button">Default</button><button class="ps-button" type="button" disabled>Disabled</button><a class="ps-button ps-button--quiet" href="#colour-heading">Quiet link</a></div>
         <p class="gallery-layer-note">Layer order: shell → sticky → dropdown → popover → drawer → dialog → toast → skip link.</p>
       </section>
     </main>
