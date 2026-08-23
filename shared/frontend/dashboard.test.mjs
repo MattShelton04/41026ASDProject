@@ -32,6 +32,7 @@ test("feature registry is the bounded source for shell routes and availability",
 
 test("shared navigation distinguishes global destinations from research-area transitions", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  assert.match(html, /src="app\.js\?v=11"/);
   assert.match(html, /class="area-launcher"/);
   assert.match(html, /Open research area/);
   assert.match(html, /class="rail-area-link"/);
@@ -96,6 +97,7 @@ test("the Feature 1 bridge validates its complete nested contract", async () => 
 
 test("the shell renders before its optional Feature 1 projection loads", () => {
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  assert.match(app, /feature-1-bridge\.js\?v=12/);
   assert.ok(app.indexOf("renderRoute();") < app.indexOf("loadFeature1Bridge({ overrides: externalConfig"));
   assert.doesNotMatch(app, /await\s+loadFeature1Bridge/);
 });
@@ -150,6 +152,8 @@ test("design tokens expose shared type, control, focus and layering contracts", 
 test("AI workload dashboard leads with outcome and bounded recovery evidence", () => {
   const html = readFileSync(new URL("./operations/ai-mode/index.html", import.meta.url), "utf8");
   const app = readFileSync(new URL("./operations/ai-mode/app.js", import.meta.url), "utf8");
+  assert.match(html, /assets\/app\.js\?v=10/);
+  assert.match(app, /assets\/contexts\.js\?v=1/);
   assert.match(html, /AI review result/);
   assert.match(html, /aria-label="PropertyScope navigation"/);
   assert.match(html, /class="research-area-return"/);

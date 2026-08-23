@@ -235,9 +235,10 @@ def _validate_frontend_specifier(
 def _resolve_frontend_target(
     root: Path, source: Path, specifier: str
 ) -> tuple[Path, str | None, str | None]:
-    if specifier.startswith(("http:", "https:", "//")):
+    folded_specifier = specifier.casefold()
+    if folded_specifier.startswith(("http:", "https:", "//")):
         return source, "network", None
-    if specifier.startswith(("data:", "blob:", "node:")):
+    if folded_specifier.startswith(("data:", "blob:", "node:")):
         return source, None, None
     if specifier.startswith("/features/"):
         canonical_parts = specifier.strip("/").split("/")

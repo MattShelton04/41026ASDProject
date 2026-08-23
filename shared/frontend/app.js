@@ -4,7 +4,7 @@ import { createFeaturesRoute } from "./routes/features.js?v=10";
 import { createRoadmapRoute } from "./routes/roadmap.js?v=10";
 import { createStatusRoute } from "./routes/status.js?v=10";
 import { featureRegistry, findFeature } from "./features.js?v=10";
-import { loadFeature1Bridge } from "./feature-1-bridge.js?v=11";
+import { loadFeature1Bridge } from "./feature-1-bridge.js?v=12";
 
 const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const config = { ...externalConfig };
