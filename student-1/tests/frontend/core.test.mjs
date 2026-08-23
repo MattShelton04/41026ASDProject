@@ -672,7 +672,7 @@ test("release CRUD and report-section routes are represented in the browser clie
   assert.match(source, /Create draft version/);
   assert.match(source, /method: item \? "PUT" : "POST"/);
   assert.match(source, /method: "DELETE"/);
-  assert.match(source, /properties\/\$\{encodeURIComponent\(propertyRef\)\}\/report-section/);
+  assert.match(source, /properties\/\$\{encodedRef\}\/report-section/);
   assert.match(source, /New and published versions/);
   assert.match(source, /Data checks/);
   assert.doesNotMatch(source, /Deterministic quality review/);

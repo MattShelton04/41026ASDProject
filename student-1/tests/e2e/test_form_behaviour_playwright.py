@@ -1,4 +1,4 @@
-"""Focused real-browser evidence for every existing Feature 1 form family.
+"""Focused real-browser evidence for Feature 1 forms and Property Discovery.
 
 Run explicitly after installing Chromium:
 
@@ -28,6 +28,7 @@ JOB_ID = "20000000-0000-0000-0000-000000000001"
 RUN_ID = "30000000-0000-0000-0000-000000000001"
 CANDIDATE_ID = "60000000-0000-0000-0000-000000000011"
 REVIEW_ID = "60000000-0000-0000-0000-000000000012"
+PROPERTY_ID = "11111111-1111-4111-8111-111111111111"
 
 
 def _free_port() -> int:
@@ -128,6 +129,162 @@ def _fail_first_write(page: Page, pattern: str, *, method: str = "POST") -> list
 
     page.route(pattern, intercept)
     return writes
+
+
+def _abort_external_map(page: Page) -> None:
+    page.route("**/tiles.openfreemap.org/**", lambda route: route.abort())
+
+
+def test_property_search_keeps_focus_and_accepts_two_sequential_queries(
+    page: Page, fixture_origin: str
+) -> None:
+    requests: list[str] = []
+    page.on(
+        "request",
+        lambda request: (
+            requests.append(request.url) if "/properties/search" in request.url else None
+        ),
+    )
+    page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=slow&test={time.time_ns()}#properties")
+    query = page.get_by_label("NSW street address")
+    search = page.get_by_role("button", name="Search")
+
+    query.fill("11 Example Street, Sydney NSW 2000")
+    search.click()
+    expect(search).to_be_focused()
+    expect(search).to_have_text("Searching…")
+    expect(search).to_have_attribute("aria-disabled", "true")
+    expect(page.get_by_role("link", name="Open 11 Example Street, Sydney NSW 2000")).to_be_visible()
+    expect(search).to_be_focused()
+
+    query.fill("22 Replacement Street, Sydney NSW 2000")
+    query.press("Enter")
+    expect(page.get_by_text("Searching NSW property records…")).to_be_visible()
+    expect(page.get_by_role("link", name="Open 11 Example Street, Sydney NSW 2000")).to_be_visible()
+    expect(page.get_by_text("Searching NSW property records…")).to_have_count(0)
+    page.wait_for_function("() => location.hash.includes('22+Replacement+Street')")
+    assert len(requests) == 2
+    assert (
+        "q=22%20Replacement%20Street" in requests[-1] or "q=22+Replacement+Street" in requests[-1]
+    )
+
+
+def test_property_result_is_a_native_link_and_back_restores_origin(
+    page: Page, fixture_origin: str
+) -> None:
+    _abort_external_map(page)
+    page.set_viewport_size({"width": 1024, "height": 768})
+    query = "11 Example Street"
+    page.goto(
+        f"{fixture_origin}{FEATURE_PATH}?scenario=populated&test={time.time_ns()}"
+        f"#properties?q=11%20Example%20Street"
+    )
+    result = page.get_by_role("link", name="Open 11 Example Street, Sydney NSW 2000")
+    expect(result).to_be_visible()
+    assert result.evaluate("element => element.tagName") == "A"
+    expect(result).to_have_attribute("href", f"#properties/{PROPERTY_ID}?q=11+Example+Street")
+    page.evaluate("window.scrollTo(0, Math.min(180, document.documentElement.scrollHeight))")
+    original_scroll = page.evaluate("window.scrollY")
+    result.click()
+    expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
+
+    page.go_back()
+    expect(page.get_by_role("heading", name="Explore NSW properties")).to_be_visible()
+    expect(result).to_be_visible()
+    expect(result).to_be_focused()
+    assert page.evaluate("new URLSearchParams(location.hash.split('?')[1]).get('q')") == query
+    assert abs(page.evaluate("window.scrollY") - original_scroll) <= 1
+
+
+def test_property_identity_renders_before_optional_calls_settle(
+    page: Page, fixture_origin: str
+) -> None:
+    _abort_external_map(page)
+    page.add_init_script(
+        r"""(() => {
+          const originalFetch = window.fetch.bind(window);
+          const pending = [];
+          window.fetch = (input, options) => {
+            const url = String(input);
+            if (/\/properties\/[^/]+\/(map-context|coverage|report-section)$/.test(url)) {
+              return new Promise((resolve, reject) => {
+                pending.push(() => originalFetch(input, options).then(resolve, reject));
+              });
+            }
+            return originalFetch(input, options);
+          };
+          window.__pendingPropertyOptionalCount = () => pending.length;
+          window.__releasePropertyOptional = () =>
+            pending.splice(0).forEach((release) => release());
+        })()"""
+    )
+    page.goto(
+        f"{fixture_origin}{FEATURE_PATH}?scenario=populated&test={time.time_ns()}"
+        f"#properties/{PROPERTY_ID}?q=11%20Example%20Street"
+    )
+    expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
+    expect(page.get_by_text("Match status")).to_be_visible()
+    expect(page.get_by_text("Loading spatial context…")).to_be_visible()
+    assert page.evaluate("window.__pendingPropertyOptionalCount()") == 3
+
+    page.evaluate("window.__releasePropertyOptional()")
+    expect(page.get_by_role("heading", name="Available research coverage")).to_be_visible()
+    expect(page.locator(".map-context")).to_be_visible()
+    page.get_by_text("Property identifiers and coordinates", exact=True).click()
+    expect(page.get_by_role("heading", name="Source summary")).to_be_visible()
+
+
+def test_property_partial_and_fatal_states_keep_local_recovery(
+    page: Page, fixture_origin: str
+) -> None:
+    _abort_external_map(page)
+    detail = f"properties/{PROPERTY_ID}?q=11%20Example%20Street"
+    page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=partial&test={time.time_ns()}#{detail}")
+    expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
+    expect(
+        page.get_by_text("Spatial context is temporarily unavailable", exact=False)
+    ).to_be_visible()
+    expect(
+        page.get_by_text("Coverage details are temporarily unavailable", exact=False)
+    ).to_be_visible()
+    page.get_by_text("Property identifiers and coordinates", exact=True).click()
+    expect(
+        page.get_by_text("The source summary is temporarily unavailable", exact=False)
+    ).to_be_visible()
+
+    detail_calls = 0
+
+    def fail_first_detail(route: Route) -> None:
+        nonlocal detail_calls
+        if not route.request.url.endswith(f"/properties/{PROPERTY_ID}"):
+            route.continue_()
+            return
+        detail_calls += 1
+        if detail_calls == 1:
+            route.fulfill(
+                status=503,
+                content_type="application/problem+json",
+                headers={"X-Request-ID": "property-detail-retry"},
+                body=json.dumps(
+                    {
+                        "type": "about:blank",
+                        "title": "Property detail unavailable",
+                        "detail": "The canonical property detail failed once.",
+                    }
+                ),
+            )
+        else:
+            route.continue_()
+
+    page.route("**/api/data-platform/v1/properties/**", fail_first_detail)
+    page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=populated&test={time.time_ns()}#{detail}")
+    expect(page.get_by_role("heading", name="Service temporarily unavailable")).to_be_visible()
+    expect(page.get_by_role("link", name="Back to search")).to_have_attribute(
+        "href", "#properties?q=11+Example+Street"
+    )
+    page.get_by_role("button", name="Try again").click()
+    expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
+    assert detail_calls == 2
 
 
 def test_search_and_every_filter_use_native_keyboard_and_explicit_reset(
