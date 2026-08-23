@@ -7,10 +7,10 @@ from dataclasses import replace
 from pathlib import Path
 
 from scripts.ui_audit.config import AuditSelection, compile_batches, load_config
-from scripts.ui_audit.models import Viewport
+from scripts.ui_audit.models import AuditBatch, AuditCase, ExpectedFailure, Viewport
 from scripts.ui_audit.report import atomic_json, load_completed_batch, summary_for
 from scripts.ui_audit.rules import classify_page
-from scripts.ui_audit.runner import source_digest
+from scripts.ui_audit.runner import _expected_failure, _fixture_contract_failure, source_digest
 
 
 def test_real_config_accounts_for_every_required_route_state() -> None:
@@ -36,6 +36,16 @@ def test_real_config_accounts_for_every_required_route_state() -> None:
         "property-search",
         "operations-overview",
     }
+
+
+def test_baseline_artifacts_are_portable_between_contributors() -> None:
+    config_path = Path("docs/ui/feature-1-audit-config.json")
+    raw = json.loads(config_path.read_text(encoding="utf-8"))
+    baseline = Path("docs/ui/feature-1-baseline.md").read_text(encoding="utf-8")
+
+    assert raw["baseline"]["artifactRoot"] == ".propertyscope-runtime/ui-baseline"
+    assert "C:\\Users\\" not in baseline
+    assert "C:/Users/" not in baseline
 
 
 def test_shards_are_stable_disjoint_and_complete() -> None:
@@ -184,3 +194,37 @@ def test_source_digest_includes_untracked_source() -> None:
 
     assert before != first
     assert first != second
+
+
+def test_expected_failure_requires_exact_method_target_and_status() -> None:
+    batch = AuditBatch(
+        id="exact-failure",
+        workspace="feature-1",
+        route_group="canary",
+        route_id="canary",
+        path="#canary",
+        case=AuditCase(
+            id="failure",
+            scenario="populated",
+            states=("error",),
+            expected_request_failures=(
+                ExpectedFailure(
+                    method="GET",
+                    target="/api/data-platform/v1/jobs/one/capabilities",
+                    statuses=(503,),
+                ),
+            ),
+        ),
+        viewport=Viewport("laptop-wide", 1440, 1000, "release-critical-full-matrix"),
+        fingerprint="exact",
+    )
+
+    exact = "http://127.0.0.1:5300/api/data-platform/v1/jobs/one/capabilities"
+    assert _expected_failure(batch, "GET", exact, status=503)
+    assert not _expected_failure(batch, "POST", exact, status=503)
+    assert not _expected_failure(batch, "GET", exact, status=500)
+    assert not _expected_failure(batch, "GET", f"{exact}/near-miss", status=503)
+
+    scenario_batch = replace(batch, case=replace(batch.case, scenario="error"))
+    unrelated = "http://127.0.0.1:5300/api/data-platform/v1/capabilities-near-miss"
+    assert not _fixture_contract_failure(scenario_batch, "GET", unrelated, 503)

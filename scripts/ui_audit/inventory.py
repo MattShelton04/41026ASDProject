@@ -540,8 +540,12 @@ def _activate(locator: Locator, control: dict[str, Any]) -> None:
 
 
 def _destructive(control: dict[str, Any], labels: tuple[str, ...]) -> bool:
-    value = f"{control.get('name', '')} {control.get('text', '')}".lower()
-    return any(label in value for label in labels)
+    # Destructive intent is an exact button action, never text inherited from a nav link,
+    # select option, table row, or dialog's safe Cancel button.
+    if control.get("tag") != "button" and control.get("role") != "button":
+        return False
+    value = " ".join(str(control.get("name", "")).lower().split())
+    return bool(value) and value in labels
 
 
 def _setup_parent(control: dict[str, Any]) -> dict[str, Any]:

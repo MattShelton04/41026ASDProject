@@ -19,6 +19,17 @@ class Viewport:
 
 
 @dataclass(frozen=True)
+class ExpectedFailure:
+    """One method/status-scoped expected HTTP failure target."""
+
+    method: str
+    target: str | None = None
+    target_pattern: str | None = None
+    statuses: tuple[int, ...] = ()
+    abort: bool = False
+
+
+@dataclass(frozen=True)
 class AuditCase:
     """One executable fixture state for a route."""
 
@@ -28,7 +39,7 @@ class AuditCase:
     path: str | None = None
     settle_ms: int = 650
     quick: bool = False
-    expected_request_failures: tuple[str, ...] = ()
+    expected_request_failures: tuple[ExpectedFailure, ...] = ()
     capture_phase: Literal["settled", "loading", "loading-and-settled"] = "settled"
     readiness: str = "body"
     settled_readiness: str = "body"

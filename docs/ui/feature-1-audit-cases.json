@@ -28,7 +28,7 @@
     "shared-status": {
       "readiness": "#main-content h1",
       "cases": [
-        {"id": "loading-slow", "scenario": "slow", "states": ["loading", "slow"], "capturePhase": "loading-and-settled", "settleMs": 50, "readiness": ".health-card--loading"}, "populated", "error",
+        {"id": "loading-slow", "scenario": "slow", "states": ["loading", "slow"], "capturePhase": "loading-and-settled", "settleMs": 50, "readiness": "[data-load-state=\"loading\"] .health-card--loading", "settledReadiness": "[data-load-state=\"settled\"]"}, "populated", "error",
         {"id": "provider-degraded", "scenario": "populated", "states": ["partial"], "overrides": [
           {"method": "GET", "urlContains": "/api/shared-health/ai-mode", "patches": [
             {"pointer": "/status", "value": "degraded"},
@@ -46,8 +46,8 @@
     "shared-evidence": {
       "readiness": "#main-content h1",
       "cases": [
-        {"id": "loading-slow", "scenario": "slow", "states": ["loading", "slow"], "capturePhase": "loading-and-settled", "settleMs": 50, "readiness": ".dashboard-state"}, "populated", "empty", "error", "long-content",
-        {"id": "release-provider-partial", "scenario": "populated", "states": ["partial"], "expectedRequestFailures": ["dataset-releases"], "overrides": [
+        {"id": "loading-slow", "scenario": "slow", "states": ["loading", "slow"], "capturePhase": "loading-and-settled", "settleMs": 50, "readiness": ".dashboard-state[data-load-state=\"loading\"]", "settledReadiness": ".dashboard-state[data-load-state=\"settled\"]"}, "populated", "empty", "error", "long-content",
+        {"id": "release-provider-partial", "scenario": "populated", "states": ["partial"], "expectedFailures": [{"method": "GET", "target": "/api/data-platform/v1/dataset-releases?limit=20&status=accepted", "statuses": [503]}], "overrides": [
           {"method": "GET", "urlContains": "/dataset-releases?status=accepted", "status": 503, "problemCode": "dependency_unavailable"}
         ]}
       ],
@@ -89,7 +89,7 @@
             {"pointer": "/latitude", "value": null}, {"pointer": "/longitude", "value": null}, {"pointer": "/geometry", "value": null}
           ]}
         ]},
-        {"id": "map-fallback", "scenario": "populated", "states": ["map-fallback"], "expectedRequestFailures": ["tiles.openfreemap.org"], "overrides": [
+        {"id": "map-fallback", "scenario": "populated", "states": ["map-fallback"], "expectedFailures": [{"method": "GET", "targetPattern": "^tiles\\.openfreemap\\.org/styles/liberty(?:[/?].*)?$", "abort": true}], "overrides": [
           {"method": "GET", "urlContains": "tiles.openfreemap.org/styles/liberty", "abort": true}
         ]}
       ],
@@ -113,8 +113,8 @@
         {"id": "disabled", "scenario": "populated", "states": ["disabled"], "path": "#jobs?status=all", "overrides": [
           {"method": "GET", "urlContains": "/jobs?", "patches": [{"pointer": "/items/0/status", "value": "disabled"}]}
         ]},
-        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "setup": [{"action": "named-flow", "name": "edit-job-submit"}]},
-        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "overrides": [{"method": "PUT", "urlContains": "/jobs/", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "edit-job-submit"}]}
+        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "expectedFailures": [{"method": "PUT", "target": "/api/data-platform/v1/jobs/20000000-0000-0000-0000-000000000001", "statuses": [422]}], "setup": [{"action": "named-flow", "name": "edit-job-submit"}]},
+        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "expectedFailures": [{"method": "PUT", "target": "/api/data-platform/v1/jobs/20000000-0000-0000-0000-000000000001", "statuses": [409]}], "overrides": [{"method": "PUT", "urlContains": "/jobs/", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "edit-job-submit"}]}
       ],
       "deferredStates": {}
     },
@@ -122,10 +122,10 @@
       "readiness": "#view h1, #view .error-state",
       "cases": [
         "loading-slow", "populated", "error", "long-content",
-        {"id": "capabilities-unavailable", "scenario": "populated", "states": ["capabilities-unavailable"], "expectedRequestFailures": ["capabilities"], "overrides": [{"method": "GET", "urlContains": "/capabilities", "status": 503, "problemCode": "dependency_unavailable"}]},
+        {"id": "capabilities-unavailable", "scenario": "populated", "states": ["capabilities-unavailable"], "expectedFailures": [{"method": "GET", "target": "/api/data-platform/v1/jobs/20000000-0000-0000-0000-000000000001/capabilities", "statuses": [503]}], "overrides": [{"method": "GET", "urlContains": "/capabilities", "status": 503, "problemCode": "dependency_unavailable"}]},
         {"id": "disabled", "scenario": "populated", "states": ["disabled"], "overrides": [{"method": "GET", "urlPattern": "/jobs/[^/?]+$", "patches": [{"pointer": "/job/status", "value": "disabled"}]}]},
-        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "setup": [{"action": "named-flow", "name": "edit-job-submit"}]},
-        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "overrides": [{"method": "PUT", "urlContains": "/jobs/", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "edit-job-submit"}]}
+        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "expectedFailures": [{"method": "PUT", "target": "/api/data-platform/v1/jobs/20000000-0000-0000-0000-000000000001", "statuses": [422]}], "setup": [{"action": "named-flow", "name": "edit-job-submit"}]},
+        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "expectedFailures": [{"method": "PUT", "target": "/api/data-platform/v1/jobs/20000000-0000-0000-0000-000000000001", "statuses": [409]}], "overrides": [{"method": "PUT", "urlContains": "/jobs/", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "edit-job-submit"}]}
       ],
       "deferredStates": {}
     },
@@ -144,7 +144,7 @@
         {"id": "failed", "scenario": "populated", "states": ["failed"], "overrides": [{"method": "GET", "urlPattern": "/ingestion-runs/[^/?]+$", "patches": [{"pointer": "/run/status", "value": "failed"}, {"pointer": "/run/error_json", "value": {"code": "fixture_failed", "message": "Deterministic failed update"}}]}]},
         {"id": "cancelled", "scenario": "populated", "states": ["cancelled"], "overrides": [{"method": "GET", "urlPattern": "/ingestion-runs/[^/?]+$", "patches": [{"pointer": "/run/status", "value": "cancelled"}]}]},
         {"id": "interrupted", "scenario": "populated", "states": ["interrupted"], "overrides": [{"method": "GET", "urlPattern": "/ingestion-runs/[^/?]+$", "patches": [{"pointer": "/run/status", "value": "interrupted"}]}]},
-        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "overrides": [
+        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "expectedFailures": [{"method": "POST", "target": "/api/data-platform/v1/ingestion-runs/30000000-0000-0000-0000-000000000001/retry", "statuses": [409]}], "overrides": [
           {"method": "GET", "urlPattern": "/ingestion-runs/[^/?]+$", "patches": [{"pointer": "/run/status", "value": "failed"}]},
           {"method": "POST", "urlContains": "/retry", "status": 409, "problemCode": "version_conflict"}
         ], "setup": [{"action": "named-flow", "name": "retry-run-confirm"}]},
@@ -156,8 +156,8 @@
       "readiness": "#view h1, #view .error-state",
       "cases": [
         "loading-slow", "populated", "empty", {"id": "filtered-empty", "scenario": "populated", "states": ["filtered-empty"], "path": "#releases?status=draft"},
-        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "setup": [{"action": "named-flow", "name": "create-release-submit"}]},
-        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "overrides": [{"method": "POST", "urlPattern": "/dataset-releases$", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "create-release-submit"}]},
+        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "expectedFailures": [{"method": "POST", "target": "/api/data-platform/v1/dataset-releases", "statuses": [422]}], "setup": [{"action": "named-flow", "name": "create-release-submit"}]},
+        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "expectedFailures": [{"method": "POST", "target": "/api/data-platform/v1/dataset-releases", "statuses": [409]}], "overrides": [{"method": "POST", "urlPattern": "/dataset-releases$", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "create-release-submit"}]},
         "error", {"id": "long-filter", "scenario": "populated", "states": ["long-content"], "setup": [{"action": "fill", "selector": "input[name=q]", "value": "A deliberately long release filter value that remains bounded in the toolbar and does not resize primary actions"}]}
       ],
       "deferredStates": {}
@@ -175,9 +175,9 @@
         {"id": "superseded", "scenario": "populated", "states": ["superseded"], "path": "#releases/60000000-0000-0000-0000-000000000011", "overrides": [{"method": "GET", "urlPattern": "/dataset-releases/[^/?]+$", "patches": [{"pointer": "/release/status", "value": "superseded"}]}]},
         {"id": "blocking-quality", "scenario": "populated", "states": ["blocking-quality"], "path": "#releases/60000000-0000-0000-0000-000000000011", "overrides": [{"method": "GET", "urlContains": "/quality-results", "patches": [{"pointer": "/items/0/severity", "value": "blocking"}, {"pointer": "/items/0/status", "value": "fail"}]}]},
         {"id": "preview-empty", "scenario": "empty", "states": ["preview-empty"]},
-        {"id": "preview-unavailable", "scenario": "populated", "states": ["preview-unavailable"], "expectedRequestFailures": ["/records"], "overrides": [{"method": "GET", "urlContains": "/records", "status": 503, "problemCode": "dependency_unavailable"}]},
-        {"id": "quality-partial", "scenario": "populated", "states": ["partial"], "expectedRequestFailures": ["quality-results"], "overrides": [{"method": "GET", "urlContains": "/quality-results", "status": 503, "problemCode": "dependency_unavailable"}]},
-        {"id": "publish-conflict", "scenario": "populated", "states": ["conflict"], "path": "#releases/60000000-0000-0000-0000-000000000012", "overrides": [{"method": "POST", "urlContains": "/publish", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "publish-release-confirm"}]},
+        {"id": "preview-unavailable", "scenario": "populated", "states": ["preview-unavailable"], "expectedFailures": [{"method": "GET", "targetPattern": "^/api/data-platform/v1/dataset-releases/[^/?]+/records\\?limit=25&offset=0$", "statuses": [503]}], "overrides": [{"method": "GET", "urlContains": "/records", "status": 503, "problemCode": "dependency_unavailable"}]},
+        {"id": "quality-partial", "scenario": "populated", "states": ["partial"], "expectedFailures": [{"method": "GET", "targetPattern": "^/api/data-platform/v1/ingestion-runs/[^/?]+/quality-results\\?limit=100$", "statuses": [503]}], "overrides": [{"method": "GET", "urlContains": "/quality-results", "status": 503, "problemCode": "dependency_unavailable"}]},
+        {"id": "publish-conflict", "scenario": "populated", "states": ["conflict"], "path": "#releases/60000000-0000-0000-0000-000000000012", "expectedFailures": [{"method": "POST", "target": "/api/data-platform/v1/dataset-releases/60000000-0000-0000-0000-000000000012/publish", "statuses": [409]}], "overrides": [{"method": "POST", "urlContains": "/publish", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "publish-release-confirm"}]},
         "error", "long-content"
       ],
       "deferredStates": {}
@@ -187,8 +187,8 @@
       "cases": [
         "loading", "populated", "empty",
         {"id": "filtered-empty", "scenario": "populated", "states": ["filtered-empty"], "path": "#sources?q=no-such-source&status=active", "overrides": [{"method": "GET", "urlContains": "/sources?", "body": {"items": [], "count": 0, "limit": 100, "offset": 0, "next_offset": null}}]},
-        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "setup": [{"action": "named-flow", "name": "edit-source-submit"}]},
-        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "overrides": [{"method": "PUT", "urlContains": "/sources/", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "edit-source-submit"}]},
+        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "expectedFailures": [{"method": "PUT", "target": "/api/data-platform/v1/sources/10000000-0000-0000-0000-000000000001", "statuses": [422]}], "setup": [{"action": "named-flow", "name": "edit-source-submit"}]},
+        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "expectedFailures": [{"method": "PUT", "target": "/api/data-platform/v1/sources/10000000-0000-0000-0000-000000000001", "statuses": [409]}], "overrides": [{"method": "PUT", "urlContains": "/sources/", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "edit-source-submit"}]},
         "error", "long-content"
       ],
       "deferredStates": {}
@@ -203,7 +203,7 @@
     "quality-picker": {"readiness": "#view h1, #view .error-state", "cases": ["loading", "populated", "empty", "error", "long-content"], "deferredStates": {}},
     "quality-detail": {
       "readiness": "#view h1, #view .error-state",
-      "cases": ["loading", "populated", "empty", {"id": "summary-partial", "scenario": "populated", "states": ["partial"], "expectedRequestFailures": ["ingestion-runs"], "overrides": [{"method": "GET", "urlPattern": "/ingestion-runs/[^/?]+$", "status": 503, "problemCode": "dependency_unavailable"}]}, "error", "long-content"],
+      "cases": ["loading", "populated", "empty", {"id": "summary-partial", "scenario": "populated", "states": ["partial"], "expectedFailures": [{"method": "GET", "target": "/api/data-platform/v1/ingestion-runs/30000000-0000-0000-0000-000000000001", "statuses": [503]}], "overrides": [{"method": "GET", "urlPattern": "/ingestion-runs/[^/?]+$", "status": 503, "problemCode": "dependency_unavailable"}]}, "error", "long-content"],
       "deferredStates": {}
     },
     "artifacts-picker": {"readiness": "#view h1, #view .error-state", "cases": ["loading", "populated", "empty", "error", "long-content"], "deferredStates": {}},
@@ -211,7 +211,7 @@
       "readiness": "#view h1, #view .error-state",
       "cases": [
         "loading", "populated", "empty",
-        {"id": "summary-partial", "scenario": "populated", "states": ["partial"], "expectedRequestFailures": ["ingestion-runs"], "overrides": [{"method": "GET", "urlPattern": "/ingestion-runs/[^/?]+$", "status": 503, "problemCode": "dependency_unavailable"}]},
+        {"id": "summary-partial", "scenario": "populated", "states": ["partial"], "expectedFailures": [{"method": "GET", "target": "/api/data-platform/v1/ingestion-runs/30000000-0000-0000-0000-000000000001", "statuses": [503]}], "overrides": [{"method": "GET", "urlPattern": "/ingestion-runs/[^/?]+$", "status": 503, "problemCode": "dependency_unavailable"}]},
         "error",
         {"id": "long-lineage", "scenario": "populated", "states": ["long-content"], "overrides": [{"method": "GET", "urlContains": "/artifacts", "patches": [{"pointer": "/items/0/lineage_json/note", "value": "A long deterministic lineage note remains readable when technical details are expanded across the laptop workspace."}]}], "setup": [{"action": "click", "selector": "summary"}]}
       ],
@@ -232,9 +232,9 @@
       "readiness": "#view h1, #view .error-state",
       "cases": [
         "loading-slow", "populated", "empty", "error", "long-content",
-        {"id": "history-unavailable", "scenario": "populated", "states": ["history-unavailable"], "expectedRequestFailures": ["agent-runs"], "overrides": [{"method": "GET", "urlContains": "/agent-runs?limit=10", "status": 503, "problemCode": "dependency_unavailable"}]},
-        {"id": "provider-unavailable", "scenario": "populated", "states": ["provider-unavailable"], "overrides": [{"method": "POST", "urlContains": "/agent-runs", "status": 503, "problemCode": "provider_unavailable"}], "setup": [{"action": "named-flow", "name": "start-ai-review"}]},
-        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "setup": [{"action": "named-flow", "name": "start-ai-review"}]}
+        {"id": "history-unavailable", "scenario": "populated", "states": ["history-unavailable"], "expectedFailures": [{"method": "GET", "target": "/api/data-platform/v1/agent-runs?limit=10", "statuses": [503]}], "overrides": [{"method": "GET", "urlContains": "/agent-runs?limit=10", "status": 503, "problemCode": "dependency_unavailable"}]},
+        {"id": "provider-unavailable", "scenario": "populated", "states": ["provider-unavailable"], "expectedFailures": [{"method": "POST", "targetPattern": "^/api/data-platform/v1/dataset-releases/[^/?]+/agent-runs$", "statuses": [503]}], "overrides": [{"method": "POST", "urlContains": "/agent-runs", "status": 503, "problemCode": "provider_unavailable"}], "setup": [{"action": "named-flow", "name": "start-ai-review"}]},
+        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "expectedFailures": [{"method": "POST", "targetPattern": "^/api/data-platform/v1/dataset-releases/[^/?]+/agent-runs$", "statuses": [422]}], "setup": [{"action": "named-flow", "name": "start-ai-review"}]}
       ],
       "deferredStates": {}
     },

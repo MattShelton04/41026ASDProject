@@ -46,6 +46,11 @@ CANARY_PAGES = {
 <html lang="en"><head><meta charset="utf-8"><title>Console UI audit canary</title></head>
 <body><main><h1>Console UI audit canary</h1></main>
 <script>console.error("ui-audit-canary");</script></body></html>""",
+    "/__ui-fixture__/canary/below-fold": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Below-fold UI audit canary</title></head>
+<body><main><h1>Below-fold UI audit canary</h1>
+<button style="position:absolute;top:1400px;width:20px;height:20px" type="button"></button>
+</main></body></html>""",
     "/__ui-fixture__/canary/interaction": """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Interaction UI audit canary</title></head>
 <body><main><h1>Interaction UI audit canary</h1>
@@ -100,6 +105,14 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:
         if os.environ.get("PROPERTYSCOPE_UI_FIXTURE_LOG") == "1":
             super().log_message(format, *args)
+
+    def handle(self) -> None:
+        try:
+            super().handle()
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            # Fresh browser contexts can close an HTTP/1.1 socket after receiving enough data.
+            # These exact peer-disconnect exceptions are expected and need no server traceback.
+            return
 
     def _handle(self, *, include_body: bool) -> None:
         if not self._safe_host():
@@ -266,7 +279,10 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
             )
         self.end_headers()
         if include_body:
-            self.wfile.write(payload)
+            try:
+                self.wfile.write(payload)
+            except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+                return
 
 
 def _wait_until_ready(port: int, timeout_seconds: float = 5.0) -> None:

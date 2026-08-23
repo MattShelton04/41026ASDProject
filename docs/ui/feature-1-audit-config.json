@@ -93,15 +93,19 @@
     "caseFile": "docs/ui/feature-1-audit-cases.json",
     "destructiveLabels": [
       "delete",
+      "delete definition",
+      "delete version",
       "publish",
+      "publish version",
       "reject",
+      "reject version",
       "submit review",
       "start update",
       "load earlier data",
-      "resume",
-      "retry",
+      "resume update",
+      "retry update",
       "use downloaded file",
-      "cancel",
+      "cancel update",
       "start ai review"
     ]
   },

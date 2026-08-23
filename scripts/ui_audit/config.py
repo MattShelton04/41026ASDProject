@@ -9,7 +9,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from scripts.ui_audit.models import AuditBatch, AuditCase, Gate, RouteDefinition, Viewport
+from scripts.ui_audit.models import (
+    AuditBatch,
+    AuditCase,
+    ExpectedFailure,
+    Gate,
+    RouteDefinition,
+    Viewport,
+)
 from scripts.ui_fixtures import (
     AGENT_RUN_ID,
     DATASET_ID,
@@ -183,10 +190,8 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AuditConfig:
                         ),
                         settle_ms=settle_ms,
                         quick=case.get("quick") is True,
-                        expected_request_failures=tuple(
-                            str(item)
-                            for item in case.get("expectedRequestFailures", [])
-                            if isinstance(item, str)
+                        expected_request_failures=_expected_failures(
+                            case.get("expectedFailures", []), route_id
                         ),
                         capture_phase=cast(Any, capture_phase),
                         readiness=str(case.get("readiness", route_readiness)),
@@ -244,6 +249,54 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AuditConfig:
             if isinstance(item, str)
         ),
     )
+
+
+def _expected_failures(value: object, route_id: str) -> tuple[ExpectedFailure, ...]:
+    rows = _sequence(value, f"{route_id}.expectedFailures")
+    failures: list[ExpectedFailure] = []
+    for index, raw in enumerate(rows):
+        row = _mapping(raw, f"{route_id}.expectedFailures[{index}]")
+        method = _text(row.get("method"), "expected failure method").upper()
+        if method not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"}:
+            raise AuditConfigError(f"{route_id} expected failure has invalid method")
+        target = row.get("target")
+        pattern = row.get("targetPattern")
+        if (isinstance(target, str)) == (isinstance(pattern, str)):
+            raise AuditConfigError(
+                f"{route_id} expected failure requires exactly one target or targetPattern"
+            )
+        if isinstance(pattern, str):
+            if not pattern.startswith("^") or not pattern.endswith("$"):
+                raise AuditConfigError(f"{route_id} expected failure regex must be anchored")
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise AuditConfigError(
+                    f"{route_id} expected failure regex is invalid: {exc}"
+                ) from exc
+        statuses_raw = row.get("statuses", [])
+        statuses = (
+            tuple(item for item in statuses_raw if isinstance(item, int))
+            if isinstance(statuses_raw, list)
+            else ()
+        )
+        abort = row.get("abort") is True
+        if isinstance(statuses_raw, list) and len(statuses) != len(statuses_raw):
+            raise AuditConfigError(f"{route_id} expected failure statuses must be integers")
+        if not abort and not statuses:
+            raise AuditConfigError(f"{route_id} expected failure needs statuses or abort")
+        if any(status < 400 or status > 599 for status in statuses):
+            raise AuditConfigError(f"{route_id} expected failure statuses must be 4xx/5xx")
+        failures.append(
+            ExpectedFailure(
+                method=method,
+                target=target if isinstance(target, str) else None,
+                target_pattern=pattern if isinstance(pattern, str) else None,
+                statuses=statuses,
+                abort=abort,
+            )
+        )
+    return tuple(failures)
 
 
 def compile_batches(

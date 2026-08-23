@@ -7,14 +7,15 @@ import json
 import re
 import subprocess
 import time
+from contextlib import suppress
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse
 from urllib.request import urlopen
 
-from playwright.sync_api import Browser, BrowserContext, Page, Route, sync_playwright
+from playwright.sync_api import Browser, BrowserContext, Error, Page, Route, sync_playwright
 
 from scripts.ui_audit.config import AuditConfig, AuditSelection, compile_batches
 from scripts.ui_audit.inventory import (
@@ -26,21 +27,19 @@ from scripts.ui_audit.inventory import (
 from scripts.ui_audit.models import AuditBatch, Finding
 from scripts.ui_audit.report import load_completed_batch, summary_for, write_reports
 from scripts.ui_audit.rules import classify_page
-from scripts.ui_fixtures import FIXTURE_IDENTITY, FIXTURE_REVISION
+from scripts.ui_fixtures import FIXTURE_IDENTITY, FIXTURE_REVISION, fixture_response
 from scripts.ui_smoke import fixture_runtime
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 HELPER_PATH = Path(__file__).with_name("browser_helpers.js")
 DEFAULT_OUTPUT_ROOT = REPOSITORY_ROOT / ".propertyscope-runtime" / "ui-audit"
-EXPECTED_EXTERNAL_HOSTS = {"tiles.openfreemap.org"}
-PARTIAL_FAILURE_PATHS = (
-    "/overview",
-    "/map-context",
-    "/coverage",
-    "/report-section",
-    "/artifacts",
-    "/events",
-)
+EXPECTED_ISOLATION_ABORTS = {
+    (
+        "GET",
+        "https://tiles.openfreemap.org/styles/liberty",
+        "net::ERR_BLOCKED_BY_CLIENT.Inspector",
+    )
+}
 
 
 @dataclass(frozen=True)
@@ -323,6 +322,11 @@ def audit_batch(
                     if loading_screenshot is not None
                     else None
                 ),
+                "settledReadiness": batch.case.settled_readiness,
+                "settledMarkerVisible": page.locator(
+                    batch.case.settled_readiness
+                ).first.is_visible(),
+                "statusMessages": _visible_status_messages(page),
             },
             "inventory": {
                 "count": len(controls),
@@ -555,40 +559,57 @@ def _named_flow(page: Page, name: str) -> None:
         page.get_by_role("button", name="Start AI review", exact=True).click(timeout=5_000)
     else:
         raise RuntimeError(f"unknown configured audit setup flow: {name}")
-    page.wait_for_timeout(350)
+    feedback = (
+        page.locator(".notice.warning").last
+        if name == "start-ai-review"
+        else page.locator("#toast:not([hidden])")
+    )
+    # The audit reports a missing visible recovery state as product debt without turning
+    # the otherwise completed request contract into a harness exception.
+    with suppress(Error):
+        feedback.wait_for(state="visible", timeout=1_500)
+    page.wait_for_timeout(100)
 
 
 def _telemetry(page: Page, batch: AuditBatch) -> dict[str, Any]:
-    telemetry: dict[str, Any] = {"console": [], "pageErrors": [], "requestFailures": []}
-    page.on(
-        "console",
-        lambda message: (
-            telemetry["console"].append(
-                {
-                    "type": message.type,
-                    "text": message.text,
-                    "expected": message.text
-                    == "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT.Inspector",
-                }
-            )
-            if message.type in {"warning", "error"}
-            else None
-        ),
-    )
+    telemetry: dict[str, Any] = {
+        "console": [],
+        "pageErrors": [],
+        "requestFailures": [],
+        "expectedResponses": [],
+    }
+
+    def console_message(message: Any) -> None:
+        if message.type not in {"warning", "error"}:
+            return
+        location = message.location if isinstance(message.location, dict) else {}
+        row = {
+            "type": message.type,
+            "text": message.text,
+            "location": location,
+            "expected": message.text
+            == "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT.Inspector",
+        }
+        telemetry["console"].append(row)
+        _correlate_resource_console(row, telemetry["expectedResponses"])
+
+    page.on("console", console_message)
     page.on("pageerror", lambda error: telemetry["pageErrors"].append(str(error)))
 
     def request_failed(request: Any) -> None:
-        host = urlparse(request.url).hostname
+        failure = request.failure or "request failed"
         expected = (
-            host in EXPECTED_EXTERNAL_HOSTS
-            or _matching_override(batch, request.method, request.url) is not None
-            or any(token in request.url for token in batch.case.expected_request_failures)
+            request.method,
+            request.url,
+            failure,
+        ) in EXPECTED_ISOLATION_ABORTS or _expected_failure(
+            batch, request.method, request.url, abort=True
         )
         telemetry["requestFailures"].append(
             {
                 "url": request.url,
                 "method": request.method,
-                "failure": (request.failure or "request failed"),
+                "failure": failure,
                 "expected": expected,
             }
         )
@@ -598,27 +619,10 @@ def _telemetry(page: Page, batch: AuditBatch) -> dict[str, Any]:
     def response_received(response: Any) -> None:
         if response.status < 400:
             return
-        target = urlparse(response.url)
         method = response.request.method
-        expected = (
-            _matching_override(batch, method, response.url) is not None
-            or any(token in response.url for token in batch.case.expected_request_failures)
-            or (
-                batch.case.scenario == "error"
-                and response.status == 503
-                and target.path.startswith("/api/")
-            )
-            or (
-                batch.case.scenario == "partial"
-                and response.status == 503
-                and any(marker in target.path for marker in PARTIAL_FAILURE_PATHS)
-            )
-            or (
-                batch.case.scenario == "validation-error"
-                and response.status == 422
-                and method in {"POST", "PUT", "PATCH"}
-            )
-        )
+        expected = _expected_failure(
+            batch, method, response.url, status=response.status
+        ) or _fixture_contract_failure(batch, method, response.url, response.status)
         telemetry["requestFailures"].append(
             {
                 "url": response.url,
@@ -627,9 +631,97 @@ def _telemetry(page: Page, batch: AuditBatch) -> dict[str, Any]:
                 "expected": expected,
             }
         )
+        if expected:
+            signature = {"url": response.url, "method": method, "status": response.status}
+            telemetry["expectedResponses"].append(signature)
+            for message in telemetry["console"]:
+                _correlate_resource_console(message, telemetry["expectedResponses"])
 
     page.on("response", response_received)
     return telemetry
+
+
+def _normalized_target(url: str) -> str:
+    target = urlparse(url)
+    query = urlencode(sorted(parse_qsl(target.query, keep_blank_values=True)))
+    path = (
+        f"{target.netloc}{target.path}"
+        if target.hostname not in {None, "127.0.0.1", "localhost"}
+        else target.path
+    )
+    return f"{path}?{query}" if query else path
+
+
+def _expected_failure(
+    batch: AuditBatch,
+    method: str,
+    url: str,
+    *,
+    status: int | None = None,
+    abort: bool = False,
+) -> bool:
+    target = _normalized_target(url)
+    for expected in batch.case.expected_request_failures:
+        if expected.method != method.upper() or expected.abort is not abort:
+            continue
+        if status is not None and status not in expected.statuses:
+            continue
+        if expected.target == target:
+            return True
+        if expected.target_pattern is not None and re.fullmatch(expected.target_pattern, target):
+            return True
+    return False
+
+
+def _fixture_contract_failure(batch: AuditBatch, method: str, url: str, status: int) -> bool:
+    """Recognise only the exact response prescribed by a selected failure scenario."""
+    if batch.case.scenario not in {"error", "partial", "validation-error"}:
+        return False
+    target = urlparse(url)
+    if target.hostname not in {"127.0.0.1", "localhost"}:
+        return False
+    known_route = fixture_response(method, target.path, target.query, "populated")
+    if int(known_route.status) >= 400:
+        return False
+    expected = fixture_response(method, target.path, target.query, batch.case.scenario)
+    return int(expected.status) == status and status >= 400
+
+
+_RESOURCE_STATUS_ERROR = re.compile(
+    r"^Failed to load resource: the server responded with a status of (\d{3})(?: \([^)]*\))?\.?$"
+)
+
+
+def _correlate_resource_console(
+    message: dict[str, Any], expected_responses: list[dict[str, Any]]
+) -> None:
+    """Mark only Chromium resource errors tied to an exact expected HTTP response."""
+    match = _RESOURCE_STATUS_ERROR.fullmatch(str(message.get("text", "")))
+    location = message.get("location")
+    if match is None or not isinstance(location, dict):
+        return
+    url = location.get("url")
+    status = int(match.group(1))
+    for response in expected_responses:
+        if response.get("url") == url and response.get("status") == status:
+            message["expected"] = True
+            message["expectedResponse"] = dict(response)
+            return
+
+
+def _visible_status_messages(page: Page) -> list[str]:
+    rows = page.locator(
+        '[role="alert"],[role="status"],#toast:not([hidden]),.toast:not([hidden]),'
+        ".notice.warning,.notice.negative"
+    ).evaluate_all(
+        """elements => elements.filter(element => {
+          const box = element.getBoundingClientRect(); const style = getComputedStyle(element);
+          return box.width && box.height && style.display !== 'none'
+            && style.visibility !== 'hidden';
+        }).map(element => (element.innerText || element.textContent || '').trim()
+          .replace(/\\s+/g, ' ').slice(0, 500))"""
+    )
+    return [row for row in rows if isinstance(row, str) and row]
 
 
 def _batch_url(base_url: str, batch: AuditBatch) -> str:

@@ -27,14 +27,34 @@
   function accessibilityHidden(element) {
     return !!element.closest("[hidden],[inert],[aria-hidden='true']");
   }
+  function fullyClipped(element, box) {
+    let current = element.parentElement;
+    while (current && current !== document.body) {
+      const style = getComputedStyle(current);
+      if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
+        return true;
+      }
+      if (["hidden", "clip"].includes(style.overflowX)
+          || ["hidden", "clip"].includes(style.overflowY)) {
+        const ancestor = current.getBoundingClientRect();
+        if (box.right <= ancestor.left || box.left >= ancestor.right
+            || box.bottom <= ancestor.top || box.top >= ancestor.bottom) return true;
+      }
+      current = current.parentElement;
+    }
+    return false;
+  }
   function painted(element) {
     const box = element.getBoundingClientRect();
     const style = getComputedStyle(element);
     const visuallyHidden = (box.width <= 2 && box.height <= 2)
       && (style.clip !== "auto" || style.clipPath !== "none" || style.position === "absolute");
     if (accessibilityHidden(element) || !box.width || !box.height || style.display === "none"
-        || style.visibility === "hidden" || Number(style.opacity) === 0 || visuallyHidden) return false;
-    return box.bottom > 0 && box.right > 0 && box.top < innerHeight && box.left < innerWidth;
+        || style.visibility === "hidden" || Number(style.opacity) === 0 || visuallyHidden
+        || fullyClipped(element, box)) return false;
+    // Include vertically below-fold content in the full-document audit. Entirely horizontal
+    // off-canvas controls remain excluded until their navigation or disclosure is opened.
+    return box.bottom > 0 && box.right > 0 && box.left < innerWidth;
   }
   function scrollAncestor(element) {
     let current = element.parentElement;
