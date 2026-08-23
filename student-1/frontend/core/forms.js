@@ -1,14 +1,47 @@
 export class FieldValidationError extends Error {
-  constructor(fieldName, message) {
+  constructor(fieldName, message, validateValue = null) {
     super(message);
     this.name = "FieldValidationError";
     this.fieldName = fieldName;
+    this.validateValue = validateValue;
   }
 }
 
-function validationError(fieldName, message) {
-  if (fieldName) throw new FieldValidationError(fieldName, message);
+function validationError(fieldName, message, validateValue = null) {
+  if (fieldName) throw new FieldValidationError(fieldName, message, validateValue);
   throw new Error(message);
+}
+
+function jsonObjectValue(value) {
+  if (!String(value || "").trim()) return true;
+  try {
+    const result = JSON.parse(value);
+    return result !== null && typeof result === "object" && !Array.isArray(result);
+  } catch {
+    return false;
+  }
+}
+
+function jsonTextListValue(value, { maximum = null, unique = false } = {}) {
+  try {
+    const result = JSON.parse(String(value || "[]"));
+    return Array.isArray(result)
+      && result.length > 0
+      && result.every((item) => typeof item === "string" && item.trim())
+      && (maximum === null || result.length <= maximum)
+      && (!unique || new Set(result).size === result.length);
+  } catch {
+    return false;
+  }
+}
+
+function integerValue(value, { minimum = null, maximum = null } = {}) {
+  const text = String(value ?? "").trim();
+  const parsed = Number(text);
+  return Boolean(text)
+    && Number.isInteger(parsed)
+    && (minimum === null || parsed >= minimum)
+    && (maximum === null || parsed <= maximum);
 }
 
 export function parseJsonField(value, label, fieldName = "") {
@@ -18,22 +51,23 @@ export function parseJsonField(value, label, fieldName = "") {
     if (result === null || typeof result !== "object" || Array.isArray(result)) throw new Error();
     return result;
   } catch {
-    return validationError(fieldName, `${label} must be a JSON object, for example {"profile":"showcase"}.`);
+    return validationError(fieldName, `${label} must be a JSON object, for example {"profile":"showcase"}.`, jsonObjectValue);
   }
 }
 
 export function parseJsonTextList(value, label, fieldName = "", { maximum = null, unique = false } = {}) {
+  const validateValue = (candidate) => jsonTextListValue(candidate, { maximum, unique });
   let result;
   try {
     result = JSON.parse(String(value || "[]"));
   } catch {
-    return validationError(fieldName, `${label} must be a non-empty JSON list of text values, for example ["feature-1"].`);
+    return validationError(fieldName, `${label} must be a non-empty JSON list of text values, for example ["feature-1"].`, validateValue);
   }
   if (!Array.isArray(result) || !result.length || result.some((item) => typeof item !== "string" || !item.trim())) {
-    return validationError(fieldName, `${label} must be a non-empty JSON list of text values, for example ["feature-1"].`);
+    return validationError(fieldName, `${label} must be a non-empty JSON list of text values, for example ["feature-1"].`, validateValue);
   }
-  if (maximum !== null && result.length > maximum) return validationError(fieldName, `${label} can contain at most ${maximum} values.`);
-  if (unique && new Set(result).size !== result.length) return validationError(fieldName, `${label} must not contain duplicate values.`);
+  if (maximum !== null && result.length > maximum) return validationError(fieldName, `${label} can contain at most ${maximum} values.`, validateValue);
+  if (unique && new Set(result).size !== result.length) return validationError(fieldName, `${label} must not contain duplicate values.`, validateValue);
   return result;
 }
 
@@ -46,7 +80,7 @@ export function parseIntegerField(value, label, { fieldName = "", minimum = null
     const range = minimum !== null && maximum !== null
       ? ` from ${minimum} to ${maximum}`
       : minimum !== null ? ` of at least ${minimum}` : maximum !== null ? ` no greater than ${maximum}` : "";
-    return validationError(fieldName, `${label} must be a whole number${range}.`);
+    return validationError(fieldName, `${label} must be a whole number${range}.`, (candidate) => integerValue(candidate, { minimum, maximum }));
   }
   return parsed;
 }
@@ -54,7 +88,10 @@ export function parseIntegerField(value, label, { fieldName = "", minimum = null
 export function propertySearchQuery(value, fieldName = "q") {
   const query = String(value || "").trim();
   if (query.length < 2 || query.length > 200) {
-    return validationError(fieldName, "Property search must contain 2 to 200 characters. Include a street number and suburb or postcode for the clearest match.");
+    return validationError(fieldName, "Property search must contain 2 to 200 characters. Include a street number and suburb or postcode for the clearest match.", (candidate) => {
+      const length = String(candidate || "").trim().length;
+      return length >= 2 && length <= 200;
+    });
   }
   return query;
 }

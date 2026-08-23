@@ -190,7 +190,7 @@ export function createReleaseRoutes({
 
   function requiredReviewValue(field, label) {
     const value = field.value.trim();
-    if (!value) throw new FieldValidationError("review_comment", `${label} must include text, not only spaces.`);
+    if (!value) throw new FieldValidationError("review_comment", `${label} must include text, not only spaces.`, (candidate) => Boolean(String(candidate || "").trim()));
     return value;
   }
 

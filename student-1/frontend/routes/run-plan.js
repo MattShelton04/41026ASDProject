@@ -126,7 +126,11 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
       }
       const start = parseIntegerField(firstYear.value, "First annual archive", { fieldName: "psi_start_year", minimum: 1990, maximum: currentYear });
       const end = parseIntegerField(lastYear?.value || firstYear.value, "Last annual archive", { fieldName: "psi_end_year", minimum: 1990, maximum: currentYear });
-      if (start > end) throw new FieldValidationError("psi_end_year", "Last annual archive must be the same as or later than the first annual archive.");
+      if (start > end) throw new FieldValidationError("psi_end_year", "Last annual archive must be the same as or later than the first annual archive.", (candidate, form) => {
+        const first = Number(form?.elements?.namedItem?.("psi_start_year")?.value);
+        const last = Number(candidate);
+        return Number.isInteger(first) && Number.isInteger(last) && first >= 1990 && last <= currentYear && first <= last;
+      });
       const years = psiYearRange(start, end, { maximum: currentYear + 1 });
       delete value.source_year;
       value.years = years;

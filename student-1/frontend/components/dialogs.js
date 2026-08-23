@@ -1,6 +1,7 @@
 import { FieldValidationError, createSubmissionGuard, formState, formStateChanged } from "../core/forms.js";
 
 const activeDialogs = new WeakMap();
+const semanticValidators = new WeakMap();
 
 function requestIdSuffix(error) {
   return error?.requestId ? ` Request ID ${error.requestId}.` : "";
@@ -24,16 +25,18 @@ function clearFieldError(field, { clearValidity = true } = {}) {
   }
   if (field.dataset) delete field.dataset.formErrorId;
   if (field.dataset) delete field.dataset.semanticError;
+  semanticValidators.delete(field);
   field.removeAttribute?.("aria-invalid");
 }
 
-function showFieldError(form, fieldName, message, { custom = true, report = true } = {}) {
+function showFieldError(form, fieldName, message, { custom = true, report = true, validateValue = null } = {}) {
   const field = form.elements?.namedItem?.(fieldName) || form.querySelector?.(`[name="${CSS.escape(fieldName)}"]`);
   if (!field) return null;
   clearFieldError(field, { clearValidity: custom });
   if (custom) {
     field.setCustomValidity?.(message);
     if (field.dataset) field.dataset.semanticError = "true";
+    if (validateValue) semanticValidators.set(field, validateValue);
   }
   field.setAttribute?.("aria-invalid", "true");
   if (field.id && field.insertAdjacentElement) {
@@ -52,7 +55,7 @@ function showFieldError(form, fieldName, message, { custom = true, report = true
 
 export function presentFormError(form, errorHost, error) {
   if (error instanceof FieldValidationError) {
-    const field = showFieldError(form, error.fieldName, error.message);
+    const field = showFieldError(form, error.fieldName, error.message, { validateValue: error.validateValue });
     errorHost.textContent = `Please correct ${fieldLabel(field)} before continuing.`;
     return field;
   }
@@ -178,16 +181,23 @@ export function runDialogForm({
   const input = (event) => {
     const field = event.target;
     if (!field?.matches?.("input, select, textarea")) return;
-    if (field.dataset?.semanticError) {
-      // Keep the useful domain error visible while the user edits. Clear only the
-      // browser validity flag so the next submit can rerun the semantic parser.
-      field.setCustomValidity?.("");
-      if (!field.checkValidity?.()) {
-        const message = field.validationMessage;
-        clearFieldError(field, { clearValidity: false });
-        if (message) showFieldError(form, field.name, message, { custom: false, report: false });
+    const semanticFields = Array.from(form.querySelectorAll?.("[data-semantic-error]") || []);
+    if (semanticFields.length) {
+      for (const semanticField of semanticFields) {
+        semanticField.setCustomValidity?.("");
+        if (!semanticField.checkValidity?.()) {
+          const message = semanticField.validationMessage;
+          clearFieldError(semanticField, { clearValidity: false });
+          if (message) showFieldError(form, semanticField.name, message, { custom: false, report: false });
+          continue;
+        }
+        const validateValue = semanticValidators.get(semanticField);
+        let valid = false;
+        try { valid = Boolean(validateValue?.(semanticField.value, form)); } catch { valid = false; }
+        if (valid) clearFieldError(semanticField, { clearValidity: false });
       }
-      return;
+      if (!form.querySelector?.(":invalid") && !form.querySelector?.("[data-semantic-error]")) errorHost.textContent = "";
+      if (semanticFields.includes(field)) return;
     }
     if (field.dataset?.formErrorId) clearFieldError(field);
     if (!field.checkValidity?.()) {
