@@ -718,8 +718,12 @@ def test_operations_overview_job_and_release_states_are_truthful(
     expect(page.get_by_role("button", name="Try again")).to_be_visible()
     expect(page.locator(".stat-card")).to_have_count(0)
 
-    page.evaluate("location.hash = '#jobs'")
+    # Move through a route that does not render the same service-error heading.
+    # Using another failing Operations route here makes the locator ambiguous
+    # between the outgoing and incoming views during the hash transition.
+    page.evaluate("location.hash = '#properties'")
     expect(error_heading).to_have_count(0)
+    expect(page.get_by_role("heading", name="Explore NSW properties")).to_be_focused()
     page.evaluate("location.hash = '#overview'")
     expect(error_heading).to_be_visible()
     expect(error_heading).to_be_focused()
