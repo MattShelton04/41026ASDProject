@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { runDialogForm } from "../../frontend/components/dialogs.js";
 
 import {
   ApiError,
@@ -12,12 +13,18 @@ import {
   displayName,
   entity,
   formatBytes,
+  FieldValidationError,
+  formState,
+  formStateChanged,
   isPsiJob,
   isSchoolsJob,
   liveProfileLabel,
   nextAgentPollDelay,
   nextPollDelay,
   parseJsonField,
+  parseIntegerField,
+  parseJsonTextList,
+  propertySearchQuery,
   psiYearRange,
   queryString,
   releaseComparison,
@@ -125,6 +132,216 @@ test("JSON form fields reject arrays and invalid input", () => {
   assert.deepEqual(parseJsonField("", "Scope"), {});
   assert.throws(() => parseJsonField("[]", "Scope"), /Scope must be a JSON object/);
   assert.throws(() => parseJsonField("not json", "Scope"), /Scope must be a JSON object/);
+});
+
+test("Feature 1 form parsers reject coercion and explain the required correction", () => {
+  assert.equal(propertySearchQuery("  11 Example Street  "), "11 Example Street");
+  assert.throws(() => propertySearchQuery("x"), /2 to 200 characters/);
+  assert.equal(parseIntegerField("12", "Rows", { minimum: 1 }), 12);
+  assert.throws(() => parseIntegerField("12.5", "Rows", { minimum: 1 }), /whole number/);
+  assert.throws(() => parseIntegerField("", "Rows", { minimum: 1 }), /at least 1/);
+  assert.deepEqual(parseJsonTextList('["feature-1"]', "Research areas"), ["feature-1"]);
+  assert.throws(() => parseJsonTextList("[]", "Research areas"), /non-empty JSON list/);
+  assert.throws(() => parseJsonTextList('["a","b"]', "Research areas", "target_features", { maximum: 1 }), /at most 1/);
+  assert.throws(() => parseJsonTextList('["a","a"]', "Research areas", "target_features", { unique: true }), /duplicate/);
+  assert.throws(
+    () => parseJsonField("[]", "Scope", "advanced_scope"),
+    (error) => error instanceof FieldValidationError && error.fieldName === "advanced_scope" && /JSON object/.test(error.message),
+  );
+});
+
+class FakeControl extends EventTarget {
+  constructor({ name = "", value = "", type = "text", valid = true, label = name } = {}) {
+    super();
+    this.name = name;
+    this.value = value;
+    this.type = type;
+    this.valid = valid;
+    this.label = label;
+    this.disabled = false;
+    this.checked = false;
+    this.dataset = {};
+    this.style = {};
+    this.attributes = new Map();
+    this.offsetWidth = 120;
+    this.textContent = "Save changes";
+    this.focused = false;
+    this.id = "";
+  }
+
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.get(name) || null; }
+  removeAttribute(name) { this.attributes.delete(name); }
+  setCustomValidity(message) { this.validationMessage = message; if (message) this.valid = false; else this.valid = true; }
+  reportValidity() { this.reported = true; return this.valid; }
+  focus() { this.focused = true; }
+  closest() { return { querySelector: () => ({ textContent: this.label }) }; }
+}
+
+class FakeForm extends EventTarget {
+  constructor(controls) {
+    super();
+    this.controls = controls;
+    this.attributes = new Map();
+    this.elements = [...controls];
+    this.elements.namedItem = (name) => controls.find((control) => control.name === name) || null;
+  }
+
+  checkValidity() { return this.controls.every((control) => control.valid !== false); }
+  querySelector(selector) {
+    if (selector === ":invalid") return this.controls.find((control) => control.valid === false) || null;
+    if (selector.includes("input:not")) return this.controls.find((control) => !control.disabled) || null;
+    return null;
+  }
+  querySelectorAll(selector) { return selector.includes('value="cancel"') ? this.controls.filter((control) => control.value === "cancel") : []; }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+}
+
+class FakeDialog extends EventTarget {
+  showModal() { this.open = true; }
+  close(value = "") { this.returnValue = value; this.open = false; this.dispatchEvent(new Event("close")); }
+}
+
+function submitEvent(submitter) {
+  const event = new Event("submit", { cancelable: true });
+  Object.defineProperty(event, "submitter", { value: submitter });
+  return event;
+}
+
+function fakeDialogFixture({ value = "unchanged", valid = true } = {}) {
+  const field = new FakeControl({ name: "notes", value, valid, label: "Operator notes (required)" });
+  const submit = new FakeControl({ name: "", type: "submit" }); submit.value = "save";
+  const cancel = new FakeControl({ name: "", type: "submit" }); cancel.value = "cancel";
+  const form = new FakeForm([field, submit, cancel]);
+  const dialog = new FakeDialog();
+  const errorHost = new FakeControl(); errorHost.textContent = "";
+  return { field, submit, cancel, form, dialog, errorHost };
+}
+
+test("dialog keyboard submission is single-flight and closes only after success", async () => {
+  const originalWindow = globalThis.window;
+  globalThis.window = { confirm: () => true };
+  const fixture = fakeDialogFixture();
+  let calls = 0;
+  let release;
+  const operation = new Promise((resolve) => { release = resolve; });
+  const result = runDialogForm({
+    ...fixture,
+    submitButton: fixture.submit,
+    acceptedValue: "save",
+    progressLabel: "Saving…",
+    onSubmit: async () => { calls += 1; await operation; },
+  });
+  fixture.form.dispatchEvent(submitEvent(fixture.submit));
+  fixture.form.dispatchEvent(submitEvent(fixture.submit));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(calls, 1);
+  assert.equal(fixture.dialog.open, true);
+  assert.equal(fixture.submit.disabled, true);
+  assert.equal(fixture.submit.textContent, "Saving…");
+  release();
+  assert.equal(await result, true);
+  assert.equal(fixture.dialog.open, false);
+  globalThis.window = originalWindow;
+});
+
+test("dialog validation focuses the first invalid field before allowing retry", async () => {
+  const originalWindow = globalThis.window;
+  globalThis.window = { confirm: () => true };
+  const fixture = fakeDialogFixture({ valid: false });
+  let calls = 0;
+  const result = runDialogForm({ ...fixture, submitButton: fixture.submit, acceptedValue: "save", onSubmit: async () => { calls += 1; } });
+  fixture.form.dispatchEvent(submitEvent(fixture.submit));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(calls, 0);
+  assert.equal(fixture.field.focused, true);
+  assert.match(fixture.errorHost.textContent, /correct Operator notes/);
+  fixture.field.valid = true;
+  fixture.form.dispatchEvent(submitEvent(fixture.submit));
+  assert.equal(await result, true);
+  assert.equal(calls, 1);
+  globalThis.window = originalWindow;
+});
+
+test("recoverable server failure retains values and supports retry without double submit", async () => {
+  const originalWindow = globalThis.window;
+  globalThis.window = { confirm: () => true };
+  const fixture = fakeDialogFixture({ value: "carefully entered evidence" });
+  let calls = 0;
+  const result = runDialogForm({
+    ...fixture,
+    submitButton: fixture.submit,
+    acceptedValue: "save",
+    onSubmit: async () => {
+      calls += 1;
+      if (calls === 1) throw Object.assign(new Error("Conflict with a newer version."), { requestId: "req-conflict" });
+    },
+  });
+  fixture.form.dispatchEvent(submitEvent(fixture.submit));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(fixture.dialog.open, true);
+  assert.equal(fixture.field.value, "carefully entered evidence");
+  assert.match(fixture.errorHost.textContent, /values are still here/);
+  assert.match(fixture.errorHost.textContent, /req-conflict/);
+  fixture.form.dispatchEvent(submitEvent(fixture.submit));
+  assert.equal(await result, true);
+  assert.equal(calls, 2);
+  globalThis.window = originalWindow;
+});
+
+test("Escape and close warn only after meaningful values change", async () => {
+  const originalWindow = globalThis.window;
+  let allowDiscard = false;
+  let prompts = 0;
+  globalThis.window = { confirm: () => { prompts += 1; return allowDiscard; } };
+  const fixture = fakeDialogFixture();
+  const initial = formState(fixture.form);
+  const result = runDialogForm({ ...fixture, submitButton: fixture.submit, acceptedValue: "save", onSubmit: async () => {} });
+  const unchangedCancel = new Event("cancel", { cancelable: true });
+  fixture.dialog.dispatchEvent(unchangedCancel);
+  assert.equal(await result, false);
+  assert.equal(prompts, 0);
+  assert.equal(formStateChanged(initial, formState(fixture.form)), false);
+
+  const dirtyFixture = fakeDialogFixture();
+  const dirtyResult = runDialogForm({ ...dirtyFixture, submitButton: dirtyFixture.submit, acceptedValue: "save", onSubmit: async () => {} });
+  dirtyFixture.field.value = "changed by keyboard";
+  dirtyFixture.dialog.dispatchEvent(new Event("cancel", { cancelable: true }));
+  assert.equal(dirtyFixture.dialog.open, true);
+  assert.equal(prompts, 1);
+  allowDiscard = true;
+  dirtyFixture.form.dispatchEvent(submitEvent(dirtyFixture.cancel));
+  assert.equal(await dirtyResult, false);
+  assert.equal(prompts, 2);
+  globalThis.window = originalWindow;
+});
+
+test("every existing Feature 1 form is wired to explicit retention and submission behavior", async () => {
+  const sources = {
+    shell: await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
+    forms: await readFile(new URL("../../frontend/components/forms.js", import.meta.url), "utf8"),
+    entities: await readFile(new URL("../../frontend/routes/entities.js", import.meta.url), "utf8"),
+    properties: await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8"),
+    plan: await readFile(new URL("../../frontend/routes/run-plan.js", import.meta.url), "utf8"),
+    releases: await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8"),
+    runs: await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8"),
+    ai: await readFile(new URL("../../frontend/routes/ai-diagnosis.js", import.meta.url), "utf8"),
+  };
+  assert.match(sources.shell, /runDialogForm\(\{/); // source and job create/edit
+  assert.match(sources.shell, /propertySearchQuery\(headerPropertyQuery\.value/); // header search
+  assert.match(sources.forms, /Reset filters/); // source, job and release filters
+  assert.match(sources.forms, /active-filters/);
+  assert.match(sources.properties, /propertySearchQuery\(input\.value\)/); // property discovery
+  assert.match(sources.properties, /createSubmissionGuard/);
+  assert.match(sources.plan, /onConfirm: async \(\) =>/); // run planner and confirmation
+  assert.match(sources.plan, /discardMessage: "Discard your changed update scope\?"/);
+  assert.match(sources.entities, /onConfirm: \(\) => mutate\(`\$\{kind\}\/\$\{item\.id\}`/);
+  assert.match(sources.releases, /runDialogForm\(\{/); // release create/edit
+  assert.equal((sources.releases.match(/onConfirm: \(\) => mutate/g) || []).length, 4); // delete, submit, publish, reject
+  assert.match(sources.runs, /onConfirm: async \(\) => \{ created = await mutate/);
+  assert.match(sources.ai, /createSubmissionGuard/); // AI review
+  assert.doesNotMatch(sources.shell, /entityDialog\.close\("save"\)/);
+  assert.match(sources.shell, /requestActiveDialogClose/);
 });
 
 test("job source detection and explicit year partitions are bounded", () => {

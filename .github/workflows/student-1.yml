@@ -75,11 +75,32 @@ jobs:
             --cov=propertyscope_data_store \
             --cov-report=term-missing \
             --cov-fail-under=60 \
+            --ignore=student-1/tests/e2e/test_form_behaviour_playwright.py \
             student-1/tests
       - name: Run repository integration tests
         run: uv run --locked pytest scripts/tests shared/contracts/tests --no-cov
       - name: Run frontend behavior tests
         run: node --test student-1/tests/frontend/*.test.mjs shared/frontend/*.test.mjs shared/frontend/operations/ai-mode/*.test.mjs
+
+  form-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version-file: .python-version
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.1"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install locked workspace
+        run: uv sync --locked --all-packages --all-groups
+      - name: Install Chromium for required form checks
+        run: uv run --locked playwright install --with-deps chromium
+      - name: Run required Feature 1 form behavior checks
+        run: uv run --locked pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
 
   containers:
     runs-on: ubuntu-latest

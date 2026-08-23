@@ -23,7 +23,7 @@
       <form id="header-property-search" class="topbar-search" role="search">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
         <label class="visually-hidden" for="header-property-query">Search Property data</label>
-        <input id="header-property-query" type="search" placeholder="Search Property data by address or reference" autocomplete="street-address">
+        <input id="header-property-query" name="q" type="search" placeholder="Search Property data by address or reference" autocomplete="street-address" minlength="2" maxlength="200">
       </form>
       <nav class="global-nav" aria-label="PropertyScope navigation">
         <a data-product-path="#home" href="http://localhost:5100/#home">Home</a>
@@ -79,7 +79,7 @@
           <button class="close-button" type="submit" value="cancel" formnovalidate aria-label="Close dialog">×</button>
         </div>
         <div id="entity-fields" class="form-grid"></div>
-        <p id="entity-error" class="form-error" role="alert"></p>
+        <p id="entity-error" class="form-error" role="alert" tabindex="-1"></p>
         <div class="dialog-actions">
           <button class="button secondary" type="submit" value="cancel" formnovalidate>Cancel</button>
           <button id="entity-save" class="button primary" type="submit" value="save">Save changes</button>
@@ -95,7 +95,7 @@
         </div>
         <p id="action-description" class="dialog-copy"></p>
         <div id="action-extra"></div>
-        <p id="action-error" class="form-error" role="alert"></p>
+        <p id="action-error" class="form-error" role="alert" tabindex="-1"></p>
         <div class="dialog-actions">
           <button class="button secondary" type="submit" value="cancel" formnovalidate>Go back</button>
           <button id="action-confirm" class="button danger" type="submit" value="confirm">Confirm</button>

@@ -1,10 +1,10 @@
 import { API_BASE, newRequestId, requestJson } from "./core/api.js";
 import { append, el } from "./core/dom.js";
 import { humanise } from "./core/formats.js?v=17";
-import { parseJsonField } from "./core/forms.js";
+import { parseIntegerField, parseJsonField, parseJsonTextList, propertySearchQuery } from "./core/forms.js";
 import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
 import { parseRoute } from "./core/router.js?v=7";
-import { waitForDialog } from "./components/dialogs.js";
+import { requestActiveDialogClose, runDialogForm } from "./components/dialogs.js";
 import { formField } from "./components/forms.js?v=17";
 import { renderLoading } from "./components/states.js";
 import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=17";
@@ -42,6 +42,7 @@ for (const item of document.querySelectorAll("[data-product-path]")) {
 
 const state = { pollTimer: null, lastRunStatus: "", lastAgentStatus: "", requests: new Map() };
 const generationGuard = createGenerationGuard();
+let lastRenderedHash = location.hash;
 
 function announce(message) {
   liveRegion.textContent = "";
@@ -90,20 +91,20 @@ const SOURCE_FIELDS = [
   { name: "licence_id", label: "Licence", required: true },
   { name: "licence_url", label: "Licence URL", type: "url", required: true },
   { name: "redistribution_policy", label: "Redistribution policy", required: true, wide: true },
-  { name: "target_features", label: "Research area keys", type: "json_array", wide: true, required: true, help: "Stored contract keys for the areas allowed to consume this source" },
+  { name: "target_features", label: "Research area keys", type: "json_array", wide: true, required: true, maximumItems: 5, uniqueItems: true, help: "One to five unique stored contract keys as JSON, for example [\"feature-1\"]" },
   { name: "status", label: "Lifecycle status", options: ["draft", "active", "disabled", "retired"], required: true },
-  { name: "notes", label: "Operator notes", type: "textarea", wide: true },
+  { name: "notes", label: "Operator notes", type: "textarea", wide: true, maxLength: 2000, help: "Up to 2,000 characters; optional." },
 ];
 
 const JOB_FIELDS = [
   { name: "source_definition_id", label: "Source ID", required: true, wide: true },
   { name: "name", label: "Job name", required: true },
   { name: "profile_key", label: "Registered profile", required: true },
-  { name: "profile_version", label: "Profile version", required: true },
+  { name: "profile_version", label: "Profile version", required: true, maxLength: 30 },
   { name: "adapter_key", label: "Connector", required: true },
   { name: "release_builder_key", label: "Release builder", required: true },
   { name: "import_profile_key", label: "Import profile", required: true },
-  { name: "import_profile_version", label: "Import profile version", required: true },
+  { name: "import_profile_version", label: "Import profile version", required: true, maxLength: 30 },
   { name: "target_feature", label: "Research area key", required: true },
   { name: "dataset_id", label: "Dataset ID", required: true },
   { name: "refresh_strategy", label: "Refresh strategy", options: ["full_snapshot", "append_only_partitioned", "partitioned_snapshot", "manual_versioned_import"], required: true },
@@ -111,13 +112,13 @@ const JOB_FIELDS = [
   { name: "scope_json", label: "Default update scope", type: "json", wide: true },
   { name: "quality_policy_key", label: "Quality policy", required: true },
   { name: "quality_policy_version", label: "Quality policy version", required: true },
-  { name: "max_parallelism", label: "Maximum parallel tasks", type: "number", min: 1, required: true },
-  { name: "timeout_seconds", label: "Time limit (seconds)", type: "number", min: 1, required: true },
-  { name: "max_objects", label: "Object limit", type: "number", min: 1, required: true },
-  { name: "max_bytes", label: "Byte limit", type: "number", min: 1, required: true },
-  { name: "max_rows", label: "Row limit", type: "number", min: 1, required: true },
+  { name: "max_parallelism", label: "Maximum parallel tasks", type: "number", min: 1, max: 16, required: true, help: "1–16 tasks." },
+  { name: "timeout_seconds", label: "Time limit (seconds)", type: "number", min: 1, max: 86400, required: true, help: "1–86,400 seconds (24 hours)." },
+  { name: "max_objects", label: "Object limit", type: "number", min: 1, max: 100000, required: true, help: "1–100,000 source objects." },
+  { name: "max_bytes", label: "Byte limit", type: "number", min: 1, max: 100000000000, required: true, help: "1–100,000,000,000 bytes." },
+  { name: "max_rows", label: "Row limit", type: "number", min: 1, max: 100000000, required: true, help: "1–100,000,000 rows." },
   { name: "status", label: "Lifecycle status", options: ["draft", "active", "disabled", "retired"], required: true },
-  { name: "schedule_text", label: "Schedule note", wide: true, help: "Descriptive only; no scheduler is enabled" },
+  { name: "schedule_text", label: "Schedule note", wide: true, maxLength: 200, help: "Optional, up to 200 characters. Descriptive only; no scheduler is enabled." },
 ];
 
 async function openEntityDialog(kind, item = null) {
@@ -140,34 +141,57 @@ async function openEntityDialog(kind, item = null) {
     max_rows: item?.limits?.max_rows,
   })[name];
   fieldHost.replaceChildren(...fields.map((definition) => formField(definition, fieldValue(definition.name))));
-  document.querySelector("#entity-error").textContent = "";
-  entityDialog.returnValue = "";
-  entityDialog.showModal();
-  entityDialog.querySelector("input, select, textarea")?.focus();
-  if (!await waitForDialog(entityDialog, "save")) return;
-  const data = Object.fromEntries(new FormData(entityForm));
-  try {
-    for (const definition of fields.filter((field) => field.type === "json")) data[definition.name] = parseJsonField(data[definition.name], definition.label);
-    for (const definition of fields.filter((field) => field.type === "json_array")) {
-      try { const parsed = JSON.parse(data[definition.name] || "[]"); if (!Array.isArray(parsed) || (definition.required && !parsed.length) || parsed.some((value) => typeof value !== "string")) throw new Error(); data[definition.name] = parsed; }
-      catch { throw new Error(`${definition.label} must be a JSON list of text values.`); }
-    }
-    for (const definition of fields.filter((field) => field.type === "number")) data[definition.name] = Number(data[definition.name]);
-    if (item?.version !== undefined) data.version = item.version;
-    const path = isSource ? "sources" : "jobs";
-    const result = await request(`${path}${item ? `/${encodeURIComponent(item.id)}` : ""}`, { method: item ? "PUT" : "POST", body: data });
-    showToast(`${humanise(kind)} ${item ? "updated" : "created"}. Request ID ${result.requestId}`);
-    await renderRoute();
-  } catch (error) { showToast(`${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`); }
+  const saved = await runDialogForm({
+    dialog: entityDialog,
+    form: entityForm,
+    submitButton: document.querySelector("#entity-save"),
+    errorHost: document.querySelector("#entity-error"),
+    acceptedValue: "save",
+    progressLabel: item ? "Saving changes…" : `Creating ${kind}…`,
+    discardMessage: `Discard your unsaved ${kind} changes?`,
+    onSubmit: async () => {
+      const data = Object.fromEntries(new FormData(entityForm));
+      for (const definition of fields.filter((field) => field.type === "json")) {
+        data[definition.name] = parseJsonField(data[definition.name], definition.label, definition.name);
+      }
+      for (const definition of fields.filter((field) => field.type === "json_array")) {
+        data[definition.name] = parseJsonTextList(data[definition.name], definition.label, definition.name, {
+          maximum: definition.maximumItems ?? null,
+          unique: Boolean(definition.uniqueItems),
+        });
+      }
+      for (const definition of fields.filter((field) => field.type === "number")) {
+        data[definition.name] = parseIntegerField(data[definition.name], definition.label, {
+          fieldName: definition.name,
+          minimum: definition.min ?? null,
+          maximum: definition.max ?? null,
+        });
+      }
+      if (item?.version !== undefined) data.version = item.version;
+      const path = isSource ? "sources" : "jobs";
+      const result = await request(`${path}${item ? `/${encodeURIComponent(item.id)}` : ""}`, { method: item ? "PUT" : "POST", body: data });
+      showToast(`${humanise(kind)} ${item ? "updated" : "created"}. Request ID ${result.requestId}`);
+    },
+  });
+  if (saved) await renderRoute();
 }
 
-function confirmAction({ title, description, label = "Confirm", tone = "danger", extra = null }) {
+function confirmAction({ title, description, label = "Confirm", tone = "danger", extra = null, onConfirm = null, progressLabel = "Working…", discardMessage = "Discard your entered changes?" }) {
   document.querySelector("#action-title").textContent = title;
   document.querySelector("#action-description").textContent = description;
   document.querySelector("#action-error").textContent = "";
   const host = document.querySelector("#action-extra"); host.replaceChildren(); if (extra) append(host, extra);
   const confirm = document.querySelector("#action-confirm"); confirm.textContent = label; confirm.className = `button ${tone}`;
-  actionDialog.returnValue = ""; actionDialog.showModal(); return waitForDialog(actionDialog, "confirm");
+  return runDialogForm({
+    dialog: actionDialog,
+    form: actionForm,
+    submitButton: confirm,
+    errorHost: document.querySelector("#action-error"),
+    acceptedValue: "confirm",
+    progressLabel,
+    discardMessage,
+    onSubmit: onConfirm || (async () => {}),
+  });
 }
 
 async function mutate(path, { method = "POST", body = {}, success = "Action completed" } = {}) {
@@ -175,9 +199,9 @@ async function mutate(path, { method = "POST", body = {}, success = "Action comp
   showToast(`${success}. Request ID ${result.requestId}`); return result.body;
 }
 
-const openPlanDialog = createRunPlanner({ request, mutate, confirmAction, showToast });
-const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, showToast, rerender: renderRoute });
-const { renderRuns, renderRunDetail } = createRunRoutes({ view, request, mutate, confirmAction, showToast, announce, state, generationGuard, rerender: renderRoute });
+const openPlanDialog = createRunPlanner({ request, mutate, confirmAction });
+const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, rerender: renderRoute });
+const { renderRuns, renderRunDetail } = createRunRoutes({ view, request, mutate, confirmAction, announce, state, generationGuard, rerender: renderRoute });
 const { renderProperties } = createPropertyRoutes({ view, request, announce });
 const { renderDataProducts } = createDataProductRoutes({ view, request, loading, rerender: renderRoute });
 const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, mutate, showToast, rerender: renderRoute });
@@ -192,8 +216,6 @@ async function checkHealth() {
 async function renderRoute({ focus = false } = {}) {
   generationGuard.next(); clearTimeout(state.pollTimer); state.lastRunStatus = ""; state.lastAgentStatus = "";
   liveRegion.textContent = "";
-  if (entityDialog.open) entityDialog.close("cancel");
-  if (actionDialog.open) actionDialog.close("cancel");
   const { route, id } = parseRoute(location.hash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
   view.dataset.density = route === "properties" ? "comfortable" : "compact";
   try {
@@ -208,6 +230,7 @@ async function renderRoute({ focus = false } = {}) {
     else if (route === "ai") await renderAi(id);
   } catch (error) { view.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`)); }
   finally {
+    lastRenderedHash = location.hash;
     view.setAttribute("aria-busy", "false");
     const heading = view.querySelector("h1");
     if (heading) document.title = `PropertyScope | ${heading.textContent}`;
@@ -218,17 +241,45 @@ async function renderRoute({ focus = false } = {}) {
   }
 }
 
-entityForm.addEventListener("submit", (event) => { event.preventDefault(); if (event.submitter?.value === "cancel") entityDialog.close("cancel"); else if (entityForm.reportValidity()) entityDialog.close("save"); });
-actionForm.addEventListener("submit", (event) => { event.preventDefault(); actionDialog.close(event.submitter?.value || "cancel"); });
 navToggle.addEventListener("click", () => { const open = sidebar.classList.toggle("open"); navToggle.setAttribute("aria-expanded", String(open)); navToggle.querySelector(".visually-hidden").textContent = open ? "Close navigation" : "Open navigation"; });
+function validateHeaderPropertyQuery({ report = false } = {}) {
+  if (!headerPropertyQuery.value.trim()) {
+    headerPropertyQuery.setCustomValidity("");
+    headerPropertyQuery.removeAttribute("aria-invalid");
+    return "";
+  }
+  try {
+    const query = propertySearchQuery(headerPropertyQuery.value, "header-property-query");
+    headerPropertyQuery.setCustomValidity("");
+    headerPropertyQuery.removeAttribute("aria-invalid");
+    return query;
+  } catch (error) {
+    headerPropertyQuery.setCustomValidity(error.message);
+    headerPropertyQuery.setAttribute("aria-invalid", "true");
+    if (report) headerPropertyQuery.reportValidity();
+    return null;
+  }
+}
 headerPropertySearch.addEventListener("submit", (event) => {
   event.preventDefault();
-  const query = headerPropertyQuery.value.trim();
-  location.hash = query ? `#properties?q=${encodeURIComponent(query)}` : "#properties";
+  const query = validateHeaderPropertyQuery({ report: true });
+  if (query === "") location.hash = "#properties";
+  else if (query) location.hash = `#properties?q=${encodeURIComponent(query)}`;
 });
+headerPropertySearch.addEventListener("invalid", (event) => {
+  if (event.target === headerPropertyQuery) validateHeaderPropertyQuery();
+}, true);
+headerPropertyQuery.addEventListener("input", () => validateHeaderPropertyQuery());
 sidebar.addEventListener("click", (event) => { if (event.target.closest("a")) closeNavigation(); });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && sidebar.classList.contains("open")) closeNavigation({ restoreFocus: true }); });
-window.addEventListener("hashchange", () => renderRoute({ focus: true }));
+window.addEventListener("hashchange", () => {
+  if (![entityDialog, actionDialog].every((dialog) => requestActiveDialogClose(dialog))) {
+    history.replaceState(null, "", lastRenderedHash || "#properties");
+    announce("Finish or cancel the open form before leaving this page.");
+    return;
+  }
+  renderRoute({ focus: true });
+});
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) return;
   const current = parseRoute(location.hash);

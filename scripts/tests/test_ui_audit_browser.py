@@ -128,7 +128,12 @@ def test_configured_named_flows_reach_their_response_state(tmp_path: Path) -> No
             "/dataset-releases",
             "Deterministic UI audit case",
         ),
-        ("release-detail", "publish-conflict"): ("POST", 409, "/publish", None),
+        ("release-detail", "publish-conflict"): (
+            "POST",
+            409,
+            "/publish",
+            "Deterministic UI audit case",
+        ),
         ("sources-list", "validation"): ("PUT", 422, "/sources/", "submitted value conflicts"),
         ("sources-list", "conflict"): ("PUT", 409, "/sources/", "Deterministic UI audit case"),
         ("ai-review-new", "provider-unavailable"): (
