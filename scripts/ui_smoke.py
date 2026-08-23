@@ -1,0 +1,155 @@
+"""Minimal Playwright smoke for Shared, Property Discovery, and Data Operations."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
+from urllib.error import URLError
+from urllib.request import urlopen
+
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import Page, sync_playwright
+from scripts.ui_fixture_server import DEFAULT_PORT, LOOPBACK_HOST
+from scripts.ui_fixtures import SCENARIOS
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _ready(base_url: str) -> bool:
+    try:
+        with urlopen(f"{base_url}/healthz", timeout=0.4) as response:
+            payload = json.load(response)
+            return response.status == 200 and payload.get("scenario") in SCENARIOS
+    except (OSError, URLError, ValueError):
+        return False
+
+
+@contextmanager
+def fixture_runtime(port: int, scenario: str) -> Iterator[str]:
+    """Reuse a matching local host or own and clean up a new fixture child."""
+    base_url = f"http://{LOOPBACK_HOST}:{port}"
+    child: subprocess.Popen[bytes] | None = None
+    if not _ready(base_url):
+        child = subprocess.Popen(
+            (
+                sys.executable,
+                "-m",
+                "scripts.ui_fixture_server",
+                "--port",
+                str(port),
+                "--scenario",
+                scenario,
+            ),
+            cwd=REPOSITORY_ROOT,
+        )
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline and not _ready(base_url):
+            if child.poll() is not None:
+                raise RuntimeError("UI fixture child exited before its health check passed")
+            time.sleep(0.1)
+        if not _ready(base_url):
+            raise RuntimeError(f"UI fixture child did not become ready at {base_url}/healthz")
+    try:
+        yield base_url
+    finally:
+        if child is not None:
+            child.terminate()
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait(timeout=5)
+
+
+def _verify_page(
+    page: Page,
+    url: str,
+    expected_heading: str,
+    *,
+    ready_selector: str | None = None,
+) -> None:
+    failures: list[str] = []
+    page.on("pageerror", lambda error: failures.append(f"page exception: {error}"))
+    page.on(
+        "console",
+        lambda message: (
+            failures.append(f"console error: {message.text}") if message.type == "error" else None
+        ),
+    )
+    page.goto(url, wait_until="networkidle")
+    page.locator("h1", has_text=expected_heading).wait_for(state="visible")
+    if ready_selector:
+        page.locator(ready_selector).first.wait_for(state="visible")
+    if failures:
+        raise RuntimeError(f"{url} emitted unexpected browser errors: {'; '.join(failures)}")
+    print(f"PASS {expected_heading}: {url}", flush=True)
+
+
+def run_smoke(*, port: int, scenario: str) -> None:
+    """Run three representative routes against one deterministic same-origin host."""
+    with fixture_runtime(port, scenario) as base_url:
+        try:
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch(headless=True)
+                try:
+                    context = browser.new_context(viewport={"width": 1440, "height": 1000})
+                    page = context.new_page()
+                    _verify_page(
+                        page,
+                        f"{base_url}/?scenario={scenario}#home",
+                        "Research a property",
+                    )
+                    page.close()
+                    page = context.new_page()
+                    _verify_page(
+                        page,
+                        f"{base_url}/features/data-platform/"
+                        f"?scenario={scenario}#properties?q=11%20Example%20Street",
+                        "Explore NSW properties",
+                        ready_selector=".result-card",
+                    )
+                    page.close()
+                    page = context.new_page()
+                    _verify_page(
+                        page,
+                        f"{base_url}/features/data-platform/?scenario={scenario}#overview",
+                        "Data overview",
+                    )
+                    page.close()
+                    context.close()
+                finally:
+                    browser.close()
+        except PlaywrightError as exc:
+            if "Executable doesn't exist" in str(exc):
+                raise RuntimeError(
+                    "Playwright Chromium is missing. Run `uv run playwright install chromium` "
+                    "once, then rerun the smoke command."
+                ) from exc
+            raise
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--scenario", choices=SCENARIOS, default="populated")
+    return parser
+
+
+def main() -> int:
+    arguments = _parser().parse_args()
+    try:
+        run_smoke(port=arguments.port, scenario=arguments.scenario)
+    except (PlaywrightError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

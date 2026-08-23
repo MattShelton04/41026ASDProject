@@ -13,6 +13,11 @@ import pytest
 from scripts import dev
 
 
+@pytest.fixture(autouse=True)
+def skip_real_port_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(dev, "_host_port_is_available", lambda _port: True)
+
+
 @pytest.fixture
 def captured_commands(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
     commands: list[tuple[str, ...]] = []
@@ -105,6 +110,112 @@ def test_up_starts_complete_stack(
         assert filename in captured_commands[1]
     assert "propertyscope-shared-frontend" in captured_commands[1]
     assert "docker-compose.shared-shell.yml" not in dev.COMPOSE_FILES
+
+
+def test_up_preflights_before_materialising_secret_or_starting_compose(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(dev, "_openai_credential", lambda **_kwargs: "key")
+    monkeypatch.setattr(dev, "_ensure_docker", lambda: calls.append("docker"))
+    monkeypatch.setattr(
+        dev,
+        "_preflight_compose_host_ports",
+        lambda **_kwargs: calls.append("preflight"),
+    )
+    monkeypatch.setattr(
+        dev,
+        "_compose_environment",
+        lambda **_kwargs: calls.append("secret") or {},
+    )
+    monkeypatch.setattr(dev, "_run", lambda *_args, **_kwargs: calls.append("compose"))
+
+    dev._up(full_data=False, offline=False)
+
+    assert calls[:4] == ["docker", "preflight", "secret", "compose"]
+
+
+def test_rebuild_preflights_only_selected_host_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selections: list[tuple[str, ...]] = []
+    monkeypatch.setattr(dev, "_openai_credential", lambda **_kwargs: "key")
+    monkeypatch.setattr(dev, "_ensure_docker", lambda: None)
+    monkeypatch.setattr(
+        dev,
+        "_preflight_compose_host_ports",
+        lambda *, services, full_data: selections.append(tuple(services)),
+    )
+    monkeypatch.setattr(dev, "_compose_environment", lambda **_kwargs: {})
+    monkeypatch.setattr(dev, "_run", lambda *_args, **_kwargs: None)
+
+    dev._rebuild(("propertyscope-frontend",), full_data=False, offline=False)
+
+    assert selections == [("propertyscope-frontend",)]
+
+
+def test_port_configuration_rejects_invalid_and_self_conflicting_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PROPERTYSCOPE_SHARED_PORT", "5301")
+    monkeypatch.setenv("PROPERTYSCOPE_PORT", "5301")
+    with pytest.raises(RuntimeError, match="configured for both"):
+        dev._resolved_host_ports(dev.APPLICATION_SERVICES)
+
+    monkeypatch.setenv("PROPERTYSCOPE_PORT", "not-a-port")
+    with pytest.raises(RuntimeError, match="integer between 1 and 65535"):
+        dev._resolved_host_ports(dev.APPLICATION_SERVICES)
+
+
+def test_empty_port_environment_uses_compose_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PROPERTYSCOPE_PORT", "")
+
+    assert dev._resolved_host_ports(("propertyscope-frontend",))["propertyscope-frontend"] == (
+        "PROPERTYSCOPE_PORT",
+        5200,
+    )
+
+
+def test_port_preflight_allows_only_the_selected_compose_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dev, "_host_port_is_available", lambda _port: False)
+    monkeypatch.setattr(
+        dev,
+        "_published_port_owners",
+        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "propertyscope-frontend"),),
+    )
+
+    dev._preflight_compose_host_ports(
+        services=("propertyscope-frontend",),
+        full_data=False,
+    )
+
+    with pytest.raises(RuntimeError, match="before any build or container change"):
+        dev._preflight_compose_host_ports(
+            services=("propertyscope-frontend",),
+            full_data=True,
+        )
+
+
+def test_up_prints_configured_urls(
+    captured_commands: list[tuple[str, ...]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del captured_commands
+    monkeypatch.setenv("PROPERTYSCOPE_SHARED_PORT", "5310")
+    monkeypatch.setenv("AI_MODE_PORT", "5311")
+    monkeypatch.setenv("INTEGRATION_TEST_FEATURE_PORT", "5312")
+    monkeypatch.setenv("PROPERTYSCOPE_PORT", "5313")
+
+    assert dev.main(["up"]) == 0
+
+    output = capsys.readouterr().out
+    assert "http://localhost:5310" in output
+    assert "http://localhost:5311/health/ready" in output
+    assert "http://localhost:5312" in output
+    assert "http://localhost:5313" in output
 
 
 def test_rebuild_defaults_to_all_application_services(

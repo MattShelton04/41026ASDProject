@@ -9,6 +9,7 @@ import json
 import os
 import re
 import shlex
+import socket
 import subprocess
 import sys
 import time
@@ -60,6 +61,23 @@ COLLECTION_JOBS = (
     "psi-sales",
 )
 TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
+HOST_PORTS = {
+    "propertyscope-shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),
+    "ai-mode": ("AI_MODE_PORT", 5005),
+    "integration-test-feature-frontend": ("INTEGRATION_TEST_FEATURE_PORT", 5190),
+    "propertyscope-frontend": ("PROPERTYSCOPE_PORT", 5200),
+}
+UI_FIXTURE_SCENARIOS = (
+    "populated",
+    "empty",
+    "slow",
+    "error",
+    "partial",
+    "long-content",
+    "large",
+    "validation-error",
+)
+DEFAULT_UI_FIXTURE_PORT = 5300
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{partition}.zip"
 PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{partition}.zip"
 PSI_ARCHIVE_BYTE_LIMIT = 750_000_000
@@ -87,6 +105,120 @@ def _run(command: Sequence[str], *, environment: Mapping[str, str] | None = None
 
 def _ensure_docker() -> None:
     _run(("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"))
+
+
+def _resolved_host_ports(services: Sequence[str]) -> dict[str, tuple[str, int]]:
+    resolved: dict[str, tuple[str, int]] = {}
+    by_port: dict[int, tuple[str, str]] = {}
+    for service in services:
+        setting = HOST_PORTS.get(service)
+        if setting is None:
+            continue
+        variable, default = setting
+        raw_value = os.environ.get(variable, "").strip() or str(default)
+        if re.fullmatch(r"[0-9]+", raw_value) is None or not 1 <= int(raw_value) <= 65535:
+            raise RuntimeError(f"{variable} must be an integer between 1 and 65535")
+        port = int(raw_value)
+        if previous := by_port.get(port):
+            raise RuntimeError(
+                f"Host port {port} is configured for both {previous[0]} ({previous[1]}) and "
+                f"{service} ({variable}). Set one environment variable to a different port."
+            )
+        by_port[port] = (service, variable)
+        resolved[service] = (variable, port)
+    return resolved
+
+
+def _ui_fixture_port(argument: int | None) -> int:
+    raw_value = (
+        str(argument)
+        if argument is not None
+        else (
+            os.environ.get("PROPERTYSCOPE_UI_FIXTURE_PORT", "").strip()
+            or str(DEFAULT_UI_FIXTURE_PORT)
+        )
+    )
+    if re.fullmatch(r"[0-9]+", raw_value) is None or not 1 <= int(raw_value) <= 65535:
+        raise RuntimeError(
+            "PROPERTYSCOPE_UI_FIXTURE_PORT/--port must be an integer between 1 and 65535"
+        )
+    return int(raw_value)
+
+
+def _host_port_is_available(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        try:
+            listener.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
+
+
+def _capture(command: Sequence[str]) -> str:
+    completed = subprocess.run(
+        command,
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout
+
+
+def _published_port_owners(port: int) -> tuple[tuple[str, str], ...]:
+    container_ids = tuple(
+        line.strip()
+        for line in _capture(
+            ("docker", "ps", "--filter", f"publish={port}", "--format", "{{.ID}}")
+        ).splitlines()
+        if line.strip()
+    )
+    owners: list[tuple[str, str]] = []
+    for container_id in container_ids:
+        output = _capture(
+            (
+                "docker",
+                "inspect",
+                "--format",
+                "{{json .Config.Labels}}",
+                container_id,
+            )
+        ).strip()
+        labels = json.loads(output) if output else {}
+        if not isinstance(labels, dict):
+            labels = {}
+        project = str(labels.get("com.docker.compose.project", ""))
+        service = str(labels.get("com.docker.compose.service", container_id))
+        owners.append((project, service))
+    return tuple(owners)
+
+
+def _preflight_compose_host_ports(*, services: Sequence[str], full_data: bool) -> None:
+    """Reject conflicting host ports before secrets, builds, or container mutation."""
+    project = FULL_DATA_PROJECT_NAME if full_data else DEFAULT_PROJECT_NAME
+    conflicts: list[str] = []
+    for service, (variable, port) in _resolved_host_ports(services).items():
+        if _host_port_is_available(port):
+            continue
+        owners = _published_port_owners(port)
+        if owners and all(owner_project == project for owner_project, _ in owners):
+            continue
+        owner_text = ", ".join(
+            f"Compose project {owner_project!r} service {owner_service!r}"
+            for owner_project, owner_service in owners
+        )
+        if not owner_text:
+            owner_text = "a non-Compose host process"
+        conflicts.append(f"{service} needs 127.0.0.1:{port} ({variable}); occupied by {owner_text}")
+    if conflicts:
+        detail = "\n  - ".join(conflicts)
+        raise RuntimeError(
+            "Compose host-port preflight failed before any build or container change:\n"
+            f"  - {detail}\n"
+            "Stop the owning process/project or set the named port environment variable."
+        )
 
 
 def _openai_credential(*, offline: bool) -> str:
@@ -307,6 +439,7 @@ def _compose_environment(*, full_data: bool, offline: bool) -> Mapping[str, str]
 def _up(*, full_data: bool, offline: bool) -> None:
     _openai_credential(offline=offline)
     _ensure_docker()
+    _preflight_compose_host_ports(services=APPLICATION_SERVICES, full_data=full_data)
     compose_environment = _compose_environment(full_data=full_data, offline=offline)
     if full_data:
         print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
@@ -323,10 +456,13 @@ def _up(*, full_data: bool, offline: bool) -> None:
         ),
         environment=compose_environment,
     )
-    print("\nIntegration console: http://localhost:5190")
-    print("AI-mode health:     http://localhost:5005/health/ready")
-    print("PropertyScope home: http://localhost:5100")
-    print("PropertyScope:      http://localhost:5200")
+    ports = _resolved_host_ports(APPLICATION_SERVICES)
+    print(
+        f"\nIntegration console: http://localhost:{ports['integration-test-feature-frontend'][1]}"
+    )
+    print(f"AI-mode health:     http://localhost:{ports['ai-mode'][1]}/health/ready")
+    print(f"PropertyScope home: http://localhost:{ports['propertyscope-shared-frontend'][1]}")
+    print(f"PropertyScope:      http://localhost:{ports['propertyscope-frontend'][1]}")
     if full_data:
         print("Full-data mode:     enabled in an isolated Compose project")
     if offline:
@@ -337,6 +473,7 @@ def _rebuild(services: Sequence[str], *, full_data: bool, offline: bool) -> None
     _openai_credential(offline=offline)
     _ensure_docker()
     selected = tuple(services) or APPLICATION_SERVICES
+    _preflight_compose_host_ports(services=selected, full_data=full_data)
     compose_environment = _compose_environment(full_data=full_data, offline=offline)
     _run(
         _compose_command("build", *selected, full_data=full_data),
@@ -663,6 +800,26 @@ def _parser() -> argparse.ArgumentParser:
 
     commands.add_parser("test", help="Run the deterministic integration-feature tests")
     commands.add_parser("check", help="Run the complete canonical quality gate")
+    ui = commands.add_parser(
+        "ui",
+        help="Serve Shared and Feature 1 with deterministic same-origin fixtures (no Docker)",
+    )
+    ui.add_argument("--port", type=int, default=None, help="Loopback port (default: 5300)")
+    ui.add_argument(
+        "--scenario",
+        choices=UI_FIXTURE_SCENARIOS,
+        default=os.environ.get("PROPERTYSCOPE_UI_SCENARIO", "populated"),
+    )
+    ui_smoke = commands.add_parser(
+        "ui-smoke",
+        help="Run the minimal Playwright smoke against an owned/reused UI fixture host",
+    )
+    ui_smoke.add_argument("--port", type=int, default=None, help="Loopback port (default: 5300)")
+    ui_smoke.add_argument(
+        "--scenario",
+        choices=UI_FIXTURE_SCENARIOS,
+        default="populated",
+    )
     sync_psi = commands.add_parser(
         "sync-psi", help="Acquire official PSI annual/weekly archives into the read-only app cache"
     )
@@ -698,6 +855,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif arguments.command == "restart":
             _openai_credential(offline=arguments.offline)
             _ensure_docker()
+            _preflight_compose_host_ports(
+                services=APPLICATION_SERVICES,
+                full_data=arguments.full_data,
+            )
             compose_environment = _compose_environment(
                 full_data=arguments.full_data,
                 offline=arguments.offline,
@@ -760,6 +921,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif arguments.command == "check":
             _run((sys.executable, "scripts/check.py"))
+        elif arguments.command == "ui":
+            from scripts.ui_fixture_server import serve_ui_fixtures
+
+            serve_ui_fixtures(
+                port=_ui_fixture_port(arguments.port),
+                scenario=arguments.scenario,
+            )
+        elif arguments.command == "ui-smoke":
+            _run(
+                (
+                    sys.executable,
+                    "-m",
+                    "scripts.ui_smoke",
+                    "--port",
+                    str(_ui_fixture_port(arguments.port)),
+                    "--scenario",
+                    arguments.scenario,
+                )
+            )
         elif arguments.command == "sync-psi":
             current_year = datetime.now(UTC).year
             years = list(arguments.year)

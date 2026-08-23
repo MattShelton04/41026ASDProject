@@ -16,6 +16,29 @@
     "feature1Edge": "http://localhost:5100/features/data-platform/",
     "aiActivityEdge": "http://localhost:5100/operations/ai-mode/"
   },
+  "fixtureMode": {
+    "command": "uv run scripts/dev.py ui",
+    "smokeCommand": "uv run scripts/dev.py ui-smoke",
+    "origin": "http://127.0.0.1:5300/",
+    "feature1Edge": "http://127.0.0.1:5300/features/data-platform/",
+    "health": "http://127.0.0.1:5300/healthz",
+    "selection": {
+      "queryParameter": "scenario",
+      "header": "X-PropertyScope-UI-Scenario",
+      "environment": "PROPERTYSCOPE_UI_SCENARIO"
+    },
+    "scenarios": [
+      "populated",
+      "empty",
+      "slow",
+      "error",
+      "partial",
+      "long-content",
+      "large",
+      "validation-error"
+    ],
+    "permissionScenario": "deferred-no-approved-product-contract"
+  },
   "viewports": [
     {
       "id": "laptop-wide",

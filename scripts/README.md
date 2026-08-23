@@ -21,6 +21,12 @@ Run `uv run scripts/dev.py --help` for the local development commands. The commo
 cache-backed image reconciliation, while `rebuild` remains available for explicit targeted
 rebuilds. `up --offline` keeps data workflows available without an OpenAI credential.
 
+The frontend-only audit loop is `uv run scripts/dev.py ui`. It serves Shared and Feature 1 on one
+loopback origin with deterministic API fixtures and stops cleanly on Ctrl+C. Run
+`uv run scripts/dev.py ui-smoke` for the minimal Playwright render/console smoke after installing
+Chromium once with `uv run playwright install chromium`. Scenario and port controls are documented
+in [`docs/ui/feature-1-fixture-mode.md`](../docs/ui/feature-1-fixture-mode.md).
+
 `reset` stops the selected stack, removes its declared volumes, and prunes only unused volumes
 with that exact Compose project label. Add `--full-data` to reset the isolated source-scale
 project; the Git-ignored host source cache is not removed.
