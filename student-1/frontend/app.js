@@ -2,7 +2,7 @@ import { API_BASE, newRequestId, requestJson } from "./core/api.js";
 import { append, el } from "./core/dom.js";
 import { humanise } from "./core/formats.js?v=17";
 import { parseIntegerField, parseJsonField, parseJsonTextList, propertySearchQuery } from "./core/forms.js";
-import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
+import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js?v=18";
 import { parseRoute } from "./core/router.js?v=7";
 import { requestActiveDialogClose, runDialogForm } from "./components/dialogs.js";
 import { createDrawerController, createToastController } from "./browser/index.js?v=3";
@@ -16,7 +16,7 @@ import { renderOverview } from "./routes/overview.js?v=19";
 import { createPropertyRoutes } from "./routes/properties.js?v=18";
 import { createReleaseRoutes } from "./routes/releases.js?v=18";
 import { createRunPlanner } from "./routes/run-plan.js?v=17";
-import { createRunRoutes } from "./routes/runs.js?v=17";
+import { createRunRoutes } from "./routes/runs.js?v=18";
 
 const view = document.querySelector("#view");
 const liveRegion = document.querySelector("#live-region");

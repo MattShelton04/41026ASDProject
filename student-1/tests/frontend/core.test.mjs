@@ -14,6 +14,7 @@ import {
   collection,
   confidenceLabel,
   createGenerationGuard,
+  createLatestRequestGuard,
   coverageRows,
   displayName,
   entity,
@@ -33,6 +34,7 @@ import {
   psiYearRange,
   queryString,
   releaseComparison,
+  retainRecent,
   researchAreaLabel,
   reportReleaseRows,
   requestJson,
@@ -534,6 +536,26 @@ test("generation guards reject late route and polling work", () => {
   assert.equal(guard.current(), 2);
 });
 
+test("latest-request guards reject slow refreshes after a newer refresh starts", async () => {
+  const guard = createLatestRequestGuard();
+  const slow = guard.next();
+  const fast = guard.next();
+  await Promise.resolve();
+  assert.equal(guard.isCurrent(slow), false);
+  assert.equal(guard.isCurrent(fast), true);
+});
+
+test("recent feed caches evict the least recently used run", () => {
+  const cache = new Map();
+  for (const id of ["run-1", "run-2", "run-3", "run-4"]) {
+    retainRecent(cache, id, { id }, 3);
+  }
+  assert.deepEqual([...cache.keys()], ["run-2", "run-3", "run-4"]);
+  retainRecent(cache, "run-2", cache.get("run-2"), 3);
+  retainRecent(cache, "run-5", { id: "run-5" }, 3);
+  assert.deepEqual([...cache.keys()], ["run-4", "run-2", "run-5"]);
+});
+
 test("the application shell exposes keyboard landmarks, live status and native dialogs", async () => {
   const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
   const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
@@ -729,6 +751,17 @@ test("operator state routes preserve partial evidence and explain lifecycle cont
   assert.match(entities, /This data update is disabled/);
   assert.match(releases, /releaseLifecycleContext/);
   assert.match(releases, /primaryCell\(releaseLink, release\.release_version/);
+});
+
+test("run polling preserves the rendered view and isolates supporting feed failures", async () => {
+  const runs = await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8");
+  assert.match(runs, /Promise\.allSettled/);
+  assert.match(runs, /resolveFeed\(tasksResult, cache, "tasks"\)/);
+  assert.match(runs, /Showing the last loaded details/);
+  assert.match(runs, /captureRefreshState\(view\)/);
+  assert.match(runs, /restoreRefreshState\(view, refreshState\)/);
+  assert.match(runs, /Refresh delayed · retrying automatically/);
+  assert.match(runs, /refreshGuard\.isCurrent\(refresh\)/);
 });
 
 test("route lifecycle titles and focuses the first page or error heading", async () => {

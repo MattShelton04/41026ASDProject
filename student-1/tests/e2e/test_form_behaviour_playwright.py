@@ -132,6 +132,21 @@ def _fail_first_write(page: Page, pattern: str, *, method: str = "POST") -> list
     return writes
 
 
+def _temporary_read_failure(route: Route, label: str) -> None:
+    route.fulfill(
+        status=503,
+        content_type="application/problem+json",
+        headers={"X-Request-ID": f"{label}-refresh-request"},
+        body=json.dumps(
+            {
+                "type": "about:blank",
+                "title": "Temporary fixture failure",
+                "detail": f"The {label} fixture is temporarily unavailable.",
+            }
+        ),
+    )
+
+
 def _abort_external_map(page: Page) -> None:
     page.route("**/tiles.openfreemap.org/**", lambda route: route.abort())
 
@@ -826,3 +841,101 @@ def test_operations_overview_job_and_release_states_are_truthful(
         box = page.get_by_role("link", name=label).bounding_box()
         assert box is not None
         assert box["height"] >= 44
+
+
+def test_run_poll_keeps_cached_supporting_evidence_disclosure_focus_and_scroll(
+    page: Page, fixture_origin: str
+) -> None:
+    counts: dict[str, int] = {}
+
+    def run_feeds(route: Route) -> None:
+        path = route.request.url.partition("?")[0]
+        if path.endswith(f"/ingestion-runs/{RUN_ID}"):
+            response = route.fetch()
+            payload = response.json()
+            payload["run"]["status"] = "running"
+            route.fulfill(response=response, json=payload)
+            return
+        labels = {
+            "/tasks": "Update steps",
+            "/quality-results": "Data checks",
+            "/artifacts": "File and lineage details",
+        }
+        label = next((value for suffix, value in labels.items() if path.endswith(suffix)), "")
+        if label:
+            counts[label] = counts.get(label, 0) + 1
+            if counts[label] > 1:
+                _temporary_read_failure(route, label.lower().replace(" ", "-"))
+            else:
+                route.continue_()
+            return
+        route.continue_()
+
+    release_count = 0
+
+    def release_feed(route: Route) -> None:
+        nonlocal release_count
+        release_count += 1
+        if release_count > 1:
+            _temporary_read_failure(route, "published-version")
+        else:
+            route.continue_()
+
+    page.route("**/api/data-platform/v1/ingestion-runs/**", run_feeds)
+    page.route("**/api/data-platform/v1/dataset-releases?limit=100", release_feed)
+    _open(page, fixture_origin, f"runs/{RUN_ID}")
+    expect(page.locator(".timeline li").first).to_be_visible()
+    technical_summary = page.locator("details.technical > summary").last
+    technical_summary.click()
+    technical_summary.scroll_into_view_if_needed()
+    technical_summary.focus()
+    before_scroll = page.evaluate("window.scrollY")
+
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    expect(
+        page.get_by_text("Update steps are temporarily unavailable", exact=False)
+    ).to_be_visible()
+    expect(page.get_by_text("Data checks are temporarily unavailable", exact=False)).to_be_visible()
+    expect(
+        page.get_by_text("File and lineage details are temporarily unavailable", exact=False)
+    ).to_be_visible()
+    expect(
+        page.get_by_text("Published-version details are temporarily unavailable", exact=False)
+    ).to_be_visible()
+    expect(page.locator(".timeline li").first).to_be_visible()
+
+    restored_summary = page.locator("details.technical > summary").last
+    expect(restored_summary.locator("..")).to_have_attribute("open", "")
+    expect(restored_summary).to_be_focused()
+    assert abs(page.evaluate("window.scrollY") - before_scroll) <= 2
+    assert page.locator("#live-region").inner_text() == ""
+
+
+def test_failed_run_poll_keeps_the_current_view_and_backs_off(
+    page: Page, fixture_origin: str
+) -> None:
+    detail_reads = 0
+
+    def run_detail(route: Route) -> None:
+        nonlocal detail_reads
+        detail_reads += 1
+        if detail_reads > 1:
+            _temporary_read_failure(route, "run-detail")
+            return
+        response = route.fetch()
+        payload = response.json()
+        payload["run"]["status"] = "running"
+        route.fulfill(response=response, json=payload)
+
+    page.route(f"**/api/data-platform/v1/ingestion-runs/{RUN_ID}", run_detail)
+    _open(page, fixture_origin, f"runs/{RUN_ID}")
+    technical_summary = page.locator("details.technical > summary").last
+    technical_summary.click()
+    technical_summary.focus()
+
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    expect(page.get_by_text("Refresh delayed · retrying automatically")).to_be_visible()
+    expect(page.get_by_role("heading", name="Example property records update")).to_be_visible()
+    expect(technical_summary.locator("..")).to_have_attribute("open", "")
+    expect(technical_summary).to_be_focused()
+    assert detail_reads == 2

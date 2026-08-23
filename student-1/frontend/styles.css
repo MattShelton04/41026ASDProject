@@ -202,6 +202,7 @@ pre.json { max-height: 350px; overflow: auto; padding: .75rem; border-radius: 8p
 .timeline-meta { display: block; margin-top: .28rem; color: var(--ocean-dark); font-size: .62rem; font-weight: 700; }
 .timeline-tool { display: inline-block; margin-top: .3rem; font-size: .62rem; }
 .timeline-detail details.technical { margin-top: .42rem; }
+.run-refresh-status { margin: 0 0 var(--ps-space-4); color: var(--ink-muted); font-size: var(--ps-type-xs); font-weight: var(--ps-weight-bold); }
 .recovery-brief { display: grid; gap: .9rem; }
 .recovery-summary { margin: 0; color: var(--navy); font-size: .88rem; font-weight: 650; line-height: 1.55; }
 .recovery-brief h3 { margin: 0 0 .35rem; color: var(--navy); font-size: .75rem; }

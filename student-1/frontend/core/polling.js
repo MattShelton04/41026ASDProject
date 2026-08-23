@@ -16,6 +16,21 @@ export function createGenerationGuard() {
   };
 }
 
+export function createLatestRequestGuard() {
+  let sequence = 0;
+  return {
+    next() { sequence += 1; return sequence; },
+    isCurrent(candidate) { return candidate === sequence; },
+  };
+}
+
+export function retainRecent(cache, key, value, limit = 4) {
+  cache.delete(key);
+  cache.set(key, value);
+  while (cache.size > limit) cache.delete(cache.keys().next().value);
+  return value;
+}
+
 export function actionAvailability(status) {
   const state = String(status || "").toLowerCase();
   return {
