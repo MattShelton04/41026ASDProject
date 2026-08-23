@@ -34,6 +34,7 @@ import {
   psiYearRange,
   queryString,
   releaseComparison,
+  retainRecent,
   researchAreaLabel,
   reportReleaseRows,
   requestJson,
@@ -542,6 +543,17 @@ test("latest-request guards reject slow refreshes after a newer refresh starts",
   await Promise.resolve();
   assert.equal(guard.isCurrent(slow), false);
   assert.equal(guard.isCurrent(fast), true);
+});
+
+test("recent feed caches evict the least recently used run", () => {
+  const cache = new Map();
+  for (const id of ["run-1", "run-2", "run-3", "run-4"]) {
+    retainRecent(cache, id, { id }, 3);
+  }
+  assert.deepEqual([...cache.keys()], ["run-2", "run-3", "run-4"]);
+  retainRecent(cache, "run-2", cache.get("run-2"), 3);
+  retainRecent(cache, "run-5", { id: "run-5" }, 3);
+  assert.deepEqual([...cache.keys()], ["run-4", "run-2", "run-5"]);
 });
 
 test("the application shell exposes keyboard landmarks, live status and native dialogs", async () => {

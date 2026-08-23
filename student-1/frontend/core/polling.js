@@ -24,6 +24,13 @@ export function createLatestRequestGuard() {
   };
 }
 
+export function retainRecent(cache, key, value, limit = 4) {
+  cache.delete(key);
+  cache.set(key, value);
+  while (cache.size > limit) cache.delete(cache.keys().next().value);
+  return value;
+}
+
 export function actionAvailability(status) {
   const state = String(status || "").toLowerCase();
   return {

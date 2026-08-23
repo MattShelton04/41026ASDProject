@@ -1,7 +1,7 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=17";
-import { actionAvailability, createLatestRequestGuard, nextPollDelay } from "../core/polling.js";
+import { actionAvailability, createLatestRequestGuard, nextPollDelay, retainRecent } from "../core/polling.js?v=18";
 import { parseRoute, routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
@@ -154,8 +154,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       if (!isCurrent()) return;
       const [tasksResult, qualityResult, artifactsResult, releasesResult] = await supportingFeeds;
       if (!isCurrent()) return;
-      const cache = feedCache.get(id) || {};
-      feedCache.set(id, cache);
+      const cache = retainRecent(feedCache, id, feedCache.get(id) || {});
       const tasksFeed = resolveFeed(tasksResult, cache, "tasks");
       const qualityFeed = resolveFeed(qualityResult, cache, "quality");
       const artifactsFeed = resolveFeed(artifactsResult, cache, "artifacts");
