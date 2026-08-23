@@ -9,12 +9,12 @@ import { createDrawerController, createToastController } from "./browser/index.j
 import { formField } from "./components/forms.js?v=17";
 import { renderLoading } from "./components/states.js";
 import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=17";
-import { createEntityRoutes } from "./routes/entities.js?v=17";
+import { createEntityRoutes } from "./routes/entities.js?v=18";
 import { createDataProductRoutes } from "./routes/data-products.js?v=17";
 import { createEvidenceRoutes } from "./routes/evidence.js?v=17";
-import { renderOverview } from "./routes/overview.js?v=17";
+import { renderOverview } from "./routes/overview.js?v=18";
 import { createPropertyRoutes } from "./routes/properties.js?v=18";
-import { createReleaseRoutes } from "./routes/releases.js?v=17";
+import { createReleaseRoutes } from "./routes/releases.js?v=18";
 import { createRunPlanner } from "./routes/run-plan.js?v=17";
 import { createRunRoutes } from "./routes/runs.js?v=17";
 
@@ -248,7 +248,7 @@ async function renderRoute({ focus = false } = {}) {
   finally {
     lastRenderedHash = location.hash;
     view.setAttribute("aria-busy", "false");
-    const heading = view.querySelector("h1");
+    const heading = view.querySelector("h1, h2");
     if (heading) document.title = `PropertyScope | ${heading.textContent}`;
     if (focus && heading) {
       heading.tabIndex = -1;

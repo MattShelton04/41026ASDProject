@@ -712,11 +712,22 @@ def test_operations_overview_job_and_release_states_are_truthful(
     expect(page.get_by_text("Example NSW property records", exact=True)).to_be_visible()
 
     page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=error&test={time.time_ns()}#overview")
-    expect(page.get_by_role("heading", name="Service temporarily unavailable")).to_be_visible()
+    error_heading = page.get_by_role("heading", name="Service temporarily unavailable")
+    expect(error_heading).to_be_visible()
+    expect(page).to_have_title("PropertyScope | Service temporarily unavailable")
     expect(page.get_by_role("button", name="Try again")).to_be_visible()
     expect(page.locator(".stat-card")).to_have_count(0)
+
+    page.evaluate("location.hash = '#jobs'")
+    expect(error_heading).to_have_count(0)
+    page.evaluate("location.hash = '#overview'")
+    expect(error_heading).to_be_visible()
+    expect(error_heading).to_be_focused()
+    expect(page).to_have_title("PropertyScope | Service temporarily unavailable")
+
     page.get_by_role("button", name="Try again").click()
-    expect(page.get_by_role("heading", name="Service temporarily unavailable")).to_be_focused()
+    expect(error_heading).to_be_focused()
+    expect(page).to_have_title("PropertyScope | Service temporarily unavailable")
 
     capability_pattern = f"**/api/data-platform/v1/jobs/{JOB_ID}/capabilities"
 

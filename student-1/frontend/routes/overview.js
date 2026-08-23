@@ -53,7 +53,7 @@ export async function renderOverview({ view, request }) {
   }));
   view.replaceChildren();
   append(view, pageHeading("Property data", "Data overview", "Check whether property data is current and review recent updates.", [link("View data updates", "#jobs", "button primary overview-action"), link("Manage sources", "#sources", "button secondary overview-action")]));
-  if (feeds.failures.length) append(view, el("div", "notice warning", `${feeds.failures.map((failure) => failure.label).join(" and ")} ${feeds.failures.length === 1 ? "is" : "are"} temporarily unavailable. Information from the remaining services is still shown below.`));
+  if (feeds.failures.length) append(view, el("div", "notice warning", `Temporarily unavailable: ${feeds.failures.map((failure) => failure.label).join(" and ")}. Information from the remaining services is still shown below.`));
   const active = runs.filter((run) => ACTIVE_RUN_STATES.has(String(run.status).toLowerCase())).length;
   const latestByJob = [];
   const seenJobs = new Set();

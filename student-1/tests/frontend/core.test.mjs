@@ -723,11 +723,17 @@ test("operator state routes preserve partial evidence and explain lifecycle cont
   assert.match(overview, /projectOverviewFeeds/);
   assert.match(overview, /allUnavailable/);
   assert.match(overview, /runsAvailable \? active : "Unavailable"/);
+  assert.match(overview, /Temporarily unavailable:/);
   assert.doesNotMatch(overview, /request\("overview"\)/);
   assert.match(entities, /Available processing options could not be checked/);
   assert.match(entities, /This data update is disabled/);
   assert.match(releases, /releaseLifecycleContext/);
   assert.match(releases, /primaryCell\(releaseLink, release\.release_version/);
+});
+
+test("route lifecycle titles and focuses the first page or error heading", async () => {
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  assert.match(app, /view\.querySelector\("h1, h2"\)/);
 });
 
 test("production frontend imports focused core and component modules", async () => {
