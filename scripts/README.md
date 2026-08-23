@@ -27,6 +27,13 @@ loopback origin with deterministic API fixtures and stops cleanly on Ctrl+C. Run
 Chromium once with `uv run playwright install chromium`. Scenario and port controls are documented
 in [`docs/ui/feature-1-fixture-mode.md`](../docs/ui/feature-1-fixture-mode.md).
 
+The resumable interaction audit uses `uv run scripts/dev.py ui-audit-quick` for the three core
+Shared/Property Discovery/Data Operations routes at laptop-wide and mobile widths. Run
+`uv run scripts/dev.py ui-audit-full` for the explicit route/state/four-viewport matrix. Advanced
+selectors and stable shard controls are available through `uv run python -m scripts.ui_audit
+full --help`; generated JSON, HTML, Markdown, and screenshots stay under the ignored
+`.propertyscope-runtime/ui-audit/` tree.
+
 `reset` stops the selected stack, removes its declared volumes, and prunes only unused volumes
 with that exact Compose project label. Add `--full-data` to reset the isolated source-scale
 project; the Git-ignored host source cache is not removed.

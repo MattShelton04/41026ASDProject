@@ -37,6 +37,7 @@ export function createEvidenceRoute({ config, announce }) {
     append(root, pageHeader("About the data", "Sources and history", "See the published datasets and AI reviews behind PropertyScope results.", [link("Open Property data", config.dataOperations, "ps-button")]));
     const state = el("div", "dashboard-state", "Loading current records…");
     state.setAttribute("role", "status");
+    state.dataset.loadState = "loading";
     const releasePanel = panel("Published datasets", "The versions currently available to property research.");
     const agentPanel = panel("AI review history", "Read-only links to recorded AI reviews and their results.");
     const languagePanel = panel("How statuses are used", "A missing record means that the answer is unknown, not that something is absent.");
@@ -63,6 +64,7 @@ export function createEvidenceRoute({ config, announce }) {
     ]);
     const failures = [releasesResult, runsResult].filter((item) => item.status === "rejected");
     state.replaceChildren(notice(failures.length ? "warning" : "success", failures.length ? "Some history is unavailable" : "Sources and history loaded", failures.length ? "Available sections are still shown. Try again later for anything missing." : "Current records loaded."));
+    state.dataset.loadState = "settled";
 
     if (releasesResult.status === "fulfilled") {
       const releases = acceptedReleaseReferences(releasesResult.value.body);

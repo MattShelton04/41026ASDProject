@@ -18,7 +18,11 @@ from urllib.error import URLError
 from urllib.parse import parse_qs, unquote, urlsplit
 from urllib.request import urlopen
 
-from scripts.ui_fixtures import REQUEST_ID, SCENARIOS, fixture_response
+from scripts.ui_fixtures import (
+    REQUEST_ID,
+    SCENARIOS,
+    fixture_response,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SHARED_FRONTEND = REPOSITORY_ROOT / "shared" / "frontend"
@@ -26,6 +30,82 @@ FEATURE_FRONTEND = REPOSITORY_ROOT / "student-1" / "frontend"
 LOOPBACK_HOST = "127.0.0.1"
 DEFAULT_PORT = 5300
 SCENARIO_COOKIE = "propertyscope_ui_scenario"
+
+CANARY_PAGES = {
+    "/__ui-fixture__/canary/clean": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Clean UI audit canary</title></head>
+<body><main><h1>Clean UI audit canary</h1><button type="button">Safe action</button></main></body>
+</html>""",
+    "/__ui-fixture__/canary/overflow": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Overflow UI audit canary</title>
+<style>html,body{margin:0}.canary-overflow{width:calc(100vw + 24px);height:80px}</style></head>
+<body><main><h1>Overflow UI audit canary</h1>
+<div class="canary-overflow">overflow</div></main></body>
+</html>""",
+    "/__ui-fixture__/canary/console-error": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Console UI audit canary</title></head>
+<body><main><h1>Console UI audit canary</h1></main>
+<script>console.error("ui-audit-canary");</script></body></html>""",
+    "/__ui-fixture__/canary/below-fold": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Below-fold UI audit canary</title></head>
+<body><main><h1>Below-fold UI audit canary</h1>
+<button style="position:absolute;top:1400px;width:20px;height:20px" type="button"></button>
+</main></body></html>""",
+    "/__ui-fixture__/canary/destructive-actions": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Destructive action audit canary</title></head>
+<body><nav><a data-audit-id="safe-published-nav" href="#published">Published data</a></nav>
+<main><h1>Destructive action audit canary</h1>
+<label>Status <select data-audit-id="safe-status-select"><option>Published</option>
+<option>Rejected</option><option>Cancelled</option></select></label>
+<section aria-label="Destructive triggers">
+<button data-audit-id="trigger-delete">Delete</button>
+<button data-audit-id="trigger-delete-definition">Delete definition</button>
+<button data-audit-id="trigger-delete-version">Delete version</button>
+<button data-audit-id="trigger-publish">Publish</button>
+<button data-audit-id="trigger-publish-version">Publish version</button>
+<button data-audit-id="trigger-reject">Reject</button>
+<button data-audit-id="trigger-reject-version">Reject version</button>
+<button data-audit-id="trigger-submit-for-review">Submit for review</button>
+<button data-audit-id="trigger-start-update">Start update</button>
+<button data-audit-id="trigger-load-earlier-data">Load earlier data</button>
+<button data-audit-id="trigger-resume-update">Resume update</button>
+<button data-audit-id="trigger-retry-update">Retry update</button>
+<button data-audit-id="trigger-use-downloaded-file">Use downloaded file</button>
+<button data-audit-id="trigger-cancel-update">Cancel update</button>
+<button data-audit-id="trigger-start-ai-review">Start AI review</button>
+</section>
+<dialog open aria-label="Confirmation actions">
+<button data-audit-id="safe-dialog-cancel">Cancel</button>
+<button data-audit-id="confirm-delete">Delete</button>
+<button data-audit-id="confirm-delete-definition">Delete definition</button>
+<button data-audit-id="confirm-delete-version">Delete version</button>
+<button data-audit-id="confirm-publish">Publish</button>
+<button data-audit-id="confirm-publish-version">Publish version</button>
+<button data-audit-id="confirm-reject">Reject</button>
+<button data-audit-id="confirm-reject-version">Reject version</button>
+<button data-audit-id="confirm-submit-for-review">Submit for review</button>
+<button data-audit-id="confirm-start-update">Start update</button>
+<button data-audit-id="confirm-load-earlier-data">Load earlier data</button>
+<button data-audit-id="confirm-resume-update">Resume update</button>
+<button data-audit-id="confirm-retry-update">Retry update</button>
+<button data-audit-id="confirm-use-downloaded-file">Use downloaded file</button>
+<button data-audit-id="confirm-cancel-update">Cancel update</button>
+<button data-audit-id="confirm-start-ai-review">Start AI review</button>
+</dialog></main></body></html>""",
+    "/__ui-fixture__/canary/interaction": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Interaction UI audit canary</title></head>
+<body><main><h1>Interaction UI audit canary</h1>
+<details><summary>More actions</summary><button type="button">Nested safe action</button></details>
+<button id="open-dialog" type="button">Open actions</button>
+<dialog id="action-dialog" aria-labelledby="dialog-title"><h2 id="dialog-title">Actions</h2>
+<button id="delete-record" type="button">Delete record</button>
+<button id="cancel-dialog" type="button">Cancel</button></dialog></main>
+<script>
+const dialog=document.querySelector('#action-dialog');
+document.querySelector('#open-dialog').addEventListener('click',()=>dialog.showModal());
+document.querySelector('#cancel-dialog').addEventListener('click',()=>dialog.close());
+</script></body></html>""",
+}
 
 
 class UIFixtureServer(ThreadingHTTPServer):
@@ -67,6 +147,14 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
         if os.environ.get("PROPERTYSCOPE_UI_FIXTURE_LOG") == "1":
             super().log_message(format, *args)
 
+    def handle(self) -> None:
+        try:
+            super().handle()
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            # Fresh browser contexts can close an HTTP/1.1 socket after receiving enough data.
+            # These exact peer-disconnect exceptions are expected and need no server traceback.
+            return
+
     def _handle(self, *, include_body: bool) -> None:
         if not self._safe_host():
             self._send_bytes(
@@ -80,6 +168,14 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
             return
         target = urlsplit(self.path)
         scenario, selected_by_query = self._scenario(target.query)
+        if target.path in CANARY_PAGES:
+            self._send_bytes(
+                HTTPStatus.OK,
+                CANARY_PAGES[target.path].encode(),
+                "text/html; charset=utf-8",
+                include_body=include_body,
+            )
+            return
         if target.path == "/healthz":
             self._send_bytes(
                 HTTPStatus.OK,
@@ -224,7 +320,10 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
             )
         self.end_headers()
         if include_body:
-            self.wfile.write(payload)
+            try:
+                self.wfile.write(payload)
+            except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+                return
 
 
 def _wait_until_ready(port: int, timeout_seconds: float = 5.0) -> None:

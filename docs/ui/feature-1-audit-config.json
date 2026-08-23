@@ -89,6 +89,26 @@
       "non-critical-column-prioritisation"
     ]
   },
+  "auditExecution": {
+    "caseFile": "docs/ui/feature-1-audit-cases.json",
+    "destructiveLabels": [
+      "delete",
+      "delete definition",
+      "delete version",
+      "publish",
+      "publish version",
+      "reject",
+      "reject version",
+      "submit for review",
+      "start update",
+      "load earlier data",
+      "resume update",
+      "retry update",
+      "use downloaded file",
+      "cancel update",
+      "start ai review"
+    ]
+  },
   "stateCatalog": {
     "loading": "A request is pending and context remains identifiable.",
     "empty": "A valid zero-result response has a truthful next action.",

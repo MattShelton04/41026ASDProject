@@ -82,6 +82,7 @@ export function createStatusRoute({ config, announce }) {
       const features = featureRegistry(config);
       const enabledFeatures = features.filter((feature) => feature.implemented && feature.enabled);
       root.setAttribute("aria-busy", "true");
+      root.dataset.loadState = "loading";
       refresh.disabled = true;
       cards.replaceChildren();
       append(cards, ...["Shared product shell", ...enabledFeatures.map((feature) => feature.label), "Agent activity"].map((name) => {
@@ -153,6 +154,7 @@ export function createStatusRoute({ config, announce }) {
         return tr;
       }, "Planned research tools"));
       root.setAttribute("aria-busy", "false");
+      root.dataset.loadState = "settled";
       refresh.disabled = false;
       announce(`Status refreshed. Implemented services are ${overall}.`);
     }

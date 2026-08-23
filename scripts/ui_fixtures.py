@@ -30,6 +30,8 @@ class FixtureResponse:
 
 
 REQUEST_ID = "ui-fixture-request-0001"
+FIXTURE_IDENTITY = "propertyscope-ui-fixture"
+FIXTURE_REVISION = 2
 TIMESTAMP = "2026-08-23T00:00:00Z"
 SOURCE_ID = "10000000-0000-0000-0000-000000000001"
 JOB_ID = "20000000-0000-0000-0000-000000000001"
@@ -331,7 +333,16 @@ def fixture_response(
     if path == "/health/ready":
         return FixtureResponse(200, {"status": "healthy", "dependencies": {"database": True}})
     if path in {"/healthz", "/__ui-fixture__/ready"}:
-        return FixtureResponse(200, {"status": "ready", "scenario": scenario}, delay_seconds=delay)
+        return FixtureResponse(
+            200,
+            {
+                "status": "ready",
+                "scenario": scenario,
+                "identity": FIXTURE_IDENTITY,
+                "revision": FIXTURE_REVISION,
+            },
+            delay_seconds=delay,
+        )
     if scenario == "error" and path.startswith("/api/"):
         response = _problem(
             503,

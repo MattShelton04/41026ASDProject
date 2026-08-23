@@ -41,6 +41,7 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
         "examples/integration-test-feature/src/integration_test_feature",
         "student-1/backend/src/propertyscope_data_platform",
         "student-1/database/src/propertyscope_data_store",
+        "scripts/ui_audit",
         "scripts/check.py",
         "scripts/dev.py",
         "scripts/generate_contracts.py",
