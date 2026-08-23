@@ -16,6 +16,14 @@ export function createGenerationGuard() {
   };
 }
 
+export function createLatestRequestGuard() {
+  let sequence = 0;
+  return {
+    next() { sequence += 1; return sequence; },
+    isCurrent(candidate) { return candidate === sequence; },
+  };
+}
+
 export function actionAvailability(status) {
   const state = String(status || "").toLowerCase();
   return {

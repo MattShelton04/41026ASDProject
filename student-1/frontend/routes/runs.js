@@ -1,7 +1,7 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=17";
-import { actionAvailability, nextPollDelay } from "../core/polling.js";
+import { actionAvailability, createLatestRequestGuard, nextPollDelay } from "../core/polling.js";
 import { parseRoute, routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
@@ -10,9 +10,11 @@ import { cell, makeTable, primaryCell } from "../components/tables.js";
 
 const RUN_FILTERS = ["", "requested", "queued", "running", "succeeded", "failed", "cancelled", "interrupted"];
 
-function runTimeline(tasks) {
+function runTimeline(tasks, { available = true } = {}) {
   const list = el("ol", "timeline");
-  if (!tasks.length) append(list, el("li", "", "No task ledger is available yet."));
+  if (!tasks.length) append(list, el("li", "", available
+    ? "No task ledger is available yet."
+    : "No update-step details can be shown until this feed recovers."));
   for (const task of tasks) {
     const item = el("li");
     const tone = statusTone(task.status);
@@ -26,7 +28,80 @@ function runTimeline(tasks) {
   return list;
 }
 
+function requestSuffix(error) {
+  return error?.requestId ? ` Request ID ${error.requestId}.` : "";
+}
+
+function resolveFeed(result, cache, key) {
+  if (result.status === "fulfilled") {
+    const items = collection(result.value.body);
+    cache[key] = items;
+    return { items, available: true, cached: false, error: null };
+  }
+  const cached = Object.hasOwn(cache, key);
+  return { items: cached ? cache[key] : [], available: false, cached, error: result.reason };
+}
+
+function feedWarning(label, feed) {
+  if (feed.available) return null;
+  const copy = feed.cached
+    ? `${label} are temporarily unavailable. Showing the last loaded details.`
+    : `${label} are temporarily unavailable. No previously loaded details are available.`;
+  return el("div", "notice warning", `${copy}${requestSuffix(feed.error)}`);
+}
+
+function annotateRefreshState(root) {
+  const detailKeys = new Map();
+  for (const details of root.querySelectorAll("details")) {
+    const label = details.querySelector("summary")?.textContent?.trim() || "Details";
+    const count = detailKeys.get(label) || 0;
+    detailKeys.set(label, count + 1);
+    details.dataset.refreshKey = `details:${label}:${count}`;
+  }
+  const focusKeys = new Map();
+  for (const target of root.querySelectorAll("a[href], button, summary")) {
+    const base = target.matches("a[href]")
+      ? `link:${target.getAttribute("href")}`
+      : target.matches("summary")
+        ? target.closest("details")?.dataset.refreshKey || `summary:${target.textContent?.trim()}`
+        : `button:${target.textContent?.trim()}`;
+    const count = focusKeys.get(base) || 0;
+    focusKeys.set(base, count + 1);
+    target.dataset.refreshFocusKey = `${base}:${count}`;
+  }
+}
+
+function captureRefreshState(root) {
+  const active = document.activeElement;
+  return {
+    scrollTop: window.scrollY,
+    focusKey: root.contains(active) ? active.dataset.refreshFocusKey || "" : "",
+    disclosures: new Map(
+      [...root.querySelectorAll("details[data-refresh-key]")]
+        .map((details) => [details.dataset.refreshKey, details.open]),
+    ),
+  };
+}
+
+function restoreRefreshState(root, snapshot) {
+  for (const details of root.querySelectorAll("details[data-refresh-key]")) {
+    if (snapshot.disclosures.has(details.dataset.refreshKey)) {
+      details.open = snapshot.disclosures.get(details.dataset.refreshKey);
+    }
+  }
+  if (snapshot.focusKey) {
+    const target = [...root.querySelectorAll("[data-refresh-focus-key]")]
+      .find((candidate) => candidate.dataset.refreshFocusKey === snapshot.focusKey);
+    target?.focus({ preventScroll: true });
+  }
+  window.scrollTo({ top: snapshot.scrollTop });
+}
+
 export function createRunRoutes({ view, request, mutate, confirmAction, announce, state, generationGuard, rerender }) {
+  const refreshGuard = createLatestRequestGuard();
+  const feedCache = new Map();
+  let pollFailures = 0;
+
   async function renderRuns() {
     const params = routeQuery(location.hash);
     const filters = { q: params.get("q") || "", status: params.get("status") || "", job: params.get("job") || "" };
@@ -57,18 +132,40 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
   }
 
   async function renderRunDetail(id, { polling = false } = {}) {
-    const scrollTop = polling ? window.scrollY : 0;
+    const refresh = refreshGuard.next();
+    const routeGeneration = generationGuard.current();
+    const isCurrent = () => refreshGuard.isCurrent(refresh)
+      && generationGuard.isCurrent(routeGeneration)
+      && parseRoute(location.hash).route === "runs"
+      && parseRoute(location.hash).id === id;
+    clearTimeout(state.pollTimer);
     if (!polling) renderLoading(view, "Loading run evidence");
+    else {
+      view.setAttribute("aria-busy", "true");
+      const status = view.querySelector("[data-run-refresh-status]");
+      if (status) status.textContent = "Refreshing update status…";
+    }
     try {
-      const [detailResult, tasksResult, qualityResult, artifactsResult, releasesResult] = await Promise.all([
-        request(`ingestion-runs/${id}`), request(`ingestion-runs/${id}/tasks?limit=100`), request(`ingestion-runs/${id}/quality-results?limit=100`), request(`ingestion-runs/${id}/artifacts?limit=100`),
-        request("dataset-releases?limit=100").catch(() => ({ body: { items: [] } })),
+      const supportingFeeds = Promise.allSettled([
+        request(`ingestion-runs/${id}/tasks?limit=100`), request(`ingestion-runs/${id}/quality-results?limit=100`), request(`ingestion-runs/${id}/artifacts?limit=100`),
+        request("dataset-releases?limit=100"),
       ]);
+      const detailResult = await request(`ingestion-runs/${id}`);
+      if (!isCurrent()) return;
+      const [tasksResult, qualityResult, artifactsResult, releasesResult] = await supportingFeeds;
+      if (!isCurrent()) return;
+      const cache = feedCache.get(id) || {};
+      feedCache.set(id, cache);
+      const tasksFeed = resolveFeed(tasksResult, cache, "tasks");
+      const qualityFeed = resolveFeed(qualityResult, cache, "quality");
+      const artifactsFeed = resolveFeed(artifactsResult, cache, "artifacts");
+      const releasesFeed = resolveFeed(releasesResult, cache, "releases");
+      const tasks = tasksFeed.items;
+      const quality = qualityFeed.items;
+      const artifacts = artifactsFeed.items;
+      const linkedRelease = releasesFeed.items.find((release) => release.ingestion_run_id === id && !["accepted", "superseded"].includes(release.status));
+      const refreshState = polling ? captureRefreshState(view) : null;
       const run = entity(detailResult.body, "run");
-      const tasks = collection(tasksResult.body);
-      const quality = collection(qualityResult.body);
-      const artifacts = collection(artifactsResult.body);
-      const linkedRelease = collection(releasesResult.body).find((release) => release.ingestion_run_id === id && !["accepted", "superseded"].includes(release.status));
       view.replaceChildren();
       const availability = actionAvailability(run.status);
       const actions = [];
@@ -96,6 +193,13 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
         actions.push(button(failed ? "Explain this failure" : "Ask AI about run", `button ${failed ? "primary" : "secondary"}`, () => { location.hash = linkedRelease ? `#ai/release:${linkedRelease.id}?goal=${failed ? "quality" : "compare"}` : "#ai"; }));
       }
       append(view, pageHeading("Data update", displayName(run.job_name || `Update ${String(id).slice(0, 8)}`), `${humanise(run.run_mode)} · started ${formatDate(run.requested_at)}`, actions));
+      const refreshStatus = el("p", "run-refresh-status", nextPollDelay(run.status) !== null
+        ? "Refreshed just now · updates automatically while this update is active"
+        : "Refreshed just now · latest saved status");
+      refreshStatus.dataset.runRefreshStatus = "";
+      append(view, refreshStatus);
+      const releaseWarning = feedWarning("Published-version details", releasesFeed);
+      if (releaseWarning) append(view, releaseWarning);
       if (run.error_json) append(view, el("div", "notice negative", `${run.error_json.message || run.error_json.detail || "The run recorded a classified failure."} The previously accepted release remains unchanged.`));
       const metrics = el("div", "metric-strip");
       for (const [label, value] of [["Found", formatNumber(run.rows_discovered)], ["Prepared", formatNumber(run.rows_staged)], ["Loaded", formatNumber(run.rows_accepted)], ["Rejected", formatNumber(run.rows_rejected)]]) {
@@ -104,24 +208,49 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       append(view, metrics);
       const grid = el("div", "dashboard-grid");
       const runBody = el("div");
-      append(runBody, runTimeline(tasks));
+      const tasksWarning = feedWarning("Update steps", tasksFeed);
+      if (tasksWarning) append(runBody, tasksWarning);
+      append(runBody, runTimeline(tasks, { available: tasksFeed.available || tasksFeed.cached }));
       const evidence = el("div", "stack");
+      const evidenceAvailability = el("div");
+      const qualityWarning = feedWarning("Data checks", qualityFeed);
+      const artifactsWarning = feedWarning("File and lineage details", artifactsFeed);
+      if (qualityWarning) append(evidenceAvailability, qualityWarning);
+      if (artifactsWarning) append(evidenceAvailability, artifactsWarning);
       append(evidence,
         panel("Update status", "Current state", detailList([["Status", badge(run.status)], ["Last activity", formatDate(run.heartbeat_at)], ["Attempt", run.attempt_number], ["Previous update", run.parent_run_id ? link(String(run.parent_run_id), `#runs/${run.parent_run_id}`) : "None"], ["Reference", el("code", "mono", run.request_id || detailResult.requestId)], ["Finished", formatDate(run.finished_at)]])),
         panel("Saved progress", "Technical checkpoints used if the update must resume", detailList([["Input checkpoint", JSON.stringify(run.input_checkpoint_json || {})], ["Candidate checkpoint", JSON.stringify(run.output_checkpoint_json || {})], ["Published watermark", JSON.stringify(run.accepted_watermark_json || {})]])),
-        panel("Checks and files", "Specialist details for this update", detailList([["Quality checks", link(`${quality.length} results`, `#quality/${id}`)], ["Files and lineage", link(`${artifacts.length} records`, `#artifacts/${id}`)]])),
+        panel("Checks and files", "Specialist details for this update", el("div", "stack", "")),
       );
-      append(grid, panel("Update timeline", `${tasks.length} recorded steps`, runBody), evidence);
+      const evidencePanelBody = evidence.lastElementChild.querySelector(".panel-body");
+      append(evidencePanelBody, evidenceAvailability, detailList([
+        ["Quality checks", link(qualityFeed.available || qualityFeed.cached ? `${quality.length} results` : "Open details", `#quality/${id}`)],
+        ["Files and lineage", link(artifactsFeed.available || artifactsFeed.cached ? `${artifacts.length} records` : "Open details", `#artifacts/${id}`)],
+      ]));
+      const timelineSubtitle = tasksFeed.available
+        ? `${tasks.length} recorded steps`
+        : tasksFeed.cached ? `${tasks.length} recorded steps · last loaded` : "Steps temporarily unavailable";
+      append(grid, panel("Update timeline", timelineSubtitle, runBody), evidence);
       append(view, grid);
       append(view, panel("Technical run details", "Expandable record for troubleshooting and audit", technicalDetails(detailResult.body)));
-      if (polling) window.scrollTo({ top: scrollTop });
+      annotateRefreshState(view);
+      if (refreshState) restoreRefreshState(view, refreshState);
       const statusChanged = state.lastRunStatus && state.lastRunStatus !== run.status;
       if (statusChanged) announce(`Run status changed to ${humanise(run.status)}.`);
       state.lastRunStatus = run.status;
+      pollFailures = 0;
+      view.setAttribute("aria-busy", "false");
       scheduleRunPoll(id, run.status);
     } catch (error) {
+      if (!isCurrent()) return;
       if (!polling) view.replaceChildren(errorState(error, () => renderRunDetail(id)));
-      else scheduleRunPoll(id, state.lastRunStatus, 1);
+      else {
+        pollFailures += 1;
+        const status = view.querySelector("[data-run-refresh-status]");
+        if (status) status.textContent = "Refresh delayed · retrying automatically";
+        view.setAttribute("aria-busy", "false");
+        scheduleRunPoll(id, state.lastRunStatus, pollFailures);
+      }
     }
   }
 
