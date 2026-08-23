@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -16,6 +17,12 @@ import {
   validateProvider,
   viewportQuery,
 } from "./index.js";
+
+test("the map host remains full-size after the renderer stylesheet loads", async () => {
+  const stylesheet = await readFile(new URL("./mapping.css", import.meta.url), "utf8");
+  assert.match(stylesheet, /\.ps-map__canvas\.maplibregl-map\s*\{[^}]*position:\s*absolute/s);
+  assert.match(stylesheet, /\.ps-map__canvas\.maplibregl-map\s*\{[^}]*inset:\s*0/s);
+});
 
 test("the vendored renderer is loaded once on first map use", async () => {
   const original = globalThis.maplibregl;

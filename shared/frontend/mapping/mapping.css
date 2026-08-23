@@ -7,7 +7,9 @@
   background: #e8f0ed;
 }
 
-.ps-map__canvas {
+/* MapLibre loads later and sets .maplibregl-map to relative; this selector must win. */
+.ps-map__canvas,
+.ps-map__canvas.maplibregl-map {
   position: absolute;
   inset: 0;
 }

@@ -23,7 +23,7 @@ Serve or copy this whole directory at `/mapping`, load the small shared map styl
 feature's ES modules:
 
 ```html
-<link rel="stylesheet" href="./mapping/mapping.css?v=1">
+<link rel="stylesheet" href="./mapping/mapping.css?v=2">
 <script type="module" src="./app.js"></script>
 ```
 
