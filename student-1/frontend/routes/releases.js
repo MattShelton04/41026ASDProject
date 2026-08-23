@@ -23,6 +23,15 @@ const RELEASE_FIELDS = [
   { name: "review_comment", label: "Review note", type: "textarea", wide: true, maxLength: 2000, help: "Up to 2,000 characters; optional until this version is submitted for review." },
 ];
 
+export function releaseLifecycleContext(status) {
+  if (status === "accepted") return { tone: "positive", message: "This is the published version currently available to its PropertyScope research area." };
+  if (status === "superseded") return { tone: "warning", message: "This published version has been replaced by a newer accepted version and remains available as history." };
+  if (status === "rejected") return { tone: "negative", message: "This version was rejected and is not published. The current published version remains in use." };
+  if (["review", "review_required", "awaiting_review"].includes(status)) return { tone: "warning", message: "This version is awaiting human review and is not yet published. The current published version remains in use." };
+  if (["validated", "candidate"].includes(status)) return { tone: "warning", message: "This version is ready for review but is not published. The current published version remains in use." };
+  return { tone: "", message: "This draft version is not published. The current published version remains in use while it is prepared." };
+}
+
 function hasBlockingFailures(results) {
   return results.some((item) => item.severity === "blocking" && ["fail", "failed", "error"].includes(item.status));
 }
@@ -84,7 +93,7 @@ export function createReleaseRoutes({
       if (!visible.length) { append(view, emptyState("No datasets found", filters.q || filters.status ? "Try clearing the current filters." : "A completed processing run can create a dataset for review.")); return; }
       append(view, panel(`${visible.length} data versions`, "New versions stay separate until they are reviewed and published", makeTable(
         [{ label: "Dataset / version" }, { label: "Research area" }, { label: "Records" }, { label: "State" }, { label: "Published" }, { label: "Checksum" }], visible,
-        (release) => { const row = el("tr"); append(row, cell(link(displayName(release.dataset_id || "Dataset"), `#releases/${release.id}`), "primary-cell"), cell(researchAreaLabel(release.target_feature)), cell(formatNumber(release.record_count), "numeric"), cell(badge(release.status)), cell(formatDate(release.accepted_at)), cell(String(release.content_sha256 || "—").slice(0, 12), "mono")); return row; },
+        (release) => { const row = el("tr"); const releaseLink = link(displayName(release.dataset_id || "Dataset"), `#releases/${release.id}`); append(row, cell(primaryCell(releaseLink, release.release_version || "Version not recorded"), "primary-cell"), cell(researchAreaLabel(release.target_feature)), cell(formatNumber(release.record_count), "numeric"), cell(badge(release.status)), cell(formatDate(release.accepted_at)), cell(String(release.content_sha256 || "—").slice(0, 12), "mono")); return row; },
       )));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
   }
@@ -163,7 +172,10 @@ export function createReleaseRoutes({
 
     view.replaceChildren();
     append(view, pageHeading("Dataset review", `${displayName(release.dataset_id)} ${release.release_version}`, `${researchAreaLabel(release.target_feature)} · ${formatNumber(release.record_count)} records`, actions));
-    if (!["accepted", "superseded"].includes(release.status)) append(view, el("div", "notice warning", "This version is not published. The current published version remains in use while you review it."));
+    const lifecycle = releaseLifecycleContext(release.status);
+    const lifecycleNotice = el("div", `notice ${lifecycle.tone}`.trim());
+    append(lifecycleNotice, badge(release.status), document.createTextNode(` ${lifecycle.message}`));
+    append(view, lifecycleNotice);
     if (blocking) append(view, el("div", "notice negative", "Required data checks failed, so this version cannot be published. Review the failures, then retry or reject it."));
     const layout = el("div", "detail-layout");
     const releaseBody = el("div");

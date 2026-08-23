@@ -4,25 +4,56 @@ import { displayName, formatDate, humanise, statusTone } from "../core/formats.j
 import { ACTIVE_RUN_STATES } from "../core/polling.js";
 import { badge, pageHeading, panel } from "../components/layout.js?v=17";
 import { cell, makeTable } from "../components/tables.js";
-import { emptyState, renderLoading } from "../components/states.js";
+import { emptyState, errorState, renderLoading } from "../components/states.js";
+
+const OVERVIEW_FEED_LABELS = ["Source definitions", "Update history", "Published data"];
+
+export function projectOverviewFeeds(results) {
+  const values = results.map((result) => result.status === "fulfilled" ? collection(result.value.body) : null);
+  const failures = results.flatMap((result, index) => result.status === "rejected"
+    ? [{ label: OVERVIEW_FEED_LABELS[index], error: result.reason }]
+    : []);
+  return {
+    sources: values[0],
+    runs: values[1],
+    releases: values[2],
+    failures,
+    allUnavailable: failures.length === OVERVIEW_FEED_LABELS.length,
+  };
+}
 
 export async function renderOverview({ view, request }) {
   renderLoading(view, "Loading operations overview");
   const results = await Promise.allSettled([
-    request("sources?limit=100"), request("ingestion-runs?limit=25"), request("dataset-releases?limit=100"), request("overview"),
+    request("sources?limit=100"), request("ingestion-runs?limit=25"), request("dataset-releases?limit=100"),
   ]);
-  const sources = results[0].status === "fulfilled" ? collection(results[0].value.body).filter((item) => item.status !== "retired") : [];
-  const runs = results[1].status === "fulfilled" ? collection(results[1].value.body) : [];
-  const releases = results[2].status === "fulfilled" ? collection(results[2].value.body) : [];
+  const feeds = projectOverviewFeeds(results);
+  if (feeds.allUnavailable) {
+    const retry = async () => {
+      await renderOverview({ view, request });
+      const heading = view.querySelector("h1, h2");
+      if (heading) {
+        heading.tabIndex = -1;
+        heading.focus();
+      }
+    };
+    view.replaceChildren(errorState(feeds.failures[0].error, retry));
+    return;
+  }
+  const sourcesAvailable = feeds.sources !== null;
+  const runsAvailable = feeds.runs !== null;
+  const releasesAvailable = feeds.releases !== null;
+  const sources = (feeds.sources || []).filter((item) => item.status !== "retired");
+  const runs = feeds.runs || [];
+  const releases = feeds.releases || [];
   const coverage = releases.filter((release) => release.status === "accepted").map((release) => ({
     dataset: release.dataset_id,
     locality: release.coverage_json?.locality || release.coverage_json?.state || "NSW",
     status: release.coverage_json?.complete === false ? "partial" : "accepted",
   }));
-  const failures = results.filter((result) => result.status === "rejected");
   view.replaceChildren();
-  append(view, pageHeading("Property data", "Data overview", "Check whether property data is current and review recent updates.", [link("View data updates", "#jobs", "button primary"), link("Manage sources", "#sources", "button secondary")]));
-  if (failures.length) append(view, el("div", "notice warning", `${failures.length} supporting feed${failures.length === 1 ? " is" : "s are"} temporarily unavailable. The information that could be loaded is still shown below.`));
+  append(view, pageHeading("Property data", "Data overview", "Check whether property data is current and review recent updates.", [link("View data updates", "#jobs", "button primary overview-action"), link("Manage sources", "#sources", "button secondary overview-action")]));
+  if (feeds.failures.length) append(view, el("div", "notice warning", `${feeds.failures.map((failure) => failure.label).join(" and ")} ${feeds.failures.length === 1 ? "is" : "are"} temporarily unavailable. Information from the remaining services is still shown below.`));
   const active = runs.filter((run) => ACTIVE_RUN_STATES.has(String(run.status).toLowerCase())).length;
   const latestByJob = [];
   const seenJobs = new Set();
@@ -38,10 +69,10 @@ export async function renderOverview({ view, request }) {
   const stats = el("section", "stat-grid");
   stats.setAttribute("aria-label", "Data readiness summary");
   for (const [label, value, note, tone] of [
-    ["Updating now", active, "Data updates in progress", "info"],
-    ["Update problems", failed, "Latest updates that need review", failed ? "negative" : "neutral"],
-    ["Out-of-date data", stale, "Published sources past their review date", stale ? "warning" : "neutral"],
-    ["Published sources", accepted, "Available in property research", "positive"],
+    ["Updating now", runsAvailable ? active : "Unavailable", runsAvailable ? "Data updates in progress" : "Update history could not be checked", runsAvailable ? "info" : "warning"],
+    ["Update problems", runsAvailable ? failed : "Unavailable", runsAvailable ? "Latest updates that need review" : "Update problems could not be checked", runsAvailable && failed ? "negative" : runsAvailable ? "neutral" : "warning"],
+    ["Out-of-date data", releasesAvailable ? stale : "Unavailable", releasesAvailable ? "Published sources past their review date" : "Published freshness could not be checked", releasesAvailable && stale ? "warning" : "neutral"],
+    ["Published sources", releasesAvailable ? accepted : "Unavailable", releasesAvailable ? "Available in property research" : "Published data could not be checked", releasesAvailable ? "positive" : "warning"],
   ]) {
     const card = el("article", `stat-card ${tone}`);
     append(card, el("span", "stat-label", label), el("strong", "stat-value", value), el("span", "stat-note", note));
@@ -59,7 +90,7 @@ export async function renderOverview({ view, request }) {
   }
 
   const grid = el("div", "dashboard-grid");
-  const recentBody = runs.length ? makeTable(
+  const recentBody = !runsAvailable ? el("div", "notice warning", "Update history is temporarily unavailable. Published data and source information remain unchanged.") : runs.length ? makeTable(
     [{ label: "Update" }, { label: "Method" }, { label: "Status" }, { label: "Started" }], runs.slice(0, 8),
     (run) => {
       const row = el("tr");
@@ -71,12 +102,14 @@ export async function renderOverview({ view, request }) {
 
   const freshness = el("div", "stack");
   const sourceBody = el("div");
-  if (!sources.length) append(sourceBody, el("p", "", "No source definitions are currently available."));
+  if (!sourcesAvailable) append(sourceBody, el("div", "notice warning", "Source definitions are temporarily unavailable. No source has been removed or changed."));
+  else if (!sources.length) append(sourceBody, el("p", "", "No source definitions are currently available."));
   for (const source of sources.slice(0, 6)) {
     const item = el("div", "coverage-card");
     const release = releases.find((candidate) => candidate.source_definition_id === source.id && candidate.status === "accepted");
     item.classList.add(statusTone(release?.freshness_status || (release ? "accepted" : "unavailable")));
-    append(item, el("strong", "", displayName(source.name)), el("span", "", release ? `${release.release_version} · published ${formatDate(release.accepted_at)}` : "No published data"));
+    const publication = !releasesAvailable ? "Publication status unavailable" : release ? `${release.release_version} · published ${formatDate(release.accepted_at)}` : "No published data";
+    append(item, el("strong", "", displayName(source.name)), el("span", "", publication));
     append(sourceBody, item);
   }
   const coverageBody = el("div", "coverage-grid");
@@ -85,7 +118,8 @@ export async function renderOverview({ view, request }) {
     append(card, el("strong", "", item.locality || item.area || "NSW"), el("span", "", `${displayName(item.dataset || item.dataset_id || "Dataset")} · ${humanise(item.status)}`));
     append(coverageBody, card);
   }
-  if (!coverage.length) append(coverageBody, el("p", "", "Coverage evidence is not available from this deployment."));
+  if (!releasesAvailable) append(coverageBody, el("div", "notice warning", "Published coverage is temporarily unavailable. No coverage record has been changed."));
+  else if (!coverage.length) append(coverageBody, el("p", "", "Coverage evidence is not available from this deployment."));
   append(freshness, panel("Current published data", "Latest version available from each source", sourceBody), panel("NSW coverage", "Areas represented in published data", coverageBody));
   append(grid, panel("Recent updates", "Latest data processing activity", recentBody, link("View update history", "#runs")), freshness);
   append(view, grid);

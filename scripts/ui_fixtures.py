@@ -356,16 +356,19 @@ def fixture_response(
             response.content_type,
             delay,
         )
-    partial_optional = scenario == "partial" and any(
-        marker in path
-        for marker in (
-            "/overview",
-            "/map-context",
-            "/coverage",
-            "/report-section",
-            "/artifacts",
-            "/events",
+    partial_optional = scenario == "partial" and (
+        any(
+            marker in path
+            for marker in (
+                "/overview",
+                "/map-context",
+                "/coverage",
+                "/report-section",
+                "/artifacts",
+                "/events",
+            )
         )
+        or (path == "/api/data-platform/v1/ingestion-runs" and query == "limit=25")
     )
     if scenario == "validation-error" and method in {"POST", "PUT", "PATCH"}:
         return _problem(
@@ -535,6 +538,8 @@ def fixture_response(
             return FixtureResponse(204, {}, delay_seconds=delay)
         return FixtureResponse(200, {"job": job}, delay_seconds=delay)
     if route == "ingestion-runs":
+        if partial_optional:
+            return _optional_unavailable()
         return FixtureResponse(200, _collection(runs, scenario), delay_seconds=delay)
     if route.startswith("ingestion-runs/"):
         run = _select(_expanded(runs, scenario), "id", route.split("/")[1])

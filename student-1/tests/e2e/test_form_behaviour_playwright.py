@@ -29,6 +29,7 @@ RUN_ID = "30000000-0000-0000-0000-000000000001"
 CANDIDATE_ID = "60000000-0000-0000-0000-000000000011"
 REVIEW_ID = "60000000-0000-0000-0000-000000000012"
 PROPERTY_ID = "11111111-1111-4111-8111-111111111111"
+ACCEPTED_ID = "60000000-0000-0000-0000-000000000001"
 
 
 def _free_port() -> int:
@@ -683,3 +684,92 @@ def test_planner_year_and_address_bounds_have_associated_browser_errors(
     expect(page.locator("#maximum-records-error")).to_have_count(0)
     expect(maximum).not_to_have_attribute("aria-invalid", "true")
     expect(page.locator("#action-error")).to_be_empty()
+
+
+def test_operations_overview_job_and_release_states_are_truthful(
+    page: Page, fixture_origin: str
+) -> None:
+    page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=partial&test={time.time_ns()}#overview")
+    expect(page.get_by_role("heading", name="Data overview")).to_be_visible()
+    expect(
+        page.locator(".stat-card").filter(has_text="Updating now").locator(".stat-value")
+    ).to_have_text("Unavailable")
+    expect(
+        page.locator(".stat-card").filter(has_text="Update problems").locator(".stat-value")
+    ).to_have_text("Unavailable")
+    expect(
+        page.locator(".stat-card")
+        .filter(has=page.get_by_text("Published sources", exact=True))
+        .locator(".stat-value")
+    ).to_have_text("1")
+    expect(
+        page.get_by_text(
+            "Update history is temporarily unavailable. "
+            "Published data and source information remain unchanged.",
+            exact=True,
+        )
+    ).to_be_visible()
+    expect(page.get_by_text("Example NSW property records", exact=True)).to_be_visible()
+
+    page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=error&test={time.time_ns()}#overview")
+    expect(page.get_by_role("heading", name="Service temporarily unavailable")).to_be_visible()
+    expect(page.get_by_role("button", name="Try again")).to_be_visible()
+    expect(page.locator(".stat-card")).to_have_count(0)
+    page.get_by_role("button", name="Try again").click()
+    expect(page.get_by_role("heading", name="Service temporarily unavailable")).to_be_focused()
+
+    capability_pattern = f"**/api/data-platform/v1/jobs/{JOB_ID}/capabilities"
+
+    def fail_capabilities(route: Route) -> None:
+        route.fulfill(
+            status=503,
+            content_type="application/problem+json",
+            headers={"X-Request-ID": "capability-state-test"},
+            body=json.dumps(
+                {
+                    "type": "about:blank",
+                    "title": "Capabilities unavailable",
+                    "detail": "Processing options are temporarily unavailable.",
+                }
+            ),
+        )
+
+    page.route(capability_pattern, fail_capabilities)
+    _open(page, fixture_origin, f"jobs/{JOB_ID}")
+    expect(page.get_by_text("Available processing options could not be checked")).to_be_visible()
+    expect(page.get_by_text("capability-state-test", exact=False)).to_be_visible()
+    page.unroute(capability_pattern, fail_capabilities)
+
+    job_pattern = f"**/api/data-platform/v1/jobs/{JOB_ID}"
+
+    def disable_job(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        payload["job"]["status"] = "disabled"
+        route.fulfill(response=response, json=payload)
+
+    page.route(job_pattern, disable_job)
+    _open(page, fixture_origin, f"jobs/{JOB_ID}")
+    expect(page.get_by_text("This data update is disabled")).to_be_visible()
+    expect(page.get_by_role("button", name="Start update")).to_be_disabled()
+    expect(page.get_by_role("button", name="Load earlier data")).to_be_disabled()
+    page.unroute(job_pattern, disable_job)
+
+    page.set_viewport_size({"width": 1024, "height": 768})
+    _open(page, fixture_origin, "releases")
+    expect(page.locator("table .sub-cell").first).to_contain_text("2026.")
+    _open(page, fixture_origin, f"releases/{CANDIDATE_ID}")
+    lifecycle = page.locator(".notice").filter(has_text="ready for review").first
+    expect(lifecycle).to_be_visible()
+    expect(lifecycle.locator(".badge")).to_contain_text("Ready for review")
+    _open(page, fixture_origin, f"releases/{ACCEPTED_ID}")
+    published = page.locator(".notice.positive").filter(has_text="published version").first
+    expect(published).to_be_visible()
+    expect(published.locator(".badge")).to_contain_text("Published")
+
+    page.set_viewport_size({"width": 390, "height": 844})
+    _open(page, fixture_origin, "overview")
+    for label in ("View data updates", "Manage sources"):
+        box = page.get_by_role("link", name=label).bounding_box()
+        assert box is not None
+        assert box["height"] >= 44

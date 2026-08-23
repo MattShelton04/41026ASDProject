@@ -224,7 +224,7 @@
           "path": "#overview",
           "source": "student-1/frontend/routes/overview.js",
           "requiredStates": ["loading", "populated", "empty", "partial", "error", "long-content"],
-          "api": ["GET sources?limit=100", "GET ingestion-runs?limit=25", "GET dataset-releases?limit=100", "GET overview"],
+          "api": ["GET sources?limit=100", "GET ingestion-runs?limit=25", "GET dataset-releases?limit=100"],
           "interactions": ["open-jobs", "open-sources", "open-run", "open-release", "open-history", "mobile-menu"]
         },
         {

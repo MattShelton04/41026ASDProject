@@ -256,12 +256,16 @@ def test_partial_scenario_preserves_primary_content_and_fails_optional_calls() -
         "partial",
     )
     overview = fixture_response("GET", "/api/data-platform/v1/overview", "", "partial")
+    overview_runs = fixture_response(
+        "GET", "/api/data-platform/v1/ingestion-runs", "limit=25", "partial"
+    )
     sources = fixture_response("GET", "/api/data-platform/v1/sources", "", "partial")
 
     assert detail.status == 200
     assert "property" in detail.body
     assert map_context.status == 503
     assert overview.status == 503
+    assert overview_runs.status == 503
     assert sources.status == 200
     assert sources.body["items"]
 
