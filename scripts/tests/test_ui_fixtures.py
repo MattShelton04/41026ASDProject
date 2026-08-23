@@ -6,6 +6,7 @@ import json
 import threading
 from collections.abc import Iterator
 from http.client import HTTPConnection
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from urllib.request import Request, urlopen
 from uuid import UUID
 
@@ -42,6 +43,21 @@ from shared_contracts import (
     HealthResponse,
 )
 from shared_contracts.operations import AgentRunEvidenceDetail
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_ui_audit_artifact_root_is_repository_relative() -> None:
+    config = json.loads(
+        (REPOSITORY_ROOT / "docs" / "ui" / "feature-1-audit-config.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    artifact_root = config["baseline"]["artifactRoot"]
+
+    assert artifact_root == ".propertyscope-runtime/ui-baseline"
+    assert not PurePosixPath(artifact_root).is_absolute()
+    assert not PureWindowsPath(artifact_root).is_absolute()
 
 
 @pytest.fixture

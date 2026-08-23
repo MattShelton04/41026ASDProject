@@ -271,8 +271,9 @@ on ports 5100, 5200 and 5005. They are **runtime-confirmed** for the named route
   button did close it and restored focus. Treat Escape as an unresolved reproducibility check, not
   a confirmed defect, until the deterministic harness repeats it in a fresh page.
 
-Screenshots are outside the repository at
-`C:\Users\mattt\.codex\visualizations\2026\08\23\01a02c87-485e-7bc2-8f31-405261cd9cf7\ui-baseline\`:
+The exploratory screenshots were captured outside the repository and are not a
+portable input to the audit. New local evidence defaults to the repository-relative,
+ignored `artifactRoot` in `feature-1-audit-config.json`:
 
 - `shared-home-1440x1000.png`, `shared-home-390x844.png`;
 - `feature1-properties-empty-1440x1000.png`, `feature1-properties-empty-390x844.png`;
