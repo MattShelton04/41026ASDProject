@@ -6,6 +6,7 @@ import { capabilityManifest, capabilityState } from "./capabilities.js";
 import { parseShellRoute } from "./core.js";
 import { featureRegistry, findFeature, researchAreaLabel } from "./features.js";
 import { loadFeature1Bridge, validateFeature1Adapter } from "./feature-1-bridge.js";
+import { resolveResearchAreaContext } from "./operations/ai-mode/contexts.js";
 import { classifyHealth, overallReadiness } from "./routes/status.js";
 
 test("shared hash routes are bounded and unknown fragments return home", () => {
@@ -84,12 +85,35 @@ test("the Feature 1 bridge validates its complete nested contract", async () => 
   const started = performance.now();
   assert.equal(await loadFeature1Bridge({ importer: () => new Promise(() => {}), timeoutMs: 5 }), null);
   assert.ok(performance.now() - started < 100);
+  let receiveLate;
+  const lateAdapter = new Promise((resolve) => { receiveLate = resolve; });
+  assert.equal(await loadFeature1Bridge({
+    importer: () => new Promise((resolve) => setTimeout(() => resolve({ createFeature1ShellAdapter: () => expected }), 360)),
+    onLateAdapter: receiveLate,
+  }), null);
+  assert.equal(await lateAdapter, expected);
 });
 
 test("the shell renders before its optional Feature 1 projection loads", () => {
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
-  assert.ok(app.indexOf("renderRoute();") < app.indexOf("loadFeature1Bridge({ overrides: externalConfig })"));
+  assert.ok(app.indexOf("renderRoute();") < app.indexOf("loadFeature1Bridge({ overrides: externalConfig"));
   assert.doesNotMatch(app, /await\s+loadFeature1Bridge/);
+});
+
+test("AI activity context accepts only the bounded Feature 1 transition", () => {
+  const valid = new URLSearchParams({
+    feature_key: "student-1-propertyscope-data-platform",
+    feature_label: "Property data",
+    return_to: "/features/data-platform/#properties",
+  });
+  assert.equal(resolveResearchAreaContext(valid)?.label, "Property data");
+  for (const params of [
+    new URLSearchParams({ ...Object.fromEntries(valid), feature_label: "Spoofed bank" }),
+    new URLSearchParams({ ...Object.fromEntries(valid), feature_key: "feature-4" }),
+    new URLSearchParams({ ...Object.fromEntries(valid), return_to: "//evil.example" }),
+    new URLSearchParams({ ...Object.fromEntries(valid), return_to: "/\\evil.example" }),
+    new URLSearchParams({ ...Object.fromEntries(valid), feature_label: "x".repeat(81) }),
+  ]) assert.equal(resolveResearchAreaContext(params), null);
 });
 
 test("shared routes use public same-origin projections and safe DOM rendering", () => {

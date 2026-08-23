@@ -79,7 +79,8 @@ Shared loads that module at runtime through the single allowlisted ingress and n
 source. The shell renders before the short optional load completes. If the feature is unavailable,
 the shell retains registry navigation and reports unavailable evidence without inventing domain data.
 `scripts/validate_architecture.py` enforces both the Shared-to-feature prohibition and public-barrel
-imports in the canonical quality gate.
+imports in the canonical quality gate. Network-URL module imports fail closed rather than bypassing
+same-origin ownership resolution.
 Any later feature bridge requires a reviewed real call site and a separately allowlisted public ingress.
 
 ## Shared dashboards

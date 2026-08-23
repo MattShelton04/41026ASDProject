@@ -159,7 +159,7 @@ window.addEventListener("hashchange", renderRoute);
 applyConfigLinks();
 renderRoute();
 
-loadFeature1Bridge({ overrides: externalConfig }).then((adapter) => {
+function installFeature1Adapter(adapter) {
   if (!adapter) return;
   feature1Adapter = adapter;
   Object.assign(config, adapter.links, { featureHrefs: { "property-records": adapter.links.propertyDiscovery } });
@@ -169,4 +169,8 @@ loadFeature1Bridge({ overrides: externalConfig }).then((adapter) => {
   } else {
     renderRoute();
   }
-}).catch(() => {});
+}
+
+loadFeature1Bridge({ overrides: externalConfig, onLateAdapter: installFeature1Adapter })
+  .then(installFeature1Adapter)
+  .catch(() => {});

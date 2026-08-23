@@ -142,6 +142,28 @@ def test_shared_html_module_script_cannot_enter_feature(tmp_path: Path) -> None:
     assert all("feature-owned module" in item.message for item in violations)
 
 
+def test_network_module_urls_are_rejected_in_shared_and_features(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    shared = root / "shared" / "frontend" / "app.js"
+    feature = root / "student-1" / "frontend" / "app.js"
+    shared.parent.mkdir(parents=True)
+    feature.parent.mkdir(parents=True)
+    shared.write_text(
+        'import "http://localhost:5100/features/data-platform/private.js";\n'
+        'import "//localhost/features/data-platform/also-private.js";\n',
+        encoding="utf-8",
+    )
+    feature.write_text(
+        'import "https://example.test/features/suburb-analytics/private.js";\n',
+        encoding="utf-8",
+    )
+
+    violations = validate_repository(root)
+
+    assert len(violations) == 3
+    assert all("reviewed same-origin paths" in item.message for item in violations)
+
+
 def test_only_exact_feature_one_bridge_ingress_is_allowed(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
     bridge = root / "shared" / "frontend" / "feature-1-bridge.js"

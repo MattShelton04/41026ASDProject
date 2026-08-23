@@ -188,6 +188,13 @@ def _validate_frontend_specifier(
     if target_owner is None:
         return
     source_relative = _relative(root, path)
+    if target_owner == "network":
+        yield ArchitectureViolation(
+            source_relative,
+            line,
+            f"frontend modules must use reviewed same-origin paths instead of {specifier}",
+        )
+        return
     target_relative = _relative(root, target)
     allowed_feature_ingress = (
         owner == "shared"
@@ -228,7 +235,9 @@ def _validate_frontend_specifier(
 def _resolve_frontend_target(
     root: Path, source: Path, specifier: str
 ) -> tuple[Path, str | None, str | None]:
-    if specifier.startswith(("http:", "https:", "data:", "blob:", "node:")):
+    if specifier.startswith(("http:", "https:", "//")):
+        return source, "network", None
+    if specifier.startswith(("data:", "blob:", "node:")):
         return source, None, None
     if specifier.startswith("/features/"):
         canonical_parts = specifier.strip("/").split("/")

@@ -11,7 +11,7 @@ export function createEvidenceRoute({ config, getFeature1Adapter, announce }) {
     const adapter = getFeature1Adapter();
     if (!adapter) {
       append(root, pageHeader("About the data", "Sources and history", "Feature evidence is temporarily unavailable while its public adapter loads."));
-      append(root, notice("warning", "History unavailable", "Return to this view shortly to retry the feature evidence connection."));
+      append(root, notice("warning", "History unavailable", "Reload this page to retry if the feature connection remains unavailable."));
       announce("The shared evidence index is waiting for its feature provider.");
       return;
     }

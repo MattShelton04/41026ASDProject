@@ -348,10 +348,15 @@ Public Shared browser imports are intentionally narrow:
 
 Files beside an `index.js` barrel are private. `scripts/validate_architecture.py` checks JavaScript
 imports as part of the canonical gate: Shared cannot import feature source, one feature cannot import
-another, and consumers of the Shared browser/mapping packages must use their public barrels. For
+another, network-URL module imports fail closed, and consumers of the Shared browser/mapping packages
+must use their public barrels. For
 example, a property release payload is projected in `student-1/frontend/integration/shell.js`; a
 generic readiness card remains in Shared. Exact database readiness fields, accepted-release filters
 and Property data routes therefore stay with Feature 1.
+
+Feature transitions into the Shared AI activity view use one bounded metadata tuple. Unknown keys,
+spoofed labels, protocol-relative destinations and any non-matching return route are ignored; query
+parameters are not a general-purpose branding or redirect contract.
 
 ## 7. Shared contracts
 
