@@ -8,8 +8,9 @@ import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
 import { createMap, createOpenFreeMapProvider, featureCollection, pointFeature } from "../mapping/index.js";
 
-export function createPropertyRoutes({ view, request, announce }) {
+export function createPropertyRoutes({ view, request, announce, rerender }) {
   let routeGeneration = 0;
+  let pendingSearchOrigin = null;
 
   async function renderProperties(propertyRef = "") {
     const generation = ++routeGeneration;
@@ -125,7 +126,9 @@ export function createPropertyRoutes({ view, request, announce }) {
       result.dataset.propertyRef = item.property_ref;
       result.setAttribute("aria-label", `Open ${item.address_display}`);
       append(result, el("strong", "", item.address_display), el("span", "", `${confidenceLabel(item.score ?? item.match?.score)} · ${humanise(item.resolution_status || "unknown")} identity`));
-      result.addEventListener("click", (event) => rememberSearchReturn(event, { query, propertyRef: item.property_ref }));
+      result.addEventListener("click", (event) => {
+        pendingSearchOrigin = rememberSearchReturn(event, { query, propertyRef: item.property_ref });
+      });
       append(listBody, result);
     });
     const coordinateRows = makeTable(
@@ -139,6 +142,11 @@ export function createPropertyRoutes({ view, request, announce }) {
 
   async function renderPropertyDetail(propertyRef, generation) {
     const query = routeQuery(location.hash).get("q") || "";
+    const searchOrigin = matchingSearchOrigin(historyState().propertyDiscoveryOrigin || pendingSearchOrigin, { query, propertyRef });
+    pendingSearchOrigin = null;
+    if (searchOrigin) {
+      history.replaceState({ ...historyState(), propertyDiscoveryOrigin: searchOrigin }, "", location.href);
+    }
     view.replaceChildren(el("section", "loading-state", "Loading property details…"));
     const encodedRef = encodeURIComponent(propertyRef);
     const mapResult = settled(request(`properties/${encodedRef}/map-context`));
@@ -152,7 +160,7 @@ export function createPropertyRoutes({ view, request, announce }) {
       const initialCoverage = detailPayload.coverage || [];
       view.replaceChildren();
       const identityHero = el("section", "property-identity-hero");
-      append(identityHero, pageHeading("Verified NSW property", property.address_display || property.display_address || "Property record", `${property.locality || "NSW"} · ${property.state || "NSW"} ${property.postcode || ""} · Updated ${formatDate(property.updated_at)}`, [link("Back to search", `#properties${queryString({ q: query })}`, "button secondary")]));
+      append(identityHero, pageHeading("Verified NSW property", property.address_display || property.display_address || "Property record", `${property.locality || "NSW"} · ${property.state || "NSW"} ${property.postcode || ""} · Updated ${formatDate(property.updated_at)}`, [propertyBackLink(query, propertyRef)]));
       const referenceStrip = el("div", "property-reference-strip");
       const coverageCount = el("span", "", `${initialCoverage.length} research datasets available`);
       append(referenceStrip, el("span", "", humanise(property.resolution_status || "unknown")), el("span", "", `${detailPayload.identifiers?.length || 0} source identifiers checked`), coverageCount);
@@ -207,11 +215,11 @@ export function createPropertyRoutes({ view, request, announce }) {
       });
     } catch (error) {
       if (!isCurrentRoute(generation, routeGeneration, propertyRef)) return;
-      const failure = errorState(error, () => renderProperties(propertyRef));
+      const failure = errorState(error, () => rerender({ focus: true }));
       const actions = el("div", "property-error-actions");
       const retry = failure.querySelector(".button");
       if (retry) { retry.style.marginTop = ""; append(actions, retry); }
-      append(actions, link("Back to search", `#properties${queryString({ q: query })}`, "button secondary"));
+      append(actions, propertyBackLink(query, propertyRef));
       append(failure.firstElementChild, actions);
       view.replaceChildren(failure);
     }
@@ -223,13 +231,16 @@ export function createPropertyRoutes({ view, request, announce }) {
     const target = [...listBody.querySelectorAll("[data-property-ref]")]
       .find((item) => item.dataset.propertyRef === context.propertyRef);
     if (!target) return;
-    requestAnimationFrame(() => {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
       if (!canHydrate(generation, routeGeneration, listBody, "") || routeQuery(location.hash).get("q") !== query) return;
       target.focus({ preventScroll: true });
       const maximum = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
       const top = Math.min(maximum, Math.max(0, Number(context.scrollY) || 0));
+      const priorScrollBehavior = document.documentElement.style.scrollBehavior;
+      document.documentElement.style.scrollBehavior = "auto";
       window.scrollTo(0, top);
-    });
+      document.documentElement.style.scrollBehavior = priorScrollBehavior;
+    }));
   }
 
   function renderPropertyReportSection(result) {
@@ -283,12 +294,29 @@ function updateSearchHistory(query, { preserveReturn }) {
 }
 
 function rememberSearchReturn(event, { query, propertyRef }) {
-  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  if (routeQuery(location.hash).get("q") !== query) return;
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
+  if (routeQuery(location.hash).get("q") !== query) return null;
+  const context = { query, propertyRef, scrollY: window.scrollY };
   history.replaceState({
     ...historyState(),
-    propertyDiscoveryReturn: { query, propertyRef, scrollY: window.scrollY },
+    propertyDiscoveryReturn: context,
   }, "", location.href);
+  return context;
+}
+
+function matchingSearchOrigin(context, { query, propertyRef }) {
+  return context?.query === query && context?.propertyRef === propertyRef ? context : null;
+}
+
+function propertyBackLink(query, propertyRef) {
+  const back = link("Back to search", `#properties${queryString({ q: query })}`, "button secondary");
+  back.addEventListener("click", (event) => {
+    const origin = matchingSearchOrigin(historyState().propertyDiscoveryOrigin, { query, propertyRef });
+    if (!origin || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    history.back();
+  });
+  return back;
 }
 
 function historyState() {

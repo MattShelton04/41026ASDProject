@@ -13,7 +13,7 @@ import { createEntityRoutes } from "./routes/entities.js?v=17";
 import { createDataProductRoutes } from "./routes/data-products.js?v=17";
 import { createEvidenceRoutes } from "./routes/evidence.js?v=17";
 import { renderOverview } from "./routes/overview.js?v=17";
-import { createPropertyRoutes } from "./routes/properties.js?v=17";
+import { createPropertyRoutes } from "./routes/properties.js?v=18";
 import { createReleaseRoutes } from "./routes/releases.js?v=17";
 import { createRunPlanner } from "./routes/run-plan.js?v=17";
 import { createRunRoutes } from "./routes/runs.js?v=17";
@@ -218,7 +218,7 @@ async function mutate(path, { method = "POST", body = {}, success = "Action comp
 const openPlanDialog = createRunPlanner({ request, mutate, confirmAction });
 const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, rerender: renderRoute });
 const { renderRuns, renderRunDetail } = createRunRoutes({ view, request, mutate, confirmAction, announce, state, generationGuard, rerender: renderRoute });
-const { renderProperties } = createPropertyRoutes({ view, request, announce });
+const { renderProperties } = createPropertyRoutes({ view, request, announce, rerender: renderRoute });
 const { renderDataProducts } = createDataProductRoutes({ view, request, loading, rerender: renderRoute });
 const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, rerender: renderRoute });
 const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request, loading, rerender: renderRoute });

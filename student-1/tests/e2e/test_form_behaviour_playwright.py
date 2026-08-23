@@ -173,27 +173,55 @@ def test_property_result_is_a_native_link_and_back_restores_origin(
     page: Page, fixture_origin: str
 ) -> None:
     _abort_external_map(page)
-    page.set_viewport_size({"width": 1024, "height": 768})
+    page.set_viewport_size({"width": 1024, "height": 600})
     query = "11 Example Street"
     page.goto(
-        f"{fixture_origin}{FEATURE_PATH}?scenario=populated&test={time.time_ns()}"
+        f"{fixture_origin}{FEATURE_PATH}?scenario=large&test={time.time_ns()}"
         f"#properties?q=11%20Example%20Street"
     )
     result = page.get_by_role("link", name="Open 11 Example Street, Sydney NSW 2000")
     expect(result).to_be_visible()
     assert result.evaluate("element => element.tagName") == "A"
     expect(result).to_have_attribute("href", f"#properties/{PROPERTY_ID}?q=11+Example+Street")
-    page.evaluate("window.scrollTo(0, Math.min(180, document.documentElement.scrollHeight))")
+    page.evaluate(
+        "window.scrollTo(0, Math.min(120, document.documentElement.scrollHeight - innerHeight))"
+    )
     original_scroll = page.evaluate("window.scrollY")
-    result.click()
+    assert original_scroll > 0
+    assert (
+        result.evaluate("element => { element.focus({ preventScroll: true }); return scrollY; }")
+        == original_scroll
+    )
+    page.keyboard.press("Enter")
     expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
 
-    page.go_back()
+    page.get_by_role("link", name="Back to search").click()
     expect(page.get_by_role("heading", name="Explore NSW properties")).to_be_visible()
     expect(result).to_be_visible()
     expect(result).to_be_focused()
     assert page.evaluate("new URLSearchParams(location.hash.split('?')[1]).get('q')") == query
     assert abs(page.evaluate("window.scrollY") - original_scroll) <= 1
+
+    page.go_forward()
+    detail_heading = page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")
+    expect(detail_heading).to_be_visible()
+    expect(detail_heading).to_be_focused()
+    assert page.title() == "PropertyScope | 11 Example Street, Sydney NSW 2000"
+
+
+def test_property_deep_link_back_uses_its_query_href(page: Page, fixture_origin: str) -> None:
+    _abort_external_map(page)
+    page.goto(
+        f"{fixture_origin}{FEATURE_PATH}?scenario=populated&test={time.time_ns()}"
+        f"#properties/{PROPERTY_ID}?q=11%20Example%20Street"
+    )
+    expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
+    assert page.evaluate("history.state?.propertyDiscoveryOrigin ?? null") is None
+
+    page.get_by_role("link", name="Back to search").click()
+    expect(page.get_by_role("heading", name="Explore NSW properties")).to_be_visible()
+    expect(page.get_by_label("NSW street address")).to_have_value("11 Example Street")
+    assert page.evaluate("location.hash") == "#properties?q=11+Example+Street"
 
 
 def test_property_identity_renders_before_optional_calls_settle(
@@ -283,7 +311,10 @@ def test_property_partial_and_fatal_states_keep_local_recovery(
         "href", "#properties?q=11+Example+Street"
     )
     page.get_by_role("button", name="Try again").click()
-    expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
+    detail_heading = page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")
+    expect(detail_heading).to_be_visible()
+    expect(detail_heading).to_be_focused()
+    assert page.title() == "PropertyScope | 11 Example Street, Sydney NSW 2000"
     assert detail_calls == 2
 
 
