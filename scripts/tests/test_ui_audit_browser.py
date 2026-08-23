@@ -347,6 +347,32 @@ def test_real_config_destructive_actions_use_exact_button_semantics(tmp_path: Pa
         thread.join(timeout=5)
 
 
+def test_every_configured_destructive_action_has_rendered_trigger_and_confirmation(
+    tmp_path: Path,
+) -> None:
+    config = load_config()
+    result = _run_batches((_batch("destructive-actions"),), tmp_path)[0]
+    controls = result["inventory"]["controls"]
+    triggers = [row for row in controls if str(row.get("auditId", "")).startswith("trigger-")]
+    confirmations = [row for row in controls if str(row.get("auditId", "")).startswith("confirm-")]
+
+    configured = set(config.destructive_labels)
+    assert {row["name"].lower() for row in triggers} == configured
+    assert {row["name"].lower() for row in confirmations} == configured
+    assert all(_destructive(row, config.destructive_labels) for row in triggers)
+    assert all(_destructive(row, config.destructive_labels) for row in confirmations)
+    assert all(row["insideOverlay"] is False for row in triggers)
+    assert all(row["insideOverlay"] is True for row in confirmations)
+
+    false_positives = [row for row in controls if str(row.get("auditId", "")).startswith("safe-")]
+    assert {row["auditId"] for row in false_positives} == {
+        "safe-dialog-cancel",
+        "safe-published-nav",
+        "safe-status-select",
+    }
+    assert not any(_destructive(row, config.destructive_labels) for row in false_positives)
+
+
 def test_fixture_server_suppresses_expected_client_disconnect_traceback(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

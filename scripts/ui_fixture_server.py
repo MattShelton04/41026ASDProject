@@ -51,6 +51,47 @@ CANARY_PAGES = {
 <body><main><h1>Below-fold UI audit canary</h1>
 <button style="position:absolute;top:1400px;width:20px;height:20px" type="button"></button>
 </main></body></html>""",
+    "/__ui-fixture__/canary/destructive-actions": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Destructive action audit canary</title></head>
+<body><nav><a data-audit-id="safe-published-nav" href="#published">Published data</a></nav>
+<main><h1>Destructive action audit canary</h1>
+<label>Status <select data-audit-id="safe-status-select"><option>Published</option>
+<option>Rejected</option><option>Cancelled</option></select></label>
+<section aria-label="Destructive triggers">
+<button data-audit-id="trigger-delete">Delete</button>
+<button data-audit-id="trigger-delete-definition">Delete definition</button>
+<button data-audit-id="trigger-delete-version">Delete version</button>
+<button data-audit-id="trigger-publish">Publish</button>
+<button data-audit-id="trigger-publish-version">Publish version</button>
+<button data-audit-id="trigger-reject">Reject</button>
+<button data-audit-id="trigger-reject-version">Reject version</button>
+<button data-audit-id="trigger-submit-for-review">Submit for review</button>
+<button data-audit-id="trigger-start-update">Start update</button>
+<button data-audit-id="trigger-load-earlier-data">Load earlier data</button>
+<button data-audit-id="trigger-resume-update">Resume update</button>
+<button data-audit-id="trigger-retry-update">Retry update</button>
+<button data-audit-id="trigger-use-downloaded-file">Use downloaded file</button>
+<button data-audit-id="trigger-cancel-update">Cancel update</button>
+<button data-audit-id="trigger-start-ai-review">Start AI review</button>
+</section>
+<dialog open aria-label="Confirmation actions">
+<button data-audit-id="safe-dialog-cancel">Cancel</button>
+<button data-audit-id="confirm-delete">Delete</button>
+<button data-audit-id="confirm-delete-definition">Delete definition</button>
+<button data-audit-id="confirm-delete-version">Delete version</button>
+<button data-audit-id="confirm-publish">Publish</button>
+<button data-audit-id="confirm-publish-version">Publish version</button>
+<button data-audit-id="confirm-reject">Reject</button>
+<button data-audit-id="confirm-reject-version">Reject version</button>
+<button data-audit-id="confirm-submit-for-review">Submit for review</button>
+<button data-audit-id="confirm-start-update">Start update</button>
+<button data-audit-id="confirm-load-earlier-data">Load earlier data</button>
+<button data-audit-id="confirm-resume-update">Resume update</button>
+<button data-audit-id="confirm-retry-update">Retry update</button>
+<button data-audit-id="confirm-use-downloaded-file">Use downloaded file</button>
+<button data-audit-id="confirm-cancel-update">Cancel update</button>
+<button data-audit-id="confirm-start-ai-review">Start AI review</button>
+</dialog></main></body></html>""",
     "/__ui-fixture__/canary/interaction": """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Interaction UI audit canary</title></head>
 <body><main><h1>Interaction UI audit canary</h1>
