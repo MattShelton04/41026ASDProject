@@ -675,6 +675,7 @@ test("release CRUD and report-section routes are represented in the browser clie
   assert.match(source, /properties\/\$\{encodedRef\}\/report-section/);
   assert.match(source, /New and published versions/);
   assert.match(source, /Data checks/);
+  assert.match(source, /primaryCell\(releaseLink, release\.release_version \|\| "Version not recorded"\)/);
   assert.doesNotMatch(source, /Deterministic quality review/);
   assert.match(source, /item\.release_version \|\| item\.dataset_release_id/);
   assert.match(source, /badge\(item\.coverage_status\)/);
@@ -713,6 +714,27 @@ test("operator UI exposes working submit controls, backfills and durable histori
   assert.match(source, /Preview update/);
   assert.match(source, /link\("Update history"/);
   assert.match(source, /`#ai\/release:\$\{linkedRelease\.id\}\?goal=\$\{failed \? "quality" : "compare"\}`/);
+});
+
+test("operator state routes preserve partial evidence and explain lifecycle context", async () => {
+  const overview = await readFile(new URL("../../frontend/routes/overview.js", import.meta.url), "utf8");
+  const entities = await readFile(new URL("../../frontend/routes/entities.js", import.meta.url), "utf8");
+  const releases = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
+  assert.match(overview, /projectOverviewFeeds/);
+  assert.match(overview, /allUnavailable/);
+  assert.match(overview, /runsAvailable \? active : "Unavailable"/);
+  assert.match(overview, /Temporarily unavailable:/);
+  assert.doesNotMatch(overview, /request\("overview"\)/);
+  assert.match(entities, /Available processing options could not be checked/);
+  assert.match(entities, /This data update is disabled/);
+  assert.match(releases, /releaseLifecycleContext/);
+  assert.match(releases, /primaryCell\(releaseLink, release\.release_version/);
+});
+
+test("route lifecycle titles and focuses the first page or error heading", async () => {
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  assert.match(app, /view\.querySelector\("h1, h2"\)/);
+  assert.match(app, /renderOverview\(\{ view, request, rerender: \(\) => renderRoute\(\{ focus: true \}\) \}\)/);
 });
 
 test("production frontend imports focused core and component modules", async () => {

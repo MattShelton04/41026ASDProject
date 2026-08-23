@@ -15,6 +15,14 @@ function operationStep(number, title, description) {
   return item;
 }
 
+export function jobLifecycleMessage(status) {
+  if (status === "active") return "";
+  if (status === "draft") return "This data update is still a draft. Set its lifecycle status to Active before starting it.";
+  if (status === "disabled") return "This data update is disabled. Its saved history remains available, but it cannot start until its lifecycle status is Active.";
+  if (status === "retired") return "This data update is retired and retained for history. Create or reactivate an appropriate definition before starting new work.";
+  return `This data update cannot start while its lifecycle status is ${humanise(status || "unknown")}.`;
+}
+
 export function createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, rerender }) {
   async function renderEntityList(kind) {
     const isSource = kind === "sources";
@@ -72,8 +80,9 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
       const result = await request(`${kind}/${encodeURIComponent(id)}`);
       const item = entity(result.body, singular);
       let capabilities = null;
+      let capabilitiesError = null;
       if (kind === "jobs") {
-        try { capabilities = (await request(`jobs/${encodeURIComponent(id)}/capabilities`)).body; } catch { /* optional evidence */ }
+        try { capabilities = (await request(`jobs/${encodeURIComponent(id)}/capabilities`)).body; } catch (error) { capabilitiesError = error; }
       }
       view.replaceChildren();
       const actions = [button("Edit", "button secondary", () => openEntityDialog(singular, item))];
@@ -85,6 +94,8 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
         actions.unshift(runNow, backfill, link("Update history", `#runs${queryString({ job: item.id })}`, "button secondary"));
       }
       append(view, pageHeading(kind === "sources" ? "Data source" : "Data update", displayName(item.name || singular), `${kind === "sources" ? item.publisher || "Attributed source" : displayName(item.dataset_id || item.target?.contract || "Data update")} · Version ${item.version ?? "—"}`, actions));
+      if (kind === "jobs" && jobLifecycleMessage(item.status)) append(view, el("div", "notice warning", jobLifecycleMessage(item.status)));
+      if (capabilitiesError) append(view, el("div", "notice warning", `Available processing options could not be checked. Saved settings and update history remain available.${capabilitiesError.requestId ? ` Request ID ${capabilitiesError.requestId}.` : ""}`));
       const left = el("div");
       const entries = kind === "sources" ? [
         ["Status", badge(item.status)], ["Publisher", item.publisher], ["Update cadence", item.cadence], ["Connector", displayName(item.adapter_key)], ["Licence", item.licence_id], ["Redistribution", item.redistribution_policy], ["Attribution URL", item.source_url], ["Updated", formatDate(item.updated_at)],

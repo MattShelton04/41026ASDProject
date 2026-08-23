@@ -96,7 +96,7 @@
       "deferredStates": {}
     },
     "operations-overview": {
-      "readiness": "#view h1",
+      "readiness": "#view h1, #view .error-state",
       "cases": [
         "loading", {"id": "canonical", "scenario": "populated", "states": ["populated"], "quick": true},
         "empty", "partial", "error", "long-content"
@@ -122,7 +122,7 @@
       "readiness": "#view h1, #view .error-state",
       "cases": [
         "loading-slow", "populated", "error", "long-content",
-        {"id": "capabilities-unavailable", "scenario": "populated", "states": ["capabilities-unavailable"], "expectedFailures": [{"method": "GET", "target": "/api/data-platform/v1/jobs/20000000-0000-0000-0000-000000000001/capabilities", "statuses": [503]}], "overrides": [{"method": "GET", "urlContains": "/capabilities", "status": 503, "problemCode": "dependency_unavailable"}]},
+        {"id": "capabilities-unavailable", "scenario": "populated", "states": ["capabilities-unavailable"], "expectedFailures": [{"method": "GET", "target": "/api/data-platform/v1/jobs/20000000-0000-0000-0000-000000000001/capabilities", "statuses": [503]}], "overrides": [{"method": "GET", "urlPattern": "/jobs/[^/?]+/capabilities$", "status": 503, "problemCode": "dependency_unavailable"}]},
         {"id": "disabled", "scenario": "populated", "states": ["disabled"], "overrides": [{"method": "GET", "urlPattern": "/jobs/[^/?]+$", "patches": [{"pointer": "/job/status", "value": "disabled"}]}]},
         {"id": "validation", "scenario": "validation-error", "states": ["validation"], "expectedFailures": [{"method": "PUT", "target": "/api/data-platform/v1/jobs/20000000-0000-0000-0000-000000000001", "statuses": [422]}], "setup": [{"action": "named-flow", "name": "edit-job-submit"}]},
         {"id": "conflict", "scenario": "populated", "states": ["conflict"], "expectedFailures": [{"method": "PUT", "target": "/api/data-platform/v1/jobs/20000000-0000-0000-0000-000000000001", "statuses": [409]}], "overrides": [{"method": "PUT", "urlContains": "/jobs/", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "edit-job-submit"}]}

@@ -101,6 +101,7 @@ main { min-width: 0; }
 .button.warning { background: var(--warning); color: white; }
 .button.small { min-height: var(--ps-control-height-compact); padding: .34rem .58rem; font-size: .7rem; }
 .button:disabled { cursor: not-allowed; opacity: .5; }
+.button.overview-action { min-height: calc(var(--ps-control-height-comfortable) + var(--ps-border-width-strong)); }
 .text-button { border: 0; padding: 0; background: transparent; color: var(--ocean-dark); cursor: pointer; font-weight: 750; text-decoration: underline; text-underline-offset: .18em; }
 
 .stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; }
