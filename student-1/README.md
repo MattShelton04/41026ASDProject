@@ -181,3 +181,10 @@ contracts, quality checks, files and coverage remain available as contextual spe
 are not presented as competing top-level workflows. `app.js` is the transition composition root.
 The independently built frontend image copies shared design-system v0.1 assets, while the
 development overlay mounts the same source files for reload.
+
+Property detail uses the shared MapLibre/OpenFreeMap provider under
+`shared/frontend/mapping/` rather than a decorative map placeholder. The feature supplies the
+verified property point and popup meaning through its existing public `map-context` endpoint; the
+shared package owns GeoJSON validation, renderer/provider lifecycle, tile failure fallback and
+camera interactions. See the [shared mapping README](../shared/frontend/mapping/README.md) for
+adding schools, suburb/area polygons, viewport-backed layers and a different basemap provider.

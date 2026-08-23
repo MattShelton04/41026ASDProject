@@ -133,3 +133,12 @@ def test_assessment_padding_is_removed_without_deleting_the_repeatable_fixture()
     assert "DELETE FROM ops.job_definition" in migration
     assert "DELETE FROM ops.dataset_release" in migration
     assert "000000000010" not in migration
+
+
+def test_property_geometry_constraint_includes_nsw_administered_islands() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE).joinpath("022_include_nsw_island_geometry.sql").read_text("utf-8")
+    )
+
+    assert "DROP CONSTRAINT property_geom_check" in migration
+    assert "ST_X(geom) BETWEEN 140 AND 160" in migration

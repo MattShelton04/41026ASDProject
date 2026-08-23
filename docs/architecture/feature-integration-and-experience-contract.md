@@ -36,8 +36,9 @@ the provider graph acyclic and lets every feature remain useful when another fea
 provider is unavailable.
 
 The common UI is a contract, not a shared product monolith. Shared code owns tokens, primitives,
-navigation conventions and state language. Each feature owns its routes, forms, charts, maps, CRUD,
-API client and domain interpretation.
+navigation conventions, state language and the domain-neutral browser mapping provider. Each
+feature owns its routes, forms, charts, map composition and domain layers, CRUD, API client and
+domain interpretation. ADR-020 records this technical mapping seam.
 
 ## 2. Sources and current state
 

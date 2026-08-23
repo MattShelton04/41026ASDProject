@@ -229,12 +229,7 @@ pre.json { max-height: 350px; overflow: auto; padding: .75rem; border-radius: 8p
 .result-card[aria-current="true"] { box-shadow: inset 3px 0 var(--ocean); }
 .result-card strong { display: block; color: var(--navy); font-size: .78rem; }
 .result-card span { display: block; margin-top: .25rem; color: var(--muted); font-size: .67rem; }
-.map-context { position: relative; min-height: 300px; overflow: hidden; border-radius: 10px; background: #dfebe7; }
-.map-context::before, .map-context::after { content: ""; position: absolute; inset: 0; opacity: .55; background-image: linear-gradient(32deg, transparent 46%, #b4cdc5 47%, #b4cdc5 49%, transparent 50%), linear-gradient(118deg, transparent 47%, #f8fbf8 48%, #f8fbf8 51%, transparent 52%); background-size: 115px 90px, 140px 110px; }
-.map-context::after { opacity: .35; transform: rotate(12deg) scale(1.2); }
-.map-pin { position: absolute; z-index: 2; top: 48%; left: 52%; display: grid; place-items: center; width: 38px; height: 38px; border: 4px solid white; border-radius: 50% 50% 50% 4px; background: var(--negative); color: white; box-shadow: 0 4px 12px rgb(0 0 0 / 24%); transform: translate(-50%, -50%) rotate(-45deg); }
-.map-pin span { transform: rotate(45deg); }
-.map-caption { position: absolute; z-index: 3; right: .65rem; bottom: .65rem; left: .65rem; padding: .5rem .65rem; border-radius: 7px; background: rgb(255 255 255 / 88%); color: var(--muted); font-size: .67rem; backdrop-filter: blur(3px); }
+.map-context { min-height: 360px; }
 .coverage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .6rem; }
 .coverage-card { padding: .75rem; border: 1px solid var(--line); border-left: 4px solid var(--line-strong); border-radius: 8px; background: white; }
 .coverage-card.positive { border-left-color: var(--positive); }
