@@ -71,31 +71,35 @@ export function createPropertyRoutes({ view, request, announce }) {
       search.disabled = pending;
       search.setAttribute("aria-busy", String(pending));
     });
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
+    const validateSearchInput = ({ report = false } = {}) => {
       try {
+        propertySearchQuery(input.value);
         input.setCustomValidity("");
+        input.removeAttribute("aria-invalid");
         searchError.textContent = "";
-        submission.submit(propertySearchQuery(input.value));
+        return true;
       } catch (error) {
         input.setCustomValidity(error.message);
         input.setAttribute("aria-invalid", "true");
         searchError.textContent = error.message;
-        input.focus();
-        input.reportValidity();
+        if (report) {
+          input.focus();
+          input.reportValidity();
+        }
+        return false;
       }
+    };
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (validateSearchInput({ report: true })) submission.submit(propertySearchQuery(input.value));
     });
     form.addEventListener("invalid", (event) => {
       if (event.target !== input) return;
-      input.setAttribute("aria-invalid", "true");
-      try { propertySearchQuery(input.value); }
-      catch (error) { searchError.textContent = error.message; }
+      validateSearchInput();
     }, true);
     input.addEventListener("input", () => {
       queryGeneration += 1;
-      input.setCustomValidity("");
-      input.removeAttribute("aria-invalid");
-      searchError.textContent = "";
+      validateSearchInput();
       if (submission.pending) resultHost.replaceChildren(emptyState("Search changed", "Press Search when the address is ready. Results from the earlier request will not replace this query."));
     });
 

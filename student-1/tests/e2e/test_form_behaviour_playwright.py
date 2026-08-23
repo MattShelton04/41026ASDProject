@@ -139,11 +139,37 @@ def test_search_and_every_filter_use_native_keyboard_and_explicit_reset(
     query.press("Enter")
     expect(page.locator("#property-search-error")).to_contain_text("2 to 200 characters")
     expect(query).to_be_focused()
+    query.fill("y")
+    expect(page.locator("#property-search-error")).to_contain_text("2 to 200 characters")
+    expect(query).to_have_attribute("aria-invalid", "true")
+    assert "2 to 200 characters" in query.evaluate("element => element.validationMessage")
 
     query.fill("11 Example Street, Sydney NSW 2000")
+    expect(page.locator("#property-search-error")).to_be_empty()
+    expect(query).not_to_have_attribute("aria-invalid", "true")
+    assert query.evaluate("element => element.validationMessage") == ""
     query.press("Enter")
     expect(page.get_by_text("1 match", exact=True)).to_be_visible()
     page.wait_for_function("() => location.hash.includes('q=11+Example+Street')")
+
+    _open(page, fixture_origin, "sources")
+    header_query = page.get_by_label("Search Property data")
+    header_query.fill("x")
+    header_query.press("Enter")
+    expect(header_query).to_have_attribute("aria-invalid", "true")
+    assert "2 to 200 characters" in header_query.evaluate("element => element.validationMessage")
+    assert page.evaluate("location.hash") == "#sources"
+    header_query.fill("y")
+    expect(header_query).to_have_attribute("aria-invalid", "true")
+    assert "2 to 200 characters" in header_query.evaluate("element => element.validationMessage")
+    header_query.fill("1 Farrer Place Sydney")
+    expect(header_query).not_to_have_attribute("aria-invalid", "true")
+    assert header_query.evaluate("element => element.validationMessage") == ""
+    header_query.press("Enter")
+    page.wait_for_function(
+        "() => location.hash.startsWith('#properties?q=1+Farrer') "
+        "|| location.hash.startsWith('#properties?q=1%20Farrer')"
+    )
 
     page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=slow&test={time.time_ns()}#properties")
     expect(page.get_by_role("heading", name="Explore NSW properties")).to_be_visible()
@@ -156,13 +182,6 @@ def test_search_and_every_filter_use_native_keyboard_and_explicit_reset(
     page.wait_for_timeout(1500)
     expect(page.get_by_role("heading", name="Search changed")).to_be_visible()
     expect(page.get_by_role("button", name="Search")).to_be_enabled()
-
-    page.get_by_label("Search Property data").fill("1 Farrer Place Sydney")
-    page.get_by_label("Search Property data").press("Enter")
-    page.wait_for_function(
-        "() => location.hash.startsWith('#properties?q=1+Farrer') "
-        "|| location.hash.startsWith('#properties?q=1%20Farrer')"
-    )
 
     for route in ("sources", "jobs", "runs", "releases"):
         _open(page, fixture_origin, route)

@@ -242,19 +242,34 @@ async function renderRoute({ focus = false } = {}) {
 }
 
 navToggle.addEventListener("click", () => { const open = sidebar.classList.toggle("open"); navToggle.setAttribute("aria-expanded", String(open)); navToggle.querySelector(".visually-hidden").textContent = open ? "Close navigation" : "Open navigation"; });
-headerPropertySearch.addEventListener("submit", (event) => {
-  event.preventDefault();
-  if (!headerPropertyQuery.value.trim()) { location.hash = "#properties"; return; }
-  try {
+function validateHeaderPropertyQuery({ report = false } = {}) {
+  if (!headerPropertyQuery.value.trim()) {
     headerPropertyQuery.setCustomValidity("");
+    headerPropertyQuery.removeAttribute("aria-invalid");
+    return "";
+  }
+  try {
     const query = propertySearchQuery(headerPropertyQuery.value, "header-property-query");
-    location.hash = `#properties?q=${encodeURIComponent(query)}`;
+    headerPropertyQuery.setCustomValidity("");
+    headerPropertyQuery.removeAttribute("aria-invalid");
+    return query;
   } catch (error) {
     headerPropertyQuery.setCustomValidity(error.message);
-    headerPropertyQuery.reportValidity();
+    headerPropertyQuery.setAttribute("aria-invalid", "true");
+    if (report) headerPropertyQuery.reportValidity();
+    return null;
   }
+}
+headerPropertySearch.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const query = validateHeaderPropertyQuery({ report: true });
+  if (query === "") location.hash = "#properties";
+  else if (query) location.hash = `#properties?q=${encodeURIComponent(query)}`;
 });
-headerPropertyQuery.addEventListener("input", () => headerPropertyQuery.setCustomValidity(""));
+headerPropertySearch.addEventListener("invalid", (event) => {
+  if (event.target === headerPropertyQuery) validateHeaderPropertyQuery();
+}, true);
+headerPropertyQuery.addEventListener("input", () => validateHeaderPropertyQuery());
 sidebar.addEventListener("click", (event) => { if (event.target.closest("a")) closeNavigation(); });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && sidebar.classList.contains("open")) closeNavigation({ restoreFocus: true }); });
 window.addEventListener("hashchange", () => {
