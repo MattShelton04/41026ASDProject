@@ -32,6 +32,7 @@ def test_enabled_dashboard_serves_hardened_assets(app_services: AppServices) -> 
     page = client.get("/operations/ai-mode/")
     script = client.get("/operations/ai-mode/assets/app.js")
     polling = client.get("/operations/ai-mode/assets/polling.js")
+    contexts = client.get("/operations/ai-mode/assets/contexts.js")
     tokens = client.get("/operations/ai-mode/design-system/tokens.css")
     blocked_design_asset = client.get("/operations/ai-mode/design-system/components.css")
     test_asset = client.get("/operations/ai-mode/assets/polling.test.mjs")
@@ -49,6 +50,8 @@ def test_enabled_dashboard_serves_hardened_assets(app_services: AppServices) -> 
     assert polling.status_code == 200
     assert polling.headers["X-Content-Type-Options"] == "nosniff"
     assert b"RequestTimeoutError" in polling.data
+    assert contexts.status_code == 200
+    assert b"resolveResearchAreaContext" in contexts.data
     assert tokens.status_code == 200
     assert b"--ps-ocean-700" in tokens.data
     assert blocked_design_asset.status_code == 404

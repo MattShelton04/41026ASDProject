@@ -1,4 +1,4 @@
-import { append, badge, cell, el, formatDate, link, notice, pageHeader, panel, requestJson, table } from "../core.js?v=10";
+import { append, badge, cell, el, formatDate, link, notice, pageHeader, panel, requestJson, requestText, table } from "../core.js?v=10";
 import { featureRegistry } from "../features.js?v=10";
 
 export function classifyHealth(payload) {
@@ -68,7 +68,7 @@ async function check(name, kind, owner, path, detail, href = "") {
   }
 }
 
-export function createStatusRoute({ config, announce }) {
+export function createStatusRoute({ config, getFeature1Adapter, announce }) {
   return async function renderStatus(root) {
     const refresh = el("button", "ps-button ps-button--primary", "Refresh status");
     refresh.type = "button";
@@ -91,9 +91,7 @@ export function createStatusRoute({ config, announce }) {
         return card;
       }));
       const shellStarted = performance.now();
-      const shellCheck = fetch("/healthz", { headers: { Accept: "text/plain" } }).then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        await response.text();
+      const shellCheck = requestText("/healthz").then(() => {
         return { name: "Shared product shell", kind: "Frontend", owner: "Shared platform", detail: "This navigation and operational dashboard service is responding.", href: "#home", enabled: true, latency: Math.round(performance.now() - shellStarted), requestId: "Browser-local check", readiness: "ready", label: "Ready", tone: "confirmed" };
       }).catch((error) => ({ name: "Shared product shell", kind: "Frontend", owner: "Shared platform", detail: `The shell health check failed: ${error.message}.`, href: "#home", enabled: true, latency: null, requestId: "Browser-local check", readiness: "unavailable", label: "Unavailable", tone: "partial" }));
       const primaryComponents = await Promise.all([
@@ -110,18 +108,14 @@ export function createStatusRoute({ config, announce }) {
       ]);
       const shellApi = primaryComponents[0];
       const featureApis = primaryComponents.slice(1, 1 + enabledFeatures.length);
-      const propertyIndex = enabledFeatures.findIndex((feature) => feature.slug === "data-platform");
-      const propertyApi = propertyIndex >= 0 ? featureApis[propertyIndex] : undefined;
       const agentApi = primaryComponents.at(-1);
       const components = [shellApi, ...featureApis];
-      if (propertyApi) {
-        components.push(dependencyComponent(propertyApi, {
-          name: "Property data store",
-          kind: "Owned dependency",
-          owner: "Property data service",
-          rawStatus: propertyApi.payload?.dependencies?.database,
-          detail: propertyApi.payload?.dependencies?.database === true ? "The Property data service reports its data store ready." : "The owned data-store readiness check did not pass.",
-        }));
+      const feature1Index = enabledFeatures.findIndex((feature) => feature.id === "property-records");
+      const feature1Adapter = getFeature1Adapter();
+      if (feature1Adapter && feature1Index >= 0) {
+        for (const dependency of feature1Adapter.statusDependencies(featureApis[feature1Index])) {
+          components.push(dependencyComponent(featureApis[feature1Index], dependency));
+        }
       }
       components.push(
         agentApi,

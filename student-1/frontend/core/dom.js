@@ -1,14 +1,5 @@
-export function el(tag, className = "", text = "") {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== "") node.textContent = String(text);
-  return node;
-}
-
-export function append(parent, ...children) {
-  for (const child of children.flat()) if (child !== null && child !== undefined) parent.append(child);
-  return parent;
-}
+export { append, el } from "../browser/index.js";
+import { el } from "../browser/index.js";
 
 export function link(label, hash, className = "text-button") {
   const node = el("a", className, label);

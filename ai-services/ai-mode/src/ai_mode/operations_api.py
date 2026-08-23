@@ -35,7 +35,7 @@ from shared_contracts import (
 from shared_contracts.agent import Identifier
 
 ALLOWED_QUERY_PARAMETERS = frozenset({"status", "feature_key", "model_profile", "cursor", "limit"})
-ALLOWED_ASSETS = frozenset({"app.js", "polling.js", "styles.css"})
+ALLOWED_ASSETS = frozenset({"app.js", "contexts.js", "polling.js", "styles.css"})
 ALLOWED_DESIGN_SYSTEM_ASSETS = frozenset({"tokens.css"})
 IDENTIFIER_ADAPTER = TypeAdapter(Identifier)
 OPERATIONS_PROJECTION_VERSION = 2

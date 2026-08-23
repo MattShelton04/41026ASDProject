@@ -1,14 +1,5 @@
-export function el(tag, className = "", text = undefined) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = String(text);
-  return node;
-}
-
-export function append(target, ...children) {
-  target.append(...children.filter((child) => child !== null && child !== undefined));
-  return target;
-}
+export { append, el } from "./browser/index.js";
+import { append, el } from "./browser/index.js";
 
 export function humanise(value) {
   if (value === null || value === undefined || value === "") return "Unknown";
@@ -30,18 +21,6 @@ export function formatNumber(value) {
   if (value === null || value === undefined || value === "") return "Unknown";
   const number = Number(value);
   return Number.isFinite(number) ? new Intl.NumberFormat("en-AU").format(number) : String(value);
-}
-
-export function researchAreaLabel(value) {
-  const labels = {
-    "feature-1": "Property data",
-    "student-1-propertyscope-data-platform": "Property data",
-    "feature-2": "Sales and market",
-    "feature-3": "Suburb context",
-    "feature-4": "Site and planning",
-    "feature-5": "Buyer workspace",
-  };
-  return labels[value] || humanise(value);
 }
 
 export function parseShellRoute(hash = "") {
@@ -138,6 +117,24 @@ export async function requestJson(path, { timeoutMs = 6000 } = {}) {
       throw timeout;
     }
     if (!error.requestId) error.requestId = id;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function requestText(path, { timeoutMs = 6000 } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(path, {
+      headers: { Accept: "text/plain" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.text();
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error(`Timed out after ${timeoutMs / 1000} seconds`);
     throw error;
   } finally {
     clearTimeout(timer);

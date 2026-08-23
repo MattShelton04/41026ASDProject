@@ -178,6 +178,8 @@ function diagnosisTitle(run) {
 function activityUrl(runId = "") {
   const url = new URL(AGENT_ACTIVITY_URL, window.location.href);
   url.searchParams.set("feature_key", "student-1-propertyscope-data-platform");
+  url.searchParams.set("feature_label", "Property data");
+  url.searchParams.set("return_to", "/features/data-platform/#properties");
   if (runId) url.searchParams.set("run", runId);
   return url.href;
 }

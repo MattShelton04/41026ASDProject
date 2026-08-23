@@ -21,7 +21,7 @@
         <span class="topbar-divider" aria-hidden="true"></span>
         <div>
           <h1>Activity history</h1>
-          <p>Shared view · Property data</p>
+          <p id="research-area-context">Shared view · AI activity</p>
         </div>
       </div>
       <nav class="operations-nav" aria-label="PropertyScope navigation">
@@ -30,9 +30,9 @@
         <a href="/#system-status">Data status</a>
         <a href="/#evidence">Sources &amp; history</a>
       </nav>
-      <a class="research-area-return" href="/features/data-platform/#properties" aria-label="Back to the Property data research area">
+      <a id="research-area-return" class="research-area-return" href="/#features" aria-label="Back to research areas">
         <span aria-hidden="true">⌁</span>
-        <span><small>Back to research area</small><strong>Property data</strong></span>
+        <span><small>Back to research area</small><strong id="research-area-return-label">Research areas</strong></span>
         <b aria-hidden="true">→</b>
       </a>
       <div class="connection" role="status" aria-live="polite">
@@ -51,7 +51,7 @@
           <button id="refresh-runs" class="quiet-button" type="button">Refresh</button>
         </div>
 
-        <p class="scope-note">Review AI results, source checks and failures from PropertyScope data reviews.</p>
+        <p id="research-area-scope" class="scope-note">Review AI results, source checks and failures from enabled research areas.</p>
 
         <div id="quick-filters" class="quick-filters" role="group" aria-label="Quick review filters">
           <button type="button" data-filter="all" aria-pressed="true">All</button>
@@ -65,7 +65,6 @@
             <span>Research area</span>
             <select id="feature-filter" name="feature_key">
               <option value="">All areas</option>
-              <option value="student-1-propertyscope-data-platform">Property data</option>
             </select>
           </label>
           <label>
@@ -209,6 +208,6 @@
     </main>
 
     <div id="announcement" class="visually-hidden" role="status" aria-live="polite"></div>
-    <script type="module" src="/operations/ai-mode/assets/app.js?v=9"></script>
+    <script type="module" src="/operations/ai-mode/assets/app.js?v=10"></script>
   </body>
 </html>

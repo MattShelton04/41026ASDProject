@@ -52,7 +52,7 @@ def test_shared_home_routes_only_live_product_and_operator_surfaces() -> None:
     assert "docs/prototype" not in page
     assert "prototype:" not in script
     assert 'id="feature-area-list"' in page
-    assert "featureRegistry(config).map(homeFeatureRow)" in script
+    assert "featureRegistry({ featureHrefs: config.featureHrefs }).map(homeFeatureRow)" in script
     assert registry.count("frontendBase:") == 5
     assert registry.count("implemented: true") == 1
     assert 'frontendBase: "/features/data-platform/"' in registry
@@ -93,6 +93,9 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "application/problem+json" in nginx
     assert "location /operations/ai-mode/" in nginx
     assert "database" not in evidence.lower()
+    assert "dependencies?.database" not in status
+    assert 'target_feature === "feature-1"' not in evidence
+    assert '"/api/data-platform/v1/dataset-releases' not in evidence
     assert "map $http_x_request_id $correlation_request_id" in nginx
     assert '"~^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"' in nginx
     assert "proxy_hide_header X-Request-ID" in nginx
@@ -112,7 +115,7 @@ def test_property_data_and_agent_operations_link_back_to_product_home() -> None:
     assert "Property records available" in feature_page
 
     assert "PropertyScope | Activity history" in operations_page
-    assert "Shared view · Property data" in operations_page
+    assert "Shared view · AI activity" in operations_page
     assert "Research areas" in operations_page
     assert 'meta name="color-scheme" content="light"' in operations_page
     assert "http://localhost:5100" not in operations_page
