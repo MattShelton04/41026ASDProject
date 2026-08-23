@@ -1,6 +1,7 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { confidenceLabel, coverageRows, displayName, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js?v=17";
+import { createSubmissionGuard, propertySearchQuery } from "../core/forms.js";
 import { routeQuery } from "../core/router.js";
 import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState } from "../components/states.js";
@@ -14,26 +15,32 @@ export function createPropertyRoutes({ view, request, announce }) {
     const hero = el("section", "discovery-hero");
     append(hero, el("p", "eyebrow", "Property search"), el("h1", "", "Explore NSW properties"), el("p", "", "Find a NSW address and see which sources and research data are available for it."));
     const form = el("form", "search-box");
+    form.setAttribute("role", "search");
+    const searchField = el("label", "search-field");
+    append(searchField, el("span", "", "NSW street address (required)"));
     const input = el("input");
     input.type = "search";
     input.name = "q";
     input.placeholder = "Try 11 Example Street, Sydney NSW 2000";
     input.autocomplete = "street-address";
-    input.maxLength = 250;
+    input.minLength = 2;
+    input.maxLength = 200;
     input.required = true;
+    input.setAttribute("aria-describedby", "property-search-help property-search-error");
     input.value = routeQuery(location.hash).get("q") || "";
+    append(searchField, input);
     const search = button("Search", "button primary");
     search.type = "submit";
-    append(form, input, search);
-    append(hero, form, el("p", "search-help", "NSW addresses · Best matches first · Address matching does not depend on AI"));
+    append(form, searchField, search);
+    const searchError = el("p", "form-error"); searchError.id = "property-search-error"; searchError.setAttribute("role", "alert");
+    const searchHelp = el("p", "search-help", "NSW addresses · 2–200 characters · Best matches first · Address matching does not depend on AI"); searchHelp.id = "property-search-help";
+    append(hero, form, searchError, searchHelp);
     append(view, hero);
     const resultHost = el("div");
     append(resultHost, emptyState("Start with a street address", "Include a street number and suburb or postcode for the clearest match."));
     append(view, resultHost);
 
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const query = input.value.trim();
+    const submission = createSubmissionGuard(async (query) => {
       history.replaceState(null, "", `#properties${queryString({ q: query })}`);
       resultHost.replaceChildren(el("section", "loading-state", "Searching NSW property records…"));
       try {
@@ -48,7 +55,33 @@ export function createPropertyRoutes({ view, request, announce }) {
       } catch (error) {
         resultHost.replaceChildren(errorState(error, () => form.requestSubmit()));
       }
+    }, (pending) => {
+      if (pending) {
+        search.dataset.label = search.textContent;
+        search.style.minWidth = `${Math.ceil(search.offsetWidth)}px`;
+        search.textContent = "Searching…";
+      } else {
+        search.textContent = search.dataset.label || "Search";
+        search.style.minWidth = "";
+      }
+      search.disabled = pending;
+      search.setAttribute("aria-busy", String(pending));
     });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      try {
+        input.setCustomValidity("");
+        searchError.textContent = "";
+        submission.submit(propertySearchQuery(input.value));
+      } catch (error) {
+        input.setCustomValidity(error.message);
+        input.setAttribute("aria-invalid", "true");
+        searchError.textContent = error.message;
+        input.focus();
+        input.reportValidity();
+      }
+    });
+    input.addEventListener("input", () => { input.setCustomValidity(""); input.removeAttribute("aria-invalid"); searchError.textContent = ""; });
 
     if (input.value) queueMicrotask(() => form.requestSubmit());
   }

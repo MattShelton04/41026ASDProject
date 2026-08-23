@@ -1,6 +1,7 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js?v=17";
+import { createSubmissionGuard } from "../core/forms.js";
 import { nextAgentPollDelay } from "../core/polling.js";
 import { parseRoute, routeQuery } from "../core/router.js?v=7";
 import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
@@ -69,10 +70,10 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     append(copy, el("h2", "", "Start an AI review"), el("p", "", "The assistant reads recorded data checks and recommends a next step. It cannot publish changes.")); append(heading, copy); const body = el("div", "panel-body"); append(host, heading, body);
     if (!candidates.length) { append(body, emptyState("Nothing needs review", "An unpublished or rejected dataset will appear here when it needs attention.")); return host; }
     const form = el("form", "form-grid");
-    const releaseLabel = el("label", "wide"); releaseLabel.htmlFor = "diagnosis-release"; append(releaseLabel, el("span", "", "Dataset to review")); const releaseSelect = el("select"); releaseSelect.id = "diagnosis-release"; releaseSelect.required = true;
+    const releaseLabel = el("label", "wide"); releaseLabel.htmlFor = "diagnosis-release"; append(releaseLabel, el("span", "", "Dataset to review (required)")); const releaseSelect = el("select"); releaseSelect.id = "diagnosis-release"; releaseSelect.required = true;
     for (const release of candidates) { const option = el("option", "", `${humanise(release.dataset_id)} · ${release.release_version} · ${humanise(release.status)}`); option.value = release.id; option.selected = context === `release:${release.id}`; append(releaseSelect, option); }
     append(releaseLabel, releaseSelect);
-    const objectiveLabel = el("label", "wide"); objectiveLabel.htmlFor = "diagnosis-objective"; append(objectiveLabel, el("span", "", "What should the AI check?")); const objective = el("select"); objective.id = "diagnosis-objective"; objective.required = true;
+    const objectiveLabel = el("label", "wide"); objectiveLabel.htmlFor = "diagnosis-objective"; append(objectiveLabel, el("span", "", "What should the AI check? (required)")); const objective = el("select"); objective.id = "diagnosis-objective"; objective.required = true;
     append(objective, option("compare", "Compare with the published version"), option("quality", "Explain failed data checks"), option("consumer", "Explain a publishing failure")); append(objectiveLabel, objective);
     const requestedGoal = routeQuery(location.hash).get("goal");
     if (Object.hasOwn(OBJECTIVES, requestedGoal)) objective.value = requestedGoal;
@@ -81,15 +82,24 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     releaseSelect.addEventListener("change", updateScope); updateScope();
     const submit = button("Start AI review", "button primary"); submit.type = "submit";
     append(form, releaseLabel, objectiveLabel, scope, submit); append(body, form);
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault(); if (!form.reportValidity()) return; submit.disabled = true;
-      const progress = el("div", "notice", "Starting AI review…"); body.prepend(progress);
+    const progress = el("div");
+    const submission = createSubmissionGuard(async () => {
+      progress.className = "notice"; progress.textContent = "Starting AI review…"; body.prepend(progress);
       try {
         const result = await mutate(`dataset-releases/${releaseSelect.value}/agent-runs`, { body: { objective: OBJECTIVES[objective.value] }, success: "AI review started" });
         const run = entity(result, "agent_run"); location.hash = `#ai/${run.id || result.id}`;
       } catch (error) {
-        progress.className = "notice warning"; progress.textContent = `${error.status === 503 ? "AI review is temporarily unavailable. Property search and data management still work." : error.message}${problemSuffix(error)}`; submit.disabled = false;
+        progress.className = "notice warning"; progress.textContent = `${error.status === 503 ? "AI review is temporarily unavailable. Property search and data management still work. Your selected dataset and review goal are unchanged; retry when ready." : `${error.message} Your selected dataset and review goal are unchanged; correct the issue or retry.`}${problemSuffix(error)}`;
       }
+    }, (pending) => {
+      submit.disabled = pending;
+      submit.textContent = pending ? "Starting review…" : "Start AI review";
+      submit.setAttribute("aria-busy", String(pending));
+    });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      submission.submit();
     });
     return host;
   }
