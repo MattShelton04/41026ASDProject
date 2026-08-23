@@ -63,11 +63,14 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Purpose | Command |
 |---|---|
 | Reproduce the environment | `uv sync --locked --all-packages --all-groups` |
-| Run every required local check | `uv run python scripts/check.py` |
-| Format Python | `uv run ruff format .` |
-| Lint and apply safe fixes | `uv run ruff check --fix .` |
-| Type-check every canonical path | `uv run python scripts/check.py` (includes strict mypy over packages, the integration fixture, and typed scripts) |
-| Run tests | `uv run pytest` |
+| Run every deterministic pre-PR check | `uv run python scripts/check.py` |
+| Check/apply Python formatting | `uv run python scripts/check.py format` / `uv run python scripts/check.py format --write` |
+| Lint Python | `uv run python scripts/check.py lint` |
+| Validate contracts and architecture | `uv run python scripts/check.py architecture` |
+| Validate frontend styles | `uv run python scripts/check.py styles` |
+| Type-check canonical Python | `uv run python scripts/check.py typecheck` |
+| Syntax-check first-party browser JavaScript | `uv run python scripts/check.py compile` |
+| Run deterministic Python and frontend tests | `uv run python scripts/check.py test` |
 | Run tests with enforced coverage | `uv run python scripts/check.py` (90% core branch coverage; 60% Feature 1 ratchet) |
 | Generate contract artefacts | `uv run python scripts/generate_contracts.py` |
 | Validate repository boundaries | `uv run python scripts/validate_architecture.py` |
@@ -84,6 +87,29 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Delete only this stack's durable data | `uv run scripts/dev.py reset` |
 | Run the quick Shared/Feature 1 UI audit | `uv run scripts/dev.py ui-audit-quick` |
 | Run the full resumable UI matrix | `uv run scripts/dev.py ui-audit-full` |
+| Build production-like Release 0 images without starting them | `uv run scripts/dev.py build` |
+
+The source-only `check.py` stages are cross-platform and require no shell-specific syntax. They do
+not install a second frontend dependency tree: the browser code is dependency-free ES modules, so
+Node performs syntax and behavior checks directly. The canonical aggregate deliberately excludes
+browser tests; install Chromium once and use the separate commands below when changing rendered UI.
+
+For a Shared-only change, run the `format`, `lint`, `styles`, `compile` and relevant Shared Node
+tests while iterating, then audit with
+`uv run scripts/dev.py ui-audit-quick --workspace shared --port 5311`. For Property Discovery use
+`--workspace feature-1-property-discovery --port 5312`; for Data Operations use
+`--workspace feature-1-data-operations --port 5313`. Finish any of those paths with
+`uv run python scripts/check.py` before pushing. Ports are examples: each concurrent audit must use
+a distinct free loopback port. The required form-behavior browser suite remains separate because it
+owns a random fixture port and needs installed Chromium:
+
+```text
+uv run pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
+```
+
+`Integration CI / Canonical quality gate` is the single required source-quality job. The
+path-filtered Student 1 workflow adds only the Chromium form suite and integrated container checks;
+it does not repeat the whole repository gate on the same pull request.
 
 The local service exposes health endpoints and the versioned `/api/v1/agent-runs`
 create/read/cancel/review surface. Its default feature-tool registry remains empty until

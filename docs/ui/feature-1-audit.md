@@ -44,18 +44,20 @@ The complete command covers every executable route case at all four configured v
 uv run scripts/dev.py ui-audit-full
 ```
 
-The package CLI exposes stable selectors and shards:
+The root command forwards stable selectors and shards:
 
 ```text
-uv run python -m scripts.ui_audit full --route-group property-discovery --viewport laptop-compact
-uv run python -m scripts.ui_audit full --shard-index 0 --shard-total 4
-uv run python -m scripts.ui_audit full --resume .propertyscope-runtime/ui-audit/20260823T120000Z
+uv run scripts/dev.py ui-audit-full --route-group property-discovery --viewport laptop-compact
+uv run scripts/dev.py ui-audit-full --port 5340 --shard-index 0 --shard-total 4
+uv run scripts/dev.py ui-audit-full --resume .propertyscope-runtime/ui-audit/20260823T120000Z
 ```
 
 Use a non-canonical fixture port with `--port`; the audit owns and cleans up a fixture child only
 when the selected loopback port is free. `--resume` reuses a batch only when its configuration,
 source-tree and harness fingerprint still match. A corrupt or interrupted `.tmp` file is ignored,
 while every completed batch and screenshot remains available.
+Configuration, case and artifact paths checked into the audit documents are repository-relative;
+machine-specific worktree or user-profile paths are not part of the executable configuration.
 
 ## Artifacts and coverage
 
