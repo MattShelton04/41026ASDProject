@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -169,6 +170,7 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AuditConfig:
                 capture_phase = case.get("capturePhase", "settled")
                 if capture_phase not in {"settled", "loading", "loading-and-settled"}:
                     raise AuditConfigError(f"{route_id} case has invalid capturePhase")
+                route_readiness = str(execution_row.get("readiness", "body"))
                 cases.append(
                     AuditCase(
                         id=_text(case.get("id"), "case id"),
@@ -187,9 +189,8 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AuditConfig:
                             if isinstance(item, str)
                         ),
                         capture_phase=cast(Any, capture_phase),
-                        readiness=str(
-                            case.get("readiness", execution_row.get("readiness", "body"))
-                        ),
+                        readiness=str(case.get("readiness", route_readiness)),
+                        settled_readiness=str(case.get("settledReadiness", route_readiness)),
                         overrides=tuple(
                             _mapping(item, "case override") for item in case.get("overrides", [])
                         ),
@@ -285,7 +286,7 @@ def compile_batches(
                 ).hexdigest()
                 rows.append(
                     AuditBatch(
-                        id=key.replace("/", "--"),
+                        id=_artifact_id(key, digest),
                         workspace=route.workspace,
                         route_group=route.route_group,
                         route_id=route.id,
@@ -296,6 +297,12 @@ def compile_batches(
                     )
                 )
     return tuple(sorted(rows, key=lambda item: item.id))
+
+
+def _artifact_id(key: str, digest: str) -> str:
+    """Build a Windows-safe, traversal-proof, collision-resistant artifact name."""
+    readable = re.sub(r"[^A-Za-z0-9_-]+", "-", key).strip("-")[:120]
+    return f"{readable or 'batch'}--{digest[:16]}"
 
 
 def _resolve_path(path: str) -> str:

@@ -15,11 +15,14 @@ from urllib.request import urlopen
 
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, sync_playwright
+
 from scripts.ui_fixture_server import DEFAULT_PORT, LOOPBACK_HOST
 from scripts.ui_fixtures import (
     AGENT_RUN_ID,
     CANDIDATE_RELEASE_ID,
     DATASET_ID,
+    FIXTURE_IDENTITY,
+    FIXTURE_REVISION,
     JOB_ID,
     PROPERTY_ID,
     RELEASE_ID,
@@ -35,7 +38,12 @@ def _ready(base_url: str) -> bool:
     try:
         with urlopen(f"{base_url}/__ui-fixture__/ready", timeout=0.4) as response:
             payload = json.load(response)
-            return response.status == 200 and payload.get("scenario") in SCENARIOS
+            return (
+                response.status == 200
+                and payload.get("scenario") in SCENARIOS
+                and payload.get("identity") == FIXTURE_IDENTITY
+                and payload.get("revision") == FIXTURE_REVISION
+            )
     except (OSError, URLError, ValueError):
         return False
 

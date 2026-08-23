@@ -65,7 +65,7 @@
   }
   function isCore(element) {
     return !!element.closest("header,nav,[role=dialog],dialog,[data-audit-core]")
-      || element.matches("[type=submit],[role=search] *,input[type=search],.button-primary,.ps-button--primary");
+      || element.matches("[type=submit],[role=search] *,input[type=search],.button-primary,.button.primary,.ps-button--primary");
   }
   function accessibleName(element) {
     const labelledBy = element.getAttribute("aria-labelledby");

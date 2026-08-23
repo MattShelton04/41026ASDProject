@@ -12,18 +12,35 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 from playwright.sync_api import Browser, BrowserContext, Page, Route, sync_playwright
+
 from scripts.ui_audit.config import AuditConfig, AuditSelection, compile_batches
-from scripts.ui_audit.models import AuditBatch
+from scripts.ui_audit.inventory import (
+    ReplayDependencies,
+    audit_keyboard_traversal,
+    inventory_controls,
+    replay_controls,
+)
+from scripts.ui_audit.models import AuditBatch, Finding
 from scripts.ui_audit.report import load_completed_batch, summary_for, write_reports
 from scripts.ui_audit.rules import classify_page
+from scripts.ui_fixtures import FIXTURE_IDENTITY, FIXTURE_REVISION
 from scripts.ui_smoke import fixture_runtime
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 HELPER_PATH = Path(__file__).with_name("browser_helpers.js")
 DEFAULT_OUTPUT_ROOT = REPOSITORY_ROOT / ".propertyscope-runtime" / "ui-audit"
 EXPECTED_EXTERNAL_HOSTS = {"tiles.openfreemap.org"}
+PARTIAL_FAILURE_PATHS = (
+    "/overview",
+    "/map-context",
+    "/coverage",
+    "/report-section",
+    "/artifacts",
+    "/events",
+)
 
 
 @dataclass(frozen=True)
@@ -50,8 +67,24 @@ def source_digest() -> tuple[str, str]:
         check=True,
         capture_output=True,
         text=True,
-    ).stdout
-    return commit, hashlib.sha256(diff.encode()).hexdigest()
+    ).stdout.encode()
+    untracked = subprocess.run(
+        ("git", "ls-files", "--others", "--exclude-standard", "-z"),
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+    ).stdout.split(b"\0")
+    digest = hashlib.sha256(diff)
+    for raw_path in sorted(path for path in untracked if path):
+        relative = Path(raw_path.decode("utf-8", errors="surrogateescape"))
+        candidate = (REPOSITORY_ROOT / relative).resolve()
+        if REPOSITORY_ROOT.resolve() not in candidate.parents:
+            raise RuntimeError(f"untracked source escaped repository root: {relative}")
+        digest.update(b"\0untracked\0")
+        digest.update(relative.as_posix().encode("utf-8", errors="surrogateescape"))
+        digest.update(b"\0")
+        digest.update(candidate.read_bytes())
+    return commit, digest.hexdigest()
 
 
 def run_audit(
@@ -78,6 +111,7 @@ def run_audit(
     output_path = resume or output or DEFAULT_OUTPUT_ROOT / _timestamp()
     output_path.mkdir(parents=True, exist_ok=True)
     with fixture_runtime(port, "populated") as base_url:
+        _verify_fixture_identity(base_url)
         if allow_destructive and urlparse(base_url).hostname not in {"127.0.0.1", "localhost"}:
             raise RuntimeError("destructive replay is restricted to the loopback fixture host")
         result = run_batches(
@@ -107,6 +141,11 @@ def run_batches(
     allow_destructive: bool = False,
 ) -> AuditRunResult:
     """Execute or resume durable batch files using one browser process."""
+    if allow_destructive:
+        host = urlparse(base_url).hostname
+        if host not in {"127.0.0.1", "localhost"}:
+            raise RuntimeError("destructive replay is restricted to a trusted loopback fixture")
+        _verify_fixture_identity(base_url)
     started = datetime.now(UTC)
     batch_results: list[dict[str, Any]] = []
     with sync_playwright() as playwright:
@@ -127,11 +166,19 @@ def run_batches(
                         dirty_digest,
                         selection,
                         batch_results,
-                        len(batches),
+                        batches,
                         allow_destructive,
                     )
                     continue
-                result = audit_batch(browser, batch, base_url=base_url, output=output)
+                result = audit_batch(
+                    browser,
+                    batch,
+                    base_url=base_url,
+                    output=output,
+                    destructive_labels=config.destructive_labels,
+                    allow_destructive=allow_destructive,
+                    interaction_limit=8 if profile == "quick" else None,
+                )
                 from scripts.ui_audit.report import atomic_json
 
                 atomic_json(batch_path, result)
@@ -145,7 +192,7 @@ def run_batches(
                     dirty_digest,
                     selection,
                     batch_results,
-                    len(batches),
+                    batches,
                     allow_destructive,
                 )
         finally:
@@ -159,7 +206,7 @@ def run_batches(
         dirty_digest,
         selection,
         batch_results,
-        len(batches),
+        batches,
         allow_destructive,
     )
     errors = report["summary"]["findings"]["bySeverity"].get("error", 0)
@@ -168,7 +215,14 @@ def run_batches(
 
 
 def audit_batch(
-    browser: Browser, batch: AuditBatch, *, base_url: str, output: Path
+    browser: Browser,
+    batch: AuditBatch,
+    *,
+    base_url: str,
+    output: Path,
+    destructive_labels: tuple[str, ...] = (),
+    allow_destructive: bool = False,
+    interaction_limit: int | None = None,
 ) -> dict[str, Any]:
     """Capture one deterministic baseline in a fresh isolated context."""
     started = time.monotonic()
@@ -180,16 +234,18 @@ def audit_batch(
     try:
         url = _batch_url(base_url, batch)
         response = page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-        page.locator(batch.case.readiness).first.wait_for(state="visible", timeout=8_000)
-        page.wait_for_timeout(batch.case.settle_ms)
+        _wait_for_readiness(page, batch.case.readiness, batch.case.settle_ms)
         loading_screenshot: Path | None = None
-        if batch.case.capture_phase == "loading-and-settled":
+        if batch.case.capture_phase in {"loading", "loading-and-settled"}:
             loading_screenshot = screenshot.with_name("loading.png")
             page.screenshot(path=loading_screenshot, full_page=True, animations="disabled")
-            page.wait_for_timeout(1_500)
+        if batch.case.capture_phase == "loading-and-settled":
+            _wait_for_readiness(page, batch.case.settled_readiness, batch.case.settle_ms)
         _apply_setup(page, batch.case.setup)
         layout = page.evaluate(HELPER_PATH.read_text(encoding="utf-8"))
         page.screenshot(path=screenshot, full_page=True, animations="disabled")
+        controls = inventory_controls(page)
+        keyboard = audit_keyboard_traversal(page, controls)
         console_errors = [row for row in telemetry["console"] if row.get("type") == "error"]
         findings = classify_page(
             batch.viewport,
@@ -198,6 +254,53 @@ def audit_batch(
             page_errors=telemetry["pageErrors"],
             request_failures=telemetry["requestFailures"],
         )
+        if keyboard["trapped"]:
+            findings.append(
+                Finding(
+                    code="keyboard-trap",
+                    severity="error",
+                    message="Forward Tab traversal remained on one control.",
+                    gate=batch.viewport.gate,
+                )
+            )
+        interactions: list[dict[str, Any]]
+        interaction_findings: list[Finding]
+        if batch.case.capture_phase == "loading":
+            interactions, interaction_findings = [], []
+        else:
+            interactions, interaction_findings = replay_controls(
+                browser,
+                batch,
+                base_url=base_url,
+                output=output,
+                roots=controls,
+                destructive_labels=destructive_labels,
+                allow_destructive=allow_destructive,
+                limit=interaction_limit,
+                dependencies=ReplayDependencies(
+                    context=_context,
+                    url=_batch_url,
+                    setup=_apply_setup,
+                    telemetry=_telemetry,
+                ),
+            )
+        findings.extend(interaction_findings)
+        for interaction in interactions:
+            interaction_telemetry = interaction.get("telemetry", {})
+            interaction_console = [
+                row
+                for row in interaction_telemetry.get("console", [])
+                if isinstance(row, dict) and row.get("type") == "error"
+            ]
+            findings.extend(
+                classify_page(
+                    batch.viewport,
+                    {},
+                    console=interaction_console,
+                    page_errors=interaction_telemetry.get("pageErrors", []),
+                    request_failures=interaction_telemetry.get("requestFailures", []),
+                )
+            )
         status = "failed" if any(item.severity == "error" for item in findings) else "passed"
         return {
             "id": batch.id,
@@ -222,10 +325,11 @@ def audit_batch(
                 ),
             },
             "inventory": {
-                "count": len(layout.get("focusables", [])),
-                "controls": layout.get("focusables", []),
+                "count": len(controls),
+                "controls": controls,
             },
-            "interactions": [],
+            "keyboard": keyboard,
+            "interactions": interactions,
             "layout": layout,
             "telemetry": telemetry,
             "findings": [item.as_dict() for item in findings],
@@ -275,6 +379,9 @@ def _context(browser: Browser, batch: AuditBatch, base_url: str) -> BrowserConte
 
     def route_request(route: Route) -> None:
         target = urlparse(route.request.url)
+        if target.netloc and target.netloc != origin:
+            route.abort("blockedbyclient")
+            return
         override = _matching_override(batch, route.request.method, route.request.url)
         if override is not None:
             if override.get("abort") is True:
@@ -316,15 +423,20 @@ def _context(browser: Browser, batch: AuditBatch, base_url: str) -> BrowserConte
                 body=body if isinstance(body, str) else json.dumps(body),
             )
             return
-        if target.netloc and target.netloc != origin:
-            route.abort("blockedbyclient")
-        else:
-            route.continue_()
+        route.continue_()
 
     context.route("**/*", route_request)
     context.add_init_script(
         """
         (() => {
+          window.__uiAuditLayoutShiftScore = 0;
+          try {
+            new PerformanceObserver(list => {
+              for (const entry of list.getEntries()) {
+                if (!entry.hadRecentInput) window.__uiAuditLayoutShiftScore += entry.value;
+              }
+            }).observe({type:'layout-shift', buffered:true});
+          } catch {}
           const style = document.createElement('style');
           style.textContent = [
             '*,*::before,*::after{animation:none!important;',
@@ -379,8 +491,11 @@ def _json_pointer_set(document: object, pointer: str, value: object) -> None:
 
 def _apply_setup(page: Page, steps: tuple[dict[str, Any], ...]) -> None:
     for step in steps:
-        selector = step.get("selector")
         action = step.get("action")
+        if action == "named-flow":
+            _named_flow(page, str(step.get("name", "")))
+            continue
+        selector = step.get("selector")
         if not isinstance(selector, str) or not isinstance(action, str):
             raise RuntimeError("audit setup steps require selector and action")
         locator = page.locator(selector).first
@@ -399,13 +514,62 @@ def _apply_setup(page: Page, steps: tuple[dict[str, Any], ...]) -> None:
         page.wait_for_timeout(int(step.get("settleMs", 100)))
 
 
+def _named_flow(page: Page, name: str) -> None:
+    if name in {"edit-job-submit", "edit-source-submit"}:
+        page.locator("button").filter(has_text=re.compile(r"^Edit$")).first.click(timeout=5_000)
+        page.locator("#entity-dialog[open]").wait_for(state="visible")
+        page.get_by_role("button", name="Save changes", exact=True).click(timeout=5_000)
+    elif name == "retry-run-confirm":
+        page.locator("#view").get_by_role("button", name="Retry update", exact=True).click(
+            timeout=5_000
+        )
+        page.locator("#action-dialog[open]").wait_for(state="visible")
+        page.locator("#action-dialog").get_by_role("button", name="Retry update", exact=True).click(
+            timeout=5_000
+        )
+    elif name == "publish-release-confirm":
+        page.get_by_role("button", name="Publish", exact=True).click(timeout=5_000)
+        page.locator("#action-dialog[open]").wait_for(state="visible")
+        page.get_by_label("Approval note", exact=False).fill("Deterministic audit approval note")
+        page.get_by_role("button", name="Publish version", exact=True).click(timeout=5_000)
+    elif name == "create-release-submit":
+        page.get_by_role("button", name="Create draft version", exact=True).click(timeout=5_000)
+        page.locator("#entity-dialog[open]").wait_for(state="visible")
+        values = {
+            "dataset_id": "property-identities",
+            "source_definition_id": "10000000-0000-0000-0000-000000000001",
+            "ingestion_run_id": "30000000-0000-0000-0000-000000000001",
+            "target_feature": "feature-1",
+            "release_version": "2026.08.23-ui-audit",
+            "schema_version": "propertyscope.property-snapshot.v1",
+            "coverage": '{"state":"NSW","complete":true}',
+            "record_count": "1",
+            "content_sha256": "d" * 64,
+            "artifact_record_id": "50000000-0000-0000-0000-000000000001",
+            "manifest": '{"fixture":true}',
+        }
+        for field, value in values.items():
+            page.locator(f'[name="{field}"]').fill(value)
+        page.get_by_role("button", name="Save changes", exact=True).click(timeout=5_000)
+    elif name == "start-ai-review":
+        page.get_by_role("button", name="Start AI review", exact=True).click(timeout=5_000)
+    else:
+        raise RuntimeError(f"unknown configured audit setup flow: {name}")
+    page.wait_for_timeout(350)
+
+
 def _telemetry(page: Page, batch: AuditBatch) -> dict[str, Any]:
     telemetry: dict[str, Any] = {"console": [], "pageErrors": [], "requestFailures": []}
     page.on(
         "console",
         lambda message: (
             telemetry["console"].append(
-                {"type": message.type, "text": message.text, "expected": False}
+                {
+                    "type": message.type,
+                    "text": message.text,
+                    "expected": message.text
+                    == "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT.Inspector",
+                }
             )
             if message.type in {"warning", "error"}
             else None
@@ -415,8 +579,10 @@ def _telemetry(page: Page, batch: AuditBatch) -> dict[str, Any]:
 
     def request_failed(request: Any) -> None:
         host = urlparse(request.url).hostname
-        expected = host in EXPECTED_EXTERNAL_HOSTS or any(
-            token in request.url for token in batch.case.expected_request_failures
+        expected = (
+            host in EXPECTED_EXTERNAL_HOSTS
+            or _matching_override(batch, request.method, request.url) is not None
+            or any(token in request.url for token in batch.case.expected_request_failures)
         )
         telemetry["requestFailures"].append(
             {
@@ -432,8 +598,26 @@ def _telemetry(page: Page, batch: AuditBatch) -> dict[str, Any]:
     def response_received(response: Any) -> None:
         if response.status < 400:
             return
-        expected = batch.case.scenario in {"error", "partial", "validation-error"} or any(
-            token in response.url for token in batch.case.expected_request_failures
+        target = urlparse(response.url)
+        method = response.request.method
+        expected = (
+            _matching_override(batch, method, response.url) is not None
+            or any(token in response.url for token in batch.case.expected_request_failures)
+            or (
+                batch.case.scenario == "error"
+                and response.status == 503
+                and target.path.startswith("/api/")
+            )
+            or (
+                batch.case.scenario == "partial"
+                and response.status == 503
+                and any(marker in target.path for marker in PARTIAL_FAILURE_PATHS)
+            )
+            or (
+                batch.case.scenario == "validation-error"
+                and response.status == 422
+                and method in {"POST", "PUT", "PATCH"}
+            )
         )
         telemetry["requestFailures"].append(
             {
@@ -467,7 +651,7 @@ def _write_live_report(
     dirty_digest: str,
     selection: AuditSelection,
     batches: list[dict[str, Any]],
-    total_planned: int,
+    planned_batches: tuple[AuditBatch, ...],
     allow_destructive: bool,
 ) -> dict[str, Any]:
     finished = datetime.now(UTC)
@@ -487,7 +671,12 @@ def _write_live_report(
             "shard": {"index": selection.shard_index, "total": selection.shard_total},
             "selectors": asdict(selection),
         },
-        "summary": summary_for(batches, total_planned=total_planned, deferred_states=deferred),
+        "summary": summary_for(
+            batches,
+            planned_batches=planned_batches,
+            config=config,
+            deferred_states=deferred,
+        ),
         "batches": batches,
     }
     write_reports(output, report)
@@ -496,3 +685,20 @@ def _write_live_report(
 
 def _timestamp() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _wait_for_readiness(page: Page, selector: str, settle_ms: int) -> None:
+    page.locator(selector).first.wait_for(state="visible", timeout=8_000)
+    page.wait_for_timeout(max(0, settle_ms))
+
+
+def _verify_fixture_identity(base_url: str) -> None:
+    """Refuse to reuse an arbitrary listener that merely resembles the fixture."""
+    with urlopen(f"{base_url}/__ui-fixture__/ready", timeout=1) as response:
+        payload = json.load(response)
+    if (
+        not isinstance(payload, dict)
+        or payload.get("identity") != FIXTURE_IDENTITY
+        or payload.get("revision") != FIXTURE_REVISION
+    ):
+        raise RuntimeError("UI audit requires the current trusted loopback fixture revision")

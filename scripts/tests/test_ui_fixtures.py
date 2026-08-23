@@ -16,6 +16,8 @@ from scripts.ui_fixture_server import LOOPBACK_HOST, SCENARIO_COOKIE, UIFixtureS
 from scripts.ui_fixtures import (
     AGENT_RUN_ID,
     DATASET_ID,
+    FIXTURE_IDENTITY,
+    FIXTURE_REVISION,
     JOB_ID,
     PRODUCT_SCHEMA,
     PROPERTY_ID,
@@ -95,7 +97,12 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
         assert response.headers.get_content_type() == "text/plain"
         assert response.read() == b"ok\n"
     ready, _headers = _json(f"{fixture_origin}/__ui-fixture__/ready")
-    assert ready == {"scenario": "populated", "status": "ready"}
+    assert ready == {
+        "scenario": "populated",
+        "status": "ready",
+        "identity": FIXTURE_IDENTITY,
+        "revision": FIXTURE_REVISION,
+    }
     feature_ready, _headers = _json(f"{fixture_origin}/health/ready")
     assert feature_ready == {"status": "healthy", "dependencies": {"database": True}}
 

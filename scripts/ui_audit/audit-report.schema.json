@@ -24,7 +24,23 @@
       },
       "additionalProperties": true
     },
-    "summary": {"type": "object"},
+    "summary": {
+      "type": "object",
+      "required": ["batches", "baselines", "controls", "states", "routes", "findings", "durationMs"],
+      "properties": {
+        "batches": {"type": "object"},
+        "baselines": {"type": "object"},
+        "controls": {"type": "object", "required": ["configuredIntents", "inventoried", "exercised", "notReplayed"]},
+        "states": {
+          "type": "object",
+          "required": ["configured", "executable", "deferred", "selected", "captured"]
+        },
+        "routes": {"type": "object", "required": ["configured", "selected", "captured"]},
+        "findings": {"type": "object"},
+        "durationMs": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
     "batches": {
       "type": "array",
       "items": {

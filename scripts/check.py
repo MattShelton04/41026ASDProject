@@ -34,7 +34,6 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
         sys.executable,
         "-m",
         "mypy",
-        "--explicit-package-bases",
         "shared/contracts/python/shared_contracts",
         "shared/testkit/python/shared_testkit",
         "ai-services/agent-core/src/agent_core",

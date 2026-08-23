@@ -7,7 +7,15 @@ import json
 import os
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from jsonschema import Draft202012Validator
+
+if TYPE_CHECKING:
+    from scripts.ui_audit.config import AuditConfig
+    from scripts.ui_audit.models import AuditBatch
+
+REPORT_SCHEMA = Path(__file__).with_name("audit-report.schema.json")
 
 
 def atomic_json(path: Path, value: object) -> None:
@@ -39,7 +47,8 @@ def load_completed_batch(path: Path, fingerprint: str) -> dict[str, Any] | None:
 def summary_for(
     batches: list[dict[str, Any]],
     *,
-    total_planned: int,
+    planned_batches: tuple[AuditBatch, ...],
+    config: AuditConfig,
     deferred_states: int,
 ) -> dict[str, Any]:
     """Build coverage and finding counts from durable batch results."""
@@ -59,6 +68,27 @@ def summary_for(
         for item in batch.get("interactions", [])
         if isinstance(item, dict)
     )
+    selected_states = {
+        (batch.route_id, state) for batch in planned_batches for state in batch.case.states
+    }
+    captured_states = {
+        (str(batch.get("routeId")), str(state))
+        for batch in batches
+        if batch.get("baseline", {}).get("screenshot")
+        for state in batch.get("case", {}).get("states", [])
+    }
+    configured_states = sum(
+        len({state for case in route.cases for state in case.states}) + len(route.deferred_states)
+        for route in config.routes
+    )
+    executable_states = configured_states - deferred_states
+    total_planned = len(planned_batches)
+    selected_route_ids = {batch.route_id for batch in planned_batches}
+    selected_interaction_intents = sum(
+        len(route.configured_interactions)
+        for route in config.routes
+        if route.id in selected_route_ids
+    )
     return {
         "batches": {
             "planned": total_planned,
@@ -72,13 +102,32 @@ def summary_for(
             "captured": sum(1 for batch in batches if batch.get("baseline", {}).get("screenshot")),
         },
         "controls": {
+            "configuredIntents": selected_interaction_intents,
             "inventoried": inventory,
             "exercised": interactions["exercised"],
+            "notReplayed": max(0, inventory - sum(interactions.values())),
             "skippedDestructive": interactions["skipped-destructive"],
             "unreachable": interactions["unreachable"],
             "errors": interactions["error"],
         },
-        "states": {"deferred": deferred_states},
+        "states": {
+            "configured": configured_states,
+            "executable": executable_states,
+            "deferred": deferred_states,
+            "selected": len(selected_states),
+            "captured": len(captured_states),
+        },
+        "routes": {
+            "configured": len(config.routes),
+            "selected": len(selected_route_ids),
+            "captured": len(
+                {
+                    str(batch.get("routeId"))
+                    for batch in batches
+                    if batch.get("baseline", {}).get("screenshot")
+                }
+            ),
+        },
         "findings": {"bySeverity": dict(severities), "byCode": dict(codes)},
         "durationMs": sum(int(batch.get("durationMs", 0)) for batch in batches),
     }
@@ -86,6 +135,8 @@ def summary_for(
 
 def write_reports(output: Path, report: dict[str, Any]) -> None:
     """Persist the machine report and regenerate compact human summaries."""
+    schema = json.loads(REPORT_SCHEMA.read_text(encoding="utf-8"))
+    Draft202012Validator(schema).validate(report)
     atomic_json(output / "audit.json", report)
     (output / "index.html").write_text(_html(report), encoding="utf-8")
     (output / "TRIAGE.md").write_text(_markdown(report), encoding="utf-8")
@@ -138,10 +189,13 @@ def _markdown(report: dict[str, Any]) -> str:
             f"{summary.get('baselines', {}).get('required', 0)} captured",
             f"- Controls: {controls.get('inventoried', 0)} inventoried; "
             f"{controls.get('exercised', 0)} exercised; "
+            f"{controls.get('notReplayed', 0)} not replayed in this profile; "
             f"{controls.get('skippedDestructive', 0)} destructive confirmations skipped; "
             f"{controls.get('unreachable', 0)} unreachable",
             f"- Findings: {json.dumps(findings.get('bySeverity', {}), sort_keys=True)}",
             f"- Deferred configured states: {summary.get('states', {}).get('deferred', 0)}",
+            f"- Selected state coverage: {summary.get('states', {}).get('captured', 0)}/"
+            f"{summary.get('states', {}).get('selected', 0)}",
             f"- Accumulated batch time: {summary.get('durationMs', 0)} ms",
             f"- Artifacts: `{run.get('artifactRoot', '')}`",
             "",

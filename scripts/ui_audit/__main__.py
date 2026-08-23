@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from playwright.sync_api import Error as PlaywrightError
+
 from scripts.ui_audit.config import AuditConfigError, AuditSelection, load_config
 from scripts.ui_audit.runner import run_audit
 from scripts.ui_fixture_server import DEFAULT_PORT
@@ -78,6 +79,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "Controls: "
         f"{summary['controls']['inventoried']} inventoried; "
         f"{summary['controls']['exercised']} exercised; "
+        f"{summary['controls']['notReplayed']} not replayed; "
         f"{summary['controls']['skippedDestructive']} destructive skipped; "
         f"{summary['controls']['unreachable']} unreachable"
     )

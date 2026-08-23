@@ -31,6 +31,7 @@ class AuditCase:
     expected_request_failures: tuple[str, ...] = ()
     capture_phase: Literal["settled", "loading", "loading-and-settled"] = "settled"
     readiness: str = "body"
+    settled_readiness: str = "body"
     overrides: tuple[dict[str, Any], ...] = ()
     setup: tuple[dict[str, Any], ...] = ()
 

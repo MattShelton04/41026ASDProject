@@ -3,18 +3,28 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from scripts.ui_audit.config import AuditSelection, compile_batches, load_config
 from scripts.ui_audit.models import Viewport
 from scripts.ui_audit.report import atomic_json, load_completed_batch, summary_for
 from scripts.ui_audit.rules import classify_page
+from scripts.ui_audit.runner import source_digest
 
 
 def test_real_config_accounts_for_every_required_route_state() -> None:
     config = load_config()
 
     assert len(config.routes) == 25
+    assert (
+        sum(
+            len({state for case in route.cases for state in case.states})
+            + len(route.deferred_states)
+            for route in config.routes
+        )
+        == 180
+    )
     assert sum(len(route.deferred_states) for route in config.routes) == 3
     assert {state for route in config.routes for state in route.deferred_states} == {
         "long-content",
@@ -101,9 +111,13 @@ def test_atomic_batch_resume_requires_matching_complete_fingerprint(tmp_path: Pa
 
 
 def test_summary_counts_controls_findings_and_resume() -> None:
+    config = load_config()
+    planned = compile_batches(config, profile="quick")[:1]
     result = summary_for(
         [
             {
+                "routeId": planned[0].route_id,
+                "case": {"states": list(planned[0].case.states)},
                 "status": "failed",
                 "resumed": True,
                 "durationMs": 25,
@@ -116,7 +130,8 @@ def test_summary_counts_controls_findings_and_resume() -> None:
                 "findings": [{"code": "overflow", "severity": "error"}],
             }
         ],
-        total_planned=1,
+        planned_batches=planned,
+        config=config,
         deferred_states=3,
     )
 
@@ -128,5 +143,44 @@ def test_summary_counts_controls_findings_and_resume() -> None:
         "resumed": 1,
     }
     assert result["controls"]["inventoried"] == 2
+    assert result["controls"]["configuredIntents"] == len(
+        next(
+            route for route in config.routes if route.id == planned[0].route_id
+        ).configured_interactions
+    )
     assert result["findings"]["bySeverity"] == {"error": 1}
+    assert result["states"] == {
+        "configured": 180,
+        "executable": 177,
+        "deferred": 3,
+        "selected": len(planned[0].case.states),
+        "captured": len(planned[0].case.states),
+    }
     assert json.dumps(result)
+
+
+def test_artifact_ids_are_safe_and_collision_resistant() -> None:
+    config = load_config()
+    route = replace(config.routes[0], id="..\\unsafe/route")
+    changed = replace(config, routes=(route,))
+
+    batches = compile_batches(changed, profile="full", source_digest="fixed")
+
+    assert batches
+    assert len({batch.id for batch in batches}) == len(batches)
+    assert all(not {"/", "\\", "."}.intersection(batch.id) for batch in batches)
+
+
+def test_source_digest_includes_untracked_source() -> None:
+    marker = Path(__file__).resolve().parents[1] / ".ui-audit-digest-test"
+    before = source_digest()
+    try:
+        marker.write_text("first", encoding="utf-8")
+        first = source_digest()
+        marker.write_text("second", encoding="utf-8")
+        second = source_digest()
+    finally:
+        marker.unlink(missing_ok=True)
+
+    assert before != first
+    assert first != second

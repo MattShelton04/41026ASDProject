@@ -31,6 +31,13 @@ Operations overview at 1440x1000 and 390x844:
 uv run scripts/dev.py ui-audit-quick
 ```
 
+The quick profile is intentionally expected-red until the later product UI prompts land. Its
+current findings include undersized core mobile targets and the missing Property Search field
+label. A non-zero exit therefore means the harness found release-policy debt; it is not evidence
+that the runner crashed. Inspect `TRIAGE.md` and `audit.json` before classifying the run.
+Quick runs inventory the complete rendered document but bound replay to eight representative
+controls per batch; the full profile replays the complete recursively discovered inventory.
+
 The complete command covers every executable route case at all four configured viewports:
 
 ```text
@@ -87,11 +94,11 @@ checks intersect rendered content with every clipping ancestor.
 
 ## Interaction and destructive-action safety
 
-Each visible non-disabled control receives a stable semantic identity and is replayed from a fresh
-browser context. Controls that reveal menus, dialogs, drawers or disclosures add their newly visible
-descendants with a reproducible setup path. The report records before/after URL, focus, ARIA state,
-open overlays, visible alert/status text, scroll, console output, page exceptions and failed
-requests.
+Each rendered non-disabled control across the whole document, including below-fold controls,
+receives a stable semantic identity and is replayed from a fresh browser context. Controls that
+reveal menus, dialogs, drawers or disclosures add their newly visible descendants with a
+reproducible setup path. The report records before/after URL, focus, ARIA state, open overlays,
+visible alert/status text, scroll, console output, page exceptions and failed requests.
 
 Destructive triggers are exercised only far enough to prove the confirmation UI opens. The final
 confirmation is inventoried and skipped by default. `--allow-destructive` is accepted only while
@@ -100,7 +107,8 @@ target a production-like or arbitrary origin.
 
 ## Deterministic canaries
 
-The fixture namespace exposes clean, deliberate-overflow and deliberate-console-error pages only
-under `/__ui-fixture__/canary/`. Browser tests prove the clean page passes and that either injected
-failure produces its stable finding code and a failed laptop batch. The canaries do not enter the
-product navigation or production images.
+The fixture namespace exposes clean, deliberate-overflow, deliberate-console-error and recursive
+interaction pages only under `/__ui-fixture__/canary/`. Browser tests prove the clean page passes,
+either injected failure produces its stable finding code, and disclosure/dialog discovery skips a
+destructive confirmation by default. The canaries do not enter product navigation or production
+images.

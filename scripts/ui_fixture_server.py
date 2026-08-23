@@ -18,7 +18,11 @@ from urllib.error import URLError
 from urllib.parse import parse_qs, unquote, urlsplit
 from urllib.request import urlopen
 
-from scripts.ui_fixtures import REQUEST_ID, SCENARIOS, fixture_response
+from scripts.ui_fixtures import (
+    REQUEST_ID,
+    SCENARIOS,
+    fixture_response,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SHARED_FRONTEND = REPOSITORY_ROOT / "shared" / "frontend"
@@ -42,6 +46,19 @@ CANARY_PAGES = {
 <html lang="en"><head><meta charset="utf-8"><title>Console UI audit canary</title></head>
 <body><main><h1>Console UI audit canary</h1></main>
 <script>console.error("ui-audit-canary");</script></body></html>""",
+    "/__ui-fixture__/canary/interaction": """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Interaction UI audit canary</title></head>
+<body><main><h1>Interaction UI audit canary</h1>
+<details><summary>More actions</summary><button type="button">Nested safe action</button></details>
+<button id="open-dialog" type="button">Open actions</button>
+<dialog id="action-dialog" aria-labelledby="dialog-title"><h2 id="dialog-title">Actions</h2>
+<button id="delete-record" type="button">Delete record</button>
+<button id="cancel-dialog" type="button">Cancel</button></dialog></main>
+<script>
+const dialog=document.querySelector('#action-dialog');
+document.querySelector('#open-dialog').addEventListener('click',()=>dialog.showModal());
+document.querySelector('#cancel-dialog').addEventListener('click',()=>dialog.close());
+</script></body></html>""",
 }
 
 
