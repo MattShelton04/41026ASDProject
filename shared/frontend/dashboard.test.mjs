@@ -5,8 +5,7 @@ import test from "node:test";
 import { capabilityManifest, capabilityState } from "./capabilities.js";
 import { parseShellRoute } from "./core.js";
 import { featureRegistry, findFeature, researchAreaLabel } from "./features.js";
-import { loadFeatureIntegration, unavailableFeatureIntegration } from "./integrations.js";
-import { agentRunReferences } from "./routes/evidence.js";
+import { loadFeature1Bridge, validateFeature1Adapter } from "./feature-1-bridge.js";
 import { classifyHealth, overallReadiness } from "./routes/status.js";
 
 test("shared hash routes are bounded and unknown fragments return home", () => {
@@ -59,28 +58,38 @@ test("status aggregation ignores deliberate capability gates", () => {
   assert.equal(overallReadiness([{ enabled: true, readiness: "unknown" }]), "degraded");
 });
 
-test("agent evidence uses the bounded feature registry instead of domain mappings", () => {
-  const runs = agentRunReferences({ items: [{ id: "run-1", feature_key: "feature-4", status: "failed" }] });
-  assert.equal(runs[0].area, "Site and planning");
-  assert.equal(runs[0].objective, "Objective hidden by policy");
+test("research area labels come from the bounded registry", () => {
   assert.equal(researchAreaLabel("feature-3"), "Suburb context");
-  assert.equal(agentRunReferences({ items: [{ id: "fixture", feature_key: "student-1-integration-test" }] }).length, 0);
 });
 
-test("feature integrations expose a validated public shell contract", async () => {
+test("the Feature 1 bridge validates its complete nested contract", async () => {
   const expected = {
-    links: {}, evidence: {}, featureHrefs: {}, primarySearchHref() {}, healthDependencies() {},
+    links: { propertyDiscovery: "/properties", dataOperations: "/operations", agentRuns: "/runs" },
+    primarySearchHref() {}, statusDependencies() {},
+    evidence: {
+      copy: Object.fromEntries(["headerDescription", "releasePanelDescription", "agentPanelDescription", "releaseEmpty", "releaseError", "agentEmpty", "agentError", "transitionLabel"].map((key) => [key, key])),
+      published: { path: "/published", project() {}, href() {} },
+      agentRuns: { path: "/runs", project() {}, href() {} },
+    },
   };
-  assert.equal(await loadFeatureIntegration("/feature.js", {}, async () => ({
-    createShellIntegration: () => expected,
-  })), expected);
+  assert.equal(await loadFeature1Bridge({ importer: async () => ({
+    createFeature1ShellAdapter: () => expected,
+  }) }), expected);
   await assert.rejects(
-    loadFeatureIntegration("/broken.js", {}, async () => ({})),
-    /createShellIntegration/,
+    loadFeature1Bridge({ importer: async () => ({}) }),
+    /createFeature1ShellAdapter/,
   );
-  const fallback = unavailableFeatureIntegration(findFeature("data-platform"));
-  assert.equal(fallback.primarySearchHref("ignored", "https://example.test/"), "https://example.test/features/data-platform/#properties");
-  assert.deepEqual(fallback.healthDependencies({}), []);
+  assert.throws(() => validateFeature1Adapter({ ...expected, evidence: {} }), /evidence\.copy/);
+  assert.equal(await loadFeature1Bridge({ importer: async () => { throw new Error("offline"); } }), null);
+  const started = performance.now();
+  assert.equal(await loadFeature1Bridge({ importer: () => new Promise(() => {}), timeoutMs: 5 }), null);
+  assert.ok(performance.now() - started < 100);
+});
+
+test("the shell renders before its optional Feature 1 projection loads", () => {
+  const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  assert.ok(app.indexOf("renderRoute();") < app.indexOf("loadFeature1Bridge({ overrides: externalConfig })"));
+  assert.doesNotMatch(app, /await\s+loadFeature1Bridge/);
 });
 
 test("shared routes use public same-origin projections and safe DOM rendering", () => {
@@ -121,6 +130,8 @@ test("AI workload dashboard leads with outcome and bounded recovery evidence", (
   assert.match(html, /aria-label="PropertyScope navigation"/);
   assert.match(html, /class="research-area-return"/);
   assert.match(html, /Back to research area/);
+  assert.doesNotMatch(html, /student-1-propertyscope-data-platform/);
+  assert.doesNotMatch(html, />Property data<\/option>/);
   assert.doesNotMatch(html, /<a href="\/features\/data-platform\/#properties">Property search<\/a>/);
   assert.match(html, /Technical performance/);
   for (const evidence of ["Schema repairs", "Provider retries", "Tool failures", "Replans"]) {

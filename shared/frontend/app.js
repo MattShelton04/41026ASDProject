@@ -3,23 +3,12 @@ import { createEvidenceRoute } from "./routes/evidence.js?v=10";
 import { createFeaturesRoute } from "./routes/features.js?v=10";
 import { createRoadmapRoute } from "./routes/roadmap.js?v=10";
 import { createStatusRoute } from "./routes/status.js?v=10";
-import { featureRegistry } from "./features.js?v=10";
-import { loadFeatureIntegration, unavailableFeatureIntegration } from "./integrations.js?v=10";
+import { featureRegistry, findFeature } from "./features.js?v=10";
+import { loadFeature1Bridge } from "./feature-1-bridge.js?v=11";
 
 const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
-const primaryFeature = featureRegistry().find((feature) => feature.implemented && feature.enabled);
-let integration;
-try {
-  const modulePath = externalConfig.featureIntegrations?.[primaryFeature.id] || primaryFeature.integrationModule;
-  integration = await loadFeatureIntegration(modulePath, externalConfig);
-} catch {
-  integration = unavailableFeatureIntegration(primaryFeature, externalConfig);
-}
-const config = Object.freeze({
-  ...externalConfig,
-  ...integration.links,
-  featureHrefs: integration.featureHrefs,
-});
+const config = { ...externalConfig };
+let feature1Adapter = null;
 const main = document.querySelector("#main-content");
 const homeMarkup = main.innerHTML;
 const homeRail = main.querySelector(".product-rail")?.cloneNode(true);
@@ -50,7 +39,9 @@ function applyConfigLinks(root = document) {
 }
 
 function openPrimarySearch(query = "") {
-  window.location.assign(integration.primarySearchHref(query, window.location.href));
+  const target = feature1Adapter?.primarySearchHref(query, window.location.href)
+    || new URL(findFeature("property-records").href, window.location.href).href;
+  window.location.assign(target);
 }
 
 function bindHomeInteractions() {
@@ -82,7 +73,7 @@ function homeFeatureRow(feature) {
 
 function renderHomeFeatures() {
   const list = main.querySelector("#feature-area-list");
-  if (list) list.replaceChildren(...featureRegistry({ featureHrefs: integration.featureHrefs }).map(homeFeatureRow));
+  if (list) list.replaceChildren(...featureRegistry({ featureHrefs: config.featureHrefs }).map(homeFeatureRow));
 }
 
 function closeNavigation({ restoreFocus = false } = {}) {
@@ -102,8 +93,8 @@ function updateNavigation(route) {
 
 const routes = {
   features: createFeaturesRoute({ config }),
-  "system-status": createStatusRoute({ config, integration, announce }),
-  evidence: createEvidenceRoute({ config, integration, announce }),
+  "system-status": createStatusRoute({ config, getFeature1Adapter: () => feature1Adapter, announce }),
+  evidence: createEvidenceRoute({ config, getFeature1Adapter: () => feature1Adapter, announce }),
   "release-roadmap": createRoadmapRoute({ config }),
 };
 
@@ -167,3 +158,15 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("hashchange", renderRoute);
 applyConfigLinks();
 renderRoute();
+
+loadFeature1Bridge({ overrides: externalConfig }).then((adapter) => {
+  if (!adapter) return;
+  feature1Adapter = adapter;
+  Object.assign(config, adapter.links, { featureHrefs: { "property-records": adapter.links.propertyDiscovery } });
+  applyConfigLinks();
+  if (parseShellRoute(location.hash) === "home") {
+    renderHomeFeatures();
+  } else {
+    renderRoute();
+  }
+}).catch(() => {});

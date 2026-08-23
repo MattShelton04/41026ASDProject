@@ -11,7 +11,7 @@ independently buildable `student-N/frontend/` services.
 - `app.js` — shell composition root for home/search, bounded hash routing and mobile navigation.
 - `features.js` — the bounded five-area navigation registry and canonical feature ingress paths.
 - `browser/index.js` — stable public JavaScript barrel for domain-neutral DOM helpers.
-- `integrations.js` — validation and failure-safe loading for feature-owned shell adapters.
+- `feature-1-bridge.js` — bounded, failure-safe loading for Feature 1's public shell adapter.
 - `core.js` — safe DOM, formatting, table and correlated public-request helpers.
 - `capabilities.js` — static Release 0 deployment capability manifest; implemented and enabled remain separate.
 - `routes/status.js` — live health summary for implemented shared and Property records services.
@@ -71,13 +71,16 @@ the map controller/provider contract. Files beside those barrels are implementat
 change without a feature migration contract. CSS remains public only through the documented
 `design-system/` assets and `--ps-*`/`.ps-*` surface.
 
-An enabled feature may provide a shell adapter from its own frontend ingress. Feature 1 owns
+The first implemented slice has one explicit, bounded bridge; this is not a generic feature plugin
+framework. Feature 1 owns
 `/features/data-platform/integration/shell.js`, which projects its search route, published-release
 response, owned health dependencies and activity links into the domain-neutral shape consumed here.
-Shared loads that module at runtime and never imports Feature 1 source. If the feature is unavailable,
+Shared loads that module at runtime through the single allowlisted ingress and never imports Feature 1
+source. The shell renders before the short optional load completes. If the feature is unavailable,
 the shell retains registry navigation and reports unavailable evidence without inventing domain data.
 `scripts/validate_architecture.py` enforces both the Shared-to-feature prohibition and public-barrel
 imports in the canonical quality gate.
+Any later feature bridge requires a reviewed real call site and a separately allowlisted public ingress.
 
 ## Shared dashboards
 

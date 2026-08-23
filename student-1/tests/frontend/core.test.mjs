@@ -30,7 +30,8 @@ import {
 } from "../../frontend/core.js";
 import {
   acceptedReleaseReferences,
-  createShellIntegration,
+  agentRunReferences,
+  createFeature1ShellAdapter,
 } from "../../frontend/integration/shell.js";
 
 function response(body, { status = 200, headers = {} } = {}) {
@@ -230,16 +231,17 @@ test("Feature 1 owns its Shared-shell response and workflow adapter", () => {
     release_version: "2026.08", record_count: 10, content_sha256: "abc", accepted_at: "2026-08-15T00:00:00Z",
   }] });
   assert.deepEqual(releases[0], {
-    id: "release-1", dataset: "addresses", areaKey: "feature-1", version: "2026.08",
+    id: "release-1", dataset: "addresses", area: "Property data", version: "2026.08",
     records: 10, acceptedAt: "2026-08-15T00:00:00Z", coverage: "unknown", hash: "abc",
   });
-  const integration = createShellIntegration({ propertyDiscovery: "/custom/#properties" });
+  const integration = createFeature1ShellAdapter({ propertyDiscovery: "/custom/#properties" });
   assert.equal(
     integration.primarySearchHref("1 Farrer Place", "https://example.test/"),
     "https://example.test/custom/#properties?q=1%20Farrer%20Place",
   );
-  assert.equal(integration.healthDependencies({ payload: { dependencies: { database: true } } })[0].rawStatus, true);
-  assert.equal(integration.evidence.agentRunHref("run-1", "https://example.test/").includes("feature_key=student-1-propertyscope-data-platform"), true);
+  assert.equal(integration.statusDependencies({ payload: { dependencies: { database: true } } })[0].rawStatus, true);
+  assert.equal(integration.evidence.agentRuns.href("run-1", "https://example.test/").includes("feature_key=student-1-propertyscope-data-platform"), true);
+  assert.equal(agentRunReferences({ items: [{ id: "run-1", feature_key: "feature-1" }, { id: "other", feature_key: "feature-4" }] }).length, 1);
 });
 
 test("coverage matrices flatten into accessible table rows", () => {

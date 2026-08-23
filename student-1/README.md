@@ -187,7 +187,8 @@ are not presented as competing top-level workflows. `app.js` is the transition c
 The independently built frontend image copies shared design-system v0.1 assets, while the
 development overlay mounts the same source files for reload.
 
-`frontend/integration/shell.js` is Feature 1's public adapter for the Shared product shell. It owns
+`frontend/integration/shell.js` is Feature 1's public adapter for the Shared product shell. Its
+`createFeature1ShellAdapter()` export owns
 Feature 1 search routing, release-envelope projection, data-store readiness interpretation and
 feature-scoped activity links. Shared loads the adapter over the feature's existing HTTP ingress;
 there is no compile-time Shared-to-Feature import. Feature code consumes Shared JavaScript through

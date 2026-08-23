@@ -12,7 +12,6 @@ const DEFINITIONS = [
     frontendBase: "/features/data-platform/",
     defaultHash: "#properties",
     healthPath: "/api/shared-health/data-platform",
-    integrationModule: "/features/data-platform/integration/shell.js?v=1",
     aliases: ["feature-1"],
     implemented: true,
     enabled: true,

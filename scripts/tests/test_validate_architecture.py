@@ -110,9 +110,58 @@ def test_shared_frontend_cannot_import_feature_implementation(tmp_path: Path) ->
     )
 
 
+def test_shared_frontend_rejects_multiline_and_canonical_feature_imports(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    source = root / "shared" / "frontend" / "app.js"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        'import {\n  privateThing,\n} from "../../student-1/frontend/private.js";\n'
+        'import("/features/data-platform/private.js");\n',
+        encoding="utf-8",
+    )
+
+    violations = validate_repository(root)
+
+    assert len(violations) == 2
+    assert all("feature-owned module" in item.message for item in violations)
+
+
+def test_shared_html_module_script_cannot_enter_feature(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    source = root / "shared" / "frontend" / "index.html"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        '<script defer src="/features/data-platform/private.js" type="module"></script>\n'
+        '<script type="module">\nimport "../../student-1/frontend/also-private.js";\n</script>\n',
+        encoding="utf-8",
+    )
+
+    violations = validate_repository(root)
+
+    assert len(violations) == 2
+    assert all("feature-owned module" in item.message for item in violations)
+
+
+def test_only_exact_feature_one_bridge_ingress_is_allowed(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    bridge = root / "shared" / "frontend" / "feature-1-bridge.js"
+    bridge.parent.mkdir(parents=True)
+    bridge.write_text(
+        'import("/features/data-platform/integration/shell.js?v=2");\n',
+        encoding="utf-8",
+    )
+
+    assert validate_repository(root) == ()
+
+    bridge.write_text(
+        'import("/features/data-platform/integration/private.js");\n', encoding="utf-8"
+    )
+    assert len(validate_repository(root)) == 1
+
+
 def test_student_frontend_must_use_shared_public_entrypoints(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
-    source = root / "student-1" / "frontend" / "properties.js"
+    source = root / "student-1" / "frontend" / "routes" / "properties.js"
     source.parent.mkdir(parents=True)
     source.write_text(
         'import { loadMapLibreRenderer } from "../mapping/renderer.js";\n',
@@ -127,13 +176,23 @@ def test_student_frontend_must_use_shared_public_entrypoints(tmp_path: Path) -> 
 
 def test_student_frontend_public_entrypoints_pass(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
-    source = root / "student-1" / "frontend" / "properties.js"
+    source = root / "student-1" / "frontend" / "routes" / "properties.js"
     source.parent.mkdir(parents=True)
     source.write_text(
         'import { createMap } from "../mapping/index.js";\n'
         'import { el } from "../browser/index.js";\n',
         encoding="utf-8",
     )
+
+    assert validate_repository(root) == ()
+
+
+def test_student_local_mapping_module_is_not_mistaken_for_shared_copy(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    mapping = root / "student-1" / "frontend" / "mapping"
+    mapping.mkdir(parents=True)
+    (mapping / "local.js").write_text("export const local = true;\n", encoding="utf-8")
+    (mapping / "screen.js").write_text('import { local } from "./local.js";\n', encoding="utf-8")
 
     assert validate_repository(root) == ()
 
@@ -150,7 +209,22 @@ def test_student_frontend_test_cannot_reach_past_shared_public_barrel(tmp_path: 
     violations = validate_repository(root)
 
     assert len(violations) == 1
-    assert "must use a Shared frontend public index" in violations[0].message
+    assert "must import Shared mapping through mapping/index.js" in violations[0].message
+
+
+def test_windows_file_read_cannot_reach_past_shared_public_barrel(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    source = root / "student-1" / "tests" / "frontend" / "contract.test.mjs"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        'readFileSync("..\\\\..\\\\..\\\\shared\\\\frontend\\\\mapping\\\\renderer.js");\n',
+        encoding="utf-8",
+    )
+
+    violations = validate_repository(root)
+
+    assert len(violations) == 1
+    assert "must import Shared mapping through mapping/index.js" in violations[0].message
 
 
 def test_forbidden_workspace_dependency_is_rejected(tmp_path: Path) -> None:

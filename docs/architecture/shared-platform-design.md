@@ -330,11 +330,13 @@ duplicating their business logic.
 ### 6.4 Frontend ownership and public exports
 
 The same compile-time rule applies to browser code. `shared/frontend` owns domain-neutral tokens,
-DOM helpers, mapping behavior, accessibility utilities and integration protocols; it must not import
-a `student-N/frontend` implementation. A feature owns response-envelope projection, labels and
-workflow routing. The Shared shell composes those decisions through a feature-owned runtime adapter
-served below the feature's existing ingress, so a service outage degrades that projection rather
-than creating a compile-time dependency.
+DOM helpers, mapping behavior and accessibility utilities; it must not import a
+`student-N/frontend` implementation. A feature owns response-envelope projection, labels and
+workflow routing. Release 0 has one explicit, bounded Feature 1 runtime bridge served below that
+feature's existing ingress. It is not a speculative generic plugin protocol: another feature needs
+a reviewed real call site and its own allowlisted public ingress. The Shared shell renders before
+the short optional adapter load, so a service outage degrades that projection rather than blocking
+the shell or creating a compile-time dependency.
 
 Public Shared browser imports are intentionally narrow:
 

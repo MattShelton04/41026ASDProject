@@ -68,7 +68,7 @@ async function check(name, kind, owner, path, detail, href = "") {
   }
 }
 
-export function createStatusRoute({ config, integration, announce }) {
+export function createStatusRoute({ config, getFeature1Adapter, announce }) {
   return async function renderStatus(root) {
     const refresh = el("button", "ps-button ps-button--primary", "Refresh status");
     refresh.type = "button";
@@ -110,11 +110,11 @@ export function createStatusRoute({ config, integration, announce }) {
       const featureApis = primaryComponents.slice(1, 1 + enabledFeatures.length);
       const agentApi = primaryComponents.at(-1);
       const components = [shellApi, ...featureApis];
-      for (let index = 0; index < enabledFeatures.length; index += 1) {
-        const feature = enabledFeatures[index];
-        if (!Object.hasOwn(integration.featureHrefs, feature.id)) continue;
-        for (const dependency of integration.healthDependencies(featureApis[index])) {
-          components.push(dependencyComponent(featureApis[index], dependency));
+      const feature1Index = enabledFeatures.findIndex((feature) => feature.id === "property-records");
+      const feature1Adapter = getFeature1Adapter();
+      if (feature1Adapter && feature1Index >= 0) {
+        for (const dependency of feature1Adapter.statusDependencies(featureApis[feature1Index])) {
+          components.push(dependencyComponent(featureApis[feature1Index], dependency));
         }
       }
       components.push(

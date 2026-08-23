@@ -8,6 +8,7 @@ import re
 import tomllib
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -30,12 +31,26 @@ PROPERTYSCOPE_ARTIFACT_VOLUME = "propertyscope_artifacts"
 PROPERTYSCOPE_DATABASE_SERVICES = frozenset(
     {"propertyscope-database-api", "propertyscope-database-loader"}
 )
-FRONTEND_IMPORT_PATTERN = re.compile(
-    r"(?:\bimport\s+(?:[^;\n]*?\s+from\s+)?|\bexport\s+[^;\n]*?\s+from\s+)"
-    r"[\"'](?P<static>[^\"']+)[\"']|\bimport\(\s*[\"'](?P<dynamic>[^\"']+)[\"']\s*\)"
+FRONTEND_STATIC_IMPORT_PATTERN = re.compile(
+    r"(?ms)^\s*(?:import\s*[\"'](?P<side_effect>[^\"']+)[\"']|"
+    r"(?:import|export)\b(?:(?!;).)*?\bfrom\s*[\"'](?P<from_path>[^\"']+)[\"'])"
 )
-SHARED_FRONTEND_LITERAL_PATTERN = re.compile(r"[\"'](?P<path>[^\"']*shared/frontend/[^\"']+)[\"']")
-PUBLIC_FRONTEND_ENTRYPOINTS = frozenset({"browser/index.js", "mapping/index.js"})
+FRONTEND_DYNAMIC_IMPORT_PATTERN = re.compile(
+    r"\bimport\(\s*[\"'](?P<path>[^\"']+)[\"']\s*\)", re.MULTILINE
+)
+FRONTEND_FILE_READ_PATTERN = re.compile(
+    r"\breadFile(?:Sync)?\s*\(\s*(?:new\s+URL\s*\(\s*)?[\"'](?P<path>[^\"']+)[\"']",
+    re.MULTILINE,
+)
+FEATURE_FRONTEND_PATHS = {
+    "data-platform": "student-1",
+    "market-intelligence": "student-2",
+    "suburb-analytics": "student-3",
+    "due-diligence": "student-4",
+    "buyer-workspaces": "student-5",
+}
+FEATURE_1_BRIDGE = "shared/frontend/feature-1-bridge.js"
+FEATURE_1_ADAPTER = "student-1/frontend/integration/shell.js"
 
 ALLOWED_WORKSPACE_DEPENDENCIES: Mapping[str, frozenset[str]] = {
     SHARED_CONTRACTS: frozenset(),
@@ -79,6 +94,23 @@ class WorkspaceProject:
     student_owner: str | None
 
 
+class _ModuleScriptParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.scripts: list[tuple[str, int]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        script_type = values.get("type")
+        if (
+            tag.lower() == "script"
+            and isinstance(script_type, str)
+            and script_type.lower() == "module"
+            and values.get("src")
+        ):
+            self.scripts.append((values["src"] or "", self.getpos()[0]))
+
+
 def validate_repository(root: Path = REPOSITORY_ROOT) -> tuple[ArchitectureViolation, ...]:
     """Return every dependency/import boundary violation in stable order."""
     projects = _load_workspace_projects(root)
@@ -104,7 +136,9 @@ def _validate_frontend_imports(root: Path) -> Iterable[ArchitectureViolation]:
     for source_root, owner in source_roots:
         if not source_root.is_dir():
             continue
-        for path in sorted((*source_root.rglob("*.js"), *source_root.rglob("*.mjs"))):
+        for path in sorted(
+            (*source_root.rglob("*.js"), *source_root.rglob("*.mjs"), *source_root.rglob("*.html"))
+        ):
             if "vendor" in path.relative_to(source_root).parts:
                 continue
             try:
@@ -114,27 +148,31 @@ def _validate_frontend_imports(root: Path) -> Iterable[ArchitectureViolation]:
                     _relative(root, path), 0, f"could not inspect frontend imports: {exc}"
                 )
                 continue
-            import_spans: list[tuple[int, int]] = []
-            for match in FRONTEND_IMPORT_PATTERN.finditer(source):
-                import_spans.append(match.span())
-                specifier = (match.group("static") or match.group("dynamic")).split("?", 1)[0]
-                line = source.count("\n", 0, match.start()) + 1
-                yield from _validate_frontend_specifier(root, path, owner, specifier, line)
-            if owner != "shared":
-                for match in SHARED_FRONTEND_LITERAL_PATTERN.finditer(source):
-                    if any(start <= match.start() < end for start, end in import_spans):
-                        continue
-                    specifier = match.group("path").split("?", 1)[0]
-                    line = source.count("\n", 0, match.start()) + 1
-                    if not any(
-                        specifier.endswith(entrypoint) for entrypoint in PUBLIC_FRONTEND_ENTRYPOINTS
-                    ):
-                        yield ArchitectureViolation(
-                            _relative(root, path),
-                            line,
-                            f"{owner} must use a Shared frontend public index instead of "
-                            f"{specifier}",
-                        )
+            dependencies: list[tuple[str, int, str]] = []
+            if path.suffix == ".html":
+                parser = _ModuleScriptParser()
+                parser.feed(source)
+                dependencies.extend(
+                    (specifier, line, "module-script") for specifier, line in parser.scripts
+                )
+            for kind, pattern in (
+                ("static-import", FRONTEND_STATIC_IMPORT_PATTERN),
+                ("dynamic-import", FRONTEND_DYNAMIC_IMPORT_PATTERN),
+                ("file-read", FRONTEND_FILE_READ_PATTERN),
+            ):
+                dependencies.extend(
+                    (
+                        match.groupdict().get("path")
+                        or match.groupdict().get("side_effect")
+                        or match.groupdict().get("from_path")
+                        or "",
+                        source.count("\n", 0, match.start()) + 1,
+                        kind,
+                    )
+                    for match in pattern.finditer(source)
+                )
+            for specifier, line, kind in dependencies:
+                yield from _validate_frontend_specifier(root, path, owner, specifier, line, kind)
 
 
 def _validate_frontend_specifier(
@@ -143,45 +181,107 @@ def _validate_frontend_specifier(
     owner: str,
     specifier: str,
     line: int,
+    kind: str,
 ) -> Iterable[ArchitectureViolation]:
-    normalized = specifier.replace("\\", "/")
-    student_references = set(re.findall(r"student-[1-5]", normalized))
-    if owner == "shared" and student_references:
+    normalized = specifier.replace("\\", "/").split("?", 1)[0].split("#", 1)[0]
+    target, target_owner, copied_package = _resolve_frontend_target(root, path, normalized)
+    if target_owner is None:
+        return
+    source_relative = _relative(root, path)
+    target_relative = _relative(root, target)
+    allowed_feature_ingress = (
+        owner == "shared"
+        and source_relative == FEATURE_1_BRIDGE
+        and target_relative == FEATURE_1_ADAPTER
+        and kind == "dynamic-import"
+        and normalized == "/features/data-platform/integration/shell.js"
+    )
+    if owner == "shared" and target_owner.startswith("student-") and not allowed_feature_ingress:
         yield ArchitectureViolation(
-            _relative(root, path),
+            source_relative,
             line,
             f"Shared frontend must not import feature-owned module {specifier}",
         )
         return
-    if owner.startswith("student-") and any(item != owner for item in student_references):
+    if (
+        owner.startswith("student-")
+        and target_owner.startswith("student-")
+        and target_owner != owner
+    ):
         yield ArchitectureViolation(
-            _relative(root, path),
+            source_relative,
             line,
             f"{owner} frontend must not import another student's module {specifier}",
         )
         return
-    if owner.startswith("student-"):
-        for package in ("browser", "mapping"):
-            marker = f"/{package}/"
-            if marker in f"/{normalized}" and not normalized.endswith(f"/{package}/index.js"):
-                yield ArchitectureViolation(
-                    _relative(root, path),
-                    line,
-                    f"{owner} frontend must import Shared {package} through {package}/index.js",
-                )
-    if not normalized.startswith("."):
-        return
-    resolved = (path.parent / normalized).resolve()
-    try:
-        relative = resolved.relative_to(root.resolve())
-    except ValueError:
-        return
-    if owner == "shared" and relative.parts and relative.parts[0].startswith("student-"):
-        yield ArchitectureViolation(
-            _relative(root, path),
-            line,
-            f"Shared frontend must not import feature-owned module {specifier}",
+    if owner.startswith("student-") and target_owner == "shared" and copied_package:
+        expected = f"shared/frontend/{copied_package}/index.js"
+        if target_relative != expected:
+            yield ArchitectureViolation(
+                source_relative,
+                line,
+                f"{owner} must import Shared {copied_package} through {copied_package}/index.js "
+                f"instead of {specifier}",
+            )
+
+
+def _resolve_frontend_target(
+    root: Path, source: Path, specifier: str
+) -> tuple[Path, str | None, str | None]:
+    if specifier.startswith(("http:", "https:", "data:", "blob:", "node:")):
+        return source, None, None
+    if specifier.startswith("/features/"):
+        canonical_parts = specifier.strip("/").split("/")
+        owner = FEATURE_FRONTEND_PATHS.get(canonical_parts[1]) if len(canonical_parts) > 1 else None
+        target = root / owner / "frontend" / Path(*canonical_parts[2:]) if owner else source
+        return target.resolve(), owner, None
+    if specifier.startswith("/operations/ai-mode/"):
+        operation_relative = specifier.removeprefix("/operations/ai-mode/")
+        if operation_relative.startswith("assets/"):
+            operation_relative = operation_relative.removeprefix("assets/")
+        return (
+            (
+                root / "shared" / "frontend" / "operations" / "ai-mode" / operation_relative
+            ).resolve(),
+            "shared",
+            None,
         )
+    if not specifier.startswith((".", "/")):
+        return source, None, None
+    target = (
+        (source.parent / specifier).resolve()
+        if specifier.startswith(".")
+        else (root / specifier.lstrip("/")).resolve()
+    )
+    try:
+        relative = target.relative_to(root.resolve())
+    except ValueError:
+        return target, None, None
+    target_parts = relative.parts
+    if target_parts[:2] == ("shared", "frontend"):
+        package = (
+            target_parts[2]
+            if len(target_parts) > 2 and target_parts[2] in {"browser", "mapping"}
+            else None
+        )
+        return target, "shared", package
+    if target_parts and target_parts[0].startswith("student-"):
+        target_owner = target_parts[0]
+        # Feature images copy Shared packages into these roots. An existing feature-local
+        # file wins; only an absent copied-root target is resolved back to Shared.
+        if (
+            len(target_parts) > 3
+            and target_parts[1] == "frontend"
+            and target_parts[2] in {"browser", "mapping"}
+            and not target.exists()
+        ):
+            package = target_parts[2]
+            shared_target = (
+                root / "shared" / "frontend" / package / Path(*target_parts[3:])
+            ).resolve()
+            return shared_target, "shared", package
+        return target, target_owner, None
+    return target, None, None
 
 
 def _load_workspace_projects(root: Path) -> tuple[WorkspaceProject, ...]:

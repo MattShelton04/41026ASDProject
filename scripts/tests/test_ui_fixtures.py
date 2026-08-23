@@ -95,7 +95,7 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
         f"{fixture_origin}/features/data-platform/integration/shell.js",
         timeout=2,
     ) as response:
-        assert b"createShellIntegration" in response.read()
+        assert b"createFeature1ShellAdapter" in response.read()
     with urlopen(
         f"{fixture_origin}/features/data-platform/browser/index.js",
         timeout=2,

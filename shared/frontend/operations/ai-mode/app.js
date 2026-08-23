@@ -24,6 +24,25 @@ function researchAreaLabel(value) {
   return option?.textContent || String(value || "Unknown area").replaceAll("_", " ").replaceAll("-", " ");
 }
 
+function applyResearchAreaContext(params) {
+  const key = params.get("feature_key");
+  const label = params.get("feature_label");
+  if (key && label && ![...document.querySelectorAll("#feature-filter option")].some((item) => item.value === key)) {
+    const option = document.createElement("option");
+    option.value = key;
+    option.textContent = label;
+    ui["feature-filter"].append(option);
+  }
+  const returnTo = params.get("return_to");
+  if (label) {
+    document.querySelector("#research-area-context").textContent = `Shared view · ${label}`;
+    document.querySelector("#research-area-return-label").textContent = label;
+    document.querySelector("#research-area-scope").textContent = `Review AI results, source checks and failures from ${label} reviews.`;
+    document.querySelector("#research-area-return").setAttribute("aria-label", `Back to the ${label} research area`);
+  }
+  if (returnTo?.startsWith("/")) document.querySelector("#research-area-return").href = returnTo;
+}
+
 const ui = Object.fromEntries([
   "announcement", "connection-dot", "connection-state", "workspace", "page-summary",
   "quick-filters", "filters", "feature-filter", "status-filter", "model-filter",
@@ -944,6 +963,7 @@ document.addEventListener("visibilitychange", () => {
 
 async function start() {
   const initial = new URL(window.location.href).searchParams;
+  applyResearchAreaContext(initial);
   ui["feature-filter"].value = initial.get("feature_key") || "";
   ui["model-filter"].value = initial.get("model_profile") || "";
   const initialStatuses = initial.getAll("status");

@@ -52,9 +52,7 @@ def test_shared_home_routes_only_live_product_and_operator_surfaces() -> None:
     assert "docs/prototype" not in page
     assert "prototype:" not in script
     assert 'id="feature-area-list"' in page
-    assert (
-        "featureRegistry({ featureHrefs: integration.featureHrefs }).map(homeFeatureRow)" in script
-    )
+    assert "featureRegistry({ featureHrefs: config.featureHrefs }).map(homeFeatureRow)" in script
     assert registry.count("frontendBase:") == 5
     assert registry.count("implemented: true") == 1
     assert 'frontendBase: "/features/data-platform/"' in registry
@@ -117,7 +115,7 @@ def test_property_data_and_agent_operations_link_back_to_product_home() -> None:
     assert "Property records available" in feature_page
 
     assert "PropertyScope | Activity history" in operations_page
-    assert "Shared view · Property data" in operations_page
+    assert "Shared view · AI activity" in operations_page
     assert "Research areas" in operations_page
     assert 'meta name="color-scheme" content="light"' in operations_page
     assert "http://localhost:5100" not in operations_page
