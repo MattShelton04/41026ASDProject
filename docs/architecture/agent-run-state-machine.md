@@ -208,8 +208,8 @@ requesting private reasoning. If repair fails, the phase and run fail determinis
 The state machine, SQLite recovery, OpenAI Responses adapter, HTTP run/review surface,
 feature-scoped HTTP tool adapter, create-run idempotency, and resumable safe-event pages
 are implemented. The default tool registry remains empty until feature owners define
-their HTTP contracts. The integration-test feature proves feature-side mutation
-idempotency and operation status; approved product endpoints, production reviewer
+their HTTP contracts. Feature 1 proves feature-side mutation idempotency and operation status;
+approved product endpoints for later features, production reviewer
 authentication, and the integrated edge UI are still required before the full Release
 0 capability can be claimed complete. An opt-in authenticated development evidence
 view is available for local inspection.

@@ -62,7 +62,7 @@ jobs:
           OPENAI_API_KEY_FILE: /dev/null
         run: |
           docker compose --profile release-0 config --quiet
-          docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test config --quiet
+          docker compose --file docker-compose.yml --file docker-compose.dev.yml --profile release-0 config --quiet
 
   container:
     name: Build shared Release 0 containers
@@ -83,10 +83,10 @@ jobs:
         with:
           source: .
           files: docker-compose.yml
-          targets: ai-mode,propertyscope-shared-frontend
+          targets: shared-ai-mode,shared-frontend
           load: true
           set: |
-            ai-mode.cache-from=type=gha,scope=integration-ai-mode
-            ai-mode.cache-to=type=gha,mode=max,scope=integration-ai-mode
-            propertyscope-shared-frontend.cache-from=type=gha,scope=integration-shared-frontend
-            propertyscope-shared-frontend.cache-to=type=gha,mode=max,scope=integration-shared-frontend
+            shared-ai-mode.cache-from=type=gha,scope=integration-ai-mode
+            shared-ai-mode.cache-to=type=gha,mode=max,scope=integration-ai-mode
+            shared-frontend.cache-from=type=gha,scope=integration-shared-frontend
+            shared-frontend.cache-to=type=gha,mode=max,scope=integration-shared-frontend

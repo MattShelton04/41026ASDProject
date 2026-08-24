@@ -41,8 +41,8 @@ no model runtime is deployed in the application Compose topology.
 A subsequent domain-neutral Release 0 increment added validated feature manifests,
 feature-scoped/versioned tool registration, fail-fast YAML tool composition, a bounded
 HTTP executor, create-run idempotency, safe append-only progress events, and an opt-in
-redacted development evidence page. A non-product `integration-test-feature` proves
-the agent/core/backend/database boundary over real HTTP and SQLite. A validated model
+redacted development evidence page. Feature 1 proves the agent/core/backend/database boundary
+over real HTTP while retaining its exclusive persistence ownership. A validated model
 registry now maps stable logical profiles to provider model IDs and explicit
 context/output/reasoning budgets; ADR-017 records the provider and readiness policy.
 
@@ -63,9 +63,9 @@ PSI acquisition is disk-backed and member-streamed under the same registered lim
 
 This does not complete the five-feature shared-foundation definition of done. Owners must
 still supply approved manifests and endpoints for Features 2–5; the product edge, complete
-five-slice topology, approval records, and team-owned release evidence remain. The
-non-product fixture and optional live API diagnostic remain useful shared-boundary evidence, not
-substitutes for assessed product evidence. MCP, RAG, and multi-agent runtime behavior remains
+five-slice topology, approval records, and team-owned release evidence remain. The optional live
+API diagnostic remains useful shared-boundary evidence, not a substitute for assessed product
+evidence. MCP, RAG, and multi-agent runtime behavior remains
 disabled and unclaimed.
 
 This document is both a high-level design and a detailed build guide. It deliberately
@@ -357,6 +357,24 @@ and Property data routes therefore stay with Feature 1.
 Feature transitions into the Shared AI activity view use one bounded metadata tuple. Unknown keys,
 spoofed labels, protocol-relative destinations and any non-matching return route are ignored; query
 parameters are not a general-purpose branding or redirect contract.
+
+### 6.5 Compose naming convention
+
+Compose names expose ownership before implementation detail. The production-like base project is
+`ps`, the reloadable local overlay is `ps-dev`, and the isolated source-scale overlay is `ps-full`.
+Shared services use `shared-<role>`; student-owned services use `f<number>-<role>`. Images mirror
+the service key below the descriptive `propertyscope/` namespace, and
+durable volumes use the same ownership prefix.
+
+Do not set `container_name`. Compose-generated names preserve project isolation and produce
+scannable container names such as `ps-dev-shared-ai-mode-1` and `ps-dev-f1-backend-1`. The
+canonical gate verifies project names, ownership
+prefixes, overlay membership, image alignment, and the absence of hard-coded container names.
+
+The developer entry point mirrors those boundaries: `scripts/dev.py stack` owns container
+lifecycle, `scripts/dev.py ui` owns deterministic browser fixtures, and `scripts/dev.py data` owns
+source acquisition. `scripts/check.py` remains the single source-quality runner instead of being
+proxied through the lifecycle command.
 
 ## 7. Shared contracts
 
@@ -1023,8 +1041,8 @@ requests. Do not paste floating `latest` image tags into release or deployment f
 3. Implement `ai-mode` with SQLite run store, prompt registry, OpenAI adapter, and run
    detail endpoint.
 4. Implement the edge/home page and manifest-driven feature links.
-5. Create one non-product integration-test fixture that proves the structural pattern;
-   do not stamp or edit student-owned feature behavior before allocation.
+5. Prove the structural pattern through an allocated feature without editing another
+   student's behavior before coordination.
 6. Build Compose health checks and runtime-only remote-provider configuration.
 7. Prove a complete Plan -> Act -> Observe -> Adapt case plus an unavailable-model case.
 
@@ -1086,7 +1104,7 @@ superseding decision where applicable.
 The foundation is complete when:
 
 - all shared packages have owners, README files, tests, and stable public interfaces;
-- one integration-test fixture proves frontend -> backend -> database CRUD and backend ->
+- one allocated feature proves frontend -> backend -> database CRUD and backend ->
   orchestrator -> OpenAI interaction;
 - the orchestrator persists and displays a bounded four-phase run;
 - fake-model tests cover success, invalid schema, tool failure, timeout, approval,

@@ -316,13 +316,12 @@ def test_propertyscope_compose_rejects_credential_and_volume_leaks(tmp_path: Pat
     compose = (
         _valid_propertyscope_compose()
         .replace(
-            "propertyscope-runner:\n    volumes:",
-            "propertyscope-runner:\n    environment:\n"
-            "      PROPERTYSCOPE_DATABASE_URL: leaked\n    volumes:",
+            "f1-runner:\n    volumes:",
+            "f1-runner:\n    environment:\n      PROPERTYSCOPE_DATABASE_URL: leaked\n    volumes:",
         )
         .replace(
-            "propertyscope_artifacts:/artifacts:rw",
-            "propertyscope_postgres_data:/postgres:rw",
+            "f1-artifacts:/artifacts:rw",
+            "f1-postgres-data:/postgres:rw",
         )
     )
     (root / "docker-compose.yml").write_text(compose, encoding="utf-8")
@@ -331,15 +330,14 @@ def test_propertyscope_compose_rejects_credential_and_volume_leaks(tmp_path: Pat
 
     assert any("runner must not receive PROPERTYSCOPE_DATABASE_URL" in item for item in messages)
     assert any("runner must not mount PostgreSQL volume" in item for item in messages)
-    assert any("runner must mount propertyscope_artifacts read/write" in item for item in messages)
+    assert any("runner must mount f1-artifacts read/write" in item for item in messages)
 
 
 def test_propertyscope_compose_requires_full_data_profile(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
     compose = _valid_propertyscope_compose().replace(
-        "propertyscope-runner:\n    volumes:",
-        "propertyscope-runner:\n    environment:\n"
-        "      PROPERTYSCOPE_FULL_DATA_ENABLED: 'true'\n    volumes:",
+        "f1-runner:\n    volumes:",
+        "f1-runner:\n    environment:\n      PROPERTYSCOPE_FULL_DATA_ENABLED: 'true'\n    volumes:",
     )
     (root / "docker-compose.yml").write_text(compose, encoding="utf-8")
 
@@ -355,7 +353,7 @@ def test_propertyscope_full_data_overlay_requires_profile(tmp_path: Path) -> Non
     (root / "docker-compose.yml").write_text(_valid_propertyscope_compose(), encoding="utf-8")
     (root / "docker-compose.full-data.yml").write_text(
         "services:\n"
-        "  propertyscope-runner:\n"
+        "  f1-runner:\n"
         "    environment:\n"
         "      PROPERTYSCOPE_FULL_DATA_ENABLED: 'true'\n",
         encoding="utf-8",
@@ -373,22 +371,22 @@ def test_propertyscope_full_data_overlay_requires_profile(tmp_path: Path) -> Non
 def _valid_propertyscope_compose() -> str:
     return """\
 services:
-  propertyscope-postgres:
+  f1-postgres:
     volumes:
-      - propertyscope_postgres_data:/var/lib/postgresql/data
-  propertyscope-database-api:
+      - f1-postgres-data:/var/lib/postgresql/data
+  f1-db-api:
     environment:
       PROPERTYSCOPE_DATABASE_URL: postgresql://database
-  propertyscope-database-loader:
+  f1-db-loader:
     environment:
       PROPERTYSCOPE_DATABASE_URL: postgresql://database
     volumes:
-      - propertyscope_artifacts:/artifacts:ro
-  propertyscope-backend: {}
-  propertyscope-runner:
+      - f1-artifacts:/artifacts:ro
+  f1-backend: {}
+  f1-runner:
     volumes:
-      - propertyscope_artifacts:/artifacts:rw
+      - f1-artifacts:/artifacts:rw
 volumes:
-  propertyscope_postgres_data:
-  propertyscope_artifacts:
+  f1-postgres-data:
+  f1-artifacts:
 """

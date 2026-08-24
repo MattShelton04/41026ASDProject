@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import io
 import json
@@ -25,71 +24,31 @@ from zipfile import BadZipFile, ZipFile
 import httpx
 import yaml
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-COMPOSE_FILES = (
-    "docker-compose.yml",
-    "docker-compose.integration-test.yml",
-    "docker-compose.dev.yml",
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.devtools.cli import build_parser
+from scripts.devtools.config import (
+    APPLICATION_SERVICES,
+    BUILD_SERVICES,
+    COMPOSE_FILES,
+    DEFAULT_PROJECT_NAME,
+    DEFAULT_UI_FIXTURE_PORT,
+    FULL_DATA_COMPOSE_FILE,
+    FULL_DATA_PROJECT_NAME,
+    HOST_PORTS,
+    JOB_PROFILE_DIRECTORY,
+    OFFLINE_OPENAI_CREDENTIAL,
+    PRODUCTION_BUILD_SERVICES,
+    PROFILES,
+    PSI_ARCHIVE_BYTE_LIMIT,
+    PSI_WEEKLY_URL,
+    PSI_YEARLY_URL,
+    REPOSITORY_ROOT,
+    RUNTIME_DIRECTORY,
+    SUPPORTED_LLM_PROVIDERS,
+    TERMINAL_COLLECTION_STATES,
 )
-FULL_DATA_COMPOSE_FILE = "docker-compose.full-data.yml"
-PROFILES = ("release-0", "integration-test")
-APPLICATION_SERVICES = (
-    "propertyscope-shared-frontend",
-    "ai-mode",
-    "integration-test-feature-database",
-    "integration-test-feature-backend",
-    "integration-test-feature-frontend",
-    "propertyscope-database-api",
-    "propertyscope-database-loader",
-    "propertyscope-backend",
-    "propertyscope-runner",
-    "propertyscope-frontend",
-)
-BUILD_SERVICES = APPLICATION_SERVICES
-PRODUCTION_BUILD_SERVICES = (
-    "propertyscope-shared-frontend",
-    "ai-mode",
-    "propertyscope-database-api",
-    "propertyscope-database-loader",
-    "propertyscope-backend",
-    "propertyscope-runner",
-    "propertyscope-frontend",
-)
-FULL_DATA_PROJECT_NAME = "41026-asd-propertyscope-full-data"
-DEFAULT_PROJECT_NAME = "41026-asd-project"
-RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
-OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"
-SUPPORTED_LLM_PROVIDERS = frozenset({"gemini", "openai"})
-PROPERTYSCOPE_API_URL = "http://127.0.0.1:5200/api/data-platform/v1"
-JOB_PROFILE_DIRECTORY = REPOSITORY_ROOT / "student-1" / "config" / "job-profiles"
-COLLECTION_JOBS = (
-    "fixture-property",
-    "schools-master",
-    "bocsar-crime",
-    "gnaf-nsw",
-    "psi-sales",
-)
-TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
-HOST_PORTS = {
-    "propertyscope-shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),
-    "ai-mode": ("AI_MODE_PORT", 5005),
-    "integration-test-feature-frontend": ("INTEGRATION_TEST_FEATURE_PORT", 5190),
-    "propertyscope-frontend": ("PROPERTYSCOPE_PORT", 5200),
-}
-UI_FIXTURE_SCENARIOS = (
-    "populated",
-    "empty",
-    "slow",
-    "error",
-    "partial",
-    "long-content",
-    "large",
-    "validation-error",
-)
-DEFAULT_UI_FIXTURE_PORT = 5300
-PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{partition}.zip"
-PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{partition}.zip"
-PSI_ARCHIVE_BYTE_LIMIT = 750_000_000
 
 
 def _compose_command(*arguments: str, full_data: bool = False) -> tuple[str, ...]:
@@ -473,12 +432,9 @@ def _up(*, full_data: bool, offline: bool) -> None:
         environment=compose_environment,
     )
     ports = _resolved_host_ports(APPLICATION_SERVICES)
-    print(
-        f"\nIntegration console: http://localhost:{ports['integration-test-feature-frontend'][1]}"
-    )
-    print(f"AI-mode health:     http://localhost:{ports['ai-mode'][1]}/health/ready")
-    print(f"PropertyScope home: http://localhost:{ports['propertyscope-shared-frontend'][1]}")
-    print(f"PropertyScope:      http://localhost:{ports['propertyscope-frontend'][1]}")
+    print(f"\nAI-mode health:     http://localhost:{ports['shared-ai-mode'][1]}/health/ready")
+    print(f"PropertyScope home: http://localhost:{ports['shared-frontend'][1]}")
+    print(f"PropertyScope:      http://localhost:{ports['f1-frontend'][1]}")
     if full_data:
         print("Full-data mode:     enabled in an isolated Compose project")
     if offline:
@@ -488,7 +444,7 @@ def _up(*, full_data: bool, offline: bool) -> None:
 def _rebuild(services: Sequence[str], *, full_data: bool, offline: bool) -> None:
     _openai_credential(offline=offline)
     _ensure_docker()
-    selected = tuple(services) or APPLICATION_SERVICES
+    selected = tuple(services) or BUILD_SERVICES
     _preflight_compose_host_ports(services=selected, full_data=full_data)
     compose_environment = _compose_environment(full_data=full_data, offline=offline)
     _run(
@@ -730,201 +686,24 @@ def _collect(
         )
 
 
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Run the assignment-aligned local stack with fast source reloads."
-    )
-    commands = parser.add_subparsers(dest="command", required=True)
-    parser.set_defaults(full_data=False, env_file=None)
-
-    def add_full_data_option(command: argparse.ArgumentParser) -> None:
-        command.add_argument(
-            "--full-data",
-            action="store_true",
-            help="Use the isolated, opt-in source-scale PropertyScope profile",
-        )
-
-    def add_offline_option(command: argparse.ArgumentParser) -> None:
-        command.add_argument(
-            "--offline",
-            action="store_true",
-            help="Start data/non-AI workflows without requiring a live provider credential",
-        )
-
-    def add_env_file_option(command: argparse.ArgumentParser) -> None:
-        command.add_argument(
-            "--env-file",
-            type=Path,
-            help="Load provider settings from an explicit Git-ignored dotenv file",
-        )
-
-    up = commands.add_parser("up", help="Start the complete development stack")
-    add_full_data_option(up)
-    add_offline_option(up)
-    add_env_file_option(up)
-
-    build = commands.add_parser(
-        "build",
-        help="Build production-like Release 0 images without starting services",
-    )
-    build.add_argument(
-        "services",
-        nargs="*",
-        choices=PRODUCTION_BUILD_SERVICES,
-        help="Optional image services to build (all Release 0 application images by default)",
-    )
-
-    rebuild = commands.add_parser(
-        "rebuild",
-        help="Rebuild images after dependency or Dockerfile changes",
-    )
-    rebuild.add_argument(
-        "services",
-        nargs="*",
-        choices=BUILD_SERVICES,
-        help="Optional application services to rebuild (all by default)",
-    )
-    add_full_data_option(rebuild)
-    add_offline_option(rebuild)
-    add_env_file_option(rebuild)
-
-    restart = commands.add_parser(
-        "restart", help="Recreate application containers without rebuilding"
-    )
-    add_full_data_option(restart)
-    add_offline_option(restart)
-    add_env_file_option(restart)
-    down = commands.add_parser("down", help="Stop containers while preserving durable volumes")
-    add_full_data_option(down)
-    reset = commands.add_parser(
-        "reset", help="Stop the stack and delete only its labelled durable Docker volumes"
-    )
-    add_full_data_option(reset)
-    doctor = commands.add_parser("doctor", help="Validate Docker and the merged Compose model")
-    add_full_data_option(doctor)
-    add_env_file_option(doctor)
-    status = commands.add_parser("status", help="Show current service and health state")
-    add_full_data_option(status)
-    config_command = commands.add_parser("config", help="Validate the merged Compose configuration")
-    add_full_data_option(config_command)
-
-    logs = commands.add_parser("logs", help="Follow recent application logs")
-    logs.add_argument(
-        "services",
-        nargs="*",
-        choices=APPLICATION_SERVICES,
-        help="Optional services to follow (all application services by default)",
-    )
-    add_full_data_option(logs)
-
-    collect = commands.add_parser(
-        "collect",
-        help="Plan, queue, and optionally wait for a registered Feature 1 acquisition",
-    )
-    collect.add_argument("job", choices=COLLECTION_JOBS, help="Registered acquisition job")
-    collect.add_argument(
-        "--profile",
-        choices=("test", "showcase", "full-data"),
-        default="showcase",
-        help="Declared scope profile (default: showcase)",
-    )
-    collect.add_argument(
-        "--wait",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Wait for retained terminal run and release evidence (default: true)",
-    )
-    collect.add_argument(
-        "--timeout", type=int, default=900, help="Maximum seconds to wait (default: 900)"
-    )
-    collect.add_argument(
-        "--base-url",
-        default=PROPERTYSCOPE_API_URL,
-        help="PropertyScope public API root",
-    )
-
-    commands.add_parser("test", help="Run the canonical deterministic Python/frontend tests")
-    commands.add_parser("check", help="Run the complete canonical quality gate")
-    ui = commands.add_parser(
-        "ui",
-        help="Serve Shared and Feature 1 with deterministic same-origin fixtures (no Docker)",
-    )
-    ui.add_argument("--port", type=int, default=None, help="Loopback port (default: 5300)")
-    ui.add_argument(
-        "--scenario",
-        choices=UI_FIXTURE_SCENARIOS,
-        default=os.environ.get("PROPERTYSCOPE_UI_SCENARIO", "populated"),
-    )
-    ui_smoke = commands.add_parser(
-        "ui-smoke",
-        help="Run the minimal Playwright smoke against an owned/reused UI fixture host",
-    )
-    ui_smoke.add_argument("--port", type=int, default=None, help="Loopback port (default: 5300)")
-    ui_smoke.add_argument(
-        "--scenario",
-        choices=UI_FIXTURE_SCENARIOS,
-        default="populated",
-    )
-    ui_smoke.add_argument(
-        "--all-routes",
-        action="store_true",
-        help="Exercise every populated Shared and Feature 1 route family",
-    )
-    for command_name, profile in (
-        ("ui-audit-quick", "quick"),
-        ("ui-audit-full", "full"),
-    ):
-        audit = commands.add_parser(
-            command_name,
-            help=f"Run the {profile} resumable browser UI audit against owned fixtures",
-        )
-        audit.set_defaults(ui_audit_profile=profile)
-        audit.add_argument("--port", type=int, default=None, help="Loopback fixture port")
-        audit.add_argument("--output", type=Path, default=None, help="Artifact directory")
-        audit.add_argument("--resume", type=Path, default=None, help="Resume artifact directory")
-        audit.add_argument("--workspace", action="append", default=[])
-        audit.add_argument("--route-group", action="append", default=[])
-        audit.add_argument("--route", action="append", default=[])
-        audit.add_argument("--scenario", action="append", default=[])
-        audit.add_argument("--viewport", action="append", default=[])
-        audit.add_argument("--shard-index", type=int, default=0)
-        audit.add_argument("--shard-total", type=int, default=1)
-        audit.add_argument("--allow-destructive", action="store_true")
-    sync_psi = commands.add_parser(
-        "sync-psi", help="Acquire official PSI annual/weekly archives into the read-only app cache"
-    )
-    sync_psi.add_argument(
-        "--all",
-        action="store_true",
-        help="Acquire annual history from 1990 plus every current-year Monday archive",
-    )
-    sync_psi.add_argument("--year", type=int, action="append", default=[], help="Annual archive")
-    sync_psi.add_argument(
-        "--week", action="append", default=[], metavar="YYYY-MM-DD", help="Weekly archive"
-    )
-    sync_psi.add_argument(
-        "--current-weekly", action="store_true", help="Acquire all Monday archives this year"
-    )
-    return parser
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     """Execute one documented development action."""
-    arguments = _parser().parse_args(argv)
+    arguments = build_parser().parse_args(argv)
     try:
         if arguments.env_file is not None:
             _load_environment_file(arguments.env_file)
-        if arguments.command == "up":
+        command = (arguments.group, arguments.action)
+        if command == ("stack", "up"):
             _up(full_data=arguments.full_data, offline=arguments.offline)
-        elif arguments.command == "build":
+        elif command == ("stack", "build"):
             _production_build(arguments.services)
-        elif arguments.command == "rebuild":
+        elif command == ("stack", "rebuild"):
             _rebuild(
                 arguments.services,
                 full_data=arguments.full_data,
                 offline=arguments.offline,
             )
-        elif arguments.command == "restart":
+        elif command == ("stack", "restart"):
             _openai_credential(offline=arguments.offline)
             _ensure_docker()
             _preflight_compose_host_ports(
@@ -948,19 +727,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
                 environment=compose_environment,
             )
-        elif arguments.command == "down":
+        elif command == ("stack", "down"):
             _down(full_data=arguments.full_data)
-        elif arguments.command == "reset":
+        elif command == ("stack", "reset"):
             _reset(full_data=arguments.full_data)
-        elif arguments.command == "doctor":
+        elif command == ("stack", "doctor"):
             _doctor(full_data=arguments.full_data)
-        elif arguments.command == "status":
+        elif command == ("stack", "status"):
             _ensure_docker()
             _run(_compose_command("ps", full_data=arguments.full_data))
-        elif arguments.command == "config":
+        elif command == ("stack", "config"):
             _ensure_docker()
             _run(_compose_command("config", "--quiet", full_data=arguments.full_data))
-        elif arguments.command == "logs":
+        elif command == ("stack", "logs"):
             _ensure_docker()
             selected = tuple(arguments.services) or APPLICATION_SERVICES
             _run(
@@ -973,7 +752,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     full_data=arguments.full_data,
                 )
             )
-        elif arguments.command == "collect":
+        elif command == ("data", "collect"):
             _collect(
                 job_profile=arguments.job,
                 profile=arguments.profile,
@@ -981,11 +760,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 timeout_seconds=arguments.timeout,
                 base_url=arguments.base_url,
             )
-        elif arguments.command == "test":
-            _run((sys.executable, "scripts/check.py", "test"))
-        elif arguments.command == "check":
-            _run((sys.executable, "scripts/check.py"))
-        elif arguments.command == "ui":
+        elif command == ("ui", "serve"):
             _run(
                 (
                     sys.executable,
@@ -997,7 +772,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     arguments.scenario,
                 )
             )
-        elif arguments.command == "ui-smoke":
+        elif command == ("ui", "smoke"):
             _run(
                 (
                     sys.executable,
@@ -1010,13 +785,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     *(("--all-routes",) if arguments.all_routes else ()),
                 )
             )
-        elif arguments.command in {"ui-audit-quick", "ui-audit-full"}:
+        elif command == ("ui", "audit"):
             _run(
                 (
                     sys.executable,
                     "-m",
                     "scripts.ui_audit",
-                    arguments.ui_audit_profile,
+                    arguments.profile,
                     "--port",
                     str(_ui_fixture_port(arguments.port)),
                     *(("--output", str(arguments.output)) if arguments.output else ()),
@@ -1033,7 +808,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     *(("--allow-destructive",) if arguments.allow_destructive else ()),
                 )
             )
-        elif arguments.command == "sync-psi":
+        elif command == ("data", "sync-psi"):
             current_year = datetime.now(UTC).year
             years = list(arguments.year)
             weeks: list[date] = []

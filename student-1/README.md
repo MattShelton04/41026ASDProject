@@ -54,14 +54,14 @@ Start Docker Desktop, then use the repository workflow from the project root:
 
 ```text
 uv sync --locked --all-packages --all-groups
-uv run scripts/dev.py up
+uv run scripts/dev.py stack up
 ```
 
-Use `uv run scripts/dev.py up --offline` when validating Feature 1 without an OpenAI credential.
+Use `uv run scripts/dev.py stack up --offline` when validating Feature 1 without an OpenAI credential.
 Database migrations and the deterministic showcase baseline are automatic in both modes; no SQL,
 seed script, or Docker Desktop action is required.
 
-For frontend-only browser work, `uv run scripts/dev.py ui` serves Shared and Feature 1 together on
+For frontend-only browser work, `uv run scripts/dev.py ui serve` serves Shared and Feature 1 together on
 loopback with explicit deterministic UI scenarios and no Docker, database or model credential. See
 [`docs/ui/feature-1-fixture-mode.md`](../docs/ui/feature-1-fixture-mode.md) for URLs and the
 Playwright smoke command. This audit host is separate from the production-like showcase path below.
@@ -82,7 +82,7 @@ The acquisition path can also run without browser actions. This queues the regis
 fixture, waits for all runner and loader stages, and reports the retained candidate release:
 
 ```text
-uv run scripts/dev.py collect fixture-property --profile test
+uv run scripts/dev.py data collect fixture-property --profile test
 ```
 
 Use `schools-master`, `bocsar-crime`, `gnaf-nsw`, or `psi-sales` with `--profile full-data` after
@@ -90,7 +90,7 @@ starting the full-data stack. Add `--no-wait` for a long job. These commands aut
 acquisition, validation, import, normalisation, quality checks, and candidate construction. They do
 not bypass the separate human decision to submit, accept, or reject a candidate.
 
-Run `uv run scripts/dev.py down` when finished. Named AI history, PostgreSQL and artifact
+Run `uv run scripts/dev.py stack down` when finished. Named AI history, PostgreSQL and artifact
 volumes are preserved.
 
 ## Real-source captures
@@ -98,11 +98,11 @@ volumes are preserved.
 Real acquisition is isolated in a separate Compose project and PostgreSQL volume:
 
 ```text
-uv run scripts/dev.py sync-psi --all
-uv run scripts/dev.py up --full-data
+uv run scripts/dev.py data sync-psi --all
+uv run scripts/dev.py stack up --full-data
 ```
 
-A complete project reset is also code-driven: `uv run scripts/dev.py reset --full-data` removes
+A complete project reset is also code-driven: `uv run scripts/dev.py stack reset --full-data` removes
 only the isolated project's labelled Docker volumes. The following `up --full-data` recreates
 PostgreSQL, migrates it, and restores the deterministic operator baseline automatically.
 
@@ -118,7 +118,7 @@ PSV archive at `.propertyscope-source-cache/gnaf.zip` and declare its CRS before
 
 ```powershell
 $env:PROPERTYSCOPE_GNAF_CRS = "GDA94" # or GDA2020
-uv run scripts/dev.py up --full-data
+uv run scripts/dev.py stack up --full-data
 ```
 
 The cache directory is Git-ignored and mounted read-only. Without a cache, the runner discovers
@@ -134,7 +134,7 @@ explicit subsets remain available. Canonical NDJSON and PostgreSQL COPY stream w
 The 100-million-row, 20 GB and per-archive expansion ceilings are corruption/capacity alarms that
 fail the candidate atomically rather than returning a partial dataset.
 
-For a true from-scratch PSI build, `uv run scripts/dev.py sync-psi --all` acquires and ZIP-verifies
+For a true from-scratch PSI build, `uv run scripts/dev.py data sync-psi --all` acquires and ZIP-verifies
 every annual archive plus the current-year Monday archives on the host, where the publisher does not
 issue the Cloudflare Linux-container challenge. It writes atomically into the Git-ignored cache that
 the application mounts read-only. Targeted alternatives are `--year 2025`, `--week 2026-08-10`, and

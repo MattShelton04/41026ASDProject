@@ -39,7 +39,6 @@ Before capturing submission evidence, run:
 
 ```text
 uv run python scripts/check.py
-uv run scripts/dev.py test
 node --test student-1/tests/frontend/*.test.mjs shared/frontend/*.test.mjs shared/frontend/operations/ai-mode/*.test.mjs
-docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --file docker-compose.dev.yml --profile release-0 --profile integration-test config --quiet
+docker compose --file docker-compose.yml --file docker-compose.dev.yml --profile release-0 config --quiet
 ```

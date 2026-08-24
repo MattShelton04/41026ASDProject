@@ -20,17 +20,12 @@ SHARED_CONTRACTS = "shared-contracts"
 SHARED_TESTKIT = "shared-testkit"
 AGENT_CORE = "agent-core"
 AI_MODE = "ai-mode"
-INTEGRATION_FIXTURE = "integration-test-feature"
 PROPERTYSCOPE_DATABASE_IMPORT = "propertyscope_data_store"
 POSTGRES_CLIENT_IMPORTS = frozenset({"asyncpg", "psycopg", "psycopg2", "sqlalchemy"})
 PROPERTYSCOPE_DATABASE_CREDENTIAL = "PROPERTYSCOPE_DATABASE_URL"
-PROPERTYSCOPE_POSTGRES_VOLUMES = frozenset(
-    {"propertyscope_postgres_data", "propertyscope_postgres_full_data"}
-)
-PROPERTYSCOPE_ARTIFACT_VOLUME = "propertyscope_artifacts"
-PROPERTYSCOPE_DATABASE_SERVICES = frozenset(
-    {"propertyscope-database-api", "propertyscope-database-loader"}
-)
+PROPERTYSCOPE_POSTGRES_VOLUMES = frozenset({"f1-postgres-data"})
+PROPERTYSCOPE_ARTIFACT_VOLUME = "f1-artifacts"
+PROPERTYSCOPE_DATABASE_SERVICES = frozenset({"f1-db-api", "f1-db-loader"})
 FRONTEND_STATIC_IMPORT_PATTERN = re.compile(
     r"(?ms)^\s*(?:import\s*[\"'](?P<side_effect>[^\"']+)[\"']|"
     r"(?:import|export)\b(?:(?!;).)*?\bfrom\s*[\"'](?P<from_path>[^\"']+)[\"'])"
@@ -57,17 +52,13 @@ ALLOWED_WORKSPACE_DEPENDENCIES: Mapping[str, frozenset[str]] = {
     SHARED_TESTKIT: frozenset({SHARED_CONTRACTS, AGENT_CORE}),
     AGENT_CORE: frozenset({SHARED_CONTRACTS}),
     AI_MODE: frozenset({SHARED_CONTRACTS, AGENT_CORE}),
-    INTEGRATION_FIXTURE: frozenset({SHARED_CONTRACTS}),
 }
 
 PRODUCTION_IMPORT_DENYLISTS: Mapping[str, frozenset[str]] = {
-    SHARED_CONTRACTS: frozenset(
-        {"shared_testkit", "agent_core", "ai_mode", "integration_test_feature"}
-    ),
-    SHARED_TESTKIT: frozenset({"ai_mode", "integration_test_feature"}),
-    AGENT_CORE: frozenset({"shared_testkit", "ai_mode", "integration_test_feature"}),
-    AI_MODE: frozenset({"shared_testkit", "integration_test_feature"}),
-    INTEGRATION_FIXTURE: frozenset({"shared_testkit", "agent_core", "ai_mode"}),
+    SHARED_CONTRACTS: frozenset({"shared_testkit", "agent_core", "ai_mode"}),
+    SHARED_TESTKIT: frozenset({"ai_mode"}),
+    AGENT_CORE: frozenset({"shared_testkit", "ai_mode"}),
+    AI_MODE: frozenset({"shared_testkit"}),
 }
 
 
@@ -472,32 +463,30 @@ def _validate_compose_boundaries(root: Path) -> Iterable[ArchitectureViolation]:
 
         mounts = _compose_mounts(raw_service.get("volumes"))
         for volume in PROPERTYSCOPE_POSTGRES_VOLUMES.intersection(mounts):
-            if service_name != "propertyscope-postgres":
+            if service_name != "f1-postgres":
                 yield ArchitectureViolation(
                     _relative(root, compose_path),
                     0,
                     f"Compose service {service_name} must not mount PostgreSQL volume {volume}",
                 )
         artifact_mode = mounts.get(PROPERTYSCOPE_ARTIFACT_VOLUME)
-        if service_name == "propertyscope-runner" and artifact_mode != "rw":
+        if service_name == "f1-runner" and artifact_mode != "rw":
             yield ArchitectureViolation(
                 _relative(root, compose_path),
                 0,
-                "Compose service propertyscope-runner must mount "
-                "propertyscope_artifacts read/write",
+                "Compose service f1-runner must mount f1-artifacts read/write",
             )
-        if service_name == "propertyscope-database-loader" and artifact_mode != "ro":
+        if service_name == "f1-db-loader" and artifact_mode != "ro":
             yield ArchitectureViolation(
                 _relative(root, compose_path),
                 0,
-                "Compose service propertyscope-database-loader must mount "
-                "propertyscope_artifacts read-only",
+                "Compose service f1-db-loader must mount f1-artifacts read-only",
             )
-        if artifact_mode == "rw" and service_name not in {"propertyscope-runner"}:
+        if artifact_mode == "rw" and service_name not in {"f1-runner"}:
             yield ArchitectureViolation(
                 _relative(root, compose_path),
                 0,
-                f"Compose service {service_name} must not write propertyscope_artifacts",
+                f"Compose service {service_name} must not write f1-artifacts",
             )
 
         if _enables_full_data(environment):
@@ -586,7 +575,7 @@ def _allowed_workspace_dependencies(
 
 def _production_import_denylist(project: WorkspaceProject) -> frozenset[str]:
     if project.student_owner is not None:
-        return frozenset({"shared_testkit", "agent_core", "ai_mode", "integration_test_feature"})
+        return frozenset({"shared_testkit", "agent_core", "ai_mode"})
     return PRODUCTION_IMPORT_DENYLISTS.get(project.name, frozenset())
 
 

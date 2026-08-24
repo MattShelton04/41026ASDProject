@@ -88,7 +88,7 @@ def test_real_flask_headers_survive_datastore_and_ai_mode_clients() -> None:
         DataStoreClient("http://database", "internal", client=client).request(
             "GET", "/internal/data-platform/v1/overview", headers=request.headers
         )
-        AiModeClient("http://ai-mode", client=client).get(
+        AiModeClient("http://shared-ai-mode", client=client).get(
             "/api/v1/agent-runs/run-123", request.headers
         )
 

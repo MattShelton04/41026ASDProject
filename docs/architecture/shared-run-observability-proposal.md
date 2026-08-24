@@ -341,8 +341,8 @@ Use complementary projections of the same safe contracts:
 7. **Raw contract view:** escaped, redacted JSON as a secondary diagnostic—not the
    primary experience.
 
-This conversation projection is appropriate for the integration-test feature and
-future shared operations UI. It should render persisted facts only; it must not invent
+This conversation projection is appropriate for the shared operations UI. It should render
+persisted facts only; it must not invent
 natural-language explanations or expose private reasoning to make the trace look more
 chat-like.
 

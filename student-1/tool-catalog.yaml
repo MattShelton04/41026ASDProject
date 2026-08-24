@@ -1,7 +1,7 @@
 schema_version: 1
 services:
   - service: propertyscope-data-platform-backend
-    base_url: http://propertyscope-backend:5201
+    base_url: http://f1-backend:5201
 tools:
   - definition:
       name: data.sources.v1

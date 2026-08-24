@@ -37,18 +37,17 @@ modules served by Nginx. Python 3.12 projects share the root `uv.lock`.
 
 | Application/package | Owner and source | Start/build | Tests | Configuration and API data |
 |---|---|---|---|---|
-| Shared product shell | Shared; `shared/frontend/` | `uv run scripts/dev.py up`; image built by `shared/frontend/Dockerfile`; direct port 5100 and canonical same-origin edge | `node --test shared/frontend/dashboard.test.mjs`; product-shell assertions also run in `scripts/tests/test_product_shell.py` | `config.js` may override non-secret feature/activity ingress URLs. `/api/shared-health/*`, `/api/data-platform/v1/*`, and `/api/ai-mode/*` are same-origin Nginx projections. |
+| Shared product shell | Shared; `shared/frontend/` | `uv run scripts/dev.py stack up`; image built by `shared/frontend/Dockerfile`; direct port 5100 and canonical same-origin edge | `node --test shared/frontend/dashboard.test.mjs`; product-shell assertions also run in `scripts/tests/test_product_shell.py` | `config.js` may override non-secret feature/activity ingress URLs. `/api/shared-health/*`, `/api/data-platform/v1/*`, and `/api/ai-mode/*` are same-origin Nginx projections. |
 | Feature 1 frontend | student-1; `student-1/frontend/` | Same root command; `student-1/Dockerfile` target `frontend`; direct port 5200 or `/features/data-platform/` through the shell | `node --test student-1/tests/frontend/core.test.mjs`; structural component checks in `student-1/tests/component/test_frontend.py` | Fixed public base `/api/data-platform/v1`; health is `/health/ready` direct or `/api/shared-health/data-platform` at the edge. AI activity URL changes by ingress. Map tiles/styles may call OpenFreeMap; feature data always comes from its backend. |
 | Shared AI activity UI | Shared presentation assets; `shared/frontend/operations/ai-mode/`, served by AI-mode | Included in `ai-mode` image; `/operations/ai-mode/` only when `AI_MODE_OPERATIONS_ENABLED=true` (Compose default is true) | `node --test shared/frontend/operations/ai-mode/polling.test.mjs`; Python operations frontend/API tests | Calls AI-mode's domain-neutral run list/detail/event projections; optional query filters select feature/run. No direct store access. |
 | Shared mapping package | Shared; `shared/frontend/mapping/` | Copied into Feature 1 production image and mounted read-only in dev; MapLibre loaded lazily | `node --test shared/frontend/mapping/mapping.test.mjs` | Feature supplies bounded GeoJSON and meaning; provider supplies OpenFreeMap style/tiles with a local neutral fallback. |
 | PropertyScope v2 prototype | Historical/review artifact; `docs/prototype/propertyscope-v2/` | Static files only; not in canonical Compose or release ingress | No canonical test command | Hard-coded prototype data. It is not runtime authority and must not be treated as a second application. |
-| Non-product integration fixture | Shared test infrastructure; `examples/integration-test-feature/` | Root dev command or integration-test Compose profile; direct port 5190 | Python component/integration tests inside canonical gate | Own backend/database plus AI-mode; deliberately not Feature 1 product behavior. |
 | Feature 1 backend/runner/database | student-1; `student-1/backend/`, `student-1/database/` | Root dev command builds backend, runner, database API/loader, and PostgreSQL; optional isolated `--full-data` overlay | Python unit, contract, component, and real-HTTP tests under `student-1/tests` | Browser calls backend only. Backend and runner use database API HTTP. Only database API/loader receive PostgreSQL credentials. |
 | Shared Python kernel | Shared; `shared/contracts`, `shared/testkit`, `agent-core`, `ai-mode` | `uv sync --locked --all-packages --all-groups`; AI-mode can run with `uv run flask --app ai_mode:create_app run --port 5005` | Ruff, mypy, pytest, schema/architecture/registry/catalogue validators in `scripts/check.py` | Contracts remain domain-neutral. Feature tools are registered by versioned YAML and called over HTTP. |
 | Features 2-5 | Unallocated `student-2/` through `student-5/` placeholders | No product runtime | Root workspace/package placeholders only | Shared registry reserves routes but marks all four unimplemented and disabled. |
 
-The canonical dev workflow composes `docker-compose.yml`,
-`docker-compose.integration-test.yml`, and `docker-compose.dev.yml`. `--full-data` adds an isolated
+The canonical dev workflow composes `docker-compose.yml` and `docker-compose.dev.yml`.
+`--full-data` adds an isolated
 project and `docker-compose.full-data.yml`; it is not required for deterministic showcase UI work.
 
 ## Dependency and deployment direction
@@ -282,9 +281,9 @@ ignored `artifactRoot` in `feature-1-audit-config.json`:
 - `feature1-create-update-dialog-1440x1000.png`.
 
 One coordination failure is also relevant to the future one-command workflow: attempting a default
-`dev.py up --offline` while the full-data project already owned port 5005 built images and failed
+`dev.py stack up --offline` while the full-data project already owned port 5005 built images and failed
 late at the port bind, leaving partial default-project containers that then required a scoped
-default `dev.py down`. The full-data project was left untouched. Prompt 1 should add a fail-fast
+default `dev.py stack down`. The full-data project was left untouched. Prompt 1 should add a fail-fast
 port/project preflight so parallel audit work cannot repeat this partial-start condition.
 
 ## Current quality workflow and baseline results
@@ -307,7 +306,7 @@ journey. No build-specific frontend lint/typecheck exists because there is no co
 |---|---|---|
 | P0 | There is no deterministic browser route/state/viewport harness or screenshot gate. `scripts/check.py:14-24,27-76` runs Node source/module tests but no browser runner. | The acceptance matrix cannot yet be replayed, and source evidence can be mistaken for rendered behavior. Implement Prompts 1-2 before broad polish. |
 | P0 | The runtime spike covered only seven targeted screenshots, not the complete matrix. | A runtime owner must start the one canonical stack; audit agents should inspect it without starting competing copies or binding 5100/5200/5005. |
-| P0 | A second default `dev.py up --offline` built before failing late against full-data's occupied port 5005 and left partial containers. | Add a fail-fast port/project preflight and explicit runtime-owner guidance before parallel browser work. |
+| P0 | A second default `dev.py stack up --offline` built before failing late against full-data's occupied port 5005 and left partial containers. | Add a fail-fast port/project preflight and explicit runtime-owner guidance before parallel browser work. |
 | P1 | Feature 1 duplicates generic controls/states/tables/dialog/toast behavior beside Shared primitives (`student-1/frontend/components/*.js`, `student-1/frontend/styles.css`; `shared/frontend/core.js`, design-system components). | Fixes can drift. Define a small Shared behavior contract and gallery before migrating call sites; preserve feature domain composition. |
 | P1 | Both shells retain late cascade overrides and raw geometry/colour values (`shared/frontend/styles.css:203-343`; `student-1/frontend/styles.css:319-367`). | Visual changes are difficult to review and tokens do not fully prevent value drift. Inventory/migrate in bounded passes. |
 | P1 | Dense tables remain minimum-width scrolling surfaces on narrow screens (`shared/frontend/styles.css:200`; Feature 1 `.table-wrap` and multiple wide matrices). | Laptop is the full gate. On mobile, contained horizontal scrolling is acceptable for dense operator work, but page overflow or clipped core actions is not. |
@@ -331,7 +330,8 @@ journey. No build-specific frontend lint/typecheck exists because there is no co
   contract vocabulary; it must not invent domain conclusions from missing collections.
 - Destructive confirmations can be opened in ordinary audit mode, but the mutation itself should be
   skipped unless a resettable isolated fixture explicitly enables destructive replay.
-- A single runtime coordinator should own `uv run scripts/dev.py up`, `status`, `logs`, and `down` on
+- A single runtime coordinator should own `uv run scripts/dev.py stack up`, `stack status`,
+  `stack logs`, and `stack down` on
   ports 5100/5200/5005. Parallel UI agents should consume that runtime or use request interception;
   they must not start competing Compose projects against the same ports or databases.
 - The four viewports stay in the audit. Only laptop captures require full dense-workflow parity for

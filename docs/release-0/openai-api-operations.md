@@ -77,9 +77,9 @@ settings field, newline-bounded, never logged, and sent only as an authorization
 For the complete reloadable stack:
 
 ```text
-uv run scripts/dev.py up
-uv run scripts/dev.py status
-uv run scripts/dev.py logs ai-mode
+uv run scripts/dev.py stack up
+uv run scripts/dev.py stack status
+uv run scripts/dev.py stack logs shared-ai-mode
 ```
 
 The helper copies the shell credential into `.propertyscope-runtime/`, which is Git-ignored, and
@@ -98,7 +98,7 @@ AI_MODE_DEFAULT_MODEL_PROFILE=gemini-development.v1
 OPENAI_PROMPT_CACHE_ENABLED=false
 ```
 
-Start with `uv run scripts/dev.py up --env-file .env.gemini`. Use
+Start with `uv run scripts/dev.py stack up --env-file .env.gemini`. Use
 `gemini-quality.v1` only when intentionally comparing Gemini 3.7 quality and cost.
 
 For AI-mode on the host:
@@ -179,7 +179,7 @@ Useful endpoints after startup:
 Stop the Compose stack without deleting durable application data:
 
 ```text
-uv run scripts/dev.py down
+uv run scripts/dev.py stack down
 ```
 
 ## Primary API references

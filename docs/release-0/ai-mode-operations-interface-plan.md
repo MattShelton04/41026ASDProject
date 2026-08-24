@@ -57,24 +57,10 @@ The interface is an operational read model over AI-mode-owned state. It is not a
 product, a general log viewer, a replacement for feature UIs, or a second orchestration
 service.
 
-## 2. What the existing integration console is
+## 2. Current integrated evidence
 
-`examples/integration-test-feature/frontend/` contains a non-product browser console used
-to prove the current shared boundaries. It can:
-
-- submit a run through the example Nginx proxy;
-- poll `/api/v1/agent-runs/{id}/events` using a durable cursor;
-- reload `/api/v1/agent-runs/{id}` when persisted events arrive;
-- render Plan, Act, Observe, and Adapt steps as readable cards;
-- show tool arguments/results, model invocation summaries, reviews, final output, and safe
-  errors; and
-- show the run, request, call, and trace identifiers needed for correlation.
-
-It is called a console because it combines deterministic feature controls with a raw
-integration/debug view. It is deliberately tied to a made-up records fixture and served only
-under the optional `integration-test` Compose profile. It should remain executable test
-infrastructure. The production shared interface may reuse its interaction lessons and visual
-patterns, but must not import example code or become coupled to the fixture's record schema.
+Feature 1 and the shared operations interface now provide the real-HTTP, durable-run, safe-event,
+and correlation evidence previously explored through a separate fixture console.
 
 ## 3. Goals and non-goals
 
@@ -545,8 +531,8 @@ may be retained and projected conditionally.
 - Serve the interface through the shared edge on loopback/Compose only.
 - Add `AI_MODE_OPERATIONS_ENABLED=false` by default; the route is absent when disabled.
 - Do not put bearer tokens into built frontend assets or browser local storage.
-- The integration-test profile may enable the read-only interface with non-sensitive fixture
-  data for deterministic tests and demonstrations.
+- Deterministic tests and demonstrations may enable the read-only interface with non-sensitive
+  fixture data.
 - AI-mode remains internal in the complete topology; only the shared edge has public ingress.
 
 ### 13.2 Remote/cloud mode
@@ -657,7 +643,7 @@ the team's shared browser test stack.
 
 - Add `/operations/ai-mode/` assets under `shared/frontend`.
 - Implement run index, deep links, detail cards, event journal, reconnect, and status states.
-- Reuse shared CSS tokens and preserve the integration console as the fixture harness.
+- Reuse shared CSS tokens and preserve deterministic fixture-based browser coverage.
 - Add component/browser tests using scripted model scenarios.
 
 Exit criterion: a demonstrator can start a fixture run elsewhere, locate it in the shared UI,

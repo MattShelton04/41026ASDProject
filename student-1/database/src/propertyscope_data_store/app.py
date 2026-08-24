@@ -19,7 +19,7 @@ def create_app(
     repository = store or PropertyScopeStore(resolved.database_url)
     if resolved.auto_migrate:
         repository.initialize()
-    app = Flask("propertyscope-database-api")
+    app = Flask("f1-db-api")
     app.config["MAX_CONTENT_LENGTH"] = 256 * 1024
     app.extensions["propertyscope_store"] = repository
     app.register_blueprint(create_blueprint(repository, internal_token=resolved.internal_token))

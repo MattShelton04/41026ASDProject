@@ -8,7 +8,7 @@ fixture switch to production JavaScript, change a production API contract, start
 database, or require a model credential. The server binds only to `127.0.0.1`, rejects non-loopback
 Host headers, disables caching and is not copied into either production frontend image.
 
-This is the browser-audit path. Use `uv run scripts/dev.py up [--offline]` when persistence,
+This is the browser-audit path. Use `uv run scripts/dev.py stack up [--offline]` when persistence,
 service boundaries or the production-like Compose topology are under test.
 
 ## One-command startup
@@ -17,7 +17,7 @@ After the normal repository dependency install, run:
 
 ```text
 uv sync --locked --all-packages --all-groups
-uv run scripts/dev.py ui
+uv run scripts/dev.py ui serve
 ```
 
 The command waits for its fixture-only JSON readiness response, prints all three URLs, stays in the
@@ -64,8 +64,8 @@ always cleans up a child it started when the browser succeeds or fails.
 
 ```text
 uv run playwright install chromium
-uv run scripts/dev.py ui-smoke
-uv run scripts/dev.py ui-smoke --all-routes
+uv run scripts/dev.py ui smoke
+uv run scripts/dev.py ui smoke --all-routes
 ```
 
 The smoke opens Shared Home, a populated Property Discovery search and Data Operations overview at
@@ -76,8 +76,8 @@ route family, the shared AI activity detail projection, and the real AI-review s
 flow. The broader route/state/viewport audit remains the responsibility of the resumable Prompt 2
 harness.
 
-Run that harness with `uv run scripts/dev.py ui-audit-quick` or
-`uv run scripts/dev.py ui-audit-full`. Its scenario matrix, resume/shard controls, generated
+Run that harness with `uv run scripts/dev.py ui audit quick` or
+`uv run scripts/dev.py ui audit full`. Its scenario matrix, resume/shard controls, generated
 artifacts, severity policy and stateless destructive-action guard are documented in
 [`feature-1-audit.md`](feature-1-audit.md).
 
@@ -95,7 +95,7 @@ on machines that have not installed a browser.
 
 ## Compose coordination preflight
 
-`dev.py up`, `restart` and `rebuild` validate the final configured host ports before writing the
+`dev.py stack up`, `restart` and `rebuild` validate the final configured host ports before writing the
 runtime secret or invoking any Compose build/recreate operation. Empty environment values use the
 Compose defaults; invalid, duplicated or externally occupied ports fail with the owning Docker
 Compose project/service where available. Containers already owned by the selected Compose project

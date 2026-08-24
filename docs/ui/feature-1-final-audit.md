@@ -82,8 +82,8 @@ configuration remain repository-relative; no local user or worktree path is requ
 uv run python scripts/check.py
 uv run pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
 node --test student-1/tests/frontend/core.test.mjs
-uv run scripts/dev.py ui-audit-quick --route-group <group> --viewport laptop-wide
-uv run scripts/dev.py ui-audit-full --route <route> --scenario populated --viewport laptop-compact
+uv run scripts/dev.py ui audit quick --route-group <group> --viewport laptop-wide
+uv run scripts/dev.py ui audit full --route <route> --scenario populated --viewport laptop-compact
 ```
 
 The stacked pull requests also ran the canonical, Feature 1 browser and container CI jobs. The
