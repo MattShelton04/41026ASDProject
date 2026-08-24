@@ -105,7 +105,7 @@ The shared shell is part of the canonical Release 0 development topology. Start 
 of the application from the repository root:
 
 ```bash
-uv run scripts/dev.py up
+uv run scripts/dev.py stack up
 ```
 
 Open `http://localhost:5100`. The shell remains an independently built container and the development

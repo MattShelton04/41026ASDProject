@@ -277,6 +277,6 @@ node --test shared/frontend/mapping/mapping.test.mjs
 uv run python scripts/check.py
 ```
 
-For a live candidate, run `uv run scripts/dev.py up --offline`, open Property search, choose a seeded
+For a live candidate, run `uv run scripts/dev.py stack up --offline`, open Property search, choose a seeded
 address, and verify the real map shows the selected point. Also verify keyboard controls, attribution,
 the neutral fallback message with the tile host blocked, and that leaving the route releases the map.

@@ -77,17 +77,17 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Validate the model registry | `uv run python scripts/validate_model_registry.py` |
 | Validate feature tool catalogues | `uv run python scripts/validate_tool_catalogs.py` |
 | Start the AI-mode service | `uv run flask --app ai_mode:create_app run --port 5005` |
-| Start the complete reloadable stack | `uv run scripts/dev.py up` |
-| Start data flows without a live model | `uv run scripts/dev.py up --offline` |
-| Check Docker and Compose prerequisites | `uv run scripts/dev.py doctor` |
-| Run a code-driven fixture acquisition | `uv run scripts/dev.py collect fixture-property --profile test` |
-| Follow local stack logs | `uv run scripts/dev.py logs` |
-| Rebuild changed container images | `uv run scripts/dev.py rebuild` |
-| Stop the stack and preserve data | `uv run scripts/dev.py down` |
-| Delete only this stack's durable data | `uv run scripts/dev.py reset` |
-| Run the quick Shared/Feature 1 UI audit | `uv run scripts/dev.py ui-audit-quick` |
-| Run the full resumable UI matrix | `uv run scripts/dev.py ui-audit-full` |
-| Build production-like Release 0 images without starting them | `uv run scripts/dev.py build` |
+| Start the complete reloadable stack | `uv run scripts/dev.py stack up` |
+| Start data flows without a live model | `uv run scripts/dev.py stack up --offline` |
+| Check Docker and Compose prerequisites | `uv run scripts/dev.py stack doctor` |
+| Run a code-driven fixture acquisition | `uv run scripts/dev.py data collect fixture-property --profile test` |
+| Follow local stack logs | `uv run scripts/dev.py stack logs` |
+| Rebuild changed container images | `uv run scripts/dev.py stack rebuild` |
+| Stop the stack and preserve data | `uv run scripts/dev.py stack down` |
+| Delete only this stack's durable data | `uv run scripts/dev.py stack reset` |
+| Run the quick Shared/Feature 1 UI audit | `uv run scripts/dev.py ui audit quick` |
+| Run the full resumable UI matrix | `uv run scripts/dev.py ui audit full` |
+| Build production-like Release 0 images without starting them | `uv run scripts/dev.py stack build` |
 
 The source-only `check.py` stages are cross-platform and require no shell-specific syntax. They do
 not install a second frontend dependency tree: the browser code is dependency-free ES modules, so
@@ -96,7 +96,7 @@ browser tests; install Chromium once and use the separate commands below when ch
 
 For a Shared-only change, run the `format`, `lint`, `styles`, `compile` and relevant Shared Node
 tests while iterating, then audit with
-`uv run scripts/dev.py ui-audit-quick --workspace shared --port 5311`. For Property Discovery use
+`uv run scripts/dev.py ui audit quick --workspace shared --port 5311`. For Property Discovery use
 `--workspace feature-1-property-discovery --port 5312`; for Data Operations use
 `--workspace feature-1-data-operations --port 5313`. Finish any of those paths with
 `uv run python scripts/check.py` before pushing. Ports are examples: each concurrent audit must use

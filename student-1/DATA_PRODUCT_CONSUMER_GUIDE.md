@@ -250,7 +250,7 @@ From the repository root:
 ```text
 uv sync --locked --all-packages --all-groups
 uv run pytest student-1/tests/component/test_real_http_publication.py
-uv run scripts/dev.py up
+uv run scripts/dev.py stack up
 ```
 
 Open <http://localhost:5200>, then use **Data-product catalogue** to inspect registrations. Launch a
@@ -258,7 +258,7 @@ showcase job, inspect the candidate release count/bytes/checksum/coverage/licenc
 and submit it for review. Use the real-HTTP publication test above for the independent consumer
 accept/reject demonstration; the normal Compose profile intentionally does not pretend that an
 unallocated feature backend exists. Reconcile accepted evidence with the accepted-product endpoint.
-Ordinary `uv run scripts/dev.py down` preserves evidence volumes.
+Ordinary `uv run scripts/dev.py stack down` preserves evidence volumes.
 
 The official-source measurements in `MARKING_EVIDENCE.md` are historical evidence and are not
 silently re-labelled as results of the deterministic fixture tests.

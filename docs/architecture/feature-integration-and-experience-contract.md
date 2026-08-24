@@ -513,7 +513,8 @@ journey evidence. Feature owners should not begin with a combined report or broa
 - desktop/mobile screenshots of the common shell and one primary route per feature.
 
 The canonical local gate remains `uv run python scripts/check.py`. The complete stack is tested with
-`uv run scripts/dev.py up`, `status`, `test` and `down`; ordinary down must preserve named volumes.
+`uv run scripts/dev.py stack up`, `stack status`, and `stack down`; ordinary down must preserve
+named volumes.
 
 ## 11. Delivery sequence and ownership
 

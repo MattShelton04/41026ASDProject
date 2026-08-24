@@ -17,8 +17,8 @@
     "aiActivityEdge": "http://localhost:5100/operations/ai-mode/"
   },
   "fixtureMode": {
-    "command": "uv run scripts/dev.py ui",
-    "smokeCommand": "uv run scripts/dev.py ui-smoke",
+    "command": "uv run scripts/dev.py ui serve",
+    "smokeCommand": "uv run scripts/dev.py ui smoke",
     "origin": "http://127.0.0.1:5300/",
     "feature1Edge": "http://127.0.0.1:5300/features/data-platform/",
     "health": "http://127.0.0.1:5300/healthz",

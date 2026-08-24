@@ -27,7 +27,7 @@ The root quick command covers Shared Home, a populated Property Discovery search
 Operations overview at 1440x1000 and 390x844:
 
 ```text
-uv run scripts/dev.py ui-audit-quick
+uv run scripts/dev.py ui audit quick
 ```
 
 The Property Search label and genuine Feature 1 core-control findings from the baseline have been
@@ -42,15 +42,15 @@ controls per batch; the full profile replays the complete recursively discovered
 The complete command covers every executable route case at all four configured viewports:
 
 ```text
-uv run scripts/dev.py ui-audit-full
+uv run scripts/dev.py ui audit full
 ```
 
 The root command forwards stable selectors and shards:
 
 ```text
-uv run scripts/dev.py ui-audit-full --route-group property-discovery --viewport laptop-compact
-uv run scripts/dev.py ui-audit-full --port 5340 --shard-index 0 --shard-total 4
-uv run scripts/dev.py ui-audit-full --resume .propertyscope-runtime/ui-audit/20260823T120000Z
+uv run scripts/dev.py ui audit full --route-group property-discovery --viewport laptop-compact
+uv run scripts/dev.py ui audit full --port 5340 --shard-index 0 --shard-total 4
+uv run scripts/dev.py ui audit full --resume .propertyscope-runtime/ui-audit/20260823T120000Z
 ```
 
 Use a non-canonical fixture port with `--port`; the audit owns and cleans up a fixture child only

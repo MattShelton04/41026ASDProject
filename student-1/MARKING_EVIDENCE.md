@@ -34,10 +34,10 @@ projection.
 Start the isolated official-source environment with:
 
 ```text
-uv run scripts/dev.py up --full-data
+uv run scripts/dev.py stack up --full-data
 ```
 
-For a from-scratch PSI history before startup, run `uv run scripts/dev.py sync-psi --all`. The
+For a from-scratch PSI history before startup, run `uv run scripts/dev.py data sync-psi --all`. The
 host-side synchroniser validates every official ZIP and writes atomically to the read-only app cache;
 this avoids the publisher's Cloudflare challenge for Linux container TLS fingerprints.
 
@@ -80,7 +80,7 @@ Fixed live diagnosis run `ea4149d0-d654-43da-8ded-e88581596e54` displayed Planni
 event immediately, then completed successfully with 10 Plan/Act/Observe/Adapt steps and three tool
 calls. It took about 119 seconds: approximately 113 seconds was a cold first model response, not an
 event-delivery delay. Docker had previously run Ollama on CPU and timed out at five minutes despite
-an available RTX 3060 Ti; `scripts/dev.py up` now detects the NVIDIA runtime and applies the GPU
+an available RTX 3060 Ti; `scripts/dev.py stack up` now detects the NVIDIA runtime and applies the GPU
 overlay automatically, with explicit `--cpu-only` and `--gpu` controls.
 
 ## Defects found by the evidence run

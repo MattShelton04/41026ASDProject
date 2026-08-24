@@ -122,7 +122,7 @@ jobs:
       - name: Run the code-driven fixture acquisition pipeline
         run: |
           uv sync --locked --all-packages --all-groups
-          uv run --locked scripts/dev.py collect fixture-property --profile test --timeout 120
+          uv run --locked scripts/dev.py data collect fixture-property --profile test --timeout 120
       - name: Capture deterministic database schema fingerprint
         run: |
           docker compose exec -T feature-1-database-api python -c "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:5202/internal/data-platform/v1/schema/fingerprint',headers={'X-PropertyScope-Internal-Token':'propertyscope-local-development-only'}); value=json.load(urllib.request.urlopen(request)); assert value['algorithm']=='sha256' and len(value['fingerprint'])==64, value"

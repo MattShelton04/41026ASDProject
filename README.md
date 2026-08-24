@@ -91,20 +91,20 @@ hooks, dependency changes, ownership boundaries, and the complete developer/agen
 For day-to-day work on the assignment-aligned integration stack, start Docker Desktop and run:
 
 ```text
-uv run scripts/dev.py up
+uv run scripts/dev.py stack up
 ```
 
 Export `OPENAI_API_KEY` in the launching shell before starting the complete stack. The development
 command atomically materialises it into a Git-ignored runtime file and Compose mounts that file only
 into AI-mode as a service-scoped secret. The value never enters rendered configuration, the
 container environment, or an image. To work on deterministic data flows without an API key, use
-`uv run scripts/dev.py up --offline`; AI calls are unavailable, but Feature 1 remains operational.
+`uv run scripts/dev.py stack up --offline`; AI calls are unavailable, but Feature 1 remains operational.
 
 For Gemini development, create a Git-ignored `.env.gemini` with `AI_MODE_LLM_PROVIDER=gemini`,
 `GEMINI_API_KEY`, and `AI_MODE_DEFAULT_MODEL_PROFILE=gemini-development.v1`, then run:
 
 ```text
-uv run scripts/dev.py up --env-file .env.gemini
+uv run scripts/dev.py stack up --env-file .env.gemini
 ```
 
 The helper still converts the credential to a service-scoped Compose file secret. Select
@@ -116,12 +116,13 @@ The shared home also exposes live implemented-service status at
 <http://localhost:5100/#system-status>, bounded evidence references at
 <http://localhost:5100/#evidence>, and the honest deployment capability roadmap at
 <http://localhost:5100/#release-roadmap>.
-Python services reload when source changes and the frontends are bind-mounted. Each `up` also asks
+Python services reload when source changes and the frontends are bind-mounted. Each `stack up` asks
 BuildKit to reconcile images, so a newly pulled lockfile or Dockerfile cannot leave stale local
-images; unchanged layers remain cached. Use `rebuild [service ...]` for an explicit targeted
-rebuild. `doctor`, `status`, `logs`, `test`, `restart`, and `down` cover the rest of the common loop.
-`down` preserves AI-mode run history and PropertyScope data/artifacts. The
-explicit `reset` command deletes only volumes labelled for the selected Compose project.
+images; unchanged layers remain cached. Use `stack rebuild [service ...]` for an explicit targeted
+rebuild. The `stack` group owns lifecycle and diagnostics; `ui` owns fixture/browser work; `data`
+owns acquisition. Source checks remain under `uv run python scripts/check.py`. `stack down`
+preserves AI-mode run history and PropertyScope data/artifacts, while `stack reset` deletes only
+volumes labelled for the selected Compose project.
 
 The local stack is named `propertyscope-dev`. Its generated containers group shared services as
 `propertyscope-dev-shared-*` and Feature 1 services as `propertyscope-dev-feature-1-*`; the isolated
@@ -132,15 +133,15 @@ For browser/UI work that does not need Docker, databases or a model credential, 
 Feature 1 against deterministic same-origin fixtures:
 
 ```text
-uv run scripts/dev.py ui
+uv run scripts/dev.py ui serve
 ```
 
 The loopback-only host defaults to <http://127.0.0.1:5300> and prints the Shared, Property Discovery
 and Data Operations URLs after its health check passes. Scenario selection, alternate ports and the
 Playwright smoke command are documented in
 [`docs/ui/feature-1-fixture-mode.md`](docs/ui/feature-1-fixture-mode.md).
-Run `uv run scripts/dev.py ui-audit-quick` for the deterministic laptop/mobile interaction gate or
-`uv run scripts/dev.py ui-audit-full` for the explicit route/state/four-viewport matrix. Resume,
+Run `uv run scripts/dev.py ui audit quick` for the deterministic laptop/mobile interaction gate or
+`uv run scripts/dev.py ui audit full` for the explicit route/state/four-viewport matrix. Resume,
 shard, severity and artifact details are in
 [`docs/ui/feature-1-audit.md`](docs/ui/feature-1-audit.md).
 
@@ -152,16 +153,16 @@ and acquires missing annual/current-weekly partitions with validated bounded req
 history streams every record from 1990 onward and never substitutes synthetic data:
 
 ```text
-uv run scripts/dev.py sync-psi --all
-uv run scripts/dev.py up --full-data
-uv run scripts/dev.py down --full-data
+uv run scripts/dev.py data sync-psi --all
+uv run scripts/dev.py stack up --full-data
+uv run scripts/dev.py stack down --full-data
 ```
 
 To reproduce a clean full-data deployment without deleting items in Docker Desktop manually:
 
 ```text
-uv run scripts/dev.py reset --full-data
-uv run scripts/dev.py up --full-data --offline
+uv run scripts/dev.py stack reset --full-data
+uv run scripts/dev.py stack up --full-data --offline
 ```
 
 Collection does not require browser interaction. For example, the following command validates the
@@ -169,7 +170,7 @@ registered plan, queues the official schools acquisition, waits for the durable 
 pipeline, and reports its candidate release:
 
 ```text
-uv run scripts/dev.py collect schools-master --profile full-data
+uv run scripts/dev.py data collect schools-master --profile full-data
 ```
 
 Acquisition and candidate generation are automatic. Publication is deliberately not automatic:

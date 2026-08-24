@@ -45,7 +45,7 @@ def test_up_fails_before_docker_when_openai_credential_is_missing(
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr(dev, "_run", lambda command, **_kwargs: commands.append(tuple(command)))
 
-    assert dev.main(["up"]) == 1
+    assert dev.main(["stack", "up"]) == 1
     assert commands == []
     assert "OPENAI_API_KEY is required" in capsys.readouterr().err
 
@@ -90,7 +90,7 @@ def test_gemini_up_materialises_only_file_credentials(monkeypatch: pytest.Monkey
         dev, "_write_openai_secret", lambda _value, *, full_data: dev.Path("secret")
     )
 
-    assert dev.main(["up"]) == 0
+    assert dev.main(["stack", "up"]) == 0
 
     environment = environments[-1]
     assert isinstance(environment, dict)
@@ -101,7 +101,7 @@ def test_gemini_up_materialises_only_file_credentials(monkeypatch: pytest.Monkey
 def test_up_starts_complete_stack(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["up"]) == 0
+    assert dev.main(["stack", "up"]) == 0
 
     assert captured_commands[0][:2] == ("docker", "info")
     assert captured_commands[1][-len(dev.APPLICATION_SERVICES) :] == dev.APPLICATION_SERVICES
@@ -226,7 +226,7 @@ def test_up_prints_configured_urls(
     monkeypatch.setenv("AI_MODE_PORT", "5311")
     monkeypatch.setenv("PROPERTYSCOPE_PORT", "5313")
 
-    assert dev.main(["up"]) == 0
+    assert dev.main(["stack", "up"]) == 0
 
     output = capsys.readouterr().out
     assert "http://localhost:5310" in output
@@ -237,7 +237,7 @@ def test_up_prints_configured_urls(
 def test_rebuild_defaults_to_all_application_services(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["rebuild"]) == 0
+    assert dev.main(["stack", "rebuild"]) == 0
 
     build = captured_commands[1]
     recreate = captured_commands[2]
@@ -249,7 +249,7 @@ def test_rebuild_defaults_to_all_application_services(
 def test_production_build_uses_only_the_release_compose_model(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["build", "shared-frontend", "feature-1-frontend"]) == 0
+    assert dev.main(["stack", "build", "shared-frontend", "feature-1-frontend"]) == 0
 
     assert captured_commands == [
         ("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"),
@@ -268,12 +268,14 @@ def test_production_build_uses_only_the_release_compose_model(
     assert all(filename not in captured_commands[-1] for filename in dev.COMPOSE_FILES[1:])
 
 
-def test_test_command_delegates_to_the_canonical_quality_runner(
-    captured_commands: list[tuple[str, ...]],
-) -> None:
-    assert dev.main(["test"]) == 0
+def test_cli_groups_stack_ui_and_data_workflows() -> None:
+    parser = dev.build_parser()
 
-    assert captured_commands == [(dev.sys.executable, "scripts/check.py", "test")]
+    assert parser.parse_args(["stack", "status"]).group == "stack"
+    assert parser.parse_args(["ui", "serve"]).group == "ui"
+    assert parser.parse_args(["data", "collect", "fixture-property"]).group == "data"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["up"])
 
 
 def test_audit_command_forwards_filters_and_stable_shard_coordinates(
@@ -282,7 +284,9 @@ def test_audit_command_forwards_filters_and_stable_shard_coordinates(
     assert (
         dev.main(
             [
-                "ui-audit-full",
+                "ui",
+                "audit",
+                "full",
                 "--port",
                 "5342",
                 "--workspace",
@@ -323,7 +327,7 @@ def test_audit_command_forwards_filters_and_stable_shard_coordinates(
 
 
 def test_down_preserves_named_volumes(captured_commands: list[tuple[str, ...]]) -> None:
-    assert dev.main(["down"]) == 0
+    assert dev.main(["stack", "down"]) == 0
 
     command = captured_commands[-1]
     assert command[-2:] == ("down", "--remove-orphans")
@@ -333,7 +337,7 @@ def test_down_preserves_named_volumes(captured_commands: list[tuple[str, ...]]) 
 def test_ui_command_launches_fixture_server_as_repository_module(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["ui", "--port", "5332", "--scenario", "partial"]) == 0
+    assert dev.main(["ui", "serve", "--port", "5332", "--scenario", "partial"]) == 0
 
     assert captured_commands == [
         (
@@ -351,7 +355,7 @@ def test_ui_command_launches_fixture_server_as_repository_module(
 def test_full_data_is_explicit_and_uses_isolated_project(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["up", "--full-data"]) == 0
+    assert dev.main(["stack", "up", "--full-data"]) == 0
 
     application_up = captured_commands[-1]
     assert dev.FULL_DATA_COMPOSE_FILE in application_up
@@ -381,7 +385,7 @@ def test_full_data_exposes_psi_and_advertises_cached_years(
     )
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-    assert dev.main(["up", "--full-data"]) == 0
+    assert dev.main(["stack", "up", "--full-data"]) == 0
 
     assert all(
         isinstance(environment, dict)
@@ -406,7 +410,7 @@ def test_offline_up_needs_no_credential_and_disables_provider_readiness(
         dev, "_write_openai_secret", lambda _value, *, full_data: dev.Path("secret")
     )
 
-    assert dev.main(["up", "--offline"]) == 0
+    assert dev.main(["stack", "up", "--offline"]) == 0
 
     environment = environments[-1]
     assert isinstance(environment, dict)
@@ -417,7 +421,7 @@ def test_offline_up_needs_no_credential_and_disables_provider_readiness(
 def test_reset_removes_only_selected_project_volumes(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["reset", "--full-data"]) == 0
+    assert dev.main(["stack", "reset", "--full-data"]) == 0
 
     down, prune = captured_commands[-2:]
     assert down[-3:] == ("down", "--remove-orphans", "--volumes")
@@ -457,7 +461,7 @@ def test_complete_psi_scope_resolves_history_and_current_mondays() -> None:
 def test_default_stack_does_not_enable_full_data(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["config"]) == 0
+    assert dev.main(["stack", "config"]) == 0
 
     command = captured_commands[-1]
     assert dev.FULL_DATA_COMPOSE_FILE not in command

@@ -1,5 +1,5 @@
 # Explicit opt-in overlay for retained, source-scale PropertyScope data.
-# Invoke only through `uv run scripts/dev.py <command> --full-data`.
+# Invoke only through `uv run scripts/dev.py stack <action> --full-data`.
 name: propertyscope-full-data
 
 services:

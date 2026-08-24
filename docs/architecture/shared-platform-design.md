@@ -371,6 +371,11 @@ scannable container names such as `propertyscope-dev-shared-ai-mode-1` and
 `propertyscope-dev-feature-1-backend-1`. The canonical gate verifies project names, ownership
 prefixes, overlay membership, image alignment, and the absence of hard-coded container names.
 
+The developer entry point mirrors those boundaries: `scripts/dev.py stack` owns container
+lifecycle, `scripts/dev.py ui` owns deterministic browser fixtures, and `scripts/dev.py data` owns
+source acquisition. `scripts/check.py` remains the single source-quality runner instead of being
+proxied through the lifecycle command.
+
 ## 7. Shared contracts
 
 ### 7.1 General conventions
