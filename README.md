@@ -124,10 +124,9 @@ owns acquisition. Source checks remain under `uv run python scripts/check.py`. `
 preserves AI-mode run history and PropertyScope data/artifacts, while `stack reset` deletes only
 volumes labelled for the selected Compose project.
 
-The local stack is named `propertyscope-dev`. Its generated containers group shared services as
-`propertyscope-dev-shared-*` and Feature 1 services as `propertyscope-dev-feature-1-*`; the isolated
-source-scale stack uses `propertyscope-full-data`. Compose owns the final replica suffix so parallel
-projects and scaling remain available.
+The local stack is named `ps-dev`. Its generated containers group shared services as
+`ps-dev-shared-*` and Feature 1 services as `ps-dev-f1-*`; the isolated source-scale stack uses
+`ps-full`. Compose owns the final replica suffix so parallel projects and scaling remain available.
 
 For browser/UI work that does not need Docker, databases or a model credential, start Shared and
 Feature 1 against deterministic same-origin fixtures:

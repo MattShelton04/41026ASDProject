@@ -9,16 +9,16 @@ PROFILES = ("release-0",)
 APPLICATION_SERVICES = (
     "shared-frontend",
     "shared-ai-mode",
-    "feature-1-database-api",
-    "feature-1-database-loader",
-    "feature-1-backend",
-    "feature-1-runner",
-    "feature-1-frontend",
+    "f1-db-api",
+    "f1-db-loader",
+    "f1-backend",
+    "f1-runner",
+    "f1-frontend",
 )
 BUILD_SERVICES = APPLICATION_SERVICES
 PRODUCTION_BUILD_SERVICES = APPLICATION_SERVICES
-FULL_DATA_PROJECT_NAME = "propertyscope-full-data"
-DEFAULT_PROJECT_NAME = "propertyscope-dev"
+FULL_DATA_PROJECT_NAME = "ps-full"
+DEFAULT_PROJECT_NAME = "ps-dev"
 RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
 OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"
 SUPPORTED_LLM_PROVIDERS = frozenset({"gemini", "openai"})
@@ -35,7 +35,7 @@ TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
 HOST_PORTS = {
     "shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),
     "shared-ai-mode": ("AI_MODE_PORT", 5005),
-    "feature-1-frontend": ("PROPERTYSCOPE_PORT", 5200),
+    "f1-frontend": ("PROPERTYSCOPE_PORT", 5200),
 }
 UI_FIXTURE_SCENARIOS = (
     "populated",

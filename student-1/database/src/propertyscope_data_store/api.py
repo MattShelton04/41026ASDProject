@@ -30,7 +30,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
 
     @api.get("/health/live")
     def live() -> tuple[Response, int]:
-        return jsonify({"status": "healthy", "service": "feature-1-database-api"}), 200
+        return jsonify({"status": "healthy", "service": "f1-db-api"}), 200
 
     @api.get("/health/ready")
     def ready() -> tuple[Response, int]:

@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-SERVICE_NAME = re.compile(r"^(?:shared|feature-[1-5])-[a-z0-9]+(?:-[a-z0-9]+)*$")
+SERVICE_NAME = re.compile(r"^(?:shared|f[1-5])-[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def _compose(filename: str) -> dict[str, Any]:
@@ -19,9 +19,9 @@ def _compose(filename: str) -> dict[str, Any]:
 
 
 def test_compose_projects_have_short_purpose_specific_names() -> None:
-    assert _compose("docker-compose.yml")["name"] == "propertyscope"
-    assert _compose("docker-compose.dev.yml")["name"] == "propertyscope-dev"
-    assert _compose("docker-compose.full-data.yml")["name"] == "propertyscope-full-data"
+    assert _compose("docker-compose.yml")["name"] == "ps"
+    assert _compose("docker-compose.dev.yml")["name"] == "ps-dev"
+    assert _compose("docker-compose.full-data.yml")["name"] == "ps-full"
 
 
 def test_services_use_ownership_prefixes_and_compose_generated_container_names() -> None:

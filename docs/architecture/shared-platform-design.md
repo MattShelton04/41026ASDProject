@@ -361,14 +361,14 @@ parameters are not a general-purpose branding or redirect contract.
 ### 6.5 Compose naming convention
 
 Compose names expose ownership before implementation detail. The production-like base project is
-`propertyscope`, the reloadable local overlay is `propertyscope-dev`, and the isolated source-scale
-overlay is `propertyscope-full-data`. Shared services use `shared-<role>`; student-owned services use
-`feature-<number>-<role>`. Images mirror the service key below the `propertyscope/` namespace, and
+`ps`, the reloadable local overlay is `ps-dev`, and the isolated source-scale overlay is `ps-full`.
+Shared services use `shared-<role>`; student-owned services use `f<number>-<role>`. Images mirror
+the service key below the descriptive `propertyscope/` namespace, and
 durable volumes use the same ownership prefix.
 
 Do not set `container_name`. Compose-generated names preserve project isolation and produce
-scannable container names such as `propertyscope-dev-shared-ai-mode-1` and
-`propertyscope-dev-feature-1-backend-1`. The canonical gate verifies project names, ownership
+scannable container names such as `ps-dev-shared-ai-mode-1` and `ps-dev-f1-backend-1`. The
+canonical gate verifies project names, ownership
 prefixes, overlay membership, image alignment, and the absence of hard-coded container names.
 
 The developer entry point mirrors those boundaries: `scripts/dev.py stack` owns container

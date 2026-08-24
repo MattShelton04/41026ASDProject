@@ -36,7 +36,7 @@ def create_app(
     resolved_feature_root = feature_root or Path(__file__).resolve().parents[3]
     validate_feature_registration(resolved_feature_root)
     store = store_client or DataStoreClient(
-        os.environ.get("PROPERTYSCOPE_DATABASE_API_URL", "http://feature-1-database-api:5202"),
+        os.environ.get("PROPERTYSCOPE_DATABASE_API_URL", "http://f1-db-api:5202"),
         os.environ.get("PROPERTYSCOPE_INTERNAL_TOKEN", "local-development-only"),
     )
     ai_mode = ai_mode_client or AiModeClient(

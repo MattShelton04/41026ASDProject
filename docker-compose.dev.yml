@@ -1,4 +1,4 @@
-name: propertyscope-dev
+name: ps-dev
 
 services:
   shared-frontend:
@@ -25,7 +25,7 @@ services:
       - ./shared/contracts/python:/app/shared/contracts/python:ro
       - ./shared/frontend:/app/shared/frontend:ro
 
-  feature-1-database-api:
+  f1-db-api:
     command:
       - gunicorn
       - --bind=0.0.0.0:5202
@@ -36,11 +36,11 @@ services:
     volumes:
       - ./student-1/database/src:/app/student-1/database/src:ro
 
-  feature-1-database-loader:
+  f1-db-loader:
     volumes:
       - ./student-1/database/src:/app/student-1/database/src:ro
 
-  feature-1-backend:
+  f1-backend:
     command:
       - gunicorn
       - --bind=0.0.0.0:5201
@@ -52,12 +52,12 @@ services:
       - ./student-1/backend/src:/app/student-1/backend/src:ro
       - ./shared/contracts/python:/app/shared/contracts/python:ro
 
-  feature-1-runner:
+  f1-runner:
     volumes:
       - ./student-1/backend/src:/app/student-1/backend/src:ro
       - ./shared/contracts/python:/app/shared/contracts/python:ro
 
-  feature-1-frontend:
+  f1-frontend:
     volumes:
       - ./student-1/frontend:/usr/share/nginx/html:ro
       - ./shared/frontend/design-system:/usr/share/nginx/html/design-system:ro

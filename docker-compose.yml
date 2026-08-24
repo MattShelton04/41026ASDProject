@@ -1,4 +1,4 @@
-name: propertyscope
+name: ps
 
 services:
   shared-frontend:
@@ -72,7 +72,7 @@ services:
       - no-new-privileges:true
     stop_grace_period: 35s
 
-  feature-1-postgres:
+  f1-postgres:
     profiles: [release-0]
     image: postgis/postgis:16-3.4
     restart: unless-stopped
@@ -81,7 +81,7 @@ services:
       POSTGRES_USER: ${PROPERTYSCOPE_POSTGRES_USER:-propertyscope}
       POSTGRES_PASSWORD: ${PROPERTYSCOPE_POSTGRES_PASSWORD:-propertyscope-local-only}
     volumes:
-      - feature-1-postgres-data:/var/lib/postgresql/data
+      - f1-postgres-data:/var/lib/postgresql/data
     networks: [shared-platform]
     healthcheck:
       test:
@@ -93,25 +93,25 @@ services:
       start_period: 10s
     stop_grace_period: 60s
 
-  feature-1-database-api:
+  f1-db-api:
     profiles: [release-0]
     build:
       context: .
       dockerfile: student-1/Dockerfile
       target: database-api
-    image: propertyscope/feature-1-database-api:dev
+    image: propertyscope/f1-db-api:dev
     init: true
     restart: unless-stopped
     environment: &propertyscope-database-environment
-      PROPERTYSCOPE_DATABASE_URL: postgresql://${PROPERTYSCOPE_POSTGRES_USER:-propertyscope}:${PROPERTYSCOPE_POSTGRES_PASSWORD:-propertyscope-local-only}@feature-1-postgres:5432/${PROPERTYSCOPE_POSTGRES_DB:-propertyscope}
+      PROPERTYSCOPE_DATABASE_URL: postgresql://${PROPERTYSCOPE_POSTGRES_USER:-propertyscope}:${PROPERTYSCOPE_POSTGRES_PASSWORD:-propertyscope-local-only}@f1-postgres:5432/${PROPERTYSCOPE_POSTGRES_DB:-propertyscope}
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
       PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
       PROPERTYSCOPE_AUTO_MIGRATE: "true"
     depends_on:
-      feature-1-postgres:
+      f1-postgres:
         condition: service_healthy
     volumes:
-      - feature-1-artifacts:/var/lib/propertyscope/artifacts:ro
+      - f1-artifacts:/var/lib/propertyscope/artifacts:ro
     networks: [shared-platform]
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5202/health/ready', timeout=2)"]
@@ -121,47 +121,47 @@ services:
       start_period: 10s
     stop_grace_period: 35s
 
-  feature-1-database-loader:
+  f1-db-loader:
     profiles: [release-0]
     build:
       context: .
       dockerfile: student-1/Dockerfile
       target: database-loader
-    image: propertyscope/feature-1-database-loader:dev
+    image: propertyscope/f1-db-loader:dev
     init: true
     restart: unless-stopped
     environment:
       <<: *propertyscope-database-environment
       PROPERTYSCOPE_AUTO_MIGRATE: "false"
     depends_on:
-      feature-1-database-api:
+      f1-db-api:
         condition: service_healthy
     volumes:
-      - feature-1-artifacts:/var/lib/propertyscope/artifacts:ro
+      - f1-artifacts:/var/lib/propertyscope/artifacts:ro
     networks: [shared-platform]
     stop_grace_period: 35s
 
-  feature-1-backend:
+  f1-backend:
     profiles: [release-0]
     build:
       context: .
       dockerfile: student-1/Dockerfile
       target: backend
-    image: propertyscope/feature-1-backend:dev
+    image: propertyscope/f1-backend:dev
     init: true
     restart: unless-stopped
     environment:
-      PROPERTYSCOPE_DATABASE_API_URL: http://feature-1-database-api:5202
+      PROPERTYSCOPE_DATABASE_API_URL: http://f1-db-api:5202
       PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
       PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
       AI_MODE_BASE_URL: http://shared-ai-mode:5005
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
       PROPERTYSCOPE_FULL_DATA_ENABLED: "false"
     depends_on:
-      feature-1-database-api:
+      f1-db-api:
         condition: service_healthy
     volumes:
-      - feature-1-artifacts:/var/lib/propertyscope/artifacts:ro
+      - f1-artifacts:/var/lib/propertyscope/artifacts:ro
     networks: [shared-platform]
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5201/health/ready', timeout=2)"]
@@ -171,41 +171,41 @@ services:
       start_period: 10s
     stop_grace_period: 35s
 
-  feature-1-runner:
+  f1-runner:
     profiles: [release-0]
     build:
       context: .
       dockerfile: student-1/Dockerfile
       target: runner
-    image: propertyscope/feature-1-runner:dev
+    image: propertyscope/f1-runner:dev
     init: true
     restart: unless-stopped
     environment:
-      PROPERTYSCOPE_BACKEND_URL: http://feature-1-backend:5201
+      PROPERTYSCOPE_BACKEND_URL: http://f1-backend:5201
       PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
       PROPERTYSCOPE_FULL_DATA_ENABLED: "false"
     depends_on:
-      feature-1-backend:
+      f1-backend:
         condition: service_healthy
-      feature-1-database-api:
+      f1-db-api:
         condition: service_healthy
     volumes:
-      - feature-1-artifacts:/var/lib/propertyscope/artifacts:rw
+      - f1-artifacts:/var/lib/propertyscope/artifacts:rw
     networks: [shared-platform]
     stop_grace_period: 35s
 
-  feature-1-frontend:
+  f1-frontend:
     profiles: [release-0]
     build:
       context: .
       dockerfile: student-1/Dockerfile
       target: frontend
-    image: propertyscope/feature-1-frontend:dev
+    image: propertyscope/f1-frontend:dev
     init: true
     restart: unless-stopped
     depends_on:
-      feature-1-backend:
+      f1-backend:
         condition: service_healthy
     ports:
       - 127.0.0.1:${PROPERTYSCOPE_PORT:-5200}:8080
@@ -227,5 +227,5 @@ secrets:
 
 volumes:
   shared-ai-mode-state:
-  feature-1-artifacts:
-  feature-1-postgres-data:
+  f1-artifacts:
+  f1-postgres-data:

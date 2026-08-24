@@ -434,7 +434,7 @@ def _up(*, full_data: bool, offline: bool) -> None:
     ports = _resolved_host_ports(APPLICATION_SERVICES)
     print(f"\nAI-mode health:     http://localhost:{ports['shared-ai-mode'][1]}/health/ready")
     print(f"PropertyScope home: http://localhost:{ports['shared-frontend'][1]}")
-    print(f"PropertyScope:      http://localhost:{ports['feature-1-frontend'][1]}")
+    print(f"PropertyScope:      http://localhost:{ports['f1-frontend'][1]}")
     if full_data:
         print("Full-data mode:     enabled in an isolated Compose project")
     if offline:

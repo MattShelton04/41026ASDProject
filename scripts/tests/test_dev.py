@@ -110,7 +110,7 @@ def test_up_starts_complete_stack(
         assert filename in captured_commands[1]
     assert "shared-frontend" in captured_commands[1]
     assert "shared-ai-mode" in captured_commands[1]
-    assert "feature-1-backend" in captured_commands[1]
+    assert "f1-backend" in captured_commands[1]
     assert "docker-compose.shared-shell.yml" not in dev.COMPOSE_FILES
 
 
@@ -151,9 +151,9 @@ def test_rebuild_preflights_only_selected_host_service(
     monkeypatch.setattr(dev, "_compose_environment", lambda **_kwargs: {})
     monkeypatch.setattr(dev, "_run", lambda *_args, **_kwargs: None)
 
-    dev._rebuild(("feature-1-frontend",), full_data=False, offline=False)
+    dev._rebuild(("f1-frontend",), full_data=False, offline=False)
 
-    assert selections == [("feature-1-frontend",)]
+    assert selections == [("f1-frontend",)]
 
 
 def test_port_configuration_rejects_invalid_and_self_conflicting_values(
@@ -172,7 +172,7 @@ def test_port_configuration_rejects_invalid_and_self_conflicting_values(
 def test_empty_port_environment_uses_compose_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PROPERTYSCOPE_PORT", "")
 
-    assert dev._resolved_host_ports(("feature-1-frontend",))["feature-1-frontend"] == (
+    assert dev._resolved_host_ports(("f1-frontend",))["f1-frontend"] == (
         "PROPERTYSCOPE_PORT",
         5200,
     )
@@ -185,11 +185,11 @@ def test_port_preflight_allows_only_the_exact_selected_compose_service(
     monkeypatch.setattr(
         dev,
         "_published_port_owners",
-        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "feature-1-frontend"),),
+        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "f1-frontend"),),
     )
 
     dev._preflight_compose_host_ports(
-        services=("feature-1-frontend",),
+        services=("f1-frontend",),
         full_data=False,
     )
 
@@ -200,18 +200,18 @@ def test_port_preflight_allows_only_the_exact_selected_compose_service(
     )
     with pytest.raises(RuntimeError, match="service 'shared-frontend'"):
         dev._preflight_compose_host_ports(
-            services=("feature-1-frontend",),
+            services=("f1-frontend",),
             full_data=False,
         )
 
     monkeypatch.setattr(
         dev,
         "_published_port_owners",
-        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "feature-1-frontend"),),
+        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "f1-frontend"),),
     )
     with pytest.raises(RuntimeError, match="before any build or container change"):
         dev._preflight_compose_host_ports(
-            services=("feature-1-frontend",),
+            services=("f1-frontend",),
             full_data=True,
         )
 
@@ -249,7 +249,7 @@ def test_rebuild_defaults_to_all_application_services(
 def test_production_build_uses_only_the_release_compose_model(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["stack", "build", "shared-frontend", "feature-1-frontend"]) == 0
+    assert dev.main(["stack", "build", "shared-frontend", "f1-frontend"]) == 0
 
     assert captured_commands == [
         ("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"),
@@ -262,7 +262,7 @@ def test_production_build_uses_only_the_release_compose_model(
             "release-0",
             "build",
             "shared-frontend",
-            "feature-1-frontend",
+            "f1-frontend",
         ),
     ]
     assert all(filename not in captured_commands[-1] for filename in dev.COMPOSE_FILES[1:])
@@ -364,8 +364,8 @@ def test_full_data_is_explicit_and_uses_isolated_project(
 
 
 def test_compose_projects_use_short_scannable_names() -> None:
-    assert dev.DEFAULT_PROJECT_NAME == "propertyscope-dev"
-    assert dev.FULL_DATA_PROJECT_NAME == "propertyscope-full-data"
+    assert dev.DEFAULT_PROJECT_NAME == "ps-dev"
+    assert dev.FULL_DATA_PROJECT_NAME == "ps-full"
 
 
 def test_full_data_exposes_psi_and_advertises_cached_years(
