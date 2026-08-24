@@ -108,7 +108,9 @@ def test_up_starts_complete_stack(
     assert "--build" in captured_commands[1]
     for filename in dev.COMPOSE_FILES:
         assert filename in captured_commands[1]
-    assert "propertyscope-shared-frontend" in captured_commands[1]
+    assert "shared-frontend" in captured_commands[1]
+    assert "shared-ai-mode" in captured_commands[1]
+    assert "feature-1-backend" in captured_commands[1]
     assert "docker-compose.shared-shell.yml" not in dev.COMPOSE_FILES
 
 
@@ -149,9 +151,9 @@ def test_rebuild_preflights_only_selected_host_service(
     monkeypatch.setattr(dev, "_compose_environment", lambda **_kwargs: {})
     monkeypatch.setattr(dev, "_run", lambda *_args, **_kwargs: None)
 
-    dev._rebuild(("propertyscope-frontend",), full_data=False, offline=False)
+    dev._rebuild(("feature-1-frontend",), full_data=False, offline=False)
 
-    assert selections == [("propertyscope-frontend",)]
+    assert selections == [("feature-1-frontend",)]
 
 
 def test_port_configuration_rejects_invalid_and_self_conflicting_values(
@@ -170,7 +172,7 @@ def test_port_configuration_rejects_invalid_and_self_conflicting_values(
 def test_empty_port_environment_uses_compose_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PROPERTYSCOPE_PORT", "")
 
-    assert dev._resolved_host_ports(("propertyscope-frontend",))["propertyscope-frontend"] == (
+    assert dev._resolved_host_ports(("feature-1-frontend",))["feature-1-frontend"] == (
         "PROPERTYSCOPE_PORT",
         5200,
     )
@@ -183,11 +185,11 @@ def test_port_preflight_allows_only_the_exact_selected_compose_service(
     monkeypatch.setattr(
         dev,
         "_published_port_owners",
-        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "propertyscope-frontend"),),
+        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "feature-1-frontend"),),
     )
 
     dev._preflight_compose_host_ports(
-        services=("propertyscope-frontend",),
+        services=("feature-1-frontend",),
         full_data=False,
     )
 
@@ -198,18 +200,18 @@ def test_port_preflight_allows_only_the_exact_selected_compose_service(
     )
     with pytest.raises(RuntimeError, match="service 'shared-frontend'"):
         dev._preflight_compose_host_ports(
-            services=("propertyscope-frontend",),
+            services=("feature-1-frontend",),
             full_data=False,
         )
 
     monkeypatch.setattr(
         dev,
         "_published_port_owners",
-        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "propertyscope-frontend"),),
+        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "feature-1-frontend"),),
     )
     with pytest.raises(RuntimeError, match="before any build or container change"):
         dev._preflight_compose_host_ports(
-            services=("propertyscope-frontend",),
+            services=("feature-1-frontend",),
             full_data=True,
         )
 
@@ -247,7 +249,7 @@ def test_rebuild_defaults_to_all_application_services(
 def test_production_build_uses_only_the_release_compose_model(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["build", "propertyscope-shared-frontend", "propertyscope-frontend"]) == 0
+    assert dev.main(["build", "shared-frontend", "feature-1-frontend"]) == 0
 
     assert captured_commands == [
         ("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"),
@@ -259,8 +261,8 @@ def test_production_build_uses_only_the_release_compose_model(
             "--profile",
             "release-0",
             "build",
-            "propertyscope-shared-frontend",
-            "propertyscope-frontend",
+            "shared-frontend",
+            "feature-1-frontend",
         ),
     ]
     assert all(filename not in captured_commands[-1] for filename in dev.COMPOSE_FILES[1:])
@@ -355,6 +357,11 @@ def test_full_data_is_explicit_and_uses_isolated_project(
     assert dev.FULL_DATA_COMPOSE_FILE in application_up
     assert application_up[2:4] == ("--project-name", dev.FULL_DATA_PROJECT_NAME)
     assert "full-data" in application_up
+
+
+def test_compose_projects_use_short_scannable_names() -> None:
+    assert dev.DEFAULT_PROJECT_NAME == "propertyscope-dev"
+    assert dev.FULL_DATA_PROJECT_NAME == "propertyscope-full-data"
 
 
 def test_full_data_exposes_psi_and_advertises_cached_years(

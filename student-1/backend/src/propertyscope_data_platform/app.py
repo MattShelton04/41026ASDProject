@@ -36,11 +36,11 @@ def create_app(
     resolved_feature_root = feature_root or Path(__file__).resolve().parents[3]
     validate_feature_registration(resolved_feature_root)
     store = store_client or DataStoreClient(
-        os.environ.get("PROPERTYSCOPE_DATABASE_API_URL", "http://propertyscope-database-api:5202"),
+        os.environ.get("PROPERTYSCOPE_DATABASE_API_URL", "http://feature-1-database-api:5202"),
         os.environ.get("PROPERTYSCOPE_INTERNAL_TOKEN", "local-development-only"),
     )
     ai_mode = ai_mode_client or AiModeClient(
-        os.environ.get("AI_MODE_BASE_URL", "http://ai-mode:5005")
+        os.environ.get("AI_MODE_BASE_URL", "http://shared-ai-mode:5005")
     )
     consumers = consumer_client or ConsumerImportClient(
         {

@@ -612,7 +612,7 @@ test("tables use named contained scroll regions and native links instead of inte
 test("the frontend proxy keeps browser traffic on the public backend boundary", async () => {
   const nginx = await readFile(new URL("../../frontend/nginx.conf", import.meta.url), "utf8");
   assert.match(nginx, /location \/api\/data-platform\//);
-  assert.match(nginx, /proxy_pass http:\/\/propertyscope-backend:5201/);
+  assert.match(nginx, /proxy_pass http:\/\/feature-1-backend:5201/);
   assert.doesNotMatch(nginx, /propertyscope-database/);
   assert.match(nginx, /https:\/\/tiles\.openfreemap\.org/);
   assert.match(nginx, /worker-src blob:/);

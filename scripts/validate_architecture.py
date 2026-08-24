@@ -23,12 +23,10 @@ AI_MODE = "ai-mode"
 PROPERTYSCOPE_DATABASE_IMPORT = "propertyscope_data_store"
 POSTGRES_CLIENT_IMPORTS = frozenset({"asyncpg", "psycopg", "psycopg2", "sqlalchemy"})
 PROPERTYSCOPE_DATABASE_CREDENTIAL = "PROPERTYSCOPE_DATABASE_URL"
-PROPERTYSCOPE_POSTGRES_VOLUMES = frozenset(
-    {"propertyscope_postgres_data", "propertyscope_postgres_full_data"}
-)
-PROPERTYSCOPE_ARTIFACT_VOLUME = "propertyscope_artifacts"
+PROPERTYSCOPE_POSTGRES_VOLUMES = frozenset({"feature-1-postgres-data"})
+PROPERTYSCOPE_ARTIFACT_VOLUME = "feature-1-artifacts"
 PROPERTYSCOPE_DATABASE_SERVICES = frozenset(
-    {"propertyscope-database-api", "propertyscope-database-loader"}
+    {"feature-1-database-api", "feature-1-database-loader"}
 )
 FRONTEND_STATIC_IMPORT_PATTERN = re.compile(
     r"(?ms)^\s*(?:import\s*[\"'](?P<side_effect>[^\"']+)[\"']|"
@@ -467,32 +465,32 @@ def _validate_compose_boundaries(root: Path) -> Iterable[ArchitectureViolation]:
 
         mounts = _compose_mounts(raw_service.get("volumes"))
         for volume in PROPERTYSCOPE_POSTGRES_VOLUMES.intersection(mounts):
-            if service_name != "propertyscope-postgres":
+            if service_name != "feature-1-postgres":
                 yield ArchitectureViolation(
                     _relative(root, compose_path),
                     0,
                     f"Compose service {service_name} must not mount PostgreSQL volume {volume}",
                 )
         artifact_mode = mounts.get(PROPERTYSCOPE_ARTIFACT_VOLUME)
-        if service_name == "propertyscope-runner" and artifact_mode != "rw":
+        if service_name == "feature-1-runner" and artifact_mode != "rw":
             yield ArchitectureViolation(
                 _relative(root, compose_path),
                 0,
-                "Compose service propertyscope-runner must mount "
-                "propertyscope_artifacts read/write",
+                "Compose service feature-1-runner must mount "
+                "feature-1-artifacts read/write",
             )
-        if service_name == "propertyscope-database-loader" and artifact_mode != "ro":
+        if service_name == "feature-1-database-loader" and artifact_mode != "ro":
             yield ArchitectureViolation(
                 _relative(root, compose_path),
                 0,
-                "Compose service propertyscope-database-loader must mount "
-                "propertyscope_artifacts read-only",
+                "Compose service feature-1-database-loader must mount "
+                "feature-1-artifacts read-only",
             )
-        if artifact_mode == "rw" and service_name not in {"propertyscope-runner"}:
+        if artifact_mode == "rw" and service_name not in {"feature-1-runner"}:
             yield ArchitectureViolation(
                 _relative(root, compose_path),
                 0,
-                f"Compose service {service_name} must not write propertyscope_artifacts",
+                f"Compose service {service_name} must not write feature-1-artifacts",
             )
 
         if _enables_full_data(environment):

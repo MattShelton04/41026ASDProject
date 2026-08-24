@@ -123,6 +123,11 @@ rebuild. `doctor`, `status`, `logs`, `test`, `restart`, and `down` cover the res
 `down` preserves AI-mode run history and PropertyScope data/artifacts. The
 explicit `reset` command deletes only volumes labelled for the selected Compose project.
 
+The local stack is named `propertyscope-dev`. Its generated containers group shared services as
+`propertyscope-dev-shared-*` and Feature 1 services as `propertyscope-dev-feature-1-*`; the isolated
+source-scale stack uses `propertyscope-full-data`. Compose owns the final replica suffix so parallel
+projects and scaling remain available.
+
 For browser/UI work that does not need Docker, databases or a model credential, start Shared and
 Feature 1 against deterministic same-origin fixtures:
 
@@ -178,7 +183,7 @@ For the production-like Release 0 container runtime without development bind mou
 ```text
 OPENAI_API_KEY=<set-in-your-shell>
 OPENAI_API_KEY_FILE=<path-to-a-local-file-containing-that-key>
-docker compose --profile release-0 up --detach --build --wait --wait-timeout 120 ai-mode
+docker compose --profile release-0 up --detach --build --wait --wait-timeout 120 shared-ai-mode
 uv run ai-mode-provider-smoke
 ```
 

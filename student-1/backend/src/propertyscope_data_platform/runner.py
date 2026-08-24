@@ -68,7 +68,7 @@ class RunnerSettings:
     def from_environment(cls) -> RunnerSettings:
         return cls(
             backend_url=os.environ.get(
-                "PROPERTYSCOPE_BACKEND_URL", "http://propertyscope-backend:5201"
+                "PROPERTYSCOPE_BACKEND_URL", "http://feature-1-backend:5201"
             ).rstrip("/"),
             token=os.environ.get("PROPERTYSCOPE_RUNNER_TOKEN", "local-runner-only"),
             artifact_root=Path(

@@ -79,7 +79,7 @@ For the complete reloadable stack:
 ```text
 uv run scripts/dev.py up
 uv run scripts/dev.py status
-uv run scripts/dev.py logs ai-mode
+uv run scripts/dev.py logs shared-ai-mode
 ```
 
 The helper copies the shell credential into `.propertyscope-runtime/`, which is Git-ignored, and

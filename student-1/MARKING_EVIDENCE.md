@@ -6,7 +6,7 @@
 > Current implementation and test claims belong in `DATA_PRODUCT_CONSUMER_GUIDE.md`.
 
 This record is evidence from a fresh full-data deployment on 15 August 2026. The PostgreSQL and
-artifact volumes for the isolated `41026-asd-propertyscope-full-data` Compose project were empty
+artifact volumes for the isolated `propertyscope-full-data` Compose project were empty
 before the runs below. The ordinary development volumes, Ollama model volume and read-only source
 cache were not reset.
 

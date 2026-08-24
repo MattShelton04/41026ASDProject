@@ -1,17 +1,19 @@
 # Explicit opt-in overlay for retained, source-scale PropertyScope data.
 # Invoke only through `uv run scripts/dev.py <command> --full-data`.
+name: propertyscope-full-data
+
 services:
-  propertyscope-database-api:
+  feature-1-database-api:
     profiles: [full-data]
     mem_limit: ${PROPERTYSCOPE_DATABASE_MEMORY_LIMIT:-4g}
     cpus: ${PROPERTYSCOPE_DATABASE_CPU_LIMIT:-4.0}
 
-  propertyscope-database-loader:
+  feature-1-database-loader:
     profiles: [full-data]
     mem_limit: ${PROPERTYSCOPE_LOADER_MEMORY_LIMIT:-8g}
     cpus: ${PROPERTYSCOPE_LOADER_CPU_LIMIT:-6.0}
 
-  propertyscope-runner:
+  feature-1-runner:
     profiles: [full-data]
     environment:
       PROPERTYSCOPE_FULL_DATA_ENABLED: "true"
@@ -25,14 +27,10 @@ services:
     mem_limit: ${PROPERTYSCOPE_RUNNER_MEMORY_LIMIT:-8g}
     cpus: ${PROPERTYSCOPE_RUNNER_CPU_LIMIT:-6.0}
 
-  propertyscope-backend:
+  feature-1-backend:
     profiles: [full-data]
     environment:
       PROPERTYSCOPE_FULL_DATA_ENABLED: "true"
       PROPERTYSCOPE_PSI_TRANSPORT_ENABLED: ${PROPERTYSCOPE_PSI_TRANSPORT_ENABLED:-false}
       PROPERTYSCOPE_PSI_CACHED_YEARS: ${PROPERTYSCOPE_PSI_CACHED_YEARS:-}
       PROPERTYSCOPE_PSI_CACHED_WEEKS: ${PROPERTYSCOPE_PSI_CACHED_WEEKS:-}
-
-networks:
-  shared_platform:
-    name: 41026-asd-propertyscope-full-data-shared-platform

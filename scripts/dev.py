@@ -33,26 +33,26 @@ COMPOSE_FILES = (
 FULL_DATA_COMPOSE_FILE = "docker-compose.full-data.yml"
 PROFILES = ("release-0",)
 APPLICATION_SERVICES = (
-    "propertyscope-shared-frontend",
-    "ai-mode",
-    "propertyscope-database-api",
-    "propertyscope-database-loader",
-    "propertyscope-backend",
-    "propertyscope-runner",
-    "propertyscope-frontend",
+    "shared-frontend",
+    "shared-ai-mode",
+    "feature-1-database-api",
+    "feature-1-database-loader",
+    "feature-1-backend",
+    "feature-1-runner",
+    "feature-1-frontend",
 )
 BUILD_SERVICES = APPLICATION_SERVICES
 PRODUCTION_BUILD_SERVICES = (
-    "propertyscope-shared-frontend",
-    "ai-mode",
-    "propertyscope-database-api",
-    "propertyscope-database-loader",
-    "propertyscope-backend",
-    "propertyscope-runner",
-    "propertyscope-frontend",
+    "shared-frontend",
+    "shared-ai-mode",
+    "feature-1-database-api",
+    "feature-1-database-loader",
+    "feature-1-backend",
+    "feature-1-runner",
+    "feature-1-frontend",
 )
-FULL_DATA_PROJECT_NAME = "41026-asd-propertyscope-full-data"
-DEFAULT_PROJECT_NAME = "41026-asd-project"
+FULL_DATA_PROJECT_NAME = "propertyscope-full-data"
+DEFAULT_PROJECT_NAME = "propertyscope-dev"
 RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
 OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"
 SUPPORTED_LLM_PROVIDERS = frozenset({"gemini", "openai"})
@@ -67,9 +67,9 @@ COLLECTION_JOBS = (
 )
 TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
 HOST_PORTS = {
-    "propertyscope-shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),
-    "ai-mode": ("AI_MODE_PORT", 5005),
-    "propertyscope-frontend": ("PROPERTYSCOPE_PORT", 5200),
+    "shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),
+    "shared-ai-mode": ("AI_MODE_PORT", 5005),
+    "feature-1-frontend": ("PROPERTYSCOPE_PORT", 5200),
 }
 UI_FIXTURE_SCENARIOS = (
     "populated",
@@ -468,9 +468,9 @@ def _up(*, full_data: bool, offline: bool) -> None:
         environment=compose_environment,
     )
     ports = _resolved_host_ports(APPLICATION_SERVICES)
-    print(f"\nAI-mode health:     http://localhost:{ports['ai-mode'][1]}/health/ready")
-    print(f"PropertyScope home: http://localhost:{ports['propertyscope-shared-frontend'][1]}")
-    print(f"PropertyScope:      http://localhost:{ports['propertyscope-frontend'][1]}")
+    print(f"\nAI-mode health:     http://localhost:{ports['shared-ai-mode'][1]}/health/ready")
+    print(f"PropertyScope home: http://localhost:{ports['shared-frontend'][1]}")
+    print(f"PropertyScope:      http://localhost:{ports['feature-1-frontend'][1]}")
     if full_data:
         print("Full-data mode:     enabled in an isolated Compose project")
     if offline:
