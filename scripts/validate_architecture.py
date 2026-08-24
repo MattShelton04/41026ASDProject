@@ -25,9 +25,7 @@ POSTGRES_CLIENT_IMPORTS = frozenset({"asyncpg", "psycopg", "psycopg2", "sqlalche
 PROPERTYSCOPE_DATABASE_CREDENTIAL = "PROPERTYSCOPE_DATABASE_URL"
 PROPERTYSCOPE_POSTGRES_VOLUMES = frozenset({"feature-1-postgres-data"})
 PROPERTYSCOPE_ARTIFACT_VOLUME = "feature-1-artifacts"
-PROPERTYSCOPE_DATABASE_SERVICES = frozenset(
-    {"feature-1-database-api", "feature-1-database-loader"}
-)
+PROPERTYSCOPE_DATABASE_SERVICES = frozenset({"feature-1-database-api", "feature-1-database-loader"})
 FRONTEND_STATIC_IMPORT_PATTERN = re.compile(
     r"(?ms)^\s*(?:import\s*[\"'](?P<side_effect>[^\"']+)[\"']|"
     r"(?:import|export)\b(?:(?!;).)*?\bfrom\s*[\"'](?P<from_path>[^\"']+)[\"'])"
@@ -476,8 +474,7 @@ def _validate_compose_boundaries(root: Path) -> Iterable[ArchitectureViolation]:
             yield ArchitectureViolation(
                 _relative(root, compose_path),
                 0,
-                "Compose service feature-1-runner must mount "
-                "feature-1-artifacts read/write",
+                "Compose service feature-1-runner must mount feature-1-artifacts read/write",
             )
         if service_name == "feature-1-database-loader" and artifact_mode != "ro":
             yield ArchitectureViolation(
