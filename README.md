@@ -9,10 +9,8 @@ framework-independent bounded agent state machine, and an AI-mode foundation wit
 SQLite workflow persistence, versioned prompts, OpenAI Responses API integration, an opt-in
 Gemini OpenAI-compatible development provider, health and
 agent-run APIs, a serial background worker, feature-scoped HTTP tools, resumable safe
-events, request idempotency, and human-review gating. The non-product
-`examples/integration-test-feature` proves the shared boundaries over real HTTP and
-SQLite and provides a browser integration console at `http://localhost:5190` when its
-Compose profile is enabled. Feature 1 is integrated through independently deployed frontend,
+events, request idempotency, and human-review gating. Feature 1 is integrated through
+independently deployed frontend,
 backend, runner, database API/loader and PostgreSQL/PostGIS containers; Features 2–5 remain
 unallocated placeholders.
 
@@ -112,8 +110,8 @@ uv run scripts/dev.py up --env-file .env.gemini
 The helper still converts the credential to a service-scoped Compose file secret. Select
 `gemini-quality.v1` only for an intentional Gemini 3.7 quality/cost comparison.
 
-Then open the unified PropertyScope home at <http://localhost:5100>, Feature 1 at
-<http://localhost:5200>, or the non-product integration fixture at <http://localhost:5190>.
+Then open the unified PropertyScope home at <http://localhost:5100> or Feature 1 at
+<http://localhost:5200>.
 The shared home also exposes live implemented-service status at
 <http://localhost:5100/#system-status>, bounded evidence references at
 <http://localhost:5100/#evidence>, and the honest deployment capability roadmap at
@@ -122,7 +120,7 @@ Python services reload when source changes and the frontends are bind-mounted. E
 BuildKit to reconcile images, so a newly pulled lockfile or Dockerfile cannot leave stale local
 images; unchanged layers remain cached. Use `rebuild [service ...]` for an explicit targeted
 rebuild. `doctor`, `status`, `logs`, `test`, `restart`, and `down` cover the rest of the common loop.
-`down` preserves AI-mode run history, PropertyScope data/artifacts, and example records. The
+`down` preserves AI-mode run history and PropertyScope data/artifacts. The
 explicit `reset` command deletes only volumes labelled for the selected Compose project.
 
 For browser/UI work that does not need Docker, databases or a model credential, start Shared and
@@ -188,17 +186,6 @@ Compose starts AI-mode without a local model runtime; the installed diagnostic p
 real structured-output and model-access check against OpenAI. Secret handling, configuration,
 lifecycle commands, and troubleshooting are documented in
 [`docs/release-0/openai-api-operations.md`](docs/release-0/openai-api-operations.md).
-
-The helper above previews the non-product integration feature as a working vertical slice.
-To reproduce its production-like Compose commands directly, add the integration overlay and
-profile:
-
-```text
-docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test up --detach --build --wait --wait-timeout 120 ai-mode integration-test-feature-database integration-test-feature-backend integration-test-feature-frontend
-```
-
-Then open <http://localhost:5190>. Detailed behavior and teardown commands are in
-[`examples/integration-test-feature/README.md`](examples/integration-test-feature/README.md).
 
 For the shared read-only AI-mode operations dashboard, set
 `AI_MODE_OPERATIONS_ENABLED=true` in the local environment or `.env`, start AI-mode, and open

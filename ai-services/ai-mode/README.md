@@ -218,8 +218,6 @@ and maps failures to safe typed results without response-body leakage.
 
 An optional `/development/agent-runs/{id}` evidence view exists only when a bearer token
 of at least 16 characters is configured. It HTML-escapes content and redacts sensitive
-field names. The `examples/integration-test-feature` package proves a full deterministic
-loop over real HTTP and a separately owned SQLite database without claiming a product
-feature. Production feature manifests, endpoints, and Compose topology still require
-the approved team domain and feature ownership decisions.
+field names. Feature 1 provides the integrated real-HTTP boundary evidence; future feature
+manifests, endpoints, and Compose topology still require approved ownership decisions.
 MCP, RAG, and multi-agent runtime services remain release-gated.

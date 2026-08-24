@@ -15,7 +15,6 @@ CORE_TEST_PATHS = (
     "shared/testkit/tests",
     "ai-services/agent-core/tests",
     "ai-services/ai-mode/tests",
-    "examples/integration-test-feature/tests",
     "scripts/tests",
 )
 FRONTEND_TEST_PATHS = (
@@ -52,7 +51,6 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "shared/testkit/python/shared_testkit",
         "ai-services/agent-core/src/agent_core",
         "ai-services/ai-mode/src/ai_mode",
-        "examples/integration-test-feature/src/integration_test_feature",
         "student-1/backend/src/propertyscope_data_platform",
         "student-1/database/src/propertyscope_data_store",
         "student-1/tests",
@@ -73,7 +71,6 @@ TEST_COMMANDS: tuple[Command, ...] = (
         "pytest",
         "--cov=agent_core",
         "--cov=ai_mode",
-        "--cov=integration_test_feature",
         "--cov=shared_contracts",
         "--cov=shared_testkit",
         "--cov-report=term-missing",

@@ -11,9 +11,7 @@ from shared_contracts import (
 )
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "features"
-EXAMPLE_MANIFEST = (
-    Path(__file__).resolve().parents[3] / "examples" / "integration-test-feature" / "feature.yaml"
-)
+PRODUCT_MANIFEST = Path(__file__).resolve().parents[3] / "student-1" / "feature.yaml"
 
 
 def _write_manifest(path: Path, *, owner: str, feature_key: str, frontend: str) -> None:
@@ -54,14 +52,12 @@ def test_five_owner_fixtures_form_a_complete_deterministic_catalogue() -> None:
     ]
 
 
-def test_integration_test_feature_uses_the_same_manifest_contract() -> None:
-    manifest = load_feature_manifest(EXAMPLE_MANIFEST)
+def test_product_feature_uses_the_same_manifest_contract() -> None:
+    manifest = load_feature_manifest(PRODUCT_MANIFEST)
 
-    assert manifest.feature_key == "student-1-integration-test"
-    assert manifest.ai_capabilities == (
-        "integration_test.records.search.v1",
-        "integration_test.records.create.v1",
-    )
+    assert manifest.feature_key == "student-1-propertyscope-data-platform"
+    assert "property.search.v1" in manifest.ai_capabilities
+    assert "data.release_publish.v1" in manifest.ai_capabilities
 
 
 @pytest.mark.parametrize(

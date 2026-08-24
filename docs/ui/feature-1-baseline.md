@@ -42,13 +42,12 @@ modules served by Nginx. Python 3.12 projects share the root `uv.lock`.
 | Shared AI activity UI | Shared presentation assets; `shared/frontend/operations/ai-mode/`, served by AI-mode | Included in `ai-mode` image; `/operations/ai-mode/` only when `AI_MODE_OPERATIONS_ENABLED=true` (Compose default is true) | `node --test shared/frontend/operations/ai-mode/polling.test.mjs`; Python operations frontend/API tests | Calls AI-mode's domain-neutral run list/detail/event projections; optional query filters select feature/run. No direct store access. |
 | Shared mapping package | Shared; `shared/frontend/mapping/` | Copied into Feature 1 production image and mounted read-only in dev; MapLibre loaded lazily | `node --test shared/frontend/mapping/mapping.test.mjs` | Feature supplies bounded GeoJSON and meaning; provider supplies OpenFreeMap style/tiles with a local neutral fallback. |
 | PropertyScope v2 prototype | Historical/review artifact; `docs/prototype/propertyscope-v2/` | Static files only; not in canonical Compose or release ingress | No canonical test command | Hard-coded prototype data. It is not runtime authority and must not be treated as a second application. |
-| Non-product integration fixture | Shared test infrastructure; `examples/integration-test-feature/` | Root dev command or integration-test Compose profile; direct port 5190 | Python component/integration tests inside canonical gate | Own backend/database plus AI-mode; deliberately not Feature 1 product behavior. |
 | Feature 1 backend/runner/database | student-1; `student-1/backend/`, `student-1/database/` | Root dev command builds backend, runner, database API/loader, and PostgreSQL; optional isolated `--full-data` overlay | Python unit, contract, component, and real-HTTP tests under `student-1/tests` | Browser calls backend only. Backend and runner use database API HTTP. Only database API/loader receive PostgreSQL credentials. |
 | Shared Python kernel | Shared; `shared/contracts`, `shared/testkit`, `agent-core`, `ai-mode` | `uv sync --locked --all-packages --all-groups`; AI-mode can run with `uv run flask --app ai_mode:create_app run --port 5005` | Ruff, mypy, pytest, schema/architecture/registry/catalogue validators in `scripts/check.py` | Contracts remain domain-neutral. Feature tools are registered by versioned YAML and called over HTTP. |
 | Features 2-5 | Unallocated `student-2/` through `student-5/` placeholders | No product runtime | Root workspace/package placeholders only | Shared registry reserves routes but marks all four unimplemented and disabled. |
 
-The canonical dev workflow composes `docker-compose.yml`,
-`docker-compose.integration-test.yml`, and `docker-compose.dev.yml`. `--full-data` adds an isolated
+The canonical dev workflow composes `docker-compose.yml` and `docker-compose.dev.yml`.
+`--full-data` adds an isolated
 project and `docker-compose.full-data.yml`; it is not required for deterministic showcase UI work.
 
 ## Dependency and deployment direction

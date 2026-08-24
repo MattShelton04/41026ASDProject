@@ -222,7 +222,6 @@ def test_up_prints_configured_urls(
     del captured_commands
     monkeypatch.setenv("PROPERTYSCOPE_SHARED_PORT", "5310")
     monkeypatch.setenv("AI_MODE_PORT", "5311")
-    monkeypatch.setenv("INTEGRATION_TEST_FEATURE_PORT", "5312")
     monkeypatch.setenv("PROPERTYSCOPE_PORT", "5313")
 
     assert dev.main(["up"]) == 0
@@ -230,7 +229,6 @@ def test_up_prints_configured_urls(
     output = capsys.readouterr().out
     assert "http://localhost:5310" in output
     assert "http://localhost:5311/health/ready" in output
-    assert "http://localhost:5312" in output
     assert "http://localhost:5313" in output
 
 

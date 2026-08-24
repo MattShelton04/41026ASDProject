@@ -28,17 +28,13 @@ import yaml
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILES = (
     "docker-compose.yml",
-    "docker-compose.integration-test.yml",
     "docker-compose.dev.yml",
 )
 FULL_DATA_COMPOSE_FILE = "docker-compose.full-data.yml"
-PROFILES = ("release-0", "integration-test")
+PROFILES = ("release-0",)
 APPLICATION_SERVICES = (
     "propertyscope-shared-frontend",
     "ai-mode",
-    "integration-test-feature-database",
-    "integration-test-feature-backend",
-    "integration-test-feature-frontend",
     "propertyscope-database-api",
     "propertyscope-database-loader",
     "propertyscope-backend",
@@ -73,7 +69,6 @@ TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
 HOST_PORTS = {
     "propertyscope-shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),
     "ai-mode": ("AI_MODE_PORT", 5005),
-    "integration-test-feature-frontend": ("INTEGRATION_TEST_FEATURE_PORT", 5190),
     "propertyscope-frontend": ("PROPERTYSCOPE_PORT", 5200),
 }
 UI_FIXTURE_SCENARIOS = (
@@ -473,10 +468,7 @@ def _up(*, full_data: bool, offline: bool) -> None:
         environment=compose_environment,
     )
     ports = _resolved_host_ports(APPLICATION_SERVICES)
-    print(
-        f"\nIntegration console: http://localhost:{ports['integration-test-feature-frontend'][1]}"
-    )
-    print(f"AI-mode health:     http://localhost:{ports['ai-mode'][1]}/health/ready")
+    print(f"\nAI-mode health:     http://localhost:{ports['ai-mode'][1]}/health/ready")
     print(f"PropertyScope home: http://localhost:{ports['propertyscope-shared-frontend'][1]}")
     print(f"PropertyScope:      http://localhost:{ports['propertyscope-frontend'][1]}")
     if full_data:

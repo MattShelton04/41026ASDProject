@@ -20,7 +20,6 @@ SHARED_CONTRACTS = "shared-contracts"
 SHARED_TESTKIT = "shared-testkit"
 AGENT_CORE = "agent-core"
 AI_MODE = "ai-mode"
-INTEGRATION_FIXTURE = "integration-test-feature"
 PROPERTYSCOPE_DATABASE_IMPORT = "propertyscope_data_store"
 POSTGRES_CLIENT_IMPORTS = frozenset({"asyncpg", "psycopg", "psycopg2", "sqlalchemy"})
 PROPERTYSCOPE_DATABASE_CREDENTIAL = "PROPERTYSCOPE_DATABASE_URL"
@@ -57,17 +56,13 @@ ALLOWED_WORKSPACE_DEPENDENCIES: Mapping[str, frozenset[str]] = {
     SHARED_TESTKIT: frozenset({SHARED_CONTRACTS, AGENT_CORE}),
     AGENT_CORE: frozenset({SHARED_CONTRACTS}),
     AI_MODE: frozenset({SHARED_CONTRACTS, AGENT_CORE}),
-    INTEGRATION_FIXTURE: frozenset({SHARED_CONTRACTS}),
 }
 
 PRODUCTION_IMPORT_DENYLISTS: Mapping[str, frozenset[str]] = {
-    SHARED_CONTRACTS: frozenset(
-        {"shared_testkit", "agent_core", "ai_mode", "integration_test_feature"}
-    ),
-    SHARED_TESTKIT: frozenset({"ai_mode", "integration_test_feature"}),
-    AGENT_CORE: frozenset({"shared_testkit", "ai_mode", "integration_test_feature"}),
-    AI_MODE: frozenset({"shared_testkit", "integration_test_feature"}),
-    INTEGRATION_FIXTURE: frozenset({"shared_testkit", "agent_core", "ai_mode"}),
+    SHARED_CONTRACTS: frozenset({"shared_testkit", "agent_core", "ai_mode"}),
+    SHARED_TESTKIT: frozenset({"ai_mode"}),
+    AGENT_CORE: frozenset({"shared_testkit", "ai_mode"}),
+    AI_MODE: frozenset({"shared_testkit"}),
 }
 
 
@@ -586,7 +581,7 @@ def _allowed_workspace_dependencies(
 
 def _production_import_denylist(project: WorkspaceProject) -> frozenset[str]:
     if project.student_owner is not None:
-        return frozenset({"shared_testkit", "agent_core", "ai_mode", "integration_test_feature"})
+        return frozenset({"shared_testkit", "agent_core", "ai_mode"})
     return PRODUCTION_IMPORT_DENYLISTS.get(project.name, frozenset())
 
 
