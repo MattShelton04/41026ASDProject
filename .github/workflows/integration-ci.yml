@@ -62,7 +62,7 @@ jobs:
           OPENAI_API_KEY_FILE: /dev/null
         run: |
           docker compose --profile release-0 config --quiet
-          docker compose --file docker-compose.yml --file docker-compose.integration-test.yml --profile release-0 --profile integration-test config --quiet
+          docker compose --file docker-compose.yml --file docker-compose.dev.yml --profile release-0 config --quiet
 
   container:
     name: Build shared Release 0 containers
