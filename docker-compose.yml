@@ -120,8 +120,8 @@ services:
       retries: 30
       start_period: 10s
     stop_grace_period: 35s
-    mem_limit: ${PROPERTYSCOPE_DATABASE_MEMORY_LIMIT:-4g}
-    cpus: ${PROPERTYSCOPE_DATABASE_CPU_LIMIT:-4.0}
+    mem_limit: ${PROPERTYSCOPE_DATABASE_MEMORY_LIMIT:-2g}
+    cpus: ${PROPERTYSCOPE_DATABASE_CPU_LIMIT:-2.0}
 
   f1-db-loader:
     profiles: [release-0]
@@ -142,8 +142,8 @@ services:
       - f1-artifacts:/var/lib/propertyscope/artifacts:ro
     networks: [shared-platform]
     stop_grace_period: 35s
-    mem_limit: ${PROPERTYSCOPE_LOADER_MEMORY_LIMIT:-8g}
-    cpus: ${PROPERTYSCOPE_LOADER_CPU_LIMIT:-6.0}
+    mem_limit: ${PROPERTYSCOPE_LOADER_MEMORY_LIMIT:-4g}
+    cpus: ${PROPERTYSCOPE_LOADER_CPU_LIMIT:-2.0}
 
   f1-backend:
     profiles: [release-0]
@@ -204,8 +204,8 @@ services:
       - ./.propertyscope-source-cache:/var/lib/propertyscope/source-cache:ro
     networks: [shared-platform]
     stop_grace_period: 35s
-    mem_limit: ${PROPERTYSCOPE_RUNNER_MEMORY_LIMIT:-8g}
-    cpus: ${PROPERTYSCOPE_RUNNER_CPU_LIMIT:-6.0}
+    mem_limit: ${PROPERTYSCOPE_RUNNER_MEMORY_LIMIT:-4g}
+    cpus: ${PROPERTYSCOPE_RUNNER_CPU_LIMIT:-2.0}
 
   f1-frontend:
     profiles: [release-0]

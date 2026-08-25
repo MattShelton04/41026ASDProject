@@ -42,3 +42,11 @@ def test_overlays_and_resources_reuse_the_same_ownership_vocabulary() -> None:
 
     assert set(base["networks"]) == {"shared-platform"}
     assert all(SERVICE_NAME.fullmatch(name) for name in base["volumes"])
+
+
+def test_source_scale_resource_defaults_fit_two_cpu_hosts() -> None:
+    services = _compose("docker-compose.yml")["services"]
+
+    assert services["f1-db-api"]["cpus"] == "${PROPERTYSCOPE_DATABASE_CPU_LIMIT:-2.0}"
+    assert services["f1-db-loader"]["cpus"] == "${PROPERTYSCOPE_LOADER_CPU_LIMIT:-2.0}"
+    assert services["f1-runner"]["cpus"] == "${PROPERTYSCOPE_RUNNER_CPU_LIMIT:-2.0}"
