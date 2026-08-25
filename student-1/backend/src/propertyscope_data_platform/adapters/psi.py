@@ -400,6 +400,14 @@ def _decimal(value: str) -> Decimal | None:
 
 
 def _square_metres(value: str, unit: str) -> Decimal | None:
+    """Convert documented PSI area units without inventing source semantics.
+
+    The publisher documents ``M`` and ``H``, but its historical archives contain
+    a handful of non-empty ``U`` values.  Preserve those original facts through
+    ``area_original``/``area_unit`` and leave the derived metric value unset.
+    Rejecting one undocumented code would otherwise discard an entire annual
+    partition.
+    """
     amount = _decimal(value)
     if amount is None:
         return None
@@ -407,4 +415,4 @@ def _square_metres(value: str, unit: str) -> Decimal | None:
         return amount
     if unit.upper() == "H":
         return amount * 10_000
-    raise ValueError("PSI area unit is malformed")
+    return None

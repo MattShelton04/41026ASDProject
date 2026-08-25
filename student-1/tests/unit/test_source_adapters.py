@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import cast
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -372,6 +373,22 @@ def test_psi_archive_parses_pre_2001_root_dat_and_deduplicates_retransmission() 
     assert sales[0].source_era == "pre-2001"
     assert sales[0].contract_date == date(1999, 12, 31)
     assert sales[0].area_square_metres == 15000
+
+
+def test_psi_archive_preserves_undocumented_legacy_area_unit_without_conversion() -> None:
+    row = (
+        "B;255;ARCHIVE;0146000000;2687054;;127;CADELL ST WENTWORTH;WENTWORTH;;"
+        "01/04/1991;40500;LOT A;2529;U;;;;;\n"
+    )
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("ARCHIVE_SALES_1991.DAT", row)
+
+    sale = next(iter_psi_archive(stream.getvalue(), source_year=1991))
+
+    assert sale.area_original == Decimal("2529")
+    assert sale.area_unit == "U"
+    assert sale.area_square_metres is None
 
 
 def test_psi_archive_preserves_a_corrected_retransmission_as_a_revision() -> None:
