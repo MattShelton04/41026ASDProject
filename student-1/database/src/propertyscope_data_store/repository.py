@@ -1658,9 +1658,7 @@ class PropertyScopeStore:
             return execute_stream_import(connection, work, profile=profile, rows=rows)
 
     @contextmanager
-    def _cancellable_import_connection(
-        self, operation_id: uuid.UUID
-    ) -> Iterator[Connection[Any]]:
+    def _cancellable_import_connection(self, operation_id: uuid.UUID) -> Iterator[Connection[Any]]:
         """Cancel an in-flight PostgreSQL statement when its owning run is cancelled."""
         with self.connection() as connection:
             stopped = Event()

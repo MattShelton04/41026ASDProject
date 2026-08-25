@@ -168,7 +168,9 @@ class AcquisitionRunner:
         retryable: bool,
     ) -> None:
         safe_code = (
-            "quality_gate_failed" if str(task.get("stage")) == "quality" else "stage_execution_failed"
+            "quality_gate_failed"
+            if str(task.get("stage")) == "quality"
+            else "stage_execution_failed"
         )
         failure = self.client.post(
             f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task['id']}/fail",
@@ -598,7 +600,9 @@ class AcquisitionRunner:
             for item in records:
                 counter[0] += 1
                 if counter[0] > int(task.get("max_rows", 15_000_000)):
-                    raise RuntimeError("BOCSAR canonical output exceeds the registered capacity ceiling")
+                    raise RuntimeError(
+                        "BOCSAR canonical output exceeds the registered capacity ceiling"
+                    )
                 if counter[0] % 25_000 == 0:
                     self._heartbeat(str(task["id"]), str(task["lease_token"]))
                 yield (

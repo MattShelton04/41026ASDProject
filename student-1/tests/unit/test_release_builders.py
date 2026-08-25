@@ -343,9 +343,7 @@ def test_crime_builder_accepts_current_official_coverage_history() -> None:
         redistribution_policy="approved-bounded-extract",
     )
     months = tuple(
-        f"{year}-{month:02d}-01"
-        for year in range(1995, 2027)
-        for month in range(1, 13)
+        f"{year}-{month:02d}-01" for year in range(1995, 2027) for month in range(1, 13)
     )[:375]
     completeness = hashlib.sha256(json.dumps(months, separators=(",", ":")).encode()).hexdigest()
     coverage = {

@@ -451,9 +451,7 @@ def payload() -> dict[str, Any]:
 def pagination(*, maximum_limit: int = 100, default_limit: int = 25) -> tuple[int, int]:
     return query_integer(
         "limit", minimum=1, maximum=maximum_limit, default=default_limit
-    ), query_integer(
-        "offset", minimum=0, maximum=1000000, default=0
-    )
+    ), query_integer("offset", minimum=0, maximum=1000000, default=0)
 
 
 def query_integer(name: str, *, minimum: int, maximum: int, default: int) -> int:
