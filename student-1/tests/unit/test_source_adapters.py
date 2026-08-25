@@ -9,7 +9,11 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import httpx
 import pytest
 
-from propertyscope_data_platform.adapters.bocsar import parse_bocsar_archive, parse_bocsar_csv
+from propertyscope_data_platform.adapters.bocsar import (
+    CrimeCoverage,
+    parse_bocsar_archive,
+    parse_bocsar_csv,
+)
 from propertyscope_data_platform.adapters.gnaf import (
     inspect_gnaf_archive,
     iter_gnaf_archive_path,
@@ -158,6 +162,75 @@ def test_bocsar_archive_filters_geography_and_months() -> None:
     )
     assert [(item.geography_value, item.count) for item in observations] == [("2000", 2)]
     assert coverage[0].observed_months == (date(2025, 1, 1), date(2025, 2, 1))
+
+
+def test_full_data_bocsar_uses_the_registered_archive_expansion_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed: list[tuple[int, int]] = []
+
+    def archive_records(_content: bytes, **options: object) -> tuple[()]:
+        observed.append(
+            (
+                cast(int, options["maximum_rows"]),
+                cast(int, options["maximum_uncompressed_bytes"]),
+            )
+        )
+        return ()
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "runner", 0.1, 300)
+    )
+    monkeypatch.setattr(runner, "_download_registered", lambda *_args, **_kwargs: b"archive")
+    monkeypatch.setattr("propertyscope_data_platform.runner.iter_bocsar_archive", archive_records)
+    task = {
+        "id": "task-1",
+        "lease_token": "lease-1",
+        "max_bytes": 5_000_000_000,
+        "max_rows": 15_000_000,
+    }
+
+    assert (
+        list(
+            runner._live_bocsar_chunks(
+                task,
+                {"geography_kinds": ["postcode", "suburb"], "all_records": True},
+                [0],
+            )
+        )
+        == []
+    )
+    assert observed == [(500_000, 750_000_000), (500_000, 750_000_000)]
+
+
+def test_full_data_bocsar_enforces_canonical_capacity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed_source_limits: list[int] = []
+
+    def archive_records(_content: bytes, **options: object) -> tuple[CrimeCoverage, ...]:
+        observed_source_limits.append(cast(int, options["maximum_rows"]))
+        return tuple(
+            CrimeCoverage("postcode", str(index), "category", (date(2026, 1, 1),))
+            for index in range(3)
+        )
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "runner", 0.1, 300)
+    )
+    monkeypatch.setattr(runner, "_download_registered", lambda *_args, **_kwargs: b"archive")
+    monkeypatch.setattr(runner, "_heartbeat", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("propertyscope_data_platform.runner.iter_bocsar_archive", archive_records)
+    task = {
+        "id": "task-1",
+        "lease_token": "lease-1",
+        "max_bytes": 5_000_000_000,
+        "max_rows": 2,
+    }
+
+    with pytest.raises(RuntimeError, match="canonical output exceeds"):
+        list(runner._live_bocsar_chunks(task, {"geography_kind": "postcode"}, [0]))
+    assert observed_source_limits == [2]
 
 
 def test_psi_source_key_and_hectare_conversion() -> None:

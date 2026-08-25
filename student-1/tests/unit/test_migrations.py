@@ -161,3 +161,15 @@ def test_complete_source_acquisition_updates_bocsar_capacity() -> None:
 
     assert "max_bytes=2500000000" in migration
     assert "timeout_seconds=86400" in migration
+
+
+def test_current_bocsar_capacity_reconciles_the_durable_job() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("025_bocsar_current_source_capacity.sql")
+        .read_text("utf-8")
+    )
+
+    assert "max_objects=4" in migration
+    assert "max_bytes=5000000000" in migration
+    assert "max_rows=15000000" in migration

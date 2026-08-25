@@ -48,6 +48,8 @@ BOCSAR_URLS = {
     "suburb": "https://bocsarblob.blob.core.windows.net/bocsar-open-data/SuburbData.zip",
     "postcode": "https://bocsarblob.blob.core.windows.net/bocsar-open-data/PostcodeData.zip",
 }
+BOCSAR_SOURCE_ROW_CAPACITY = 500_000
+BOCSAR_ARCHIVE_EXPANSION_CAPACITY = 750_000_000
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip"
 PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{date}.zip"
 GNAF_CKAN_URL = (
@@ -565,14 +567,23 @@ class AcquisitionRunner:
             records = iter_bocsar_archive(
                 content,
                 geography_kind=kind,
-                maximum_rows=int(task.get("max_rows", 100_000)),
+                maximum_rows=min(
+                    int(task.get("max_rows", BOCSAR_SOURCE_ROW_CAPACITY)),
+                    BOCSAR_SOURCE_ROW_CAPACITY,
+                ),
                 geography_values=geography_values,
                 start_month=_month_scope(scope.get("start_month")),
                 end_month=_month_scope(scope.get("end_month")),
                 maximum_records=_record_limit(task, scope),
+                maximum_uncompressed_bytes=min(
+                    int(task.get("max_bytes", BOCSAR_ARCHIVE_EXPANSION_CAPACITY)),
+                    BOCSAR_ARCHIVE_EXPANSION_CAPACITY,
+                ),
             )
             for item in records:
                 counter[0] += 1
+                if counter[0] > int(task.get("max_rows", 15_000_000)):
+                    raise RuntimeError("BOCSAR canonical output exceeds the registered capacity ceiling")
                 if counter[0] % 25_000 == 0:
                     self._heartbeat(str(task["id"]), str(task["lease_token"]))
                 yield (

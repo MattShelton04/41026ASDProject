@@ -28,6 +28,10 @@ than unrestricted warehouse access.
 - Adapter byte, member, source-row, elapsed-time and canonical-row ceilings remain capacity
   and corruption safeguards. Crossing one fails the candidate atomically; it never returns
   a successful truncated generation.
+- BOCSAR keeps its wide source-row ceiling separate from its sparse canonical-row ceiling.
+  As of the August 2026 source snapshot, the two registered archives contain 318,122 wide
+  rows and expand to 10,114,565 canonical observations and coverage records; the capacities
+  include growth headroom without constraining the separately bounded consumer release.
 - Source-scale G-NAF and BOCSAR canonical records use NDJSON between the runner and serial
   PostgreSQL loader. G-NAF spills its multi-file geocode join to runner-local temporary
   SQLite so millions of addresses are not accumulated in application memory. BOCSAR emits
