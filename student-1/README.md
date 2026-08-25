@@ -47,7 +47,9 @@ The PSI adapter is verified against real publisher archives and parses every ann
 DAT members are consumed as streams, so the archive and expanded records are not duplicated in
 application memory. Ordinary publisher requests may receive HTTP 403, so acquisition retries
 through validated bounded Range requests; a read-only cache can avoid repeat downloads. Fixture
-runs never silently stand in for a requested live run.
+runs never silently stand in for a requested live run. A handful of publisher rows contain an
+undocumented area unit or impossible nonblank date: the original sale/area facts remain retained,
+while derived square metres or dates are left unknown rather than guessed.
 
 ## Run it locally
 
