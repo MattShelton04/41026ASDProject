@@ -212,7 +212,9 @@ Release 0 uses verified BOCSAR **postcode** geography. The registered scopes and
 fixtures use `geography_kind=postcode`; no postcode-to-suburb translation occurs. The builder
 retains one exact sorted `observed_months` universe per geography/category, first/last/count,
 completeness hash, `blank_means_observed_zero`, sparse positive observations, and coverage-only
-series. An absent sparse observation means zero only when that exact month is present and the flag
+series. The v1 coverage capacity is 600 months; the August 2026 official archives currently
+contain 372–375 months from 1995 onward, so this is a growth guard rather than a truncation rule.
+An absent sparse observation means zero only when that exact month is present and the flag
 is true. Outside-coverage months are unavailable, not zero. Feature 1 does not calculate rates,
 safety rankings, hotspots, street inference, desirability, predictions, or causality.
 

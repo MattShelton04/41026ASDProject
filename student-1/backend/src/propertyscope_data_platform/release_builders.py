@@ -107,13 +107,13 @@ class CrimeSeriesRecord(ProductModel):
     source_category_key: str = Field(min_length=1, max_length=200)
     offence_label: str | None = None
     subcategory_label: str | None = None
-    observed_months: tuple[str, ...] = Field(min_length=1, max_length=240)
+    observed_months: tuple[str, ...] = Field(min_length=1, max_length=600)
     first_month: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     last_month: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
-    month_count: int = Field(ge=1, le=240)
+    month_count: int = Field(ge=1, le=600)
     blank_means_observed_zero: bool
     completeness_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    observations: tuple[CrimeObservation, ...] = Field(max_length=240)
+    observations: tuple[CrimeObservation, ...] = Field(max_length=600)
     provenance: ProductProvenance
 
     @model_validator(mode="after")

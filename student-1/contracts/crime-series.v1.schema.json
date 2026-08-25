@@ -61,7 +61,7 @@
           "type": "string"
         },
         "month_count": {
-          "maximum": 240,
+          "maximum": 600,
           "minimum": 1,
           "title": "Month Count",
           "type": "integer"
@@ -70,7 +70,7 @@
           "items": {
             "$ref": "#/$defs/CrimeObservation"
           },
-          "maxItems": 240,
+          "maxItems": 600,
           "title": "Observations",
           "type": "array"
         },
@@ -78,7 +78,7 @@
           "items": {
             "type": "string"
           },
-          "maxItems": 240,
+          "maxItems": 600,
           "minItems": 1,
           "title": "Observed Months",
           "type": "array"

@@ -105,6 +105,7 @@ def test_existing_build_release_defect_is_closed_by_constructing_the_configured_
                 },
             )
         if request.method == "GET" and request.url.path.endswith("/product-records"):
+            assert request.url.params["limit"] == "5000"
             return httpx.Response(
                 200,
                 json={"items": [_property_row()], "count": 1, "total": 1, "next_offset": None},
@@ -333,6 +334,40 @@ def test_crime_builder_preserves_exact_coverage_and_coverage_only_series() -> No
     assert series["blank_means_observed_zero"] is True
 
 
+def test_crime_builder_accepts_current_official_coverage_history() -> None:
+    builder = resolve_release_builder("crime-series", "1.0.0")
+    context = _context(
+        dataset_id="bocsar-crime",
+        target_feature="feature-3",
+        import_profile="bocsar-sparse",
+        redistribution_policy="approved-bounded-extract",
+    )
+    months = tuple(
+        f"{year}-{month:02d}-01"
+        for year in range(1995, 2027)
+        for month in range(1, 13)
+    )[:375]
+    completeness = hashlib.sha256(json.dumps(months, separators=(",", ":")).encode()).hexdigest()
+    coverage = {
+        "record_kind": "coverage",
+        "geography_kind": "suburb",
+        "geography_value": "Sydney",
+        "source_category_key": "fixture-category",
+        "observed_months": list(months),
+        "first_month": months[0],
+        "last_month": months[-1],
+        "month_count": len(months),
+        "blank_means_observed_zero": True,
+        "completeness_sha256": completeness,
+        "source_row_sha256": "c" * 64,
+        "normalisation_version": "1.0.0",
+    }
+
+    product = builder.build(context, [coverage], created_at=FIXED_TIME)
+
+    assert len(json.loads(product.content)["records"][0]["observed_months"]) == 375
+
+
 def test_school_builder_orders_codes_and_preserves_non_operational_status() -> None:
     builder = resolve_release_builder("school-points", "1.0.0")
     context = _context(
@@ -462,9 +497,10 @@ def test_runner_rejects_generation_change_during_pagination(tmp_path: Path) -> N
     run_id = "50000000-0000-0000-0000-000000000098"
     release_id = "60000000-0000-0000-0000-000000000098"
     page = 0
+    heartbeat = False
 
     def backend(request: httpx.Request) -> httpx.Response:
-        nonlocal page
+        nonlocal heartbeat, page
         if request.url.path.endswith("/release-build-context"):
             context = _context(
                 release_id=release_id,
@@ -479,6 +515,9 @@ def test_runner_rejects_generation_change_during_pagination(tmp_path: Path) -> N
                     "release_id": release_id,
                 },
             )
+        if request.url.path.endswith("/heartbeat"):
+            heartbeat = True
+            return httpx.Response(200, json={"task": {"status": "running"}})
         page += 1
         return httpx.Response(
             200,
@@ -505,5 +544,7 @@ def test_runner_rejects_generation_change_during_pagination(tmp_path: Path) -> N
                 "ingestion_run_id": run_id,
                 "stage": "build_release",
                 "logical_key": "06/build_release",
+                "lease_token": "lease-1",
             }
         )
+    assert heartbeat is True
