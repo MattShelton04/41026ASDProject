@@ -54,8 +54,6 @@ def validate_job_scope(
     raw_scope: Any,
     *,
     run_mode: str,
-    full_data_enabled: bool = False,
-    psi_transport_enabled: bool = False,
 ) -> tuple[dict[str, Any] | None, ScopeProblem | None]:
     """Bound operator scope overrides and reject unavailable live transports."""
     if not isinstance(raw_scope, dict):
@@ -94,19 +92,14 @@ def validate_job_scope(
         error = _validate_psi_scope(scope, bounded_scope)
         if error is not None:
             return None, error
-    if run_mode == "full_refresh" and profile == "full-data" and not full_data_enabled:
-        return None, ScopeProblem(
-            422,
-            "full_data_runtime_disabled",
-            "Start the explicit full-data runtime before launching live acquisition",
-        )
     import_profile = str(job.get("import_profile_key"))
     connected = import_profile in {
         "schools-master",
         "bocsar-sparse",
         "gnaf-nsw",
         "property-fixture",
-    } or (import_profile == "psi-sales" and psi_transport_enabled)
+        "psi-sales",
+    }
     if run_mode == "full_refresh" and profile == "full-data" and not connected:
         return None, ScopeProblem(
             422,

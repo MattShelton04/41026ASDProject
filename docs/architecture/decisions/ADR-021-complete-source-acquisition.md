@@ -1,6 +1,6 @@
 # ADR-021: Separate complete source acquisition from bounded consumer products
 
-- Status: Accepted
+- Status: Accepted; deployment isolation superseded by ADR-022
 - Date: 25 August 2026
 - Owner: PropertyScope Feature 1
 - Extends: ADR-016
@@ -43,8 +43,9 @@ than unrestricted warehouse access.
 ## Consequences
 
 Operators can request complete official data from the browser without choosing an arbitrary
-record count. Long-running jobs consume more disk and time, so they remain isolated in the
-opt-in full-data Compose project and preserve the previous accepted generation until review.
+record count. Long-running jobs consume more disk and time, so they remain explicit reviewed jobs
+and preserve the previous accepted generation until review. ADR-022 connects those jobs in the
+default runtime instead of a separate Compose project.
 
 Release manifests and consumer receipts continue to describe the bounded product actually
 sent across a feature boundary. Run/import evidence describes the complete source generation.

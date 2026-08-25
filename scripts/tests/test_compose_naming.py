@@ -21,7 +21,6 @@ def _compose(filename: str) -> dict[str, Any]:
 def test_compose_projects_have_short_purpose_specific_names() -> None:
     assert _compose("docker-compose.yml")["name"] == "ps"
     assert _compose("docker-compose.dev.yml")["name"] == "ps-dev"
-    assert _compose("docker-compose.full-data.yml")["name"] == "ps-full"
 
 
 def test_services_use_ownership_prefixes_and_compose_generated_container_names() -> None:
@@ -38,7 +37,7 @@ def test_services_use_ownership_prefixes_and_compose_generated_container_names()
 def test_overlays_and_resources_reuse_the_same_ownership_vocabulary() -> None:
     base = _compose("docker-compose.yml")
     base_services = set(base["services"])
-    for filename in ("docker-compose.dev.yml", "docker-compose.full-data.yml"):
+    for filename in ("docker-compose.dev.yml",):
         assert set(_compose(filename)["services"]) <= base_services
 
     assert set(base["networks"]) == {"shared-platform"}

@@ -34,8 +34,6 @@ from scripts.devtools.config import (
     COMPOSE_FILES,
     DEFAULT_PROJECT_NAME,
     DEFAULT_UI_FIXTURE_PORT,
-    FULL_DATA_COMPOSE_FILE,
-    FULL_DATA_PROJECT_NAME,
     HOST_PORTS,
     JOB_PROFILE_DIRECTORY,
     OFFLINE_OPENAI_CREDENTIAL,
@@ -51,16 +49,11 @@ from scripts.devtools.config import (
 )
 
 
-def _compose_command(*arguments: str, full_data: bool = False) -> tuple[str, ...]:
+def _compose_command(*arguments: str) -> tuple[str, ...]:
     command = ["docker", "compose"]
-    if full_data:
-        command.extend(("--project-name", FULL_DATA_PROJECT_NAME))
     for filename in COMPOSE_FILES:
         command.extend(("--file", filename))
-    if full_data:
-        command.extend(("--file", FULL_DATA_COMPOSE_FILE))
-    profiles = (*PROFILES, "full-data") if full_data else PROFILES
-    for profile in profiles:
+    for profile in PROFILES:
         command.extend(("--profile", profile))
     command.extend(arguments)
     return tuple(command)
@@ -167,9 +160,9 @@ def _published_port_owners(port: int) -> tuple[tuple[str, str], ...]:
     return tuple(owners)
 
 
-def _preflight_compose_host_ports(*, services: Sequence[str], full_data: bool) -> None:
+def _preflight_compose_host_ports(*, services: Sequence[str]) -> None:
     """Reject conflicting host ports before secrets, builds, or container mutation."""
-    project = FULL_DATA_PROJECT_NAME if full_data else DEFAULT_PROJECT_NAME
+    project = DEFAULT_PROJECT_NAME
     conflicts: list[str] = []
     for service, (variable, port) in _resolved_host_ports(services).items():
         if _host_port_is_available(port):
@@ -239,15 +232,14 @@ def _load_environment_file(path: Path) -> None:
         os.environ.setdefault(name, value)
 
 
-def _runtime_secret_path(*, full_data: bool) -> Path:
-    suffix = ".full-data" if full_data else ""
-    return RUNTIME_DIRECTORY / f"openai_api_key{suffix}"
+def _runtime_secret_path() -> Path:
+    return RUNTIME_DIRECTORY / "openai_api_key"
 
 
-def _write_openai_secret(credential: str, *, full_data: bool) -> Path:
+def _write_openai_secret(credential: str) -> Path:
     """Materialise a Compose file secret without exposing it in rendered configuration."""
     RUNTIME_DIRECTORY.mkdir(parents=True, exist_ok=True)
-    destination = _runtime_secret_path(full_data=full_data)
+    destination = _runtime_secret_path()
     with NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
@@ -263,8 +255,8 @@ def _write_openai_secret(credential: str, *, full_data: bool) -> Path:
     return destination
 
 
-def _remove_openai_secret(*, full_data: bool) -> None:
-    _runtime_secret_path(full_data=full_data).unlink(missing_ok=True)
+def _remove_openai_secret() -> None:
+    _runtime_secret_path().unlink(missing_ok=True)
     with suppress(OSError):
         RUNTIME_DIRECTORY.rmdir()
 
@@ -390,34 +382,31 @@ def _sync_psi(*, years: Sequence[int], weeks: Sequence[date]) -> None:
             )
 
 
-def _compose_environment(*, full_data: bool, offline: bool) -> Mapping[str, str]:
+def _compose_environment(*, offline: bool) -> Mapping[str, str]:
     credential = _openai_credential(offline=offline)
     environment = os.environ.copy()
     environment.pop("OPENAI_API_KEY", None)
     environment.pop("GEMINI_API_KEY", None)
-    secret_path = str(_write_openai_secret(credential, full_data=full_data))
+    secret_path = str(_write_openai_secret(credential))
     environment["OPENAI_API_KEY_FILE"] = secret_path
     environment["GEMINI_API_KEY_FILE"] = secret_path
     if offline:
         environment["AI_MODE_REQUIRE_PROVIDER_READY"] = "false"
-    if full_data:
-        years = _psi_cache_years()
-        weeks = _psi_cache_weeks()
-        environment.setdefault("PROPERTYSCOPE_PSI_TRANSPORT_ENABLED", "true")
-        if years:
-            environment.setdefault("PROPERTYSCOPE_PSI_CACHED_YEARS", ",".join(map(str, years)))
-        if weeks:
-            environment.setdefault("PROPERTYSCOPE_PSI_CACHED_WEEKS", ",".join(weeks))
+    years = _psi_cache_years()
+    weeks = _psi_cache_weeks()
+    if years:
+        environment.setdefault("PROPERTYSCOPE_PSI_CACHED_YEARS", ",".join(map(str, years)))
+    if weeks:
+        environment.setdefault("PROPERTYSCOPE_PSI_CACHED_WEEKS", ",".join(weeks))
     return environment
 
 
-def _up(*, full_data: bool, offline: bool) -> None:
+def _up(*, offline: bool) -> None:
     _openai_credential(offline=offline)
     _ensure_docker()
-    _preflight_compose_host_ports(services=APPLICATION_SERVICES, full_data=full_data)
-    compose_environment = _compose_environment(full_data=full_data, offline=offline)
-    if full_data:
-        print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
+    _preflight_compose_host_ports(services=APPLICATION_SERVICES)
+    compose_environment = _compose_environment(offline=offline)
+    print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
     _run(
         _compose_command(
             "up",
@@ -427,7 +416,6 @@ def _up(*, full_data: bool, offline: bool) -> None:
             "--wait-timeout",
             "180",
             *APPLICATION_SERVICES,
-            full_data=full_data,
         ),
         environment=compose_environment,
     )
@@ -435,20 +423,19 @@ def _up(*, full_data: bool, offline: bool) -> None:
     print(f"\nAI-mode health:     http://localhost:{ports['shared-ai-mode'][1]}/health/ready")
     print(f"PropertyScope home: http://localhost:{ports['shared-frontend'][1]}")
     print(f"PropertyScope:      http://localhost:{ports['f1-frontend'][1]}")
-    if full_data:
-        print("Full-data mode:     enabled in an isolated Compose project")
+    print("Official sources:   enabled (small and complete job scopes available)")
     if offline:
         print("AI provider:        offline (data workflows remain available)")
 
 
-def _rebuild(services: Sequence[str], *, full_data: bool, offline: bool) -> None:
+def _rebuild(services: Sequence[str], *, offline: bool) -> None:
     _openai_credential(offline=offline)
     _ensure_docker()
     selected = tuple(services) or BUILD_SERVICES
-    _preflight_compose_host_ports(services=selected, full_data=full_data)
-    compose_environment = _compose_environment(full_data=full_data, offline=offline)
+    _preflight_compose_host_ports(services=selected)
+    compose_environment = _compose_environment(offline=offline)
     _run(
-        _compose_command("build", *selected, full_data=full_data),
+        _compose_command("build", *selected),
         environment=compose_environment,
     )
     _run(
@@ -460,7 +447,6 @@ def _rebuild(services: Sequence[str], *, full_data: bool, offline: bool) -> None
             "--wait-timeout",
             "180",
             *selected,
-            full_data=full_data,
         ),
         environment=compose_environment,
     )
@@ -484,19 +470,19 @@ def _production_build(services: Sequence[str]) -> None:
     )
 
 
-def _down(*, full_data: bool, remove_volumes: bool = False) -> None:
+def _down(*, remove_volumes: bool = False) -> None:
     _ensure_docker()
     arguments = ["down", "--remove-orphans"]
     if remove_volumes:
         arguments.append("--volumes")
-    _run(_compose_command(*arguments, full_data=full_data))
-    _remove_openai_secret(full_data=full_data)
+    _run(_compose_command(*arguments))
+    _remove_openai_secret()
 
 
-def _reset(*, full_data: bool) -> None:
+def _reset() -> None:
     """Delete only volumes labelled for the selected Compose project."""
-    _down(full_data=full_data, remove_volumes=True)
-    project_name = FULL_DATA_PROJECT_NAME if full_data else DEFAULT_PROJECT_NAME
+    _down(remove_volumes=True)
+    project_name = DEFAULT_PROJECT_NAME
     _run(
         (
             "docker",
@@ -511,11 +497,11 @@ def _reset(*, full_data: bool) -> None:
     print(f"Reset durable Docker volumes for Compose project {project_name}.", flush=True)
 
 
-def _doctor(*, full_data: bool) -> None:
+def _doctor() -> None:
     """Validate local prerequisites and the selected merged Compose model."""
     _ensure_docker()
     _run(("docker", "compose", "version"))
-    _run(_compose_command("config", "--quiet", full_data=full_data))
+    _run(_compose_command("config", "--quiet"))
     provider = os.environ.get("AI_MODE_LLM_PROVIDER", "openai").strip().lower()
     variable = "GEMINI_API_KEY" if provider == "gemini" else "OPENAI_API_KEY"
     credential_state = "available" if os.environ.get(variable, "").strip() else "missing"
@@ -523,9 +509,8 @@ def _doctor(*, full_data: bool) -> None:
         f"{provider.title()} credential: {credential_state} (--offline remains available)",
         flush=True,
     )
-    if full_data:
-        print(f"Cached PSI annual archives: {len(_psi_cache_years())}", flush=True)
-        print(f"Cached PSI weekly archives: {len(_psi_cache_weeks())}", flush=True)
+    print(f"Cached PSI annual archives: {len(_psi_cache_years())}", flush=True)
+    print(f"Cached PSI weekly archives: {len(_psi_cache_weeks())}", flush=True)
 
 
 def _json_response(response: httpx.Response) -> dict[str, Any]:
@@ -694,24 +679,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             _load_environment_file(arguments.env_file)
         command = (arguments.group, arguments.action)
         if command == ("stack", "up"):
-            _up(full_data=arguments.full_data, offline=arguments.offline)
+            _up(offline=arguments.offline)
         elif command == ("stack", "build"):
             _production_build(arguments.services)
         elif command == ("stack", "rebuild"):
             _rebuild(
                 arguments.services,
-                full_data=arguments.full_data,
                 offline=arguments.offline,
             )
         elif command == ("stack", "restart"):
             _openai_credential(offline=arguments.offline)
             _ensure_docker()
-            _preflight_compose_host_ports(
-                services=APPLICATION_SERVICES,
-                full_data=arguments.full_data,
-            )
+            _preflight_compose_host_ports(services=APPLICATION_SERVICES)
             compose_environment = _compose_environment(
-                full_data=arguments.full_data,
                 offline=arguments.offline,
             )
             _run(
@@ -723,22 +703,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "--wait-timeout",
                     "180",
                     *APPLICATION_SERVICES,
-                    full_data=arguments.full_data,
                 ),
                 environment=compose_environment,
             )
         elif command == ("stack", "down"):
-            _down(full_data=arguments.full_data)
+            _down()
         elif command == ("stack", "reset"):
-            _reset(full_data=arguments.full_data)
+            _reset()
         elif command == ("stack", "doctor"):
-            _doctor(full_data=arguments.full_data)
+            _doctor()
         elif command == ("stack", "status"):
             _ensure_docker()
-            _run(_compose_command("ps", full_data=arguments.full_data))
+            _run(_compose_command("ps"))
         elif command == ("stack", "config"):
             _ensure_docker()
-            _run(_compose_command("config", "--quiet", full_data=arguments.full_data))
+            _run(_compose_command("config", "--quiet"))
         elif command == ("stack", "logs"):
             _ensure_docker()
             selected = tuple(arguments.services) or APPLICATION_SERVICES
@@ -749,13 +728,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "--tail",
                     "200",
                     *selected,
-                    full_data=arguments.full_data,
                 )
             )
         elif command == ("data", "collect"):
+            profile = arguments.profile or (
+                "showcase" if arguments.job == "fixture-property" else "full-data"
+            )
             _collect(
                 job_profile=arguments.job,
-                profile=arguments.profile,
+                profile=profile,
                 wait=arguments.wait,
                 timeout_seconds=arguments.timeout,
                 base_url=arguments.base_url,

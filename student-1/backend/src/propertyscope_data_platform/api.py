@@ -58,8 +58,6 @@ def create_blueprint(
     consumers: ConsumerImportClient,
     *,
     artifact_root: Path,
-    full_data_enabled: bool = False,
-    psi_transport_enabled: bool = False,
     psi_cached_years: tuple[int, ...] = (),
     psi_cached_weeks: tuple[str, ...] = (),
     feature_root: Path | None = None,
@@ -87,12 +85,9 @@ def create_blueprint(
 
     @api.get(f"{BASE}/runtime-capabilities")
     def runtime_capabilities() -> Response:
-        connected = ["schools-master", "bocsar-sparse", "gnaf-nsw"]
-        if psi_transport_enabled:
-            connected.append("psi-sales")
+        connected = ["schools-master", "bocsar-sparse", "gnaf-nsw", "psi-sales"]
         return jsonify(
             {
-                "full_data_enabled": full_data_enabled,
                 "implemented_live_profiles": [
                     "schools-master",
                     "bocsar-sparse",
@@ -100,7 +95,7 @@ def create_blueprint(
                     "psi-sales",
                 ],
                 "host_verified_profiles": ["psi-sales"],
-                "connected_live_profiles": connected if full_data_enabled else [],
+                "connected_live_profiles": connected,
                 "cached_live_profiles": ["psi-sales"] if psi_cached_years else [],
                 "cached_source_years": {"psi-sales": list(psi_cached_years)},
                 "cached_source_weeks": {"psi-sales": list(psi_cached_weeks)},
@@ -286,8 +281,6 @@ def create_blueprint(
             job_data,
             resolve_registered_scope(job_data, body.get("scope"), job_profiles),
             run_mode=mode,
-            full_data_enabled=full_data_enabled,
-            psi_transport_enabled=psi_transport_enabled,
         )
         if scope_error is not None:
             return problem(scope_error.status, scope_error.code, scope_error.detail)
@@ -350,8 +343,6 @@ def create_blueprint(
             job_response.json()["job"],
             resolve_registered_scope(job_response.json()["job"], body.get("scope"), job_profiles),
             run_mode=mode,
-            full_data_enabled=full_data_enabled,
-            psi_transport_enabled=psi_transport_enabled,
         )
         if scope_error is not None:
             return problem(scope_error.status, scope_error.code, scope_error.detail)

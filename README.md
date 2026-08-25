@@ -125,8 +125,8 @@ preserves AI-mode run history and PropertyScope data/artifacts, while `stack res
 volumes labelled for the selected Compose project.
 
 The local stack is named `ps-dev`. Its generated containers group shared services as
-`ps-dev-shared-*` and Feature 1 services as `ps-dev-f1-*`; the isolated source-scale stack uses
-`ps-full`. Compose owns the final replica suffix so parallel projects and scaling remain available.
+`ps-dev-shared-*` and Feature 1 services as `ps-dev-f1-*`. Compose owns the final replica suffix so
+parallel projects and scaling remain available.
 
 For browser/UI work that does not need Docker, databases or a model credential, start Shared and
 Feature 1 against deterministic same-origin fixtures:
@@ -144,24 +144,25 @@ Run `uv run scripts/dev.py ui audit quick` for the deterministic laptop/mobile i
 shard, severity and artifact details are in
 [`docs/ui/feature-1-audit.md`](docs/ui/feature-1-audit.md).
 
-The default PropertyScope stack uses deterministic showcase data and never launches live or
-source-scale acquisition. The explicit full-data path uses a separate Compose project and
-therefore a separate PostgreSQL volume. It connects official schools, BOCSAR, G-NAF and PSI
-acquisition. PSI uses optional unmodified annual archives under `.propertyscope-source-cache/psi/`
-and acquires missing annual/current-weekly partitions with validated bounded requests. Complete
-history streams every record from 1990 onward and never substitutes synthetic data:
+The default PropertyScope stack connects official schools, BOCSAR, G-NAF and PSI acquisition while
+retaining small deterministic test/showcase job scopes. Starting the stack does not contact a
+publisher; complete acquisition begins only after an operator previews and starts a job in the
+browser or CLI. PSI uses optional unmodified annual archives under
+`.propertyscope-source-cache/psi/` and acquires missing annual/current-weekly partitions with
+validated requests. Complete history streams every record from 1990 onward and never substitutes
+synthetic data:
 
 ```text
 uv run scripts/dev.py data sync-psi --all
-uv run scripts/dev.py stack up --full-data
-uv run scripts/dev.py stack down --full-data
+uv run scripts/dev.py stack up
+uv run scripts/dev.py stack down
 ```
 
-To reproduce a clean full-data deployment without deleting items in Docker Desktop manually:
+To reproduce a clean deployment without deleting items in Docker Desktop manually:
 
 ```text
-uv run scripts/dev.py stack reset --full-data
-uv run scripts/dev.py stack up --full-data --offline
+uv run scripts/dev.py stack reset
+uv run scripts/dev.py stack up --offline
 ```
 
 Collection does not require browser interaction. For example, the following command validates the

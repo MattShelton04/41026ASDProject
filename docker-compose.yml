@@ -120,6 +120,8 @@ services:
       retries: 30
       start_period: 10s
     stop_grace_period: 35s
+    mem_limit: ${PROPERTYSCOPE_DATABASE_MEMORY_LIMIT:-4g}
+    cpus: ${PROPERTYSCOPE_DATABASE_CPU_LIMIT:-4.0}
 
   f1-db-loader:
     profiles: [release-0]
@@ -140,6 +142,8 @@ services:
       - f1-artifacts:/var/lib/propertyscope/artifacts:ro
     networks: [shared-platform]
     stop_grace_period: 35s
+    mem_limit: ${PROPERTYSCOPE_LOADER_MEMORY_LIMIT:-8g}
+    cpus: ${PROPERTYSCOPE_LOADER_CPU_LIMIT:-6.0}
 
   f1-backend:
     profiles: [release-0]
@@ -156,7 +160,8 @@ services:
       PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
       AI_MODE_BASE_URL: http://shared-ai-mode:5005
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
-      PROPERTYSCOPE_FULL_DATA_ENABLED: "false"
+      PROPERTYSCOPE_PSI_CACHED_YEARS: ${PROPERTYSCOPE_PSI_CACHED_YEARS:-}
+      PROPERTYSCOPE_PSI_CACHED_WEEKS: ${PROPERTYSCOPE_PSI_CACHED_WEEKS:-}
     depends_on:
       f1-db-api:
         condition: service_healthy
@@ -184,7 +189,11 @@ services:
       PROPERTYSCOPE_BACKEND_URL: http://f1-backend:5201
       PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
-      PROPERTYSCOPE_FULL_DATA_ENABLED: "false"
+      PROPERTYSCOPE_SOURCE_CREDENTIAL_FILE: ${PROPERTYSCOPE_SOURCE_CREDENTIAL_FILE:-}
+      PROPERTYSCOPE_GNAF_ARCHIVE_PATH: /var/lib/propertyscope/source-cache/gnaf.zip
+      PROPERTYSCOPE_GNAF_CRS: ${PROPERTYSCOPE_GNAF_CRS:-GDA94}
+      PROPERTYSCOPE_PSI_ARCHIVE_ROOT: /var/lib/propertyscope/source-cache/psi
+      PROPERTYSCOPE_RUNNER_LEASE_SECONDS: "300"
     depends_on:
       f1-backend:
         condition: service_healthy
@@ -192,8 +201,11 @@ services:
         condition: service_healthy
     volumes:
       - f1-artifacts:/var/lib/propertyscope/artifacts:rw
+      - ./.propertyscope-source-cache:/var/lib/propertyscope/source-cache:ro
     networks: [shared-platform]
     stop_grace_period: 35s
+    mem_limit: ${PROPERTYSCOPE_RUNNER_MEMORY_LIMIT:-8g}
+    cpus: ${PROPERTYSCOPE_RUNNER_CPU_LIMIT:-6.0}
 
   f1-frontend:
     profiles: [release-0]

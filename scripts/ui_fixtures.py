@@ -477,7 +477,6 @@ def fixture_response(
         return FixtureResponse(
             200,
             {
-                "full_data_enabled": False,
                 "implemented_live_profiles": [
                     "schools-master",
                     "bocsar-sparse",
@@ -485,7 +484,12 @@ def fixture_response(
                     "psi-sales",
                 ],
                 "host_verified_profiles": ["psi-sales"],
-                "connected_live_profiles": [],
+                "connected_live_profiles": [
+                    "schools-master",
+                    "bocsar-sparse",
+                    "gnaf-nsw",
+                    "psi-sales",
+                ],
                 "cached_live_profiles": [],
                 "cached_source_years": {"psi-sales": []},
                 "cached_source_weeks": {"psi-sales": []},

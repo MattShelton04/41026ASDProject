@@ -15,7 +15,7 @@ import { createEvidenceRoutes } from "./routes/evidence.js?v=17";
 import { renderOverview } from "./routes/overview.js?v=19";
 import { createPropertyRoutes } from "./routes/properties.js?v=21";
 import { createReleaseRoutes } from "./routes/releases.js?v=19";
-import { createRunPlanner } from "./routes/run-plan.js?v=18";
+import { createRunPlanner } from "./routes/run-plan.js?v=19";
 import { createRunRoutes } from "./routes/runs.js?v=18";
 
 const view = document.querySelector("#view");

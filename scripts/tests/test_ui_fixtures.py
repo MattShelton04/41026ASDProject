@@ -392,7 +392,6 @@ def test_capabilities_plan_manifest_and_release_inspection_match_production_shap
     )
 
     assert set(runtime.body) == {
-        "full_data_enabled",
         "implemented_live_profiles",
         "host_verified_profiles",
         "connected_live_profiles",

@@ -80,7 +80,7 @@ def test_scope_validation_returns_stable_structured_problems(scope: object, deta
     assert detail in error.detail
 
 
-def test_live_scope_policy_distinguishes_runtime_from_transport_availability() -> None:
+def test_live_scope_policy_connects_registered_sources_and_rejects_unknown_transport() -> None:
     scope = {
         "profile": "full-data",
         "all_records": True,
@@ -88,21 +88,14 @@ def test_live_scope_policy_distinguishes_runtime_from_transport_availability() -
         "release_scope": {"years": [2025], "maximum_records": 10},
     }
 
-    _, runtime_error = validate_job_scope(
-        PSI_JOB, scope, run_mode="full_refresh", full_data_enabled=False
-    )
-    _, transport_error = validate_job_scope(
-        PSI_JOB, scope, run_mode="full_refresh", full_data_enabled=True
-    )
+    unknown_job = {**PSI_JOB, "import_profile_key": "spatial-features"}
+    _, transport_error = validate_job_scope(unknown_job, scope, run_mode="full_refresh")
     resolved, error = validate_job_scope(
         PSI_JOB,
         scope,
         run_mode="full_refresh",
-        full_data_enabled=True,
-        psi_transport_enabled=True,
     )
 
-    assert runtime_error is not None and runtime_error.code == "full_data_runtime_disabled"
     assert transport_error is not None and transport_error.code == "live_transport_unavailable"
     assert error is None
     assert resolved == scope

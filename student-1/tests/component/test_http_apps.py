@@ -689,7 +689,6 @@ def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> N
             "http://database", "secret", client=httpx.Client(transport=transport)
         ),
         ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
-        full_data_enabled=True,
     )
     response = app.test_client().post(
         f"/api/data-platform/v1/jobs/{job_id}/plans",
@@ -700,7 +699,7 @@ def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> N
     assert response.get_json()["network_required"] is True
 
 
-def test_default_runtime_reports_and_rejects_disabled_live_acquisition() -> None:
+def test_default_runtime_reports_and_allows_official_acquisition() -> None:
     job_id = "20000000-0000-0000-0000-000000000004"
 
     def database(_: httpx.Request) -> httpx.Response:
@@ -726,7 +725,6 @@ def test_default_runtime_reports_and_rejects_disabled_live_acquisition() -> None
             "http://database", "secret", client=httpx.Client(transport=transport)
         ),
         ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
-        full_data_enabled=False,
     )
     client = app.test_client()
 
@@ -736,50 +734,9 @@ def test_default_runtime_reports_and_rejects_disabled_live_acquisition() -> None
         json={"run_mode": "full_refresh", "scope": {"profile": "full-data"}},
     )
 
-    assert capabilities.get_json()["full_data_enabled"] is False
-    assert capabilities.get_json()["connected_live_profiles"] == []
-    assert plan.status_code == 422
-    assert plan.get_json()["code"] == "full_data_runtime_disabled"
-
-
-def test_job_plan_rejects_catalogued_source_without_live_transport() -> None:
-    job_id = "20000000-0000-0000-0000-000000000001"
-
-    def database(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "job": {
-                    "id": job_id,
-                    "adapter_key": "psi-yearly-zip",
-                    "import_profile_key": "psi-sales",
-                    "scope_json": {"profile": "showcase"},
-                    "max_objects": 10,
-                    "max_bytes": 800_000_000,
-                    "max_rows": 500_000,
-                    "timeout_seconds": 7_200,
-                }
-            },
-        )
-
-    transport = httpx.MockTransport(database)
-    app = create_backend_app(
-        store_client=DataStoreClient(
-            "http://database", "secret", client=httpx.Client(transport=transport)
-        ),
-        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
-        full_data_enabled=True,
-    )
-    response = app.test_client().post(
-        f"/api/data-platform/v1/jobs/{job_id}/plans",
-        json={
-            "run_mode": "full_refresh",
-            "scope": {"profile": "full-data", "years": [2025]},
-        },
-    )
-
-    assert response.status_code == 422
-    assert response.get_json()["code"] == "live_transport_unavailable"
+    assert "full_data_enabled" not in capabilities.get_json()
+    assert "schools-master" in capabilities.get_json()["connected_live_profiles"]
+    assert plan.status_code == 200
 
 
 def test_job_plan_enables_psi_when_official_archive_cache_is_available() -> None:
@@ -808,8 +765,6 @@ def test_job_plan_enables_psi_when_official_archive_cache_is_available() -> None
             "http://database", "secret", client=httpx.Client(transport=transport)
         ),
         ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
-        full_data_enabled=True,
-        psi_transport_enabled=True,
         psi_cached_years=(2025,),
         psi_cached_weeks=("2026-08-10",),
     )

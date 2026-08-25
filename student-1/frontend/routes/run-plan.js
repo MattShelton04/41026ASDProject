@@ -7,14 +7,14 @@ import { technicalDetails } from "../components/layout.js?v=17";
 
 export function createRunPlanner({ request, mutate, confirmAction }) {
   return async function openPlanDialog(job, capabilities = null, { intent = "run" } = {}) {
-    let runtime = { full_data_enabled: false, connected_live_profiles: [] };
+    let runtime = { implemented_live_profiles: [], connected_live_profiles: [] };
     try { runtime = (await request("runtime-capabilities")).body; } catch { /* showcase controls remain available */ }
     const wrapper = el("div", "stack");
     const isBackfill = intent === "backfill";
     const psi = isPsiJob(job);
     const importProfile = job.import_profile_key || job.import_profile;
     const gnaf = importProfile === "gnaf-nsw";
-    const liveAvailable = runtime.full_data_enabled && runtime.connected_live_profiles?.includes(importProfile);
+    const liveAvailable = runtime.connected_live_profiles?.includes(importProfile);
     const cachedPsiYears = psi ? runtime.cached_source_years?.["psi-sales"] || [] : [];
     const currentYear = new Date().getFullYear();
     append(wrapper, el("div", `notice ${isBackfill ? "warning" : ""}`, isBackfill
@@ -37,9 +37,6 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
     const profileLabel = el("label", "field");
     append(profileLabel, el("span", "", "Data source (required)"));
     const scopeProfile = el("select"); scopeProfile.name = "scope_profile"; scopeProfile.id = "scope-profile"; scopeProfile.required = true;
-    const showcaseOption = el("option", "", "Example data (recommended)"); showcaseOption.value = "showcase";
-    const testOption = el("option", "", "Small test sample"); testOption.value = "test";
-    append(scopeProfile, showcaseOption, testOption);
     if (runtime.implemented_live_profiles?.includes(importProfile)) {
       const liveLabel = liveProfileLabel(importProfile);
       const liveOption = el("option", "", liveAvailable ? liveLabel : `${liveLabel} (not available here)`);
@@ -47,11 +44,14 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
       liveOption.disabled = !liveAvailable;
       append(scopeProfile, liveOption);
     }
-    scopeProfile.value = ["test", "showcase", "full-data"].includes(job.scope_json?.profile)
-      && [...scopeProfile.options].some((option) => option.value === job.scope_json.profile && !option.disabled)
-      ? job.scope_json.profile : "showcase";
+    const showcaseOption = el("option", "", "Example data (fast)"); showcaseOption.value = "showcase";
+    const testOption = el("option", "", "Small test sample"); testOption.value = "test";
+    append(scopeProfile, showcaseOption, testOption);
+    const savedProfileAvailable = ["test", "showcase", "full-data"].includes(job.scope_json?.profile)
+      && [...scopeProfile.options].some((option) => option.value === job.scope_json.profile && !option.disabled);
+    scopeProfile.value = liveAvailable ? "full-data" : savedProfileAvailable ? job.scope_json.profile : "showcase";
     append(profileLabel, scopeProfile, el("small", "field-help", liveAvailable
-      ? "Official source data is available. The update stops if a source file fails validation."
+      ? "Complete official data is selected by default. Choose example or test data for a faster, smaller run."
       : "Official source imports are disabled in this workspace. Example data never substitutes for an official-source update."));
     append(wrapper, profileLabel);
     const completeNotice = el("div", "notice", "Complete mode retrieves every record in the registered official source. Capacity safeguards fail the update instead of returning a truncated dataset.");

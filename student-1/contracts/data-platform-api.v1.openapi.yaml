@@ -11,7 +11,7 @@ paths:
   /runtime-capabilities:
     get:
       operationId: getRuntimeCapabilities
-      description: Reports whether this stack can execute registered live acquisition profiles.
+      description: Reports connected official acquisition profiles and locally cached source partitions.
       responses: {'200': {description: Runtime acquisition capabilities}}
   /data-products:
     get:

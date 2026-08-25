@@ -35,12 +35,12 @@ Version-controlled source/job configuration lives in `config/`, HTTP and release
 `backend/src/propertyscope_data_platform/`. Checked-in fixture data is synthetic and explicitly
 licensed; live and licensed source artifacts remain outside Git.
 
-The default stack deliberately exercises every import profile with deterministic synthetic
-records. It never contacts an upstream publisher. The opt-in `--full-data` stack connects the
-official NSW schools CSV, BOCSAR archive and Geoscape G-NAF bulk archive. All three use the same
-durable run, content-addressed artifact, serial loader, candidate generation, quality and human
-publication path as the showcase profile. Full-data mode retrieves every record or registered
-partition; resource ceilings remain fail-closed capacity safeguards rather than truncation limits.
+The default stack connects the official NSW schools CSV, BOCSAR archives, Geoscape G-NAF bulk
+archive and PSI sales sources. Starting services never starts a download: operators choose a
+complete official, example or test scope for each job. All scopes use the same durable run,
+content-addressed artifact, serial loader, candidate generation, quality and human publication
+path. Complete mode retrieves every record or registered partition; resource ceilings remain
+fail-closed capacity safeguards rather than truncation limits.
 
 The PSI adapter is verified against real publisher archives and parses every annual archive from
 1990 onward plus current Monday weekly updates. Archives download into bounded temporary files and
@@ -86,8 +86,9 @@ fixture, waits for all runner and loader stages, and reports the retained candid
 uv run scripts/dev.py data collect fixture-property --profile test
 ```
 
-Use `schools-master`, `bocsar-crime`, `gnaf-nsw`, or `psi-sales` with `--profile full-data` after
-starting the full-data stack. Add `--no-wait` for a long job. These commands automate discovery,
+Use `schools-master`, `bocsar-crime`, `gnaf-nsw`, or `psi-sales` without `--profile` to request the
+complete official scope by default. Use `--profile showcase` or `--profile test` for a smaller run,
+and add `--no-wait` for a long job. These commands automate discovery,
 acquisition, validation, import, normalisation, quality checks, and candidate construction. They do
 not bypass the separate human decision to submit, accept, or reject a candidate.
 
@@ -96,16 +97,16 @@ volumes are preserved.
 
 ## Real-source captures
 
-Real acquisition is isolated in a separate Compose project and PostgreSQL volume:
+Real acquisition uses the normal Compose project and PostgreSQL volume:
 
 ```text
 uv run scripts/dev.py data sync-psi --all
-uv run scripts/dev.py stack up --full-data
+uv run scripts/dev.py stack up
 ```
 
-A complete project reset is also code-driven: `uv run scripts/dev.py stack reset --full-data` removes
-only the isolated project's labelled Docker volumes. The following `up --full-data` recreates
-PostgreSQL, migrates it, and restores the deterministic operator baseline automatically.
+A complete project reset is also code-driven: `uv run scripts/dev.py stack reset` removes only the
+local project's labelled Docker volumes. The following `stack up` recreates PostgreSQL, migrates it,
+and restores the deterministic operator baseline automatically.
 
 | Import profile | Full-data status | Upstream behaviour |
 |---|---|---|
@@ -114,12 +115,12 @@ PostgreSQL, migrates it, and restores the deterministic operator baseline automa
 | `gnaf-nsw` | Connected | Discovers the latest registered PSV ZIP from Data.gov.au, or uses the optional local source cache below; preserves unit identity and transforms declared GDA94/GDA2020 coordinates to WGS84 at import. |
 | `psi-sales` | Connected | Streams complete annual history and current weekly packages, including the pre-2001 root-DAT format. Stable source keys collapse identical retransmissions. |
 
-G-NAF is about 1.7 GB. To avoid downloading it for every new full-data project, place an official
+G-NAF is about 1.7 GB. To avoid downloading it again after a local reset, place an official
 PSV archive at `.propertyscope-source-cache/gnaf.zip` and declare its CRS before startup:
 
 ```powershell
 $env:PROPERTYSCOPE_GNAF_CRS = "GDA94" # or GDA2020
-uv run scripts/dev.py stack up --full-data
+uv run scripts/dev.py stack up
 ```
 
 The cache directory is Git-ignored and mounted read-only. Without a cache, the runner discovers
@@ -130,7 +131,7 @@ Targeted showcase runs remain available for fast local demonstrations.
 
 The same cache supports official PSI annual packages. Place any unmodified publisher archive at
 `.propertyscope-source-cache/psi/<year>.zip` (for example `psi/2025.zip`) before starting the
-full-data stack. Missing years are acquired from the official source. Complete mode processes annual
+stack. Missing years are acquired from the official source. Complete mode processes annual
 archives from 1990 through the previous year and every Monday weekly partition in the current year;
 explicit subsets remain available. Canonical NDJSON and PostgreSQL COPY stream without a record cap.
 The 100-million-row, 20 GB and per-archive expansion ceilings are corruption/capacity alarms that
@@ -144,8 +145,9 @@ the application mounts read-only. Targeted alternatives are `--year 2025`, `--we
 
 Every release detail page includes a release-scoped dataset preview. Preview queries use fixed
 registered projections, cap pages at 100 records and never mix candidate and accepted
-generations. The API's runtime-capability response drives the browser controls, so live options
-appear only in the explicit full-data stack.
+generations. The API's runtime-capability response drives the browser controls. Official sources
+are connected in the default stack, complete data is selected by default, and example/test options
+remain available.
 
 ## Shared integration boundary
 

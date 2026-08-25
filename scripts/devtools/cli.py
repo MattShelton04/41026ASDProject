@@ -16,14 +16,6 @@ from scripts.devtools.config import (
 )
 
 
-def _add_full_data_option(command: argparse.ArgumentParser) -> None:
-    command.add_argument(
-        "--full-data",
-        action="store_true",
-        help="Use the isolated, opt-in source-scale PropertyScope project",
-    )
-
-
 def _add_offline_option(command: argparse.ArgumentParser) -> None:
     command.add_argument(
         "--offline",
@@ -45,7 +37,6 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
     commands = stack.add_subparsers(dest="action", required=True)
 
     up = commands.add_parser("up", help="Build and start the reloadable development stack")
-    _add_full_data_option(up)
     _add_offline_option(up)
     _add_env_file_option(up)
 
@@ -58,14 +49,12 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
         "rebuild", help="Rebuild and recreate changed development services"
     )
     rebuild.add_argument("services", nargs="*", choices=BUILD_SERVICES)
-    _add_full_data_option(rebuild)
     _add_offline_option(rebuild)
     _add_env_file_option(rebuild)
 
     restart = commands.add_parser(
         "restart", help="Recreate application containers without rebuilding images"
     )
-    _add_full_data_option(restart)
     _add_offline_option(restart)
     _add_env_file_option(restart)
 
@@ -75,16 +64,13 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
         ("status", "Show current service and health state"),
         ("config", "Validate the merged Compose configuration"),
     ):
-        command = commands.add_parser(name, help=help_text)
-        _add_full_data_option(command)
+        commands.add_parser(name, help=help_text)
 
     doctor = commands.add_parser("doctor", help="Validate Docker and the Compose model")
-    _add_full_data_option(doctor)
     _add_env_file_option(doctor)
 
     logs = commands.add_parser("logs", help="Follow recent application logs")
     logs.add_argument("services", nargs="*", choices=APPLICATION_SERVICES)
-    _add_full_data_option(logs)
 
 
 def _ui_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -127,7 +113,12 @@ def _data_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         "collect", help="Plan, queue, and optionally wait for a registered acquisition"
     )
     collect.add_argument("job", choices=COLLECTION_JOBS)
-    collect.add_argument("--profile", choices=("test", "showcase", "full-data"), default="showcase")
+    collect.add_argument(
+        "--profile",
+        choices=("test", "showcase", "full-data"),
+        default=None,
+        help="Acquisition size (default: full-data for official sources; showcase for fixtures)",
+    )
     collect.add_argument("--wait", action=argparse.BooleanOptionalAction, default=True)
     collect.add_argument("--timeout", type=int, default=900)
     collect.add_argument("--base-url", default=PROPERTYSCOPE_API_URL)
@@ -146,7 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Operate PropertyScope development stacks, UI fixtures, and source data."
     )
-    parser.set_defaults(full_data=False, env_file=None)
+    parser.set_defaults(env_file=None)
     groups = parser.add_subparsers(dest="group", required=True)
     _stack_commands(groups)
     _ui_commands(groups)

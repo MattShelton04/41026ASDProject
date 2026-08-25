@@ -25,8 +25,6 @@ def create_app(
     store_client: DataStoreClient | None = None,
     ai_mode_client: AiModeClient | None = None,
     consumer_client: ConsumerImportClient | None = None,
-    full_data_enabled: bool | None = None,
-    psi_transport_enabled: bool | None = None,
     psi_cached_years: tuple[int, ...] | None = None,
     psi_cached_weeks: tuple[str, ...] | None = None,
     feature_root: Path | None = None,
@@ -57,17 +55,6 @@ def create_app(
     app = Flask("propertyscope-data-platform")
     app.config["MAX_CONTENT_LENGTH"] = int(
         os.environ.get("PROPERTYSCOPE_MAX_REQUEST_BYTES", "262144")
-    )
-    live_runtime = (
-        os.environ.get("PROPERTYSCOPE_FULL_DATA_ENABLED", "false").lower() in {"1", "true", "yes"}
-        if full_data_enabled is None
-        else full_data_enabled
-    )
-    psi_transport = (
-        os.environ.get("PROPERTYSCOPE_PSI_TRANSPORT_ENABLED", "false").lower()
-        in {"1", "true", "yes"}
-        if psi_transport_enabled is None
-        else psi_transport_enabled
     )
     cached_years = (
         tuple(
@@ -104,8 +91,6 @@ def create_app(
             or Path(
                 os.environ.get("PROPERTYSCOPE_ARTIFACT_ROOT", "/var/lib/propertyscope/artifacts")
             ),
-            full_data_enabled=live_runtime,
-            psi_transport_enabled=psi_transport,
             psi_cached_years=cached_years,
             psi_cached_weeks=cached_weeks,
             feature_root=resolved_feature_root,

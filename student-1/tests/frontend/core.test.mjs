@@ -816,6 +816,7 @@ test("live acquisition controls use truthful runtime capability evidence", async
   assert.match(app, /Official source imports are disabled in this workspace/);
   assert.match(app, /implemented_live_profiles/);
   assert.match(app, /liveOption\.disabled = !liveAvailable/);
+  assert.match(app, /liveAvailable \? "full-data"/);
   assert.match(app, /Maximum addresses/);
   assert.match(app, /cached_source_years/);
   assert.match(app, /Detected official archive years/);
