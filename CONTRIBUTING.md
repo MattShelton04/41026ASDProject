@@ -119,12 +119,12 @@ The development command composes `docker-compose.yml` and `docker-compose.dev.ym
 includes the independently built shared shell, and the
 final overlay bind-mounts frontend/source files and enables Gunicorn reload
 for a short edit-refresh loop while retaining the same service-to-service HTTP and exclusive
-database-ownership boundaries used by the production-like stack. PropertyScope source-scale
-work requires the explicit `--full-data` option. It adds `docker-compose.full-data.yml` under
-an isolated Compose project; ordinary `up` cannot silently enable live acquisition or reuse
-the full-data PostgreSQL volume. `up` performs a cache-backed build reconciliation so dependency
-changes from a pull cannot silently reuse stale images. `reset [--full-data]` is intentionally
-destructive but label-scoped; it does not delete the host-side source cache.
+database-ownership boundaries used by the production-like stack. The default runtime connects
+official PropertyScope sources but never starts acquisition during service startup. Operators choose
+complete, showcase or test scope per job; all scopes use the same PostgreSQL and review path. `up`
+performs a cache-backed build reconciliation so dependency changes from a pull cannot silently reuse
+stale images. `reset` is intentionally destructive but label-scoped; it does not delete the
+host-side source cache.
 
 ## Dependencies and workspace projects
 

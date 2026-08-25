@@ -29,10 +29,8 @@ def captured_commands(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
     monkeypatch.setattr(dev, "_run", capture)
     monkeypatch.setattr(dev, "_psi_cache_years", lambda: ())
     monkeypatch.setattr(dev, "_psi_cache_weeks", lambda: ())
-    monkeypatch.setattr(
-        dev, "_write_openai_secret", lambda _value, *, full_data: dev.Path("secret")
-    )
-    monkeypatch.setattr(dev, "_remove_openai_secret", lambda *, full_data: None)
+    monkeypatch.setattr(dev, "_write_openai_secret", lambda _value: dev.Path("secret"))
+    monkeypatch.setattr(dev, "_remove_openai_secret", lambda: None)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     return commands
 
@@ -86,9 +84,7 @@ def test_gemini_up_materialises_only_file_credentials(monkeypatch: pytest.Monkey
         "_run",
         lambda command, *, environment=None: environments.append(environment),
     )
-    monkeypatch.setattr(
-        dev, "_write_openai_secret", lambda _value, *, full_data: dev.Path("secret")
-    )
+    monkeypatch.setattr(dev, "_write_openai_secret", lambda _value: dev.Path("secret"))
 
     assert dev.main(["stack", "up"]) == 0
 
@@ -132,7 +128,7 @@ def test_up_preflights_before_materialising_secret_or_starting_compose(
     )
     monkeypatch.setattr(dev, "_run", lambda *_args, **_kwargs: calls.append("compose"))
 
-    dev._up(full_data=False, offline=False)
+    dev._up(offline=False)
 
     assert calls[:4] == ["docker", "preflight", "secret", "compose"]
 
@@ -146,12 +142,12 @@ def test_rebuild_preflights_only_selected_host_service(
     monkeypatch.setattr(
         dev,
         "_preflight_compose_host_ports",
-        lambda *, services, full_data: selections.append(tuple(services)),
+        lambda *, services: selections.append(tuple(services)),
     )
     monkeypatch.setattr(dev, "_compose_environment", lambda **_kwargs: {})
     monkeypatch.setattr(dev, "_run", lambda *_args, **_kwargs: None)
 
-    dev._rebuild(("f1-frontend",), full_data=False, offline=False)
+    dev._rebuild(("f1-frontend",), offline=False)
 
     assert selections == [("f1-frontend",)]
 
@@ -190,7 +186,6 @@ def test_port_preflight_allows_only_the_exact_selected_compose_service(
 
     dev._preflight_compose_host_ports(
         services=("f1-frontend",),
-        full_data=False,
     )
 
     monkeypatch.setattr(
@@ -201,18 +196,6 @@ def test_port_preflight_allows_only_the_exact_selected_compose_service(
     with pytest.raises(RuntimeError, match="service 'shared-frontend'"):
         dev._preflight_compose_host_ports(
             services=("f1-frontend",),
-            full_data=False,
-        )
-
-    monkeypatch.setattr(
-        dev,
-        "_published_port_owners",
-        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "f1-frontend"),),
-    )
-    with pytest.raises(RuntimeError, match="before any build or container change"):
-        dev._preflight_compose_host_ports(
-            services=("f1-frontend",),
-            full_data=True,
         )
 
 
@@ -352,23 +335,21 @@ def test_ui_command_launches_fixture_server_as_repository_module(
     ]
 
 
-def test_full_data_is_explicit_and_uses_isolated_project(
+def test_default_stack_connects_official_sources_without_a_second_project(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["stack", "up", "--full-data"]) == 0
+    assert dev.main(["stack", "up"]) == 0
 
     application_up = captured_commands[-1]
-    assert dev.FULL_DATA_COMPOSE_FILE in application_up
-    assert application_up[2:4] == ("--project-name", dev.FULL_DATA_PROJECT_NAME)
-    assert "full-data" in application_up
+    assert all(filename in application_up for filename in dev.COMPOSE_FILES)
+    assert "--project-name" not in application_up
 
 
-def test_compose_projects_use_short_scannable_names() -> None:
+def test_compose_project_uses_a_short_scannable_name() -> None:
     assert dev.DEFAULT_PROJECT_NAME == "ps-dev"
-    assert dev.FULL_DATA_PROJECT_NAME == "ps-full"
 
 
-def test_full_data_exposes_psi_and_advertises_cached_years(
+def test_default_stack_exposes_psi_and_advertises_cached_years(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     environments: list[object] = []
@@ -380,16 +361,13 @@ def test_full_data_exposes_psi_and_advertises_cached_years(
     monkeypatch.setattr(dev, "_run", capture)
     monkeypatch.setattr(dev, "_psi_cache_years", lambda: (2024, 2025))
     monkeypatch.setattr(dev, "_psi_cache_weeks", lambda: ("2026-08-03", "2026-08-10"))
-    monkeypatch.setattr(
-        dev, "_write_openai_secret", lambda _value, *, full_data: dev.Path("secret")
-    )
+    monkeypatch.setattr(dev, "_write_openai_secret", lambda _value: dev.Path("secret"))
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-    assert dev.main(["stack", "up", "--full-data"]) == 0
+    assert dev.main(["stack", "up"]) == 0
 
     assert all(
         isinstance(environment, dict)
-        and environment["PROPERTYSCOPE_PSI_TRANSPORT_ENABLED"] == "true"
         and environment["PROPERTYSCOPE_PSI_CACHED_YEARS"] == "2024,2025"
         and environment["PROPERTYSCOPE_PSI_CACHED_WEEKS"] == "2026-08-03,2026-08-10"
         for environment in environments[1:]
@@ -406,9 +384,7 @@ def test_offline_up_needs_no_credential_and_disables_provider_readiness(
         "_run",
         lambda command, *, environment=None: environments.append(environment),
     )
-    monkeypatch.setattr(
-        dev, "_write_openai_secret", lambda _value, *, full_data: dev.Path("secret")
-    )
+    monkeypatch.setattr(dev, "_write_openai_secret", lambda _value: dev.Path("secret"))
 
     assert dev.main(["stack", "up", "--offline"]) == 0
 
@@ -421,7 +397,7 @@ def test_offline_up_needs_no_credential_and_disables_provider_readiness(
 def test_reset_removes_only_selected_project_volumes(
     captured_commands: list[tuple[str, ...]],
 ) -> None:
-    assert dev.main(["stack", "reset", "--full-data"]) == 0
+    assert dev.main(["stack", "reset"]) == 0
 
     down, prune = captured_commands[-2:]
     assert down[-3:] == ("down", "--remove-orphans", "--volumes")
@@ -432,7 +408,7 @@ def test_reset_removes_only_selected_project_volumes(
         "--all",
         "--force",
         "--filter",
-        f"label=com.docker.compose.project={dev.FULL_DATA_PROJECT_NAME}",
+        f"label=com.docker.compose.project={dev.DEFAULT_PROJECT_NAME}",
     )
 
 
@@ -458,14 +434,31 @@ def test_complete_psi_scope_resolves_history_and_current_mondays() -> None:
     assert weeks == (date(2026, 1, 5), date(2026, 1, 12))
 
 
-def test_default_stack_does_not_enable_full_data(
-    captured_commands: list[tuple[str, ...]],
-) -> None:
-    assert dev.main(["stack", "config"]) == 0
+def test_removed_full_data_stack_flag_is_rejected() -> None:
+    with pytest.raises(SystemExit):
+        dev.main(["stack", "config", "--full-data"])
 
-    command = captured_commands[-1]
-    assert dev.FULL_DATA_COMPOSE_FILE not in command
-    assert "full-data" not in command
+
+def test_collection_parser_keeps_complete_and_small_profiles_explicit() -> None:
+    parser = dev.build_parser()
+
+    assert parser.parse_args(["data", "collect", "schools-master"]).profile is None
+    assert (
+        parser.parse_args(["data", "collect", "schools-master", "--profile", "showcase"]).profile
+        == "showcase"
+    )
+
+
+def test_collection_defaults_official_sources_to_complete_and_fixtures_to_showcase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profiles: list[str] = []
+    monkeypatch.setattr(dev, "_collect", lambda **values: profiles.append(values["profile"]))
+
+    assert dev.main(["data", "collect", "schools-master"]) == 0
+    assert dev.main(["data", "collect", "fixture-property"]) == 0
+
+    assert profiles == ["full-data", "showcase"]
 
 
 def test_collection_command_runs_registered_pipeline_to_candidate(

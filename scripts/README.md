@@ -51,17 +51,16 @@ selectors and stable shard controls are forwarded by both commands; use
 `uv run scripts/dev.py ui audit full --help`. Generated JSON, HTML, Markdown, and screenshots stay
 under the ignored `.propertyscope-runtime/ui-audit/` tree.
 
-`stack reset` stops the selected stack, removes its declared volumes, and prunes only unused volumes
-with that exact Compose project label. Add `--full-data` to reset the isolated source-scale
-project; the Git-ignored host source cache is not removed.
+`stack reset` stops the local stack, removes its declared volumes, and prunes only unused volumes
+with that exact Compose project label. The Git-ignored host source cache is not removed.
 
-`data collect <job> --profile <test|showcase|full-data>` drives the same registered public HTTP path as
-the browser: it validates the plan, creates an idempotent durable run, waits by default, and prints
-the retained candidate release. Use `--no-wait` for very long source-scale jobs. The command never
-publishes a release; human review remains an intentional product safety boundary.
+`data collect <job> --profile <test|showcase|full-data>` drives the same registered public HTTP path
+as the browser: it validates the plan, creates an idempotent durable run, waits by default, and
+prints the retained candidate release. Official jobs default to `full-data`; the synthetic fixture
+defaults to `showcase`. Use `--no-wait` for very long source-scale jobs. The command never publishes
+a release; human review remains an intentional product safety boundary.
 
-PropertyScope's bounded showcase profile is part of the default stack at
-<http://localhost:5200>. Source-scale acquisition is deliberately separate: append
-`--full-data` to the relevant `stack` action (`up`, `status`, `logs`, `rebuild`, or `down`). That option adds the
-`docker-compose.full-data.yml` overlay and uses an isolated Compose project, so it cannot
-silently replace the ordinary showcase database volume.
+PropertyScope's official connectors and small deterministic profiles are both available in the
+default stack at <http://localhost:5200>. Starting the stack performs no acquisition. Each browser
+or CLI job explicitly chooses complete, showcase or test scope and writes candidates through the
+same durable database and human-review boundary.

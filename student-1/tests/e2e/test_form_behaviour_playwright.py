@@ -682,6 +682,7 @@ def test_planner_year_and_address_bounds_have_associated_browser_errors(
     page.route(pattern, psi_handler)
     _open(page, fixture_origin, "jobs")
     page.get_by_role("button", name="Start update Example property records update").click()
+    page.locator("#scope-profile").select_option("showcase")
     first_year = page.locator("#psi-start-year")
     last_year = page.locator("#psi-end-year")
     expect(first_year).to_be_visible()
@@ -704,6 +705,7 @@ def test_planner_year_and_address_bounds_have_associated_browser_errors(
     page.route(pattern, gnaf_handler)
     _open(page, fixture_origin, "jobs")
     page.get_by_role("button", name="Start update Example property records update").click()
+    page.locator("#scope-profile").select_option("showcase")
     maximum = page.locator("#maximum-records")
     expect(maximum).to_be_visible()
     maximum.fill("1001")
@@ -716,17 +718,10 @@ def test_planner_year_and_address_bounds_have_associated_browser_errors(
     expect(page.locator("#action-error")).to_be_empty()
 
 
-def test_complete_official_profile_requests_all_records_without_visible_row_cap(
+def test_complete_official_profile_is_default_without_visible_row_cap(
     page: Page, fixture_origin: str
 ) -> None:
     observed_plans: list[dict[str, object]] = []
-
-    def enable_live_gnaf(route: Route) -> None:
-        response = route.fetch()
-        payload = response.json()
-        payload["full_data_enabled"] = True
-        payload["connected_live_profiles"] = ["gnaf-nsw"]
-        route.fulfill(response=response, json=payload)
 
     def rewrite_job(route: Route) -> None:
         response = route.fetch()
@@ -748,13 +743,12 @@ def test_complete_official_profile_requests_all_records_without_visible_row_cap(
         observed_plans.append(plan)
         route.continue_()
 
-    page.route("**/api/data-platform/v1/runtime-capabilities", enable_live_gnaf)
     page.route("**/api/data-platform/v1/jobs?*", rewrite_job)
     page.route("**/api/data-platform/v1/jobs/*/plans", capture_plan)
     _open(page, fixture_origin, "jobs")
     page.get_by_role("button", name="Start update Example property records update").click()
-    page.locator("#scope-profile").select_option("full-data")
 
+    expect(page.locator("#scope-profile")).to_have_value("full-data")
     expect(page.locator("#maximum-records")).to_be_hidden()
     expect(page.get_by_text("Capacity safeguards fail the update", exact=False)).to_be_visible()
     page.get_by_role("button", name="Preview update").click()

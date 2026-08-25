@@ -333,41 +333,6 @@ def test_propertyscope_compose_rejects_credential_and_volume_leaks(tmp_path: Pat
     assert any("runner must mount f1-artifacts read/write" in item for item in messages)
 
 
-def test_propertyscope_compose_requires_full_data_profile(tmp_path: Path) -> None:
-    root = _workspace(tmp_path)
-    compose = _valid_propertyscope_compose().replace(
-        "f1-runner:\n    volumes:",
-        "f1-runner:\n    environment:\n      PROPERTYSCOPE_FULL_DATA_ENABLED: 'true'\n    volumes:",
-    )
-    (root / "docker-compose.yml").write_text(compose, encoding="utf-8")
-
-    violations = validate_repository(root)
-
-    assert any(
-        "enables full data without the full-data profile" in item.message for item in violations
-    )
-
-
-def test_propertyscope_full_data_overlay_requires_profile(tmp_path: Path) -> None:
-    root = _workspace(tmp_path)
-    (root / "docker-compose.yml").write_text(_valid_propertyscope_compose(), encoding="utf-8")
-    (root / "docker-compose.full-data.yml").write_text(
-        "services:\n"
-        "  f1-runner:\n"
-        "    environment:\n"
-        "      PROPERTYSCOPE_FULL_DATA_ENABLED: 'true'\n",
-        encoding="utf-8",
-    )
-
-    violations = validate_repository(root)
-
-    assert any(
-        violation.path == "docker-compose.full-data.yml"
-        and "without the full-data profile" in violation.message
-        for violation in violations
-    )
-
-
 def _valid_propertyscope_compose() -> str:
     return """\
 services:

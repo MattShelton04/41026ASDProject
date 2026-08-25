@@ -68,7 +68,7 @@ def test_full_data_schools_download_invokes_real_parser_with_bounds(tmp_path: Pa
         return httpx.Response(200, content=payload, headers={"Content-Type": "text/csv"})
 
     runner = AcquisitionRunner(
-        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30, True),
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30),
         client=httpx.Client(transport=httpx.MockTransport(source)),
     )
     document, records = runner._live_document(
@@ -80,24 +80,10 @@ def test_full_data_schools_download_invokes_real_parser_with_bounds(tmp_path: Pa
 
 def test_full_data_never_silently_substitutes_unconnected_sources(tmp_path: Path) -> None:
     runner = AcquisitionRunner(
-        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30, True)
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30)
     )
     with pytest.raises(RuntimeError, match="no connected live transport"):
         runner._live_document({}, stage="acquire", profile="spatial-features")
-
-
-def test_full_data_scope_never_falls_back_when_runtime_is_not_opted_in(tmp_path: Path) -> None:
-    runner = AcquisitionRunner(
-        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30, False)
-    )
-    with pytest.raises(RuntimeError, match="explicit full-data runtime profile"):
-        runner._execute(
-            {
-                "stage": "acquire",
-                "import_profile_key": "schools-master",
-                "partition_json": {"profile": "full-data"},
-            }
-        )
 
 
 def test_bocsar_preserves_leading_zero_and_sparse_zero() -> None:
@@ -276,7 +262,7 @@ def test_runner_retries_transient_control_plane_disconnect(tmp_path: Path) -> No
         return httpx.Response(200, json={"ok": True})
 
     runner = AcquisitionRunner(
-        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.0, 30, True),
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.0, 30),
         client=httpx.Client(transport=httpx.MockTransport(control)),
     )
 
@@ -320,7 +306,7 @@ def test_psi_downloader_uses_verified_ranges_after_publisher_403(tmp_path: Path)
         )
 
     runner = AcquisitionRunner(
-        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30, True),
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30),
         client=httpx.Client(transport=httpx.MockTransport(source)),
     )
     progress: list[int] = []
@@ -376,7 +362,6 @@ def test_live_psi_reuses_bounded_official_archive_cache(tmp_path: Path) -> None:
             "worker",
             0.1,
             30,
-            True,
             psi_archive_root=cache,
         ),
         client=httpx.Client(transport=httpx.MockTransport(no_network)),
@@ -411,7 +396,7 @@ def test_live_bocsar_runner_emits_real_canonical_records(tmp_path: Path) -> None
         )
 
     runner = AcquisitionRunner(
-        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30, True),
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30),
         client=httpx.Client(transport=httpx.MockTransport(source)),
     )
     document, records = runner._live_document(

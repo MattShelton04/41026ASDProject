@@ -489,47 +489,6 @@ def _validate_compose_boundaries(root: Path) -> Iterable[ArchitectureViolation]:
                 f"Compose service {service_name} must not write f1-artifacts",
             )
 
-        if _enables_full_data(environment):
-            profiles = raw_service.get("profiles", [])
-            if not isinstance(profiles, list) or "full-data" not in profiles:
-                yield ArchitectureViolation(
-                    _relative(root, compose_path),
-                    0,
-                    f"Compose service {service_name} enables full data without "
-                    "the full-data profile",
-                )
-
-    full_data_path = root / "docker-compose.full-data.yml"
-    if full_data_path.is_file():
-        yield from _validate_full_data_overlay(root, full_data_path)
-
-
-def _validate_full_data_overlay(root: Path, path: Path) -> Iterable[ArchitectureViolation]:
-    try:
-        document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as exc:
-        yield ArchitectureViolation(
-            _relative(root, path), 0, f"could not inspect full-data Compose overlay: {exc}"
-        )
-        return
-    services = document.get("services", {}) if isinstance(document, dict) else {}
-    if not isinstance(services, dict):
-        yield ArchitectureViolation(_relative(root, path), 0, "Compose services must be a map")
-        return
-    for service_name, raw_service in services.items():
-        if not isinstance(service_name, str) or not isinstance(raw_service, dict):
-            continue
-        environment = _compose_environment(raw_service.get("environment"))
-        if not _enables_full_data(environment):
-            continue
-        profiles = raw_service.get("profiles", [])
-        if not isinstance(profiles, list) or "full-data" not in profiles:
-            yield ArchitectureViolation(
-                _relative(root, path),
-                0,
-                f"Compose service {service_name} enables full data without the full-data profile",
-            )
-
 
 def _compose_environment(raw: object) -> dict[str, object]:
     if isinstance(raw, dict):
@@ -557,11 +516,6 @@ def _compose_mounts(raw: object) -> dict[str, str]:
             if isinstance(source, str):
                 mounts[source] = "ro" if item.get("read_only") is True else "rw"
     return mounts
-
-
-def _enables_full_data(environment: Mapping[str, object]) -> bool:
-    value = environment.get("PROPERTYSCOPE_FULL_DATA_ENABLED")
-    return isinstance(value, (str, bool)) and str(value).lower() in {"1", "true", "yes"}
 
 
 def _allowed_workspace_dependencies(

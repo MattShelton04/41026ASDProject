@@ -4,7 +4,6 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILES = ("docker-compose.yml", "docker-compose.dev.yml")
-FULL_DATA_COMPOSE_FILE = "docker-compose.full-data.yml"
 PROFILES = ("release-0",)
 APPLICATION_SERVICES = (
     "shared-frontend",
@@ -17,7 +16,6 @@ APPLICATION_SERVICES = (
 )
 BUILD_SERVICES = APPLICATION_SERVICES
 PRODUCTION_BUILD_SERVICES = APPLICATION_SERVICES
-FULL_DATA_PROJECT_NAME = "ps-full"
 DEFAULT_PROJECT_NAME = "ps-dev"
 RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
 OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"

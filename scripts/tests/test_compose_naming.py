@@ -21,7 +21,6 @@ def _compose(filename: str) -> dict[str, Any]:
 def test_compose_projects_have_short_purpose_specific_names() -> None:
     assert _compose("docker-compose.yml")["name"] == "ps"
     assert _compose("docker-compose.dev.yml")["name"] == "ps-dev"
-    assert _compose("docker-compose.full-data.yml")["name"] == "ps-full"
 
 
 def test_services_use_ownership_prefixes_and_compose_generated_container_names() -> None:
@@ -38,8 +37,16 @@ def test_services_use_ownership_prefixes_and_compose_generated_container_names()
 def test_overlays_and_resources_reuse_the_same_ownership_vocabulary() -> None:
     base = _compose("docker-compose.yml")
     base_services = set(base["services"])
-    for filename in ("docker-compose.dev.yml", "docker-compose.full-data.yml"):
+    for filename in ("docker-compose.dev.yml",):
         assert set(_compose(filename)["services"]) <= base_services
 
     assert set(base["networks"]) == {"shared-platform"}
     assert all(SERVICE_NAME.fullmatch(name) for name in base["volumes"])
+
+
+def test_source_scale_resource_defaults_fit_two_cpu_hosts() -> None:
+    services = _compose("docker-compose.yml")["services"]
+
+    assert services["f1-db-api"]["cpus"] == "${PROPERTYSCOPE_DATABASE_CPU_LIMIT:-2.0}"
+    assert services["f1-db-loader"]["cpus"] == "${PROPERTYSCOPE_LOADER_CPU_LIMIT:-2.0}"
+    assert services["f1-runner"]["cpus"] == "${PROPERTYSCOPE_RUNNER_CPU_LIMIT:-2.0}"

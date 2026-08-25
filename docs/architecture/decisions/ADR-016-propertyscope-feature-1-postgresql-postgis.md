@@ -49,9 +49,9 @@ database services. AI-mode keeps its existing independent workflow store.
 - Feature 1 owns source/job/run/release CRUD, provenance, stable property/addressable-
   location identity, property discovery, accepted source-aligned data and serving
   projections. It does not own consumer-domain saved work or analytical meaning.
-- CI, ordinary Compose and the showcase use the same PostgreSQL schema/code path with a
-  small deterministic fixture/profile. The persistent full-data profile is explicit and
-  opt-in; no second SQLite implementation is maintained after approval.
+- CI, ordinary Compose and the showcase use the same PostgreSQL schema/code path. Registered
+  test/showcase scopes remain small, while complete official acquisition is an explicit job in the
+  default runtime under ADR-022; no second database implementation or Compose project is maintained.
 - Migrations must rebuild from empty and produce a checked schema fingerprint. Manual DDL
   and direct reuse of the earlier database are prohibited.
 

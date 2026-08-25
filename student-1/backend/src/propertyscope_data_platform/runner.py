@@ -64,7 +64,6 @@ class RunnerSettings:
     worker_id: str
     poll_seconds: float
     lease_seconds: int
-    full_data_enabled: bool = False
     gnaf_archive_path: Path | None = None
     gnaf_archive_crs: str = "GDA94"
     psi_archive_root: Path | None = None
@@ -82,8 +81,6 @@ class RunnerSettings:
             worker_id=os.environ.get("PROPERTYSCOPE_RUNNER_ID", f"runner-{uuid.uuid4().hex[:8]}"),
             poll_seconds=float(os.environ.get("PROPERTYSCOPE_RUNNER_POLL_SECONDS", "1")),
             lease_seconds=int(os.environ.get("PROPERTYSCOPE_RUNNER_LEASE_SECONDS", "30")),
-            full_data_enabled=os.environ.get("PROPERTYSCOPE_FULL_DATA_ENABLED", "false").lower()
-            in {"1", "true", "yes"},
             gnaf_archive_path=_optional_path(os.environ.get("PROPERTYSCOPE_GNAF_ARCHIVE_PATH")),
             gnaf_archive_crs=os.environ.get("PROPERTYSCOPE_GNAF_CRS", "GDA94").upper(),
             psi_archive_root=_optional_path(os.environ.get("PROPERTYSCOPE_PSI_ARCHIVE_ROOT")),
@@ -180,10 +177,6 @@ class AcquisitionRunner:
         if stage in {"discover", "acquire"}:
             profile = str(task.get("import_profile_key", "property-fixture"))
             live_requested = scope.get("profile") == "full-data"
-            if live_requested and not self.settings.full_data_enabled:
-                raise RuntimeError(
-                    "Full-data acquisition requires the explicit full-data runtime profile"
-                )
             if (
                 live_requested
                 and profile in {"psi-sales", "gnaf-nsw", "bocsar-sparse"}
