@@ -794,13 +794,16 @@ test("property discovery consumes shell search queries and stays product-facing"
   const source = await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8");
   assert.match(source, /routeQuery\(location\.hash\)\.get\("q"\)/);
   assert.match(source, /if \(input\.value\) queueMicrotask/);
-  assert.match(source, /Explore NSW properties/);
-  assert.match(source, /which sources and research data are available/);
+  assert.match(source, /Find a NSW property/);
+  assert.match(source, /street, suburb, postcode or any combination/);
+  assert.doesNotMatch(source, /items\.slice\(0, 5\)/);
+  assert.match(source, /Show more matches/);
   assert.doesNotMatch(source, /Feature [1-5]|buyer features|Dossier report/);
   assert.match(source, /#properties\/\$\{encodeURIComponent\(item\.property_ref\)\}/);
-  assert.match(source, /Property references and coordinates/);
+  assert.match(source, /Property references and recorded coordinates/);
   assert.match(source, /confidenceLabel/);
-  assert.match(source, /Property identifiers and coordinates/);
+  assert.match(source, /All search terms matched/);
+  assert.match(source, /Sources and identifiers/);
   assert.doesNotMatch(source, /Advanced identity evidence/);
 });
 

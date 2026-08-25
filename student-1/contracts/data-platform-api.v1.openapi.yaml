@@ -256,7 +256,7 @@ components:
           items:
             type: object
             additionalProperties: false
-            required: [property_ref, address_display, locality, postcode, state, resolution_status, longitude, latitude, score, matched_address, match_kind]
+            required: [property_ref, address_display, locality, postcode, state, resolution_status, longitude, latitude, score, matched_address, match_kind, match_method]
             properties:
               property_ref: {type: string, format: uuid}
               address_display: {type: string, minLength: 1, maxLength: 500}
@@ -269,6 +269,7 @@ components:
               score: {type: number, minimum: 0, maximum: 1}
               matched_address: {type: string, minLength: 1, maxLength: 500}
               match_kind: {enum: [canonical, alias]}
+              match_method: {enum: [exact, prefix, contains, all_terms, fuzzy]}
         count: {type: integer, minimum: 0, maximum: 100}
         total: {type: integer, minimum: 0}
         limit: {type: integer, minimum: 1, maximum: 100}

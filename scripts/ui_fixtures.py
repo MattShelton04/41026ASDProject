@@ -208,6 +208,9 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
             "latitude": -33.8688,
             "longitude": 151.2093,
             "score": 0.98,
+            "matched_address": address,
+            "match_kind": "canonical",
+            "match_method": "contains",
             "resolution_status": "verified",
             "geometry": {"type": "Point", "coordinates": [151.2093, -33.8688]},
             "updated_at": TIMESTAMP,
@@ -304,7 +307,8 @@ def _expanded(items: list[dict[str, Any]], scenario: str) -> list[dict[str, Any]
         if "name" in item:
             item["name"] = f"{item['name']} {index:03d}"
         if "address_display" in item:
-            item["address_display"] = f"{index} Example Street, Sydney NSW 2000"
+            item["address_display"] = f"{100 + index} Example Street, Sydney NSW 2000"
+            item["matched_address"] = item["address_display"]
         expanded.append(item)
     return expanded
 
@@ -491,10 +495,18 @@ def fixture_response(
             delay_seconds=delay,
         )
     if route == "properties/search":
-        search_body: dict[str, Any] = _collection(properties, scenario)
-        search_body.pop("limit")
-        search_body.pop("offset")
-        search_body.pop("next_offset")
+        matches = [] if scenario == "empty" else _expanded(properties, scenario)
+        limit = min(100, max(1, int(params.get("limit", ["25"])[0])))
+        offset = min(1_000_000, max(0, int(params.get("offset", ["0"])[0])))
+        items = matches[offset : offset + limit]
+        search_body: dict[str, Any] = {
+            "items": items,
+            "count": len(items),
+            "total": len(matches),
+            "limit": limit,
+            "offset": offset,
+            "next_offset": offset + len(items) if offset + len(items) < len(matches) else None,
+        }
         search_body["supported"] = True
         search_body["query"] = params.get("q", [""])[0]
         return FixtureResponse(200, search_body, delay_seconds=delay)

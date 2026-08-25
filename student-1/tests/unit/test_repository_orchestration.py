@@ -382,6 +382,7 @@ def test_property_search_requires_an_accepted_identity_generation() -> None:
     assert "document.search_text LIKE '%%' || %s || '%%'" in store.query
     assert "word_similarity(%s,document.search_text)" in store.query
     assert "CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END" in store.query
+    assert "WHEN 3 THEN 'all_terms'" in store.query
     assert "min(match_rank) OVER () AS best_rank" in store.query
     assert "best_rank = 4 AND score >= greatest(0.30,best_score - 0.12)" in store.query
     assert "count(*) OVER () AS total_count" in store.query

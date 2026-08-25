@@ -1445,6 +1445,13 @@ class PropertyScopeStore:
             )
             SELECT property_ref,address_display,locality,postcode,state,resolution_status,
                    longitude,latitude,score,matched_address,match_kind,
+                   CASE match_rank
+                       WHEN 0 THEN 'exact'
+                       WHEN 1 THEN 'prefix'
+                       WHEN 2 THEN 'contains'
+                       WHEN 3 THEN 'all_terms'
+                       ELSE 'fuzzy'
+                   END AS match_method,
                    count(*) OVER () AS total_count
             FROM filtered
             ORDER BY match_rank,score DESC,address_display LIMIT %s OFFSET %s

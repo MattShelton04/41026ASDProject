@@ -227,7 +227,10 @@ def test_required_scenarios_have_distinct_deterministic_behaviour() -> None:
     assert fixture_response("GET", route, "", "empty").body["items"] == []
     assert fixture_response("GET", route, "", "slow").delay_seconds > 0
     assert fixture_response("GET", route, "", "error").status == 503
-    assert fixture_response("GET", route, "", "large").body["count"] == 80
+    large = fixture_response("GET", route, "", "large").body
+    assert large["count"] == 25
+    assert large["total"] == 80
+    assert large["next_offset"] == 25
     assert (
         "<script>"
         in fixture_response("GET", route, "", "long-content").body["items"][0]["address_display"]

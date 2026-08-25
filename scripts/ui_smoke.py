@@ -201,7 +201,7 @@ def run_smoke(*, port: int, scenario: str, all_routes: bool = False) -> None:
                         page,
                         f"{base_url}/features/data-platform/"
                         f"?scenario={scenario}#properties?q=11%20Example%20Street",
-                        "Explore NSW properties",
+                        "Find a NSW property",
                         ready_selector=".result-card",
                     )
                     page.close()

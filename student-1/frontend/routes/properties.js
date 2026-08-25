@@ -8,6 +8,8 @@ import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
 import { createMap, createOpenFreeMapProvider, featureCollection, pointFeature } from "../mapping/index.js";
 
+const PROPERTY_SEARCH_PAGE_SIZE = 25;
+
 export function createPropertyRoutes({ view, request, announce, rerender }) {
   let routeGeneration = 0;
   let pendingSearchOrigin = null;
@@ -17,17 +19,17 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
     if (propertyRef) return renderPropertyDetail(propertyRef, generation);
     view.replaceChildren();
     const hero = el("section", "discovery-hero");
-    append(hero, el("p", "eyebrow", "Property search"), el("h1", "", "Explore NSW properties"), el("p", "", "Find a NSW address and see which sources and research data are available for it."));
+    append(hero, el("p", "eyebrow", "Property search"), el("h1", "", "Find a NSW property"), el("p", "", "Search the current published address register by street, suburb, postcode or any combination you know."));
     const form = el("form", "search-box");
     form.setAttribute("role", "search");
     const searchField = el("label", "search-field");
     searchField.htmlFor = "property-search-query";
-    append(searchField, el("span", "", "NSW street address (required)"));
+    append(searchField, el("span", "", "Address, suburb or postcode"));
     const input = el("input");
     input.id = "property-search-query";
     input.type = "search";
     input.name = "q";
-    input.placeholder = "Try 11 Example Street, Sydney NSW 2000";
+    input.placeholder = 'Try "Sydney", "2000" or "11 Example Street"';
     input.autocomplete = "street-address";
     input.minLength = 2;
     input.maxLength = 200;
@@ -39,11 +41,11 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
     search.type = "submit";
     append(form, searchField, search);
     const searchError = el("p", "form-error"); searchError.id = "property-search-error"; searchError.setAttribute("role", "alert");
-    const searchHelp = el("p", "search-help", "NSW addresses · 2–200 characters · Best matches first · Address matching does not depend on AI"); searchHelp.id = "property-search-help";
+    const searchHelp = el("p", "search-help", "Type at least 2 characters. Punctuation and word order are optional; close spelling matches are included."); searchHelp.id = "property-search-help";
     append(hero, form, searchError, searchHelp);
     append(view, hero);
     const resultHost = el("div");
-    append(resultHost, emptyState("Start with a street address", "Include a street number and suburb or postcode for the clearest match."));
+    append(resultHost, emptyState("Search current property records", "Use as much or as little of the address as you know. Add more detail only when you need to narrow the matches."));
     append(view, resultHost);
 
     let queryGeneration = 0;
@@ -52,14 +54,36 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
       updateSearchHistory(query, { preserveReturn });
       resultHost.replaceChildren(el("section", "loading-state", "Searching NSW property records…"));
       try {
-        const result = await request(`properties/search${queryString({ q: query, state: "NSW", limit: 25 })}`);
+        const result = await request(`properties/search${queryString({ q: query, state: "NSW", limit: PROPERTY_SEARCH_PAGE_SIZE, offset: 0 })}`);
         if (searchGeneration !== queryGeneration || !canHydrate(generation, routeGeneration, resultHost, "") || input.value.trim() !== query) return;
-        const items = collection(result.body);
+        let items = collection(result.body);
+        let total = Number(result.body.total ?? items.length);
         if (result.body.supported === false) resultHost.replaceChildren(el("div", "notice warning", "This query is outside the supported NSW coverage. Try an NSW street address."));
-        else if (!items.length) resultHost.replaceChildren(emptyState("No property found", "Try including a street number, suburb and four-digit postcode. We will not silently broaden your search."));
+        else if (!items.length) resultHost.replaceChildren(emptyState("No property found", "Check the spelling or try a broader part of the address, such as the suburb or postcode. Only current published NSW address records are searched."));
         else {
-          renderPropertyResults(resultHost, items, query);
-          announce(`${items.length} property matches found.`);
+          const renderResults = () => renderPropertyResults(resultHost, items, query, {
+            total,
+            onLoadMore: async (control, errorHost) => {
+              control.disabled = true;
+              control.textContent = "Loading…";
+              errorHost.textContent = "";
+              try {
+                const page = await request(`properties/search${queryString({ q: query, state: "NSW", limit: PROPERTY_SEARCH_PAGE_SIZE, offset: items.length })}`);
+                if (searchGeneration !== queryGeneration || !canHydrate(generation, routeGeneration, resultHost, "") || input.value.trim() !== query) return;
+                const known = new Set(items.map((item) => item.property_ref));
+                items = [...items, ...collection(page.body).filter((item) => !known.has(item.property_ref))];
+                total = Number(page.body.total ?? total);
+                renderResults();
+                announce(`${items.length} of ${total} property matches shown.`);
+              } catch (error) {
+                control.disabled = false;
+                control.textContent = "Show more matches";
+                errorHost.textContent = `More matches could not be loaded.${problemSuffix(error)}`;
+              }
+            },
+          });
+          renderResults();
+          announce(`${total} property ${total === 1 ? "match" : "matches"} found.`);
         }
       } catch (error) {
         if (searchGeneration !== queryGeneration || !canHydrate(generation, routeGeneration, resultHost, "") || input.value.trim() !== query) return;
@@ -116,16 +140,24 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
     });
   }
 
-  function renderPropertyResults(host, items, query) {
-    const layout = el("div", "property-results");
+  function renderPropertyResults(host, items, query, { total, onLoadMore }) {
+    const layout = el("section", "property-results");
+    const summary = el("header", "property-results-heading");
+    append(summary, el("p", "eyebrow", "Search results"), el("h2", "", `${formatNumber(total)} ${total === 1 ? "property" : "properties"} found`), el("p", "", `Best matches for \u201c${query}\u201d. Search covers the current published NSW address records.`));
     const listBody = el("div", "result-list");
     listBody.setAttribute("aria-label", "Property matches");
-    items.slice(0, 5).forEach((item) => {
+    items.forEach((item) => {
       const target = `#properties/${encodeURIComponent(item.property_ref)}${queryString({ q: query })}`;
       const result = link("", target, "result-card");
       result.dataset.propertyRef = item.property_ref;
       result.setAttribute("aria-label", `Open ${item.address_display}`);
-      append(result, el("strong", "", item.address_display), el("span", "", `${confidenceLabel(item.score ?? item.match?.score)} · ${humanise(item.resolution_status || "unknown")} identity`));
+      const copy = el("span", "result-card-copy");
+      append(copy, el("strong", "", item.address_display));
+      const meta = el("span", "result-card-meta");
+      append(meta, el("span", "", `${humanise(item.locality)} NSW ${item.postcode}`), el("span", "", propertyMatchLabel(item)), badge(item.resolution_status || "unknown"));
+      append(copy, meta);
+      if (item.match_kind === "alias" && item.matched_address && item.matched_address !== item.address_display) append(copy, el("span", "result-card-alias", `Matched address alias: ${item.matched_address}`));
+      append(result, copy, el("span", "result-card-arrow", "\u2192"));
       result.addEventListener("click", (event) => {
         pendingSearchOrigin = rememberSearchReturn(event, { query, propertyRef: item.property_ref });
       });
@@ -135,7 +167,17 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
       [{ label: "Address" }, { label: "Property reference" }, { label: "Latitude" }, { label: "Longitude" }, { label: "Resolution" }], items,
       (item) => { const row = el("tr"); append(row, cell(item.address_display, "primary-cell"), cell(item.property_ref, "mono"), cell(item.latitude ?? "Unknown"), cell(item.longitude ?? "Unknown"), cell(badge(item.resolution_status || "unknown"))); return row; },
     );
-    append(layout, panel(`${items.length} ${items.length === 1 ? "match" : "matches"}`, items.length > 5 ? "Showing the five best matches · choose one to continue" : "Choose a property to continue", listBody), disclosurePanel("All match details", "Property references and coordinates", coordinateRows));
+    append(layout, summary, listBody);
+    if (items.length < total) {
+      const pagination = el("div", "property-results-pagination");
+      const more = button("Show more matches", "button secondary");
+      const moreError = el("p", "form-error");
+      moreError.setAttribute("role", "alert");
+      more.addEventListener("click", () => onLoadMore(more, moreError));
+      append(pagination, el("p", "", `Showing ${formatNumber(items.length)} of ${formatNumber(total)} matches`), more, moreError);
+      append(layout, pagination);
+    }
+    append(layout, disclosurePanel("Match details", "Property references and recorded coordinates", coordinateRows));
     host.replaceChildren(layout);
     restoreSearchReturn(listBody, query, routeGeneration);
   }
@@ -166,12 +208,15 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
       append(referenceStrip, el("span", "", humanise(property.resolution_status || "unknown")), el("span", "", `${detailPayload.identifiers?.length || 0} source identifiers checked`), coverageCount);
       append(identityHero, referenceStrip);
       append(view, identityHero);
-      const body = el("div", "stack");
-      append(body, detailList([["Address", property.address_display || property.display_address], ["Locality", property.locality], ["State", property.state], ["Postcode", property.postcode], ["Match status", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)]]));
+      const detailGrid = el("div", "property-detail-grid");
+      const summaryColumn = el("aside", "property-summary-column");
+      const summaryBody = detailList([["Canonical address", property.address_display || property.display_address], ["Locality", humanise(property.locality)], ["Postcode", property.postcode], ["Identity status", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)]]);
+      append(summaryColumn, panel("Property at a glance", "Canonical identity from current published records", summaryBody));
+      const contentColumn = el("div", "property-content-column");
       const mapHost = pendingSection("Loading spatial context…");
-      append(body, mapHost);
+      append(contentColumn, panel("Location", "Verified property point and surrounding street context", mapHost));
       const coverageHost = pendingSection("Loading available research coverage…");
-      append(body, coverageHost);
+      append(contentColumn, panel("Research available", "Published datasets currently linked to this property", coverageHost));
       const technicalBody = el("div", "stack");
       append(technicalBody, detailList([["PropertyScope reference", el("code", "mono", property.property_ref)], ["Request ID", el("code", "mono", detailResult.requestId)]]));
       const coordinateHost = pendingSection("Loading recorded coordinates…");
@@ -184,8 +229,9 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
       ], "No address aliases are recorded for this property."));
       const reportHost = pendingSection("Loading source summary…");
       append(technicalBody, reportHost);
-      append(body, disclosurePanel("Property identifiers and coordinates", "Source identifiers, coordinates and address aliases", technicalBody));
-      append(view, panel("Property details", "Address, location and available research data", body));
+      append(summaryColumn, disclosurePanel("Sources and identifiers", "References, coordinates, aliases and report evidence", technicalBody));
+      append(detailGrid, summaryColumn, contentColumn);
+      append(view, detailGrid);
 
       void mapResult.then((result) => {
         if (!canHydrate(generation, routeGeneration, mapHost, propertyRef)) return;
@@ -382,7 +428,7 @@ function coverageSection(coverage, result) {
     append(card, el("strong", "", displayName(item.dataset || item.dataset_id || researchAreaLabel(item.feature || item.target_feature))), el("span", "", `${humanise(item.status || item.coverage_status || item.state)}${item.release_version ? ` · ${item.release_version}` : ""}${item.limitation ? ` · ${item.limitation}` : ""}`));
     append(cards, card);
   }
-  append(section, el("h2", "", "Available research coverage"), cards);
+  append(section, cards);
   return section;
 }
 
@@ -451,6 +497,17 @@ function evidenceTable(title, items, columns, emptyCopy) {
   if (!items.length) { append(body, el("p", "", emptyCopy)); return body; }
   append(body, makeTable(columns.map(([label]) => ({ label })), items, (item) => { const row = el("tr"); columns.forEach(([, value], index) => append(row, cell(value(item), index === 0 ? "primary-cell" : ""))); return row; }));
   return body;
+}
+
+function propertyMatchLabel(item) {
+  const labels = {
+    exact: "Exact address match",
+    prefix: "Address starts with search",
+    contains: "Address contains search",
+    all_terms: "All search terms matched",
+    fuzzy: "Close spelling match",
+  };
+  return labels[item.match_method] || confidenceLabel(item.score ?? item.match?.score);
 }
 
 function problemSuffix(error) { return error?.requestId ? ` Request ID ${error.requestId}.` : ""; }
