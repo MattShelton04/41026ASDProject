@@ -73,6 +73,13 @@ def test_claim_reconciles_expiry_and_only_claims_the_first_eligible_stage() -> N
     task = ConnectedStore(connection).claim_task(worker_id="runner-1", lease_seconds=30)
 
     assert task is not None and task["id"] == str(task_id)
+    run_update = next(
+        query for query in connection.queries if "UPDATE ops.ingestion_run SET status=%s" in query
+    )
+    assert "SET status=%s" in run_update
+    run_update_parameters = connection.parameters[5]
+    assert run_update_parameters is not None
+    assert run_update_parameters[0] == "discovering"
     candidate = next(query for query in connection.queries if "WITH candidate AS" in query)
     assert "predecessor.logical_key<task.logical_key" in candidate
     assert "predecessor.status NOT IN ('succeeded','skipped')" in candidate
@@ -135,6 +142,37 @@ def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> N
     run_update_parameters = connection.parameters[3]
     assert run_update_parameters is not None
     assert run_update_parameters[1] is False
+
+
+def test_active_cancellation_is_acknowledged_by_the_next_task_heartbeat() -> None:
+    run_id = uuid.uuid4()
+    task_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            {
+                "id": task_id,
+                "ingestion_run_id": run_id,
+                "status": "cancelled",
+            },
+            None,
+            None,
+        ]
+    )
+
+    task = ConnectedStore(connection).heartbeat_task(
+        task_id,
+        worker_id="runner-1",
+        lease_token="lease-token",
+        lease_seconds=300,
+    )
+
+    assert task["status"] == "cancelled"
+    heartbeat = connection.queries[0]
+    assert "run.cancel_requested_at IS NOT NULL" in heartbeat
+    assert "RETURNING task.*" in heartbeat
+    assert "status IN ('pending','retry_wait')" in connection.queries[1]
+    assert "UPDATE ops.ingestion_run SET status='cancelled'" in connection.queries[2]
+    assert connection.committed is True
 
 
 def test_resume_requeues_cancelled_unfinished_task_from_interrupted_run() -> None:

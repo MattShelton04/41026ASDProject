@@ -24,7 +24,11 @@ from propertyscope_data_platform.adapters.psi import (
     parse_psi_b_record,
 )
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
-from propertyscope_data_platform.runner import AcquisitionRunner, RunnerSettings
+from propertyscope_data_platform.runner import (
+    AcquisitionRunner,
+    RunnerSettings,
+    _cancellation_poll_interval,
+)
 
 
 def test_schools_preserves_and_normalises_locality() -> None:
@@ -84,6 +88,47 @@ def test_full_data_never_silently_substitutes_unconnected_sources(tmp_path: Path
     )
     with pytest.raises(RuntimeError, match="no connected live transport"):
         runner._live_document({}, stage="acquire", profile="spatial-features")
+
+
+def test_runner_stops_cooperatively_cancelled_work_without_reporting_a_failure(
+    tmp_path: Path,
+) -> None:
+    requests: list[str] = []
+
+    def control_plane(request: httpx.Request) -> httpx.Response:
+        requests.append(request.url.path)
+        if request.url.path.endswith("/tasks/claim"):
+            return httpx.Response(
+                200,
+                json={
+                    "task": {
+                        "id": "task-1",
+                        "ingestion_run_id": "run-1",
+                        "stage": "acquire",
+                        "lease_token": "lease-1",
+                    }
+                },
+            )
+        if request.url.path.endswith("/tasks/task-1/heartbeat"):
+            return httpx.Response(200, json={"task": {"id": "task-1", "status": "cancelled"}})
+        raise AssertionError(f"cancelled work must not call {request.url.path}")
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "runner-1", 0.1, 300),
+        client=httpx.Client(transport=httpx.MockTransport(control_plane)),
+    )
+
+    assert runner.run_once() is True
+    assert requests == [
+        "/internal/data-platform/v1/worker/tasks/claim",
+        "/internal/data-platform/v1/worker/tasks/task-1/heartbeat",
+    ]
+
+
+def test_cancellation_polling_is_bounded_independently_of_the_recovery_lease() -> None:
+    assert _cancellation_poll_interval(300) == 5.0
+    assert _cancellation_poll_interval(30) == 5.0
+    assert _cancellation_poll_interval(5) == pytest.approx(5 / 3)
 
 
 def test_bocsar_preserves_leading_zero_and_sparse_zero() -> None:

@@ -27,6 +27,7 @@ from propertyscope_data_store.import_profiles import (
 from propertyscope_data_store.migrations import migrate, schema_fingerprint
 from propertyscope_data_store.orchestration_policy import (
     TERMINAL_RUN_STATES,
+    run_status_for_stage,
     task_plan,
     validate_retry_parent,
 )
@@ -731,9 +732,14 @@ class PropertyScopeStore:
             ).fetchone()
             if row is not None:
                 connection.execute(
-                    """UPDATE ops.ingestion_run SET status=CASE WHEN status='queued' THEN 'planning' ELSE status END,
+                    """UPDATE ops.ingestion_run SET status=%s,
                     started_at=COALESCE(started_at,%s),heartbeat_at=%s WHERE id=%s""",
-                    (now, now, row["ingestion_run_id"]),
+                    (
+                        run_status_for_stage(str(row["stage"])),
+                        now,
+                        now,
+                        row["ingestion_run_id"],
+                    ),
                 )
                 context = connection.execute(
                     """SELECT run.profile_key,run.run_mode,run.requested_scope_json,
@@ -756,12 +762,29 @@ class PropertyScopeStore:
         now = datetime.now(UTC)
         with self.connection() as connection:
             row = connection.execute(
-                """UPDATE ops.run_task SET status='running',heartbeat_at=%s,lease_expires_at=%s,
-                updated_at=%s,version=version+1 WHERE id=%s AND lease_owner=%s AND lease_token=%s
-                AND lease_expires_at>%s AND status IN ('claimed','running') RETURNING *""",
+                """UPDATE ops.run_task task SET
+                status=CASE WHEN run.cancel_requested_at IS NOT NULL THEN 'cancelled'
+                    ELSE 'running' END,
+                heartbeat_at=CASE WHEN run.cancel_requested_at IS NOT NULL THEN NULL ELSE %s END,
+                lease_expires_at=CASE WHEN run.cancel_requested_at IS NOT NULL THEN NULL ELSE %s END,
+                lease_owner=CASE WHEN run.cancel_requested_at IS NOT NULL THEN NULL
+                    ELSE task.lease_owner END,
+                lease_token=CASE WHEN run.cancel_requested_at IS NOT NULL THEN NULL
+                    ELSE task.lease_token END,
+                finished_at=CASE WHEN run.cancel_requested_at IS NOT NULL THEN %s
+                    ELSE task.finished_at END,
+                error_json=CASE WHEN run.cancel_requested_at IS NOT NULL
+                    THEN COALESCE(task.error_json,%s) ELSE task.error_json END,
+                updated_at=%s,version=task.version+1
+                FROM ops.ingestion_run run WHERE task.id=%s
+                AND run.id=task.ingestion_run_id AND task.lease_owner=%s
+                AND task.lease_token=%s AND task.lease_expires_at>%s
+                AND task.status IN ('claimed','running') RETURNING task.*""",
                 (
                     now,
                     now + timedelta(seconds=lease_seconds),
+                    now,
+                    _json(_cancellation_error()),
                     now,
                     task_id,
                     worker_id,
@@ -769,6 +792,20 @@ class PropertyScopeStore:
                     now,
                 ),
             ).fetchone()
+            if row is not None and row["status"] == "cancelled":
+                run_id = row["ingestion_run_id"]
+                connection.execute(
+                    """UPDATE ops.run_task SET status='cancelled',finished_at=%s,updated_at=%s,
+                    error_json=COALESCE(error_json,%s),version=version+1
+                    WHERE ingestion_run_id=%s AND status IN ('pending','retry_wait')""",
+                    (now, now, _json(_cancellation_error()), run_id),
+                )
+                connection.execute(
+                    """UPDATE ops.ingestion_run SET status='cancelled',finished_at=%s,
+                    error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL
+                    WHERE id=%s AND cancel_requested_at IS NOT NULL""",
+                    (now, _json(_cancellation_error()), run_id),
+                )
             connection.commit()
         if row is None:
             raise LeaseConflictError("task lease is stale or owned by another worker")
@@ -1892,15 +1929,7 @@ class PropertyScopeStore:
                         (now, run_id, run_id, run_id, run_id),
                     )
                 else:
-                    stage_status = {
-                        "discover": "discovering",
-                        "acquire": "acquiring",
-                        "validate_artifact": "acquiring",
-                        "import": "staging",
-                        "normalise": "normalising",
-                        "quality": "validating",
-                        "build_release": "building_release",
-                    }.get(str(row["stage"]), "planning")
+                    stage_status = run_status_for_stage(str(row["stage"]))
                     connection.execute(
                         "UPDATE ops.ingestion_run SET status=%s,heartbeat_at=%s WHERE id=%s",
                         (stage_status, now, run_id),

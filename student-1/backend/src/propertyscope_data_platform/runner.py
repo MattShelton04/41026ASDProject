@@ -56,6 +56,10 @@ GNAF_CKAN_URL = (
 logger = logging.getLogger(__name__)
 
 
+class TaskCancelledError(RuntimeError):
+    """The control plane acknowledged an operator cancellation for active work."""
+
+
 @dataclass(frozen=True, slots=True)
 class RunnerSettings:
     backend_url: str
@@ -143,6 +147,8 @@ class AcquisitionRunner:
                 },
             )
             result.raise_for_status()
+        except TaskCancelledError:
+            logger.info("Run task %s (%s) cancelled by operator", task_id, task.get("stage"))
         except Exception as exc:
             logger.exception("Run task %s (%s) failed", task_id, task.get("stage"))
             safe_code = (
@@ -803,7 +809,7 @@ class AcquisitionRunner:
 
     def _heartbeat_progress(self, task: dict[str, Any]) -> Callable[[int], None]:
         last_heartbeat = time.monotonic()
-        interval = max(1.0, self.settings.lease_seconds / 3)
+        interval = _cancellation_poll_interval(self.settings.lease_seconds)
 
         def report_progress(_bytes_processed: int) -> None:
             nonlocal last_heartbeat
@@ -856,6 +862,9 @@ class AcquisitionRunner:
             },
         )
         response.raise_for_status()
+        task = response.json().get("task")
+        if isinstance(task, dict) and task.get("status") == "cancelled":
+            raise TaskCancelledError("Run task cancelled by operator")
 
     def _control_request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         """Retry brief control-plane disconnects without losing durable work."""
@@ -879,6 +888,11 @@ def _safe_message(exc: Exception) -> str:
     if isinstance(exc, RuntimeError) and "Required fixture month" in str(exc):
         return str(exc)
     return "Registered stage failed; inspect structured run evidence"
+
+
+def _cancellation_poll_interval(lease_seconds: int) -> float:
+    """Keep cancellation responsive without shortening the durable recovery lease."""
+    return min(5.0, max(1.0, lease_seconds / 3))
 
 
 def _record_limit(task: dict[str, Any], scope: dict[str, object]) -> int | None:

@@ -6,7 +6,11 @@ from datetime import UTC, date, datetime
 import pytest
 
 from propertyscope_data_store.errors import ConflictError
-from propertyscope_data_store.orchestration_policy import task_plan, validate_retry_parent
+from propertyscope_data_store.orchestration_policy import (
+    run_status_for_stage,
+    task_plan,
+    validate_retry_parent,
+)
 from propertyscope_data_store.persistence_support import (
     json_document,
     normalise_row,
@@ -40,6 +44,22 @@ def test_run_task_plan_has_stable_order_and_cached_skip_policy() -> None:
         "acquire",
         "validate_artifact",
     )
+
+
+@pytest.mark.parametrize(
+    ("stage", "status"),
+    [
+        ("discover", "discovering"),
+        ("acquire", "acquiring"),
+        ("validate_artifact", "acquiring"),
+        ("import", "staging"),
+        ("normalise", "normalising"),
+        ("quality", "validating"),
+        ("build_release", "building_release"),
+    ],
+)
+def test_claimed_stage_projects_the_current_public_run_status(stage: str, status: str) -> None:
+    assert run_status_for_stage(stage) == status
 
 
 @pytest.mark.parametrize("status", ["failed", "cancelled"])

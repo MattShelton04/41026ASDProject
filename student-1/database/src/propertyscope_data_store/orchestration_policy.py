@@ -20,6 +20,15 @@ RUN_STAGES = (
     "build_release",
 )
 _CACHED_PREREQUISITE_STAGES = frozenset({"discover", "acquire", "validate_artifact"})
+_RUN_STATUS_BY_STAGE = {
+    "discover": "discovering",
+    "acquire": "acquiring",
+    "validate_artifact": "acquiring",
+    "import": "staging",
+    "normalise": "normalising",
+    "quality": "validating",
+    "build_release": "building_release",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,3 +62,8 @@ def task_plan(mode: str) -> tuple[RunTaskPlan, ...]:
         )
         for index, stage in enumerate(RUN_STAGES)
     )
+
+
+def run_status_for_stage(stage: str) -> str:
+    """Project the currently claimed task stage onto the public run lifecycle."""
+    return _RUN_STATUS_BY_STAGE.get(stage, "planning")
