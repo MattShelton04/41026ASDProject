@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import uuid
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,7 +19,7 @@ from propertyscope_data_store.import_profiles import (
     iter_ndjson_import,
     prepare_import,
 )
-from propertyscope_data_store.loader import DatabaseLoader
+from propertyscope_data_store.loader import DatabaseLoader, ImportCancelledError
 
 
 def _artifact(profile: str, records: list[dict[str, object]]) -> bytes:
@@ -204,10 +205,18 @@ def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions(
 
 
 class _Store:
+    def import_cancel_requested(self, _operation_id: uuid.UUID) -> bool:
+        return False
+
     def execute_import_profile(self, work: dict[str, Any], prepared: Any) -> ImportResult:
         assert prepared.profile == "property-fixture"
         assert work["candidate_release_id"] == "60000000-0000-0000-0000-000000000001"
         return ImportResult(1, 1, 1, 0, 2)
+
+
+class _CancelledStore(_Store):
+    def import_cancel_requested(self, _operation_id: uuid.UUID) -> bool:
+        return True
 
 
 def test_loader_verifies_artifact_then_delegates_registered_copy_profile(tmp_path: Path) -> None:
@@ -219,6 +228,7 @@ def test_loader_verifies_artifact_then_delegates_registered_copy_profile(tmp_pat
     path.write_bytes(data)
     loader = DatabaseLoader(cast(Any, _Store()), tmp_path, worker_id="loader-test")
     work = {
+        "id": "70000000-0000-0000-0000-000000000001",
         "import_profile_key": "property-fixture",
         "storage_key": relative.as_posix(),
         "artifact_bytes": len(data),
@@ -232,6 +242,29 @@ def test_loader_verifies_artifact_then_delegates_registered_copy_profile(tmp_pat
     assert counts == {"rows_in": 1, "rows_staged": 1, "rows_accepted": 1, "rows_rejected": 0}
     assert result["staging_method"] == "postgresql-copy"
     assert result["accepted_generation_unchanged"] is True
+
+
+def test_loader_stops_before_reading_a_cancelled_import(tmp_path: Path) -> None:
+    data = _artifact("property-fixture", [_canonical_records("property-fixture")[0]])
+    digest = hashlib.sha256(data).hexdigest()
+    relative = Path("sha256") / digest[:2] / digest
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True)
+    path.write_bytes(data)
+    loader = DatabaseLoader(cast(Any, _CancelledStore()), tmp_path, worker_id="loader-test")
+
+    with pytest.raises(ImportCancelledError, match="cancelled by operator"):
+        loader._execute(
+            {
+                "id": "70000000-0000-0000-0000-000000000002",
+                "import_profile_key": "property-fixture",
+                "storage_key": relative.as_posix(),
+                "artifact_bytes": len(data),
+                "content_sha256": digest,
+                "media_type": "application/json",
+                "candidate_release_id": "60000000-0000-0000-0000-000000000001",
+            }
+        )
 
 
 @pytest.mark.parametrize(

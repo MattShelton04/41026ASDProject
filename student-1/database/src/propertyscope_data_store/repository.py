@@ -11,6 +11,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from threading import Event, Thread
 from typing import Any
 
 from psycopg import Connection, errors, sql
@@ -607,6 +608,13 @@ class PropertyScopeStore:
                 error_json=COALESCE(error_json,%s),version=version+1
                 WHERE ingestion_run_id=%s AND status IN ('pending','retry_wait')""",
                 (now, now, _json(_cancellation_error()), run_id),
+            )
+            connection.execute(
+                """UPDATE ops.import_operation SET status='cancelled',finished_at=%s,
+                lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
+                error_json=COALESCE(error_json,%s),version=version+1
+                WHERE ingestion_run_id=%s AND status IN ('planned','queued','interrupted')""",
+                (now, _json(_cancellation_error()), run_id),
             )
             active = connection.execute(
                 """SELECT count(*) AS count FROM ops.run_task
@@ -1637,15 +1645,48 @@ class PropertyScopeStore:
         self, work: Mapping[str, Any], prepared: PreparedImport
     ) -> ImportResult:
         """Execute one registered COPY/import profile inside the credential boundary."""
-        with self.connection() as connection:
+        operation_id = uuid.UUID(str(work["id"]))
+        with self._cancellable_import_connection(operation_id) as connection:
             return execute_import(connection, work, prepared)
 
     def execute_stream_import_profile(
         self, work: Mapping[str, Any], *, profile: str, rows: Any
     ) -> ImportResult:
         """Execute a source-scale streaming COPY inside the credential boundary."""
-        with self.connection() as connection:
+        operation_id = uuid.UUID(str(work["id"]))
+        with self._cancellable_import_connection(operation_id) as connection:
             return execute_stream_import(connection, work, profile=profile, rows=rows)
+
+    @contextmanager
+    def _cancellable_import_connection(
+        self, operation_id: uuid.UUID
+    ) -> Iterator[Connection[Any]]:
+        """Cancel an in-flight PostgreSQL statement when its owning run is cancelled."""
+        with self.connection() as connection:
+            stopped = Event()
+
+            def monitor() -> None:
+                while not stopped.wait(0.5):
+                    if self.import_cancel_requested(operation_id):
+                        connection.cancel()
+                        return
+
+            watcher = Thread(target=monitor, name=f"import-cancel-{operation_id}", daemon=True)
+            watcher.start()
+            try:
+                yield connection
+            finally:
+                stopped.set()
+                watcher.join(timeout=2)
+
+    def import_cancel_requested(self, operation_id: uuid.UUID) -> bool:
+        row = self._fetch_one(
+            """SELECT run.cancel_requested_at FROM ops.import_operation operation
+            JOIN ops.ingestion_run run ON run.id=operation.ingestion_run_id
+            WHERE operation.id=%s""",
+            (operation_id,),
+        )
+        return row is not None and row["cancel_requested_at"] is not None
 
     def enqueue_import(self, operation_id: uuid.UUID) -> JsonObject:
         with self.connection() as connection:
@@ -1726,8 +1767,8 @@ class PropertyScopeStore:
         result: Mapping[str, Any] | None,
         error: Mapping[str, Any] | None,
     ) -> JsonObject:
-        if status not in {"succeeded", "failed"}:
-            raise ConflictError("loader may finish only as succeeded or failed")
+        if status not in {"succeeded", "failed", "cancelled"}:
+            raise ConflictError("loader may finish only as succeeded, failed, or cancelled")
         now = datetime.now(UTC)
         with self.connection() as connection:
             row = connection.execute(

@@ -6,7 +6,9 @@ import hashlib
 import logging
 import os
 import signal
+import time
 import uuid
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from threading import Event
 from typing import Any
@@ -20,6 +22,10 @@ from propertyscope_data_store.import_profiles import (
 from propertyscope_data_store.repository import PropertyScopeStore
 
 logger = logging.getLogger(__name__)
+
+
+class ImportCancelledError(RuntimeError):
+    """The owning ingestion run was cancelled while the loader held the operation."""
 
 
 class DatabaseLoader:
@@ -63,15 +69,23 @@ class DatabaseLoader:
                 error=None,
             )
         except Exception as exc:
-            logger.exception("Registered import %s failed", operation_id)
+            cancelled = self.store.import_cancel_requested(operation_id)
+            if cancelled:
+                logger.info("Registered import %s cancelled by operator", operation_id)
+            else:
+                logger.exception("Registered import %s failed", operation_id)
             self.store.finish_import(
                 operation_id,
                 worker_id=self.worker_id,
                 lease_token=token,
-                status="failed",
+                status="cancelled" if cancelled else "failed",
                 counts={"rows_in": 0, "rows_staged": 0, "rows_accepted": 0, "rows_rejected": 0},
                 result=None,
-                error={"code": "stage_parse_failed", "message": _safe_loader_message(exc)},
+                error=(
+                    {"code": "operator_cancelled", "message": "Run cancelled by operator"}
+                    if cancelled
+                    else {"code": "stage_parse_failed", "message": _safe_loader_message(exc)}
+                ),
             )
         return True
 
@@ -86,19 +100,34 @@ class DatabaseLoader:
         if path.stat().st_size != int(work["artifact_bytes"]):
             raise RuntimeError("artifact size does not match registered metadata")
         digest = hashlib.sha256()
+        last_cancel_check = 0.0
+
+        def raise_if_cancelled(*, force: bool = False) -> None:
+            nonlocal last_cancel_check
+            now = time.monotonic()
+            if not force and now - last_cancel_check < 0.5:
+                return
+            last_cancel_check = now
+            if self.store.import_cancel_requested(uuid.UUID(str(work["id"]))):
+                raise ImportCancelledError("Run cancelled by operator")
+
+        raise_if_cancelled(force=True)
         with path.open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                 digest.update(chunk)
+                raise_if_cancelled()
         if digest.hexdigest() != work["content_sha256"]:
             raise RuntimeError("artifact checksum does not match registered metadata")
         if work["media_type"] == "application/x-ndjson":
             with path.open("rb") as stream:
                 rows = iter_ndjson_import(stream, profile=profile)
+                cancellable_rows = _raise_between_rows(rows, raise_if_cancelled)
                 imported = self.store.execute_stream_import_profile(
-                    work, profile=profile, rows=rows
+                    work, profile=profile, rows=cancellable_rows
                 )
         elif work["media_type"] == "application/json":
             prepared = prepare_import(path.read_bytes(), profile=profile)
+            raise_if_cancelled(force=True)
             imported = self.store.execute_import_profile(work, prepared)
         else:
             raise RuntimeError("registered import requires canonical JSON or NDJSON")
@@ -124,6 +153,14 @@ class DatabaseLoader:
         if self.artifact_root not in path.parents or not path.is_file():
             raise RuntimeError("artifact is unavailable inside the loader boundary")
         return path
+
+
+def _raise_between_rows(
+    rows: Iterable[dict[str, Any]], raise_if_cancelled: Callable[[], None]
+) -> Iterable[dict[str, Any]]:
+    for row in rows:
+        raise_if_cancelled()
+        yield row
 
 
 def _safe_loader_message(exc: Exception) -> str:
