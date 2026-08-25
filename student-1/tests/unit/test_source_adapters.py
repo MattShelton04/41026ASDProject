@@ -391,6 +391,22 @@ def test_psi_archive_preserves_undocumented_legacy_area_unit_without_conversion(
     assert sale.area_square_metres is None
 
 
+def test_psi_archive_retains_sale_when_publisher_date_is_impossible() -> None:
+    row = (
+        "B;260;4498625;14;20250106 01:07;;6534;180;GEORGE ST;PARRAMATTA;2150;"
+        "269;M;10210906;20240612;3495000;;R;RESIDENCE;86;;XA;0;AU148358;\n"
+    )
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("20250106.DAT", row)
+
+    sale = next(iter_psi_archive(stream.getvalue(), source_year=2025))
+
+    assert sale.source_business_key == "260:4498625:14"
+    assert sale.contract_date is None
+    assert sale.settlement_date == date(2024, 6, 12)
+
+
 def test_psi_archive_preserves_a_corrected_retransmission_as_a_revision() -> None:
     first = (
         "B;001;P1;2;20250101;;1;10;ROAD;SYDNEY;2000;500;M;20250101;20250201;900000;R;R;;;X;;;D1\n"

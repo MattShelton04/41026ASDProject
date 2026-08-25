@@ -336,7 +336,7 @@ def _parse_source_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiS
             district,
             property_id,
             None,
-            _date(padded[10], ("%d/%m/%Y", "%d%m%Y", "%Y%m%d")),
+            _source_date(padded[10], ("%d/%m/%Y", "%d%m%Y", "%Y%m%d")),
             None,
             _integer(padded[11]),
             _decimal(padded[13]),
@@ -360,8 +360,8 @@ def _parse_source_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiS
         district,
         property_id,
         counter or None,
-        _date(padded[13], ("%Y%m%d", "%d%m%Y")),
-        _date(padded[14], ("%Y%m%d", "%d%m%Y")),
+        _source_date(padded[13], ("%Y%m%d", "%d%m%Y")),
+        _source_date(padded[14], ("%Y%m%d", "%d%m%Y")),
         _integer(padded[15]),
         _decimal(padded[11]),
         padded[12] or None,
@@ -382,6 +382,21 @@ def _date(value: str, patterns: tuple[str, ...]) -> date | None:
         except ValueError:
             continue
     raise ValueError("PSI date is malformed")
+
+
+def _source_date(value: str, patterns: tuple[str, ...]) -> date | None:
+    """Parse an official archive date while retaining rows with publisher defects.
+
+    The public archives contain a small number of impossible eight-digit values
+    such as ``10210906``.  They cannot be corrected without guessing.  Canonical
+    archive ingestion therefore records the date as unknown while retaining the
+    sale and its source identity.  Direct/fixture parsing remains fail-closed via
+    ``_date`` so malformed caller-supplied data is still rejected.
+    """
+    try:
+        return _date(value, patterns)
+    except ValueError:
+        return None
 
 
 def _integer(value: str) -> int | None:
