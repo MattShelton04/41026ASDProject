@@ -7,12 +7,13 @@ import { parseRoute } from "./core/router.js?v=7";
 import { requestActiveDialogClose, runDialogForm } from "./components/dialogs.js?v=18";
 import { createDrawerController, createToastController } from "./browser/index.js?v=3";
 import { formField } from "./components/forms.js?v=17";
+import { hydrateIcons } from "./components/icons.js?v=1";
 import { renderLoading } from "./components/states.js";
 import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=19";
 import { createEntityRoutes } from "./routes/entities.js?v=20";
 import { createDataProductRoutes } from "./routes/data-products.js?v=18";
 import { createEvidenceRoutes } from "./routes/evidence.js?v=17";
-import { renderOverview } from "./routes/overview.js?v=20";
+import { renderOverview } from "./routes/overview.js?v=21";
 import { createPropertyRoutes } from "./routes/properties.js?v=21";
 import { createReleaseRoutes } from "./routes/releases.js?v=20";
 import { createRunPlanner } from "./routes/run-plan.js?v=19";
@@ -34,6 +35,7 @@ const discardDialog = document.querySelector("#discard-dialog");
 const discardForm = document.querySelector("#discard-form");
 const toast = document.querySelector("#toast");
 const toastController = createToastController(toast, { duration: 4500 });
+hydrateIcons();
 let drawerController = null;
 
 const productHomeUrl = window.PROPERTYSCOPE_HOME_URL

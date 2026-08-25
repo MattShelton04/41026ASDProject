@@ -10,8 +10,8 @@
     <link rel="stylesheet" href="./design-system/base.css?v=0.2">
     <link rel="stylesheet" href="./design-system/components.css?v=0.3">
     <link rel="stylesheet" href="./mapping/mapping.css?v=2">
-    <link rel="stylesheet" href="./styles.css?v=19">
-    <script type="module" src="./app.js?v=32"></script>
+    <link rel="stylesheet" href="./styles.css?v=20">
+    <script type="module" src="./app.js?v=33"></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -37,7 +37,7 @@
           <span>Checking services</span>
         </div>
         <button id="nav-toggle" class="icon-button nav-toggle" type="button" aria-controls="primary-nav" aria-expanded="false">
-          <span aria-hidden="true">☰</span><span class="visually-hidden">Open navigation</span>
+          <span aria-hidden="true" data-icon="menu"></span><span class="visually-hidden">Open navigation</span>
         </button>
       </div>
     </header>
@@ -47,17 +47,17 @@
     <div class="app-shell">
       <aside id="primary-nav" class="sidebar" aria-label="Primary navigation">
         <a class="context-card" href="#properties">
-          <span class="context-icon" aria-hidden="true">⌁</span>
+          <span class="context-icon" aria-hidden="true" data-icon="mapPin"></span>
           <div><small>Current research area</small><strong>Property data</strong></div>
         </a>
         <nav>
           <p class="nav-label">Property research</p>
-          <a href="#properties" data-route="properties"><span aria-hidden="true">⌖</span>Property search</a>
+          <a href="#properties" data-route="properties"><span class="nav-icon" aria-hidden="true" data-icon="search"></span>Property search</a>
           <p class="nav-label">Data management</p>
-          <a href="#overview" data-route="overview"><span aria-hidden="true">◫</span>Data overview</a>
-          <a href="#jobs" data-route="jobs"><span aria-hidden="true">◇</span>Data updates</a>
-          <a href="#runs" data-route="runs"><span aria-hidden="true">▷</span>Update history</a>
-          <a href="#releases" data-route="releases"><span aria-hidden="true">▱</span>Published data</a>
+          <a href="#overview" data-route="overview"><span class="nav-icon" aria-hidden="true" data-icon="overview"></span>Data overview</a>
+          <a href="#jobs" data-route="jobs"><span class="nav-icon" aria-hidden="true" data-icon="updates"></span>Data updates</a>
+          <a href="#runs" data-route="runs"><span class="nav-icon" aria-hidden="true" data-icon="history"></span>Update history</a>
+          <a href="#releases" data-route="releases"><span class="nav-icon" aria-hidden="true" data-icon="database"></span>Published data</a>
         </nav>
         <div class="sidebar-note">
           <a data-product-home href="http://localhost:5100/">← Back to research workspace</a>
