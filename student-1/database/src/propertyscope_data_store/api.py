@@ -279,7 +279,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
 
     @api.get("/internal/data-platform/v1/releases/<uuid:release_id>/product-records")
     def releases_product_records(release_id: uuid.UUID) -> Response:
-        limit, offset = pagination()
+        limit, offset = pagination(maximum_limit=5_000, default_limit=5_000)
         return jsonify(store.release_product_records(release_id, limit=limit, offset=offset))
 
     @api.post("/internal/data-platform/v1/releases/<uuid:release_id>/bind-export")
@@ -448,8 +448,10 @@ def payload() -> dict[str, Any]:
     return body
 
 
-def pagination() -> tuple[int, int]:
-    return query_integer("limit", minimum=1, maximum=100, default=25), query_integer(
+def pagination(*, maximum_limit: int = 100, default_limit: int = 25) -> tuple[int, int]:
+    return query_integer(
+        "limit", minimum=1, maximum=maximum_limit, default=default_limit
+    ), query_integer(
         "offset", minimum=0, maximum=1000000, default=0
     )
 

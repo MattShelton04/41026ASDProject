@@ -196,24 +196,34 @@ def release_product_query(
             (maximum_records, release_id, years),
         )
     if profile == "bocsar-sparse":
+        merge_window = offset + page_limit
         return ReleaseProductQuery(
             """SELECT * FROM (
-                SELECT 'observation'::text AS record_kind,geography_kind,geography_value,
-                source_category_key,offence_label,subcategory_label,month::text,count,
-                NULL::date[] AS observed_months,NULL::text AS first_month,
-                NULL::text AS last_month,NULL::integer AS month_count,
-                NULL::boolean AS blank_means_observed_zero,
-                NULL::text AS completeness_sha256,source_row_sha256,normalisation_version
-                FROM warehouse.bocsar_observation WHERE dataset_release_id=%s
+                SELECT * FROM (
+                    SELECT 'observation'::text AS record_kind,geography_kind,geography_value,
+                    source_category_key,offence_label,subcategory_label,month::text,count,
+                    NULL::date[] AS observed_months,NULL::text AS first_month,
+                    NULL::text AS last_month,NULL::integer AS month_count,
+                    NULL::boolean AS blank_means_observed_zero,
+                    NULL::text AS completeness_sha256,source_row_sha256,normalisation_version
+                    FROM warehouse.bocsar_observation WHERE dataset_release_id=%s
+                    ORDER BY geography_kind,geography_value,source_category_key,month
+                    LIMIT %s
+                ) observations
                 UNION ALL
-                SELECT 'coverage',geography_kind,geography_value,source_category_key,
-                NULL,NULL,NULL,NULL,observed_months,first_month::text,last_month::text,
-                month_count,blank_means_observed_zero,completeness_sha256,
-                source_row_sha256,normalisation_version
-                FROM warehouse.bocsar_coverage WHERE dataset_release_id=%s
+                SELECT * FROM (
+                    SELECT 'coverage'::text,geography_kind,geography_value,source_category_key,
+                    NULL::text,NULL::text,NULL::text,NULL::integer,
+                    observed_months,first_month::text,last_month::text,
+                    month_count,blank_means_observed_zero,completeness_sha256,
+                    source_row_sha256,normalisation_version
+                    FROM warehouse.bocsar_coverage WHERE dataset_release_id=%s
+                    ORDER BY geography_kind,geography_value,source_category_key
+                    LIMIT %s
+                ) coverage
                 ) product ORDER BY geography_kind,geography_value,source_category_key,
                 record_kind,month NULLS LAST LIMIT %s OFFSET %s""",
-            (release_id, release_id, page_limit, offset),
+            (release_id, merge_window, release_id, merge_window, page_limit, offset),
             """SELECT least((SELECT count(*) FROM warehouse.bocsar_observation
                 WHERE dataset_release_id=%s) +
                 (SELECT count(*) FROM warehouse.bocsar_coverage

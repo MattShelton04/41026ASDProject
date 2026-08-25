@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 from datetime import date
 from pathlib import Path
 from typing import cast
@@ -127,6 +128,43 @@ def test_runner_stops_cooperatively_cancelled_work_without_reporting_a_failure(
         "/internal/data-platform/v1/worker/tasks/claim",
         "/internal/data-platform/v1/worker/tasks/task-1/heartbeat",
     ]
+
+
+def test_runner_marks_exhausted_dependency_timeout_as_retryable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    failure: dict[str, object] = {}
+
+    def control_plane(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/tasks/claim"):
+            return httpx.Response(
+                200,
+                json={
+                    "task": {
+                        "id": "task-1",
+                        "ingestion_run_id": "run-1",
+                        "stage": "build_release",
+                        "lease_token": "lease-1",
+                    }
+                },
+            )
+        if request.url.path.endswith("/tasks/task-1/heartbeat"):
+            return httpx.Response(200, json={"task": {"id": "task-1", "status": "running"}})
+        if request.url.path.endswith("/tasks/task-1/fail"):
+            failure.update(cast(dict[str, object], json.loads(request.content)))
+            return httpx.Response(200, json={"task": {"id": "task-1", "status": "retry_wait"}})
+        raise AssertionError(f"unexpected control request {request.url.path}")
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "runner-1", 0.1, 300),
+        client=httpx.Client(transport=httpx.MockTransport(control_plane)),
+    )
+    monkeypatch.setattr(
+        runner, "_execute", lambda _task: (_ for _ in ()).throw(httpx.ReadTimeout("slow page"))
+    )
+
+    assert runner.run_once() is True
+    assert failure["retryable"] is True
 
 
 def test_cancellation_polling_is_bounded_independently_of_the_recovery_lease() -> None:

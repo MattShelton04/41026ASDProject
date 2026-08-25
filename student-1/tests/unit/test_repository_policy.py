@@ -151,6 +151,17 @@ def test_psi_product_query_requires_and_applies_explicit_source_years() -> None:
     assert query.count_params == (100, release_id, [2024, 2025])
 
 
+def test_bocsar_product_query_merges_only_the_bounded_page_window() -> None:
+    release_id = uuid.uuid4()
+
+    query = release_product_query(
+        "bocsar-sparse", release_id, {"maximum_records": 100}, limit=25, offset=50
+    )
+
+    assert query.select_params == (release_id, 75, release_id, 75, 25, 50)
+    assert query.select_sql.count("LIMIT %s") == 3
+
+
 def test_product_query_rejects_unregistered_profile_and_normalises_bocsar_dates() -> None:
     with pytest.raises(ConflictError, match="no registered product projection"):
         release_product_query("unknown", uuid.uuid4(), {}, limit=10, offset=0)
