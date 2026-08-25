@@ -489,6 +489,7 @@ def _validate_compose_boundaries(root: Path) -> Iterable[ArchitectureViolation]:
                 f"Compose service {service_name} must not write f1-artifacts",
             )
 
+
 def _compose_environment(raw: object) -> dict[str, object]:
     if isinstance(raw, dict):
         return {str(key): value for key, value in raw.items()}
