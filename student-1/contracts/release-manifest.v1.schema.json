@@ -12,7 +12,7 @@
       "type": "string"
     },
     "byte_count": {
-      "maximum": 50000000,
+      "maximum": 250000000,
       "minimum": 1,
       "title": "Byte Count",
       "type": "integer"

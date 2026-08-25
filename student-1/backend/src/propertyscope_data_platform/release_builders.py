@@ -35,7 +35,8 @@ PUBLIC_REDISTRIBUTION_POLICIES = frozenset(
 )
 RESTRICTED_REDISTRIBUTION_POLICIES = frozenset({"licence-controlled"})
 SAFE_REDISTRIBUTION_POLICIES = PUBLIC_REDISTRIBUTION_POLICIES | RESTRICTED_REDISTRIBUTION_POLICIES
-MAX_PUBLIC_ARTIFACT_BYTES = 50_000_000
+DEFAULT_PUBLIC_ARTIFACT_BYTES = 50_000_000
+MAX_PUBLIC_ARTIFACT_BYTES = 250_000_000
 
 
 class ProductModel(BaseModel):
@@ -682,7 +683,7 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
             None,
             "property_ref, source_address_id",
             50_000,
-            MAX_PUBLIC_ARTIFACT_BYTES,
+            DEFAULT_PUBLIC_ARTIFACT_BYTES,
             frozenset({"committed-synthetic-fixture", "licence-controlled"}),
             TypeAdapter(PropertySnapshotRecord),
         ),
@@ -710,7 +711,7 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
             None,
             "geography_kind, geography_value, source_category_key",
             50_000,
-            MAX_PUBLIC_ARTIFACT_BYTES,
+            DEFAULT_PUBLIC_ARTIFACT_BYTES,
             frozenset({"approved-bounded-extract"}),
             TypeAdapter(CrimeSeriesRecord),
         ),
@@ -724,7 +725,7 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
             None,
             "school_code",
             5_000,
-            MAX_PUBLIC_ARTIFACT_BYTES,
+            DEFAULT_PUBLIC_ARTIFACT_BYTES,
             frozenset({"approved-bounded-extract"}),
             TypeAdapter(SchoolPointRecord),
         ),

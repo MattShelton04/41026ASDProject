@@ -236,6 +236,16 @@ def test_registered_property_builder_is_byte_deterministic() -> None:
     assert first.manifest.byte_count == len(first.content)
 
 
+def test_release_byte_bounds_cover_registered_scope_without_widening_other_products() -> None:
+    builders = default_release_builders()
+
+    assert builders["property-sales"].spec.max_rows == 250_000
+    assert builders["property-sales"].spec.max_bytes == 250_000_000
+    assert builders["property-snapshot"].spec.max_bytes == 50_000_000
+    assert builders["crime-series"].spec.max_bytes == 50_000_000
+    assert builders["school-points"].spec.max_bytes == 50_000_000
+
+
 def test_property_builder_preserves_published_identity_without_inventing_precision() -> None:
     property_ref = "a0000000-0000-0000-0000-000000000001"
     product = resolve_release_builder("property-snapshot", "1.0.0").build(
