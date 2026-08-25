@@ -994,7 +994,8 @@ class PropertyScopeStore:
         """Return a bounded, allowlisted projection of one isolated release generation."""
         context = self._required(
             """SELECT release.id,release.dataset_id,release.release_version,release.status,
-            release.record_count,job.import_profile_key FROM ops.dataset_release release
+            release.record_count,release.coverage_json,job.import_profile_key
+            FROM ops.dataset_release release
             JOIN ops.ingestion_run run ON run.id=release.ingestion_run_id
             JOIN ops.job_definition job ON job.id=run.job_definition_id
             WHERE release.id=%s""",
@@ -1004,8 +1005,29 @@ class PropertyScopeStore:
         spec = PREVIEW_SPECS.get(profile)
         if spec is None:
             raise ConflictError("release import profile does not support bounded preview")
-        items = self._fetch_all(spec.select_sql, (release_id, limit, offset))
-        total_row = self._required(spec.count_sql, (release_id,))
+        coverage = context.get("coverage_json")
+        release_scope = (
+            coverage.get("release_scope", coverage) if isinstance(coverage, Mapping) else None
+        )
+        has_registered_bound = (
+            isinstance(release_scope, Mapping)
+            and isinstance(release_scope.get("maximum_records"), int)
+            and not isinstance(release_scope.get("maximum_records"), bool)
+        )
+        if profile != "bocsar-sparse" and has_registered_bound and isinstance(coverage, Mapping):
+            query = release_product_query(profile, release_id, coverage, limit=limit, offset=offset)
+            projected = self._fetch_all(query.select_sql, query.select_params)
+            items = [
+                {column: row[column] for column in spec.columns if column in row}
+                for row in projected
+            ]
+            total_row = self._required(query.count_sql, query.count_params)
+        else:
+            # Historical seed releases predate explicit product scopes. BOCSAR's
+            # preview intentionally remains observation-oriented while its export
+            # aggregates those observations into coverage-aware series.
+            items = self._fetch_all(spec.select_sql, (release_id, limit, offset))
+            total_row = self._required(spec.count_sql, (release_id,))
         return {
             "release": {
                 key: context[key]

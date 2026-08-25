@@ -541,6 +541,61 @@ def test_release_preview_uses_fixed_profile_projection_and_bounds() -> None:
     assert preview["next_offset"] == 51
 
 
+class ScopedPsiPreviewStore(PropertyScopeStore):
+    def __init__(self, release_id: uuid.UUID) -> None:
+        self.release_id = release_id
+        self.required_calls = 0
+        self.select_query = ""
+        self.select_parameters: Sequence[Any] = ()
+        self.count_parameters: Sequence[Any] = ()
+
+    def _required(self, query: str, params: Sequence[Any]) -> dict[str, Any]:
+        self.required_calls += 1
+        if self.required_calls == 1:
+            return {
+                "id": str(self.release_id),
+                "dataset_id": "nsw-psi-sales",
+                "release_version": "release-example",
+                "status": "candidate",
+                "record_count": 237_349,
+                "coverage_json": {"release_scope": {"years": [2025], "maximum_records": 250_000}},
+                "import_profile_key": "psi-sales",
+            }
+        self.count_parameters = params
+        return {"count": 237_349}
+
+    def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+        self.select_query = " ".join(query.split())
+        self.select_parameters = params
+        return [
+            {
+                "source_business_key": "001:P1:1",
+                "source_revision": 1,
+                "source_era": "post-2001",
+                "source_row_sha256": "a" * 64,
+            }
+        ]
+
+
+def test_release_preview_uses_the_same_registered_psi_scope_as_the_export() -> None:
+    release_id = uuid.uuid4()
+    store = ScopedPsiPreviewStore(release_id)
+
+    preview = store.preview_release_records(release_id, limit=25, offset=0)
+
+    assert "source_partition_year=ANY(%s)" in store.select_query
+    assert store.select_parameters == (release_id, [2025], 25, 0)
+    assert store.count_parameters == (250_000, release_id, [2025])
+    assert preview["total"] == 237_349
+    assert preview["items"] == [
+        {
+            "source_business_key": "001:P1:1",
+            "source_revision": 1,
+            "source_era": "post-2001",
+        }
+    ]
+
+
 def test_release_export_binding_is_atomic_and_requires_matching_evidence() -> None:
     release_id = uuid.uuid4()
     run_id = uuid.uuid4()
