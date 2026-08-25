@@ -336,7 +336,7 @@ def _parse_source_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiS
             district,
             property_id,
             None,
-            _date(padded[10], ("%d/%m/%Y", "%d%m%Y", "%Y%m%d")),
+            _source_date(padded[10], ("%d/%m/%Y", "%d%m%Y", "%Y%m%d")),
             None,
             _integer(padded[11]),
             _decimal(padded[13]),
@@ -360,8 +360,8 @@ def _parse_source_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiS
         district,
         property_id,
         counter or None,
-        _date(padded[13], ("%Y%m%d", "%d%m%Y")),
-        _date(padded[14], ("%Y%m%d", "%d%m%Y")),
+        _source_date(padded[13], ("%Y%m%d", "%d%m%Y")),
+        _source_date(padded[14], ("%Y%m%d", "%d%m%Y")),
         _integer(padded[15]),
         _decimal(padded[11]),
         padded[12] or None,
@@ -384,6 +384,21 @@ def _date(value: str, patterns: tuple[str, ...]) -> date | None:
     raise ValueError("PSI date is malformed")
 
 
+def _source_date(value: str, patterns: tuple[str, ...]) -> date | None:
+    """Parse an official archive date while retaining rows with publisher defects.
+
+    The public archives contain a small number of impossible eight-digit values
+    such as ``10210906``.  They cannot be corrected without guessing.  Canonical
+    archive ingestion therefore records the date as unknown while retaining the
+    sale and its source identity.  Direct/fixture parsing remains fail-closed via
+    ``_date`` so malformed caller-supplied data is still rejected.
+    """
+    try:
+        return _date(value, patterns)
+    except ValueError:
+        return None
+
+
 def _integer(value: str) -> int | None:
     if not value.strip():
         return None
@@ -400,6 +415,14 @@ def _decimal(value: str) -> Decimal | None:
 
 
 def _square_metres(value: str, unit: str) -> Decimal | None:
+    """Convert documented PSI area units without inventing source semantics.
+
+    The publisher documents ``M`` and ``H``, but its historical archives contain
+    a handful of non-empty ``U`` values.  Preserve those original facts through
+    ``area_original``/``area_unit`` and leave the derived metric value unset.
+    Rejecting one undocumented code would otherwise discard an entire annual
+    partition.
+    """
     amount = _decimal(value)
     if amount is None:
         return None
@@ -407,4 +430,4 @@ def _square_metres(value: str, unit: str) -> Decimal | None:
         return amount
     if unit.upper() == "H":
         return amount * 10_000
-    raise ValueError("PSI area unit is malformed")
+    return None

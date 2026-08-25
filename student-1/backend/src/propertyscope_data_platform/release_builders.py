@@ -35,7 +35,8 @@ PUBLIC_REDISTRIBUTION_POLICIES = frozenset(
 )
 RESTRICTED_REDISTRIBUTION_POLICIES = frozenset({"licence-controlled"})
 SAFE_REDISTRIBUTION_POLICIES = PUBLIC_REDISTRIBUTION_POLICIES | RESTRICTED_REDISTRIBUTION_POLICIES
-MAX_PUBLIC_ARTIFACT_BYTES = 50_000_000
+DEFAULT_PUBLIC_ARTIFACT_BYTES = 50_000_000
+MAX_PUBLIC_ARTIFACT_BYTES = 250_000_000
 
 
 class ProductModel(BaseModel):
@@ -107,13 +108,13 @@ class CrimeSeriesRecord(ProductModel):
     source_category_key: str = Field(min_length=1, max_length=200)
     offence_label: str | None = None
     subcategory_label: str | None = None
-    observed_months: tuple[str, ...] = Field(min_length=1, max_length=240)
+    observed_months: tuple[str, ...] = Field(min_length=1, max_length=600)
     first_month: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     last_month: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
-    month_count: int = Field(ge=1, le=240)
+    month_count: int = Field(ge=1, le=600)
     blank_means_observed_zero: bool
     completeness_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    observations: tuple[CrimeObservation, ...] = Field(max_length=240)
+    observations: tuple[CrimeObservation, ...] = Field(max_length=600)
     provenance: ProductProvenance
 
     @model_validator(mode="after")
@@ -682,7 +683,7 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
             None,
             "property_ref, source_address_id",
             50_000,
-            MAX_PUBLIC_ARTIFACT_BYTES,
+            DEFAULT_PUBLIC_ARTIFACT_BYTES,
             frozenset({"committed-synthetic-fixture", "licence-controlled"}),
             TypeAdapter(PropertySnapshotRecord),
         ),
@@ -710,7 +711,7 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
             None,
             "geography_kind, geography_value, source_category_key",
             50_000,
-            MAX_PUBLIC_ARTIFACT_BYTES,
+            DEFAULT_PUBLIC_ARTIFACT_BYTES,
             frozenset({"approved-bounded-extract"}),
             TypeAdapter(CrimeSeriesRecord),
         ),
@@ -724,7 +725,7 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
             None,
             "school_code",
             5_000,
-            MAX_PUBLIC_ARTIFACT_BYTES,
+            DEFAULT_PUBLIC_ARTIFACT_BYTES,
             frozenset({"approved-bounded-extract"}),
             TypeAdapter(SchoolPointRecord),
         ),

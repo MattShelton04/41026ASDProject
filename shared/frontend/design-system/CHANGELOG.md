@@ -2,6 +2,13 @@
 
 All notable changes to the shared PropertyScope frontend design system are recorded here.
 
+## 0.4.0 — 2026-08-25
+
+- Increased the shared body, label and caption roles so dense operational views remain readable.
+- Raised compact controls to 38 pixels and comfortable controls to the 44-pixel touch baseline.
+- Normalised mobile buttons, shell navigation, search and footer links to reliable touch targets.
+- Relaxed shared body leading for clearer long-form and supporting copy.
+
 ## 0.3.0 — 2026-08-23
 
 - Added semantic colour and typography roles over the existing palette and type scales.

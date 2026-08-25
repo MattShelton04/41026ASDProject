@@ -520,7 +520,12 @@ def _apply_setup(page: Page, steps: tuple[dict[str, Any], ...]) -> None:
 
 def _named_flow(page: Page, name: str) -> None:
     if name in {"edit-job-submit", "edit-source-submit"}:
-        page.locator("button").filter(has_text=re.compile(r"^Edit$")).first.click(timeout=5_000)
+        edit = page.locator("button").filter(has_text=re.compile(r"^Edit$")).first
+        if not edit.is_visible():
+            page.get_by_role("button", name=re.compile(r"^More actions for ")).first.click(
+                timeout=5_000
+            )
+        edit.click(timeout=5_000)
         page.locator("#entity-dialog[open]").wait_for(state="visible")
         page.get_by_role("button", name="Save changes", exact=True).click(timeout=5_000)
     elif name == "retry-run-confirm":

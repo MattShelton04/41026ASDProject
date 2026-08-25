@@ -6,7 +6,11 @@ from datetime import UTC, date, datetime
 import pytest
 
 from propertyscope_data_store.errors import ConflictError
-from propertyscope_data_store.orchestration_policy import task_plan, validate_retry_parent
+from propertyscope_data_store.orchestration_policy import (
+    run_status_for_stage,
+    task_plan,
+    validate_retry_parent,
+)
 from propertyscope_data_store.persistence_support import (
     json_document,
     normalise_row,
@@ -40,6 +44,22 @@ def test_run_task_plan_has_stable_order_and_cached_skip_policy() -> None:
         "acquire",
         "validate_artifact",
     )
+
+
+@pytest.mark.parametrize(
+    ("stage", "status"),
+    [
+        ("discover", "discovering"),
+        ("acquire", "acquiring"),
+        ("validate_artifact", "acquiring"),
+        ("import", "staging"),
+        ("normalise", "normalising"),
+        ("quality", "validating"),
+        ("build_release", "building_release"),
+    ],
+)
+def test_claimed_stage_projects_the_current_public_run_status(stage: str, status: str) -> None:
+    assert run_status_for_stage(stage) == status
 
 
 @pytest.mark.parametrize("status", ["failed", "cancelled"])
@@ -129,6 +149,25 @@ def test_psi_product_query_requires_and_applies_explicit_source_years() -> None:
     assert "source_partition_year=ANY(%s)" in query.select_sql
     assert query.select_params == (release_id, [2024, 2025], 10, 0)
     assert query.count_params == (100, release_id, [2024, 2025])
+
+
+def test_bocsar_product_query_merges_only_the_bounded_page_window() -> None:
+    release_id = uuid.uuid4()
+
+    query = release_product_query(
+        "bocsar-sparse", release_id, {"maximum_records": 100}, limit=25, offset=50
+    )
+
+    assert query.select_params == (release_id, 75, release_id, 75, 25, 50)
+    assert query.select_sql.count("LIMIT %s") == 3
+
+
+def test_property_product_query_uses_the_generation_primary_key_order() -> None:
+    query = release_product_query(
+        "gnaf-nsw", uuid.uuid4(), {"maximum_records": 50_000}, limit=5_000, offset=0
+    )
+
+    assert "ORDER BY gnaf_pid" in query.select_sql
 
 
 def test_product_query_rejects_unregistered_profile_and_normalises_bocsar_dates() -> None:

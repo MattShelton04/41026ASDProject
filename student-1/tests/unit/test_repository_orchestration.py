@@ -73,6 +73,13 @@ def test_claim_reconciles_expiry_and_only_claims_the_first_eligible_stage() -> N
     task = ConnectedStore(connection).claim_task(worker_id="runner-1", lease_seconds=30)
 
     assert task is not None and task["id"] == str(task_id)
+    run_update = next(
+        query for query in connection.queries if "UPDATE ops.ingestion_run SET status=%s" in query
+    )
+    assert "SET status=%s" in run_update
+    run_update_parameters = connection.parameters[5]
+    assert run_update_parameters is not None
+    assert run_update_parameters[0] == "discovering"
     candidate = next(query for query in connection.queries if "WITH candidate AS" in query)
     assert "predecessor.logical_key<task.logical_key" in candidate
     assert "predecessor.status NOT IN ('succeeded','skipped')" in candidate
@@ -91,6 +98,7 @@ def test_queued_cancellation_is_immediately_terminal_and_cancels_pending_tasks()
         [
             {"id": run_id, "status": "queued"},
             None,
+            None,
             {"count": 0},
             {
                 "id": run_id,
@@ -108,7 +116,7 @@ def test_queued_cancellation_is_immediately_terminal_and_cancels_pending_tasks()
     task_update = connection.queries[1]
     assert "status IN ('pending','retry_wait')" in task_update
     assert "SET status='cancelled'" in task_update
-    run_update_parameters = connection.parameters[3]
+    run_update_parameters = connection.parameters[4]
     assert run_update_parameters is not None
     assert run_update_parameters[1] is True
 
@@ -118,6 +126,7 @@ def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> N
     connection = ScriptedConnection(
         [
             {"id": run_id, "status": "acquiring"},
+            None,
             None,
             {"count": 1},
             {
@@ -132,9 +141,40 @@ def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> N
     run = ConnectedStore(connection).request_cancel(run_id)
 
     assert run["status"] == "acquiring"
-    run_update_parameters = connection.parameters[3]
+    run_update_parameters = connection.parameters[4]
     assert run_update_parameters is not None
     assert run_update_parameters[1] is False
+
+
+def test_active_cancellation_is_acknowledged_by_the_next_task_heartbeat() -> None:
+    run_id = uuid.uuid4()
+    task_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            {
+                "id": task_id,
+                "ingestion_run_id": run_id,
+                "status": "cancelled",
+            },
+            None,
+            None,
+        ]
+    )
+
+    task = ConnectedStore(connection).heartbeat_task(
+        task_id,
+        worker_id="runner-1",
+        lease_token="lease-token",
+        lease_seconds=300,
+    )
+
+    assert task["status"] == "cancelled"
+    heartbeat = connection.queries[0]
+    assert "run.cancel_requested_at IS NOT NULL" in heartbeat
+    assert "RETURNING task.*" in heartbeat
+    assert "status IN ('pending','retry_wait')" in connection.queries[1]
+    assert "UPDATE ops.ingestion_run SET status='cancelled'" in connection.queries[2]
+    assert connection.committed is True
 
 
 def test_resume_requeues_cancelled_unfinished_task_from_interrupted_run() -> None:
@@ -499,6 +539,61 @@ def test_release_preview_uses_fixed_profile_projection_and_bounds() -> None:
     assert preview["profile"] == "schools-master"
     assert preview["total"] == 2210
     assert preview["next_offset"] == 51
+
+
+class ScopedPsiPreviewStore(PropertyScopeStore):
+    def __init__(self, release_id: uuid.UUID) -> None:
+        self.release_id = release_id
+        self.required_calls = 0
+        self.select_query = ""
+        self.select_parameters: Sequence[Any] = ()
+        self.count_parameters: Sequence[Any] = ()
+
+    def _required(self, query: str, params: Sequence[Any]) -> dict[str, Any]:
+        self.required_calls += 1
+        if self.required_calls == 1:
+            return {
+                "id": str(self.release_id),
+                "dataset_id": "nsw-psi-sales",
+                "release_version": "release-example",
+                "status": "candidate",
+                "record_count": 237_349,
+                "coverage_json": {"release_scope": {"years": [2025], "maximum_records": 250_000}},
+                "import_profile_key": "psi-sales",
+            }
+        self.count_parameters = params
+        return {"count": 237_349}
+
+    def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+        self.select_query = " ".join(query.split())
+        self.select_parameters = params
+        return [
+            {
+                "source_business_key": "001:P1:1",
+                "source_revision": 1,
+                "source_era": "post-2001",
+                "source_row_sha256": "a" * 64,
+            }
+        ]
+
+
+def test_release_preview_uses_the_same_registered_psi_scope_as_the_export() -> None:
+    release_id = uuid.uuid4()
+    store = ScopedPsiPreviewStore(release_id)
+
+    preview = store.preview_release_records(release_id, limit=25, offset=0)
+
+    assert "source_partition_year=ANY(%s)" in store.select_query
+    assert store.select_parameters == (release_id, [2025], 25, 0)
+    assert store.count_parameters == (250_000, release_id, [2025])
+    assert preview["total"] == 237_349
+    assert preview["items"] == [
+        {
+            "source_business_key": "001:P1:1",
+            "source_revision": 1,
+            "source_era": "post-2001",
+        }
+    ]
 
 
 def test_release_export_binding_is_atomic_and_requires_matching_evidence() -> None:

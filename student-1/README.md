@@ -47,7 +47,9 @@ The PSI adapter is verified against real publisher archives and parses every ann
 DAT members are consumed as streams, so the archive and expanded records are not duplicated in
 application memory. Ordinary publisher requests may receive HTTP 403, so acquisition retries
 through validated bounded Range requests; a read-only cache can avoid repeat downloads. Fixture
-runs never silently stand in for a requested live run.
+runs never silently stand in for a requested live run. A handful of publisher rows contain an
+undocumented area unit or impossible nonblank date: the original sale/area facts remain retained,
+while derived square metres or dates are left unknown rather than guessed.
 
 ## Run it locally
 
@@ -78,6 +80,23 @@ Open <http://localhost:5200>. The main product path is:
    separate primary destinations.
 6. When a version needs interpretation, select **Review with AI**. AI review is optional, cannot
    publish changes and remains available later in **Activity history**.
+
+### Which local URL and container should I use?
+
+The Docker stack and the frontend-only fixture server are separate environments:
+
+| Address or container | Purpose |
+| --- | --- |
+| <http://localhost:5100/features/data-platform/> | Feature 1 through the integrated PropertyScope shell; use this to verify shared navigation and the real stack together. |
+| <http://localhost:5200> | The same live Feature 1 backend and PostgreSQL data through its direct frontend; use this for focused Feature 1 development. |
+| <http://127.0.0.1:5300> | Deterministic `ui serve` fixtures only; no Docker runner, loader, official source, or durable PostgreSQL workflow. |
+| `ps-dev-f1-runner-1` | The serial acquisition worker. It claims durable run tasks, downloads and parses only registered official sources, writes verified content-addressed artifacts, and heartbeats/cancels work through private HTTP APIs. It serves no browser port and has no PostgreSQL credentials. |
+| `ps-dev-f1-db-loader-1` | The separate serial database loader. It verifies runner artifacts and performs registered PostgreSQL COPY/import operations; keeping credentials here prevents the runner and backend from opening the database. |
+
+`5100` and `5200` being healthy at the same time is expected: `5100` is the shared edge and `5200`
+is Feature 1's direct ingress. Run `uv run scripts/dev.py stack status` for the authoritative live
+service list. Use `uv run scripts/dev.py stack logs f1-runner` when an acquisition is queued but not
+progressing; use `stack logs f1-db-loader` when it is specifically waiting in the import stage.
 
 The acquisition path can also run without browser actions. This queues the registered deterministic
 fixture, waits for all runner and loader stages, and reports the retained candidate release:
@@ -111,7 +130,7 @@ and restores the deterministic operator baseline automatically.
 | Import profile | Full-data status | Upstream behaviour |
 |---|---|---|
 | `schools-master` | Connected | Streams the official Data.NSW master CSV with byte/row limits. |
-| `bocsar-sparse` | Connected | Streams the official postcode or suburb ZIP and emits bounded sparse observations plus explicit coverage rows. |
+| `bocsar-sparse` | Connected | Streams the complete official postcode and suburb ZIPs into sparse observations plus explicit coverage rows; the downstream consumer release remains separately bounded. |
 | `gnaf-nsw` | Connected | Discovers the latest registered PSV ZIP from Data.gov.au, or uses the optional local source cache below; preserves unit identity and transforms declared GDA94/GDA2020 coordinates to WGS84 at import. |
 | `psi-sales` | Connected | Streams complete annual history and current weekly packages, including the pre-2001 root-DAT format. Stable source keys collapse identical retransmissions. |
 

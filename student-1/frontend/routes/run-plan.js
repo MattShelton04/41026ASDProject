@@ -1,6 +1,6 @@
 import { entity } from "../core/api.js";
 import { append, button, el } from "../core/dom.js";
-import { humanise } from "../core/formats.js?v=17";
+import { humanise } from "../core/formats.js?v=18";
 import { FieldValidationError, createSubmissionGuard, isPsiJob, liveProfileLabel, parseIntegerField, parseJsonField, psiYearRange } from "../core/forms.js?v=18";
 import { presentFormError } from "../components/dialogs.js?v=18";
 import { technicalDetails } from "../components/layout.js?v=17";

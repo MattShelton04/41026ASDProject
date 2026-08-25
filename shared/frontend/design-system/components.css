@@ -135,6 +135,7 @@
 .ps-toast[data-visible="true"] { opacity: 1; transform: translateY(0); }
 
 @media (max-width: 860px) {
+  .ps-button { min-height: var(--ps-control-height-comfortable); }
   .ps-grid-2, .ps-grid-3 { grid-template-columns: 1fr; }
   .ps-table-scroll-hint {
     position: sticky;

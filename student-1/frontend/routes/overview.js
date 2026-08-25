@@ -1,9 +1,10 @@
 import { collection } from "../core/api.js";
 import { append, el, link } from "../core/dom.js";
-import { displayName, formatDate, humanise, statusTone } from "../core/formats.js?v=17";
+import { displayName, formatDate, humanise, statusTone } from "../core/formats.js?v=18";
 import { ACTIVE_RUN_STATES } from "../core/polling.js";
 import { badge, pageHeading, panel } from "../components/layout.js?v=17";
-import { cell, makeTable } from "../components/tables.js";
+import { icon, withIcon } from "../components/icons.js?v=1";
+import { cell, makeTable } from "../components/tables.js?v=18";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
 
 const OVERVIEW_FEED_LABELS = ["Source definitions", "Update history", "Published data"];
@@ -44,7 +45,7 @@ export async function renderOverview({ view, request, rerender }) {
     status: release.coverage_json?.complete === false ? "partial" : "accepted",
   }));
   view.replaceChildren();
-  append(view, pageHeading("Property data", "Data overview", "Check whether property data is current and review recent updates.", [link("View data updates", "#jobs", "button primary overview-action"), link("Manage sources", "#sources", "button secondary overview-action")]));
+  append(view, pageHeading("Property data", "Data overview", "Check whether property data is current and review recent updates.", [withIcon(link("View data updates", "#jobs", "button primary overview-action"), "updates"), withIcon(link("Manage sources", "#sources", "button secondary overview-action"), "settings")]));
   if (feeds.failures.length) append(view, el("div", "notice warning", `Temporarily unavailable: ${feeds.failures.map((failure) => failure.label).join(" and ")}. Information from the remaining services is still shown below.`));
   const active = runs.filter((run) => ACTIVE_RUN_STATES.has(String(run.status).toLowerCase())).length;
   const latestByJob = [];
@@ -60,24 +61,34 @@ export async function renderOverview({ view, request, rerender }) {
   const accepted = releases.filter((release) => String(release.status).toLowerCase() === "accepted").length;
   const stats = el("section", "stat-grid");
   stats.setAttribute("aria-label", "Data readiness summary");
-  for (const [label, value, note, tone] of [
-    ["Updating now", runsAvailable ? active : "Unavailable", runsAvailable ? "Data updates in progress" : "Update history could not be checked", runsAvailable ? "info" : "warning"],
-    ["Update problems", runsAvailable ? failed : "Unavailable", runsAvailable ? "Latest updates that need review" : "Update problems could not be checked", runsAvailable && failed ? "negative" : runsAvailable ? "neutral" : "warning"],
-    ["Out-of-date data", releasesAvailable ? stale : "Unavailable", releasesAvailable ? "Published sources past their review date" : "Published freshness could not be checked", releasesAvailable && stale ? "warning" : "neutral"],
-    ["Published sources", releasesAvailable ? accepted : "Unavailable", releasesAvailable ? "Available in property research" : "Published data could not be checked", releasesAvailable ? "positive" : "warning"],
+  for (const [label, value, note, tone, iconName] of [
+    ["Updating now", runsAvailable ? active : "Unavailable", runsAvailable ? "Data updates in progress" : "Update history could not be checked", runsAvailable ? "info" : "warning", "refresh"],
+    ["Update problems", runsAvailable ? failed : "Unavailable", runsAvailable ? "Latest updates that need review" : "Update problems could not be checked", runsAvailable && failed ? "negative" : runsAvailable ? "neutral" : "warning", "alert"],
+    ["Out-of-date data", releasesAvailable ? stale : "Unavailable", releasesAvailable ? "Published sources past their review date" : "Published freshness could not be checked", releasesAvailable && stale ? "warning" : "neutral", "history"],
+    ["Published sources", releasesAvailable ? accepted : "Unavailable", releasesAvailable ? "Available in property research" : "Published data could not be checked", releasesAvailable ? "positive" : "warning", "file"],
   ]) {
     const card = el("article", `stat-card ${tone}`);
-    append(card, el("span", "stat-label", label), el("strong", "stat-value", value), el("span", "stat-note", note));
+    const copy = el("div", "stat-copy");
+    append(copy, el("span", "stat-label", label), el("strong", "stat-value", value), el("span", "stat-note", note));
+    append(card, icon(iconName, "stat-icon"), copy);
     append(stats, card);
   }
   append(view, stats);
 
-  const latestFailure = latestByJob.find((run) => ["failed", "interrupted"].includes(String(run.status).toLowerCase()));
-  if (latestFailure) {
+  const problemRuns = latestByJob.filter((run) => ["failed", "interrupted"].includes(String(run.status).toLowerCase()));
+  if (problemRuns.length) {
     const alert = el("div", "notice negative notice-actions");
     const copy = el("div");
-    append(copy, el("strong", "", "A data update failed"), el("div", "", `${displayName(latestFailure.job_name || "Data update")} did not finish. The current published version is still in use.`));
-    append(alert, copy, link("View failure", `#runs/${latestFailure.id}`, "button secondary small"));
+    append(copy,
+      el("strong", "", `${problemRuns.length} data ${problemRuns.length === 1 ? "update needs" : "updates need"} attention`),
+      el("div", "", "These updates did not finish successfully. The current published versions remain in use."),
+    );
+    const problemLinks = el("div", "problem-links");
+    for (const run of problemRuns.slice(0, 3)) {
+      append(problemLinks, link(`${displayName(run.job_name || "Data update")} · ${humanise(run.status)}`, `#runs/${run.id}`));
+    }
+    append(copy, problemLinks);
+    append(alert, copy, link(problemRuns.length === 1 ? "Review problem" : "Review problems", "#runs", "button secondary small"));
     append(view, alert);
   }
 
@@ -89,7 +100,7 @@ export async function renderOverview({ view, request, rerender }) {
       append(row, cell(link(displayName(run.job_name || `Update ${String(run.id).slice(0, 8)}`), `#runs/${run.id}`), "primary-cell"), cell(humanise(run.run_mode)), cell(badge(run.status)), cell(formatDate(run.requested_at || run.created_at)));
       return row;
     },
-    "Recent data updates",
+    "Recent data updates", { responsive: true },
   ) : emptyState("No updates yet", "Choose a saved data update to preview and start it.", link("View data updates", "#jobs", "button secondary"));
 
   const freshness = el("div", "stack");

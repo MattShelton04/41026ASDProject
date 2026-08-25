@@ -26,7 +26,7 @@ adapters:
     allowed_hosts: [bocsar.nsw.gov.au, bocsarblob.blob.core.windows.net]
     required_secrets: []
     limits:
-      {max_objects: 4, max_bytes: 2500000000, max_rows: 100000,
+      {max_objects: 4, max_bytes: 5000000000, max_rows: 15000000,
        deadline_seconds: 86400, max_parallelism: 1}
   - schema_version: propertyscope.adapter-descriptor.v1
     key: schools-csv

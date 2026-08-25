@@ -11,6 +11,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from threading import Event, Thread
 from typing import Any
 
 from psycopg import Connection, errors, sql
@@ -27,6 +28,7 @@ from propertyscope_data_store.import_profiles import (
 from propertyscope_data_store.migrations import migrate, schema_fingerprint
 from propertyscope_data_store.orchestration_policy import (
     TERMINAL_RUN_STATES,
+    run_status_for_stage,
     task_plan,
     validate_retry_parent,
 )
@@ -607,6 +609,13 @@ class PropertyScopeStore:
                 WHERE ingestion_run_id=%s AND status IN ('pending','retry_wait')""",
                 (now, now, _json(_cancellation_error()), run_id),
             )
+            connection.execute(
+                """UPDATE ops.import_operation SET status='cancelled',finished_at=%s,
+                lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
+                error_json=COALESCE(error_json,%s),version=version+1
+                WHERE ingestion_run_id=%s AND status IN ('planned','queued','interrupted')""",
+                (now, _json(_cancellation_error()), run_id),
+            )
             active = connection.execute(
                 """SELECT count(*) AS count FROM ops.run_task
                 WHERE ingestion_run_id=%s AND status IN ('claimed','running')""",
@@ -731,9 +740,14 @@ class PropertyScopeStore:
             ).fetchone()
             if row is not None:
                 connection.execute(
-                    """UPDATE ops.ingestion_run SET status=CASE WHEN status='queued' THEN 'planning' ELSE status END,
+                    """UPDATE ops.ingestion_run SET status=%s,
                     started_at=COALESCE(started_at,%s),heartbeat_at=%s WHERE id=%s""",
-                    (now, now, row["ingestion_run_id"]),
+                    (
+                        run_status_for_stage(str(row["stage"])),
+                        now,
+                        now,
+                        row["ingestion_run_id"],
+                    ),
                 )
                 context = connection.execute(
                     """SELECT run.profile_key,run.run_mode,run.requested_scope_json,
@@ -756,12 +770,29 @@ class PropertyScopeStore:
         now = datetime.now(UTC)
         with self.connection() as connection:
             row = connection.execute(
-                """UPDATE ops.run_task SET status='running',heartbeat_at=%s,lease_expires_at=%s,
-                updated_at=%s,version=version+1 WHERE id=%s AND lease_owner=%s AND lease_token=%s
-                AND lease_expires_at>%s AND status IN ('claimed','running') RETURNING *""",
+                """UPDATE ops.run_task task SET
+                status=CASE WHEN run.cancel_requested_at IS NOT NULL THEN 'cancelled'
+                    ELSE 'running' END,
+                heartbeat_at=CASE WHEN run.cancel_requested_at IS NOT NULL THEN NULL ELSE %s END,
+                lease_expires_at=CASE WHEN run.cancel_requested_at IS NOT NULL THEN NULL ELSE %s END,
+                lease_owner=CASE WHEN run.cancel_requested_at IS NOT NULL THEN NULL
+                    ELSE task.lease_owner END,
+                lease_token=CASE WHEN run.cancel_requested_at IS NOT NULL THEN NULL
+                    ELSE task.lease_token END,
+                finished_at=CASE WHEN run.cancel_requested_at IS NOT NULL THEN %s
+                    ELSE task.finished_at END,
+                error_json=CASE WHEN run.cancel_requested_at IS NOT NULL
+                    THEN COALESCE(task.error_json,%s) ELSE task.error_json END,
+                updated_at=%s,version=task.version+1
+                FROM ops.ingestion_run run WHERE task.id=%s
+                AND run.id=task.ingestion_run_id AND task.lease_owner=%s
+                AND task.lease_token=%s AND task.lease_expires_at>%s
+                AND task.status IN ('claimed','running') RETURNING task.*""",
                 (
                     now,
                     now + timedelta(seconds=lease_seconds),
+                    now,
+                    _json(_cancellation_error()),
                     now,
                     task_id,
                     worker_id,
@@ -769,6 +800,20 @@ class PropertyScopeStore:
                     now,
                 ),
             ).fetchone()
+            if row is not None and row["status"] == "cancelled":
+                run_id = row["ingestion_run_id"]
+                connection.execute(
+                    """UPDATE ops.run_task SET status='cancelled',finished_at=%s,updated_at=%s,
+                    error_json=COALESCE(error_json,%s),version=version+1
+                    WHERE ingestion_run_id=%s AND status IN ('pending','retry_wait')""",
+                    (now, now, _json(_cancellation_error()), run_id),
+                )
+                connection.execute(
+                    """UPDATE ops.ingestion_run SET status='cancelled',finished_at=%s,
+                    error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL
+                    WHERE id=%s AND cancel_requested_at IS NOT NULL""",
+                    (now, _json(_cancellation_error()), run_id),
+                )
             connection.commit()
         if row is None:
             raise LeaseConflictError("task lease is stale or owned by another worker")
@@ -949,7 +994,8 @@ class PropertyScopeStore:
         """Return a bounded, allowlisted projection of one isolated release generation."""
         context = self._required(
             """SELECT release.id,release.dataset_id,release.release_version,release.status,
-            release.record_count,job.import_profile_key FROM ops.dataset_release release
+            release.record_count,release.coverage_json,job.import_profile_key
+            FROM ops.dataset_release release
             JOIN ops.ingestion_run run ON run.id=release.ingestion_run_id
             JOIN ops.job_definition job ON job.id=run.job_definition_id
             WHERE release.id=%s""",
@@ -959,8 +1005,29 @@ class PropertyScopeStore:
         spec = PREVIEW_SPECS.get(profile)
         if spec is None:
             raise ConflictError("release import profile does not support bounded preview")
-        items = self._fetch_all(spec.select_sql, (release_id, limit, offset))
-        total_row = self._required(spec.count_sql, (release_id,))
+        coverage = context.get("coverage_json")
+        release_scope = (
+            coverage.get("release_scope", coverage) if isinstance(coverage, Mapping) else None
+        )
+        has_registered_bound = (
+            isinstance(release_scope, Mapping)
+            and isinstance(release_scope.get("maximum_records"), int)
+            and not isinstance(release_scope.get("maximum_records"), bool)
+        )
+        if profile != "bocsar-sparse" and has_registered_bound and isinstance(coverage, Mapping):
+            query = release_product_query(profile, release_id, coverage, limit=limit, offset=offset)
+            projected = self._fetch_all(query.select_sql, query.select_params)
+            items = [
+                {column: row[column] for column in spec.columns if column in row}
+                for row in projected
+            ]
+            total_row = self._required(query.count_sql, query.count_params)
+        else:
+            # Historical seed releases predate explicit product scopes. BOCSAR's
+            # preview intentionally remains observation-oriented while its export
+            # aggregates those observations into coverage-aware series.
+            items = self._fetch_all(spec.select_sql, (release_id, limit, offset))
+            total_row = self._required(spec.count_sql, (release_id,))
         return {
             "release": {
                 key: context[key]
@@ -1600,15 +1667,46 @@ class PropertyScopeStore:
         self, work: Mapping[str, Any], prepared: PreparedImport
     ) -> ImportResult:
         """Execute one registered COPY/import profile inside the credential boundary."""
-        with self.connection() as connection:
+        operation_id = uuid.UUID(str(work["id"]))
+        with self._cancellable_import_connection(operation_id) as connection:
             return execute_import(connection, work, prepared)
 
     def execute_stream_import_profile(
         self, work: Mapping[str, Any], *, profile: str, rows: Any
     ) -> ImportResult:
         """Execute a source-scale streaming COPY inside the credential boundary."""
-        with self.connection() as connection:
+        operation_id = uuid.UUID(str(work["id"]))
+        with self._cancellable_import_connection(operation_id) as connection:
             return execute_stream_import(connection, work, profile=profile, rows=rows)
+
+    @contextmanager
+    def _cancellable_import_connection(self, operation_id: uuid.UUID) -> Iterator[Connection[Any]]:
+        """Cancel an in-flight PostgreSQL statement when its owning run is cancelled."""
+        with self.connection() as connection:
+            stopped = Event()
+
+            def monitor() -> None:
+                while not stopped.wait(0.5):
+                    if self.import_cancel_requested(operation_id):
+                        connection.cancel()
+                        return
+
+            watcher = Thread(target=monitor, name=f"import-cancel-{operation_id}", daemon=True)
+            watcher.start()
+            try:
+                yield connection
+            finally:
+                stopped.set()
+                watcher.join(timeout=2)
+
+    def import_cancel_requested(self, operation_id: uuid.UUID) -> bool:
+        row = self._fetch_one(
+            """SELECT run.cancel_requested_at FROM ops.import_operation operation
+            JOIN ops.ingestion_run run ON run.id=operation.ingestion_run_id
+            WHERE operation.id=%s""",
+            (operation_id,),
+        )
+        return row is not None and row["cancel_requested_at"] is not None
 
     def enqueue_import(self, operation_id: uuid.UUID) -> JsonObject:
         with self.connection() as connection:
@@ -1689,8 +1787,8 @@ class PropertyScopeStore:
         result: Mapping[str, Any] | None,
         error: Mapping[str, Any] | None,
     ) -> JsonObject:
-        if status not in {"succeeded", "failed"}:
-            raise ConflictError("loader may finish only as succeeded or failed")
+        if status not in {"succeeded", "failed", "cancelled"}:
+            raise ConflictError("loader may finish only as succeeded, failed, or cancelled")
         now = datetime.now(UTC)
         with self.connection() as connection:
             row = connection.execute(
@@ -1892,15 +1990,7 @@ class PropertyScopeStore:
                         (now, run_id, run_id, run_id, run_id),
                     )
                 else:
-                    stage_status = {
-                        "discover": "discovering",
-                        "acquire": "acquiring",
-                        "validate_artifact": "acquiring",
-                        "import": "staging",
-                        "normalise": "normalising",
-                        "quality": "validating",
-                        "build_release": "building_release",
-                    }.get(str(row["stage"]), "planning")
+                    stage_status = run_status_for_stage(str(row["stage"]))
                     connection.execute(
                         "UPDATE ops.ingestion_run SET status=%s,heartbeat_at=%s WHERE id=%s",
                         (stage_status, now, run_id),

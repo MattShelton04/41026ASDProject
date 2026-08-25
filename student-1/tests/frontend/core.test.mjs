@@ -19,6 +19,7 @@ import {
   displayName,
   entity,
   formatBytes,
+  humanise,
   FieldValidationError,
   formState,
   formStateChanged,
@@ -566,6 +567,8 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.match(html, /Current research area[^<]*<\/b> Property data/);
   assert.match(html, /Search Property data by address or reference/);
   assert.match(html, /Back to research workspace/);
+  assert.match(html, /data-icon="mapPin"/);
+  assert.match(html, /data-icon="overview"/);
   assert.doesNotMatch(html, /<a href="#properties" aria-current="page">Property search<\/a>/);
   assert.doesNotMatch(html, /Accepted data stays available during review/);
   assert.doesNotMatch(html, /Assisted diagnosis|Advanced operations/);
@@ -587,6 +590,7 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.match(app, /"\/api\/shared-health\/data-platform"/);
   assert.match(app, /request\(healthUrl/);
   assert.match(app, /createDrawerController\(\{/);
+  assert.match(app, /hydrateIcons\(\)/);
   assert.match(app, /confirmDiscard/);
   assert.match(app, /pendingGuardedNavigation\?\.generation !== generation/);
   assert.match(app, /location\.hash = pending\.requestedHash/);
@@ -664,9 +668,11 @@ test("formatting pairs states with text and handles byte boundaries", () => {
   assert.equal(confidenceLabel(null), "Match confidence not supplied");
   assert.equal(researchAreaLabel("feature-1"), "Property data");
   assert.equal(researchAreaLabel("feature-4"), "Site & planning");
-  assert.equal(researchAreaLabel("future-area"), "Future Area");
+  assert.equal(researchAreaLabel("future-area"), "Future area");
   assert.equal(displayName("Deterministic property critical-path fixture"), "Example property records update");
   assert.equal(displayName("G-NAF NSW address registry"), "G-NAF NSW address registry");
+  assert.equal(humanise("awaiting_review"), "Awaiting review");
+  assert.equal(humanise("full_snapshot"), "Full snapshot");
 });
 
 test("release comparison keeps candidate and accepted evidence visibly distinct", () => {

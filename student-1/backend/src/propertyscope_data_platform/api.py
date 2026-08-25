@@ -35,6 +35,7 @@ from propertyscope_data_platform.http_support import (
     tool_envelope,
 )
 from propertyscope_data_platform.release_builders import (
+    MAX_PUBLIC_ARTIFACT_BYTES,
     BuildContext,
     ProductEnvelope,
     ReleaseDetailContract,
@@ -495,11 +496,16 @@ def create_blueprint(
                 "redistribution_not_permitted",
                 "This source licence permits metadata evidence only",
             )
-        if artifact["artifact_kind"] != "release_export" or int(artifact["bytes"]) > 50_000_000:
+        if (
+            artifact["artifact_kind"] != "release_export"
+            or int(artifact["bytes"]) > MAX_PUBLIC_ARTIFACT_BYTES
+        ):
             return problem(413, "artifact_not_bounded", "Release artifact exceeds export policy")
         try:
             data = LocalArtifactStore(artifact_root).read_verified(
-                artifact["storage_key"], artifact["content_sha256"], max_bytes=50_000_000
+                artifact["storage_key"],
+                artifact["content_sha256"],
+                max_bytes=MAX_PUBLIC_ARTIFACT_BYTES,
             )
         except ArtifactError:
             return problem(503, "artifact_unavailable", "Verified release artifact is unavailable")
@@ -1342,7 +1348,9 @@ def verify_local_publication(
         ):
             raise ArtifactError("artifact registration does not match the release")
         content = LocalArtifactStore(artifact_root).read_verified(
-            artifact["storage_key"], publication.content_sha256, max_bytes=50_000_000
+            artifact["storage_key"],
+            publication.content_sha256,
+            max_bytes=MAX_PUBLIC_ARTIFACT_BYTES,
         )
         envelope = ProductEnvelope.model_validate(json.loads(content))
         if (

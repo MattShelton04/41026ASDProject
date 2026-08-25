@@ -29,6 +29,26 @@ For BOCSAR the preview total is 6,641 observations while the release manifest co
 coverage rows are retained as separate canonical evidence and are not duplicated in the observation
 projection.
 
+## Live regression validation — 25–26 August 2026
+
+The ordinary `ps-dev` stack was exercised again after the operator UI, cancellation and
+source-capacity fixes. These were live Docker/PostgreSQL runs through the same acquisition, loader,
+quality, candidate and public-preview boundaries used by the browser. Every candidate below has two
+passing blocking checks and remains unpublished for deliberate human review.
+
+| Profile | Live source/import result | Candidate retrieval evidence |
+| --- | --- | --- |
+| Deterministic property fixture | Run `62dda07f-93f6-4004-abe0-df4446043065` accepted 10/10 rows. Canonical SHA-256 `bd6b6bb8fb57e5ccad8f1bbb5829134098fcebb76d9948e840214569443e97f7`. | Candidate `1e1bcaf5-476f-4b7b-9372-96d0e7d3dc3f`, 10 records, 8,884-byte export SHA-256 `fc168ce144901785b52bb2970eb2c44a2fab83c063bfa587d934019c88bcc05f`. |
+| NSW government schools | Run `f3adc3d4-266c-4305-bebe-ba398e1c5303` accepted 2,210/2,210 official rows. | Candidate `d31671d1-7af7-4c21-99e5-bca8a25b9302`, 2,210 records, export SHA-256 `366106714cf0fd6cec804229086c9ef108d3c247dcf990bde88952a7c1b3588e`. |
+| Complete BOCSAR crime | Run `8451a0b0-7146-4c28-aceb-d486fa371494` accepted 10,114,565 canonical observations/coverage facts from the complete postcode and suburb sources. Its 4,170,431,391-byte canonical artifact has SHA-256 `e746178c13923891b4aa7ca4bce73fa37e8260998c03df712f33c2bdc32f2d76`. | Candidate `f7bb1a49-bac5-4bba-b5fd-bc9d101a262a` contains 277 bounded coverage-aware series; its 7,530,595-byte export SHA-256 is `4c29115623afcae755bc6580d9387ed25dc3495bef36ddcc9727d8b80d6c1b88`. |
+| Complete G-NAF NSW | Run `538f8c21-d03b-465e-ba32-e2a1e45ff2a3` accepted all 5,190,134 official NSW addresses. Its 2,222,419,699-byte canonical artifact has SHA-256 `acc859eed2a8bc8655b7446c93a05076df6427ad65fd064d1d995791075d0ce1`. | Candidate `be42b862-0780-4ac9-8300-39ab154585cd` contains the registered 50,000-address extract; its 43,610,845-byte export SHA-256 is `b395442b9fd9e2f923e77a6a56e7b55fb30ad297f63c82252a633a51f116b7f1`. |
+| Complete NSW PSI history | Run `ea604571-5250-442b-9f6c-6dbca91f9f28` staged 7,344,824 partition facts through 24 August 2026, accepted 7,335,504 revisions, collapsed 9,320 identical retransmissions and rejected zero. Its 3,211,935,588-byte canonical artifact has SHA-256 `a254ee5a8c274b230004e97ee78225ccb2e9edeae075ae1ea77225a49b76c27b`. | Candidate `d6b4556c-865a-425f-a1bd-a2cbe007443b` contains all 237,349 accepted 2025 records. Public preview total and manifest count both equal 237,349. Its 170,861,792-byte export SHA-256 is `d99915e0482924476cb2bda813a8b6b20ec4c70a76a1c27cd8b699f7d2fd0c9e`. |
+
+Acquisition cancellation was exercised against live run `4abb79cd…` and stopped the active task in
+about 3.4 seconds. Import cancellation was exercised against run
+`5d82841c-c428-41d8-a378-a27e2b45adcc`; PostgreSQL rolled the active import back and the run/task/import
+operation reached `cancelled` in 0.932 seconds, with no import query left active.
+
 ## Acquisition reproducibility
 
 Start the isolated official-source environment with:
@@ -108,6 +128,31 @@ overlay automatically, with explicit `--cpu-only` and `--gpu` controls.
 - Source-scale loader failures originally exposed only a safe public error. Internal structured
   tracebacks now identify the exact row/field while public responses remain non-sensitive, and
   transient control-plane disconnects are retried without abandoning durable database work.
+- Cancellation originally marked only queued work: an active acquisition could continue for four
+  minutes, while an active PostgreSQL import could continue indefinitely. Runner heartbeats now
+  observe cancellation at five-second-or-better intervals, loader hashing/row streaming polls the
+  same durable flag, and a database monitor cancels the owning PostgreSQL statement so its
+  transaction rolls back.
+- Current official BOCSAR archives exceed the old ZIP, wide-row, canonical-row and 240-month
+  assumptions. Registered source/job/database capacities now match the observed complete source,
+  including 375-month histories, without converting capacity alarms into truncation limits.
+- Source-scale release construction repeated tiny pages, global sorts and short dependency
+  timeouts. Internal pages are now 5,000 rows, page leases heartbeat, dependency reads allow 120
+  seconds, BOCSAR bounds each ordered branch before merging, and G-NAF pages by its indexed source
+  key.
+- Five historical PSI rows use undocumented area unit `U`, and 191 official rows use impossible
+  nonblank date values. Original area facts and the affected sales are retained, derived metric/date
+  values remain unknown, and no undocumented conversion or date correction is invented.
+- The registered 250,000-row PSI extract could never fit the old 50 MB product/export boundary. A
+  live sample projected 180.2 MB and the complete 237,349-row 2025 export measured 170,861,792 bytes;
+  the PSI-only builder and shared manifest/download/publication ceiling are now consistently bounded
+  at 250 MB while every other product remains at 50 MB.
+- Candidate previews originally ignored `release_scope`, so a 237,349-row PSI export displayed a
+  7,335,504-row total. Non-aggregating previews now reuse the registered export query and exact
+  scope; the live PSI preview and manifest both report 237,349.
+- A session-scoped Playwright fixture left its event loop active until the entire test process ended,
+  causing the documented monolithic `uv run pytest` command to fail later synchronous browser
+  canaries. Module-scoped teardown makes the formerly conflicting suites pass together.
 
 ## Marking alignment
 

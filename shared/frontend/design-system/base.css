@@ -9,7 +9,7 @@ body {
     var(--ps-color-background);
   font-family: var(--ps-font-sans);
   font-size: var(--ps-text-body);
-  line-height: var(--ps-leading-body);
+  line-height: 1.55;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }

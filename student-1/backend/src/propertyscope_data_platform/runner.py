@@ -48,12 +48,18 @@ BOCSAR_URLS = {
     "suburb": "https://bocsarblob.blob.core.windows.net/bocsar-open-data/SuburbData.zip",
     "postcode": "https://bocsarblob.blob.core.windows.net/bocsar-open-data/PostcodeData.zip",
 }
+BOCSAR_SOURCE_ROW_CAPACITY = 500_000
+BOCSAR_ARCHIVE_EXPANSION_CAPACITY = 750_000_000
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip"
 PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{date}.zip"
 GNAF_CKAN_URL = (
     "https://data.gov.au/data/api/3/action/package_show?id=19432f89-dc3a-4ef3-b943-5326ef1dbecc"
 )
 logger = logging.getLogger(__name__)
+
+
+class TaskCancelledError(RuntimeError):
+    """The control plane acknowledged an operator cancellation for active work."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,25 +149,40 @@ class AcquisitionRunner:
                 },
             )
             result.raise_for_status()
+        except TaskCancelledError:
+            logger.info("Run task %s (%s) cancelled by operator", task_id, task.get("stage"))
+        except httpx.TransportError as exc:
+            logger.exception("Run task %s (%s) lost a dependency", task_id, task.get("stage"))
+            self._report_failure(task, lease_token, exc, retryable=True)
         except Exception as exc:
             logger.exception("Run task %s (%s) failed", task_id, task.get("stage"))
-            safe_code = (
-                "quality_gate_failed"
-                if str(task.get("stage")) == "quality"
-                else "stage_execution_failed"
-            )
-            failure = self.client.post(
-                f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task_id}/fail",
-                headers=self._headers(),
-                json={
-                    "worker_id": self.settings.worker_id,
-                    "lease_token": lease_token,
-                    "error": {"code": safe_code, "message": _safe_message(exc)},
-                    "retryable": False,
-                },
-            )
-            failure.raise_for_status()
+            self._report_failure(task, lease_token, exc, retryable=False)
         return True
+
+    def _report_failure(
+        self,
+        task: dict[str, Any],
+        lease_token: str,
+        exc: Exception,
+        *,
+        retryable: bool,
+    ) -> None:
+        safe_code = (
+            "quality_gate_failed"
+            if str(task.get("stage")) == "quality"
+            else "stage_execution_failed"
+        )
+        failure = self.client.post(
+            f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task['id']}/fail",
+            headers=self._headers(),
+            json={
+                "worker_id": self.settings.worker_id,
+                "lease_token": lease_token,
+                "error": {"code": safe_code, "message": _safe_message(exc)},
+                "retryable": retryable,
+            },
+        )
+        failure.raise_for_status()
 
     def stop(self) -> None:
         self.stop_event.set()
@@ -277,7 +298,7 @@ class AcquisitionRunner:
             raise RuntimeError("Release product scope has no valid registered row bound")
         rows: list[dict[str, Any]] = []
         offset = 0
-        page_size = 100
+        page_size = 5_000
         expected_total: int | None = None
         while True:
             page_response = self._control_request(
@@ -286,6 +307,7 @@ class AcquisitionRunner:
                 f"{release_id}/product-records",
                 headers=self._headers(),
                 params={"limit": page_size, "offset": offset},
+                timeout=120,
             )
             page_response.raise_for_status()
             page = page_response.json()
@@ -319,6 +341,9 @@ class AcquisitionRunner:
                 break
             if not isinstance(next_offset, int) or next_offset <= offset:
                 raise RuntimeError("Release product pagination cursor is invalid")
+            lease_token = task.get("lease_token")
+            if isinstance(lease_token, str) and lease_token:
+                self._heartbeat(str(task["id"]), lease_token)
             offset = next_offset
         if expected_total != len(rows):
             raise RuntimeError("Release product page count is inconsistent")
@@ -559,14 +584,25 @@ class AcquisitionRunner:
             records = iter_bocsar_archive(
                 content,
                 geography_kind=kind,
-                maximum_rows=int(task.get("max_rows", 100_000)),
+                maximum_rows=min(
+                    int(task.get("max_rows", BOCSAR_SOURCE_ROW_CAPACITY)),
+                    BOCSAR_SOURCE_ROW_CAPACITY,
+                ),
                 geography_values=geography_values,
                 start_month=_month_scope(scope.get("start_month")),
                 end_month=_month_scope(scope.get("end_month")),
                 maximum_records=_record_limit(task, scope),
+                maximum_uncompressed_bytes=min(
+                    int(task.get("max_bytes", BOCSAR_ARCHIVE_EXPANSION_CAPACITY)),
+                    BOCSAR_ARCHIVE_EXPANSION_CAPACITY,
+                ),
             )
             for item in records:
                 counter[0] += 1
+                if counter[0] > int(task.get("max_rows", 15_000_000)):
+                    raise RuntimeError(
+                        "BOCSAR canonical output exceeds the registered capacity ceiling"
+                    )
                 if counter[0] % 25_000 == 0:
                     self._heartbeat(str(task["id"]), str(task["lease_token"]))
                 yield (
@@ -803,7 +839,7 @@ class AcquisitionRunner:
 
     def _heartbeat_progress(self, task: dict[str, Any]) -> Callable[[int], None]:
         last_heartbeat = time.monotonic()
-        interval = max(1.0, self.settings.lease_seconds / 3)
+        interval = _cancellation_poll_interval(self.settings.lease_seconds)
 
         def report_progress(_bytes_processed: int) -> None:
             nonlocal last_heartbeat
@@ -856,6 +892,9 @@ class AcquisitionRunner:
             },
         )
         response.raise_for_status()
+        task = response.json().get("task")
+        if isinstance(task, dict) and task.get("status") == "cancelled":
+            raise TaskCancelledError("Run task cancelled by operator")
 
     def _control_request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         """Retry brief control-plane disconnects without losing durable work."""
@@ -879,6 +918,11 @@ def _safe_message(exc: Exception) -> str:
     if isinstance(exc, RuntimeError) and "Required fixture month" in str(exc):
         return str(exc)
     return "Registered stage failed; inspect structured run evidence"
+
+
+def _cancellation_poll_interval(lease_seconds: int) -> float:
+    """Keep cancellation responsive without shortening the durable recovery lease."""
+    return min(5.0, max(1.0, lease_seconds / 3))
 
 
 def _record_limit(task: dict[str, Any], scope: dict[str, object]) -> int | None:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import io
+import json
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import cast
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -9,7 +11,11 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import httpx
 import pytest
 
-from propertyscope_data_platform.adapters.bocsar import parse_bocsar_archive, parse_bocsar_csv
+from propertyscope_data_platform.adapters.bocsar import (
+    CrimeCoverage,
+    parse_bocsar_archive,
+    parse_bocsar_csv,
+)
 from propertyscope_data_platform.adapters.gnaf import (
     inspect_gnaf_archive,
     iter_gnaf_archive_path,
@@ -24,7 +30,11 @@ from propertyscope_data_platform.adapters.psi import (
     parse_psi_b_record,
 )
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
-from propertyscope_data_platform.runner import AcquisitionRunner, RunnerSettings
+from propertyscope_data_platform.runner import (
+    AcquisitionRunner,
+    RunnerSettings,
+    _cancellation_poll_interval,
+)
 
 
 def test_schools_preserves_and_normalises_locality() -> None:
@@ -86,6 +96,84 @@ def test_full_data_never_silently_substitutes_unconnected_sources(tmp_path: Path
         runner._live_document({}, stage="acquire", profile="spatial-features")
 
 
+def test_runner_stops_cooperatively_cancelled_work_without_reporting_a_failure(
+    tmp_path: Path,
+) -> None:
+    requests: list[str] = []
+
+    def control_plane(request: httpx.Request) -> httpx.Response:
+        requests.append(request.url.path)
+        if request.url.path.endswith("/tasks/claim"):
+            return httpx.Response(
+                200,
+                json={
+                    "task": {
+                        "id": "task-1",
+                        "ingestion_run_id": "run-1",
+                        "stage": "acquire",
+                        "lease_token": "lease-1",
+                    }
+                },
+            )
+        if request.url.path.endswith("/tasks/task-1/heartbeat"):
+            return httpx.Response(200, json={"task": {"id": "task-1", "status": "cancelled"}})
+        raise AssertionError(f"cancelled work must not call {request.url.path}")
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "runner-1", 0.1, 300),
+        client=httpx.Client(transport=httpx.MockTransport(control_plane)),
+    )
+
+    assert runner.run_once() is True
+    assert requests == [
+        "/internal/data-platform/v1/worker/tasks/claim",
+        "/internal/data-platform/v1/worker/tasks/task-1/heartbeat",
+    ]
+
+
+def test_runner_marks_exhausted_dependency_timeout_as_retryable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    failure: dict[str, object] = {}
+
+    def control_plane(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/tasks/claim"):
+            return httpx.Response(
+                200,
+                json={
+                    "task": {
+                        "id": "task-1",
+                        "ingestion_run_id": "run-1",
+                        "stage": "build_release",
+                        "lease_token": "lease-1",
+                    }
+                },
+            )
+        if request.url.path.endswith("/tasks/task-1/heartbeat"):
+            return httpx.Response(200, json={"task": {"id": "task-1", "status": "running"}})
+        if request.url.path.endswith("/tasks/task-1/fail"):
+            failure.update(cast(dict[str, object], json.loads(request.content)))
+            return httpx.Response(200, json={"task": {"id": "task-1", "status": "retry_wait"}})
+        raise AssertionError(f"unexpected control request {request.url.path}")
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "runner-1", 0.1, 300),
+        client=httpx.Client(transport=httpx.MockTransport(control_plane)),
+    )
+    monkeypatch.setattr(
+        runner, "_execute", lambda _task: (_ for _ in ()).throw(httpx.ReadTimeout("slow page"))
+    )
+
+    assert runner.run_once() is True
+    assert failure["retryable"] is True
+
+
+def test_cancellation_polling_is_bounded_independently_of_the_recovery_lease() -> None:
+    assert _cancellation_poll_interval(300) == 5.0
+    assert _cancellation_poll_interval(30) == 5.0
+    assert _cancellation_poll_interval(5) == pytest.approx(5 / 3)
+
+
 def test_bocsar_preserves_leading_zero_and_sparse_zero() -> None:
     payload = b"Postcode,Offence,Subcategory,Jan 2025,Feb 2025\n0077,Theft,Other,,3\n"
     observations, coverage = parse_bocsar_csv(payload, geography_kind="postcode", maximum_rows=2)
@@ -113,6 +201,75 @@ def test_bocsar_archive_filters_geography_and_months() -> None:
     )
     assert [(item.geography_value, item.count) for item in observations] == [("2000", 2)]
     assert coverage[0].observed_months == (date(2025, 1, 1), date(2025, 2, 1))
+
+
+def test_full_data_bocsar_uses_the_registered_archive_expansion_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed: list[tuple[int, int]] = []
+
+    def archive_records(_content: bytes, **options: object) -> tuple[()]:
+        observed.append(
+            (
+                cast(int, options["maximum_rows"]),
+                cast(int, options["maximum_uncompressed_bytes"]),
+            )
+        )
+        return ()
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "runner", 0.1, 300)
+    )
+    monkeypatch.setattr(runner, "_download_registered", lambda *_args, **_kwargs: b"archive")
+    monkeypatch.setattr("propertyscope_data_platform.runner.iter_bocsar_archive", archive_records)
+    task = {
+        "id": "task-1",
+        "lease_token": "lease-1",
+        "max_bytes": 5_000_000_000,
+        "max_rows": 15_000_000,
+    }
+
+    assert (
+        list(
+            runner._live_bocsar_chunks(
+                task,
+                {"geography_kinds": ["postcode", "suburb"], "all_records": True},
+                [0],
+            )
+        )
+        == []
+    )
+    assert observed == [(500_000, 750_000_000), (500_000, 750_000_000)]
+
+
+def test_full_data_bocsar_enforces_canonical_capacity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed_source_limits: list[int] = []
+
+    def archive_records(_content: bytes, **options: object) -> tuple[CrimeCoverage, ...]:
+        observed_source_limits.append(cast(int, options["maximum_rows"]))
+        return tuple(
+            CrimeCoverage("postcode", str(index), "category", (date(2026, 1, 1),))
+            for index in range(3)
+        )
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "runner", 0.1, 300)
+    )
+    monkeypatch.setattr(runner, "_download_registered", lambda *_args, **_kwargs: b"archive")
+    monkeypatch.setattr(runner, "_heartbeat", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("propertyscope_data_platform.runner.iter_bocsar_archive", archive_records)
+    task = {
+        "id": "task-1",
+        "lease_token": "lease-1",
+        "max_bytes": 5_000_000_000,
+        "max_rows": 2,
+    }
+
+    with pytest.raises(RuntimeError, match="canonical output exceeds"):
+        list(runner._live_bocsar_chunks(task, {"geography_kind": "postcode"}, [0]))
+    assert observed_source_limits == [2]
 
 
 def test_psi_source_key_and_hectare_conversion() -> None:
@@ -216,6 +373,38 @@ def test_psi_archive_parses_pre_2001_root_dat_and_deduplicates_retransmission() 
     assert sales[0].source_era == "pre-2001"
     assert sales[0].contract_date == date(1999, 12, 31)
     assert sales[0].area_square_metres == 15000
+
+
+def test_psi_archive_preserves_undocumented_legacy_area_unit_without_conversion() -> None:
+    row = (
+        "B;255;ARCHIVE;0146000000;2687054;;127;CADELL ST WENTWORTH;WENTWORTH;;"
+        "01/04/1991;40500;LOT A;2529;U;;;;;\n"
+    )
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("ARCHIVE_SALES_1991.DAT", row)
+
+    sale = next(iter_psi_archive(stream.getvalue(), source_year=1991))
+
+    assert sale.area_original == Decimal("2529")
+    assert sale.area_unit == "U"
+    assert sale.area_square_metres is None
+
+
+def test_psi_archive_retains_sale_when_publisher_date_is_impossible() -> None:
+    row = (
+        "B;260;4498625;14;20250106 01:07;;6534;180;GEORGE ST;PARRAMATTA;2150;"
+        "269;M;10210906;20240612;3495000;;R;RESIDENCE;86;;XA;0;AU148358;\n"
+    )
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("20250106.DAT", row)
+
+    sale = next(iter_psi_archive(stream.getvalue(), source_year=2025))
+
+    assert sale.source_business_key == "260:4498625:14"
+    assert sale.contract_date is None
+    assert sale.settlement_date == date(2024, 6, 12)
 
 
 def test_psi_archive_preserves_a_corrected_retransmission_as_a_revision() -> None:
