@@ -26,7 +26,16 @@ def test_backend_proxies_property_search_and_preserves_expected_negative() -> No
         assert request.url.params["state"] == "VIC"
         return httpx.Response(
             200,
-            json={"items": [], "count": 0, "query": "10 Example Street", "supported": False},
+            json={
+                "items": [],
+                "count": 0,
+                "total": 0,
+                "limit": 25,
+                "offset": 0,
+                "next_offset": None,
+                "query": "10 Example Street",
+                "supported": False,
+            },
         )
 
     store = DataStoreClient(
@@ -43,7 +52,16 @@ def test_backend_proxies_property_search_and_preserves_expected_negative() -> No
         "/api/data-platform/v1/properties/search?q=10%20Example%20Street&state=VIC"
     )
     assert response.status_code == 200
-    assert response.get_json()["supported"] is False
+    assert response.get_json() == {
+        "items": [],
+        "count": 0,
+        "total": 0,
+        "limit": 25,
+        "offset": 0,
+        "next_offset": None,
+        "query": "10 Example Street",
+        "supported": False,
+    }
 
 
 def test_backend_proxies_bounded_release_record_preview() -> None:

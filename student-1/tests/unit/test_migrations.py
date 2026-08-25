@@ -142,3 +142,13 @@ def test_property_geometry_constraint_includes_nsw_administered_islands() -> Non
 
     assert "DROP CONSTRAINT property_geom_check" in migration
     assert "ST_X(geom) BETWEEN 140 AND 160" in migration
+
+
+def test_property_search_documents_ignore_display_punctuation() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE).joinpath("023_property_search_documents.sql").read_text("utf-8")
+    )
+
+    assert "UPDATE registry.property" in migration
+    assert "UPDATE registry.address_alias" in migration
+    assert "[^a-z0-9]+" in migration
