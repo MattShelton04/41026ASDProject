@@ -1,7 +1,7 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js?v=17";
-import { isPsiJob } from "../core/forms.js";
+import { isPsiJob } from "../core/forms.js?v=18";
 import { routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
@@ -42,7 +42,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
       }
       const columns = isSource
         ? [{ label: "Source" }, { label: "Publisher" }, { label: "Adapter" }, { label: "Cadence" }, { label: "Status" }, { label: "Actions" }]
-        : [{ label: "Update" }, { label: "Dataset / area" }, { label: "Method" }, { label: "Maximum rows" }, { label: "Status" }, { label: "Actions" }];
+        : [{ label: "Update" }, { label: "Dataset / area" }, { label: "Method" }, { label: "Capacity alarm" }, { label: "Status" }, { label: "Actions" }];
       const table = makeTable(columns, items, (item) => {
         const row = el("tr");
         const actions = el("div", "button-row");
@@ -66,7 +66,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
         }));
         for (const control of actions.querySelectorAll("button, a")) control.setAttribute("aria-label", `${control.textContent.trim()} ${item.name}`);
         if (isSource) append(row, cell(primaryCell(displayName(item.name), item.id)), cell(item.publisher), cell(displayName(item.adapter_key), "mono"), cell(humanise(item.cadence)), cell(badge(item.status)), cell(actions, "actions-cell"));
-        else append(row, cell(primaryCell(displayName(item.name), displayName(item.profile_key))), cell(primaryCell(displayName(item.dataset_id || item.target?.contract), researchAreaLabel(item.target_feature || item.target?.feature))), cell(humanise(item.refresh_strategy)), cell(`${formatNumber(item.max_rows ?? item.limits?.max_rows)} rows`, "numeric"), cell(badge(item.status)), cell(actions, "actions-cell"));
+        else append(row, cell(primaryCell(displayName(item.name), displayName(item.profile_key))), cell(primaryCell(displayName(item.dataset_id || item.target?.contract), researchAreaLabel(item.target_feature || item.target?.feature))), cell(humanise(item.refresh_strategy)), cell(`${formatNumber(item.max_rows ?? item.limits?.max_rows)}-row alarm`, "numeric"), cell(badge(item.status)), cell(actions, "actions-cell"));
         return row;
       }, isSource ? "Registered data sources" : "Saved data updates");
       append(view, panel(`${items.length} ${isSource ? "sources" : "data updates"}`, "Showing up to 100 results", table));
@@ -108,10 +108,10 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
         append(right, panel("Download protection", "Only approved source locations can be requested", el("div", "notice", "The attribution URL describes the publisher. Downloads still use the approved host and path configured for this source adapter.")));
       } else {
         const limits = el("div", "metric-strip");
-        for (const [label, value] of [["Rows", formatNumber(item.max_rows ?? item.limits?.max_rows)], ["Bytes", formatBytes(item.max_bytes ?? item.limits?.max_bytes)], ["Objects", formatNumber(item.max_objects ?? item.limits?.max_objects)], ["Time", `${formatNumber(item.timeout_seconds ?? item.limits?.deadline_seconds)}s`]]) {
+        for (const [label, value] of [["Row alarm", formatNumber(item.max_rows ?? item.limits?.max_rows)], ["Byte alarm", formatBytes(item.max_bytes ?? item.limits?.max_bytes)], ["Object alarm", formatNumber(item.max_objects ?? item.limits?.max_objects)], ["Time alarm", `${formatNumber(item.timeout_seconds ?? item.limits?.deadline_seconds)}s`]]) {
           const metric = el("div"); append(metric, el("span", "", label), el("strong", "", value)); append(limits, metric);
         }
-        append(right, panel("Processing limits", "The update stops if a file is unexpectedly large or invalid", limits));
+        append(right, panel("Capacity safeguards", "The update fails atomically instead of returning partial data when a registered alarm is crossed", limits));
         const workflow = el("div", "operation-guide");
         append(workflow,
           operationStep("1", "Choose scope", isPsiJob(item) ? "Run complete history plus current weekly updates, or select explicit annual/weekly partitions." : "Review the registered job scope."),

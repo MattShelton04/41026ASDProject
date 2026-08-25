@@ -39,7 +39,8 @@ The default stack deliberately exercises every import profile with deterministic
 records. It never contacts an upstream publisher. The opt-in `--full-data` stack connects the
 official NSW schools CSV, BOCSAR archive and Geoscape G-NAF bulk archive. All three use the same
 durable run, content-addressed artifact, serial loader, candidate generation, quality and human
-publication path as the showcase profile. Resource limits remain enforced in full-data mode.
+publication path as the showcase profile. Full-data mode retrieves every record or registered
+partition; resource ceilings remain fail-closed capacity safeguards rather than truncation limits.
 
 The PSI adapter is verified against real publisher archives and parses every annual archive from
 1990 onward plus current Monday weekly updates. Archives download into bounded temporary files and
@@ -122,9 +123,10 @@ uv run scripts/dev.py stack up --full-data
 ```
 
 The cache directory is Git-ignored and mounted read-only. Without a cache, the runner discovers
-and downloads the latest registered archive from the official CKAN package. A run can bound its
-candidate to 1–50,000 addresses from the dashboard even though the source archive itself remains
-an immutable, checksummed acquisition artifact.
+and downloads the latest registered archive from the official CKAN package. Complete mode streams
+every NSW address into an isolated candidate generation; the 6.5-million-row registration is a
+capacity alarm which fails the run if the source grows beyond the reviewed operating envelope.
+Targeted showcase runs remain available for fast local demonstrations.
 
 The same cache supports official PSI annual packages. Place any unmodified publisher archive at
 `.propertyscope-source-cache/psi/<year>.zip` (for example `psi/2025.zip`) before starting the

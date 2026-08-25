@@ -108,9 +108,11 @@ def execute_import(
         cursor.execute(
             """UPDATE ops.dataset_release SET record_count=%s,
             manifest_json=jsonb_set(manifest_json,'{record_count}',to_jsonb(%s::bigint),true),
+            coverage_json=jsonb_set(coverage_json,'{source_record_count}',
+                to_jsonb(%s::bigint),true),
             updated_at=now(),version=version+1
             WHERE id=%s AND ingestion_run_id=%s AND status IN ('draft','candidate')""",
-            (accepted, accepted, release_id, run_id),
+            (accepted, accepted, accepted, release_id, run_id),
         )
         if cursor.rowcount != 1:
             raise ImportProfileError("candidate release is not mutable for this import")
@@ -179,9 +181,11 @@ def execute_stream_import(
         cursor.execute(
             """UPDATE ops.dataset_release SET record_count=%s,
             manifest_json=jsonb_set(manifest_json,'{record_count}',to_jsonb(%s::bigint),true),
+            coverage_json=jsonb_set(coverage_json,'{source_record_count}',
+                to_jsonb(%s::bigint),true),
             updated_at=now(),version=version+1
             WHERE id=%s AND ingestion_run_id=%s AND status IN ('draft','candidate')""",
-            (accepted, accepted, release_id, run_id),
+            (accepted, accepted, accepted, release_id, run_id),
         )
         if cursor.rowcount != 1:
             raise ImportProfileError("candidate release is not mutable for this import")

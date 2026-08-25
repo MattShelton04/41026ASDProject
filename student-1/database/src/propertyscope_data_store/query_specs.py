@@ -144,6 +144,25 @@ def release_product_query(
     offset: int,
 ) -> ReleaseProductQuery:
     """Resolve a fixed builder projection without accepting caller-provided SQL."""
+    if profile not in {
+        "property-fixture",
+        "gnaf-nsw",
+        "psi-sales",
+        "bocsar-sparse",
+        "schools-master",
+    }:
+        raise ConflictError("release import profile has no registered product projection")
+    release_scope = coverage.get("release_scope", coverage)
+    if not isinstance(release_scope, dict):
+        raise ConflictError("release construction requires a registered product scope")
+    maximum_records = release_scope.get("maximum_records")
+    if (
+        not isinstance(maximum_records, int)
+        or isinstance(maximum_records, bool)
+        or maximum_records < 1
+    ):
+        raise ConflictError("release construction requires a registered product row bound")
+    page_limit = min(limit, max(0, maximum_records - offset))
     if profile in {"property-fixture", "gnaf-nsw"}:
         return ReleaseProductQuery(
             """SELECT COALESCE(property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid)
@@ -154,13 +173,13 @@ def release_product_query(
                 normalisation_version FROM warehouse.gnaf_address
                 WHERE dataset_release_id=%s
                 ORDER BY property_ref,gnaf_pid LIMIT %s OFFSET %s""",
-            (release_id, limit, offset),
-            "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
-            (release_id,),
+            (release_id, page_limit, offset),
+            """SELECT least(count(*),%s) AS count FROM warehouse.gnaf_address
+                WHERE dataset_release_id=%s""",
+            (maximum_records, release_id),
         )
     if profile == "psi-sales":
-        release_scope = coverage.get("release_scope", coverage)
-        years = release_scope.get("years", []) if isinstance(release_scope, dict) else []
+        years = release_scope.get("years", [])
         if not isinstance(years, list) or not years:
             raise ConflictError("PSI release construction requires an explicit bounded year scope")
         return ReleaseProductQuery(
@@ -171,10 +190,10 @@ def release_product_query(
                 normalisation_version FROM warehouse.psi_sale WHERE dataset_release_id=%s
                   AND source_partition_year=ANY(%s)
                 ORDER BY source_business_key,source_revision LIMIT %s OFFSET %s""",
-            (release_id, years, limit, offset),
-            """SELECT count(*) AS count FROM warehouse.psi_sale
+            (release_id, years, page_limit, offset),
+            """SELECT least(count(*),%s) AS count FROM warehouse.psi_sale
                 WHERE dataset_release_id=%s AND source_partition_year=ANY(%s)""",
-            (release_id, years),
+            (maximum_records, release_id, years),
         )
     if profile == "bocsar-sparse":
         return ReleaseProductQuery(
@@ -194,12 +213,12 @@ def release_product_query(
                 FROM warehouse.bocsar_coverage WHERE dataset_release_id=%s
                 ) product ORDER BY geography_kind,geography_value,source_category_key,
                 record_kind,month NULLS LAST LIMIT %s OFFSET %s""",
-            (release_id, release_id, limit, offset),
-            """SELECT (SELECT count(*) FROM warehouse.bocsar_observation
+            (release_id, release_id, page_limit, offset),
+            """SELECT least((SELECT count(*) FROM warehouse.bocsar_observation
                 WHERE dataset_release_id=%s) +
                 (SELECT count(*) FROM warehouse.bocsar_coverage
-                WHERE dataset_release_id=%s) AS count""",
-            (release_id, release_id),
+                WHERE dataset_release_id=%s),%s) AS count""",
+            (release_id, release_id, maximum_records),
         )
     if profile == "schools-master":
         return ReleaseProductQuery(
@@ -207,11 +226,11 @@ def release_product_query(
                 locality_normalised,lga_name,ST_AsGeoJSON(geom)::jsonb AS geometry,
                 source_row_sha256,normalisation_version FROM warehouse.school
                 WHERE dataset_release_id=%s ORDER BY school_code LIMIT %s OFFSET %s""",
-            (release_id, limit, offset),
-            "SELECT count(*) AS count FROM warehouse.school WHERE dataset_release_id=%s",
-            (release_id,),
+            (release_id, page_limit, offset),
+            "SELECT least(count(*),%s) AS count FROM warehouse.school WHERE dataset_release_id=%s",
+            (maximum_records, release_id),
         )
-    raise ConflictError("release import profile has no registered product projection")
+    raise AssertionError("unreachable registered product projection")
 
 
 def normalise_product_rows(profile: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

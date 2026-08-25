@@ -152,3 +152,12 @@ def test_property_search_documents_ignore_display_punctuation() -> None:
     assert "UPDATE registry.property" in migration
     assert "UPDATE registry.address_alias" in migration
     assert "[^a-z0-9]+" in migration
+
+
+def test_complete_source_acquisition_updates_bocsar_capacity() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE).joinpath("024_complete_source_acquisition.sql").read_text("utf-8")
+    )
+
+    assert "max_bytes=2500000000" in migration
+    assert "timeout_seconds=86400" in migration

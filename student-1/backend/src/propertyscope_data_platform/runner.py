@@ -18,8 +18,13 @@ from typing import Any
 
 import httpx
 
-from propertyscope_data_platform.adapters.bocsar import parse_bocsar_archive
-from propertyscope_data_platform.adapters.gnaf import parse_gnaf_archive_path
+from propertyscope_data_platform.adapters.bocsar import (
+    CrimeCoverage,
+    CrimeObservation,
+    iter_bocsar_archive,
+    parse_bocsar_archive,
+)
+from propertyscope_data_platform.adapters.gnaf import GnafAddress, iter_gnaf_archive_path
 from propertyscope_data_platform.adapters.psi import (
     PsiSale,
     iter_psi_archive_path,
@@ -179,12 +184,21 @@ class AcquisitionRunner:
                 raise RuntimeError(
                     "Full-data acquisition requires the explicit full-data runtime profile"
                 )
-            if live_requested and profile == "psi-sales" and stage == "acquire":
+            if (
+                live_requested
+                and profile in {"psi-sales", "gnaf-nsw", "bocsar-sparse"}
+                and stage == "acquire"
+            ):
                 scope = task.get("partition_json") or {}
                 if not isinstance(scope, dict):
                     raise RuntimeError("Registered live scope is invalid")
                 counter = [0]
-                canonical_chunks = self._live_psi_chunks(task, scope, counter)
+                if profile == "psi-sales":
+                    canonical_chunks = self._live_psi_chunks(task, scope, counter)
+                elif profile == "gnaf-nsw":
+                    canonical_chunks = self._live_gnaf_chunks(task, scope, counter)
+                else:
+                    canonical_chunks = self._live_bocsar_chunks(task, scope, counter)
                 artifact = self.artifacts.put(
                     canonical_chunks,
                     max_bytes=int(task.get("max_bytes", 20_000_000_000)),
@@ -409,7 +423,7 @@ class AcquisitionRunner:
         if profile == "psi-sales":
             return self._live_psi(task, scope)
         if profile == "gnaf-nsw":
-            return self._live_gnaf(task, scope)
+            raise RuntimeError("G-NAF live acquisition is available through the run worker")
         maximum_bytes = min(int(task.get("max_bytes", 25_000_000)), 25_000_000)
         content = self._download_registered(SCHOOLS_MASTER_URL, maximum_bytes=maximum_bytes)
         parsed = parse_schools_csv(content, maximum_rows=int(task.get("max_rows", 5_000)))
@@ -446,10 +460,11 @@ class AcquisitionRunner:
         if profile == "schools-master":
             return [_source_object("nsw-government-schools-master", SCHOOLS_MASTER_URL, "text/csv")]
         if profile == "bocsar-sparse":
-            kind = str(scope.get("geography_kind", "postcode"))
-            if kind not in BOCSAR_URLS:
-                raise RuntimeError("BOCSAR geography_kind must be postcode or suburb")
-            return [_source_object(f"bocsar-{kind}", BOCSAR_URLS[kind], "application/zip")]
+            kinds = _bocsar_kinds(scope)
+            return [
+                _source_object(f"bocsar-{kind}", BOCSAR_URLS[kind], "application/zip")
+                for kind in kinds
+            ]
         if profile == "gnaf-nsw":
             url, crs = self._gnaf_source()
             return [
@@ -533,6 +548,38 @@ class AcquisitionRunner:
             for item in coverage
         )
         return _live_canonical_document("bocsar-sparse", BOCSAR_URLS[kind], records), records
+
+    def _live_bocsar_chunks(
+        self, task: dict[str, Any], scope: dict[str, object], counter: list[int]
+    ) -> Iterable[bytes]:
+        raw_values = scope.get("geography_values")
+        geography_values = (
+            frozenset(str(value).strip() for value in raw_values)
+            if isinstance(raw_values, list) and raw_values
+            else None
+        )
+        for kind in _bocsar_kinds(scope):
+            content = self._download_registered(
+                BOCSAR_URLS[kind],
+                maximum_bytes=min(int(task.get("max_bytes", 50_000_000)), 50_000_000),
+            )
+            records = iter_bocsar_archive(
+                content,
+                geography_kind=kind,
+                maximum_rows=int(task.get("max_rows", 100_000)),
+                geography_values=geography_values,
+                start_month=_month_scope(scope.get("start_month")),
+                end_month=_month_scope(scope.get("end_month")),
+                maximum_records=_record_limit(task, scope),
+            )
+            for item in records:
+                counter[0] += 1
+                if counter[0] % 25_000 == 0:
+                    self._heartbeat(str(task["id"]), str(task["lease_token"]))
+                yield (
+                    json.dumps(_bocsar_record(item), sort_keys=True, separators=(",", ":")).encode()
+                    + b"\n"
+                )
 
     def _live_psi(
         self, task: dict[str, Any], scope: dict[str, object]
@@ -638,9 +685,10 @@ class AcquisitionRunner:
         candidate = root / "weekly" / f"{week.strftime('%Y%m%d')}.zip"
         return candidate if candidate.is_file() else None
 
-    def _live_gnaf(
-        self, task: dict[str, Any], scope: dict[str, object]
-    ) -> tuple[dict[str, object], list[dict[str, object]]]:
+    def _live_gnaf_chunks(
+        self, task: dict[str, Any], scope: dict[str, object], counter: list[int]
+    ) -> Iterable[bytes]:
+        """Stream the complete registered NSW address generation without retaining it in RAM."""
         source_url, declared_crs = self._discovered_gnaf_source(task)
         maximum_bytes = min(int(task.get("max_bytes", 2_500_000_000)), 2_500_000_000)
         if self.settings.gnaf_archive_path and self.settings.gnaf_archive_path.is_file():
@@ -695,44 +743,20 @@ class AcquisitionRunner:
             if isinstance(raw_localities, list) and raw_localities
             else None
         )
-        parsed = parse_gnaf_archive_path(
+        parsed = iter_gnaf_archive_path(
             raw_path,
             declared_crs=declared_crs,
             maximum_records=_record_limit(task, scope),
+            capacity_ceiling=int(task.get("max_rows", 6_500_000)),
             localities=localities,
+            progress=self._heartbeat_progress(task),
         )
-        records: list[dict[str, object]] = [
-            {
-                "gnaf_pid": item.gnaf_pid,
-                "property_ref": None,
-                "address_display": item.address_display,
-                "flat_type": item.flat_type,
-                "unit_number": item.unit_number,
-                "street_number_first": item.street_number_first,
-                "street_number_suffix": item.street_number_suffix,
-                "street_number_last": item.street_number_last,
-                "street_name": item.street_name,
-                "street_type": item.street_type,
-                "locality": item.locality,
-                "postcode": item.postcode,
-                "source_status": item.source_status,
-                "geocode_type": item.geocode_type,
-                "source_crs": item.source_crs,
-                "latitude": item.latitude,
-                "longitude": item.longitude,
-            }
-            for item in parsed
-        ]
-        document = _live_canonical_document("gnaf-nsw", source_url, records)
-        document["source"] = {
-            "source_url": source_url,
-            "real_source": True,
-            "coordinate_reference_system": declared_crs,
-            "raw_content_sha256": raw_artifact.sha256,
-            "raw_bytes": raw_artifact.bytes,
-            "raw_storage_key": raw_artifact.storage_key,
-        }
-        return document, records
+        for item in parsed:
+            counter[0] += 1
+            yield (
+                json.dumps(_gnaf_record(item), sort_keys=True, separators=(",", ":")).encode()
+                + b"\n"
+            )
 
     def _discovered_gnaf_source(self, task: dict[str, Any]) -> tuple[str, str]:
         snapshot = task.get("source_snapshot_json")
@@ -864,7 +888,9 @@ def _safe_message(exc: Exception) -> str:
     return "Registered stage failed; inspect structured run evidence"
 
 
-def _record_limit(task: dict[str, Any], scope: dict[str, object]) -> int:
+def _record_limit(task: dict[str, Any], scope: dict[str, object]) -> int | None:
+    if scope.get("all_records") is True:
+        return None
     requested = scope.get("maximum_records", task.get("max_rows", 100_000_000))
     if not isinstance(requested, int) or isinstance(requested, bool) or requested < 1:
         raise RuntimeError("maximum_records must be a positive integer")
@@ -924,6 +950,50 @@ def _psi_record(sale: PsiSale, *, source_year: int) -> dict[str, object]:
     }
 
 
+def _gnaf_record(item: GnafAddress) -> dict[str, object]:
+    return {
+        "gnaf_pid": item.gnaf_pid,
+        "property_ref": None,
+        "address_display": item.address_display,
+        "flat_type": item.flat_type,
+        "unit_number": item.unit_number,
+        "street_number_first": item.street_number_first,
+        "street_number_suffix": item.street_number_suffix,
+        "street_number_last": item.street_number_last,
+        "street_name": item.street_name,
+        "street_type": item.street_type,
+        "locality": item.locality,
+        "postcode": item.postcode,
+        "source_status": item.source_status,
+        "geocode_type": item.geocode_type,
+        "source_crs": item.source_crs,
+        "latitude": item.latitude,
+        "longitude": item.longitude,
+    }
+
+
+def _bocsar_record(item: CrimeObservation | CrimeCoverage) -> dict[str, object]:
+    if isinstance(item, CrimeObservation):
+        return {
+            "record_kind": "observation",
+            "geography_kind": item.geography_kind,
+            "geography_value": item.geography_value,
+            "source_category_key": item.category_key,
+            "offence_label": item.offence_label,
+            "subcategory_label": item.subcategory_label,
+            "month": item.month.isoformat(),
+            "count": item.count,
+        }
+    return {
+        "record_kind": "coverage",
+        "geography_kind": item.geography_kind,
+        "geography_value": item.geography_value,
+        "source_category_key": item.category_key,
+        "observed_months": [month.isoformat() for month in item.observed_months],
+        "blank_means_observed_zero": item.blank_means_observed_zero,
+    }
+
+
 def _month_scope(value: object) -> date | None:
     if value in {None, ""}:
         return None
@@ -931,6 +1001,22 @@ def _month_scope(value: object) -> date | None:
         return date.fromisoformat(f"{value}-01" if len(str(value)) == 7 else str(value))
     except ValueError as exc:
         raise RuntimeError("Month scope must use YYYY-MM") from exc
+
+
+def _bocsar_kinds(scope: dict[str, object]) -> tuple[str, ...]:
+    raw_kinds = scope.get("geography_kinds")
+    kinds = (
+        tuple(str(value) for value in raw_kinds)
+        if isinstance(raw_kinds, list) and raw_kinds
+        else (str(scope.get("geography_kind", "postcode")),)
+    )
+    if (
+        len(kinds) > 2
+        or len(set(kinds)) != len(kinds)
+        or any(kind not in BOCSAR_URLS for kind in kinds)
+    ):
+        raise RuntimeError("BOCSAR geography scope must select postcode, suburb, or both")
+    return kinds
 
 
 def _source_object(logical_key: str, url: str, media_type: str) -> dict[str, object]:

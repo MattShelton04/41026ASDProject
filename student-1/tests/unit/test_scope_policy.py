@@ -28,6 +28,7 @@ def test_registered_scope_merges_bounds_without_mutating_defaults() -> None:
         PSI_JOB,
         {
             "profile": "full-data",
+            "all_records": True,
             "years": [2025],
             "release_scope": {"years": [2025], "maximum_records": 500},
         },
@@ -82,6 +83,7 @@ def test_scope_validation_returns_stable_structured_problems(scope: object, deta
 def test_live_scope_policy_distinguishes_runtime_from_transport_availability() -> None:
     scope = {
         "profile": "full-data",
+        "all_records": True,
         "years": [2025],
         "release_scope": {"years": [2025], "maximum_records": 10},
     }

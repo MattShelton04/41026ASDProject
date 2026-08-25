@@ -32,6 +32,7 @@
 * { box-sizing: border-box; }
 html { min-height: 100%; scroll-behavior: smooth; }
 body { min-width: 0; min-height: 100vh; margin: 0; overflow-x: clip; background: var(--canvas); color: var(--ink); }
+[hidden] { display: none !important; }
 body.ps-modal-open, body.ps-drawer-open { overflow: hidden; }
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
@@ -102,7 +103,7 @@ main { min-width: 0; }
 .button.small { min-height: var(--ps-control-height-compact); padding: .34rem .58rem; font-size: .7rem; }
 .button:disabled { cursor: not-allowed; opacity: .5; }
 .button.overview-action { min-height: calc(var(--ps-control-height-comfortable) + var(--ps-border-width-strong)); }
-.text-button { border: 0; padding: 0; background: transparent; color: var(--ocean-dark); cursor: pointer; font-weight: 750; text-decoration: underline; text-underline-offset: .18em; }
+.text-button { display: inline-flex; min-height: 44px; align-items: center; border: 0; padding: 8px 0; background: transparent; color: var(--ocean-dark); cursor: pointer; font-weight: 750; text-decoration: underline; text-underline-offset: .18em; }
 
 .stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; }
 .stat-card { position: relative; min-width: 0; padding: 1.05rem; border: var(--ps-border-width) solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: var(--ps-shadow-xs); }

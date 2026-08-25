@@ -493,8 +493,8 @@ test("job source detection and explicit year partitions are bounded", () => {
   assert.equal(isPsiJob({ adapter_key: "schools-csv" }), false);
   assert.equal(isSchoolsJob({ import_profile_key: "schools-master" }), true);
   assert.equal(isSchoolsJob({ adapter_key: "gnaf-bulk" }), false);
-  assert.equal(liveProfileLabel("gnaf-nsw"), "Live official Geoscape G-NAF bulk archive");
-  assert.equal(liveProfileLabel("bocsar-sparse"), "Live official BOCSAR archive");
+  assert.equal(liveProfileLabel("gnaf-nsw"), "Complete official NSW G-NAF address registry");
+  assert.equal(liveProfileLabel("bocsar-sparse"), "Complete official BOCSAR postcode + suburb datasets");
   assert.deepEqual(psiYearRange("2024", "2026", { maximum: 2027 }), [2024, 2025, 2026]);
   assert.throws(() => psiYearRange(2027, 2024, { maximum: 2027 }), /valid range/);
   assert.throws(() => psiYearRange(1989, 2024, { maximum: 2027 }), /1990/);

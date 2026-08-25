@@ -1,8 +1,8 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=17";
-import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js";
-import { runDialogForm } from "../components/dialogs.js";
+import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js?v=18";
+import { runDialogForm } from "../components/dialogs.js?v=18";
 import { formField, filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState } from "../components/states.js";
@@ -171,7 +171,8 @@ export function createReleaseRoutes({
     actions.push(button("Review with AI", "button secondary", () => { location.hash = `#ai/release:${id}`; }));
 
     view.replaceChildren();
-    append(view, pageHeading("Dataset review", `${displayName(release.dataset_id)} ${release.release_version}`, `${researchAreaLabel(release.target_feature)} · ${formatNumber(release.record_count)} records`, actions));
+    const sourceRecordCount = release.coverage_json?.source_record_count;
+    append(view, pageHeading("Dataset review", `${displayName(release.dataset_id)} ${release.release_version}`, `${researchAreaLabel(release.target_feature)} · ${formatNumber(sourceRecordCount ?? release.record_count)} source records`, actions));
     const lifecycle = releaseLifecycleContext(release.status);
     const lifecycleNotice = el("div", `notice ${lifecycle.tone}`.trim());
     append(lifecycleNotice, badge(release.status), document.createTextNode(` ${lifecycle.message}`));
@@ -179,7 +180,7 @@ export function createReleaseRoutes({
     if (blocking) append(view, el("div", "notice negative", "Required data checks failed, so this version cannot be published. Review the failures, then retry or reject it."));
     const layout = el("div", "detail-layout");
     const releaseBody = el("div");
-    append(releaseBody, detailList([["State", badge(release.status)], ["Schema", release.schema_version], ["Records", formatNumber(release.record_count)], ["Content hash", el("code", "mono", release.content_sha256)], ["Coverage", release.coverage_json ? technicalDetails(release.coverage_json, "Inspect coverage") : "Unknown"], ["Review note", release.review_comment || "No review note recorded"], ["Created", formatDate(release.created_at)], ["Published", formatDate(release.accepted_at)], ["Request ID", el("code", "mono", requestId)]]), technicalDetails(release, "Inspect version metadata"));
+    append(releaseBody, detailList([["State", badge(release.status)], ["Schema", release.schema_version], ["Source generation records", formatNumber(sourceRecordCount ?? release.record_count)], ["Portable product records", formatNumber(release.record_count)], ["Content hash", el("code", "mono", release.content_sha256)], ["Coverage", release.coverage_json ? technicalDetails(release.coverage_json, "Inspect coverage") : "Unknown"], ["Review note", release.review_comment || "No review note recorded"], ["Created", formatDate(release.created_at)], ["Published", formatDate(release.accepted_at)], ["Request ID", el("code", "mono", requestId)]]), technicalDetails(release, "Inspect version metadata"));
     const side = el("div", "stack");
     append(side, panel("Dataset manifest", "Files and settings needed to reproduce this version", manifest ? technicalDetails(manifest, "Inspect manifest") : el("p", "", "Manifest unavailable.")));
     const receiptBody = el("div");

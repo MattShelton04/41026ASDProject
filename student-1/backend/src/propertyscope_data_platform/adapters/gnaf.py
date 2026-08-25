@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import csv
-from collections.abc import Iterator
+import sqlite3
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from io import TextIOWrapper
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
 REQUIRED_MEMBER_SUFFIXES = (
@@ -71,14 +73,40 @@ def parse_gnaf_archive_path(
     path: Path,
     *,
     declared_crs: str,
-    maximum_records: int,
+    maximum_records: int | None,
     localities: frozenset[str] | None = None,
     maximum_member_bytes: int = 1_000_000_000,
     maximum_scanned_rows: int = 7_000_000,
 ) -> tuple[GnafAddress, ...]:
-    """Stream and join a bounded NSW address slice without extracting the bulk archive."""
-    if maximum_records < 1:
+    """Return a selected slice; source-scale callers should consume the streaming iterator."""
+    return tuple(
+        iter_gnaf_archive_path(
+            path,
+            declared_crs=declared_crs,
+            maximum_records=maximum_records,
+            localities=localities,
+            maximum_member_bytes=maximum_member_bytes,
+            maximum_scanned_rows=maximum_scanned_rows,
+        )
+    )
+
+
+def iter_gnaf_archive_path(
+    path: Path,
+    *,
+    declared_crs: str,
+    maximum_records: int | None = None,
+    capacity_ceiling: int = 6_500_000,
+    localities: frozenset[str] | None = None,
+    maximum_member_bytes: int = 1_000_000_000,
+    maximum_scanned_rows: int = 7_000_000,
+    progress: Callable[[int], None] | None = None,
+) -> Iterator[GnafAddress]:
+    """Stream a complete NSW generation, spilling the large geocode join to local SQLite."""
+    if maximum_records is not None and maximum_records < 1:
         raise ValueError("G-NAF maximum_records must be positive")
+    if capacity_ceiling < 1:
+        raise ValueError("G-NAF capacity ceiling must be positive")
     with ZipFile(path) as archive:
         manifest = inspect_gnaf_archive(archive, declared_crs=declared_crs)
         members = {suffix: _member(manifest.members, suffix) for suffix in REQUIRED_MEMBER_SUFFIXES}
@@ -92,57 +120,143 @@ def parse_gnaf_archive_path(
         }
         if not locality_rows:
             raise ValueError("G-NAF scope matched no NSW localities")
-        addresses: dict[str, dict[str, str]] = {}
-        street_ids: set[str] = set()
-        for index, row in enumerate(_psv_rows(archive, members["NSW_ADDRESS_DETAIL_PSV.PSV"])):
-            if index >= maximum_scanned_rows:
-                raise ValueError("G-NAF address scan exceeds the registered row limit")
-            if row.get("LOCALITY_PID") not in locality_rows:
-                continue
-            postcode = row.get("POSTCODE", "")
-            if len(postcode) != 4 or not postcode.isdigit():
-                continue
-            pid = row.get("ADDRESS_DETAIL_PID", "")
-            street_id = row.get("STREET_LOCALITY_PID", "")
-            if not pid or not street_id:
-                continue
-            addresses[pid] = row
-            street_ids.add(street_id)
-            if len(addresses) >= maximum_records:
-                break
-        if not addresses:
-            raise ValueError("G-NAF scope matched no valid address details")
         streets = {
             row["STREET_LOCALITY_PID"]: row
             for row in _psv_rows(archive, members["NSW_STREET_LOCALITY_PSV.PSV"])
-            if row.get("STREET_LOCALITY_PID") in street_ids
+            if row.get("LOCALITY_PID") in locality_rows
         }
-        geocodes: dict[str, dict[str, str]] = {}
-        for index, row in enumerate(
-            _psv_rows(archive, members["NSW_ADDRESS_DEFAULT_GEOCODE_PSV.PSV"])
-        ):
-            if index >= maximum_scanned_rows:
-                raise ValueError("G-NAF geocode scan exceeds the registered row limit")
-            pid = row.get("ADDRESS_DETAIL_PID", "")
-            if pid in addresses:
-                geocodes[pid] = row
-                if len(geocodes) == len(addresses):
-                    break
+        if not streets:
+            raise ValueError("G-NAF scope matched no street localities")
         source_crs = 7844 if declared_crs == "GDA2020" else 4283
-        result: list[GnafAddress] = []
-        for pid, address in addresses.items():
-            locality = locality_rows.get(address.get("LOCALITY_PID", ""))
-            street = streets.get(address.get("STREET_LOCALITY_PID", ""))
-            geocode = geocodes.get(pid)
-            if locality is None or street is None or geocode is None:
-                continue
-            coordinate = select_geocode((geocode,))
-            if coordinate is None:
-                continue
-            result.append(_canonical_address(address, street, locality, coordinate, source_crs))
-        if not result:
-            raise ValueError("G-NAF scope has no addresses with valid default geocodes")
-        return tuple(result)
+        with TemporaryDirectory(prefix="propertyscope-gnaf-") as directory:
+            database = sqlite3.connect(Path(directory) / "geocodes.sqlite3")
+            try:
+                database.execute("PRAGMA journal_mode=OFF")
+                database.execute("PRAGMA synchronous=OFF")
+                database.execute(
+                    "CREATE TABLE geocode (pid TEXT PRIMARY KEY, kind TEXT NOT NULL, "
+                    "latitude TEXT NOT NULL, longitude TEXT NOT NULL) WITHOUT ROWID"
+                )
+                batch: list[tuple[str, str, str, str]] = []
+                for index, row in enumerate(
+                    _psv_rows(archive, members["NSW_ADDRESS_DEFAULT_GEOCODE_PSV.PSV"])
+                ):
+                    if index >= maximum_scanned_rows:
+                        raise ValueError(
+                            "G-NAF geocode scan exceeds the registered capacity ceiling"
+                        )
+                    if progress is not None and index % 10_000 == 0:
+                        progress(10_000)
+                    pid = row.get("ADDRESS_DETAIL_PID", "")
+                    if not pid or not _coordinate(row):
+                        continue
+                    batch.append(
+                        (
+                            pid,
+                            row.get("GEOCODE_TYPE_CODE") or "UNKNOWN",
+                            row["LATITUDE"],
+                            row["LONGITUDE"],
+                        )
+                    )
+                    if len(batch) >= 10_000:
+                        database.executemany(
+                            "INSERT OR REPLACE INTO geocode VALUES (?,?,?,?)", batch
+                        )
+                        batch.clear()
+                if batch:
+                    database.executemany("INSERT OR REPLACE INTO geocode VALUES (?,?,?,?)", batch)
+                database.commit()
+                emitted = 0
+                address_batch: list[dict[str, str]] = []
+                for index, row in enumerate(
+                    _psv_rows(archive, members["NSW_ADDRESS_DETAIL_PSV.PSV"])
+                ):
+                    if index >= maximum_scanned_rows:
+                        raise ValueError(
+                            "G-NAF address scan exceeds the registered capacity ceiling"
+                        )
+                    if progress is not None and index % 10_000 == 0:
+                        progress(10_000)
+                    if _valid_address_row(row, locality_rows, streets):
+                        address_batch.append(row)
+                    if len(address_batch) >= 500:
+                        for item in _joined_addresses(
+                            database, address_batch, locality_rows, streets, source_crs
+                        ):
+                            if maximum_records is not None and emitted >= maximum_records:
+                                return
+                            if emitted >= capacity_ceiling:
+                                raise ValueError(
+                                    "G-NAF canonical output exceeds the registered capacity ceiling"
+                                )
+                            emitted += 1
+                            yield item
+                        address_batch.clear()
+                for item in _joined_addresses(
+                    database, address_batch, locality_rows, streets, source_crs
+                ):
+                    if maximum_records is not None and emitted >= maximum_records:
+                        return
+                    if emitted >= capacity_ceiling:
+                        raise ValueError(
+                            "G-NAF canonical output exceeds the registered capacity ceiling"
+                        )
+                    emitted += 1
+                    yield item
+                if emitted == 0:
+                    raise ValueError("G-NAF scope has no addresses with valid default geocodes")
+            finally:
+                database.close()
+
+
+def _valid_address_row(
+    row: dict[str, str],
+    localities: dict[str, dict[str, str]],
+    streets: dict[str, dict[str, str]],
+) -> bool:
+    postcode = row.get("POSTCODE", "")
+    return (
+        row.get("LOCALITY_PID") in localities
+        and row.get("STREET_LOCALITY_PID") in streets
+        and bool(row.get("ADDRESS_DETAIL_PID"))
+        and len(postcode) == 4
+        and postcode.isdigit()
+    )
+
+
+def _joined_addresses(
+    database: sqlite3.Connection,
+    addresses: list[dict[str, str]],
+    localities: dict[str, dict[str, str]],
+    streets: dict[str, dict[str, str]],
+    source_crs: int,
+) -> Iterator[GnafAddress]:
+    if not addresses:
+        return
+    identifiers = [row["ADDRESS_DETAIL_PID"] for row in addresses]
+    placeholders = ",".join("?" for _ in identifiers)
+    geocodes = {
+        str(row[0]): {
+            "GEOCODE_TYPE_CODE": str(row[1]),
+            "LATITUDE": str(row[2]),
+            "LONGITUDE": str(row[3]),
+        }
+        for row in database.execute(
+            f"SELECT pid,kind,latitude,longitude FROM geocode WHERE pid IN ({placeholders})",
+            identifiers,
+        )
+    }
+    for address in addresses:
+        geocode = geocodes.get(address["ADDRESS_DETAIL_PID"])
+        if geocode is None:
+            continue
+        yield _canonical_address(
+            address,
+            streets[address["STREET_LOCALITY_PID"]],
+            localities[address["LOCALITY_PID"]],
+            geocode,
+            source_crs,
+        )
 
 
 def _member(names: tuple[str, ...], suffix: str) -> str:

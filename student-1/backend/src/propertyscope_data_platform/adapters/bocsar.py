@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, datetime
 from zipfile import BadZipFile, ZipFile
@@ -42,6 +43,36 @@ def parse_bocsar_csv(
     end_month: date | None = None,
     maximum_records: int | None = None,
 ) -> tuple[tuple[CrimeObservation, ...], tuple[CrimeCoverage, ...]]:
+    records = iter_bocsar_csv(
+        content,
+        geography_kind=geography_kind,
+        maximum_rows=maximum_rows,
+        geography_values=geography_values,
+        start_month=start_month,
+        end_month=end_month,
+        maximum_records=maximum_records,
+    )
+    observations: list[CrimeObservation] = []
+    coverage: list[CrimeCoverage] = []
+    for record in records:
+        if isinstance(record, CrimeObservation):
+            observations.append(record)
+        else:
+            coverage.append(record)
+    return tuple(observations), tuple(coverage)
+
+
+def iter_bocsar_csv(
+    content: bytes,
+    *,
+    geography_kind: str,
+    maximum_rows: int,
+    geography_values: frozenset[str] | None = None,
+    start_month: date | None = None,
+    end_month: date | None = None,
+    maximum_records: int | None = None,
+) -> Iterator[CrimeObservation | CrimeCoverage]:
+    """Yield canonical sparse records without retaining a complete source-scale output."""
     reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig"), newline=""))
     headers = tuple(reader.fieldnames or ())
     if len(headers) < 4:
@@ -55,8 +86,7 @@ def parse_bocsar_csv(
     ]
     if not month_headers:
         raise ValueError("BOCSAR source has no months inside the requested range")
-    observations: list[CrimeObservation] = []
-    coverage: list[CrimeCoverage] = []
+    emitted = 0
     for index, row in enumerate(reader):
         if index >= maximum_rows:
             raise ValueError("BOCSAR source exceeds registered row limit")
@@ -76,23 +106,24 @@ def parse_bocsar_csv(
             if count < 0:
                 raise ValueError("BOCSAR count must not be negative")
             if count:
-                observations.append(
-                    CrimeObservation(
-                        geography_kind,
-                        geography,
-                        category_key,
-                        offence,
-                        subcategory,
-                        month,
-                        count,
-                    )
+                emitted += 1
+                if maximum_records is not None and emitted > maximum_records:
+                    raise ValueError("BOCSAR canonical output exceeds the requested record limit")
+                yield CrimeObservation(
+                    geography_kind,
+                    geography,
+                    category_key,
+                    offence,
+                    subcategory,
+                    month,
+                    count,
                 )
-        coverage.append(CrimeCoverage(geography_kind, geography, category_key, tuple(months)))
-        if maximum_records is not None and len(observations) + len(coverage) > maximum_records:
+        emitted += 1
+        if maximum_records is not None and emitted > maximum_records:
             raise ValueError("BOCSAR canonical output exceeds the requested record limit")
-    if not coverage:
+        yield CrimeCoverage(geography_kind, geography, category_key, tuple(months))
+    if emitted == 0:
         raise ValueError("BOCSAR source is empty")
-    return tuple(observations), tuple(coverage)
 
 
 def parse_bocsar_archive(
@@ -107,6 +138,38 @@ def parse_bocsar_archive(
     maximum_uncompressed_bytes: int = 100_000_000,
 ) -> tuple[tuple[CrimeObservation, ...], tuple[CrimeCoverage, ...]]:
     """Validate a registered BOCSAR ZIP and parse its single wide CSV."""
+    records = iter_bocsar_archive(
+        content,
+        geography_kind=geography_kind,
+        maximum_rows=maximum_rows,
+        geography_values=geography_values,
+        start_month=start_month,
+        end_month=end_month,
+        maximum_records=maximum_records,
+        maximum_uncompressed_bytes=maximum_uncompressed_bytes,
+    )
+    observations: list[CrimeObservation] = []
+    coverage: list[CrimeCoverage] = []
+    for record in records:
+        if isinstance(record, CrimeObservation):
+            observations.append(record)
+        else:
+            coverage.append(record)
+    return tuple(observations), tuple(coverage)
+
+
+def iter_bocsar_archive(
+    content: bytes,
+    *,
+    geography_kind: str,
+    maximum_rows: int,
+    geography_values: frozenset[str] | None = None,
+    start_month: date | None = None,
+    end_month: date | None = None,
+    maximum_records: int | None = None,
+    maximum_uncompressed_bytes: int = 100_000_000,
+) -> Iterator[CrimeObservation | CrimeCoverage]:
+    """Validate the registered ZIP and stream its complete canonical sparse projection."""
     try:
         with ZipFile(io.BytesIO(content)) as archive:
             members = [item for item in archive.infolist() if not item.is_dir()]
@@ -118,7 +181,7 @@ def parse_bocsar_archive(
                 raise ValueError("BOCSAR archive contains an unsafe member path")
             if member.file_size > maximum_uncompressed_bytes:
                 raise ValueError("BOCSAR archive exceeds the uncompressed byte limit")
-            return parse_bocsar_csv(
+            yield from iter_bocsar_csv(
                 archive.read(member),
                 geography_kind=geography_kind,
                 maximum_rows=maximum_rows,

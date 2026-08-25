@@ -605,7 +605,7 @@ def test_release_product_projection_is_bound_to_one_candidate_generation() -> No
             if "ops.dataset_release" in query:
                 return {
                     "id": release_id,
-                    "coverage_json": {"years": [2025]},
+                    "coverage_json": {"years": [2025], "maximum_records": 250_000},
                     "import_profile_key": "psi-sales",
                 }
             return {"count": 1}
