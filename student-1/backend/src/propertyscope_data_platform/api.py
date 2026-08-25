@@ -35,8 +35,8 @@ from propertyscope_data_platform.http_support import (
     tool_envelope,
 )
 from propertyscope_data_platform.release_builders import (
-    BuildContext,
     MAX_PUBLIC_ARTIFACT_BYTES,
+    BuildContext,
     ProductEnvelope,
     ReleaseDetailContract,
     ReleaseManifestV1,
