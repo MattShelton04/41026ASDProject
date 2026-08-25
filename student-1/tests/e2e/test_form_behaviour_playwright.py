@@ -39,7 +39,7 @@ def _free_port() -> int:
         return int(candidate.getsockname()[1])
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def fixture_origin() -> Iterator[str]:
     process: subprocess.Popen[bytes] | None = None
     origin = ""
@@ -83,7 +83,7 @@ def fixture_origin() -> Iterator[str]:
             process.wait(timeout=5)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def browser() -> Iterator[Browser]:
     with sync_playwright() as playwright:
         instance = playwright.chromium.launch(headless=True)
