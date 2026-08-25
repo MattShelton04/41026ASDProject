@@ -162,6 +162,14 @@ def test_bocsar_product_query_merges_only_the_bounded_page_window() -> None:
     assert query.select_sql.count("LIMIT %s") == 3
 
 
+def test_property_product_query_uses_the_generation_primary_key_order() -> None:
+    query = release_product_query(
+        "gnaf-nsw", uuid.uuid4(), {"maximum_records": 50_000}, limit=5_000, offset=0
+    )
+
+    assert "ORDER BY gnaf_pid" in query.select_sql
+
+
 def test_product_query_rejects_unregistered_profile_and_normalises_bocsar_dates() -> None:
     with pytest.raises(ConflictError, match="no registered product projection"):
         release_product_query("unknown", uuid.uuid4(), {}, limit=10, offset=0)

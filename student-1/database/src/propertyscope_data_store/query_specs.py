@@ -172,7 +172,7 @@ def release_product_query(
                 source_crs,ST_AsGeoJSON(geom)::jsonb AS geometry,source_row_sha256,
                 normalisation_version FROM warehouse.gnaf_address
                 WHERE dataset_release_id=%s
-                ORDER BY property_ref,gnaf_pid LIMIT %s OFFSET %s""",
+                ORDER BY gnaf_pid LIMIT %s OFFSET %s""",
             (release_id, page_limit, offset),
             """SELECT least(count(*),%s) AS count FROM warehouse.gnaf_address
                 WHERE dataset_release_id=%s""",
