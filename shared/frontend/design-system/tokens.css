@@ -5,9 +5,9 @@
   --ps-font-sans: Inter, "Avenir Next", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --ps-font-display: "Avenir Next", "Segoe UI", var(--ps-font-sans);
   --ps-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --ps-type-xs: 0.72rem;
-  --ps-type-sm: 0.84rem;
-  --ps-type-body: 0.94rem;
+  --ps-type-xs: 0.75rem;
+  --ps-type-sm: 0.875rem;
+  --ps-type-body: 1rem;
   --ps-type-lg: 1.12rem;
   --ps-type-title: clamp(2rem, 4vw, 3.3rem);
   --ps-type-display: clamp(2.55rem, 7vw, 5.5rem);
@@ -159,8 +159,8 @@
   --ps-content-wide: 1460px;
   --ps-content-readable: 760px;
   --ps-page-gutter: clamp(var(--ps-space-4), 3vw, var(--ps-space-8));
-  --ps-control-height-compact: 34px;
-  --ps-control-height-comfortable: 42px;
+  --ps-control-height-compact: 38px;
+  --ps-control-height-comfortable: 44px;
   --ps-control-height: var(--ps-control-height-comfortable);
   --ps-control-height-large: 58px;
   --ps-shell-topbar-height: 66px;
