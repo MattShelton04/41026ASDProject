@@ -19,6 +19,7 @@ import {
   displayName,
   entity,
   formatBytes,
+  humanise,
   FieldValidationError,
   formState,
   formStateChanged,
@@ -664,9 +665,11 @@ test("formatting pairs states with text and handles byte boundaries", () => {
   assert.equal(confidenceLabel(null), "Match confidence not supplied");
   assert.equal(researchAreaLabel("feature-1"), "Property data");
   assert.equal(researchAreaLabel("feature-4"), "Site & planning");
-  assert.equal(researchAreaLabel("future-area"), "Future Area");
+  assert.equal(researchAreaLabel("future-area"), "Future area");
   assert.equal(displayName("Deterministic property critical-path fixture"), "Example property records update");
   assert.equal(displayName("G-NAF NSW address registry"), "G-NAF NSW address registry");
+  assert.equal(humanise("awaiting_review"), "Awaiting review");
+  assert.equal(humanise("full_snapshot"), "Full snapshot");
 });
 
 test("release comparison keeps candidate and accepted evidence visibly distinct", () => {

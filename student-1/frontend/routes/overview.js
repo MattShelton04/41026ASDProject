@@ -1,9 +1,9 @@
 import { collection } from "../core/api.js";
 import { append, el, link } from "../core/dom.js";
-import { displayName, formatDate, humanise, statusTone } from "../core/formats.js?v=17";
+import { displayName, formatDate, humanise, statusTone } from "../core/formats.js?v=18";
 import { ACTIVE_RUN_STATES } from "../core/polling.js";
 import { badge, pageHeading, panel } from "../components/layout.js?v=17";
-import { cell, makeTable } from "../components/tables.js";
+import { cell, makeTable } from "../components/tables.js?v=18";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
 
 const OVERVIEW_FEED_LABELS = ["Source definitions", "Update history", "Published data"];
@@ -72,12 +72,20 @@ export async function renderOverview({ view, request, rerender }) {
   }
   append(view, stats);
 
-  const latestFailure = latestByJob.find((run) => ["failed", "interrupted"].includes(String(run.status).toLowerCase()));
-  if (latestFailure) {
+  const problemRuns = latestByJob.filter((run) => ["failed", "interrupted"].includes(String(run.status).toLowerCase()));
+  if (problemRuns.length) {
     const alert = el("div", "notice negative notice-actions");
     const copy = el("div");
-    append(copy, el("strong", "", "A data update failed"), el("div", "", `${displayName(latestFailure.job_name || "Data update")} did not finish. The current published version is still in use.`));
-    append(alert, copy, link("View failure", `#runs/${latestFailure.id}`, "button secondary small"));
+    append(copy,
+      el("strong", "", `${problemRuns.length} data ${problemRuns.length === 1 ? "update needs" : "updates need"} attention`),
+      el("div", "", "These updates did not finish successfully. The current published versions remain in use."),
+    );
+    const problemLinks = el("div", "problem-links");
+    for (const run of problemRuns.slice(0, 3)) {
+      append(problemLinks, link(`${displayName(run.job_name || "Data update")} · ${humanise(run.status)}`, `#runs/${run.id}`));
+    }
+    append(copy, problemLinks);
+    append(alert, copy, link(problemRuns.length === 1 ? "Review problem" : "Review problems", "#runs", "button secondary small"));
     append(view, alert);
   }
 
@@ -89,7 +97,7 @@ export async function renderOverview({ view, request, rerender }) {
       append(row, cell(link(displayName(run.job_name || `Update ${String(run.id).slice(0, 8)}`), `#runs/${run.id}`), "primary-cell"), cell(humanise(run.run_mode)), cell(badge(run.status)), cell(formatDate(run.requested_at || run.created_at)));
       return row;
     },
-    "Recent data updates",
+    "Recent data updates", { responsive: true },
   ) : emptyState("No updates yet", "Choose a saved data update to preview and start it.", link("View data updates", "#jobs", "button secondary"));
 
   const freshness = el("div", "stack");

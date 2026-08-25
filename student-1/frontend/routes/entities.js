@@ -1,12 +1,12 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js?v=17";
+import { displayName, formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js?v=18";
 import { isPsiJob } from "../core/forms.js?v=18";
 import { routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
-import { cell, makeTable, primaryCell } from "../components/tables.js";
+import { actionMenu, cell, makeTable, primaryCell } from "../components/tables.js?v=18";
 
 function operationStep(number, title, description) {
   const item = el("div", "operation-step");
@@ -45,15 +45,10 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
         : [{ label: "Update" }, { label: "Dataset / area" }, { label: "Method" }, { label: "Capacity alarm" }, { label: "Status" }, { label: "Actions" }];
       const table = makeTable(columns, items, (item) => {
         const row = el("tr");
-        const actions = el("div", "button-row");
-        if (!isSource) {
-          const runNow = button("Start update", "button primary small", () => openPlanDialog(item, null, { intent: "run" }));
-          const backfill = button("Load earlier data", "button secondary small", () => openPlanDialog(item, null, { intent: "backfill" }));
-          runNow.disabled = item.status !== "active";
-          backfill.disabled = item.status !== "active";
-          append(actions, runNow, backfill, link("View history", `#runs${queryString({ job: item.id })}`, "button secondary small"));
-        }
-        append(actions, link("View", `#${kind}/${item.id}`, "button secondary small"), button("Edit", "button secondary small", () => openEntityDialog(isSource ? "source" : "job", item)), button("Delete", "button small danger", async () => {
+        const actions = el("div", "row-actions");
+        const viewDetails = link("View details", `#${kind}/${item.id}`, "button secondary small");
+        const edit = button("Edit", "button secondary small", () => openEntityDialog(isSource ? "source" : "job", item));
+        const remove = button("Delete", "button small danger", async () => {
           const confirmed = await confirmAction({
             title: `Delete ${item.name}?`,
             description: "Only unused draft/test definitions can be deleted. Existing provenance remains protected.",
@@ -63,13 +58,31 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
           });
           if (!confirmed) return;
           await rerender();
-        }));
-        for (const control of actions.querySelectorAll("button, a")) control.setAttribute("aria-label", `${control.textContent.trim()} ${item.name}`);
+        });
+        if (!isSource) {
+          const runNow = button("Start update", "button primary small", () => openPlanDialog(item, null, { intent: "run" }));
+          const backfill = button("Load earlier data", "button secondary small", () => openPlanDialog(item, null, { intent: "backfill" }));
+          runNow.disabled = item.status !== "active";
+          backfill.disabled = item.status !== "active";
+          append(actions, runNow, actionMenu(`More actions for ${item.name}`, [
+            viewDetails,
+            link("View history", `#runs${queryString({ job: item.id })}`, "button secondary small"),
+            backfill,
+            edit,
+            remove,
+          ]));
+        } else {
+          append(actions, viewDetails, actionMenu(`More actions for ${item.name}`, [edit, remove]));
+        }
+        for (const control of actions.querySelectorAll("button, a")) {
+          if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", `${control.textContent.trim()} ${item.name}`);
+        }
         if (isSource) append(row, cell(primaryCell(displayName(item.name), item.id)), cell(item.publisher), cell(displayName(item.adapter_key), "mono"), cell(humanise(item.cadence)), cell(badge(item.status)), cell(actions, "actions-cell"));
         else append(row, cell(primaryCell(displayName(item.name), displayName(item.profile_key))), cell(primaryCell(displayName(item.dataset_id || item.target?.contract), researchAreaLabel(item.target_feature || item.target?.feature))), cell(humanise(item.refresh_strategy)), cell(`${formatNumber(item.max_rows ?? item.limits?.max_rows)}-row alarm`, "numeric"), cell(badge(item.status)), cell(actions, "actions-cell"));
         return row;
-      }, isSource ? "Registered data sources" : "Saved data updates");
-      append(view, panel(`${items.length} ${isSource ? "sources" : "data updates"}`, "Showing up to 100 results", table));
+      }, isSource ? "Registered data sources" : "Saved data updates", { responsive: true });
+      const resultLabel = isSource ? (items.length === 1 ? "source" : "sources") : (items.length === 1 ? "data update" : "data updates");
+      append(view, panel(`${items.length} ${resultLabel}`, "Showing up to 100 results", table));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
   }
 

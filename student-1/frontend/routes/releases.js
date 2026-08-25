@@ -1,12 +1,12 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=17";
+import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=18";
 import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js?v=18";
 import { runDialogForm } from "../components/dialogs.js?v=18";
 import { formField, filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState } from "../components/states.js";
-import { cell, makeTable, primaryCell } from "../components/tables.js";
+import { cell, makeTable, primaryCell, technicalReference } from "../components/tables.js?v=18";
 
 const RELEASE_FIELDS = [
   { name: "dataset_id", label: "Dataset ID", required: true, createOnly: true },
@@ -34,6 +34,34 @@ export function releaseLifecycleContext(status) {
 
 function hasBlockingFailures(results) {
   return results.some((item) => item.severity === "blocking" && ["fail", "failed", "error"].includes(item.status));
+}
+
+const RELEASE_STATES = Object.freeze([
+  { key: "all", label: "All" },
+  { key: "review", label: "Needs review" },
+  { key: "published", label: "Published" },
+  { key: "rejected", label: "Rejected" },
+]);
+
+function matchesReleaseState(release, state) {
+  const status = String(release.status || "").toLowerCase();
+  if (state === "review") return ["validated", "candidate", "review", "review_required", "awaiting_review"].includes(status);
+  if (state === "published") return status === "accepted";
+  if (state === "rejected") return status === "rejected";
+  return true;
+}
+
+function releaseStateTabs(releases, selected, filters) {
+  const navigation = el("nav", "state-tabs");
+  navigation.setAttribute("aria-label", "Published data lifecycle");
+  for (const state of RELEASE_STATES) {
+    const count = releases.filter((release) => matchesReleaseState(release, state.key)).length;
+    const tab = link("", `#releases${queryString({ q: filters.q, status: filters.status, state: state.key === "all" ? "" : state.key })}`, "state-tab");
+    append(tab, el("span", "", state.label), el("strong", "", formatNumber(count)));
+    if (selected === state.key) tab.setAttribute("aria-current", "page");
+    append(navigation, tab);
+  }
+  return navigation;
 }
 
 export function createReleaseRoutes({
@@ -82,18 +110,25 @@ export function createReleaseRoutes({
     try {
       if (id) return await renderReleaseDetail(id);
       const params = new URLSearchParams(location.hash.split("?")[1] || "");
+      const requestedState = params.get("state") || "all";
+      const selectedState = RELEASE_STATES.some((state) => state.key === requestedState) ? requestedState : "all";
       const filters = { q: params.get("q") || "", status: params.get("status") || "" };
-      const { body } = await request(`dataset-releases${queryString({ status: filters.status, limit: 100 })}`);
+      const { body } = await request("dataset-releases?limit=100");
       const releases = collection(body);
-      const visible = filters.q ? releases.filter((release) => [release.dataset_id, release.release_version, release.target_feature]
-        .some((value) => String(value || "").toLowerCase().includes(filters.q.toLowerCase()))) : releases;
+      const search = filters.q.toLowerCase();
+      const visible = releases.filter((release) => matchesReleaseState(release, selectedState)
+        && (!filters.status || release.status === filters.status)
+        && (!search || [release.dataset_id, release.release_version, release.target_feature]
+          .some((value) => String(value || "").toLowerCase().includes(search))));
       view.replaceChildren();
       append(view, pageHeading("Property data", "Published data", "Review new data before it replaces the version currently used in property research.", [button("Create draft version", "button primary", () => openReleaseDialog())]));
-      append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: ["", "draft", "candidate", "awaiting_review", "accepted", "rejected", "superseded"], placeholder: "Dataset, version or research area", onApply: (values) => { location.hash = `#releases${queryString(values)}`; } }));
+      append(view, releaseStateTabs(releases, selectedState, filters));
+      append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: ["", "draft", "candidate", "awaiting_review", "accepted", "rejected", "superseded"], placeholder: "Dataset, version or research area", onApply: (values) => { location.hash = `#releases${queryString({ ...values, state: selectedState === "all" ? "" : selectedState })}`; } }));
       if (!visible.length) { append(view, emptyState("No datasets found", filters.q || filters.status ? "Try clearing the current filters." : "A completed processing run can create a dataset for review.")); return; }
-      append(view, panel(`${visible.length} data versions`, "New versions stay separate until they are reviewed and published", makeTable(
+      append(view, panel(`${visible.length} ${visible.length === 1 ? "data version" : "data versions"}`, "New versions stay separate until they are reviewed and published", makeTable(
         [{ label: "Dataset / version" }, { label: "Research area" }, { label: "Records" }, { label: "State" }, { label: "Published" }, { label: "Checksum" }], visible,
-        (release) => { const row = el("tr"); const releaseLink = link(displayName(release.dataset_id || "Dataset"), `#releases/${release.id}`); append(row, cell(primaryCell(releaseLink, release.release_version || "Version not recorded"), "primary-cell"), cell(researchAreaLabel(release.target_feature)), cell(formatNumber(release.record_count), "numeric"), cell(badge(release.status)), cell(formatDate(release.accepted_at)), cell(String(release.content_sha256 || "—").slice(0, 12), "mono")); return row; },
+        (release) => { const row = el("tr"); const releaseLink = link(displayName(release.dataset_id || "Dataset"), `#releases/${release.id}`); append(row, cell(primaryCell(releaseLink, release.release_version || "Version not recorded"), "primary-cell"), cell(researchAreaLabel(release.target_feature)), cell(formatNumber(release.record_count), "numeric"), cell(badge(release.status)), cell(formatDate(release.accepted_at)), cell(technicalReference(release.content_sha256, 12))); return row; },
+        "Published data versions", { responsive: true },
       )));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
   }

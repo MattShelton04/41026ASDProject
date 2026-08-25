@@ -1,12 +1,12 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, formatDate, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=17";
+import { displayName, formatDate, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=18";
 import { actionAvailability, createLatestRequestGuard, nextPollDelay, retainRecent } from "../core/polling.js?v=18";
 import { parseRoute, routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
-import { cell, makeTable, primaryCell } from "../components/tables.js";
+import { cell, makeTable, primaryCell, technicalReference } from "../components/tables.js?v=18";
 
 const RUN_FILTERS = ["", "requested", "queued", "running", "succeeded", "failed", "cancelled", "interrupted"];
 
@@ -116,7 +116,9 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       append(view, pageHeading("Property data", "Update history", "Track each data update from download through checks and publication review.", [link("Choose a data update", "#jobs", "button primary")]));
       if (filters.job) {
         const jobFilter = el("div", "notice notice-actions");
-        append(jobFilter, el("span", "", `Showing history for job ${filters.job}.`), link("Clear job filter", "#runs", "button secondary small"));
+        const filterCopy = el("span");
+        append(filterCopy, document.createTextNode("Showing history for data update "), technicalReference(filters.job), document.createTextNode("."));
+        append(jobFilter, filterCopy, link("Clear job filter", "#runs", "button secondary small"));
         append(view, jobFilter);
       }
       append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: RUN_FILTERS, placeholder: "Update name or reference", onApply: (values) => { location.hash = `#runs${queryString({ ...values, job: filters.job })}`; } }));
@@ -124,10 +126,10 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       const table = makeTable([{ label: "Update" }, { label: "Method" }, { label: "Status" }, { label: "Rows loaded" }, { label: "Started" }, { label: "Reference" }], runs, (run) => {
         const row = el("tr");
         const runLink = link(displayName(run.job_name || `Update ${String(run.id).slice(0, 8)}`), `#runs/${encodeURIComponent(run.id)}`);
-        append(row, cell(primaryCell(runLink, run.id)), cell(humanise(run.run_mode)), cell(badge(run.status)), cell(formatNumber(run.rows_accepted), "numeric"), cell(formatDate(run.requested_at)), cell(run.request_id || "—", "mono"));
+        append(row, cell(primaryCell(runLink, displayName(run.dataset_id || run.run_mode))), cell(humanise(run.run_mode)), cell(badge(run.status)), cell(formatNumber(run.rows_accepted), "numeric"), cell(formatDate(run.requested_at)), cell(technicalReference(run.request_id)));
         return row;
-      }, "Data update history");
-      append(view, panel(`${runs.length} updates`, "Newest first", table));
+      }, "Data update history", { responsive: true });
+      append(view, panel(`${runs.length} ${runs.length === 1 ? "update" : "updates"}`, "Newest first", table));
     } catch (error) { view.replaceChildren(errorState(error, rerender)); }
   }
 

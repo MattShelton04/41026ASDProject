@@ -31,7 +31,8 @@ export function humanise(value) {
   if (value === null || value === undefined || value === "") return "Not recorded";
   const knownLabel = PRODUCT_LABELS[String(value).toLowerCase()];
   if (knownLabel) return knownLabel;
-  return String(value).replaceAll("_", " ").replaceAll("-", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+  const words = String(value).replaceAll("_", " ").replaceAll("-", " ");
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 }
 
 export function formatNumber(value) {

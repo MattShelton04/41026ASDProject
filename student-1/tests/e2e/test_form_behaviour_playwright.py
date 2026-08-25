@@ -105,6 +105,10 @@ def _open(page: Page, origin: str, route: str) -> None:
     expect(page.locator("h1").first).to_be_visible()
 
 
+def _open_row_actions(page: Page, item_name: str) -> None:
+    page.get_by_role("button", name=f"More actions for {item_name}").click()
+
+
 def _fail_first_write(page: Page, pattern: str, *, method: str = "POST") -> list[int]:
     writes: list[int] = []
 
@@ -424,6 +428,7 @@ def test_source_job_and_release_create_edit_forms_retain_server_failures(
     expect(page.locator('[name="name"]')).to_be_focused()
     page.get_by_role("button", name="Cancel").click()
 
+    _open_row_actions(page, "Example NSW property records")
     page.get_by_role("button", name="Edit Example NSW property records").click()
     source_notes = page.locator('[name="notes"]')
     targets = page.locator('[name="target_features"]')
@@ -457,6 +462,7 @@ def test_source_job_and_release_create_edit_forms_retain_server_failures(
     page.locator("#entity-save").click()
     expect(page.locator("#entity-error")).to_contain_text("Please correct Source ID")
     page.get_by_role("button", name="Cancel").click()
+    _open_row_actions(page, "Example property records update")
     page.get_by_role("button", name="Edit Example property records update").click()
     schedule = page.locator('[name="schedule_text"]')
     expect(schedule).to_have_attribute("maxlength", "200")
@@ -570,6 +576,7 @@ def test_guarded_confirmations_dirty_navigation_and_controller_generation(
     page: Page, fixture_origin: str
 ) -> None:
     _open(page, fixture_origin, "sources")
+    _open_row_actions(page, "Example NSW property records")
     page.get_by_role("button", name="Edit Example NSW property records").click()
     notes = page.locator('[name="notes"]')
     initial_notes = notes.input_value()
@@ -587,6 +594,7 @@ def test_guarded_confirmations_dirty_navigation_and_controller_generation(
     expect(page.locator("#entity-dialog")).not_to_be_visible()
     page.wait_for_function("() => location.hash === '#sources'")
 
+    _open_row_actions(page, "Example NSW property records")
     page.get_by_role("button", name="Edit Example NSW property records").click()
     page.locator('[name="notes"]').fill("Saved after keeping the form open")
     page.evaluate("location.hash = '#jobs'")
@@ -599,6 +607,7 @@ def test_guarded_confirmations_dirty_navigation_and_controller_generation(
     expect(page.locator("#entity-dialog")).not_to_be_visible()
     page.wait_for_function("() => location.hash === '#sources'")
 
+    _open_row_actions(page, "Example NSW property records")
     page.get_by_role("button", name="Edit Example NSW property records").click()
     page.locator('[name="notes"]').fill("Discarded for latest navigation")
     page.evaluate("location.hash = '#jobs'")
@@ -614,6 +623,7 @@ def test_guarded_confirmations_dirty_navigation_and_controller_generation(
     delete_writes = _fail_first_write(
         page, f"**/api/data-platform/v1/sources/{SOURCE_ID}", method="DELETE"
     )
+    _open_row_actions(page, "Example NSW property records")
     page.get_by_role("button", name="Delete Example NSW property records").click()
     page.locator("#action-confirm").click()
     expect(page.locator("#action-error")).to_contain_text("values are still here")
@@ -1026,6 +1036,32 @@ def test_jobs_list_error_retry_restores_route_heading_focus(
     expect(heading).to_be_focused()
     expect(page).to_have_title("PropertyScope | Data updates")
     assert reads == 2
+
+
+def test_jobs_list_secondary_actions_use_keyboard_accessible_overflow(
+    page: Page, fixture_origin: str
+) -> None:
+    _open(page, fixture_origin, "jobs")
+    expect(
+        page.get_by_role("button", name="Start update Example property records update")
+    ).to_be_visible()
+    expect(
+        page.get_by_role("button", name="Load earlier data Example property records update")
+    ).to_be_hidden()
+
+    more = page.get_by_role("button", name="More actions for Example property records update")
+    more.focus()
+    more.press("ArrowDown")
+
+    details = page.get_by_role("link", name="View details Example property records update")
+    expect(details).to_be_visible()
+    expect(details).to_be_focused()
+    expect(more).to_have_attribute("aria-expanded", "true")
+
+    details.press("Escape")
+    expect(details).to_be_hidden()
+    expect(more).to_be_focused()
+    expect(more).to_have_attribute("aria-expanded", "false")
 
 
 def test_ai_manual_refresh_preserves_disclosure_and_refresh_focus(
