@@ -316,20 +316,38 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         query = request.args.get("q", "").strip()
         if not 2 <= len(query) <= 200:
             raise ValidationError("q must contain 2 to 200 characters")
+        limit = query_integer("limit", minimum=1, maximum=100, default=25)
+        offset = query_integer("offset", minimum=0, maximum=1_000_000, default=0)
         state = request.args.get("state", "NSW").upper()
         if state != "NSW":
             return jsonify(
                 {
                     "items": [],
                     "count": 0,
+                    "total": 0,
+                    "limit": limit,
+                    "offset": offset,
+                    "next_offset": None,
                     "query": query,
                     "supported": False,
                     "reason": "Only NSW is supported",
                 }
             )
-        limit = query_integer("limit", minimum=1, maximum=100, default=25)
-        items = store.search_properties(query, state=state, limit=limit)
-        return jsonify({"items": items, "count": len(items), "query": query, "supported": True})
+        results = store.search_properties(query, state=state, limit=limit, offset=offset)
+        return jsonify(
+            {
+                "items": results.items,
+                "count": len(results.items),
+                "total": results.total,
+                "limit": limit,
+                "offset": offset,
+                "next_offset": offset + len(results.items)
+                if offset + len(results.items) < results.total
+                else None,
+                "query": query,
+                "supported": True,
+            }
+        )
 
     @api.get("/internal/data-platform/v1/properties/<uuid:property_ref>")
     def property_get(property_ref: uuid.UUID) -> Response:

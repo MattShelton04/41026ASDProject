@@ -67,6 +67,10 @@ def validate_job_scope(
     if profile not in {"test", "showcase", "full-data"}:
         return None, _invalid("Scope profile is not registered")
     scope["profile"] = profile
+    if profile == "full-data" and scope.get("all_records") is not True:
+        return None, _invalid("Complete official data must request all available source records")
+    if profile == "full-data" and "maximum_records" in scope:
+        return None, _invalid("Complete official data does not accept a source record limit")
     bounded_scope = scope.get("release_scope", scope)
     if not isinstance(bounded_scope, dict):
         return None, _invalid("release_scope must be a JSON object")

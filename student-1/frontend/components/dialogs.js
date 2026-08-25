@@ -1,4 +1,4 @@
-import { FieldValidationError, createSubmissionGuard, formState, formStateChanged } from "../core/forms.js";
+import { FieldValidationError, createSubmissionGuard, formState, formStateChanged } from "../core/forms.js?v=18";
 
 const activeDialogs = new WeakMap();
 const semanticValidators = new WeakMap();

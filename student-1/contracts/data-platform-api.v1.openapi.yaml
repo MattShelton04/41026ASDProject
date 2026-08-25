@@ -192,7 +192,10 @@ paths:
         - {name: q, in: query, required: true, schema: {type: string, minLength: 2, maxLength: 200}}
         - {name: state, in: query, schema: {const: NSW, default: NSW}}
         - {$ref: '#/components/parameters/Limit'}
-      responses: {'200': {$ref: '#/components/responses/Page'}, '400': {$ref: '#/components/responses/Problem'}}
+        - {name: offset, in: query, schema: {type: integer, minimum: 0, maximum: 1000000, default: 0}}
+      responses:
+        '200': {description: Ranked current property matches, content: {application/json: {schema: {$ref: '#/components/schemas/PropertySearchPage'}}}}
+        '422': {$ref: '#/components/responses/Problem'}
   /properties/{property_ref}:
     get: {operationId: getProperty, parameters: [{$ref: '#/components/parameters/PropertyRef'}], responses: {'200': {description: Property evidence}, '404': {$ref: '#/components/responses/Problem'}}}
   /properties/{property_ref}/map-context:
@@ -242,6 +245,39 @@ components:
     AgentRunId: {name: agent_run_id, in: path, required: true, schema: {type: string, format: uuid}}
     PropertyRef: {name: property_ref, in: path, required: true, schema: {type: string, format: uuid}}
   schemas:
+    PropertySearchPage:
+      type: object
+      additionalProperties: false
+      required: [items, count, total, limit, offset, next_offset, query, supported]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [property_ref, address_display, locality, postcode, state, resolution_status, longitude, latitude, score, matched_address, match_kind, match_method]
+            properties:
+              property_ref: {type: string, format: uuid}
+              address_display: {type: string, minLength: 1, maxLength: 500}
+              locality: {type: string, minLength: 1, maxLength: 200}
+              postcode: {type: string, pattern: '^[0-9]{4}$'}
+              state: {const: NSW}
+              resolution_status: {enum: [verified, provisional, unresolved, retired]}
+              longitude: {type: number, minimum: 140, maximum: 160}
+              latitude: {type: number, minimum: -38, maximum: -27}
+              score: {type: number, minimum: 0, maximum: 1}
+              matched_address: {type: string, minLength: 1, maxLength: 500}
+              match_kind: {enum: [canonical, alias]}
+              match_method: {enum: [exact, prefix, contains, all_terms, fuzzy]}
+        count: {type: integer, minimum: 0, maximum: 100}
+        total: {type: integer, minimum: 0}
+        limit: {type: integer, minimum: 1, maximum: 100}
+        offset: {type: integer, minimum: 0, maximum: 1000000}
+        next_offset: {type: [integer, 'null'], minimum: 0, maximum: 1000000}
+        query: {type: string, minLength: 2, maxLength: 200}
+        supported: {type: boolean}
+        reason: {type: string, minLength: 1, maxLength: 200}
     DataProductCatalogue:
       type: object
       additionalProperties: false

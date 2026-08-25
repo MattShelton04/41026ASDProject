@@ -493,8 +493,8 @@ test("job source detection and explicit year partitions are bounded", () => {
   assert.equal(isPsiJob({ adapter_key: "schools-csv" }), false);
   assert.equal(isSchoolsJob({ import_profile_key: "schools-master" }), true);
   assert.equal(isSchoolsJob({ adapter_key: "gnaf-bulk" }), false);
-  assert.equal(liveProfileLabel("gnaf-nsw"), "Live official Geoscape G-NAF bulk archive");
-  assert.equal(liveProfileLabel("bocsar-sparse"), "Live official BOCSAR archive");
+  assert.equal(liveProfileLabel("gnaf-nsw"), "Complete official NSW G-NAF address registry");
+  assert.equal(liveProfileLabel("bocsar-sparse"), "Complete official BOCSAR postcode + suburb datasets");
   assert.deepEqual(psiYearRange("2024", "2026", { maximum: 2027 }), [2024, 2025, 2026]);
   assert.throws(() => psiYearRange(2027, 2024, { maximum: 2027 }), /valid range/);
   assert.throws(() => psiYearRange(1989, 2024, { maximum: 2027 }), /1990/);
@@ -794,13 +794,16 @@ test("property discovery consumes shell search queries and stays product-facing"
   const source = await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8");
   assert.match(source, /routeQuery\(location\.hash\)\.get\("q"\)/);
   assert.match(source, /if \(input\.value\) queueMicrotask/);
-  assert.match(source, /Explore NSW properties/);
-  assert.match(source, /which sources and research data are available/);
+  assert.match(source, /Find a NSW property/);
+  assert.match(source, /street, suburb, postcode or any combination/);
+  assert.doesNotMatch(source, /items\.slice\(0, 5\)/);
+  assert.match(source, /Show more matches/);
   assert.doesNotMatch(source, /Feature [1-5]|buyer features|Dossier report/);
   assert.match(source, /#properties\/\$\{encodeURIComponent\(item\.property_ref\)\}/);
-  assert.match(source, /Property references and coordinates/);
+  assert.match(source, /Property references and recorded coordinates/);
   assert.match(source, /confidenceLabel/);
-  assert.match(source, /Property identifiers and coordinates/);
+  assert.match(source, /All search terms matched/);
+  assert.match(source, /Sources and identifiers/);
   assert.doesNotMatch(source, /Advanced identity evidence/);
 });
 

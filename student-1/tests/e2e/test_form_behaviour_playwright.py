@@ -163,7 +163,7 @@ def test_property_search_keeps_focus_and_accepts_two_sequential_queries(
         ),
     )
     page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=slow&test={time.time_ns()}#properties")
-    query = page.get_by_label("NSW street address")
+    query = page.get_by_label("Address, suburb or postcode")
     search = page.get_by_role("button", name="Search")
 
     query.fill("11 Example Street, Sydney NSW 2000")
@@ -213,7 +213,7 @@ def test_property_result_is_a_native_link_and_back_restores_origin(
     expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
 
     page.get_by_role("link", name="Back to search").click()
-    expect(page.get_by_role("heading", name="Explore NSW properties")).to_be_visible()
+    expect(page.get_by_role("heading", name="Find a NSW property")).to_be_visible()
     expect(result).to_be_visible()
     expect(result).to_be_focused()
     assert page.evaluate("new URLSearchParams(location.hash.split('?')[1]).get('q')") == query
@@ -226,6 +226,20 @@ def test_property_result_is_a_native_link_and_back_restores_origin(
     assert page.title() == "PropertyScope | 11 Example Street, Sydney NSW 2000"
 
 
+def test_property_search_can_page_through_every_match(page: Page, fixture_origin: str) -> None:
+    page.goto(
+        f"{fixture_origin}{FEATURE_PATH}?scenario=large&test={time.time_ns()}#properties?q=Example"
+    )
+    cards = page.locator(".result-card")
+
+    expect(page.get_by_role("heading", name="80 properties found")).to_be_visible()
+    expect(cards).to_have_count(25)
+    for expected_count in (50, 75, 80):
+        page.get_by_role("button", name="Show more matches").click()
+        expect(cards).to_have_count(expected_count)
+    expect(page.get_by_role("button", name="Show more matches")).to_have_count(0)
+
+
 def test_property_deep_link_back_uses_its_query_href(page: Page, fixture_origin: str) -> None:
     _abort_external_map(page)
     page.goto(
@@ -236,8 +250,8 @@ def test_property_deep_link_back_uses_its_query_href(page: Page, fixture_origin:
     assert page.evaluate("history.state?.propertyDiscoveryOrigin ?? null") is None
 
     page.get_by_role("link", name="Back to search").click()
-    expect(page.get_by_role("heading", name="Explore NSW properties")).to_be_visible()
-    expect(page.get_by_label("NSW street address")).to_have_value("11 Example Street")
+    expect(page.get_by_role("heading", name="Find a NSW property")).to_be_visible()
+    expect(page.get_by_label("Address, suburb or postcode")).to_have_value("11 Example Street")
     assert page.evaluate("location.hash") == "#properties?q=11+Example+Street"
 
 
@@ -268,14 +282,14 @@ def test_property_identity_renders_before_optional_calls_settle(
         f"#properties/{PROPERTY_ID}?q=11%20Example%20Street"
     )
     expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
-    expect(page.get_by_text("Match status")).to_be_visible()
+    expect(page.get_by_text("Identity status")).to_be_visible()
     expect(page.get_by_text("Loading spatial context…")).to_be_visible()
     assert page.evaluate("window.__pendingPropertyOptionalCount()") == 3
 
     page.evaluate("window.__releasePropertyOptional()")
-    expect(page.get_by_role("heading", name="Available research coverage")).to_be_visible()
+    expect(page.get_by_role("heading", name="Research available")).to_be_visible()
     expect(page.locator(".map-context")).to_be_visible()
-    page.get_by_text("Property identifiers and coordinates", exact=True).click()
+    page.get_by_text("Sources and identifiers", exact=True).click()
     expect(page.get_by_role("heading", name="Source summary")).to_be_visible()
 
 
@@ -292,7 +306,7 @@ def test_property_partial_and_fatal_states_keep_local_recovery(
     expect(
         page.get_by_text("Coverage details are temporarily unavailable", exact=False)
     ).to_be_visible()
-    page.get_by_text("Property identifiers and coordinates", exact=True).click()
+    page.get_by_text("Sources and identifiers", exact=True).click()
     expect(
         page.get_by_text("The source summary is temporarily unavailable", exact=False)
     ).to_be_visible()
@@ -339,7 +353,7 @@ def test_search_and_every_filter_use_native_keyboard_and_explicit_reset(
     page: Page, fixture_origin: str
 ) -> None:
     _open(page, fixture_origin, "properties")
-    query = page.get_by_label("NSW street address")
+    query = page.get_by_label("Address, suburb or postcode")
     query.fill("x")
     query.press("Enter")
     expect(page.locator("#property-search-error")).to_contain_text("2 to 200 characters")
@@ -354,7 +368,7 @@ def test_search_and_every_filter_use_native_keyboard_and_explicit_reset(
     expect(query).not_to_have_attribute("aria-invalid", "true")
     assert query.evaluate("element => element.validationMessage") == ""
     query.press("Enter")
-    expect(page.get_by_text("1 match", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="1 property found")).to_be_visible()
     page.wait_for_function("() => location.hash.includes('q=11+Example+Street')")
 
     _open(page, fixture_origin, "sources")
@@ -377,8 +391,8 @@ def test_search_and_every_filter_use_native_keyboard_and_explicit_reset(
     )
 
     page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=slow&test={time.time_ns()}#properties")
-    expect(page.get_by_role("heading", name="Explore NSW properties")).to_be_visible()
-    query = page.get_by_label("NSW street address")
+    expect(page.get_by_role("heading", name="Find a NSW property")).to_be_visible()
+    query = page.get_by_label("Address, suburb or postcode")
     query.fill("11 Example Street, Sydney NSW 2000")
     query.press("Enter")
     expect(page.get_by_text("Searching NSW property records…")).to_be_visible()
@@ -702,6 +716,58 @@ def test_planner_year_and_address_bounds_have_associated_browser_errors(
     expect(page.locator("#action-error")).to_be_empty()
 
 
+def test_complete_official_profile_requests_all_records_without_visible_row_cap(
+    page: Page, fixture_origin: str
+) -> None:
+    observed_plans: list[dict[str, object]] = []
+
+    def enable_live_gnaf(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        payload["full_data_enabled"] = True
+        payload["connected_live_profiles"] = ["gnaf-nsw"]
+        route.fulfill(response=response, json=payload)
+
+    def rewrite_job(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        job = payload["items"][0]
+        job["profile_key"] = "gnaf-nsw-address-registry"
+        job["import_profile_key"] = "gnaf-nsw"
+        job["scope_json"] = {
+            "profile": "showcase",
+            "localities": ["PARRAMATTA"],
+            "maximum_records": 5000,
+        }
+        job["max_rows"] = 6_500_000
+        route.fulfill(response=response, json=payload)
+
+    def capture_plan(route: Route) -> None:
+        plan = route.request.post_data_json
+        assert isinstance(plan, dict)
+        observed_plans.append(plan)
+        route.continue_()
+
+    page.route("**/api/data-platform/v1/runtime-capabilities", enable_live_gnaf)
+    page.route("**/api/data-platform/v1/jobs?*", rewrite_job)
+    page.route("**/api/data-platform/v1/jobs/*/plans", capture_plan)
+    _open(page, fixture_origin, "jobs")
+    page.get_by_role("button", name="Start update Example property records update").click()
+    page.locator("#scope-profile").select_option("full-data")
+
+    expect(page.locator("#maximum-records")).to_be_hidden()
+    expect(page.get_by_text("Capacity safeguards fail the update", exact=False)).to_be_visible()
+    page.get_by_role("button", name="Preview update").click()
+    expect(page.get_by_text("Complete official dataset", exact=False)).to_be_visible()
+
+    assert observed_plans
+    scope = observed_plans[-1]["scope"]
+    assert isinstance(scope, dict)
+    assert scope["all_records"] is True
+    assert "maximum_records" not in scope
+    assert "localities" not in scope
+
+
 def test_operations_overview_job_and_release_states_are_truthful(
     page: Page, fixture_origin: str
 ) -> None:
@@ -739,7 +805,7 @@ def test_operations_overview_job_and_release_states_are_truthful(
     # between the outgoing and incoming views during the hash transition.
     page.evaluate("location.hash = '#properties'")
     expect(error_heading).to_have_count(0)
-    expect(page.get_by_role("heading", name="Explore NSW properties")).to_be_focused()
+    expect(page.get_by_role("heading", name="Find a NSW property")).to_be_focused()
     page.evaluate("location.hash = '#overview'")
     expect(error_heading).to_be_visible()
     expect(error_heading).to_be_focused()

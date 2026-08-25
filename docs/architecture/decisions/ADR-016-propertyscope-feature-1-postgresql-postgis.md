@@ -62,7 +62,7 @@ still retain a durable link or copy of the written approval.
 
 ## Data and release implications
 
-The initial implementation is full-refresh-first. A run discovers a complete bounded
+The initial implementation is full-refresh-first. A run discovers a complete registered
 source snapshot, acquires immutable artifacts, loads an isolated candidate generation,
 runs source-aware quality gates and atomically advances an accepted-generation pointer.
 It never truncates the live accepted generation. `reprocess_cached` and failed-task
@@ -77,6 +77,10 @@ complete candidate without an application-memory or presentation-size row cap. A
 expansion, artifact-byte and capacity ceilings fail the candidate; they never truncate it. The
 warehouse natural key collapses identical annual/weekly retransmissions inside each isolated
 candidate, so a rerun remains deterministic and cannot stack duplicates into accepted data.
+
+ADR-021 applies the same complete-generation rule to G-NAF, BOCSAR and schools while preserving
+separate bounded consumer products. Capacity ceilings fail atomically and never become successful
+source truncation.
 
 The Release 0 implementation target is the common ingestion framework plus deterministic
 fixtures and four real source families: NSW government-school master, sparse BOCSAR crime

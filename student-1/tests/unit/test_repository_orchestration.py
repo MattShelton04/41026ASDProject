@@ -11,7 +11,11 @@ from flask import Flask
 from propertyscope_data_store.api import create_blueprint, register_error_handlers
 from propertyscope_data_store.errors import ConflictError
 from propertyscope_data_store.persistence_support import project_run
-from propertyscope_data_store.repository import PropertyScopeStore
+from propertyscope_data_store.repository import (
+    PropertyScopeStore,
+    PropertySearchResults,
+    _normalise_property_query,
+)
 
 
 class ScriptedConnection:
@@ -367,13 +371,84 @@ class PropertyQueryStore(PropertyScopeStore):
 def test_property_search_requires_an_accepted_identity_generation() -> None:
     store = PropertyQueryStore()
 
-    store.search_properties("11 example street", state="NSW", limit=25)
+    results = store.search_properties("11 example street", state="NSW", limit=25)
 
+    assert results.items == []
+    assert results.total == 0
     assert "JOIN serving.accepted_generation accepted" in store.query
     assert "accepted.dataset_release_id=identifier.source_release_id" in store.query
     assert "identifier.is_current" in store.query
-    assert "concat_ws(' ',address_search,postcode)" in store.query
-    assert "best_score - 0.08" in store.query
+    assert "registry.address_alias alias" in store.query
+    assert "document.search_text LIKE '%%' || %s || '%%'" in store.query
+    assert "word_similarity(%s,document.search_text)" in store.query
+    assert "CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END" in store.query
+    assert "WHEN 3 THEN 'all_terms'" in store.query
+    assert "min(match_rank) OVER () AS best_rank" in store.query
+    assert "best_rank = 4 AND score >= greatest(0.30,best_score - 0.12)" in store.query
+    assert "count(*) OVER () AS total_count" in store.query
+
+
+def test_property_search_normalises_display_punctuation() -> None:
+    assert (
+        _normalise_property_query("  Unit 5/15 Example St., Wollongong NSW 2500 ")
+        == "unit 5 15 example st wollongong nsw 2500"
+    )
+
+
+def test_property_search_does_not_broaden_punctuation_only_input() -> None:
+    store = PropertyQueryStore()
+
+    results = store.search_properties("--", state="NSW", limit=25)
+
+    assert results.items == []
+    assert results.total == 0
+    assert store.query == ""
+
+
+class PropertySearchApiStore:
+    def __init__(self) -> None:
+        self.page: tuple[str, int, int] | None = None
+
+    def search_properties(
+        self, query: str, *, state: str, limit: int, offset: int = 0
+    ) -> PropertySearchResults:
+        self.page = (query, limit, offset)
+        return PropertySearchResults(
+            items=[
+                {
+                    "property_ref": str(uuid.uuid4()),
+                    "address_display": "11 Example Street, Sydney NSW 2000",
+                }
+            ],
+            total=3,
+        )
+
+
+def test_property_search_api_returns_stable_pagination_metadata() -> None:
+    store = PropertySearchApiStore()
+    app = Flask(__name__)
+    app.register_blueprint(
+        create_blueprint(cast(PropertyScopeStore, store), internal_token="secret")
+    )
+    register_error_handlers(app)
+
+    response = app.test_client().get(
+        "/internal/data-platform/v1/properties/search?q=Example&limit=1&offset=2",
+        headers={"X-PropertyScope-Internal-Token": "secret"},
+    )
+
+    assert response.status_code == 200
+    assert store.page == ("Example", 1, 2)
+    assert response.get_json() == {
+        "items": response.get_json()["items"],
+        "count": 1,
+        "total": 3,
+        "limit": 1,
+        "offset": 2,
+        "next_offset": None,
+        "query": "Example",
+        "supported": True,
+    }
 
 
 def test_release_collection_excludes_retired_assessment_sources() -> None:
@@ -530,7 +605,7 @@ def test_release_product_projection_is_bound_to_one_candidate_generation() -> No
             if "ops.dataset_release" in query:
                 return {
                     "id": release_id,
-                    "coverage_json": {"years": [2025]},
+                    "coverage_json": {"years": [2025], "maximum_records": 250_000},
                     "import_profile_key": "psi-sales",
                 }
             return {"count": 1}

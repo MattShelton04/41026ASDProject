@@ -195,7 +195,7 @@
           "query": ["q"],
           "source": "student-1/frontend/routes/properties.js",
           "requiredStates": ["landing", "loading", "populated", "empty", "unsupported", "error", "slow", "long-content"],
-          "api": ["GET /api/data-platform/v1/properties/search?q={query}&state=NSW&limit=25"],
+          "api": ["GET /api/data-platform/v1/properties/search?q={query}&state=NSW&limit=25&offset=0"],
           "interactions": ["submit-search", "open-match", "toggle-all-match-details", "retry", "mobile-menu"]
         },
         {

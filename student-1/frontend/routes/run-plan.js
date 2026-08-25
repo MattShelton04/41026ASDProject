@@ -1,8 +1,8 @@
 import { entity } from "../core/api.js";
 import { append, button, el } from "../core/dom.js";
 import { humanise } from "../core/formats.js?v=17";
-import { FieldValidationError, createSubmissionGuard, isPsiJob, liveProfileLabel, parseIntegerField, parseJsonField, psiYearRange } from "../core/forms.js";
-import { presentFormError } from "../components/dialogs.js";
+import { FieldValidationError, createSubmissionGuard, isPsiJob, liveProfileLabel, parseIntegerField, parseJsonField, psiYearRange } from "../core/forms.js?v=18";
+import { presentFormError } from "../components/dialogs.js?v=18";
 import { technicalDetails } from "../components/layout.js?v=17";
 
 export function createRunPlanner({ request, mutate, confirmAction }) {
@@ -54,6 +54,11 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
       ? "Official source data is available. The update stops if a source file fails validation."
       : "Official source imports are disabled in this workspace. Example data never substitutes for an official-source update."));
     append(wrapper, profileLabel);
+    const completeNotice = el("div", "notice", "Complete mode retrieves every record in the registered official source. Capacity safeguards fail the update instead of returning a truncated dataset.");
+    const syncCompleteNotice = () => { completeNotice.hidden = scopeProfile.value !== "full-data"; };
+    scopeProfile.addEventListener("change", syncCompleteNotice);
+    syncCompleteNotice();
+    append(wrapper, completeNotice);
 
     let firstYear = null;
     let lastYear = null;
@@ -101,23 +106,43 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
       maximumRecords.value = String(job.scope_json?.maximum_records || 5000);
       append(limitLabel, maximumRecords, el("small", "field-help", "Only this many addresses will be included in the new version."));
       append(wrapper, limitLabel);
+      const syncGnafMode = () => {
+        const complete = scopeProfile.value === "full-data";
+        limitLabel.hidden = complete;
+        maximumRecords.disabled = complete;
+        maximumRecords.required = !complete;
+      };
+      scopeProfile.addEventListener("change", syncGnafMode);
+      syncGnafMode();
     }
 
     const advanced = el("details", "technical scope-editor");
     const scope = el("textarea"); scope.name = "advanced_scope"; scope.id = "advanced-scope"; scope.value = JSON.stringify(job.scope_json || {}, null, 2); scope.setAttribute("aria-label", "Advanced partition JSON");
-    append(advanced, el("summary", "", "Advanced partition JSON (optional)"), el("p", "", "Registered partition overrides only. Complete PSI mode always selects all annual and current weekly partitions."), scope);
+    append(advanced, el("summary", "", "Advanced partition JSON (optional)"), el("p", "", "Registered partition overrides only. Complete mode always selects every registered source record or partition."), scope);
     append(wrapper, advanced);
     const requestedScope = () => {
       const value = parseJsonField(scope.value, "Advanced partition JSON", "advanced_scope");
       value.profile = scopeProfile.value;
-      if (gnaf) {
+      if (scopeProfile.value === "full-data") {
+        value.all_records = true;
+        delete value.maximum_records;
+        delete value.localities;
+        if (importProfile === "bocsar-sparse") {
+          delete value.geography_kind;
+          delete value.geography_values;
+          delete value.start_month;
+          delete value.end_month;
+        }
+      } else {
+        delete value.all_records;
+      }
+      if (gnaf && scopeProfile.value !== "full-data") {
         const maximum = Number(maximumRecords.max);
         const requested = parseIntegerField(maximumRecords.value, "Maximum addresses", { fieldName: "maximum_records", minimum: 1, maximum });
         value.maximum_records = requested;
       }
       if (!psi) return value;
       if (scopeProfile.value === "full-data") {
-        delete value.maximum_records;
         delete value.years;
         value.all_history = true;
         value.include_current_weekly = true;
@@ -146,7 +171,7 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
       try {
         const payload = { run_mode: mode.value, scope: requestedScope() };
         const result = await request(`jobs/${job.id}/plans`, { method: "POST", body: payload });
-        const scopeSummary = psi && payload.scope.all_history ? "Complete sales history: annual archives from 1990 plus current weekly updates" : psi ? `${payload.scope.years.length} annual sales partition${payload.scope.years.length === 1 ? "" : "s"}: ${payload.scope.years.join(", ")}` : payload.scope.profile === "full-data" ? "Official source data" : "Example data";
+        const scopeSummary = psi && payload.scope.all_history ? "Complete sales history: annual archives from 1990 plus current weekly updates" : psi ? `${payload.scope.years.length} annual sales partition${payload.scope.years.length === 1 ? "" : "s"}: ${payload.scope.years.join(", ")}` : payload.scope.all_records ? "Complete official dataset: all available source records" : "Example data";
         evidence.replaceChildren(el("div", "notice", `Update checked · ${scopeSummary}. Review the work and limits before starting.`), technicalDetails(result.body, "Technical plan details"));
       } catch (error) {
         evidence.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}.` : ""} Your update settings are unchanged.`));

@@ -144,9 +144,9 @@ export function isSchoolsJob(job) { return jobIdentity(job).includes("school"); 
 
 export function liveProfileLabel(importProfile) {
   const labels = {
-    "schools-master": "Live official Data.NSW schools CSV",
-    "bocsar-sparse": "Live official BOCSAR archive",
-    "gnaf-nsw": "Live official Geoscape G-NAF bulk archive",
+    "schools-master": "Complete official Data.NSW schools dataset",
+    "bocsar-sparse": "Complete official BOCSAR postcode + suburb datasets",
+    "gnaf-nsw": "Complete official NSW G-NAF address registry",
     "psi-sales": "Complete NSW sales history + current weekly updates",
   };
   return labels[String(importProfile || "")] || "Live registered source";

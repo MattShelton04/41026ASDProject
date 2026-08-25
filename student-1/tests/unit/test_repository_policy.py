@@ -101,7 +101,9 @@ def test_preview_registry_has_fixed_generation_scoped_queries() -> None:
 def test_release_product_queries_are_fixed_and_generation_scoped(profile: str, table: str) -> None:
     release_id = uuid.uuid4()
 
-    query = release_product_query(profile, release_id, {}, limit=25, offset=50)
+    query = release_product_query(
+        profile, release_id, {"maximum_records": 100}, limit=25, offset=50
+    )
 
     assert table in query.select_sql
     assert "dataset_release_id=%s" in query.select_sql
@@ -114,19 +116,19 @@ def test_psi_product_query_requires_and_applies_explicit_source_years() -> None:
     release_id = uuid.uuid4()
 
     with pytest.raises(ConflictError, match="bounded year scope"):
-        release_product_query("psi-sales", release_id, {}, limit=10, offset=0)
+        release_product_query("psi-sales", release_id, {"maximum_records": 100}, limit=10, offset=0)
 
     query = release_product_query(
         "psi-sales",
         release_id,
-        {"release_scope": {"years": [2024, 2025]}},
+        {"release_scope": {"years": [2024, 2025], "maximum_records": 100}},
         limit=10,
         offset=0,
     )
 
     assert "source_partition_year=ANY(%s)" in query.select_sql
     assert query.select_params == (release_id, [2024, 2025], 10, 0)
-    assert query.count_params == (release_id, [2024, 2025])
+    assert query.count_params == (100, release_id, [2024, 2025])
 
 
 def test_product_query_rejects_unregistered_profile_and_normalises_bocsar_dates() -> None:

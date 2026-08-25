@@ -12,7 +12,9 @@ target: {feature: feature-3, contract: propertyscope.school-points.v1}
 scope_profiles:
   test: {maximum_records: 20}
   showcase: {maximum_records: 2500}
-  full-data: {maximum_records: 5000}
+  full-data:
+    all_records: true
+    release_scope: {maximum_records: 5000}
 quality_policy: schools-master.v1
 limits:
   {max_objects: 2, max_bytes: 25000000, max_rows: 5000, deadline_seconds: 300,

@@ -13,6 +13,7 @@ scope_profiles:
   test: {years: [2025], maximum_records: 20}
   showcase: {years: [2025], maximum_records: 250000}
   full-data:
+    all_records: true
     all_history: true
     include_current_weekly: true
     release_scope: {years: [2025], maximum_records: 250000}

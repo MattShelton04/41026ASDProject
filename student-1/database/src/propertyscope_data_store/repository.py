@@ -9,6 +9,7 @@ import re
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -51,6 +52,20 @@ from propertyscope_data_store.query_specs import (
 JsonObject = dict[str, Any]
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_IMPORT_STATES = frozenset({"succeeded", "failed", "cancelled"})
+
+
+@dataclass(frozen=True)
+class PropertySearchResults:
+    """A bounded property-search page plus the number of matching properties."""
+
+    items: list[JsonObject]
+    total: int
+
+
+def _normalise_property_query(query: str) -> str:
+    """Align user input with the punctuation-neutral registry search documents."""
+
+    return re.sub(r"[^a-z0-9]+", " ", query.lower()).strip()
 
 
 class PropertyScopeStore:
@@ -1286,7 +1301,7 @@ class PropertyScopeStore:
                 address_display,flat_type,
                 unit_number,street_number_first,street_number_suffix,street_number_last,
                 COALESCE(street_name,address_display),street_type,locality,postcode,'NSW',
-                lower(regexp_replace(address_display,'\\s+',' ','g')),geom,
+                trim(regexp_replace(lower(address_display),'[^a-z0-9]+',' ','g')),geom,
                 CASE WHEN source_status='CURRENT' THEN 'verified' ELSE 'retired' END,
                 %s,%s,1
             FROM warehouse.gnaf_address WHERE dataset_release_id=%s
@@ -1355,35 +1370,113 @@ class PropertyScopeStore:
         )
 
     # Property discovery reads only accepted serving evidence.
-    def search_properties(self, query: str, *, state: str, limit: int) -> list[JsonObject]:
-        normalised = re.sub(r"[^a-z0-9]+", " ", query.lower()).strip()
-        return self._fetch_all(
+    def search_properties(
+        self, query: str, *, state: str, limit: int, offset: int = 0
+    ) -> PropertySearchResults:
+        normalised = _normalise_property_query(query)
+        if not normalised:
+            return PropertySearchResults(items=[], total=0)
+        rows = self._fetch_all(
             """
-            WITH candidates AS (
-                SELECT property_ref,address_display,locality,postcode,state,resolution_status,
-                       ST_X(geom) AS longitude,ST_Y(geom) AS latitude,
-                       greatest(similarity(concat_ws(' ',address_search,postcode),%s), CASE WHEN concat_ws(' ',address_search,postcode)=%s THEN 1 ELSE 0 END) AS score,
-                       CASE WHEN concat_ws(' ',address_search,postcode)=%s THEN 0 WHEN concat_ws(' ',address_search,postcode) LIKE %s || '%%' THEN 1 ELSE 2 END AS exact_rank
+            WITH search_documents AS (
+                SELECT property.property_ref,property.address_display,property.locality,
+                       property.postcode,property.state,property.resolution_status,property.geom,
+                       property.address_search AS search_text,
+                       property.address_display AS matched_address,'canonical' AS match_kind
                 FROM registry.property property
-                WHERE state=%s
+                UNION ALL
+                SELECT property.property_ref,property.address_display,property.locality,
+                       property.postcode,property.state,property.resolution_status,property.geom,
+                       alias.alias_search,alias.alias_display,'alias'
+                FROM registry.address_alias alias
+                JOIN registry.property property ON property.property_ref=alias.property_ref
+                JOIN serving.accepted_generation accepted
+                  ON accepted.dataset_release_id=alias.source_release_id
+                WHERE alias.is_current
+            ), candidates AS (
+                SELECT document.property_ref,document.address_display,document.locality,
+                       document.postcode,document.state,document.resolution_status,
+                       ST_X(document.geom) AS longitude,ST_Y(document.geom) AS latitude,
+                       document.matched_address,document.match_kind,
+                       greatest(
+                           similarity(document.search_text,%s),
+                           word_similarity(%s,document.search_text),
+                           CASE WHEN document.search_text=%s THEN 1 ELSE 0 END
+                       ) AS score,
+                       CASE
+                           WHEN document.search_text=%s THEN 0
+                           WHEN document.search_text LIKE %s || '%%' THEN 1
+                           WHEN document.search_text LIKE '%%' || %s || '%%' THEN 2
+                           WHEN NOT EXISTS (
+                               SELECT 1 FROM unnest(string_to_array(%s,' ')) AS token
+                               WHERE document.search_text NOT LIKE '%%' || token || '%%'
+                           ) THEN 3
+                           ELSE 4
+                       END AS match_rank
+                FROM search_documents document
+                WHERE document.state=%s
                   AND EXISTS (
                       SELECT 1 FROM registry.property_identifier identifier
                       JOIN serving.accepted_generation accepted
                         ON accepted.dataset_release_id=identifier.source_release_id
-                      WHERE identifier.property_ref=property.property_ref AND identifier.is_current
+                      WHERE identifier.property_ref=document.property_ref AND identifier.is_current
                   )
-                  AND (concat_ws(' ',address_search,postcode) ILIKE '%%' || %s || '%%' OR concat_ws(' ',address_search,postcode) %% %s)
+                  AND (
+                      document.search_text LIKE '%%' || %s || '%%'
+                      OR document.search_text %% %s
+                      OR %s <%% document.search_text
+                      OR NOT EXISTS (
+                          SELECT 1 FROM unnest(string_to_array(%s,' ')) AS token
+                          WHERE document.search_text NOT LIKE '%%' || token || '%%'
+                      )
+                  )
+            ), best_matches AS (
+                SELECT DISTINCT ON (property_ref) * FROM candidates
+                ORDER BY property_ref,match_rank,score DESC,
+                         CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END,matched_address
             ), ranked AS (
-                SELECT candidates.*,max(score) OVER () AS best_score FROM candidates
+                SELECT best_matches.*,max(score) OVER () AS best_score,
+                       min(match_rank) OVER () AS best_rank
+                FROM best_matches
+            ), filtered AS (
+                SELECT * FROM ranked
+                WHERE match_rank < 4
+                   OR (best_rank = 4 AND score >= greatest(0.30,best_score - 0.12))
             )
             SELECT property_ref,address_display,locality,postcode,state,resolution_status,
-                   longitude,latitude,score
-            FROM ranked
-            WHERE score >= greatest(0.30,best_score - 0.08)
-            ORDER BY exact_rank,score DESC,address_display LIMIT %s
+                   longitude,latitude,score,matched_address,match_kind,
+                   CASE match_rank
+                       WHEN 0 THEN 'exact'
+                       WHEN 1 THEN 'prefix'
+                       WHEN 2 THEN 'contains'
+                       WHEN 3 THEN 'all_terms'
+                       ELSE 'fuzzy'
+                   END AS match_method,
+                   count(*) OVER () AS total_count
+            FROM filtered
+            ORDER BY match_rank,score DESC,address_display LIMIT %s OFFSET %s
             """,
-            (normalised, normalised, normalised, normalised, state, normalised, normalised, limit),
+            (
+                normalised,
+                normalised,
+                normalised,
+                normalised,
+                normalised,
+                normalised,
+                normalised,
+                state,
+                normalised,
+                normalised,
+                normalised,
+                normalised,
+                limit,
+                offset,
+            ),
         )
+        total = int(rows[0].pop("total_count")) if rows else 0
+        for row in rows[1:]:
+            row.pop("total_count", None)
+        return PropertySearchResults(items=rows, total=total)
 
     def property_snapshot(self, property_ref: uuid.UUID) -> JsonObject:
         property_row = self._required(

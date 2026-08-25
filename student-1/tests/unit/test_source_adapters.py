@@ -12,6 +12,7 @@ import pytest
 from propertyscope_data_platform.adapters.bocsar import parse_bocsar_archive, parse_bocsar_csv
 from propertyscope_data_platform.adapters.gnaf import (
     inspect_gnaf_archive,
+    iter_gnaf_archive_path,
     parse_gnaf_archive_path,
     select_geocode,
 )
@@ -488,16 +489,21 @@ def test_gnaf_streaming_join_preserves_units_and_declared_crs(tmp_path: Path) ->
             "Standard/NSW_ADDRESS_DETAIL_psv.psv",
             "ADDRESS_DETAIL_PID|DATE_RETIRED|FLAT_TYPE_CODE|FLAT_NUMBER|NUMBER_FIRST|"
             "NUMBER_FIRST_SUFFIX|NUMBER_LAST|NUMBER_LAST_SUFFIX|STREET_LOCALITY_PID|"
-            "LOCALITY_PID|POSTCODE\nA1||UNIT|12|100|A|||S1|L1|2000\n",
+            "LOCALITY_PID|POSTCODE\nA1||UNIT|12|100|A|||S1|L1|2000\n"
+            "A2||||102||||S1|L1|2000\n",
         )
         archive.writestr(
             "Standard/NSW_ADDRESS_DEFAULT_GEOCODE_psv.psv",
-            "ADDRESS_DETAIL_PID|GEOCODE_TYPE_CODE|LONGITUDE|LATITUDE\nA1|PC|151.2|-33.86\n",
+            "ADDRESS_DETAIL_PID|GEOCODE_TYPE_CODE|LONGITUDE|LATITUDE\n"
+            "A1|PC|151.2|-33.86\nA2|PC|151.21|-33.87\n",
         )
     record = parse_gnaf_archive_path(path, declared_crs="GDA2020", maximum_records=10)[0]
     assert record.gnaf_pid == "A1"
     assert record.address_display == "UNIT 12/100A GEORGE ST, SYDNEY NSW 2000"
     assert record.source_crs == 7844
+    assert len(tuple(iter_gnaf_archive_path(path, declared_crs="GDA2020"))) == 2
+    with pytest.raises(ValueError, match="capacity ceiling"):
+        tuple(iter_gnaf_archive_path(path, declared_crs="GDA2020", capacity_ceiling=1))
 
 
 def test_source_parsers_enforce_bounds() -> None:
