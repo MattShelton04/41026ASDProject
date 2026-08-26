@@ -99,6 +99,11 @@ export function renderAssistantTurn(turn, { activityHref, onCancel, onRetry } = 
       warning.setAttribute("role", "status");
       append(response, warning);
     }
+    if (turn.cancelWarning) {
+      const warning = el("p", "ps-ai-chat__poll-warning", "Cancellation could not be requested. The run is still active; try again or open full activity.");
+      warning.setAttribute("role", "alert");
+      append(response, warning);
+    }
     if (turn.id) append(response, evidenceDisclosure(turn));
   }
 

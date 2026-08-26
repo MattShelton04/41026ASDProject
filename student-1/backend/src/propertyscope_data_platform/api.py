@@ -12,11 +12,13 @@ from typing import Any
 import httpx
 from flask import Blueprint, Response, jsonify, request
 from pydantic import ValidationError
+from werkzeug.datastructures import Headers
 
 from propertyscope_data_platform.approval import approved_tool_call
 from propertyscope_data_platform.artifacts import ArtifactError, LocalArtifactStore
 from propertyscope_data_platform.assistant import (
     ASSISTANT_FEATURE_KEY,
+    ASSISTANT_TOOL_ALLOWLIST,
     AssistantTurnRequest,
     build_assistant_objective,
     capability_guide,
@@ -733,6 +735,7 @@ def create_blueprint(
                 "feature_key": ASSISTANT_FEATURE_KEY,
                 "objective": build_assistant_objective(command),
                 "prompt_set": "default.v4",
+                "tool_allowlist": list(ASSISTANT_TOOL_ALLOWLIST),
                 "limits": {
                     "max_iterations": 6,
                     "max_tool_calls": 10,
@@ -746,10 +749,20 @@ def create_blueprint(
 
     @api.get(f"{BASE}/assistant/turns/<uuid:run_id>")
     def assistant_turn_detail(run_id: uuid.UUID) -> Response:
-        return forward(ai_mode.get(f"/api/v1/agent-runs/{run_id}", request.headers))
+        detail, owned = assistant_run(ai_mode, run_id, request.headers)
+        if detail.status_code >= 400:
+            return forward(detail)
+        if not owned:
+            return problem(404, "assistant_turn_not_found", "Assistant turn does not exist")
+        return forward(detail)
 
     @api.get(f"{BASE}/assistant/turns/<uuid:run_id>/events")
     def assistant_turn_events(run_id: uuid.UUID) -> Response:
+        detail, owned = assistant_run(ai_mode, run_id, request.headers)
+        if detail.status_code >= 400:
+            return forward(detail)
+        if not owned:
+            return problem(404, "assistant_turn_not_found", "Assistant turn does not exist")
         suffix = ""
         if request.query_string:
             suffix = "?" + request.query_string.decode("ascii", errors="ignore")
@@ -757,6 +770,11 @@ def create_blueprint(
 
     @api.post(f"{BASE}/assistant/turns/<uuid:run_id>/cancel")
     def assistant_turn_cancel(run_id: uuid.UUID) -> Response:
+        detail, owned = assistant_run(ai_mode, run_id, request.headers)
+        if detail.status_code >= 400:
+            return forward(detail)
+        if not owned:
+            return problem(404, "assistant_turn_not_found", "Assistant turn does not exist")
         return forward(ai_mode.cancel_run(str(run_id), request.headers))
 
     @api.get(f"{BASE}/agent-runs/<uuid:run_id>")
@@ -1618,6 +1636,31 @@ def release_detail_contract(release: Mapping[str, Any], *, receipts: Any = ()) -
             "receipts": receipt_contracts,
         }
     ).model_dump(mode="json")
+
+
+def assistant_run(
+    ai_mode: AiModeClient,
+    run_id: uuid.UUID,
+    headers: Mapping[str, str] | Headers,
+) -> tuple[httpx.Response, bool]:
+    """Load a run and prove it was created through the read-only assistant surface."""
+    detail = ai_mode.get(f"/api/v1/agent-runs/{run_id}", headers)
+    if detail.status_code >= 400:
+        return detail, False
+    try:
+        payload = detail.json()
+    except ValueError:
+        return detail, False
+    run = payload.get("run") if isinstance(payload, dict) else None
+    if not isinstance(run, dict):
+        return detail, False
+    allowlist = run.get("tool_allowlist")
+    owned = (
+        run.get("feature_key") == ASSISTANT_FEATURE_KEY
+        and isinstance(allowlist, list)
+        and tuple(allowlist) == ASSISTANT_TOOL_ALLOWLIST
+    )
+    return detail, owned
 
 
 def public_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:

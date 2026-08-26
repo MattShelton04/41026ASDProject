@@ -692,6 +692,9 @@ def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None
         assert body["feature_key"] == "student-1-propertyscope-data-platform"
         assert body["prompt_set"] == "default.v4"
         assert body["limits"]["max_tool_calls"] == 10
+        assert "data.run_retry.v1" not in body["tool_allowlist"]
+        assert "data.release_publish.v1" not in body["tool_allowlist"]
+        assert "property.search.v1" in body["tool_allowlist"]
         assert "What can PropertyScope do?" in body["objective"]
         assert "platform.capabilities.v1" in body["objective"]
         assert "Do not propose or call a write tool" in body["objective"]
@@ -719,6 +722,52 @@ def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None
     assert response.status_code == 202
     assert response.get_json()["status"] == "queued"
     assert response.headers["X-Agent-Run-ID"].endswith("0002")
+
+
+@pytest.mark.parametrize(
+    ("method", "suffix"),
+    [
+        ("GET", ""),
+        ("GET", "/events"),
+        ("POST", "/cancel"),
+    ],
+)
+@pytest.mark.parametrize(
+    "run",
+    [
+        {"feature_key": "student-2-market", "tool_allowlist": []},
+        {"feature_key": "student-1-propertyscope-data-platform", "tool_allowlist": None},
+    ],
+)
+def test_assistant_endpoints_hide_foreign_and_non_chat_runs(
+    method: str, suffix: str, run: dict[str, object]
+) -> None:
+    run_id = "70000000-0000-0000-0000-000000000004"
+    calls: list[str] = []
+
+    def upstream(request: httpx.Request) -> httpx.Response:
+        calls.append(f"{request.method} {request.url.path}")
+        assert request.method == "GET"
+        assert request.url.path == f"/api/v1/agent-runs/{run_id}"
+        return httpx.Response(200, json={"run": run, "steps": [], "reviews": []})
+
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=unavailable)
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai", client=httpx.Client(transport=httpx.MockTransport(upstream))
+        ),
+    )
+
+    response = app.test_client().open(
+        f"/api/data-platform/v1/assistant/turns/{run_id}{suffix}", method=method
+    )
+
+    assert response.status_code == 404
+    assert response.get_json()["code"] == "assistant_turn_not_found"
+    assert calls == [f"GET /api/v1/agent-runs/{run_id}"]
 
 
 def test_assistant_turn_rejects_unknown_context_without_calling_ai_mode() -> None:

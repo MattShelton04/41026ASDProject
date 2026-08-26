@@ -311,12 +311,14 @@ def _runner(
     cancel_during_execute: bool = False,
     clock: FixedClock | None = None,
     prompt_builder: TestPromptBuilder | None = None,
+    tool_allowlist: tuple[str, ...] | None = None,
 ) -> tuple[AgentRunner, MemoryStore, RecordingToolExecutor]:
     run = create_run(
         AgentRunRequest(
             feature_key="student-1-feature",
             objective="Find verified records",
             limits=limits or RunLimits(),
+            tool_allowlist=tool_allowlist,
         ),
         run_id=uuid4(),
         request_id="request-1",
@@ -340,6 +342,23 @@ def _runner(
         ids=RandomIds(),
     )
     return runner, store, executor
+
+
+def test_per_run_tool_allowlist_hides_and_rejects_feature_write_capabilities() -> None:
+    definition = _tool(side_effect=SideEffectClass.DESTRUCTIVE_WRITE)
+    runner, store, executor = _runner(
+        [_model_result(_plan()), _model_result(_plan()), _model_result(_plan())],
+        tool=definition,
+        tool_allowlist=("student_1.records.read.v1",),
+    )
+
+    assert runner._definitions_for_run(store.run) == ()
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "invalid_model_or_tool_data"
+    assert executor.calls == []
 
 
 def test_runner_persists_a_complete_four_phase_success() -> None:
@@ -439,6 +458,85 @@ def test_plan_accepts_exact_tool_discovered_non_rfc_fixture_identifier() -> None
     )
 
     runner._validate_model_plan(store.run, plan, (discovered,))
+
+
+def test_plan_rejects_cross_type_uuid_substitution_from_tool_evidence() -> None:
+    run_id = "70000000-0000-0000-0000-000000000001"
+    release_id = "60000000-0000-0000-0000-000000000001"
+    inspect_tool = ToolDefinition(
+        name="data.release_inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one release",
+        input_schema={
+            "type": "object",
+            "properties": {"release_id": {"type": "string", "format": "uuid"}},
+            "required": ["release_id"],
+            "additionalProperties": False,
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tool=inspect_tool)
+    discovered = AgentStep(
+        id=uuid4(),
+        run_id=store.run.id,
+        sequence=1,
+        phase=StepPhase.ACT,
+        status=StepStatus.SUCCEEDED,
+        input={"tool_call": {"tool_name": "data.runs.v1", "arguments": {}}},
+        output={
+            "tool_result": {
+                "outcome": "succeeded",
+                "content": {
+                    "items": [{"id": run_id}],
+                    "message": f"Related release in narrative: {release_id}",
+                },
+            }
+        },
+    )
+    plan = Plan.model_validate(
+        {
+            "goal": "Inspect a release",
+            "actions": [
+                {
+                    "sequence": 1,
+                    "tool_name": inspect_tool.name,
+                    "arguments": {"release_id": run_id},
+                    "purpose": "Inspect exact release evidence",
+                }
+            ],
+            "success_criteria": ["Release is inspected"],
+            "risk_level": "low",
+        }
+    )
+
+    with pytest.raises(ModelOutputValidationError, match="release_id must copy"):
+        runner._validate_model_plan(store.run, plan, (discovered,))
+
+
+def test_successful_call_signatures_ignore_non_action_and_failed_steps() -> None:
+    run_id = store_id = uuid4()
+    steps = (
+        AgentStep(
+            id=uuid4(),
+            run_id=run_id,
+            sequence=1,
+            phase=StepPhase.OBSERVE,
+            status=StepStatus.SUCCEEDED,
+        ),
+        AgentStep(
+            id=uuid4(),
+            run_id=store_id,
+            sequence=2,
+            phase=StepPhase.ACT,
+            status=StepStatus.FAILED,
+            input={"tool_call": {"tool_name": "data.runs.v1", "arguments": {}}},
+            output={"tool_result": {"outcome": "failed"}},
+        ),
+    )
+
+    assert AgentRunner._successful_call_signatures(steps) == set()
 
 
 def test_plan_rejects_guessed_non_rfc_fixture_identifier_before_tool_execution() -> None:

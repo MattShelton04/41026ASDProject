@@ -77,4 +77,7 @@ test("component source preserves disclosure/focus state and surfaces polling war
   assert.match(source, /transcriptFocusKey/);
   assert.match(components, /pollWarning/);
   assert.match(components, /retry automatically/);
+  assert.match(source, /turn\.run\.status !== previousStatus/);
+  assert.match(source, /turn\.cancelWarning = error;\s+renderTranscript\(\)/);
+  assert.match(components, /Cancellation could not be requested/);
 });

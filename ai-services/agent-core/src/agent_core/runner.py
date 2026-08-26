@@ -49,6 +49,7 @@ from shared_contracts import (
     StepPhase,
     StepStatus,
     ToolCall,
+    ToolDefinition,
     ToolError,
     ToolOutcome,
     ToolResult,
@@ -162,7 +163,7 @@ class AgentRunner:
             request = self._with_run_deadline(
                 self._prompt_builder.build_plan_request(
                     planning,
-                    self._tools.definitions_for(planning.feature_key),
+                    self._definitions_for_run(planning),
                     detail.steps,
                 ),
                 planning,
@@ -199,7 +200,7 @@ class AgentRunner:
             ensure_within_limits(run, now=self._clock.now())
             plan, action_index = self._active_plan(detail.steps)
             action = plan.actions[action_index]
-            definition = self._tools.resolve(run.feature_key, action.tool_name)
+            definition = self._resolve_tool(run, action.tool_name)
             self._tools.validate_input(definition, action.arguments)
         except IndexError as exc:
             return self._fail(run, exc, code="plan_exhausted")
@@ -579,7 +580,7 @@ class AgentRunner:
         successful_calls = self._successful_call_signatures(prior_steps)
         try:
             for action in plan.actions:
-                definition = self._tools.resolve(run.feature_key, action.tool_name)
+                definition = self._resolve_tool(run, action.tool_name)
                 self._tools.validate_input(definition, action.arguments)
                 self._validate_exact_identifiers(run, action.arguments, prior_steps)
                 signature = (
@@ -592,6 +593,20 @@ class AgentRunner:
                     )
         except (ToolSchemaValidationError, UnknownToolError) as exc:
             raise ModelOutputValidationError(str(exc)) from exc
+
+    def _definitions_for_run(self, run: AgentRun) -> tuple[ToolDefinition, ...]:
+        """Apply a persisted per-run capability boundary before prompting."""
+        definitions = self._tools.definitions_for(run.feature_key)
+        if run.tool_allowlist is None:
+            return definitions
+        allowed = frozenset(run.tool_allowlist)
+        return tuple(definition for definition in definitions if definition.name in allowed)
+
+    def _resolve_tool(self, run: AgentRun, name: str) -> ToolDefinition:
+        """Enforce the same per-run boundary again at the execution boundary."""
+        if run.tool_allowlist is not None and name not in run.tool_allowlist:
+            raise UnknownToolError(f"tool is not allowlisted for this run: {name}")
+        return self._tools.resolve(run.feature_key, name)
 
     @staticmethod
     def _successful_call_signatures(
@@ -627,7 +642,38 @@ class AgentRunner:
         prior_steps: tuple[AgentStep, ...],
     ) -> None:
         """Reject UUIDs guessed by the model instead of supplied or discovered in-run."""
-        allowed = set(UUID_IDENTIFIER_PATTERN.findall(run.objective))
+        supplied = set(UUID_IDENTIFIER_PATTERN.findall(run.objective))
+        discovered: dict[str, set[str]] = {}
+
+        def identifier_kind(key: str, tool_name: str = "") -> str:
+            normalized = key.lower()
+            if normalized == "property_ref":
+                return "property_ref"
+            if normalized == "record_ref":
+                return "record_ref"
+            if normalized.endswith("release_id"):
+                return "release_id"
+            if normalized.endswith("run_id"):
+                return "run_id"
+            if normalized == "id":
+                if tool_name.startswith("data.release"):
+                    return "release_id"
+                if tool_name.startswith("data.run"):
+                    return "run_id"
+            return normalized
+
+        def collect(value: object, *, tool_name: str, key: str = "") -> None:
+            if isinstance(value, dict):
+                for nested_key, nested in value.items():
+                    collect(nested, tool_name=tool_name, key=str(nested_key))
+                return
+            if isinstance(value, list):
+                for nested in value:
+                    collect(nested, tool_name=tool_name, key=key)
+                return
+            if isinstance(value, str) and UUID_IDENTIFIER_PATTERN.fullmatch(value):
+                discovered.setdefault(identifier_kind(key, tool_name), set()).add(value)
+
         for step in prior_steps:
             if step.phase is not StepPhase.ACT:
                 continue
@@ -635,8 +681,9 @@ class AgentRunner:
             if not isinstance(result, dict) or result.get("outcome") != ToolOutcome.SUCCEEDED.value:
                 continue
             content = result.get("content")
-            serialized = str(content) if not isinstance(content, (dict, list)) else repr(content)
-            allowed.update(UUID_IDENTIFIER_PATTERN.findall(serialized))
+            call = step.input.get("tool_call")
+            tool_name = str(call.get("tool_name", "")) if isinstance(call, dict) else ""
+            collect(content, tool_name=tool_name)
 
         def visit(value: object, key: str = "") -> None:
             if isinstance(value, dict):
@@ -652,7 +699,8 @@ class AgentRunner:
                 and (key == "id" or key.endswith(("_id", "_ref")))
                 and isinstance(value, str)
                 and UUID_IDENTIFIER_PATTERN.fullmatch(value)
-                and value not in allowed
+                and value not in supplied
+                and value not in discovered.get(identifier_kind(key), set())
             ):
                 raise ModelOutputValidationError(
                     f"{key} must copy an identifier supplied by the user "

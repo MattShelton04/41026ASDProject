@@ -8,6 +8,18 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ASSISTANT_FEATURE_KEY = "student-1-propertyscope-data-platform"
+ASSISTANT_TOOL_ALLOWLIST = (
+    "platform.capabilities.v1",
+    "data.sources.v1",
+    "data.releases.v1",
+    "data.runs.v1",
+    "data.release_inspect.v1",
+    "data.run_inspect.v1",
+    "data.release_compare.v1",
+    "data.coverage.v1",
+    "property.search.v1",
+    "property.inspect.v1",
+)
 AssistantScope = Literal["application", "feature"]
 
 

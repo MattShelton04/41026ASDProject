@@ -74,8 +74,13 @@ scope and row-count evidence needed to assess full-data loads. A "fully loaded" 
 succeeded run whose `requested_scope_json` explicitly names `full-data` or `all_records`. Candidate,
 awaiting-review and accepted release states are reported separately.
 
-Conversational turns instruct the planner to use read-only tools only. Protected retry and publish
-tools remain part of the separately reviewed AI-mode platform but are not actions the chat may run.
+Conversational turns persist an exact per-run `tool_allowlist` containing only read-only tools.
+AI-mode filters the planner catalogue and checks the same allowlist again at execution, so the
+prompt is guidance rather than the security boundary. Protected retry and publish tools remain part
+of the separately reviewed AI-mode platform but are neither visible to nor executable by chat runs.
+The Feature 1 adapter also verifies the run's feature key and exact chat allowlist before returning
+detail/events or forwarding cancellation; another feature's run and a fixed Data review run are
+returned as not found.
 The assistant:
 
 - is research support, not valuation, legal, lending, planning or buy/no-buy advice;

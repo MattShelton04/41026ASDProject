@@ -133,6 +133,7 @@ export function createAiChat({
   async function pollTurn(turn, failures = 0) {
     if (state.destroyed || !turn.id) return;
     try {
+      const previousStatus = turn.run?.status;
       const [detailResult, eventsResult] = await Promise.all([
         client.getTurn(turn.id),
         client.getEvents(turn.id, turn.cursor || 0),
@@ -144,7 +145,7 @@ export function createAiChat({
       turn.cursor = Math.max(merged.cursor, Number(eventsResult.body?.next_cursor || 0));
       turn.pollWarning = null;
       renderTranscript();
-      announce(`Assistant turn ${turn.run.status}.`);
+      if (turn.run.status !== previousStatus) announce(`Assistant turn ${turn.run.status}.`);
       schedulePoll(turn, 0);
     } catch (error) {
       turn.pollWarning = error;
@@ -197,10 +198,12 @@ export function createAiChat({
     try {
       const result = await client.cancelTurn(turn.id);
       turn.run = normalizeTurnDetail(result.body);
+      turn.cancelWarning = null;
       renderTranscript();
       schedulePoll(turn);
     } catch (error) {
-      turn.pollWarning = error;
+      turn.cancelWarning = error;
+      renderTranscript();
       announce("Cancellation could not be requested.");
     }
   }
