@@ -20,7 +20,9 @@ class ReleasePreviewSpec:
 
 
 PROPERTY_RECORD_SPEC = ReleasePreviewSpec(
-    """SELECT gnaf_pid AS source_address_id,property_ref,address_display,
+    """SELECT gnaf_pid AS source_address_id,
+        COALESCE(property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid) AS property_ref,
+        address_display,
         flat_type,unit_number,street_number_first,street_number_suffix,street_number_last,
         street_name,street_type,locality,postcode,source_status,geocode_type,source_crs,
         ST_AsGeoJSON(geom)::jsonb AS geometry,source_row_sha256,normalisation_version

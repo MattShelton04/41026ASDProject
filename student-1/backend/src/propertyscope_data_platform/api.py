@@ -1368,23 +1368,40 @@ def complete_publication(
     tool_output: bool,
     replayed: bool,
 ) -> Response:
-    published = store.request(
+    queued = store.request(
         "POST",
-        f"{INTERNAL}/releases/{release['id']}/transition",
+        f"{INTERNAL}/releases/{release['id']}/activations",
         headers=request.headers,
-        json={"version": version, "target": "accepted", "comment": comment},
+        json={
+            "publication_receipt_id": receipt["id"],
+            "expected_release_version": version,
+            "comment": comment,
+            "idempotency_key": receipt["consumer_operation_id"],
+        },
     )
-    if published.status_code >= 400:
-        return forward(published)
+    if queued.status_code >= 400:
+        return forward(queued)
+    activation = queued.json()["activation"]
     if tool_output:
-        return jsonify({"status": "accepted", "receipt_id": receipt["id"], "replayed": replayed})
-    return jsonify(
+        response = jsonify(
+            {
+                "status": "pending",
+                "receipt_id": receipt["id"],
+                "replayed": replayed,
+            }
+        )
+        response.status_code = 202
+        return response
+    response = jsonify(
         {
-            "release": published.json()["release"],
+            "release": release,
             "receipt": public_receipt(receipt),
+            "activation": activation,
             "replayed": replayed,
         }
     )
+    response.status_code = 202
+    return response
 
 
 def verify_local_publication(

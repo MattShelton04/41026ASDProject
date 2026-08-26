@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import pytest
@@ -12,6 +12,7 @@ from flask import Flask
 from propertyscope_data_store.api import create_blueprint, register_error_handlers
 from propertyscope_data_store.errors import ConflictError
 from propertyscope_data_store.persistence_support import project_run
+from propertyscope_data_store.query_specs import PROPERTY_RECORD_SPEC
 from propertyscope_data_store.repository import (
     PropertyScopeStore,
     PropertySearchResults,
@@ -542,6 +543,12 @@ def test_release_preview_uses_fixed_profile_projection_and_bounds() -> None:
     assert preview["next_offset"] == 51
 
 
+def test_gnaf_preview_derives_stable_property_ref_without_warehouse_rewrite() -> None:
+    assert "COALESCE(property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid)" in " ".join(
+        PROPERTY_RECORD_SPEC.select_sql.split()
+    )
+
+
 class ScopedPsiPreviewStore(PropertyScopeStore):
     def __init__(self, release_id: uuid.UUID) -> None:
         self.release_id = release_id
@@ -842,3 +849,164 @@ def test_address_publication_does_not_rewrite_immutable_warehouse_generation() -
     assert "IS DISTINCT FROM" in property_upsert
     assert "WHERE NOT registry.property_identifier.is_current" in identifier_upsert
     assert "IS DISTINCT FROM" in coverage_upsert
+
+
+def test_activation_queue_validates_receipt_without_switching_accepted_pointer() -> None:
+    release_id = uuid.uuid4()
+    receipt_id = uuid.uuid4()
+    operation_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            None,
+            {
+                "id": release_id,
+                "status": "awaiting_review",
+                "version": 4,
+                "schema_version": "propertyscope.property-snapshot.v1",
+                "content_sha256": "a" * 64,
+                "record_count": 5_190_134,
+                "receipt_id": receipt_id,
+                "receipt_status": "accepted",
+                "receipt_schema_version": "propertyscope.property-snapshot.v1",
+                "receipt_content_sha256": "a" * 64,
+                "rows_received": 5_190_134,
+                "rows_accepted": 5_190_134,
+                "rows_rejected": 0,
+            },
+            {"count": 0},
+            {
+                "id": operation_id,
+                "dataset_release_id": release_id,
+                "publication_receipt_id": receipt_id,
+                "expected_release_version": 4,
+                "review_comment": "Reviewed full source",
+                "status": "queued",
+            },
+        ]
+    )
+
+    operation, created = ConnectedStore(connection).create_release_activation(
+        release_id,
+        {
+            "publication_receipt_id": receipt_id,
+            "expected_release_version": 4,
+            "comment": "Reviewed full source",
+            "idempotency_key": "publish-large-gnaf",
+        },
+    )
+
+    assert created is True
+    assert operation["status"] == "queued"
+    assert not any("status='accepted'" in query for query in connection.queries)
+    assert not any("serving.accepted_generation" in query for query in connection.queries)
+    assert connection.committed is True
+
+
+def test_activation_claim_recovers_expired_lease_with_bounded_attempts() -> None:
+    operation_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            None,
+            {
+                "id": operation_id,
+                "status": "claimed",
+                "attempt_number": 2,
+                "lease_owner": "loader-2",
+                "lease_token": "new-token",
+            },
+        ]
+    )
+
+    claimed = ConnectedStore(connection).claim_release_activation(
+        worker_id="loader-2", lease_seconds=120
+    )
+
+    assert claimed is not None and claimed["id"] == str(operation_id)
+    retry_limit = connection.queries[0]
+    claim = connection.queries[1]
+    assert "attempt_number>=3" in retry_limit
+    assert "lease_expires_at<=%s" in claim
+    assert "attempt_number<3" in claim
+    assert "FOR UPDATE SKIP LOCKED LIMIT 1" in claim
+
+
+def test_activation_final_pointer_transaction_contains_no_source_scale_dml() -> None:
+    release_id = uuid.uuid4()
+    operation_id = uuid.uuid4()
+    predecessor_id = uuid.uuid4()
+    now = datetime.now(UTC)
+    operation = {
+        "id": operation_id,
+        "dataset_release_id": release_id,
+        "publication_receipt_id": uuid.uuid4(),
+        "expected_release_version": 4,
+        "review_comment": "Reviewed full source",
+        "status": "running",
+        "lease_owner": "loader-1",
+        "lease_token": "token",
+        "lease_expires_at": now + timedelta(minutes=2),
+        "materialized_at": now,
+        "dataset_id": "gnaf-nsw",
+        "target_feature": "feature-1",
+        "release_status": "awaiting_review",
+        "release_version": 4,
+        "receipt_status": "accepted",
+        "receipt_schema_version": "propertyscope.property-snapshot.v1",
+        "receipt_content_sha256": "b" * 64,
+        "rows_received": 5_190_134,
+        "rows_accepted": 5_190_134,
+        "rows_rejected": 0,
+        "schema_version": "propertyscope.property-snapshot.v1",
+        "content_sha256": "b" * 64,
+        "record_count": 5_190_134,
+    }
+    connection = ScriptedConnection(
+        [
+            operation,
+            None,
+            {"id": predecessor_id},
+            None,
+            {"id": release_id, "status": "accepted"},
+            None,
+            {**operation, "status": "succeeded"},
+        ]
+    )
+
+    result = ConnectedStore(connection).finish_release_activation(
+        operation_id,
+        worker_id="loader-1",
+        lease_token="token",
+        status="succeeded",
+        error=None,
+    )
+
+    assert result["status"] == "succeeded"
+    assert any("pg_advisory_xact_lock" in query for query in connection.queries)
+    assert any("INSERT INTO serving.accepted_generation" in query for query in connection.queries)
+    assert not any("warehouse." in query for query in connection.queries)
+    assert not any("registry." in query for query in connection.queries)
+    assert not any("serving.property_coverage" in query for query in connection.queries)
+
+
+def test_property_coverage_derives_only_from_an_accepted_identity_generation() -> None:
+    property_ref = uuid.uuid4()
+
+    class CoverageStore(PropertyScopeStore):
+        def __init__(self) -> None:
+            self.query = ""
+
+        def _required(self, query: str, params: Sequence[Any]) -> dict[str, Any]:
+            del query, params
+            return {"property_ref": property_ref}
+
+        def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+            assert params == (property_ref, property_ref)
+            self.query = " ".join(query.split())
+            return []
+
+    store = CoverageStore()
+
+    assert store.property_coverage(property_ref) == []
+    assert "JOIN serving.accepted_generation accepted" in store.query
+    assert "accepted.dataset_release_id=identifier.source_release_id" in store.query
+    assert "NOT EXISTS" in store.query

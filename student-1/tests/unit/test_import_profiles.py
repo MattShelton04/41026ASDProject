@@ -219,6 +219,51 @@ class _CancelledStore(_Store):
         return True
 
 
+class _ActivationStore:
+    def __init__(self) -> None:
+        self.operation_id = uuid.uuid4()
+        self.heartbeats = 0
+        self.materialized = False
+        self.finished_status = ""
+
+    def claim_release_activation(self, **_: Any) -> dict[str, Any]:
+        return {"id": self.operation_id, "lease_token": "activation-token"}
+
+    def heartbeat_release_activation(self, *_: Any, **__: Any) -> None:
+        self.heartbeats += 1
+
+    def materialize_release_activation(self, *_: Any, **kwargs: Any) -> None:
+        assert kwargs["stop_event"] is not None
+        assert kwargs["lease_failed_event"] is not None
+        self.materialized = True
+
+    def finish_release_activation(self, *_: Any, **kwargs: Any) -> None:
+        self.finished_status = str(kwargs["status"])
+
+    def claim_import(self, **_: Any) -> None:
+        raise AssertionError("publication activation must be serviced before another import")
+
+
+def test_loader_prioritises_and_finishes_background_release_activation(tmp_path: Path) -> None:
+    store = _ActivationStore()
+    loader = DatabaseLoader(cast(Any, store), tmp_path, worker_id="loader-test")
+
+    assert loader.run_once() is True
+    assert store.heartbeats == 1
+    assert store.materialized is True
+    assert store.finished_status == "succeeded"
+
+
+def test_loader_shutdown_leaves_activation_explicitly_recoverable(tmp_path: Path) -> None:
+    store = _ActivationStore()
+    loader = DatabaseLoader(cast(Any, store), tmp_path, worker_id="loader-test")
+    loader.stop()
+
+    loader._activate({"id": store.operation_id, "lease_token": "activation-token"})
+
+    assert store.finished_status == "interrupted"
+
+
 def test_loader_verifies_artifact_then_delegates_registered_copy_profile(tmp_path: Path) -> None:
     data = _artifact("property-fixture", [_canonical_records("property-fixture")[0]])
     digest = hashlib.sha256(data).hexdigest()

@@ -125,7 +125,7 @@ def test_backend_protects_runner_and_publication() -> None:
     assert response.content_type == "application/problem+json"
 
 
-def test_publication_records_consumer_receipt_before_pointer_transition() -> None:
+def test_publication_records_receipt_before_queueing_pointer_activation() -> None:
     release_id = "60000000-0000-0000-0000-000000000011"
     digest = "a" * 64
     events: list[str] = []
@@ -151,8 +151,14 @@ def test_publication_records_consumer_receipt_before_pointer_transition() -> Non
                 201,
                 json={"receipt": {"id": "receipt-1", **body}, "created": True},
             )
-        events.append("transition")
-        return httpx.Response(200, json={"release": {**release, "status": "accepted"}})
+        events.append("activation")
+        return httpx.Response(
+            202,
+            json={
+                "activation": {"id": "activation-1", "status": "queued"},
+                "created": True,
+            },
+        )
 
     def consumer(_: httpx.Request) -> httpx.Response:
         events.append("consumer")
@@ -189,8 +195,10 @@ def test_publication_records_consumer_receipt_before_pointer_transition() -> Non
         headers={"Idempotency-Key": "publish-release-11"},
         json={"version": 2, "comment": "Reviewed", "approved": True},
     )
-    assert response.status_code == 200
-    assert events == ["consumer", "receipt", "transition"]
+    assert response.status_code == 202
+    assert events == ["consumer", "receipt", "activation"]
+    assert response.get_json()["release"]["status"] == "awaiting_review"
+    assert response.get_json()["activation"]["status"] == "queued"
     assert response.get_json()["receipt"]["consumer_operation_id"] == "publish-release-11"
     assert "id" not in response.get_json()["receipt"]
 
@@ -210,11 +218,11 @@ def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() 
         "version": 2,
     }
     receipts: list[dict[str, Any]] = []
-    transitions = 0
+    activation_attempts = 0
     consumer_calls = 0
 
     def database(request: httpx.Request) -> httpx.Response:
-        nonlocal transitions
+        nonlocal activation_attempts
         if request.method == "GET":
             return httpx.Response(200, json={"release": release, "receipts": receipts})
         if request.url.path.endswith("/receipts"):
@@ -222,10 +230,16 @@ def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() 
             receipt = {"id": "receipt-recovery", **body}
             receipts.append(receipt)
             return httpx.Response(201, json={"receipt": receipt, "created": True})
-        transitions += 1
-        if transitions == 1:
+        activation_attempts += 1
+        if activation_attempts == 1:
             return httpx.Response(503, json={"code": "temporary_database_failure"})
-        return httpx.Response(200, json={"release": {**release, "status": "accepted"}})
+        return httpx.Response(
+            202,
+            json={
+                "activation": {"id": "activation-recovery", "status": "queued"},
+                "created": True,
+            },
+        )
 
     def consumer(_: httpx.Request) -> httpx.Response:
         nonlocal consumer_calls
@@ -269,10 +283,10 @@ def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() 
     second = client.post(f"/api/data-platform/v1/dataset-releases/{release_id}/publish", **kwargs)
 
     assert first.status_code == 503
-    assert second.status_code == 200
+    assert second.status_code == 202
     assert second.get_json()["replayed"] is True
     assert consumer_calls == 1
-    assert transitions == 2
+    assert activation_attempts == 2
 
 
 def test_consumer_rejection_records_receipt_without_advancing_release() -> None:

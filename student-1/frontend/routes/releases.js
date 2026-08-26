@@ -137,6 +137,8 @@ export function createReleaseRoutes({
     const { body, requestId } = await request(`dataset-releases/${id}`);
     const release = entity(body, "release");
     const receipts = body.receipts || [];
+    const activations = body.activations || [];
+    const activeActivation = [...activations].reverse().find((item) => ["queued", "claimed", "running", "interrupted"].includes(item.status)) || null;
     let manifest = release.manifest_json || body.manifest;
     if (!manifest) { try { manifest = (await request(`dataset-releases/${id}/manifest`)).body; } catch { manifest = null; } }
     const [qualityResult, acceptedResult, previewResult] = await Promise.allSettled([
@@ -176,7 +178,7 @@ export function createReleaseRoutes({
       });
       if (ok) rerender();
     }));
-    if (["review", "review_required", "awaiting_review"].includes(release.status) && !blocking) actions.push(button("Publish", "button primary", async () => {
+    if (["review", "review_required", "awaiting_review"].includes(release.status) && !blocking && !activeActivation) actions.push(button("Publish", "button primary", async () => {
       const comment = requiredReviewText("Approval note");
       const ok = await confirmAction({
         title: "Publish this version?",
@@ -190,7 +192,7 @@ export function createReleaseRoutes({
       });
       if (ok) rerender();
     }));
-    if (["candidate", "review", "review_required", "awaiting_review"].includes(release.status)) actions.push(button("Reject", "button danger", async () => {
+    if (["candidate", "review", "review_required", "awaiting_review"].includes(release.status) && !activeActivation) actions.push(button("Reject", "button danger", async () => {
       const reason = requiredReviewText("Reason for rejection");
       const ok = await confirmAction({
         title: "Reject this version?",
@@ -212,6 +214,7 @@ export function createReleaseRoutes({
     const lifecycleNotice = el("div", `notice ${lifecycle.tone}`.trim());
     append(lifecycleNotice, badge(release.status), document.createTextNode(` ${lifecycle.message}`));
     append(view, lifecycleNotice);
+    if (activeActivation) append(view, el("div", "notice info", `Publishing continues in the database loader (${displayName(activeActivation.status)}). The currently published version remains live until materialisation and the final pointer switch succeed.`));
     if (blocking) append(view, el("div", "notice negative", "Required data checks failed, so this version cannot be published. Review the failures, then retry or reject it."));
     const layout = el("div", "detail-layout");
     const releaseBody = el("div");
@@ -222,6 +225,10 @@ export function createReleaseRoutes({
     if (!receipts.length) append(receiptBody, el("p", "", "No consumer publication receipts recorded."));
     for (const receipt of receipts) append(receiptBody, detailList([["Research area", researchAreaLabel(receipt.target_feature)], ["Status", badge(receipt.status)], ["Rows received", formatNumber(receipt.rows_accepted)], ["Request ID", el("code", "mono", receipt.request_id || requestId)], ["Failure details", receipt.error_json ? technicalDetails(receipt.error_json, "Inspect failure") : "None recorded"]]));
     append(side, panel("Publication receipts", "Recorded outcomes from each destination", receiptBody));
+    const activationBody = el("div");
+    if (!activations.length) append(activationBody, el("p", "", "No background publication operations recorded."));
+    for (const activation of [...activations].reverse()) append(activationBody, detailList([["Status", badge(activation.status)], ["Attempt", formatNumber(activation.attempt_number)], ["Requested", formatDate(activation.requested_at)], ["Materialised", formatDate(activation.materialized_at)], ["Finished", formatDate(activation.finished_at)], ["Failure details", activation.error_json ? technicalDetails(activation.error_json, "Inspect failure") : "None recorded"]]));
+    append(side, panel("Background publication", "Registry preparation completes before a short accepted-version switch", activationBody));
     append(layout, panel(["accepted", "superseded"].includes(release.status) ? "Published dataset" : "Version under review", "The exact version selected for review", releaseBody), side);
     append(view, layout);
     if (previewResult.status === "fulfilled") append(view, releasePreviewPanel(id, previewResult.value.body));
