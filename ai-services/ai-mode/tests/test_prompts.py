@@ -7,7 +7,13 @@ from uuid import uuid4
 import pytest
 
 from agent_core import create_run
-from ai_mode.prompts import PromptRegistry, PromptRegistryError, RegistryPromptBuilder
+from ai_mode.prompts import (
+    PromptRegistry,
+    PromptRegistryError,
+    RegistryPromptBuilder,
+    _bounded_json_value,
+    _identifier_ledger,
+)
 from shared_contracts import (
     AgentRunRequest,
     AgentStep,
@@ -227,3 +233,40 @@ def test_replanner_receives_exact_identifiers_discovered_by_successful_tools() -
     assert '"discovered_identifiers"' in request.messages[1].content
     assert f'"value":"{record_id}"' in request.messages[1].content
     assert '"result_evidence"' in request.messages[1].content
+
+
+def test_bounded_evidence_projection_covers_nested_collection_and_field_limits() -> None:
+    assert _bounded_json_value("x" * 500, 100) == "x" * 68 + "… [truncated]"
+    assert _bounded_json_value([{"value": "x" * 200} for _ in range(30)], 1_000)[-1] == (
+        "[10 more items truncated]"
+    )
+    projected = _bounded_json_value(
+        {
+            "record_ref": "a0000000-0000-0000-0000-000000000012",
+            **{f"field_{index}": "x" * 100 for index in range(60)},
+        },
+        500,
+    )
+    assert isinstance(projected, dict)
+    assert projected["record_ref"] == "a0000000-0000-0000-0000-000000000012"
+    assert projected["_truncated"] is True
+    assert _bounded_json_value({"large": "x" * 500}, 20) == "[truncated]"
+
+
+def test_identifier_ledger_is_deduplicated_bounded_and_ignores_idempotency_keys() -> None:
+    identifiers = _identifier_ledger(
+        {
+            "items": [
+                {
+                    "record_id": f"a0000000-0000-0000-0000-{index:012x}",
+                    "idempotency_key": f"private-{index}",
+                }
+                for index in range(60)
+            ],
+            "duplicate": {"record_id": "a0000000-0000-0000-0000-000000000000"},
+        }
+    )
+
+    assert len(identifiers) == 50
+    assert all(item["type"] == "record_id" for item in identifiers)
+    assert len({item["value"] for item in identifiers}) == 50

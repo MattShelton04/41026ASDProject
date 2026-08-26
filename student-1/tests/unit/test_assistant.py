@@ -18,7 +18,12 @@ def test_capability_guide_is_bounded_and_honest_about_availability() -> None:
     assert isinstance(features, list)
     assert len(features) == 5
     assert [item["status"] for item in features].count("available") == 1
-    assert "repository" in " ".join(guide["assistant"]["limitations"]).lower()
+    assistant = guide["assistant"]
+    assert isinstance(assistant, dict)
+    limitations = assistant["limitations"]
+    assert isinstance(limitations, list)
+    assert all(isinstance(item, str) for item in limitations)
+    assert "repository" in " ".join(limitations).lower()
 
 
 def test_assistant_objective_preserves_exact_validated_context() -> None:
