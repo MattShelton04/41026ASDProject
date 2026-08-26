@@ -262,7 +262,7 @@ def _resolve_frontend_target(
     if target_parts[:2] == ("shared", "frontend"):
         package = (
             target_parts[2]
-            if len(target_parts) > 2 and target_parts[2] in {"browser", "mapping"}
+            if len(target_parts) > 2 and target_parts[2] in {"ai-chat", "browser", "mapping"}
             else None
         )
         return target, "shared", package
@@ -273,7 +273,7 @@ def _resolve_frontend_target(
         if (
             len(target_parts) > 3
             and target_parts[1] == "frontend"
-            and target_parts[2] in {"browser", "mapping"}
+            and target_parts[2] in {"ai-chat", "browser", "mapping"}
             and not target.exists()
         ):
             package = target_parts[2]
