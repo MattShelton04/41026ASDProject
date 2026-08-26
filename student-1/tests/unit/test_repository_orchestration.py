@@ -433,6 +433,16 @@ def test_property_search_requires_an_accepted_identity_generation() -> None:
     assert store.query.count("%s") == len(store.params)
 
 
+def test_property_search_excludes_legacy_rows_owned_by_the_accepted_warehouse() -> None:
+    store = PropertyQueryStore()
+
+    store.search_properties("parramatta", state="NSW", limit=25)
+
+    assert store.query.count("FROM warehouse.gnaf_address accepted_address") == 2
+    assert store.query.count("accepted_address.gnaf_pid)::uuid) =property.property_ref") == 2
+    assert store.query.count("accepted.dataset_release_id=accepted_address.dataset_release_id") == 2
+
+
 def test_property_search_reports_an_honest_bounded_total_without_full_count() -> None:
     class BoundedSearchStore(PropertyQueryStore):
         def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:

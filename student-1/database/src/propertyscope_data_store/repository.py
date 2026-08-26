@@ -1865,6 +1865,13 @@ class PropertyScopeStore:
                     JOIN serving.accepted_generation accepted
                       ON accepted.dataset_release_id=identifier.source_release_id
                     WHERE identifier.property_ref=property.property_ref AND identifier.is_current
+                ) AND NOT EXISTS (
+                    SELECT 1 FROM warehouse.gnaf_address accepted_address
+                    JOIN serving.accepted_generation accepted
+                      ON accepted.dataset_release_id=accepted_address.dataset_release_id
+                    WHERE COALESCE(accepted_address.property_ref,
+                        md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
+                        =property.property_ref
                 )
                 UNION ALL
                 SELECT property.property_ref,property.address_display,property.locality,
@@ -1876,6 +1883,14 @@ class PropertyScopeStore:
                   ON accepted.dataset_release_id=alias.source_release_id
                 WHERE alias.is_current
                   AND alias.alias_search LIKE '%%' || %s || '%%'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM warehouse.gnaf_address accepted_address
+                      JOIN serving.accepted_generation accepted
+                        ON accepted.dataset_release_id=accepted_address.dataset_release_id
+                      WHERE COALESCE(accepted_address.property_ref,
+                          md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
+                          =property.property_ref
+                  )
             ), search_documents AS (
                 SELECT * FROM accepted_addresses
                 UNION ALL SELECT * FROM legacy_documents
