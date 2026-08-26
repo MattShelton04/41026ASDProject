@@ -799,9 +799,32 @@ def create_blueprint(
         for name in ("status", "dataset_id", "target_feature"):
             if body.get(name):
                 params[name] = str(body[name])
-        return tool_envelope(
-            store.request("GET", f"{INTERNAL}/releases", headers=request.headers, params=params)
+        upstream = store.request(
+            "GET", f"{INTERNAL}/releases", headers=request.headers, params=params
         )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        fields = (
+            "id",
+            "dataset_id",
+            "source_definition_id",
+            "ingestion_run_id",
+            "target_feature",
+            "release_version",
+            "schema_version",
+            "record_count",
+            "status",
+            "supersedes_release_id",
+            "accepted_at",
+            "created_at",
+            "updated_at",
+        )
+        summaries = [
+            {name: item.get(name) for name in fields if name in item}
+            for item in upstream.json().get("items", [])[:50]
+            if isinstance(item, dict)
+        ]
+        return jsonify({"items": summaries, "count": len(summaries)})
 
     @api.post(f"{BASE}/tools/platform.capabilities.v1")
     def tool_platform_capabilities() -> Response:

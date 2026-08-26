@@ -776,6 +776,8 @@ def test_release_list_tool_proxies_bounded_release_evidence() -> None:
                         "dataset_id": "gnaf-address",
                         "status": "candidate",
                         "record_count": 5_190_134,
+                        "manifest_json": {"geography_coverage": ["large"] * 5_000},
+                        "coverage_json": {"localities": ["large"] * 5_000},
                     }
                 ],
                 "count": 1,
@@ -796,7 +798,10 @@ def test_release_list_tool_proxies_bounded_release_evidence() -> None:
     )
 
     assert response.status_code == 200
-    assert response.get_json()["items"][0]["record_count"] == 5_190_134
+    item = response.get_json()["items"][0]
+    assert item["record_count"] == 5_190_134
+    assert "manifest_json" not in item
+    assert "coverage_json" not in item
 
 
 def test_run_list_tool_omits_large_snapshots_and_lease_internals() -> None:
