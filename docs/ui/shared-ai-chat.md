@@ -67,6 +67,13 @@ The read-only `platform.capabilities.v1` tool grounds questions about PropertySc
 routes, the assistant and current limitations. Feature 1 additionally supplies bounded tools for
 sources, ingestion runs, releases, coverage and accepted property search/inspection.
 
+Do not interpret a registered or active source as loaded data. `data.sources.v1` describes source
+definitions only. `data.releases.v1` supplies bounded release IDs, states and record counts;
+`data.runs.v1` defaults to the latest ten succeeded runs and retains only the explicit requested
+scope and row-count evidence needed to assess full-data loads. A "fully loaded" answer requires a
+succeeded run whose `requested_scope_json` explicitly names `full-data` or `all_records`. Candidate,
+awaiting-review and accepted release states are reported separately.
+
 Conversational turns instruct the planner to use read-only tools only. Protected retry and publish
 tools remain part of the separately reviewed AI-mode platform but are not actions the chat may run.
 The assistant:
@@ -131,4 +138,7 @@ uv run python scripts/check.py
 The prompt regressions prove that cumulative results above the model-message limit are projected,
 tool-discovered identifiers reach replanning, guessed UUID-shaped identifiers are rejected before a
 tool call and prompt-construction validation failures become terminal rather than reconciling
-indefinitely.
+indefinitely. Replanning also rejects any exact tool call that already succeeded, so the model must
+choose a genuinely different evidence path. Feature tests prove that release/run inventories omit
+large manifests, source snapshots and lease internals, and that accepted property search and exact
+inspection return the same stable identity.

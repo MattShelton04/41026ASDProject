@@ -87,6 +87,13 @@ accepted warehouse generation's expression indexes. If a query regresses, captur
 `EXPLAIN (ANALYZE, BUFFERS)` on a representative retained generation and verify it uses
 `gnaf_address_search_document_trgm_idx` or `gnaf_address_stable_property_ref_idx`.
 
+Search intentionally returns a bounded result page plus `total_is_lower_bound`; it does not run an
+exact count across every fuzzy match. On the retained 5,190,134-row G-NAF generation, the exact
+multi-token `11 example street` plan used the trigram index and executed in about 3.5 ms after the
+bounded-search change. Search also anti-joins legacy registry rows whose stable reference is owned
+by the accepted warehouse generation, so a search result and subsequent detail lookup cannot
+describe different addresses under the same reference.
+
 ## Capacity notes
 
 Complete candidate generations intentionally consume source-scale storage. Publication no longer

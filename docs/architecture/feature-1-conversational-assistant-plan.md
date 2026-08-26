@@ -56,9 +56,25 @@ decision and was not performed by this audit.
 These runs are retained in local AI-mode history, except that the indefinitely reconciling run was
 cancelled to stop further retries.
 
+### Post-implementation Gemini validation
+
+The completed chat capability was then exercised through the actual browser interface. These runs
+are the current acceptance evidence:
+
+| AI-mode run | Scenario | Outcome | Finding |
+| --- | --- | --- | --- |
+| `66005dec-ec73-4251-a8ad-4ee1993ddd69` | Ask what PropertyScope can do | Succeeded | Used the bounded capability guide, correctly reported Property data as the only available research area and linked activity evidence. |
+| `2c70d15f-bd7f-4a4b-8e15-405735cbf55e` | Ask which data is loaded/candidate/accepted before release discovery existed | Succeeded with a poor judgement | Repeated source metadata after requesting release evidence and incorrectly treated connectivity as load evidence. This directly produced the release-list tool, bounded run summaries and the successful-call repeat guard. |
+| `182b6de1-bc4b-45a7-a9d2-82aa95a55be7` | Repeat the same inventory question after hardening | Succeeded | Used three bounded tools, named exact full-data runs, separated accepted/candidate/awaiting-review releases and kept fixture full-load extent unknown. No step failed. |
+| `f7dd882b-4d4a-4f68-a1f8-0ccca3a17eef` | Search Parramatta, inspect the exact result and explain evidence limits | Succeeded | Preserved the discovered property reference, returned the same address from search and inspection, cited coverage/release/run evidence and described the test-profile limitation. |
+
+The final inventory run completed in three iterations and ten recorded steps with three read-only
+tool calls. The final property chain completed without guessed identifiers or tool-schema errors.
+No evaluation published a candidate or executed a protected write.
+
 ## Audit findings
 
-### P0 before conversational use: bound prompt inputs and recovery
+### P0 resolved: bound prompt inputs and recovery
 
 `data.runs.v1` can return enough JSON for the adaptation prompt to exceed
 `ModelMessage.content`'s 100,000-character limit. Prompt construction then raises a validation
@@ -66,7 +82,7 @@ error outside the handled `AgentCoreError` path. Reconciliation records
 `execution_interrupted`, repeats the same work, and does not consume a normal iteration. The run
 can therefore remain non-terminal while creating steps indefinitely.
 
-Required changes:
+Implemented controls:
 
 - define a compact result projection and maximum serialized size for every tool;
 - paginate list tools and default to a small page size;
@@ -79,14 +95,14 @@ Regression coverage must include a cumulative tool result greater than 100 KB an
 run either continues with a bounded prompt or reaches a terminal failure in a bounded number of
 steps.
 
-### P0 before chained chat: preserve discovered identifiers
+### P0 resolved: preserve discovered identifiers
 
 The adaptation model can see tool results and request a replan, but the next planner receives only
 the objective and prior tool call attempts. It does not receive the prior result, a bounded evidence
 digest, or the adaptation justification. It therefore cannot reliably use IDs discovered by an
 earlier tool.
 
-Add a typed run-local evidence ledger containing:
+The implemented bounded prior-attempt projection carries:
 
 - canonical entity type and identifier;
 - source tool call and result reference;
