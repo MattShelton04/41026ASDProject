@@ -449,9 +449,7 @@ def test_property_search_reports_an_honest_bounded_total_without_full_count() ->
             super()._fetch_all(query, params)
             return [{"property_ref": str(uuid.uuid4())} for _ in range(26)]
 
-    results = BoundedSearchStore().search_properties(
-        "parramatta", state="NSW", limit=25, offset=50
-    )
+    results = BoundedSearchStore().search_properties("parramatta", state="NSW", limit=25, offset=50)
 
     assert len(results.items) == 25
     assert results.total == 76

@@ -1374,9 +1374,7 @@ class PropertyScopeStore:
     def get_release_activation(self, operation_id: uuid.UUID) -> JsonObject:
         return self._required("SELECT * FROM ops.release_activation WHERE id=%s", (operation_id,))
 
-    def claim_release_activation(
-        self, *, worker_id: str, lease_seconds: int
-    ) -> JsonObject | None:
+    def claim_release_activation(self, *, worker_id: str, lease_seconds: int) -> JsonObject | None:
         """Claim one activation, recovering an expired worker up to a bounded attempt limit."""
         now = datetime.now(UTC)
         token = uuid.uuid4().hex
@@ -1494,9 +1492,7 @@ class PropertyScopeStore:
                     (operation_id, worker_id, lease_token, now),
                 ).fetchone()
                 if work is None:
-                    raise LeaseConflictError(
-                        "activation lease is stale or owned by another loader"
-                    )
+                    raise LeaseConflictError("activation lease is stale or owned by another loader")
                 if work["release_status"] != "awaiting_review" or int(
                     work["release_version"]
                 ) != int(work["expected_release_version"]):
