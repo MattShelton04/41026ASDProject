@@ -758,6 +758,47 @@ def test_assistant_capability_tool_is_the_public_guide_projection() -> None:
     assert tool.get_json()["features"][0]["status"] == "available"
 
 
+def test_release_list_tool_proxies_bounded_release_evidence() -> None:
+    release_id = "60000000-0000-0000-0000-000000000001"
+
+    def database(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/internal/data-platform/v1/releases"
+        assert request.url.params["status"] == "accepted"
+        assert request.url.params["dataset_id"] == "gnaf-address"
+        assert request.url.params["limit"] == "50"
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "id": release_id,
+                        "dataset_id": "gnaf-address",
+                        "status": "accepted",
+                        "record_count": 5_190_134,
+                    }
+                ],
+                "count": 1,
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/tools/releases.list.v1",
+        json={"status": "accepted", "dataset_id": "gnaf-address", "limit": 999},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["items"][0]["record_count"] == 5_190_134
+
+
 def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> None:
     job_id = "20000000-0000-0000-0000-000000000004"
 

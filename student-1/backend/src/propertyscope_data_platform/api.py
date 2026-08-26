@@ -792,6 +792,17 @@ def create_blueprint(
             store.request("GET", f"{INTERNAL}/sources", headers=request.headers, params=params)
         )
 
+    @api.post(f"{BASE}/tools/releases.list.v1")
+    def tool_releases() -> Response:
+        body = json_body()
+        params: dict[str, Any] = {"limit": min(int(body.get("limit", 25)), 50)}
+        for name in ("status", "dataset_id", "target_feature"):
+            if body.get(name):
+                params[name] = str(body[name])
+        return tool_envelope(
+            store.request("GET", f"{INTERNAL}/releases", headers=request.headers, params=params)
+        )
+
     @api.post(f"{BASE}/tools/platform.capabilities.v1")
     def tool_platform_capabilities() -> Response:
         body = json_body()

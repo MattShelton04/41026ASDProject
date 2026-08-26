@@ -240,6 +240,8 @@ paths:
         '404': {$ref: '#/components/responses/Problem'}
   /tools/sources.list.v1:
     post: {operationId: toolSourcesList, responses: {'200': {description: Tool result}}}
+  /tools/releases.list.v1:
+    post: {operationId: toolReleasesList, responses: {'200': {description: Bounded release summaries}}}
   /tools/platform.capabilities.v1:
     post: {operationId: toolPlatformCapabilities, responses: {'200': {description: Bounded capability guide}}}
   /tools/runs.list.v1:

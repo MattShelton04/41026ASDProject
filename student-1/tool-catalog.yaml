@@ -32,7 +32,7 @@ tools:
       name: data.sources.v1
       version: v1
       feature_key: student-1-propertyscope-data-platform
-      description: List a bounded set of registered sources with safe status and latest accepted evidence.
+      description: List a bounded set of registered source definitions. Registration, active status, or a connected transport does not prove that a dataset is loaded; use data.releases.v1 for release and record-count evidence.
       input_schema:
         type: object
         properties:
@@ -52,6 +52,32 @@ tools:
     service: propertyscope-data-platform-backend
     method: POST
     path: /api/data-platform/v1/tools/sources.list.v1
+  - definition:
+      name: data.releases.v1
+      version: v1
+      feature_key: student-1-propertyscope-data-platform
+      description: List bounded dataset release summaries and their exact status, record count, dataset ID, ingestion run, and release ID. Use this to discover loaded, candidate, accepted, rejected, or superseded releases when no exact release ID is known.
+      input_schema:
+        type: object
+        properties:
+          status: {enum: [draft, building, awaiting_review, accepted, rejected, superseded]}
+          dataset_id: {type: string, minLength: 1, maxLength: 150}
+          target_feature: {type: string, minLength: 1, maxLength: 100}
+          limit: {type: integer, minimum: 1, maximum: 50, default: 25}
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          items: {type: array, maxItems: 50, items: {type: object}}
+          count: {type: integer, minimum: 0, maximum: 50}
+        required: [items, count]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-data-platform-backend
+    method: POST
+    path: /api/data-platform/v1/tools/releases.list.v1
   - definition:
       name: data.runs.v1
       version: v1

@@ -76,6 +76,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/agent-runs/{run_id}",
         "/agent-runs/{run_id}/events",
         "/tools/sources.list.v1",
+        "/tools/releases.list.v1",
         "/tools/platform.capabilities.v1",
         "/tools/runs.list.v1",
         "/tools/runs.inspect.v1",
