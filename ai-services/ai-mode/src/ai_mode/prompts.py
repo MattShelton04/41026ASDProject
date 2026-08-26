@@ -33,6 +33,11 @@ class PromptRegistryError(AgentCoreError):
     """A prompt asset is missing, malformed, or inconsistent."""
 
 
+MAX_RENDERED_INPUT_CHARS = 90_000
+MAX_TOOL_RESULT_CHARS = 8_000
+MAX_LEDGER_IDENTIFIERS = 50
+
+
 class PromptMetadata(BaseModel):
     """Strict metadata stored beside one immutable prompt template."""
 
@@ -164,7 +169,7 @@ class RegistryPromptBuilder(PromptBuilder):
         completed_actions = [
             {
                 "action": action.model_dump(mode="json"),
-                "tool_result": result.model_dump(mode="json"),
+                "tool_result": _project_tool_result(result),
             }
             for action, result in zip(plan.actions, tool_results, strict=False)
         ]
@@ -172,7 +177,7 @@ class RegistryPromptBuilder(PromptBuilder):
             "objective": run.objective,
             "feature_key": run.feature_key,
             "plan": plan.model_dump(mode="json"),
-            "tool_result": tool_result.model_dump(mode="json"),
+            "tool_result": _project_tool_result(tool_result),
             "completed_actions": completed_actions,
             "has_remaining_action": len(tool_results) < len(plan.actions),
             "observation": observation.model_dump(mode="json"),
@@ -191,7 +196,10 @@ class RegistryPromptBuilder(PromptBuilder):
     def _request(
         run: AgentRun, prompt: PromptTemplate, dynamic: Mapping[str, object]
     ) -> StructuredModelRequest:
-        serialized_input = json.dumps(dynamic, sort_keys=True, separators=(",", ":"))
+        bounded_dynamic = _bounded_json_value(dict(dynamic), MAX_RENDERED_INPUT_CHARS)
+        serialized_input = json.dumps(bounded_dynamic, sort_keys=True, separators=(",", ":"))
+        if len(serialized_input) > MAX_RENDERED_INPUT_CHARS:
+            raise PromptRegistryError("bounded prompt input still exceeds the model message limit")
         return StructuredModelRequest(
             run_id=run.id,
             role=prompt.metadata.role,
@@ -238,6 +246,106 @@ def _prior_tool_attempts(steps: tuple[AgentStep, ...]) -> list[dict[str, object]
                 "outcome": result.get("outcome"),
                 "error": error if isinstance(error, dict) else None,
                 "evidence_references": result.get("evidence_references", []),
+                "discovered_identifiers": _identifier_ledger(result.get("content")),
+                "result_evidence": _bounded_json_value(
+                    result.get("content", {}), MAX_TOOL_RESULT_CHARS
+                ),
             }
         )
     return attempts[-12:]
+
+
+def _project_tool_result(result: ToolResult) -> dict[str, object]:
+    projected = result.model_dump(mode="json")
+    projected["content"] = _bounded_json_value(result.content, MAX_TOOL_RESULT_CHARS)
+    projected["content_identifiers"] = _identifier_ledger(result.content)
+    return projected
+
+
+def _identifier_ledger(value: object) -> list[dict[str, str]]:
+    """Extract exact typed identifiers without forwarding an unbounded result body."""
+    identifiers: list[dict[str, str]] = []
+
+    def visit(candidate: object, path: str = "result") -> None:
+        if len(identifiers) >= MAX_LEDGER_IDENTIFIERS:
+            return
+        if isinstance(candidate, dict):
+            for key, nested in candidate.items():
+                child_path = f"{path}.{key}"
+                if (
+                    isinstance(nested, str)
+                    and key != "idempotency_key"
+                    and (key == "id" or key.endswith(("_id", "_ref")))
+                ):
+                    identifiers.append({"type": key, "value": nested, "path": child_path})
+                else:
+                    visit(nested, child_path)
+        elif isinstance(candidate, list):
+            for index, nested in enumerate(candidate[:50]):
+                visit(nested, f"{path}[{index}]")
+
+    visit(value)
+    deduplicated: dict[tuple[str, str], dict[str, str]] = {}
+    for item in identifiers:
+        deduplicated.setdefault((item["type"], item["value"]), item)
+    return list(deduplicated.values())[:MAX_LEDGER_IDENTIFIERS]
+
+
+def _bounded_json_value(value: object, max_chars: int) -> object:
+    """Deterministically project arbitrary JSON-like evidence into a character budget."""
+    serialized = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    if len(serialized) <= max_chars:
+        return value
+    if max_chars < 64:
+        return "[truncated]"
+    if isinstance(value, str):
+        return value[: max(1, max_chars - 32)] + "… [truncated]"
+    if isinstance(value, list):
+        if not value:
+            return []
+        retained = value[:20]
+        per_item = max(64, (max_chars - 80) // max(1, len(retained)))
+        list_projection = [_bounded_json_value(item, per_item) for item in retained]
+        if len(value) > len(retained):
+            list_projection.append(f"[{len(value) - len(retained)} more items truncated]")
+        return list_projection
+    if isinstance(value, dict):
+        if not value:
+            return {}
+        priority = sorted(
+            value,
+            key=lambda key: (
+                0 if key == "id" or key.endswith(("_id", "_ref")) else 1,
+                str(key),
+            ),
+        )[:50]
+        per_item = max(64, (max_chars - 120) // max(1, len(priority)))
+        dict_projection: dict[str, object] = {
+            str(key): _bounded_json_value(value[key], per_item)
+            for key in priority
+        }
+        if len(value) > len(priority):
+            dict_projection["_truncated_fields"] = len(value) - len(priority)
+        # A second pass handles structural overhead and many short values.
+        fields_truncated = False
+        while (
+            len(json.dumps(dict_projection, sort_keys=True, separators=(",", ":")))
+            > max_chars
+            and len(dict_projection) > 1
+        ):
+            removable = next(
+                (
+                    key
+                    for key in reversed(dict_projection)
+                    if not key.endswith(("_id", "_ref")) and key != "id"
+                ),
+                None,
+            )
+            if removable is None:
+                break
+            dict_projection.pop(removable)
+            fields_truncated = True
+        if fields_truncated:
+            dict_projection["_truncated"] = True
+        return dict_projection
+    return value

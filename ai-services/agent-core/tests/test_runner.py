@@ -12,6 +12,7 @@ from agent_core import (
     ConcurrentRunUpdateError,
     ModelMessage,
     ModelMetrics,
+    ModelOutputValidationError,
     ModelRole,
     RecoveryDisposition,
     StructuredModelRequest,
@@ -145,6 +146,33 @@ class TestPromptBuilder:
             prompt_hash="a" * 64,
             rendered_input_hash="b" * 64,
         )
+
+
+class InvalidPromptBuilder(TestPromptBuilder):
+    def __init__(self, *, fail_role: ModelRole) -> None:
+        self.fail_role = fail_role
+
+    def build_plan_request(
+        self,
+        run: AgentRun,
+        definitions: tuple[ToolDefinition, ...],
+        prior_steps: tuple[AgentStep, ...] = (),
+    ) -> StructuredModelRequest:
+        if self.fail_role is ModelRole.PLANNER:
+            raise ValueError("private prompt validation detail")
+        return super().build_plan_request(run, definitions, prior_steps)
+
+    def build_adaptation_request(
+        self,
+        run: AgentRun,
+        plan: Plan,
+        tool_result: ToolResult,
+        observation: Observation,
+        tool_results: tuple[ToolResult, ...],
+    ) -> StructuredModelRequest:
+        if self.fail_role is ModelRole.ADAPTER:
+            raise ValueError("private prompt validation detail")
+        return super().build_adaptation_request(run, plan, tool_result, observation, tool_results)
 
 
 class RecordingToolExecutor:
@@ -282,6 +310,7 @@ def _runner(
     tool_exception: Exception | None = None,
     cancel_during_execute: bool = False,
     clock: FixedClock | None = None,
+    prompt_builder: TestPromptBuilder | None = None,
 ) -> tuple[AgentRunner, MemoryStore, RecordingToolExecutor]:
     run = create_run(
         AgentRunRequest(
@@ -304,7 +333,7 @@ def _runner(
     runner = AgentRunner(
         store=store,
         provider=ScriptedLLMProvider(outcomes),
-        prompt_builder=TestPromptBuilder(),
+        prompt_builder=prompt_builder or TestPromptBuilder(),
         tools=ToolRegistry([tool or _tool()]),
         tool_executor=executor,
         clock=clock or FixedClock(),
@@ -327,6 +356,123 @@ def test_runner_persists_a_complete_four_phase_success() -> None:
     assert [step.phase.value for step in store.steps] == ["plan", "act", "observe", "adapt"]
     assert all(step.status.value == "succeeded" for step in store.steps)
     assert len(executor.calls) == 1
+
+
+def test_prompt_construction_validation_failure_terminalizes_without_recovery_loop() -> None:
+    runner, store, executor = _runner(
+        [], prompt_builder=InvalidPromptBuilder(fail_role=ModelRole.PLANNER)
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "invalid_model_or_tool_data"
+    assert result.error.message == "Prompt or model data failed validation"
+    assert store.steps[-1].status is StepStatus.FAILED
+    assert executor.calls == []
+
+
+def test_adaptation_prompt_validation_failure_terminalizes_once() -> None:
+    runner, store, executor = _runner(
+        [_model_result(_plan())],
+        prompt_builder=InvalidPromptBuilder(fail_role=ModelRole.ADAPTER),
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "invalid_model_or_tool_data"
+    assert len([step for step in store.steps if step.phase is StepPhase.ADAPT]) == 1
+    assert len(executor.calls) == 1
+
+
+def test_plan_accepts_exact_tool_discovered_non_rfc_fixture_identifier() -> None:
+    discovered_ref = "a0000000-0000-0000-0000-000000000012"
+    inspect_tool = ToolDefinition(
+        name="student_1.records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one exact record",
+        input_schema={
+            "type": "object",
+            "properties": {"record_ref": {"type": "string"}},
+            "required": ["record_ref"],
+            "additionalProperties": False,
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tool=inspect_tool)
+    discovered = AgentStep(
+        id=uuid4(),
+        run_id=store.run.id,
+        sequence=1,
+        phase=StepPhase.ACT,
+        status=StepStatus.SUCCEEDED,
+        output={
+            "tool_result": {
+                "call_id": str(uuid4()),
+                "outcome": "succeeded",
+                "content": {"record": {"record_ref": discovered_ref}},
+                "duration_ms": 1,
+                "retryable": False,
+                "evidence_references": [],
+            }
+        },
+    )
+    plan = Plan.model_validate(
+        {
+            "goal": "Inspect the discovered record",
+            "actions": [{
+                "sequence": 1,
+                "tool_name": inspect_tool.name,
+                "arguments": {"record_ref": discovered_ref},
+                "purpose": "Inspect the exact result",
+            }],
+            "success_criteria": ["Exact record is inspected"],
+            "risk_level": "low",
+        }
+    )
+
+    runner._validate_model_plan(store.run, plan, (discovered,))
+
+
+def test_plan_rejects_guessed_non_rfc_fixture_identifier_before_tool_execution() -> None:
+    guessed_ref = "a0000000-0000-0000-0000-000000000099"
+    inspect_tool = ToolDefinition(
+        name="student_1.records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one exact record",
+        input_schema={
+            "type": "object",
+            "properties": {"record_ref": {"type": "string"}},
+            "required": ["record_ref"],
+            "additionalProperties": False,
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, executor = _runner([], tool=inspect_tool)
+    plan = Plan.model_validate(
+        {
+            "goal": "Inspect a guessed record",
+            "actions": [{
+                "sequence": 1,
+                "tool_name": inspect_tool.name,
+                "arguments": {"record_ref": guessed_ref},
+                "purpose": "Inspect a record",
+            }],
+            "success_criteria": ["Record is inspected"],
+            "risk_level": "low",
+        }
+    )
+
+    with pytest.raises(ModelOutputValidationError, match="supplied by the user or discovered"):
+        runner._validate_model_plan(store.run, plan)
+    assert executor.calls == []
 
 
 def test_successful_intermediate_action_continues_without_an_extra_model_call() -> None:

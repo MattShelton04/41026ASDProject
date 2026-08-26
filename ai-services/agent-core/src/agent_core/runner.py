@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from typing import NoReturn
@@ -53,6 +54,9 @@ from shared_contracts import (
 )
 
 BLOCKED_STATUSES = TERMINAL_STATUSES | {RunStatus.REVIEW_REQUIRED}
+UUID_IDENTIFIER_PATTERN = re.compile(
+    r"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"
+)
 
 
 class AgentRunner:
@@ -167,13 +171,13 @@ class AgentRunner:
                 request,
                 Plan,
                 max_repairs=run.limits.max_model_repairs,
-                validate=lambda plan: self._validate_model_plan(planning, plan),
+                validate=lambda plan: self._validate_model_plan(planning, plan, detail.steps),
             )
             if self._repeats_successful_plan(detail.steps, generated.value):
                 raise RunStalledError(
                     "planner repeated the previous plan after successful tool evidence"
                 )
-        except AgentCoreError as exc:
+        except (AgentCoreError, ValueError) as exc:
             return self._fail_with_step(planning, step, exc, code=self._error_code(exc))
 
         completed = self._complete_step(
@@ -440,7 +444,7 @@ class AgentRunner:
                     Adaptation,
                     max_repairs=run.limits.max_model_repairs,
                 )
-            except AgentCoreError as exc:
+            except (AgentCoreError, ValueError) as exc:
                 return self._fail_with_step(in_progress, step, exc, code=self._error_code(exc))
             adaptation = generated.value
             output = {
@@ -522,10 +526,12 @@ class AgentRunner:
             return str(exc)
         if isinstance(exc, (AgentCoreError, IndexError)):
             return str(exc) or type(exc).__name__
+        if isinstance(exc, ValueError):
+            return "Prompt or model data failed validation"
         return "Unexpected orchestration failure"
 
     @staticmethod
-    def _error_code(exc: AgentCoreError) -> str:
+    def _error_code(exc: Exception) -> str:
         if isinstance(exc, ModelProviderError):
             return exc.code
         if isinstance(exc, RunLimitExceededError):
@@ -562,14 +568,61 @@ class AgentRunner:
 
         return signature(previous) == signature(candidate)
 
-    def _validate_model_plan(self, run: AgentRun, plan: Plan) -> None:
+    def _validate_model_plan(
+        self,
+        run: AgentRun,
+        plan: Plan,
+        prior_steps: tuple[AgentStep, ...] = (),
+    ) -> None:
         """Return tool-name and argument mistakes to bounded model repair before execution."""
         try:
             for action in plan.actions:
                 definition = self._tools.resolve(run.feature_key, action.tool_name)
                 self._tools.validate_input(definition, action.arguments)
+                self._validate_exact_identifiers(run, action.arguments, prior_steps)
         except (ToolSchemaValidationError, UnknownToolError) as exc:
             raise ModelOutputValidationError(str(exc)) from exc
+
+    @staticmethod
+    def _validate_exact_identifiers(
+        run: AgentRun,
+        arguments: Mapping[str, JsonValue],
+        prior_steps: tuple[AgentStep, ...],
+    ) -> None:
+        """Reject UUIDs guessed by the model instead of supplied or discovered in-run."""
+        allowed = set(UUID_IDENTIFIER_PATTERN.findall(run.objective))
+        for step in prior_steps:
+            if step.phase is not StepPhase.ACT:
+                continue
+            result = step.output.get("tool_result")
+            if not isinstance(result, dict) or result.get("outcome") != ToolOutcome.SUCCEEDED.value:
+                continue
+            content = result.get("content")
+            serialized = str(content) if not isinstance(content, (dict, list)) else repr(content)
+            allowed.update(UUID_IDENTIFIER_PATTERN.findall(serialized))
+
+        def visit(value: object, key: str = "") -> None:
+            if isinstance(value, dict):
+                for nested_key, nested in value.items():
+                    visit(nested, str(nested_key))
+                return
+            if isinstance(value, list):
+                for nested in value:
+                    visit(nested, key)
+                return
+            if (
+                key != "idempotency_key"
+                and (key == "id" or key.endswith(("_id", "_ref")))
+                and isinstance(value, str)
+                and UUID_IDENTIFIER_PATTERN.fullmatch(value)
+                and value not in allowed
+            ):
+                raise ModelOutputValidationError(
+                    f"{key} must copy an identifier supplied by the user "
+                    "or discovered by a prior tool"
+                )
+
+        visit(arguments)
 
     @staticmethod
     def _repeats_failed_read(
