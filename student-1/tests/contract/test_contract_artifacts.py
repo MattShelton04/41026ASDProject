@@ -331,7 +331,10 @@ def test_release_discovery_uses_real_statuses_and_source_metadata_is_not_load_ev
     registrations = {item.definition.name: item.definition for item in catalog.tools}
 
     release_tool = registrations["data.releases.v1"]
-    statuses = release_tool.input_schema["properties"]["status"]["enum"]
+    input_schema = cast(dict[str, Any], release_tool.input_schema)
+    properties = cast(dict[str, Any], input_schema["properties"])
+    status_schema = cast(dict[str, Any], properties["status"])
+    statuses = status_schema["enum"]
     assert statuses == [
         "draft",
         "candidate",
@@ -343,8 +346,10 @@ def test_release_discovery_uses_real_statuses_and_source_metadata_is_not_load_ev
     assert release_tool.side_effect.value == "read_only"
     assert "does not prove" in registrations["data.sources.v1"].description
 
-    property_schema = registrations["property.inspect.v1"].output_schema
-    assert set(property_schema["required"]) == {
+    property_schema = cast(dict[str, Any], registrations["property.inspect.v1"].output_schema)
+    required = property_schema["required"]
+    assert isinstance(required, list)
+    assert set(required) == {
         "property",
         "identifiers",
         "aliases",

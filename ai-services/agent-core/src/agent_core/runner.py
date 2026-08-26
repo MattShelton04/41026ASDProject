@@ -614,7 +614,7 @@ class AgentRunner:
                 continue
             signatures.add(
                 (
-                    call["tool_name"],
+                    str(call["tool_name"]),
                     json.dumps(call["arguments"], sort_keys=True, separators=(",", ":")),
                 )
             )

@@ -857,7 +857,7 @@ def test_address_publication_does_not_rewrite_immutable_warehouse_generation() -
     connection = ScriptedConnection([None, None, None, None])
 
     ConnectedStore(connection)._publish_address_property_spine(
-        connection,
+        cast(Any, connection),
         release_id,
         datetime(2026, 8, 26, tzinfo=UTC),
         identifier_scheme="gnaf_pid",
