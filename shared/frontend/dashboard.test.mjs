@@ -8,14 +8,23 @@ import { featureRegistry, findFeature, researchAreaLabel } from "./features.js";
 import { loadFeature1Bridge, validateFeature1Adapter } from "./feature-1-bridge.js";
 import { resolveResearchAreaContext } from "./operations/ai-mode/contexts.js";
 import { classifyHealth, overallReadiness } from "./routes/status.js";
+import { SHARED_ASSISTANT_SCOPES, sharedAssistantSuggestions } from "./routes/assistant.js";
 
 test("shared hash routes are bounded and unknown fragments return home", () => {
   assert.equal(parseShellRoute("#system-status"), "system-status");
   assert.equal(parseShellRoute("#/evidence?view=accepted"), "evidence");
   assert.equal(parseShellRoute("#release-roadmap"), "release-roadmap");
   assert.equal(parseShellRoute("#features"), "features");
+  assert.equal(parseShellRoute("#assistant?scope=feature"), "assistant");
   assert.equal(parseShellRoute("#operations"), "home");
   assert.equal(parseShellRoute("#future-student-feature"), "home");
+});
+
+test("shared assistant wrapper owns product and feature vocabulary", () => {
+  assert.deepEqual(SHARED_ASSISTANT_SCOPES.map((scope) => scope.id), ["application", "feature"]);
+  assert.equal(sharedAssistantSuggestions("feature").some((message) => message.includes("Property data")), true);
+  const sharedDefinitions = readFileSync(new URL("./ai-chat/definitions.js", import.meta.url), "utf8");
+  assert.doesNotMatch(sharedDefinitions, /Property data|Parramatta|dataset/);
 });
 
 test("feature registry is the bounded source for shell routes and availability", () => {

@@ -2,6 +2,15 @@
 
 All notable changes to the shared PropertyScope frontend design system are recorded here.
 
+## 0.5.0 — 2026-08-26
+
+- Added the dependency-free `ai-chat/index.js` public component barrel for application-global and
+  feature-scoped assistant wrappers.
+- Standardised accessible turn status, evidence disclosures, durable run links, cursor polling,
+  degraded refresh states and responsive chat composition without exposing private reasoning.
+- Kept feature scope labels, suggestions, context projection and same-origin API roots injectable so
+  the shared component does not acquire feature-owned vocabulary or tool rules.
+
 ## 0.4.0 — 2026-08-25
 
 - Increased the shared body, label and caption roles so dense operational views remain readable.

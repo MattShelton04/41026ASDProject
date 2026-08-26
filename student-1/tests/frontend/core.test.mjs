@@ -48,6 +48,7 @@ import {
   agentRunReferences,
   createFeature1ShellAdapter,
 } from "../../frontend/integration/shell.js";
+import { assistantContextFromHash, FEATURE_ASSISTANT_SCOPES } from "../../frontend/integration/assistant.js";
 
 function response(body, { status = 200, headers = {} } = {}) {
   return {
@@ -130,9 +131,19 @@ test("query construction excludes empty values and remains encoded", () => {
 test("hash routing is isolated, bounded, and preserves encoded query values", () => {
   assert.deepEqual(parseRoute("#runs/run%201"), { route: "runs", id: "run 1", action: "" });
   assert.deepEqual(parseRoute("#data-products/nsw-psi-sales"), { route: "data-products", id: "nsw-psi-sales", action: "" });
+  assert.deepEqual(parseRoute("#assistant"), { route: "assistant", id: "", action: "" });
   assert.deepEqual(parseRoute("#not-a-route"), { route: "properties", id: "", action: "" });
   assert.deepEqual(parseRoute(""), { route: "properties", id: "", action: "" });
   assert.equal(routeQuery("#sources?q=crime+data&status=active").get("q"), "crime data");
+});
+
+test("Feature 1 assistant wrapper projects only allowlisted typed page context", () => {
+  const context = assistantContextFromHash("#assistant?route=runs/detail&ingestion_run_id=10000000-0000-4000-8000-000000000004&unknown=ignored&release_id=bad");
+  assert.deepEqual(context, {
+    route: "runs/detail",
+    ingestion_run_id: "10000000-0000-4000-8000-000000000004",
+  });
+  assert.deepEqual(FEATURE_ASSISTANT_SCOPES.map((scope) => scope.id), ["feature"]);
 });
 
 test("JSON form fields reject arrays and invalid input", () => {

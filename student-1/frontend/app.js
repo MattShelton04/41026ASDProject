@@ -10,6 +10,7 @@ import { formField } from "./components/forms.js?v=17";
 import { hydrateIcons } from "./components/icons.js?v=1";
 import { renderLoading } from "./components/states.js";
 import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=19";
+import { createFeatureAssistantRoute } from "./routes/assistant.js?v=1";
 import { createEntityRoutes } from "./routes/entities.js?v=20";
 import { createDataProductRoutes } from "./routes/data-products.js?v=18";
 import { createEvidenceRoutes } from "./routes/evidence.js?v=17";
@@ -226,6 +227,7 @@ const { renderDataProducts } = createDataProductRoutes({ view, request, loading,
 const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, rerender: retryRoute });
 const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request, loading, rerender: retryRoute });
 const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender: retryRoute });
+const featureAssistant = createFeatureAssistantRoute({ view, announce });
 
 async function checkHealth() {
   try { await request(healthUrl, { timeoutMs: 4000 }); serviceState.className = "service-state online"; serviceState.lastElementChild.textContent = "Data service available"; serviceState.setAttribute("aria-label", "Data service available"); }
@@ -233,6 +235,7 @@ async function checkHealth() {
 }
 
 async function renderRoute({ focus = false } = {}) {
+  featureAssistant.destroy();
   generationGuard.next(); clearTimeout(state.pollTimer); state.lastRunStatus = ""; state.lastAgentStatus = "";
   liveRegion.textContent = "";
   const { route, id } = parseRoute(location.hash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
@@ -246,6 +249,7 @@ async function renderRoute({ focus = false } = {}) {
     else if (route === "quality" || route === "artifacts") await renderEvidenceExplorer(route, id);
     else if (route === "coverage") await renderCoverage();
     else if (route === "properties") await renderProperties(id);
+    else if (route === "assistant") featureAssistant.render();
     else if (route === "ai") await renderAi(id);
   } catch (error) { view.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`)); }
   finally {

@@ -1,5 +1,6 @@
 import { append, el, link, notice, parseShellRoute } from "./core.js?v=10";
 import { createEvidenceRoute } from "./routes/evidence.js?v=10";
+import { createAssistantRoute } from "./routes/assistant.js?v=1";
 import { createFeaturesRoute } from "./routes/features.js?v=10";
 import { createRoadmapRoute } from "./routes/roadmap.js?v=10";
 import { createStatusRoute } from "./routes/status.js?v=10";
@@ -19,6 +20,7 @@ const navToggle = document.querySelector("#nav-toggle");
 const primaryNav = document.querySelector("#primary-navigation");
 const toastController = createToastController(toast, { duration: 3600 });
 let renderGeneration = 0;
+let activeRouteController = null;
 
 function announce(message) {
   if (announcement) announcement.textContent = message;
@@ -89,6 +91,7 @@ function updateNavigation(route) {
 }
 
 const routes = {
+  assistant: createAssistantRoute({ announce }),
   features: createFeaturesRoute({ config }),
   "system-status": createStatusRoute({ config, getFeature1Adapter: () => feature1Adapter, announce }),
   evidence: createEvidenceRoute({ config, getFeature1Adapter: () => feature1Adapter, announce }),
@@ -97,6 +100,8 @@ const routes = {
 
 async function renderRoute() {
   const generation = ++renderGeneration;
+  activeRouteController?.destroy?.();
+  activeRouteController = null;
   const route = parseShellRoute(location.hash);
   updateNavigation(route);
   if (route === "home") {
@@ -121,10 +126,14 @@ async function renderRoute() {
   main.replaceChildren(dashboardShell);
   main.setAttribute("tabindex", "-1");
   try {
-    await routes[route](dashboard);
-    if (generation !== renderGeneration) return;
+    const renderedController = await routes[route](dashboard) || null;
+    if (generation !== renderGeneration) {
+      renderedController?.destroy?.();
+      return;
+    }
+    activeRouteController = renderedController;
     applyConfigLinks(dashboard);
-    const routeTitle = route === "features" ? "Research areas" : route === "system-status" ? "Data status" : route === "evidence" ? "Sources and history" : "What’s available";
+    const routeTitle = route === "assistant" ? "Ask PropertyScope" : route === "features" ? "Research areas" : route === "system-status" ? "Data status" : route === "evidence" ? "Sources and history" : "What’s available";
     document.title = `${routeTitle} | PropertyScope NSW`;
     announce(`${routeTitle} loaded.`);
     main.focus({ preventScroll: true });
