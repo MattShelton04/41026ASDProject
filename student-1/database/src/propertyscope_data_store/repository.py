@@ -1383,7 +1383,8 @@ class PropertyScopeStore:
                 """UPDATE ops.release_activation SET status='failed',finished_at=%s,
                 error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
                 heartbeat_at=NULL,version=version+1
-                WHERE status IN ('claimed','running') AND lease_expires_at<=%s
+                WHERE status IN ('claimed','running','interrupted')
+                  AND (lease_expires_at IS NULL OR lease_expires_at<=%s)
                   AND attempt_number>=3""",
                 (
                     now,

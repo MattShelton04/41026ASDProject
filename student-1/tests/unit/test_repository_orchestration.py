@@ -957,6 +957,24 @@ def test_activation_claim_recovers_expired_lease_with_bounded_attempts() -> None
     assert "FOR UPDATE SKIP LOCKED LIMIT 1" in claim
 
 
+def test_activation_state_trace_terminalises_an_interrupted_third_attempt() -> None:
+    connection = ScriptedConnection([None, None])
+
+    claimed = ConnectedStore(connection).claim_release_activation(
+        worker_id="loader-4", lease_seconds=120
+    )
+
+    assert claimed is None
+    terminalise = connection.queries[0]
+    assert "UPDATE ops.release_activation SET status='failed'" in terminalise
+    assert "status IN ('claimed','running','interrupted')" in terminalise
+    assert "lease_expires_at IS NULL OR lease_expires_at<=%s" in terminalise
+    assert "attempt_number>=3" in terminalise
+    claim = connection.queries[1]
+    assert "attempt_number<3" in claim
+    assert connection.committed is True
+
+
 def test_activation_final_pointer_transaction_contains_no_source_scale_dml() -> None:
     release_id = uuid.uuid4()
     operation_id = uuid.uuid4()
