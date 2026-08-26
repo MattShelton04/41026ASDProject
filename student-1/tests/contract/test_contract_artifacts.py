@@ -343,6 +343,14 @@ def test_release_discovery_uses_real_statuses_and_source_metadata_is_not_load_ev
     assert release_tool.side_effect.value == "read_only"
     assert "does not prove" in registrations["data.sources.v1"].description
 
+    property_schema = registrations["property.inspect.v1"].output_schema
+    assert set(property_schema["required"]) == {
+        "property",
+        "identifiers",
+        "aliases",
+        "coverage",
+    }
+
 
 def test_feature_manifest_uses_the_canonical_shared_edge_route() -> None:
     manifest = load_feature_manifest(ROOT / "feature.yaml")

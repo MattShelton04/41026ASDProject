@@ -869,6 +869,41 @@ def test_run_list_tool_defaults_to_ten_succeeded_runs() -> None:
     assert response.get_json() == {"items": [], "count": 0}
 
 
+def test_property_inspection_tool_returns_bounded_evidence_shape() -> None:
+    property_ref = "a0000000-0000-0000-0000-000000000002"
+
+    def database(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == f"/internal/data-platform/v1/properties/{property_ref}"
+        return httpx.Response(
+            200,
+            json={
+                "property": {"property_ref": property_ref, "address_display": "12 Example St"},
+                "identifiers": [{"scheme": "gnaf_pid"}] * 30,
+                "aliases": [{"address": "Alias"}] * 30,
+                "coverage": [{"dataset_id": "gnaf-nsw"}] * 30,
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/tools/properties.inspect.v1",
+        json={"property_ref": property_ref},
+    )
+
+    assert response.status_code == 200
+    assert set(response.get_json()) == {"property", "identifiers", "aliases", "coverage"}
+    assert len(response.get_json()["identifiers"]) == 25
+    assert len(response.get_json()["aliases"]) == 25
+    assert len(response.get_json()["coverage"]) == 25
+
+
 def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> None:
     job_id = "20000000-0000-0000-0000-000000000004"
 

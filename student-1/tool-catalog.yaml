@@ -259,7 +259,10 @@ tools:
         type: object
         properties:
           property: {type: object}
-        required: [property]
+          identifiers: {type: array, maxItems: 25, items: {type: object}}
+          aliases: {type: array, maxItems: 25, items: {type: object}}
+          coverage: {type: array, maxItems: 25, items: {type: object}}
+        required: [property, identifiers, aliases, coverage]
         additionalProperties: false
       side_effect: read_only
       timeout_ms: 3000

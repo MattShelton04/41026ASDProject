@@ -967,8 +967,19 @@ def create_blueprint(
     @api.post(f"{BASE}/tools/properties.inspect.v1")
     def tool_property_inspect() -> Response:
         property_ref = required_uuid(json_body(), "property_ref")
-        return forward(
-            store.request("GET", f"{INTERNAL}/properties/{property_ref}", headers=request.headers)
+        upstream = store.request(
+            "GET", f"{INTERNAL}/properties/{property_ref}", headers=request.headers
+        )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        snapshot = upstream.json()
+        return jsonify(
+            {
+                "property": snapshot["property"],
+                "identifiers": snapshot.get("identifiers", [])[:25],
+                "aliases": snapshot.get("aliases", [])[:25],
+                "coverage": snapshot.get("coverage", [])[:25],
+            }
         )
 
     @api.post(f"{BASE}/tools/runs.retry.v1")
