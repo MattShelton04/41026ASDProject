@@ -14,6 +14,12 @@ from flask import Blueprint, Response, jsonify, request
 from pydantic import ValidationError
 
 from propertyscope_data_platform.approval import approved_tool_call
+from propertyscope_data_platform.assistant import (
+    ASSISTANT_FEATURE_KEY,
+    AssistantTurnRequest,
+    build_assistant_objective,
+    capability_guide,
+)
 from propertyscope_data_platform.artifacts import ArtifactError, LocalArtifactStore
 from propertyscope_data_platform.clients import (
     AiModeClient,
@@ -104,6 +110,13 @@ def create_blueprint(
                 "showcase_available": True,
             }
         )
+
+    @api.get(f"{BASE}/assistant/capabilities")
+    def assistant_capabilities() -> Response:
+        """Expose the same bounded guide used by the model-facing read tool."""
+        if request.args:
+            return problem(422, "invalid_query", "Assistant capabilities take no query fields")
+        return jsonify(capability_guide())
 
     @api.get(f"{BASE}/data-products")
     def data_products() -> Response:
@@ -706,6 +719,46 @@ def create_blueprint(
         )
         return forward(upstream)
 
+    @api.post(f"{BASE}/assistant/turns")
+    def assistant_turn() -> Response:
+        """Create one feature-scoped durable run for one conversational turn."""
+        try:
+            command = AssistantTurnRequest.model_validate(json_body())
+        except ValidationError as exc:
+            issue = exc.errors(include_url=False)[0]
+            location = ".".join(str(item) for item in issue.get("loc", ())) or "request"
+            return problem(422, "invalid_assistant_turn", f"{location}: {issue['msg']}")
+        upstream = ai_mode.create_run(
+            {
+                "feature_key": ASSISTANT_FEATURE_KEY,
+                "objective": build_assistant_objective(command),
+                "prompt_set": "default.v4",
+                "limits": {
+                    "max_iterations": 6,
+                    "max_tool_calls": 10,
+                    "time_budget_ms": 180000,
+                    "max_model_repairs": 2,
+                },
+            },
+            request.headers,
+        )
+        return forward(upstream)
+
+    @api.get(f"{BASE}/assistant/turns/<uuid:run_id>")
+    def assistant_turn_detail(run_id: uuid.UUID) -> Response:
+        return forward(ai_mode.get(f"/api/v1/agent-runs/{run_id}", request.headers))
+
+    @api.get(f"{BASE}/assistant/turns/<uuid:run_id>/events")
+    def assistant_turn_events(run_id: uuid.UUID) -> Response:
+        suffix = ""
+        if request.query_string:
+            suffix = "?" + request.query_string.decode("ascii", errors="ignore")
+        return forward(ai_mode.get(f"/api/v1/agent-runs/{run_id}/events{suffix}", request.headers))
+
+    @api.post(f"{BASE}/assistant/turns/<uuid:run_id>/cancel")
+    def assistant_turn_cancel(run_id: uuid.UUID) -> Response:
+        return forward(ai_mode.cancel_run(str(run_id), request.headers))
+
     @api.get(f"{BASE}/agent-runs/<uuid:run_id>")
     def agent_run(run_id: uuid.UUID) -> Response:
         return forward(ai_mode.get(f"/api/v1/agent-runs/{run_id}", request.headers))
@@ -738,6 +791,13 @@ def create_blueprint(
         return tool_envelope(
             store.request("GET", f"{INTERNAL}/sources", headers=request.headers, params=params)
         )
+
+    @api.post(f"{BASE}/tools/platform.capabilities.v1")
+    def tool_platform_capabilities() -> Response:
+        body = json_body()
+        if body:
+            return problem(422, "invalid_tool_input", "Capability guide takes no input fields")
+        return jsonify(capability_guide())
 
     @api.post(f"{BASE}/tools/runs.list.v1")
     def tool_runs() -> Response:

@@ -662,6 +662,82 @@ def test_agent_history_is_scoped_to_propertyscope_feature() -> None:
     assert response.get_json()["items"] == []
 
 
+def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None:
+    def upstream(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "ai"
+        assert request.url.path == "/api/v1/agent-runs"
+        body = json.loads(request.content)
+        assert body["feature_key"] == "student-1-propertyscope-data-platform"
+        assert body["prompt_set"] == "default.v4"
+        assert body["limits"]["max_tool_calls"] == 10
+        assert "What can PropertyScope do?" in body["objective"]
+        assert "platform.capabilities.v1" in body["objective"]
+        assert "Do not propose or call a write tool" in body["objective"]
+        return httpx.Response(
+            202,
+            json={"id": "70000000-0000-0000-0000-000000000002", "status": "queued"},
+            headers={"X-Agent-Run-ID": "70000000-0000-0000-0000-000000000002"},
+        )
+
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=unavailable)
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai", client=httpx.Client(transport=httpx.MockTransport(upstream))
+        ),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/assistant/turns",
+        json={"message": "What can PropertyScope do?", "scope": "application"},
+    )
+
+    assert response.status_code == 202
+    assert response.get_json()["status"] == "queued"
+    assert response.headers["X-Agent-Run-ID"].endswith("0002")
+
+
+def test_assistant_turn_rejects_unknown_context_without_calling_ai_mode() -> None:
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=unavailable)
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai", client=httpx.Client(transport=unavailable)
+        ),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/assistant/turns",
+        json={"message": "Explain this", "context": {"made_up_id": "unsafe"}},
+    )
+
+    assert response.status_code == 422
+    assert response.get_json()["code"] == "invalid_assistant_turn"
+
+
+def test_assistant_capability_tool_is_the_public_guide_projection() -> None:
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=unavailable)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=unavailable)),
+    )
+    client = app.test_client()
+
+    public = client.get("/api/data-platform/v1/assistant/capabilities")
+    tool = client.post("/api/data-platform/v1/tools/platform.capabilities.v1", json={})
+
+    assert public.status_code == 200
+    assert tool.status_code == 200
+    assert tool.get_json() == public.get_json()
+    assert tool.get_json()["features"][0]["status"] == "available"
+
+
 def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> None:
     job_id = "20000000-0000-0000-0000-000000000004"
 

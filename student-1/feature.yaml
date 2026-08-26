@@ -6,6 +6,7 @@ frontend_base_path: /features/data-platform/
 backend_base_path: /api/data-platform/v1
 health_path: /health/ready
 ai_capabilities:
+  - platform.capabilities.v1
   - data.sources.v1
   - data.runs.v1
   - data.run_inspect.v1

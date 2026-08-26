@@ -4,6 +4,31 @@ services:
     base_url: http://f1-backend:5201
 tools:
   - definition:
+      name: platform.capabilities.v1
+      version: v1
+      feature_key: student-1-propertyscope-data-platform
+      description: Explain the current PropertyScope website, implemented research areas, assistant behavior, routes, limitations, and safe suggested questions from a bounded versioned guide.
+      input_schema:
+        type: object
+        properties: {}
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          revision: {type: string}
+          application: {type: object}
+          assistant: {type: object}
+          features: {type: array, maxItems: 5, items: {type: object}}
+          suggested_questions: {type: array, maxItems: 10, items: {type: string}}
+        required: [revision, application, assistant, features, suggested_questions]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-data-platform-backend
+    method: POST
+    path: /api/data-platform/v1/tools/platform.capabilities.v1
+  - definition:
       name: data.sources.v1
       version: v1
       feature_key: student-1-propertyscope-data-platform

@@ -13,6 +13,31 @@ paths:
       operationId: getRuntimeCapabilities
       description: Reports connected official acquisition profiles and locally cached source partitions.
       responses: {'200': {description: Runtime acquisition capabilities}}
+  /assistant/capabilities:
+    get:
+      operationId: getAssistantCapabilities
+      description: Returns the bounded versioned application, feature and assistant guide.
+      responses: {'200': {description: Assistant capability guide}, '422': {$ref: '#/components/responses/Problem'}}
+  /assistant/turns:
+    post:
+      operationId: createAssistantTurn
+      description: Creates one durable AI-mode AgentRun for one validated conversational turn.
+      responses: {'202': {description: Assistant turn accepted}, '422': {$ref: '#/components/responses/Problem'}, '503': {$ref: '#/components/responses/Problem'}}
+  /assistant/turns/{run_id}:
+    get:
+      operationId: getAssistantTurn
+      parameters: [{$ref: '#/components/parameters/RunId'}]
+      responses: {'200': {description: Durable assistant turn detail}, '404': {$ref: '#/components/responses/Problem'}, '503': {$ref: '#/components/responses/Problem'}}
+  /assistant/turns/{run_id}/events:
+    get:
+      operationId: listAssistantTurnEvents
+      parameters: [{$ref: '#/components/parameters/RunId'}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {$ref: '#/components/responses/Page'}, '404': {$ref: '#/components/responses/Problem'}, '503': {$ref: '#/components/responses/Problem'}}
+  /assistant/turns/{run_id}/cancel:
+    post:
+      operationId: cancelAssistantTurn
+      parameters: [{$ref: '#/components/parameters/RunId'}]
+      responses: {'200': {description: Cancellation requested}, '404': {$ref: '#/components/responses/Problem'}, '503': {$ref: '#/components/responses/Problem'}}
   /data-products:
     get:
       operationId: listDataProducts
@@ -215,6 +240,8 @@ paths:
         '404': {$ref: '#/components/responses/Problem'}
   /tools/sources.list.v1:
     post: {operationId: toolSourcesList, responses: {'200': {description: Tool result}}}
+  /tools/platform.capabilities.v1:
+    post: {operationId: toolPlatformCapabilities, responses: {'200': {description: Bounded capability guide}}}
   /tools/runs.list.v1:
     post: {operationId: toolRunsList, responses: {'200': {description: Tool result}}}
   /tools/runs.inspect.v1:

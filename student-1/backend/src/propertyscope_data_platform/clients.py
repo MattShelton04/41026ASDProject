@@ -107,6 +107,20 @@ class AiModeClient:
                 "AI mode is unavailable; direct data operations remain usable"
             ) from exc
 
+    def cancel_run(
+        self, run_id: str, headers: Mapping[str, str] | Headers
+    ) -> httpx.Response:
+        """Request cancellation without exposing a general upstream POST proxy."""
+        try:
+            return self._client.post(
+                f"{self._origin}/api/v1/agent-runs/{run_id}/cancel",
+                headers=forwarded_headers(headers),
+            )
+        except httpx.TransportError as exc:
+            raise DependencyUnavailableError(
+                "AI mode is unavailable; direct data operations remain usable"
+            ) from exc
+
 
 @dataclass(frozen=True)
 class ConsumerEndpoint:
