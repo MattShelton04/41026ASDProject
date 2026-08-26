@@ -73,7 +73,7 @@ review dialogs.
 Do not place feature API clients, entities or business rules in this directory.
 
 Domain-neutral JavaScript is a separate public surface. Import DOM helpers from
-`browser/index.js` and mapping behavior from `mapping/index.js`; do not deep-import files beside
+`browser/index.js`, assistant behavior from `ai-chat/index.js` and mapping behavior from `mapping/index.js`; do not deep-import files beside
 those barrels. A feature-specific shell projection belongs in that feature's frontend integration
 directory, not in this design-system package.
 

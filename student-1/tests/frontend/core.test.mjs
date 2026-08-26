@@ -48,6 +48,7 @@ import {
   agentRunReferences,
   createFeature1ShellAdapter,
 } from "../../frontend/integration/shell.js";
+import { assistantContextFromHash, FEATURE_ASSISTANT_SCOPES } from "../../frontend/integration/assistant.js";
 
 function response(body, { status = 200, headers = {} } = {}) {
   return {
@@ -130,9 +131,19 @@ test("query construction excludes empty values and remains encoded", () => {
 test("hash routing is isolated, bounded, and preserves encoded query values", () => {
   assert.deepEqual(parseRoute("#runs/run%201"), { route: "runs", id: "run 1", action: "" });
   assert.deepEqual(parseRoute("#data-products/nsw-psi-sales"), { route: "data-products", id: "nsw-psi-sales", action: "" });
+  assert.deepEqual(parseRoute("#assistant"), { route: "assistant", id: "", action: "" });
   assert.deepEqual(parseRoute("#not-a-route"), { route: "properties", id: "", action: "" });
   assert.deepEqual(parseRoute(""), { route: "properties", id: "", action: "" });
   assert.equal(routeQuery("#sources?q=crime+data&status=active").get("q"), "crime data");
+});
+
+test("Feature 1 assistant wrapper projects only allowlisted typed page context", () => {
+  const context = assistantContextFromHash("#assistant?route=runs/detail&ingestion_run_id=10000000-0000-4000-8000-000000000004&unknown=ignored&release_id=bad");
+  assert.deepEqual(context, {
+    route: "runs/detail",
+    ingestion_run_id: "10000000-0000-4000-8000-000000000004",
+  });
+  assert.deepEqual(FEATURE_ASSISTANT_SCOPES.map((scope) => scope.id), ["feature"]);
 });
 
 test("JSON form fields reject arrays and invalid input", () => {
@@ -144,7 +155,11 @@ test("JSON form fields reject arrays and invalid input", () => {
 
 test("Feature 1 form parsers reject coercion and explain the required correction", () => {
   assert.equal(propertySearchQuery("  11 Example Street  "), "11 Example Street");
+  assert.equal(propertySearchQuery("Parramatta"), "Parramatta");
+  assert.equal(propertySearchQuery("2000"), "2000");
   assert.throws(() => propertySearchQuery("x"), /2 to 200 characters/);
+  assert.throws(() => propertySearchQuery("Sydney NSW"), /distinctive locality/);
+  assert.throws(() => propertySearchQuery("street"), /distinctive locality/);
   assert.equal(parseIntegerField("12", "Rows", { minimum: 1 }), 12);
   assert.throws(() => parseIntegerField("12.5", "Rows", { minimum: 1 }), /whole number/);
   assert.throws(() => parseIntegerField("", "Rows", { minimum: 1 }), /at least 1/);
@@ -804,6 +819,8 @@ test("property discovery consumes shell search queries and stays product-facing"
   assert.match(source, /street, suburb, postcode or any combination/);
   assert.doesNotMatch(source, /items\.slice\(0, 5\)/);
   assert.match(source, /Show more matches/);
+  assert.match(source, /nextOffset = page\.body\.next_offset \?\? null/);
+  assert.match(source, /hasMore: nextOffset !== null/);
   assert.doesNotMatch(source, /Feature [1-5]|buyer features|Dossier report/);
   assert.match(source, /#properties\/\$\{encodeURIComponent\(item\.property_ref\)\}/);
   assert.match(source, /Property references and recorded coordinates/);

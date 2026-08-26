@@ -64,6 +64,13 @@ def test_agent_request_rejects_unknown_and_unbounded_values() -> None:
             prompt_set="unregistered.v1",  # type: ignore[arg-type]
         )
 
+    with pytest.raises(ValidationError, match="tool_allowlist entries must be unique"):
+        AgentRunRequest(
+            feature_key="student-1-feature",
+            objective="Find matching records",
+            tool_allowlist=("records.read.v1", "records.read.v1"),
+        )
+
 
 def test_plan_requires_unambiguous_contiguous_action_order() -> None:
     with pytest.raises(ValidationError, match="action sequences must be contiguous"):

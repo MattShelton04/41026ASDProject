@@ -25,7 +25,7 @@ export function formatNumber(value) {
 
 export function parseShellRoute(hash = "") {
   const value = String(hash).replace(/^#\/?/, "").split("?")[0];
-  if (["features", "system-status", "evidence", "release-roadmap"].includes(value)) return value;
+  if (["assistant", "features", "system-status", "evidence", "release-roadmap"].includes(value)) return value;
   return "home";
 }
 

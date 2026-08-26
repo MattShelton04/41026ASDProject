@@ -34,6 +34,11 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
     expected_paths = {
         "/overview",
         "/runtime-capabilities",
+        "/assistant/capabilities",
+        "/assistant/turns",
+        "/assistant/turns/{run_id}",
+        "/assistant/turns/{run_id}/events",
+        "/assistant/turns/{run_id}/cancel",
         "/data-products",
         "/data-products/{dataset_id}",
         "/data-products/{dataset_id}/accepted",
@@ -71,6 +76,8 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/agent-runs/{run_id}",
         "/agent-runs/{run_id}/events",
         "/tools/sources.list.v1",
+        "/tools/releases.list.v1",
+        "/tools/platform.capabilities.v1",
         "/tools/runs.list.v1",
         "/tools/runs.inspect.v1",
         "/tools/releases.inspect.v1",
@@ -317,6 +324,37 @@ def test_release_inspection_tool_declares_all_composed_evidence() -> None:
     assert len(required_names) == len(required)
     assert set(properties) == expected
     assert required_names == expected
+
+
+def test_release_discovery_uses_real_statuses_and_source_metadata_is_not_load_evidence() -> None:
+    catalog = load_tool_catalog(ROOT / "tool-catalog.yaml")
+    registrations = {item.definition.name: item.definition for item in catalog.tools}
+
+    release_tool = registrations["data.releases.v1"]
+    input_schema = cast(dict[str, Any], release_tool.input_schema)
+    properties = cast(dict[str, Any], input_schema["properties"])
+    status_schema = cast(dict[str, Any], properties["status"])
+    statuses = status_schema["enum"]
+    assert statuses == [
+        "draft",
+        "candidate",
+        "awaiting_review",
+        "accepted",
+        "rejected",
+        "superseded",
+    ]
+    assert release_tool.side_effect.value == "read_only"
+    assert "does not prove" in registrations["data.sources.v1"].description
+
+    property_schema = cast(dict[str, Any], registrations["property.inspect.v1"].output_schema)
+    required = property_schema["required"]
+    assert isinstance(required, list)
+    assert set(required) == {
+        "property",
+        "identifiers",
+        "aliases",
+        "coverage",
+    }
 
 
 def test_feature_manifest_uses_the_canonical_shared_edge_route() -> None:

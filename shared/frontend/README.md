@@ -11,6 +11,7 @@ independently buildable `student-N/frontend/` services.
 - `app.js` — shell composition root for home/search, bounded hash routing and mobile navigation.
 - `features.js` — the bounded five-area navigation registry and canonical feature ingress paths.
 - `browser/index.js` — stable public JavaScript barrel for domain-neutral DOM helpers.
+- `ai-chat/index.js` — reusable assistant client, polling, formatting, semantic states and accessible transcript controller; feature vocabulary is injected by route wrappers.
 - `feature-1-bridge.js` — bounded, failure-safe loading for Feature 1's public shell adapter.
 - `core.js` — safe DOM, formatting, table and correlated public-request helpers.
 - `capabilities.js` — static Release 0 deployment capability manifest; implemented and enabled remain separate.
@@ -89,6 +90,7 @@ The framework-free shell exposes four shared hash routes:
 
 ```text
 http://localhost:5100/#features
+http://localhost:5100/#assistant
 http://localhost:5100/#system-status
 http://localhost:5100/#evidence
 http://localhost:5100/#release-roadmap

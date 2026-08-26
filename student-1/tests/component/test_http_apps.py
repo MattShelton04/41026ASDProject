@@ -125,7 +125,7 @@ def test_backend_protects_runner_and_publication() -> None:
     assert response.content_type == "application/problem+json"
 
 
-def test_publication_records_consumer_receipt_before_pointer_transition() -> None:
+def test_publication_records_receipt_before_queueing_pointer_activation() -> None:
     release_id = "60000000-0000-0000-0000-000000000011"
     digest = "a" * 64
     events: list[str] = []
@@ -151,8 +151,21 @@ def test_publication_records_consumer_receipt_before_pointer_transition() -> Non
                 201,
                 json={"receipt": {"id": "receipt-1", **body}, "created": True},
             )
-        events.append("transition")
-        return httpx.Response(200, json={"release": {**release, "status": "accepted"}})
+        events.append("activation")
+        return httpx.Response(
+            202,
+            json={
+                "activation": {
+                    "id": "70000000-0000-0000-0000-000000000001",
+                    "status": "queued",
+                    "attempt_number": 1,
+                    "requested_at": "2026-08-26T10:00:00Z",
+                    "version": 1,
+                    "lease_token": "must-not-leak",
+                },
+                "created": True,
+            },
+        )
 
     def consumer(_: httpx.Request) -> httpx.Response:
         events.append("consumer")
@@ -189,8 +202,11 @@ def test_publication_records_consumer_receipt_before_pointer_transition() -> Non
         headers={"Idempotency-Key": "publish-release-11"},
         json={"version": 2, "comment": "Reviewed", "approved": True},
     )
-    assert response.status_code == 200
-    assert events == ["consumer", "receipt", "transition"]
+    assert response.status_code == 202
+    assert events == ["consumer", "receipt", "activation"]
+    assert response.get_json()["release"]["status"] == "awaiting_review"
+    assert response.get_json()["activation"]["status"] == "queued"
+    assert "lease_token" not in response.get_json()["activation"]
     assert response.get_json()["receipt"]["consumer_operation_id"] == "publish-release-11"
     assert "id" not in response.get_json()["receipt"]
 
@@ -210,11 +226,11 @@ def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() 
         "version": 2,
     }
     receipts: list[dict[str, Any]] = []
-    transitions = 0
+    activation_attempts = 0
     consumer_calls = 0
 
     def database(request: httpx.Request) -> httpx.Response:
-        nonlocal transitions
+        nonlocal activation_attempts
         if request.method == "GET":
             return httpx.Response(200, json={"release": release, "receipts": receipts})
         if request.url.path.endswith("/receipts"):
@@ -222,10 +238,16 @@ def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() 
             receipt = {"id": "receipt-recovery", **body}
             receipts.append(receipt)
             return httpx.Response(201, json={"receipt": receipt, "created": True})
-        transitions += 1
-        if transitions == 1:
+        activation_attempts += 1
+        if activation_attempts == 1:
             return httpx.Response(503, json={"code": "temporary_database_failure"})
-        return httpx.Response(200, json={"release": {**release, "status": "accepted"}})
+        return httpx.Response(
+            202,
+            json={
+                "activation": {"id": "activation-recovery", "status": "queued"},
+                "created": True,
+            },
+        )
 
     def consumer(_: httpx.Request) -> httpx.Response:
         nonlocal consumer_calls
@@ -269,10 +291,10 @@ def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() 
     second = client.post(f"/api/data-platform/v1/dataset-releases/{release_id}/publish", **kwargs)
 
     assert first.status_code == 503
-    assert second.status_code == 200
+    assert second.status_code == 202
     assert second.get_json()["replayed"] is True
     assert consumer_calls == 1
-    assert transitions == 2
+    assert activation_attempts == 2
 
 
 def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
@@ -660,6 +682,275 @@ def test_agent_history_is_scoped_to_propertyscope_feature() -> None:
     response = app.test_client().get("/api/data-platform/v1/agent-runs?limit=25")
     assert response.status_code == 200
     assert response.get_json()["items"] == []
+
+
+def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None:
+    def upstream(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "ai"
+        assert request.url.path == "/api/v1/agent-runs"
+        body = json.loads(request.content)
+        assert body["feature_key"] == "student-1-propertyscope-data-platform"
+        assert body["prompt_set"] == "default.v4"
+        assert body["limits"]["max_tool_calls"] == 10
+        assert "data.run_retry.v1" not in body["tool_allowlist"]
+        assert "data.release_publish.v1" not in body["tool_allowlist"]
+        assert "property.search.v1" in body["tool_allowlist"]
+        assert "What can PropertyScope do?" in body["objective"]
+        assert "platform.capabilities.v1" in body["objective"]
+        assert "Do not propose or call a write tool" in body["objective"]
+        return httpx.Response(
+            202,
+            json={"id": "70000000-0000-0000-0000-000000000002", "status": "queued"},
+            headers={"X-Agent-Run-ID": "70000000-0000-0000-0000-000000000002"},
+        )
+
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=unavailable)
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai", client=httpx.Client(transport=httpx.MockTransport(upstream))
+        ),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/assistant/turns",
+        json={"message": "What can PropertyScope do?", "scope": "application"},
+    )
+
+    assert response.status_code == 202
+    assert response.get_json()["status"] == "queued"
+    assert response.headers["X-Agent-Run-ID"].endswith("0002")
+
+
+@pytest.mark.parametrize(
+    ("method", "suffix"),
+    [
+        ("GET", ""),
+        ("GET", "/events"),
+        ("POST", "/cancel"),
+    ],
+)
+@pytest.mark.parametrize(
+    "run",
+    [
+        {"feature_key": "student-2-market", "tool_allowlist": []},
+        {"feature_key": "student-1-propertyscope-data-platform", "tool_allowlist": None},
+    ],
+)
+def test_assistant_endpoints_hide_foreign_and_non_chat_runs(
+    method: str, suffix: str, run: dict[str, object]
+) -> None:
+    run_id = "70000000-0000-0000-0000-000000000004"
+    calls: list[str] = []
+
+    def upstream(request: httpx.Request) -> httpx.Response:
+        calls.append(f"{request.method} {request.url.path}")
+        assert request.method == "GET"
+        assert request.url.path == f"/api/v1/agent-runs/{run_id}"
+        return httpx.Response(200, json={"run": run, "steps": [], "reviews": []})
+
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=unavailable)
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai", client=httpx.Client(transport=httpx.MockTransport(upstream))
+        ),
+    )
+
+    response = app.test_client().open(
+        f"/api/data-platform/v1/assistant/turns/{run_id}{suffix}", method=method
+    )
+
+    assert response.status_code == 404
+    assert response.get_json()["code"] == "assistant_turn_not_found"
+    assert calls == [f"GET /api/v1/agent-runs/{run_id}"]
+
+
+def test_assistant_turn_rejects_unknown_context_without_calling_ai_mode() -> None:
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=unavailable)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=unavailable)),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/assistant/turns",
+        json={"message": "Explain this", "context": {"made_up_id": "unsafe"}},
+    )
+
+    assert response.status_code == 422
+    assert response.get_json()["code"] == "invalid_assistant_turn"
+
+
+def test_assistant_capability_tool_is_the_public_guide_projection() -> None:
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=unavailable)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=unavailable)),
+    )
+    client = app.test_client()
+
+    public = client.get("/api/data-platform/v1/assistant/capabilities")
+    tool = client.post("/api/data-platform/v1/tools/platform.capabilities.v1", json={})
+
+    assert public.status_code == 200
+    assert tool.status_code == 200
+    assert tool.get_json() == public.get_json()
+    assert tool.get_json()["features"][0]["status"] == "available"
+
+
+def test_release_list_tool_proxies_bounded_release_evidence() -> None:
+    release_id = "60000000-0000-0000-0000-000000000001"
+
+    def database(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/internal/data-platform/v1/releases"
+        assert request.url.params["status"] == "candidate"
+        assert request.url.params["dataset_id"] == "gnaf-address"
+        assert request.url.params["limit"] == "50"
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "id": release_id,
+                        "dataset_id": "gnaf-address",
+                        "status": "candidate",
+                        "record_count": 5_190_134,
+                        "manifest_json": {"geography_coverage": ["large"] * 5_000},
+                        "coverage_json": {"localities": ["large"] * 5_000},
+                    }
+                ],
+                "count": 1,
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/tools/releases.list.v1",
+        json={"status": "candidate", "dataset_id": "gnaf-address", "limit": 999},
+    )
+
+    assert response.status_code == 200
+    item = response.get_json()["items"][0]
+    assert item["record_count"] == 5_190_134
+    assert "manifest_json" not in item
+    assert "coverage_json" not in item
+
+
+def test_run_list_tool_omits_large_snapshots_and_lease_internals() -> None:
+    def database(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/internal/data-platform/v1/runs"
+        assert request.url.params["status"] == "succeeded"
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "id": "70000000-0000-0000-0000-000000000001",
+                        "source_name": "G-NAF Open NSW",
+                        "status": "succeeded",
+                        "requested_scope_json": {
+                            "profile": "full-data",
+                            "all_records": True,
+                        },
+                        "rows_accepted": 5_190_134,
+                        "source_snapshot_json": {"objects": [{"secret": "large"}] * 70},
+                        "lease_token": "internal-token",
+                    }
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/tools/runs.list.v1",
+        json={"status": "succeeded"},
+    )
+
+    assert response.status_code == 200
+    item = response.get_json()["items"][0]
+    assert item["rows_accepted"] == 5_190_134
+    assert item["requested_scope_json"]["profile"] == "full-data"
+    assert "source_snapshot_json" not in item
+    assert "lease_token" not in item
+
+
+def test_run_list_tool_defaults_to_ten_succeeded_runs() -> None:
+    def database(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["status"] == "succeeded"
+        assert request.url.params["limit"] == "10"
+        return httpx.Response(200, json={"items": []})
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post("/api/data-platform/v1/tools/runs.list.v1", json={})
+
+    assert response.status_code == 200
+    assert response.get_json() == {"items": [], "count": 0}
+
+
+def test_property_inspection_tool_returns_bounded_evidence_shape() -> None:
+    property_ref = "a0000000-0000-0000-0000-000000000002"
+
+    def database(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == f"/internal/data-platform/v1/properties/{property_ref}"
+        return httpx.Response(
+            200,
+            json={
+                "property": {"property_ref": property_ref, "address_display": "12 Example St"},
+                "identifiers": [{"scheme": "gnaf_pid"}] * 30,
+                "aliases": [{"address": "Alias"}] * 30,
+                "coverage": [{"dataset_id": "gnaf-nsw"}] * 30,
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/tools/properties.inspect.v1",
+        json={"property_ref": property_ref},
+    )
+
+    assert response.status_code == 200
+    assert set(response.get_json()) == {"property", "identifiers", "aliases", "coverage"}
+    assert len(response.get_json()["identifiers"]) == 25
+    assert len(response.get_json()["aliases"]) == 25
+    assert len(response.get_json()["coverage"]) == 25
 
 
 def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> None:

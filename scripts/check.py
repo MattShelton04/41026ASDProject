@@ -20,6 +20,7 @@ CORE_TEST_PATHS = (
 FRONTEND_TEST_PATHS = (
     "student-1/tests/frontend/core.test.mjs",
     "shared/frontend/dashboard.test.mjs",
+    "shared/frontend/ai-chat/ai-chat.test.mjs",
     "shared/frontend/mapping/mapping.test.mjs",
     "shared/frontend/operations/ai-mode/polling.test.mjs",
 )

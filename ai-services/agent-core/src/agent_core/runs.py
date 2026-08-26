@@ -26,6 +26,7 @@ def create_run(
         prompt_set=request.prompt_set,
         model_profile=request.model_profile,
         limits=request.limits,
+        tool_allowlist=request.tool_allowlist,
         created_at=now,
         updated_at=now,
     )

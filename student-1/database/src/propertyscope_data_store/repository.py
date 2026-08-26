@@ -18,7 +18,12 @@ from psycopg import Connection, errors, sql
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-from propertyscope_data_store.errors import ConflictError, LeaseConflictError, NotFoundError
+from propertyscope_data_store.errors import (
+    ConflictError,
+    LeaseConflictError,
+    NotFoundError,
+    ValidationError,
+)
 from propertyscope_data_store.import_profiles import (
     ImportResult,
     PreparedImport,
@@ -52,8 +57,34 @@ from propertyscope_data_store.query_specs import (
 )
 
 JsonObject = dict[str, Any]
+PROPERTY_SEARCH_CANDIDATE_LIMIT = 500
+PROPERTY_SEARCH_UNDERSPECIFIED_TERMS = frozenset(
+    {
+        "australia",
+        "nsw",
+        "street",
+        "st",
+        "road",
+        "rd",
+        "avenue",
+        "ave",
+        "drive",
+        "dr",
+        "lane",
+        "ln",
+        "court",
+        "ct",
+        "place",
+        "pl",
+        "highway",
+        "hwy",
+        "unit",
+        "lot",
+    }
+)
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_IMPORT_STATES = frozenset({"succeeded", "failed", "cancelled"})
+TERMINAL_ACTIVATION_STATES = frozenset({"succeeded", "failed"})
 
 
 @dataclass(frozen=True)
@@ -62,12 +93,36 @@ class PropertySearchResults:
 
     items: list[JsonObject]
     total: int
+    total_is_lower_bound: bool = False
 
 
 def _normalise_property_query(query: str) -> str:
     """Align user input with the punctuation-neutral registry search documents."""
 
     return re.sub(r"[^a-z0-9]+", " ", query.lower()).strip()
+
+
+def _property_query_is_underspecified(normalised: str) -> bool:
+    """Reject common address vocabulary that cannot selectively identify a property."""
+
+    tokens = tuple(normalised.split())
+    distinctive = tuple(
+        token for token in tokens if token not in PROPERTY_SEARCH_UNDERSPECIFIED_TERMS
+    )
+    if not distinctive:
+        return bool(tokens)
+    return len(distinctive) == 1 and distinctive[0].isalpha() and len(distinctive[0]) < 8
+
+
+def _activation_receipt_matches(evidence: Mapping[str, Any]) -> bool:
+    return (
+        evidence.get("receipt_status") == "accepted"
+        and evidence.get("receipt_schema_version") == evidence.get("schema_version")
+        and evidence.get("receipt_content_sha256") == evidence.get("content_sha256")
+        and int(evidence.get("rows_received", -1)) == int(evidence.get("record_count", -2))
+        and int(evidence.get("rows_accepted", -1)) == int(evidence.get("record_count", -2))
+        and int(evidence.get("rows_rejected", -1)) == 0
+    )
 
 
 class PropertyScopeStore:
@@ -106,11 +161,18 @@ class PropertyScopeStore:
                     """SELECT postgis_version() AS version,
                     to_regclass('ops.run_task') AS run_task,
                     to_regclass('ops.import_operation') AS import_operation,
+                    to_regclass('ops.release_activation') AS release_activation,
                     to_regclass('warehouse.gnaf_address') AS gnaf_address"""
                 ).fetchone()
             return row is not None and all(
                 bool(row[field])
-                for field in ("version", "run_task", "import_operation", "gnaf_address")
+                for field in (
+                    "version",
+                    "run_task",
+                    "import_operation",
+                    "release_activation",
+                    "gnaf_address",
+                )
             )
         except Exception:
             return False
@@ -122,6 +184,7 @@ class PropertyScopeStore:
             "ops.ingestion_run",
             "ops.run_task",
             "ops.import_operation",
+            "ops.release_activation",
             "ops.artifact_record",
             "ops.quality_result",
             "ops.dataset_release",
@@ -1256,6 +1319,353 @@ class PropertyScopeStore:
             return raced, False
         return _dict(row), True
 
+    def release_activations(self, release_id: uuid.UUID) -> list[JsonObject]:
+        return self._fetch_all(
+            """SELECT * FROM ops.release_activation WHERE dataset_release_id=%s
+            ORDER BY requested_at""",
+            (release_id,),
+        )
+
+    def create_release_activation(
+        self, release_id: uuid.UUID, values: Mapping[str, Any]
+    ) -> tuple[JsonObject, bool]:
+        """Durably queue source-scale materialisation without changing the live pointer."""
+        receipt_id = uuid.UUID(str(values["publication_receipt_id"]))
+        expected_version = int(values["expected_release_version"])
+        comment = str(values["comment"]).strip()
+        idempotency_key = str(values["idempotency_key"]).strip()
+        if not comment or not idempotency_key:
+            raise ConflictError("activation comment and idempotency key are required")
+        existing = self._fetch_one(
+            "SELECT * FROM ops.release_activation WHERE idempotency_key=%s",
+            (idempotency_key,),
+        )
+        if existing is not None:
+            expected = (release_id, receipt_id, expected_version, comment)
+            actual = (
+                uuid.UUID(str(existing["dataset_release_id"])),
+                uuid.UUID(str(existing["publication_receipt_id"])),
+                int(existing["expected_release_version"]),
+                str(existing["review_comment"]),
+            )
+            if actual != expected:
+                raise ConflictError("activation idempotency key arguments do not match")
+            return existing, False
+        with self.connection() as connection:
+            evidence = connection.execute(
+                """SELECT release.*,receipt.id AS receipt_id,
+                receipt.status AS receipt_status,receipt.schema_version AS receipt_schema_version,
+                receipt.content_sha256 AS receipt_content_sha256,
+                receipt.rows_received,receipt.rows_accepted,receipt.rows_rejected
+                FROM ops.dataset_release release JOIN ops.publication_receipt receipt
+                  ON receipt.dataset_release_id=release.id
+                WHERE release.id=%s AND receipt.id=%s""",
+                (release_id, receipt_id),
+            ).fetchone()
+            if evidence is None:
+                raise NotFoundError("release or publication receipt does not exist")
+            if evidence["status"] != "awaiting_review":
+                raise ConflictError("only a release awaiting review can be activated")
+            if int(evidence["version"]) != expected_version:
+                raise ConflictError("release version does not match")
+            if not _activation_receipt_matches(evidence):
+                raise ConflictError("matching accepted consumer receipt is required")
+            blocking = connection.execute(
+                """SELECT count(*) AS count FROM ops.quality_result
+                WHERE dataset_release_id=%s AND severity='blocking' AND status='fail'""",
+                (release_id,),
+            ).fetchone()
+            if blocking and int(blocking["count"]):
+                raise ConflictError("release has blocking quality failures")
+            now = datetime.now(UTC)
+            try:
+                row = connection.execute(
+                    """INSERT INTO ops.release_activation (
+                        id,dataset_release_id,publication_receipt_id,expected_release_version,
+                        review_comment,status,attempt_number,idempotency_key,requested_at,version
+                    ) VALUES (%s,%s,%s,%s,%s,'queued',1,%s,%s,1) RETURNING *""",
+                    (
+                        uuid.uuid4(),
+                        release_id,
+                        receipt_id,
+                        expected_version,
+                        comment,
+                        idempotency_key,
+                        now,
+                    ),
+                ).fetchone()
+                connection.commit()
+            except errors.UniqueViolation:
+                raced = self._required(
+                    "SELECT * FROM ops.release_activation WHERE idempotency_key=%s",
+                    (idempotency_key,),
+                )
+                actual = (
+                    uuid.UUID(str(raced["dataset_release_id"])),
+                    uuid.UUID(str(raced["publication_receipt_id"])),
+                    int(raced["expected_release_version"]),
+                    str(raced["review_comment"]),
+                )
+                if actual != (release_id, receipt_id, expected_version, comment):
+                    raise ConflictError(
+                        "activation idempotency key arguments do not match"
+                    ) from None
+                return raced, False
+        return _dict(row), True
+
+    def get_release_activation(self, operation_id: uuid.UUID) -> JsonObject:
+        return self._required("SELECT * FROM ops.release_activation WHERE id=%s", (operation_id,))
+
+    def claim_release_activation(self, *, worker_id: str, lease_seconds: int) -> JsonObject | None:
+        """Claim one activation, recovering an expired worker up to a bounded attempt limit."""
+        now = datetime.now(UTC)
+        token = uuid.uuid4().hex
+        with self.connection() as connection:
+            connection.execute(
+                """UPDATE ops.release_activation SET status='failed',finished_at=%s,
+                error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
+                heartbeat_at=NULL,version=version+1
+                WHERE status IN ('claimed','running','interrupted')
+                  AND (lease_expires_at IS NULL OR lease_expires_at<=%s)
+                  AND attempt_number>=3""",
+                (
+                    now,
+                    _json(
+                        {
+                            "code": "activation_retry_limit",
+                            "message": "Publication activation exceeded its recovery limit",
+                            "retryable": False,
+                        }
+                    ),
+                    now,
+                ),
+            )
+            row = connection.execute(
+                """WITH candidate AS (
+                    SELECT id,status FROM ops.release_activation
+                    WHERE status='queued' OR (
+                        status IN ('claimed','running','interrupted')
+                        AND (lease_expires_at IS NULL OR lease_expires_at<=%s)
+                        AND attempt_number<3
+                    ) ORDER BY requested_at FOR UPDATE SKIP LOCKED LIMIT 1
+                ) UPDATE ops.release_activation operation SET status='claimed',
+                    attempt_number=CASE WHEN candidate.status='queued'
+                        THEN operation.attempt_number ELSE operation.attempt_number+1 END,
+                    lease_owner=%s,lease_token=%s,lease_expires_at=%s,heartbeat_at=%s,
+                    started_at=COALESCE(operation.started_at,%s),version=operation.version+1
+                FROM candidate WHERE operation.id=candidate.id RETURNING operation.*""",
+                (
+                    now,
+                    worker_id,
+                    token,
+                    now + timedelta(seconds=lease_seconds),
+                    now,
+                    now,
+                ),
+            ).fetchone()
+            connection.commit()
+        return _dict(row) if row else None
+
+    def heartbeat_release_activation(
+        self,
+        operation_id: uuid.UUID,
+        *,
+        worker_id: str,
+        lease_token: str,
+        lease_seconds: int,
+    ) -> JsonObject:
+        now = datetime.now(UTC)
+        with self.connection() as connection:
+            row = connection.execute(
+                """UPDATE ops.release_activation SET status='running',heartbeat_at=%s,
+                lease_expires_at=%s,version=version+1 WHERE id=%s AND lease_owner=%s
+                AND lease_token=%s AND lease_expires_at>%s
+                AND status IN ('claimed','running') RETURNING *""",
+                (
+                    now,
+                    now + timedelta(seconds=lease_seconds),
+                    operation_id,
+                    worker_id,
+                    lease_token,
+                    now,
+                ),
+            ).fetchone()
+            connection.commit()
+        if row is None:
+            raise LeaseConflictError("activation lease is stale or owned by another loader")
+        return _dict(row)
+
+    def materialize_release_activation(
+        self,
+        operation_id: uuid.UUID,
+        *,
+        worker_id: str,
+        lease_token: str,
+        stop_event: Event | None = None,
+        lease_failed_event: Event | None = None,
+    ) -> None:
+        """Validate a queued activation while all release-scoped records remain isolated."""
+        now = datetime.now(UTC)
+        with self.connection() as connection:
+            stopped = Event()
+
+            def monitor_stop() -> None:
+                if stop_event is None and lease_failed_event is None:
+                    return
+                while not stopped.wait(0.5):
+                    if (stop_event is not None and stop_event.is_set()) or (
+                        lease_failed_event is not None and lease_failed_event.is_set()
+                    ):
+                        connection.cancel()
+                        return
+
+            watcher = Thread(
+                target=monitor_stop, name=f"activation-cancel-{operation_id}", daemon=True
+            )
+            watcher.start()
+            try:
+                work = connection.execute(
+                    """SELECT operation.*,release.dataset_id,release.target_feature,
+                release.status AS release_status,release.version AS release_version
+                FROM ops.release_activation operation JOIN ops.dataset_release release
+                  ON release.id=operation.dataset_release_id
+                WHERE operation.id=%s AND operation.lease_owner=%s
+                  AND operation.lease_token=%s AND operation.lease_expires_at>%s
+                  AND operation.status IN ('claimed','running')""",
+                    (operation_id, worker_id, lease_token, now),
+                ).fetchone()
+                if work is None:
+                    raise LeaseConflictError("activation lease is stale or owned by another loader")
+                if work["release_status"] != "awaiting_review" or int(
+                    work["release_version"]
+                ) != int(work["expected_release_version"]):
+                    raise ConflictError("release changed while publication was queued")
+                # Canonical address reads resolve through accepted_generation directly to the
+                # immutable warehouse generation. Candidate rows therefore need no pre-pointer
+                # upsert into global registry tables, which would leak changed address fields.
+                connection.execute(
+                    """UPDATE ops.release_activation SET materialized_at=%s,version=version+1
+                WHERE id=%s AND lease_owner=%s AND lease_token=%s""",
+                    (now, operation_id, worker_id, lease_token),
+                )
+                connection.commit()
+            finally:
+                stopped.set()
+                watcher.join(timeout=2)
+
+    def finish_release_activation(
+        self,
+        operation_id: uuid.UUID,
+        *,
+        worker_id: str,
+        lease_token: str,
+        status: str,
+        error: Mapping[str, Any] | None,
+    ) -> JsonObject:
+        if status not in {*TERMINAL_ACTIVATION_STATES, "interrupted"}:
+            raise ConflictError(
+                "loader may finish activation only as succeeded, failed, or interrupted"
+            )
+        now = datetime.now(UTC)
+        with self.connection() as connection:
+            operation = connection.execute(
+                """SELECT operation.*,release.dataset_id,release.target_feature,
+                release.status AS release_status,release.version AS release_version,
+                receipt.status AS receipt_status,receipt.schema_version AS receipt_schema_version,
+                receipt.content_sha256 AS receipt_content_sha256,receipt.rows_received,
+                receipt.rows_accepted,receipt.rows_rejected,release.schema_version,
+                release.content_sha256,release.record_count
+                FROM ops.release_activation operation JOIN ops.dataset_release release
+                  ON release.id=operation.dataset_release_id
+                JOIN ops.publication_receipt receipt
+                  ON receipt.id=operation.publication_receipt_id
+                WHERE operation.id=%s FOR UPDATE OF operation,release""",
+                (operation_id,),
+            ).fetchone()
+            if operation is None:
+                raise NotFoundError("activation does not exist")
+            if operation["status"] == "succeeded" and status == "succeeded":
+                return _dict(operation)
+            if (
+                operation["lease_owner"] != worker_id
+                or operation["lease_token"] != lease_token
+                or operation["lease_expires_at"] is None
+                or operation["lease_expires_at"] <= now
+            ):
+                raise LeaseConflictError("activation lease is stale or owned by another loader")
+            if status in {"failed", "interrupted"}:
+                row = connection.execute(
+                    """UPDATE ops.release_activation SET status=%s,finished_at=%s,
+                    error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
+                    heartbeat_at=NULL,version=version+1 WHERE id=%s RETURNING *""",
+                    (status, now, _json(error) if error else None, operation_id),
+                ).fetchone()
+                connection.commit()
+                return _dict(row)
+            if operation["materialized_at"] is None:
+                raise ConflictError("activation materialisation has not completed")
+            if operation["release_status"] != "awaiting_review" or int(
+                operation["release_version"]
+            ) != int(operation["expected_release_version"]):
+                raise ConflictError("release changed while publication was queued")
+            if not _activation_receipt_matches(operation):
+                raise ConflictError("matching accepted consumer receipt is required")
+
+            # Serialize only the final pointer switch. No source-scale DML runs while this
+            # dataset-scoped lock or the accepted release row lock is held.
+            connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
+                (f"{operation['target_feature']}:{operation['dataset_id']}",),
+            )
+            predecessor = connection.execute(
+                """SELECT id FROM ops.dataset_release WHERE dataset_id=%s AND target_feature=%s
+                AND status='accepted' FOR UPDATE""",
+                (operation["dataset_id"], operation["target_feature"]),
+            ).fetchone()
+            if predecessor:
+                connection.execute(
+                    """UPDATE ops.dataset_release SET status='superseded',updated_at=%s,
+                    version=version+1 WHERE id=%s""",
+                    (now, predecessor["id"]),
+                )
+            release = connection.execute(
+                """UPDATE ops.dataset_release SET status='accepted',review_comment=%s,
+                accepted_at=%s,supersedes_release_id=%s,updated_at=%s,version=version+1
+                WHERE id=%s AND status='awaiting_review' AND version=%s RETURNING *""",
+                (
+                    operation["review_comment"],
+                    now,
+                    predecessor["id"] if predecessor else None,
+                    now,
+                    operation["dataset_release_id"],
+                    operation["expected_release_version"],
+                ),
+            ).fetchone()
+            if release is None:
+                raise ConflictError("release version does not match")
+            connection.execute(
+                """INSERT INTO serving.accepted_generation
+                (dataset_id,target_feature,dataset_release_id,activated_at,activated_by,version)
+                VALUES (%s,%s,%s,%s,'reviewed-publication',1)
+                ON CONFLICT (dataset_id,target_feature) DO UPDATE SET
+                dataset_release_id=excluded.dataset_release_id,activated_at=excluded.activated_at,
+                activated_by=excluded.activated_by,version=serving.accepted_generation.version+1""",
+                (
+                    operation["dataset_id"],
+                    operation["target_feature"],
+                    operation["dataset_release_id"],
+                    now,
+                ),
+            )
+            row = connection.execute(
+                """UPDATE ops.release_activation SET status='succeeded',finished_at=%s,
+                error_json=NULL,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
+                heartbeat_at=NULL,version=version+1 WHERE id=%s RETURNING *""",
+                (now, operation_id),
+            ).fetchone()
+            connection.commit()
+        return _dict(row)
+
     def transition_release(
         self, release_id: uuid.UUID, *, expected_version: int, target: str, comment: str
     ) -> JsonObject:
@@ -1270,6 +1680,8 @@ class PropertyScopeStore:
         current = self.get_release(release_id)
         if target not in allowed[str(current["status"])]:
             raise ConflictError(f"release cannot transition from {current['status']} to {target}")
+        if target == "accepted":
+            raise ConflictError("accepted publication must use the asynchronous activation queue")
         now = datetime.now(UTC)
         with self.connection() as connection:
             if target == "accepted":
@@ -1357,6 +1769,7 @@ class PropertyScopeStore:
         now: datetime,
         *,
         identifier_scheme: str,
+        include_coverage: bool = True,
     ) -> None:
         """Materialise only an accepted address generation into stable property identities."""
         connection.execute(
@@ -1380,7 +1793,20 @@ class PropertyScopeStore:
                 street_type=excluded.street_type,locality=excluded.locality,
                 postcode=excluded.postcode,address_search=excluded.address_search,geom=excluded.geom,
                 resolution_status=excluded.resolution_status,updated_at=excluded.updated_at,
-                version=registry.property.version+1""",
+                version=registry.property.version+1
+            WHERE (registry.property.address_display,registry.property.flat_type,
+                   registry.property.unit_number,registry.property.street_number_first,
+                   registry.property.street_number_suffix,registry.property.street_number_last,
+                   registry.property.street_name,registry.property.street_type,
+                   registry.property.locality,registry.property.postcode,
+                   registry.property.address_search,registry.property.geom,
+                   registry.property.resolution_status)
+              IS DISTINCT FROM
+                  (excluded.address_display,excluded.flat_type,excluded.unit_number,
+                   excluded.street_number_first,excluded.street_number_suffix,
+                   excluded.street_number_last,excluded.street_name,excluded.street_type,
+                   excluded.locality,excluded.postcode,excluded.address_search,excluded.geom,
+                   excluded.resolution_status)""",
             (now, now, release_id),
         )
         connection.execute(
@@ -1401,7 +1827,8 @@ class PropertyScopeStore:
                 %s::date,NULL,'source-authoritative',1,
                 jsonb_build_object('geocode_type',geocode_type,'source_crs',source_crs),%s
             FROM warehouse.gnaf_address WHERE dataset_release_id=%s
-            ON CONFLICT (scheme,identifier_value,source_release_id) DO UPDATE SET is_current=true""",
+            ON CONFLICT (scheme,identifier_value,source_release_id) DO UPDATE SET is_current=true
+            WHERE NOT registry.property_identifier.is_current""",
             (
                 identifier_scheme,
                 release_id,
@@ -1412,14 +1839,13 @@ class PropertyScopeStore:
                 release_id,
             ),
         )
-        connection.execute(
-            """UPDATE warehouse.gnaf_address SET property_ref=COALESCE(
-                property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid)
-                WHERE dataset_release_id=%s""",
-            (release_id,),
-        )
-        connection.execute(
-            """INSERT INTO serving.property_coverage (
+        # The stable UUID is deterministic and every downstream statement already derives it
+        # with COALESCE. Persisting the same value back into a source-scale immutable warehouse
+        # generation rewrote millions of tuples and all related indexes during publication.
+        # Keep the warehouse generation immutable and derive the registry key at this boundary.
+        if include_coverage:
+            connection.execute(
+                """INSERT INTO serving.property_coverage (
                 property_ref,dataset_id,target_feature,dataset_release_id,coverage_status,
                 coverage_scope,checked_at
             ) SELECT COALESCE(address.property_ref,
@@ -1432,9 +1858,15 @@ class PropertyScopeStore:
             ON CONFLICT (property_ref,dataset_id,target_feature) DO UPDATE SET
                 dataset_release_id=excluded.dataset_release_id,
                 coverage_status=excluded.coverage_status,
-                coverage_scope=excluded.coverage_scope,checked_at=excluded.checked_at""",
-            (now, release_id),
-        )
+                coverage_scope=excluded.coverage_scope,checked_at=excluded.checked_at
+            WHERE (serving.property_coverage.dataset_release_id,
+                   serving.property_coverage.coverage_status,
+                   serving.property_coverage.coverage_scope)
+              IS DISTINCT FROM
+                  (excluded.dataset_release_id,excluded.coverage_status,
+                   excluded.coverage_scope)""",
+                (now, release_id),
+            )
 
     # Property discovery reads only accepted serving evidence.
     def search_properties(
@@ -1443,14 +1875,87 @@ class PropertyScopeStore:
         normalised = _normalise_property_query(query)
         if not normalised:
             return PropertySearchResults(items=[], total=0)
+        if _property_query_is_underspecified(normalised):
+            raise ValidationError(
+                "q must include a street number, postcode, locality, or distinctive address term"
+            )
+        numeric_value: int | str | None = None
+        if normalised.isdigit() and len(normalised) == 4:
+            warehouse_match = "address.postcode=%s"
+            legacy_match = "property.postcode=%s"
+            alias_match = "FALSE"
+            numeric_value = normalised
+        elif normalised.isdigit():
+            warehouse_match = "address.street_number_first=%s"
+            legacy_match = "property.street_number_first=%s"
+            alias_match = "FALSE"
+            numeric_value = int(normalised)
+        else:
+            warehouse_match = (
+                "trim(regexp_replace(lower(address.address_display), "
+                "'[^a-z0-9]+',' ','g')) LIKE '%%' || %s || '%%'"
+            )
+            legacy_match = "property.address_search LIKE '%%' || %s || '%%'"
+            alias_match = "alias.alias_search LIKE '%%' || %s || '%%'"
+        search_params: list[Any] = [
+            numeric_value if numeric_value is not None else normalised,
+            PROPERTY_SEARCH_CANDIDATE_LIMIT + 1,
+            numeric_value if numeric_value is not None else normalised,
+        ]
+        if numeric_value is None:
+            search_params.append(normalised)
+        search_params.extend(
+            [
+                PROPERTY_SEARCH_CANDIDATE_LIMIT + 1,
+                PROPERTY_SEARCH_CANDIDATE_LIMIT,
+                normalised,
+                normalised,
+                normalised,
+                normalised,
+                normalised,
+                state,
+                PROPERTY_SEARCH_CANDIDATE_LIMIT,
+                limit,
+                offset,
+            ]
+        )
         rows = self._fetch_all(
-            """
-            WITH search_documents AS (
+            f"""
+            WITH accepted_addresses AS MATERIALIZED (
+                SELECT COALESCE(address.property_ref,
+                           md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
+                       address.address_display,address.locality,address.postcode,'NSW' AS state,
+                       CASE WHEN address.source_status='CURRENT' THEN 'verified'
+                            ELSE 'retired' END AS resolution_status,address.geom,
+                       trim(regexp_replace(lower(address.address_display),
+                           '[^a-z0-9]+',' ','g')) AS search_text,
+                       address.address_display AS matched_address,'canonical' AS match_kind
+                FROM warehouse.gnaf_address address
+                JOIN serving.accepted_generation accepted
+                  ON accepted.dataset_release_id=address.dataset_release_id
+                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+                WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
+                  AND {warehouse_match}
+                LIMIT %s
+            ), legacy_documents AS (
                 SELECT property.property_ref,property.address_display,property.locality,
                        property.postcode,property.state,property.resolution_status,property.geom,
                        property.address_search AS search_text,
                        property.address_display AS matched_address,'canonical' AS match_kind
                 FROM registry.property property
+                WHERE {legacy_match} AND EXISTS (
+                    SELECT 1 FROM registry.property_identifier identifier
+                    JOIN serving.accepted_generation accepted
+                      ON accepted.dataset_release_id=identifier.source_release_id
+                    WHERE identifier.property_ref=property.property_ref AND identifier.is_current
+                ) AND NOT EXISTS (
+                    SELECT 1 FROM warehouse.gnaf_address accepted_address
+                    JOIN serving.accepted_generation accepted
+                      ON accepted.dataset_release_id=accepted_address.dataset_release_id
+                    WHERE COALESCE(accepted_address.property_ref,
+                        md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
+                        =property.property_ref
+                )
                 UNION ALL
                 SELECT property.property_ref,property.address_display,property.locality,
                        property.postcode,property.state,property.resolution_status,property.geom,
@@ -1460,6 +1965,21 @@ class PropertyScopeStore:
                 JOIN serving.accepted_generation accepted
                   ON accepted.dataset_release_id=alias.source_release_id
                 WHERE alias.is_current
+                  AND {alias_match}
+                  AND NOT EXISTS (
+                      SELECT 1 FROM warehouse.gnaf_address accepted_address
+                      JOIN serving.accepted_generation accepted
+                        ON accepted.dataset_release_id=accepted_address.dataset_release_id
+                      WHERE COALESCE(accepted_address.property_ref,
+                          md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
+                          =property.property_ref
+                  )
+            ), search_documents AS MATERIALIZED (
+                SELECT * FROM accepted_addresses
+                UNION ALL SELECT * FROM legacy_documents
+                LIMIT %s
+            ), candidate_documents AS (
+                SELECT * FROM search_documents LIMIT %s
             ), candidates AS (
                 SELECT document.property_ref,document.address_display,document.locality,
                        document.postcode,document.state,document.resolution_status,
@@ -1473,79 +1993,100 @@ class PropertyScopeStore:
                        CASE
                            WHEN document.search_text=%s THEN 0
                            WHEN document.search_text LIKE %s || '%%' THEN 1
-                           WHEN document.search_text LIKE '%%' || %s || '%%' THEN 2
-                           WHEN NOT EXISTS (
-                               SELECT 1 FROM unnest(string_to_array(%s,' ')) AS token
-                               WHERE document.search_text NOT LIKE '%%' || token || '%%'
-                           ) THEN 3
-                           ELSE 4
+                           ELSE 2
                        END AS match_rank
-                FROM search_documents document
+                FROM candidate_documents document
                 WHERE document.state=%s
-                  AND EXISTS (
-                      SELECT 1 FROM registry.property_identifier identifier
-                      JOIN serving.accepted_generation accepted
-                        ON accepted.dataset_release_id=identifier.source_release_id
-                      WHERE identifier.property_ref=document.property_ref AND identifier.is_current
-                  )
-                  AND (
-                      document.search_text LIKE '%%' || %s || '%%'
-                      OR document.search_text %% %s
-                      OR %s <%% document.search_text
-                      OR NOT EXISTS (
-                          SELECT 1 FROM unnest(string_to_array(%s,' ')) AS token
-                          WHERE document.search_text NOT LIKE '%%' || token || '%%'
-                      )
-                  )
             ), best_matches AS (
                 SELECT DISTINCT ON (property_ref) * FROM candidates
                 ORDER BY property_ref,match_rank,score DESC,
                          CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END,matched_address
-            ), ranked AS (
-                SELECT best_matches.*,max(score) OVER () AS best_score,
-                       min(match_rank) OVER () AS best_rank
+            ), summary AS (
+                SELECT count(*)::bigint AS total_count,
+                       (SELECT count(*)>%s FROM search_documents) AS total_is_lower_bound
                 FROM best_matches
-            ), filtered AS (
-                SELECT * FROM ranked
-                WHERE match_rank < 4
-                   OR (best_rank = 4 AND score >= greatest(0.30,best_score - 0.12))
             )
-            SELECT property_ref,address_display,locality,postcode,state,resolution_status,
-                   longitude,latitude,score,matched_address,match_kind,
-                   CASE match_rank
-                       WHEN 0 THEN 'exact'
-                       WHEN 1 THEN 'prefix'
-                       WHEN 2 THEN 'contains'
-                       WHEN 3 THEN 'all_terms'
-                       ELSE 'fuzzy'
-                   END AS match_method,
-                   count(*) OVER () AS total_count
-            FROM filtered
-            ORDER BY match_rank,score DESC,address_display LIMIT %s OFFSET %s
+            SELECT page.*,summary.total_count,summary.total_is_lower_bound
+            FROM summary LEFT JOIN LATERAL (
+                SELECT property_ref,address_display,locality,postcode,state,resolution_status,
+                       longitude,latitude,score,matched_address,match_kind,
+                       CASE match_rank
+                           WHEN 0 THEN 'exact'
+                           WHEN 1 THEN 'prefix'
+                           ELSE 'contains'
+                       END AS match_method
+                FROM best_matches
+                ORDER BY match_rank,score DESC,address_display LIMIT %s OFFSET %s
+            ) page ON true
             """,
-            (
-                normalised,
-                normalised,
-                normalised,
-                normalised,
-                normalised,
-                normalised,
-                normalised,
-                state,
-                normalised,
-                normalised,
-                normalised,
-                normalised,
-                limit,
-                offset,
-            ),
+            search_params,
         )
-        total = int(rows[0].pop("total_count")) if rows else 0
-        for row in rows[1:]:
+        total = int(rows[0].get("total_count", 0)) if rows else 0
+        total_is_lower_bound = bool(rows[0].get("total_is_lower_bound", False)) if rows else False
+        page: list[JsonObject] = []
+        for row in rows:
             row.pop("total_count", None)
-        return PropertySearchResults(items=rows, total=total)
+            row.pop("total_is_lower_bound", None)
+            if row.get("property_ref") is not None:
+                page.append(row)
+        return PropertySearchResults(
+            items=page,
+            total=total,
+            total_is_lower_bound=total_is_lower_bound,
+        )
 
     def property_snapshot(self, property_ref: uuid.UUID) -> JsonObject:
+        accepted_address = self._fetch_one(
+            """SELECT jsonb_build_object(
+                'property_ref',COALESCE(address.property_ref,
+                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid),
+                'address_display',address.address_display,'flat_type',address.flat_type,
+                'unit_number',address.unit_number,
+                'street_number_first',address.street_number_first,
+                'street_number_suffix',address.street_number_suffix,
+                'street_number_last',address.street_number_last,
+                'street_name',COALESCE(address.street_name,address.address_display),
+                'street_type',address.street_type,'locality',address.locality,
+                'postcode',address.postcode,'state','NSW',
+                'address_search',trim(regexp_replace(lower(address.address_display),
+                    '[^a-z0-9]+',' ','g')),
+                'geometry',ST_AsGeoJSON(address.geom)::jsonb,
+                'longitude',ST_X(address.geom),'latitude',ST_Y(address.geom),
+                'resolution_status',CASE WHEN address.source_status='CURRENT'
+                    THEN 'verified' ELSE 'retired' END,
+                'created_at',address.created_at,'updated_at',address.created_at,'version',1
+            ) AS property,jsonb_build_object(
+                'id',md5('propertyscope-' ||
+                    CASE WHEN release.dataset_id='gnaf-nsw' THEN 'gnaf_pid'
+                         ELSE 'fixture_pid' END || '-identifier:' || release.id::text || ':' ||
+                         address.gnaf_pid)::uuid,
+                'property_ref',COALESCE(address.property_ref,
+                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid),
+                'scheme',CASE WHEN release.dataset_id='gnaf-nsw' THEN 'gnaf_pid'
+                              ELSE 'fixture_pid' END,
+                'identifier_value',address.gnaf_pid,'source_release_id',release.id,
+                'is_current',true,'valid_from',NULL,'valid_to',NULL,
+                'match_method','source-authoritative','match_confidence',1,
+                'evidence_json',jsonb_build_object('geocode_type',address.geocode_type,
+                    'source_crs',address.source_crs),'created_at',address.created_at
+            ) AS identifier
+            FROM warehouse.gnaf_address address
+            JOIN serving.accepted_generation accepted
+              ON accepted.dataset_release_id=address.dataset_release_id
+            JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+            WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
+              AND COALESCE(address.property_ref,
+                  md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
+            LIMIT 1""",
+            (property_ref,),
+        )
+        if accepted_address is not None:
+            return {
+                "property": dict(accepted_address["property"]),
+                "identifiers": [dict(accepted_address["identifier"])],
+                "aliases": [],
+                "coverage": self.property_coverage(property_ref),
+            }
         property_row = self._required(
             """SELECT *,ST_X(geom) AS longitude,ST_Y(geom) AS latitude,
             ST_AsGeoJSON(geom)::jsonb AS geometry FROM registry.property WHERE property_ref=%s""",
@@ -1568,15 +2109,46 @@ class PropertyScopeStore:
         }
 
     def property_coverage(self, property_ref: uuid.UUID) -> list[JsonObject]:
-        self._required(
-            "SELECT property_ref FROM registry.property WHERE property_ref=%s", (property_ref,)
+        exists = self._fetch_one(
+            """SELECT 1 AS present FROM warehouse.gnaf_address address
+            JOIN serving.accepted_generation accepted
+              ON accepted.dataset_release_id=address.dataset_release_id
+            WHERE COALESCE(address.property_ref,
+                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
+            UNION ALL SELECT 1 FROM registry.property WHERE property_ref=%s LIMIT 1""",
+            (property_ref, property_ref),
         )
+        if exists is None:
+            raise NotFoundError("record does not exist")
         return self._fetch_all(
-            """SELECT coverage.*,release.release_version,release.schema_version,release.accepted_at
-            FROM serving.property_coverage coverage LEFT JOIN ops.dataset_release release
-            ON release.id=coverage.dataset_release_id WHERE coverage.property_ref=%s
-            ORDER BY coverage.target_feature,coverage.dataset_id""",
-            (property_ref,),
+            """WITH accepted_identity AS (
+                SELECT COALESCE(address.property_ref,
+                           md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
+                       release.dataset_id,release.target_feature,
+                       release.id AS dataset_release_id,'supported' AS coverage_status,
+                       release.coverage_json AS coverage_scope,
+                       accepted.activated_at AS checked_at,release.release_version,
+                       release.schema_version,release.accepted_at
+                FROM warehouse.gnaf_address address
+                JOIN serving.accepted_generation accepted
+                  ON accepted.dataset_release_id=address.dataset_release_id
+                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+                WHERE COALESCE(address.property_ref,
+                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
+            ), retained_coverage AS (
+                SELECT coverage.*,release.release_version,release.schema_version,
+                       release.accepted_at
+                FROM serving.property_coverage coverage
+                LEFT JOIN ops.dataset_release release ON release.id=coverage.dataset_release_id
+                WHERE coverage.property_ref=%s AND NOT EXISTS (
+                    SELECT 1 FROM accepted_identity identity
+                    WHERE identity.dataset_id=coverage.dataset_id
+                      AND identity.target_feature=coverage.target_feature
+                )
+            )
+            SELECT * FROM accepted_identity UNION ALL SELECT * FROM retained_coverage
+            ORDER BY target_feature,dataset_id""",
+            (property_ref, property_ref),
         )
 
     def overview(self) -> JsonObject:
@@ -1591,7 +2163,13 @@ class PropertyScopeStore:
                 "SELECT count(*) AS count FROM ops.quality_result WHERE status='fail'"
             ).fetchone()
             properties = connection.execute(
-                "SELECT count(*) AS count FROM registry.property"
+                """SELECT COALESCE(max(CASE
+                    WHEN release.dataset_id IN ('gnaf-nsw','fixture-property')
+                    THEN COALESCE(NULLIF(release.coverage_json->>'source_record_count','')::bigint,
+                                  release.record_count)
+                    END),0) AS count
+                FROM serving.accepted_generation accepted
+                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id"""
             ).fetchone()
         return {
             "runs": _rows(runs),

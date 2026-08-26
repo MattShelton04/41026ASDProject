@@ -261,6 +261,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             {
                 "release": store.get_release(release_id),
                 "receipts": store.release_receipts(release_id),
+                "activations": store.release_activations(release_id),
             }
         )
 
@@ -311,6 +312,26 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         receipt, created = store.record_publication_receipt(release_id, payload())
         return jsonify({"receipt": receipt, "created": created}), 201 if created else 200
 
+    @api.post("/internal/data-platform/v1/releases/<uuid:release_id>/activations")
+    def releases_activation(release_id: uuid.UUID) -> tuple[Response, int]:
+        body = payload()
+        operation, created = store.create_release_activation(
+            release_id,
+            {
+                "publication_receipt_id": required_text(body, "publication_receipt_id"),
+                "expected_release_version": bounded_integer(
+                    body, "expected_release_version", minimum=1, maximum=1_000_000
+                ),
+                "comment": required_text(body, "comment"),
+                "idempotency_key": required_text(body, "idempotency_key"),
+            },
+        )
+        return jsonify({"activation": operation, "created": created}), 202
+
+    @api.get("/internal/data-platform/v1/activations/<uuid:operation_id>")
+    def activation_get(operation_id: uuid.UUID) -> Response:
+        return jsonify({"activation": store.get_release_activation(operation_id)})
+
     @api.get("/internal/data-platform/v1/properties/search")
     def property_search() -> Response:
         query = request.args.get("q", "").strip()
@@ -325,6 +346,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
                     "items": [],
                     "count": 0,
                     "total": 0,
+                    "total_is_lower_bound": False,
                     "limit": limit,
                     "offset": offset,
                     "next_offset": None,
@@ -339,6 +361,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
                 "items": results.items,
                 "count": len(results.items),
                 "total": results.total,
+                "total_is_lower_bound": results.total_is_lower_bound,
                 "limit": limit,
                 "offset": offset,
                 "next_offset": offset + len(results.items)

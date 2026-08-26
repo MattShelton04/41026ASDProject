@@ -10,7 +10,7 @@ import time
 import uuid
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from threading import Event
+from threading import Event, Thread
 from typing import Any
 
 from propertyscope_data_store.configuration import StoreSettings
@@ -22,6 +22,8 @@ from propertyscope_data_store.import_profiles import (
 from propertyscope_data_store.repository import PropertyScopeStore
 
 logger = logging.getLogger(__name__)
+ACTIVATION_LEASE_SECONDS = 120
+ACTIVATION_HEARTBEAT_SECONDS = 30
 
 
 class ImportCancelledError(RuntimeError):
@@ -48,6 +50,12 @@ class DatabaseLoader:
                 self.stop_event.wait(1.0)
 
     def run_once(self) -> bool:
+        activation = self.store.claim_release_activation(
+            worker_id=self.worker_id, lease_seconds=ACTIVATION_LEASE_SECONDS
+        )
+        if activation is not None:
+            self._activate(activation)
+            return True
         operation = self.store.claim_import(worker_id=self.worker_id, lease_seconds=86_400)
         if operation is None:
             return False
@@ -88,6 +96,94 @@ class DatabaseLoader:
                 ),
             )
         return True
+
+    def _activate(self, operation: dict[str, Any]) -> None:
+        """Materialise a reviewed release off-request, then atomically switch its pointer."""
+        operation_id = uuid.UUID(str(operation["id"]))
+        token = str(operation["lease_token"])
+        heartbeat_stop = Event()
+        heartbeat_failed = Event()
+
+        def heartbeat() -> None:
+            while not heartbeat_stop.wait(ACTIVATION_HEARTBEAT_SECONDS):
+                try:
+                    self.store.heartbeat_release_activation(
+                        operation_id,
+                        worker_id=self.worker_id,
+                        lease_token=token,
+                        lease_seconds=ACTIVATION_LEASE_SECONDS,
+                    )
+                except Exception:
+                    logger.exception("Publication activation heartbeat failed")
+                    heartbeat_failed.set()
+                    return
+
+        try:
+            self.store.heartbeat_release_activation(
+                operation_id,
+                worker_id=self.worker_id,
+                lease_token=token,
+                lease_seconds=ACTIVATION_LEASE_SECONDS,
+            )
+            heartbeater = Thread(
+                target=heartbeat,
+                name=f"activation-heartbeat-{operation_id}",
+                daemon=True,
+            )
+            heartbeater.start()
+            try:
+                self.store.materialize_release_activation(
+                    operation_id,
+                    worker_id=self.worker_id,
+                    lease_token=token,
+                    stop_event=self.stop_event,
+                    lease_failed_event=heartbeat_failed,
+                )
+            finally:
+                heartbeat_stop.set()
+                heartbeater.join(timeout=2)
+            if heartbeat_failed.is_set():
+                raise RuntimeError("publication activation lease could not be renewed")
+            if self.stop_event.is_set():
+                raise InterruptedError("database loader stopped during publication activation")
+            self.store.finish_release_activation(
+                operation_id,
+                worker_id=self.worker_id,
+                lease_token=token,
+                status="succeeded",
+                error=None,
+            )
+        except Exception:
+            interrupted = self.stop_event.is_set()
+            if interrupted:
+                logger.info(
+                    "Publication activation %s interrupted by loader shutdown", operation_id
+                )
+            else:
+                logger.exception("Publication activation %s failed", operation_id)
+            try:
+                self.store.finish_release_activation(
+                    operation_id,
+                    worker_id=self.worker_id,
+                    lease_token=token,
+                    status="interrupted" if interrupted else "failed",
+                    error={
+                        "code": (
+                            "loader_shutdown"
+                            if interrupted
+                            else "activation_materialization_failed"
+                        ),
+                        "message": (
+                            "Publication will resume after the database loader restarts"
+                            if interrupted
+                            else "Publication activation failed before the live pointer changed"
+                        ),
+                        "retryable": interrupted,
+                    },
+                )
+            except Exception:
+                # A lost database connection leaves the leased operation recoverable after expiry.
+                logger.exception("Publication activation outcome could not be persisted")
 
     def stop(self) -> None:
         self.stop_event.set()

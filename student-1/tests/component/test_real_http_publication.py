@@ -326,12 +326,13 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
         "accepted_at": None,
     }
     receipts: list[dict[str, Any]] = []
+    activations: list[dict[str, Any]] = []
     database = Flask(f"database-{dataset_id}")
 
     @database.get("/internal/data-platform/v1/releases/<release_id>")
     def get_release(release_id: str) -> Any:
         assert release_id == release["id"]
-        return jsonify({"release": release, "receipts": receipts})
+        return jsonify({"release": release, "receipts": receipts, "activations": activations})
 
     @database.get("/internal/data-platform/v1/releases/<release_id>/artifact")
     def get_artifact(release_id: str) -> Any:
@@ -358,13 +359,34 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
         receipts.append(receipt)
         return jsonify({"receipt": receipt, "created": True}), 201
 
-    @database.post("/internal/data-platform/v1/releases/<release_id>/transition")
-    def transition_release(release_id: str) -> Any:
+    @database.post("/internal/data-platform/v1/releases/<release_id>/activations")
+    def queue_activation(release_id: str) -> Any:
+        assert release_id == release["id"]
         body = request.get_json()
-        assert body["target"] == "accepted"
         assert receipts[-1]["status"] == "accepted"
-        release.update(status="accepted", version=3, accepted_at=FIXED_TIME.isoformat())
-        return jsonify({"release": release})
+        existing = next(
+            (item for item in activations if item["idempotency_key"] == body["idempotency_key"]),
+            None,
+        )
+        if existing is not None:
+            return jsonify({"activation": existing, "created": False}), 202
+        activation = {
+            "id": f"70000000-0000-0000-0000-{len(activations) + 1:012d}",
+            "dataset_release_id": release_id,
+            "publication_receipt_id": body["publication_receipt_id"],
+            "expected_release_version": body["expected_release_version"],
+            "idempotency_key": body["idempotency_key"],
+            "status": "queued",
+            "attempt_number": 1,
+            "requested_at": FIXED_TIME.isoformat(),
+            "started_at": None,
+            "materialized_at": None,
+            "finished_at": None,
+            "error_json": None,
+            "version": 1,
+        }
+        activations.append(activation)
+        return jsonify({"activation": activation, "created": True}), 202
 
     @database.get("/internal/data-platform/v1/releases")
     def list_releases() -> Any:
@@ -447,10 +469,31 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
                 headers={"Idempotency-Key": f"publish-{dataset_id}"},
                 json={"version": 2, "comment": "HTTP contract verified", "approved": True},
             )
-            assert publish.status_code == 200
-            assert release["status"] == "accepted"
+            assert publish.status_code == 202
+            assert publish.json()["activation"]["status"] == "queued"
+            assert release["status"] == "awaiting_review"
             if context.target_feature != "feature-1":
                 assert receipts[-1]["rows_accepted"] == len(json.loads(product.content)["records"])
+            pending_replay = httpx.post(
+                f"{backend_url}/api/data-platform/v1/dataset-releases/{release['id']}/publish",
+                headers={"Idempotency-Key": f"publish-{dataset_id}"},
+                json={"version": 2, "comment": "HTTP contract verified", "approved": True},
+            )
+            assert pending_replay.status_code == 202
+            assert pending_replay.json()["replayed"] is True
+            assert pending_replay.json()["activation"]["id"] == publish.json()["activation"]["id"]
+            assert len(receipts) == 1
+            assert len(activations) == 1
+
+            activation = activations[0]
+            activation.update(
+                status="succeeded",
+                started_at=FIXED_TIME.isoformat(),
+                materialized_at=FIXED_TIME.isoformat(),
+                finished_at=FIXED_TIME.isoformat(),
+                version=2,
+            )
+            release.update(status="accepted", version=3, accepted_at=FIXED_TIME.isoformat())
             accepted = httpx.get(
                 f"{backend_url}/api/data-platform/v1/data-products/{dataset_id}/accepted"
             )
@@ -464,6 +507,7 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
             assert replay.status_code == 200
             assert replay.json()["replayed"] is True
             assert len(receipts) == 1
+            assert len(activations) == 1
             accepted_again = httpx.get(
                 f"{backend_url}/api/data-platform/v1/data-products/{dataset_id}/accepted"
             )

@@ -2,6 +2,8 @@ name: Student 1 CI
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "student-1/**"
       - "shared/contracts/**"
@@ -109,8 +111,8 @@ jobs:
           curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/features/data-platform/design-system/tokens.css
           curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/operations/ai-mode/
           curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5200/
-          curl --fail --retry 10 --retry-all-errors 'http://127.0.0.1:5200/api/data-platform/v1/properties/search?q=Example&state=NSW&limit=10'
-          curl --fail --retry 10 --retry-all-errors 'http://127.0.0.1:5100/api/data-platform/v1/properties/search?q=Example&state=NSW&limit=10'
+          curl --fail --retry 10 --retry-all-errors 'http://127.0.0.1:5200/api/data-platform/v1/properties/search?q=11%20Example%20Street&state=NSW&limit=10'
+          curl --fail --retry 10 --retry-all-errors 'http://127.0.0.1:5100/api/data-platform/v1/properties/search?q=11%20Example%20Street&state=NSW&limit=10'
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:5100/features/market-intelligence/)" = "307"
           curl --silent --head http://127.0.0.1:5100/features/market-intelligence/ | grep --fixed-strings 'Location: /#features'
           test "$(curl --silent --output /tmp/propertyscope-problem.json --write-out '%{http_code}' http://127.0.0.1:5100/api/does-not-exist)" = "404"

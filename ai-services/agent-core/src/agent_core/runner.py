@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from typing import NoReturn
@@ -47,12 +49,22 @@ from shared_contracts import (
     StepPhase,
     StepStatus,
     ToolCall,
+    ToolDefinition,
     ToolError,
     ToolOutcome,
     ToolResult,
 )
 
 BLOCKED_STATUSES = TERMINAL_STATUSES | {RunStatus.REVIEW_REQUIRED}
+UUID_IDENTIFIER_PATTERN = re.compile(
+    r"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"
+)
+TYPED_OBJECTIVE_IDENTIFIER_PATTERN = re.compile(
+    r"(?i)\b(?P<label>release under investigation|accepted predecessor release|"
+    r"candidate_release_id|predecessor_release_id|release_id|ingestion_run_id|run_id|"
+    r"property_ref|record_ref)\s*[:=]\s*(?P<value>[0-9a-f]{8}-[0-9a-f]{4}-"
+    r"[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b"
+)
 
 
 class AgentRunner:
@@ -157,7 +169,7 @@ class AgentRunner:
             request = self._with_run_deadline(
                 self._prompt_builder.build_plan_request(
                     planning,
-                    self._tools.definitions_for(planning.feature_key),
+                    self._definitions_for_run(planning),
                     detail.steps,
                 ),
                 planning,
@@ -167,13 +179,13 @@ class AgentRunner:
                 request,
                 Plan,
                 max_repairs=run.limits.max_model_repairs,
-                validate=lambda plan: self._validate_model_plan(planning, plan),
+                validate=lambda plan: self._validate_model_plan(planning, plan, detail.steps),
             )
             if self._repeats_successful_plan(detail.steps, generated.value):
                 raise RunStalledError(
                     "planner repeated the previous plan after successful tool evidence"
                 )
-        except AgentCoreError as exc:
+        except (AgentCoreError, ValueError) as exc:
             return self._fail_with_step(planning, step, exc, code=self._error_code(exc))
 
         completed = self._complete_step(
@@ -194,7 +206,7 @@ class AgentRunner:
             ensure_within_limits(run, now=self._clock.now())
             plan, action_index = self._active_plan(detail.steps)
             action = plan.actions[action_index]
-            definition = self._tools.resolve(run.feature_key, action.tool_name)
+            definition = self._resolve_tool(run, action.tool_name)
             self._tools.validate_input(definition, action.arguments)
         except IndexError as exc:
             return self._fail(run, exc, code="plan_exhausted")
@@ -440,7 +452,7 @@ class AgentRunner:
                     Adaptation,
                     max_repairs=run.limits.max_model_repairs,
                 )
-            except AgentCoreError as exc:
+            except (AgentCoreError, ValueError) as exc:
                 return self._fail_with_step(in_progress, step, exc, code=self._error_code(exc))
             adaptation = generated.value
             output = {
@@ -522,10 +534,12 @@ class AgentRunner:
             return str(exc)
         if isinstance(exc, (AgentCoreError, IndexError)):
             return str(exc) or type(exc).__name__
+        if isinstance(exc, ValueError):
+            return "Prompt or model data failed validation"
         return "Unexpected orchestration failure"
 
     @staticmethod
-    def _error_code(exc: AgentCoreError) -> str:
+    def _error_code(exc: Exception) -> str:
         if isinstance(exc, ModelProviderError):
             return exc.code
         if isinstance(exc, RunLimitExceededError):
@@ -562,14 +576,175 @@ class AgentRunner:
 
         return signature(previous) == signature(candidate)
 
-    def _validate_model_plan(self, run: AgentRun, plan: Plan) -> None:
+    def _validate_model_plan(
+        self,
+        run: AgentRun,
+        plan: Plan,
+        prior_steps: tuple[AgentStep, ...] = (),
+    ) -> None:
         """Return tool-name and argument mistakes to bounded model repair before execution."""
+        successful_calls = self._successful_call_signatures(prior_steps)
         try:
             for action in plan.actions:
-                definition = self._tools.resolve(run.feature_key, action.tool_name)
+                definition = self._resolve_tool(run, action.tool_name)
                 self._tools.validate_input(definition, action.arguments)
+                self._validate_exact_identifiers(run, action.arguments, prior_steps)
+                signature = (
+                    action.tool_name,
+                    json.dumps(action.arguments, sort_keys=True, separators=(",", ":")),
+                )
+                if signature in successful_calls:
+                    raise ModelOutputValidationError(
+                        "plan repeats a tool call that already succeeded in this run"
+                    )
         except (ToolSchemaValidationError, UnknownToolError) as exc:
             raise ModelOutputValidationError(str(exc)) from exc
+
+    def _definitions_for_run(self, run: AgentRun) -> tuple[ToolDefinition, ...]:
+        """Apply a persisted per-run capability boundary before prompting."""
+        definitions = self._tools.definitions_for(run.feature_key)
+        if run.tool_allowlist is None:
+            return definitions
+        allowed = frozenset(run.tool_allowlist)
+        return tuple(definition for definition in definitions if definition.name in allowed)
+
+    def _resolve_tool(self, run: AgentRun, name: str) -> ToolDefinition:
+        """Enforce the same per-run boundary again at the execution boundary."""
+        if run.tool_allowlist is not None and name not in run.tool_allowlist:
+            raise UnknownToolError(f"tool is not allowlisted for this run: {name}")
+        return self._tools.resolve(run.feature_key, name)
+
+    @staticmethod
+    def _successful_call_signatures(
+        steps: tuple[AgentStep, ...],
+    ) -> set[tuple[str, str]]:
+        """Return canonical successful calls so replans cannot redo proven work."""
+        signatures: set[tuple[str, str]] = set()
+        for step in steps:
+            if step.phase is not StepPhase.ACT:
+                continue
+            result = step.output.get("tool_result")
+            call = step.input.get("tool_call")
+            if (
+                not isinstance(result, dict)
+                or result.get("outcome") != ToolOutcome.SUCCEEDED.value
+                or not isinstance(call, dict)
+                or not isinstance(call.get("tool_name"), str)
+                or not isinstance(call.get("arguments"), dict)
+            ):
+                continue
+            signatures.add(
+                (
+                    str(call["tool_name"]),
+                    json.dumps(call["arguments"], sort_keys=True, separators=(",", ":")),
+                )
+            )
+        return signatures
+
+    @staticmethod
+    def _validate_exact_identifiers(
+        run: AgentRun,
+        arguments: Mapping[str, JsonValue],
+        prior_steps: tuple[AgentStep, ...],
+    ) -> None:
+        """Reject UUIDs guessed by the model instead of supplied or discovered in-run."""
+        typed_supplied: dict[str, set[str]] = {}
+        typed_values: set[str] = set()
+        discovered: dict[str, set[str]] = {}
+
+        def identifier_kind(key: str, tool_name: str = "", path: tuple[str, ...] = ()) -> str:
+            normalized = key.lower()
+            if normalized in {"release_under_investigation", "accepted_predecessor_release"}:
+                return "release_id"
+            if normalized == "property_ref":
+                return "property_ref"
+            if normalized == "record_ref":
+                return "record_ref"
+            if normalized.endswith("release_id"):
+                return "release_id"
+            if normalized.endswith("run_id"):
+                return "run_id"
+            if normalized == "id":
+                parent = path[-2].lower() if len(path) >= 2 else ""
+                if parent in {"release", "candidate", "predecessor", "accepted_predecessor"}:
+                    return "release_id"
+                if parent in {"run", "ingestion_run"}:
+                    return "run_id"
+                if path[-2:] == ("items", "id"):
+                    if tool_name == "data.releases.v1":
+                        return "release_id"
+                    if tool_name == "data.runs.v1":
+                        return "run_id"
+            return normalized
+
+        for match in TYPED_OBJECTIVE_IDENTIFIER_PATTERN.finditer(run.objective):
+            kind = identifier_kind(match.group("label").replace(" ", "_"))
+            value = match.group("value")
+            typed_supplied.setdefault(kind, set()).add(value)
+            typed_values.add(value)
+        untyped_supplied = set(UUID_IDENTIFIER_PATTERN.findall(run.objective)).difference(
+            typed_values
+        )
+
+        def collect(
+            value: object,
+            *,
+            tool_name: str,
+            key: str = "",
+            path: tuple[str, ...] = (),
+        ) -> None:
+            if isinstance(value, dict):
+                for nested_key, nested in value.items():
+                    nested_name = str(nested_key)
+                    collect(
+                        nested,
+                        tool_name=tool_name,
+                        key=nested_name,
+                        path=(*path, nested_name),
+                    )
+                return
+            if isinstance(value, list):
+                for nested in value:
+                    collect(nested, tool_name=tool_name, key=key, path=path)
+                return
+            if isinstance(value, str) and UUID_IDENTIFIER_PATTERN.fullmatch(value):
+                discovered.setdefault(identifier_kind(key, tool_name, path), set()).add(value)
+
+        for step in prior_steps:
+            if step.phase is not StepPhase.ACT:
+                continue
+            result = step.output.get("tool_result")
+            if not isinstance(result, dict) or result.get("outcome") != ToolOutcome.SUCCEEDED.value:
+                continue
+            content = result.get("content")
+            call = step.input.get("tool_call")
+            tool_name = str(call.get("tool_name", "")) if isinstance(call, dict) else ""
+            collect(content, tool_name=tool_name)
+
+        def visit(value: object, key: str = "") -> None:
+            if isinstance(value, dict):
+                for nested_key, nested in value.items():
+                    visit(nested, str(nested_key))
+                return
+            if isinstance(value, list):
+                for nested in value:
+                    visit(nested, key)
+                return
+            if (
+                key != "idempotency_key"
+                and (key == "id" or key.endswith(("_id", "_ref")))
+                and isinstance(value, str)
+                and UUID_IDENTIFIER_PATTERN.fullmatch(value)
+                and value not in untyped_supplied
+                and value not in typed_supplied.get(identifier_kind(key), set())
+                and value not in discovered.get(identifier_kind(key), set())
+            ):
+                raise ModelOutputValidationError(
+                    f"{key} must copy an identifier supplied by the user "
+                    "or discovered by a prior tool"
+                )
+
+        visit(arguments)
 
     @staticmethod
     def _repeats_failed_read(

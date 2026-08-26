@@ -29,7 +29,7 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
     input.id = "property-search-query";
     input.type = "search";
     input.name = "q";
-    input.placeholder = 'Try "Sydney", "2000" or "11 Example Street"';
+    input.placeholder = 'Try "Parramatta", "2000" or "11 Example Street"';
     input.autocomplete = "street-address";
     input.minLength = 2;
     input.maxLength = 200;
@@ -41,7 +41,7 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
     search.type = "submit";
     append(form, searchField, search);
     const searchError = el("p", "form-error"); searchError.id = "property-search-error"; searchError.setAttribute("role", "alert");
-    const searchHelp = el("p", "search-help", "Type at least 2 characters. Punctuation and word order are optional; close spelling matches are included."); searchHelp.id = "property-search-help";
+    const searchHelp = el("p", "search-help", "Use a postcode, a distinctive locality, or a fuller street address. Punctuation is optional."); searchHelp.id = "property-search-help";
     append(hero, form, searchError, searchHelp);
     append(view, hero);
     const resultHost = el("div");
@@ -58,23 +58,29 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
         if (searchGeneration !== queryGeneration || !canHydrate(generation, routeGeneration, resultHost, "") || input.value.trim() !== query) return;
         let items = collection(result.body);
         let total = Number(result.body.total ?? items.length);
+        let totalIsLowerBound = Boolean(result.body.total_is_lower_bound);
+        let nextOffset = result.body.next_offset ?? null;
         if (result.body.supported === false) resultHost.replaceChildren(el("div", "notice warning", "This query is outside the supported NSW coverage. Try an NSW street address."));
         else if (!items.length) resultHost.replaceChildren(emptyState("No property found", "Check the spelling or try a broader part of the address, such as the suburb or postcode. Only current published NSW address records are searched."));
         else {
           const renderResults = () => renderPropertyResults(resultHost, items, query, {
             total,
+            totalIsLowerBound,
+            hasMore: nextOffset !== null,
             onLoadMore: async (control, errorHost) => {
               control.disabled = true;
               control.textContent = "Loading…";
               errorHost.textContent = "";
               try {
-                const page = await request(`properties/search${queryString({ q: query, state: "NSW", limit: PROPERTY_SEARCH_PAGE_SIZE, offset: items.length })}`);
+                const page = await request(`properties/search${queryString({ q: query, state: "NSW", limit: PROPERTY_SEARCH_PAGE_SIZE, offset: nextOffset })}`);
                 if (searchGeneration !== queryGeneration || !canHydrate(generation, routeGeneration, resultHost, "") || input.value.trim() !== query) return;
                 const known = new Set(items.map((item) => item.property_ref));
                 items = [...items, ...collection(page.body).filter((item) => !known.has(item.property_ref))];
                 total = Number(page.body.total ?? total);
+                totalIsLowerBound = Boolean(page.body.total_is_lower_bound);
+                nextOffset = page.body.next_offset ?? null;
                 renderResults();
-                announce(`${items.length} of ${total} property matches shown.`);
+                announce(`${items.length} of ${totalIsLowerBound ? "at least " : ""}${total} property matches shown.`);
               } catch (error) {
                 control.disabled = false;
                 control.textContent = "Show more matches";
@@ -83,7 +89,7 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
             },
           });
           renderResults();
-          announce(`${total} property ${total === 1 ? "match" : "matches"} found.`);
+          announce(`${totalIsLowerBound ? "At least " : ""}${total} property ${total === 1 ? "match" : "matches"} found.`);
         }
       } catch (error) {
         if (searchGeneration !== queryGeneration || !canHydrate(generation, routeGeneration, resultHost, "") || input.value.trim() !== query) return;
@@ -140,10 +146,10 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
     });
   }
 
-  function renderPropertyResults(host, items, query, { total, onLoadMore }) {
+  function renderPropertyResults(host, items, query, { total, totalIsLowerBound, hasMore, onLoadMore }) {
     const layout = el("section", "property-results");
     const summary = el("header", "property-results-heading");
-    append(summary, el("p", "eyebrow", "Search results"), el("h2", "", `${formatNumber(total)} ${total === 1 ? "property" : "properties"} found`), el("p", "", `Best matches for \u201c${query}\u201d. Search covers the current published NSW address records.`));
+    append(summary, el("p", "eyebrow", "Search results"), el("h2", "", `${totalIsLowerBound ? "At least " : ""}${formatNumber(total)} ${total === 1 ? "property" : "properties"} found`), el("p", "", `Best matches for \u201c${query}\u201d. Search covers the current published NSW address records.`));
     const listBody = el("div", "result-list");
     listBody.setAttribute("aria-label", "Property matches");
     items.forEach((item) => {
@@ -168,13 +174,13 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
       (item) => { const row = el("tr"); append(row, cell(item.address_display, "primary-cell"), cell(item.property_ref, "mono"), cell(item.latitude ?? "Unknown"), cell(item.longitude ?? "Unknown"), cell(badge(item.resolution_status || "unknown"))); return row; },
     );
     append(layout, summary, listBody);
-    if (items.length < total) {
+    if (hasMore) {
       const pagination = el("div", "property-results-pagination");
       const more = button("Show more matches", "button secondary");
       const moreError = el("p", "form-error");
       moreError.setAttribute("role", "alert");
       more.addEventListener("click", () => onLoadMore(more, moreError));
-      append(pagination, el("p", "", `Showing ${formatNumber(items.length)} of ${formatNumber(total)} matches`), more, moreError);
+      append(pagination, el("p", "", `Showing ${formatNumber(items.length)} of ${totalIsLowerBound ? "at least " : ""}${formatNumber(total)} matches`), more, moreError);
       append(layout, pagination);
     }
     append(layout, disclosurePanel("Match details", "Property references and recorded coordinates", coordinateRows));

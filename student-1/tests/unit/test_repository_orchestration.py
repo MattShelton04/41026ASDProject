@@ -3,15 +3,18 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import pytest
 from flask import Flask
 
 from propertyscope_data_store.api import create_blueprint, register_error_handlers
-from propertyscope_data_store.errors import ConflictError
+from propertyscope_data_store.errors import ConflictError, ValidationError
 from propertyscope_data_store.persistence_support import project_run
+from propertyscope_data_store.query_specs import PROPERTY_RECORD_SPEC
 from propertyscope_data_store.repository import (
+    PROPERTY_SEARCH_CANDIDATE_LIMIT,
     PropertyScopeStore,
     PropertySearchResults,
     _normalise_property_query,
@@ -401,10 +404,11 @@ def test_collection_rejects_unbounded_search_query() -> None:
 class PropertyQueryStore(PropertyScopeStore):
     def __init__(self) -> None:
         self.query = ""
+        self.params: Sequence[Any] = ()
 
     def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
-        del params
         self.query = " ".join(query.split())
+        self.params = params
         return []
 
 
@@ -415,17 +419,82 @@ def test_property_search_requires_an_accepted_identity_generation() -> None:
 
     assert results.items == []
     assert results.total == 0
-    assert "JOIN serving.accepted_generation accepted" in store.query
-    assert "accepted.dataset_release_id=identifier.source_release_id" in store.query
-    assert "identifier.is_current" in store.query
+    assert "accepted_addresses AS MATERIALIZED" in store.query
+    assert "FROM warehouse.gnaf_address address" in store.query
+    assert "accepted.dataset_release_id=address.dataset_release_id" in store.query
+    assert "COALESCE(address.property_ref, md5('propertyscope-gnaf:'" in store.query
     assert "registry.address_alias alias" in store.query
-    assert "document.search_text LIKE '%%' || %s || '%%'" in store.query
+    assert "lower(address.address_display)" in store.query
+    assert "LIKE '%%' || %s || '%%'" in store.query
     assert "word_similarity(%s,document.search_text)" in store.query
     assert "CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END" in store.query
-    assert "WHEN 3 THEN 'all_terms'" in store.query
-    assert "min(match_rank) OVER () AS best_rank" in store.query
-    assert "best_rank = 4 AND score >= greatest(0.30,best_score - 0.12)" in store.query
-    assert "count(*) OVER () AS total_count" in store.query
+    assert "document.search_text %% %s" not in store.query
+    assert "count(*) OVER ()" not in store.query
+    assert store.params[-2] == 25
+    assert store.query.count("%s") == len(store.params)
+
+
+def test_property_search_bounds_worst_case_documents_before_scoring() -> None:
+    store = PropertyQueryStore()
+
+    store.search_properties("parramatta", state="NSW", limit=25)
+
+    assert "search_documents AS MATERIALIZED" in store.query
+    assert "SELECT * FROM search_documents LIMIT %s" in store.query
+    assert store.query.index("candidate_documents AS") < store.query.index("candidates AS")
+    assert store.params.count(PROPERTY_SEARCH_CANDIDATE_LIMIT + 1) == 2
+    assert store.params.count(PROPERTY_SEARCH_CANDIDATE_LIMIT) == 2
+
+
+def test_property_search_excludes_legacy_rows_owned_by_the_accepted_warehouse() -> None:
+    store = PropertyQueryStore()
+
+    store.search_properties("parramatta", state="NSW", limit=25)
+
+    assert store.query.count("FROM warehouse.gnaf_address accepted_address") == 2
+    assert store.query.count("accepted_address.gnaf_pid)::uuid) =property.property_ref") == 2
+    assert store.query.count("accepted.dataset_release_id=accepted_address.dataset_release_id") == 2
+
+
+def test_property_search_reports_an_honest_bounded_total_without_full_count() -> None:
+    class BoundedSearchStore(PropertyQueryStore):
+        def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+            super()._fetch_all(query, params)
+            return [
+                {
+                    "property_ref": str(uuid.uuid4()),
+                    "total_count": PROPERTY_SEARCH_CANDIDATE_LIMIT,
+                    "total_is_lower_bound": True,
+                }
+                for _ in range(25)
+            ]
+
+    results = BoundedSearchStore().search_properties("parramatta", state="NSW", limit=25, offset=50)
+
+    assert len(results.items) == 25
+    assert results.total == PROPERTY_SEARCH_CANDIDATE_LIMIT
+    assert results.total_is_lower_bound is True
+
+
+def test_property_search_out_of_range_offset_retains_the_bounded_total() -> None:
+    class OutOfRangeSearchStore(PropertyQueryStore):
+        def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+            super()._fetch_all(query, params)
+            return [
+                {
+                    "property_ref": None,
+                    "total_count": 17,
+                    "total_is_lower_bound": False,
+                }
+            ]
+
+    results = OutOfRangeSearchStore().search_properties(
+        "parramatta", state="NSW", limit=25, offset=1_000_000
+    )
+
+    assert results.items == []
+    assert results.total == 17
+    assert results.total_is_lower_bound is False
 
 
 def test_property_search_normalises_display_punctuation() -> None:
@@ -443,6 +512,50 @@ def test_property_search_does_not_broaden_punctuation_only_input() -> None:
     assert results.items == []
     assert results.total == 0
     assert store.query == ""
+
+
+@pytest.mark.parametrize("query", ["street", "NSW", "street nsw", "road", "Sydney", "Sydney NSW"])
+def test_property_search_rejects_underspecified_common_queries(query: str) -> None:
+    store = PropertyQueryStore()
+
+    with pytest.raises(ValidationError, match="street number, postcode, locality"):
+        store.search_properties(query, state="NSW", limit=25)
+
+    assert store.query == ""
+
+
+@pytest.mark.parametrize("query", ["2000", "Parramatta", "11 Example Street"])
+def test_property_search_accepts_selective_property_queries(query: str) -> None:
+    store = PropertyQueryStore()
+
+    store.search_properties(query, state="NSW", limit=25)
+
+    assert store.query
+
+
+def test_property_search_uses_structured_columns_for_short_numeric_queries() -> None:
+    store = PropertyQueryStore()
+
+    store.search_properties("11", state="NSW", limit=25)
+
+    assert "address.street_number_first=%s" in store.query
+    assert "property.street_number_first=%s" in store.query
+    assert "alias.is_current AND FALSE" in store.query
+    assert "AND trim(regexp_replace(lower(address.address_display)" not in store.query
+    assert store.params[0] == 11
+    assert store.params[2] == 11
+    assert store.query.count("%s") == len(store.params)
+
+
+def test_property_search_uses_structured_columns_for_postcodes() -> None:
+    store = PropertyQueryStore()
+
+    store.search_properties("2000", state="NSW", limit=25)
+
+    assert "address.postcode=%s" in store.query
+    assert "property.postcode=%s" in store.query
+    assert store.params[0] == "2000"
+    assert store.params[2] == "2000"
 
 
 class PropertySearchApiStore:
@@ -483,12 +596,40 @@ def test_property_search_api_returns_stable_pagination_metadata() -> None:
         "items": response.get_json()["items"],
         "count": 1,
         "total": 3,
+        "total_is_lower_bound": False,
         "limit": 1,
         "offset": 2,
         "next_offset": None,
         "query": "Example",
         "supported": True,
     }
+
+
+def test_property_search_api_does_not_inflate_total_for_out_of_range_offset() -> None:
+    class OutOfRangeApiStore(PropertySearchApiStore):
+        def search_properties(
+            self, query: str, *, state: str, limit: int, offset: int = 0
+        ) -> PropertySearchResults:
+            self.page = (query, limit, offset)
+            return PropertySearchResults(items=[], total=17)
+
+    store = OutOfRangeApiStore()
+    app = Flask(__name__)
+    app.register_blueprint(
+        create_blueprint(cast(PropertyScopeStore, store), internal_token="secret")
+    )
+    register_error_handlers(app)
+
+    response = app.test_client().get(
+        "/internal/data-platform/v1/properties/search?q=Example&limit=25&offset=1000",
+        headers={"X-PropertyScope-Internal-Token": "secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["items"] == []
+    assert response.get_json()["total"] == 17
+    assert response.get_json()["total_is_lower_bound"] is False
+    assert response.get_json()["next_offset"] is None
 
 
 def test_release_collection_excludes_retired_assessment_sources() -> None:
@@ -539,6 +680,12 @@ def test_release_preview_uses_fixed_profile_projection_and_bounds() -> None:
     assert preview["profile"] == "schools-master"
     assert preview["total"] == 2210
     assert preview["next_offset"] == 51
+
+
+def test_gnaf_preview_derives_stable_property_ref_without_warehouse_rewrite() -> None:
+    assert "COALESCE(property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid)" in " ".join(
+        PROPERTY_RECORD_SPEC.select_sql.split()
+    )
 
 
 class ScopedPsiPreviewStore(PropertyScopeStore):
@@ -814,3 +961,240 @@ def test_publication_idempotency_key_cannot_be_reused_for_another_release() -> N
                 "request_id": "request-1",
             },
         )
+
+
+def test_address_publication_does_not_rewrite_immutable_warehouse_generation() -> None:
+    """A source-scale publish derives stable IDs without updating every warehouse row."""
+    release_id = uuid.uuid4()
+    connection = ScriptedConnection([None, None, None, None])
+
+    ConnectedStore(connection)._publish_address_property_spine(
+        cast(Any, connection),
+        release_id,
+        datetime(2026, 8, 26, tzinfo=UTC),
+        identifier_scheme="gnaf_pid",
+    )
+
+    assert not any("UPDATE warehouse.gnaf_address" in query for query in connection.queries)
+    property_upsert = next(
+        query for query in connection.queries if "INSERT INTO registry.property" in query
+    )
+    identifier_upsert = next(
+        query for query in connection.queries if "INSERT INTO registry.property_identifier" in query
+    )
+    coverage_upsert = next(
+        query for query in connection.queries if "INSERT INTO serving.property_coverage" in query
+    )
+    assert "IS DISTINCT FROM" in property_upsert
+    assert "WHERE NOT registry.property_identifier.is_current" in identifier_upsert
+    assert "IS DISTINCT FROM" in coverage_upsert
+
+
+def test_activation_queue_validates_receipt_without_switching_accepted_pointer() -> None:
+    release_id = uuid.uuid4()
+    receipt_id = uuid.uuid4()
+    operation_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            None,
+            {
+                "id": release_id,
+                "status": "awaiting_review",
+                "version": 4,
+                "schema_version": "propertyscope.property-snapshot.v1",
+                "content_sha256": "a" * 64,
+                "record_count": 5_190_134,
+                "receipt_id": receipt_id,
+                "receipt_status": "accepted",
+                "receipt_schema_version": "propertyscope.property-snapshot.v1",
+                "receipt_content_sha256": "a" * 64,
+                "rows_received": 5_190_134,
+                "rows_accepted": 5_190_134,
+                "rows_rejected": 0,
+            },
+            {"count": 0},
+            {
+                "id": operation_id,
+                "dataset_release_id": release_id,
+                "publication_receipt_id": receipt_id,
+                "expected_release_version": 4,
+                "review_comment": "Reviewed full source",
+                "status": "queued",
+            },
+        ]
+    )
+
+    operation, created = ConnectedStore(connection).create_release_activation(
+        release_id,
+        {
+            "publication_receipt_id": receipt_id,
+            "expected_release_version": 4,
+            "comment": "Reviewed full source",
+            "idempotency_key": "publish-large-gnaf",
+        },
+    )
+
+    assert created is True
+    assert operation["status"] == "queued"
+    assert not any("status='accepted'" in query for query in connection.queries)
+    assert not any("serving.accepted_generation" in query for query in connection.queries)
+    assert connection.committed is True
+
+
+def test_activation_claim_recovers_expired_lease_with_bounded_attempts() -> None:
+    operation_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            None,
+            {
+                "id": operation_id,
+                "status": "claimed",
+                "attempt_number": 2,
+                "lease_owner": "loader-2",
+                "lease_token": "new-token",
+            },
+        ]
+    )
+
+    claimed = ConnectedStore(connection).claim_release_activation(
+        worker_id="loader-2", lease_seconds=120
+    )
+
+    assert claimed is not None and claimed["id"] == str(operation_id)
+    retry_limit = connection.queries[0]
+    claim = connection.queries[1]
+    assert "attempt_number>=3" in retry_limit
+    assert "lease_expires_at<=%s" in claim
+    assert "attempt_number<3" in claim
+    assert "FOR UPDATE SKIP LOCKED LIMIT 1" in claim
+
+
+def test_activation_state_trace_terminalises_an_interrupted_third_attempt() -> None:
+    connection = ScriptedConnection([None, None])
+
+    claimed = ConnectedStore(connection).claim_release_activation(
+        worker_id="loader-4", lease_seconds=120
+    )
+
+    assert claimed is None
+    terminalise = connection.queries[0]
+    assert "UPDATE ops.release_activation SET status='failed'" in terminalise
+    assert "status IN ('claimed','running','interrupted')" in terminalise
+    assert "lease_expires_at IS NULL OR lease_expires_at<=%s" in terminalise
+    assert "attempt_number>=3" in terminalise
+    claim = connection.queries[1]
+    assert "attempt_number<3" in claim
+    assert connection.committed is True
+
+
+def test_activation_final_pointer_transaction_contains_no_source_scale_dml() -> None:
+    release_id = uuid.uuid4()
+    operation_id = uuid.uuid4()
+    predecessor_id = uuid.uuid4()
+    now = datetime.now(UTC)
+    operation = {
+        "id": operation_id,
+        "dataset_release_id": release_id,
+        "publication_receipt_id": uuid.uuid4(),
+        "expected_release_version": 4,
+        "review_comment": "Reviewed full source",
+        "status": "running",
+        "lease_owner": "loader-1",
+        "lease_token": "token",
+        "lease_expires_at": now + timedelta(minutes=2),
+        "materialized_at": now,
+        "dataset_id": "gnaf-nsw",
+        "target_feature": "feature-1",
+        "release_status": "awaiting_review",
+        "release_version": 4,
+        "receipt_status": "accepted",
+        "receipt_schema_version": "propertyscope.property-snapshot.v1",
+        "receipt_content_sha256": "b" * 64,
+        "rows_received": 5_190_134,
+        "rows_accepted": 5_190_134,
+        "rows_rejected": 0,
+        "schema_version": "propertyscope.property-snapshot.v1",
+        "content_sha256": "b" * 64,
+        "record_count": 5_190_134,
+    }
+    connection = ScriptedConnection(
+        [
+            operation,
+            None,
+            {"id": predecessor_id},
+            None,
+            {"id": release_id, "status": "accepted"},
+            None,
+            {**operation, "status": "succeeded"},
+        ]
+    )
+
+    result = ConnectedStore(connection).finish_release_activation(
+        operation_id,
+        worker_id="loader-1",
+        lease_token="token",
+        status="succeeded",
+        error=None,
+    )
+
+    assert result["status"] == "succeeded"
+    assert any("pg_advisory_xact_lock" in query for query in connection.queries)
+    assert any("INSERT INTO serving.accepted_generation" in query for query in connection.queries)
+    assert not any("warehouse." in query for query in connection.queries)
+    assert not any("registry." in query for query in connection.queries)
+    assert not any("serving.property_coverage" in query for query in connection.queries)
+
+
+def test_activation_preparation_cannot_change_accepted_visible_address_fields() -> None:
+    release_id = uuid.uuid4()
+    operation_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            {
+                "id": operation_id,
+                "dataset_release_id": release_id,
+                "dataset_id": "gnaf-nsw",
+                "target_feature": "feature-1",
+                "release_status": "awaiting_review",
+                "release_version": 4,
+                "expected_release_version": 4,
+            },
+            None,
+        ]
+    )
+
+    ConnectedStore(connection).materialize_release_activation(
+        operation_id,
+        worker_id="loader-1",
+        lease_token="token",
+    )
+
+    assert connection.committed is True
+    assert any("SET materialized_at=%s" in query for query in connection.queries)
+    assert not any("registry.property" in query for query in connection.queries)
+    assert not any("warehouse.gnaf_address SET" in query for query in connection.queries)
+    assert not any("serving.property_coverage" in query for query in connection.queries)
+
+
+def test_property_coverage_derives_only_from_an_accepted_identity_generation() -> None:
+    property_ref = uuid.uuid4()
+
+    class CoverageStore(PropertyScopeStore):
+        def __init__(self) -> None:
+            self.query = ""
+
+        def _fetch_one(self, query: str, params: Sequence[Any]) -> dict[str, Any]:
+            del query, params
+            return {"present": 1}
+
+        def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+            assert params == (property_ref, property_ref)
+            self.query = " ".join(query.split())
+            return []
+
+    store = CoverageStore()
+
+    assert store.property_coverage(property_ref) == []
+    assert "JOIN serving.accepted_generation accepted" in store.query
+    assert "accepted.dataset_release_id=address.dataset_release_id" in store.query
+    assert "NOT EXISTS" in store.query

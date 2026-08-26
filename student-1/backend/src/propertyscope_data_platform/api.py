@@ -12,9 +12,17 @@ from typing import Any
 import httpx
 from flask import Blueprint, Response, jsonify, request
 from pydantic import ValidationError
+from werkzeug.datastructures import Headers
 
 from propertyscope_data_platform.approval import approved_tool_call
 from propertyscope_data_platform.artifacts import ArtifactError, LocalArtifactStore
+from propertyscope_data_platform.assistant import (
+    ASSISTANT_FEATURE_KEY,
+    ASSISTANT_TOOL_ALLOWLIST,
+    AssistantTurnRequest,
+    build_assistant_objective,
+    capability_guide,
+)
 from propertyscope_data_platform.clients import (
     AiModeClient,
     ConsumerImportClient,
@@ -104,6 +112,13 @@ def create_blueprint(
                 "showcase_available": True,
             }
         )
+
+    @api.get(f"{BASE}/assistant/capabilities")
+    def assistant_capabilities() -> Response:
+        """Expose the same bounded guide used by the model-facing read tool."""
+        if request.args:
+            return problem(422, "invalid_query", "Assistant capabilities take no query fields")
+        return jsonify(capability_guide())
 
     @api.get(f"{BASE}/data-products")
     def data_products() -> Response:
@@ -706,6 +721,62 @@ def create_blueprint(
         )
         return forward(upstream)
 
+    @api.post(f"{BASE}/assistant/turns")
+    def assistant_turn() -> Response:
+        """Create one feature-scoped durable run for one conversational turn."""
+        try:
+            command = AssistantTurnRequest.model_validate(json_body())
+        except ValidationError as exc:
+            issue = exc.errors(include_url=False)[0]
+            location = ".".join(str(item) for item in issue.get("loc", ())) or "request"
+            return problem(422, "invalid_assistant_turn", f"{location}: {issue['msg']}")
+        upstream = ai_mode.create_run(
+            {
+                "feature_key": ASSISTANT_FEATURE_KEY,
+                "objective": build_assistant_objective(command),
+                "prompt_set": "default.v4",
+                "tool_allowlist": list(ASSISTANT_TOOL_ALLOWLIST),
+                "limits": {
+                    "max_iterations": 6,
+                    "max_tool_calls": 10,
+                    "time_budget_ms": 180000,
+                    "max_model_repairs": 2,
+                },
+            },
+            request.headers,
+        )
+        return forward(upstream)
+
+    @api.get(f"{BASE}/assistant/turns/<uuid:run_id>")
+    def assistant_turn_detail(run_id: uuid.UUID) -> Response:
+        detail, owned = assistant_run(ai_mode, run_id, request.headers)
+        if detail.status_code >= 400:
+            return forward(detail)
+        if not owned:
+            return problem(404, "assistant_turn_not_found", "Assistant turn does not exist")
+        return forward(detail)
+
+    @api.get(f"{BASE}/assistant/turns/<uuid:run_id>/events")
+    def assistant_turn_events(run_id: uuid.UUID) -> Response:
+        detail, owned = assistant_run(ai_mode, run_id, request.headers)
+        if detail.status_code >= 400:
+            return forward(detail)
+        if not owned:
+            return problem(404, "assistant_turn_not_found", "Assistant turn does not exist")
+        suffix = ""
+        if request.query_string:
+            suffix = "?" + request.query_string.decode("ascii", errors="ignore")
+        return forward(ai_mode.get(f"/api/v1/agent-runs/{run_id}/events{suffix}", request.headers))
+
+    @api.post(f"{BASE}/assistant/turns/<uuid:run_id>/cancel")
+    def assistant_turn_cancel(run_id: uuid.UUID) -> Response:
+        detail, owned = assistant_run(ai_mode, run_id, request.headers)
+        if detail.status_code >= 400:
+            return forward(detail)
+        if not owned:
+            return problem(404, "assistant_turn_not_found", "Assistant turn does not exist")
+        return forward(ai_mode.cancel_run(str(run_id), request.headers))
+
     @api.get(f"{BASE}/agent-runs/<uuid:run_id>")
     def agent_run(run_id: uuid.UUID) -> Response:
         return forward(ai_mode.get(f"/api/v1/agent-runs/{run_id}", request.headers))
@@ -739,15 +810,80 @@ def create_blueprint(
             store.request("GET", f"{INTERNAL}/sources", headers=request.headers, params=params)
         )
 
+    @api.post(f"{BASE}/tools/releases.list.v1")
+    def tool_releases() -> Response:
+        body = json_body()
+        params: dict[str, Any] = {"limit": min(int(body.get("limit", 25)), 50)}
+        for name in ("status", "dataset_id", "target_feature"):
+            if body.get(name):
+                params[name] = str(body[name])
+        upstream = store.request(
+            "GET", f"{INTERNAL}/releases", headers=request.headers, params=params
+        )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        fields = (
+            "id",
+            "dataset_id",
+            "source_definition_id",
+            "ingestion_run_id",
+            "target_feature",
+            "release_version",
+            "schema_version",
+            "record_count",
+            "status",
+            "supersedes_release_id",
+            "accepted_at",
+            "created_at",
+            "updated_at",
+        )
+        summaries = [
+            {name: item.get(name) for name in fields if name in item}
+            for item in upstream.json().get("items", [])[:50]
+            if isinstance(item, dict)
+        ]
+        return jsonify({"items": summaries, "count": len(summaries)})
+
+    @api.post(f"{BASE}/tools/platform.capabilities.v1")
+    def tool_platform_capabilities() -> Response:
+        body = json_body()
+        if body:
+            return problem(422, "invalid_tool_input", "Capability guide takes no input fields")
+        return jsonify(capability_guide())
+
     @api.post(f"{BASE}/tools/runs.list.v1")
     def tool_runs() -> Response:
         body = json_body()
-        params: dict[str, Any] = {"limit": min(int(body.get("limit", 25)), 50)}
-        if body.get("status"):
-            params["status"] = str(body["status"])
-        return tool_envelope(
-            store.request("GET", f"{INTERNAL}/runs", headers=request.headers, params=params)
+        params: dict[str, Any] = {
+            "limit": min(int(body.get("limit", 10)), 25),
+            "status": str(body.get("status", "succeeded")),
+        }
+        upstream = store.request("GET", f"{INTERNAL}/runs", headers=request.headers, params=params)
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        fields = (
+            "id",
+            "job_definition_id",
+            "job_name",
+            "source_definition_id",
+            "source_name",
+            "status",
+            "run_mode",
+            "requested_scope_json",
+            "rows_discovered",
+            "rows_staged",
+            "rows_accepted",
+            "rows_rejected",
+            "requested_at",
+            "started_at",
+            "finished_at",
         )
+        summaries = [
+            {name: item.get(name) for name in fields if name in item}
+            for item in upstream.json().get("items", [])[:25]
+            if isinstance(item, dict)
+        ]
+        return jsonify({"items": summaries, "count": len(summaries)})
 
     @api.post(f"{BASE}/tools/runs.inspect.v1")
     def tool_run() -> Response:
@@ -849,8 +985,19 @@ def create_blueprint(
     @api.post(f"{BASE}/tools/properties.inspect.v1")
     def tool_property_inspect() -> Response:
         property_ref = required_uuid(json_body(), "property_ref")
-        return forward(
-            store.request("GET", f"{INTERNAL}/properties/{property_ref}", headers=request.headers)
+        upstream = store.request(
+            "GET", f"{INTERNAL}/properties/{property_ref}", headers=request.headers
+        )
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        snapshot = upstream.json()
+        return jsonify(
+            {
+                "property": snapshot["property"],
+                "identifiers": snapshot.get("identifiers", [])[:25],
+                "aliases": snapshot.get("aliases", [])[:25],
+                "coverage": snapshot.get("coverage", [])[:25],
+            }
         )
 
     @api.post(f"{BASE}/tools/runs.retry.v1")
@@ -1308,23 +1455,40 @@ def complete_publication(
     tool_output: bool,
     replayed: bool,
 ) -> Response:
-    published = store.request(
+    queued = store.request(
         "POST",
-        f"{INTERNAL}/releases/{release['id']}/transition",
+        f"{INTERNAL}/releases/{release['id']}/activations",
         headers=request.headers,
-        json={"version": version, "target": "accepted", "comment": comment},
+        json={
+            "publication_receipt_id": receipt["id"],
+            "expected_release_version": version,
+            "comment": comment,
+            "idempotency_key": receipt["consumer_operation_id"],
+        },
     )
-    if published.status_code >= 400:
-        return forward(published)
+    if queued.status_code >= 400:
+        return forward(queued)
+    activation = queued.json()["activation"]
     if tool_output:
-        return jsonify({"status": "accepted", "receipt_id": receipt["id"], "replayed": replayed})
-    return jsonify(
+        response = jsonify(
+            {
+                "status": "pending",
+                "receipt_id": receipt["id"],
+                "replayed": replayed,
+            }
+        )
+        response.status_code = 202
+        return response
+    response = jsonify(
         {
-            "release": published.json()["release"],
+            "release": release,
             "receipt": public_receipt(receipt),
+            "activation": public_activation(activation),
             "replayed": replayed,
         }
     )
+    response.status_code = 202
+    return response
 
 
 def verify_local_publication(
@@ -1440,6 +1604,9 @@ def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Respons
         "quality_results": quality_results,
         "quality_summary": quality_summary,
         "receipts": [public_receipt(item) for item in release_envelope.get("receipts", [])],
+        "activations": [
+            public_activation(item) for item in release_envelope.get("activations", [])
+        ],
         "accepted_predecessor": predecessor,
     }
     try:
@@ -1471,6 +1638,31 @@ def release_detail_contract(release: Mapping[str, Any], *, receipts: Any = ()) -
     ).model_dump(mode="json")
 
 
+def assistant_run(
+    ai_mode: AiModeClient,
+    run_id: uuid.UUID,
+    headers: Mapping[str, str] | Headers,
+) -> tuple[httpx.Response, bool]:
+    """Load a run and prove it was created through the read-only assistant surface."""
+    detail = ai_mode.get(f"/api/v1/agent-runs/{run_id}", headers)
+    if detail.status_code >= 400:
+        return detail, False
+    try:
+        payload = detail.json()
+    except ValueError:
+        return detail, False
+    run = payload.get("run") if isinstance(payload, dict) else None
+    if not isinstance(run, dict):
+        return detail, False
+    allowlist = run.get("tool_allowlist")
+    owned = (
+        run.get("feature_key") == ASSISTANT_FEATURE_KEY
+        and isinstance(allowlist, list)
+        and tuple(allowlist) == ASSISTANT_TOOL_ALLOWLIST
+    )
+    return detail, owned
+
+
 def public_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
     """Project datastore evidence onto the closed public consumer receipt contract."""
     return PublicationReceiptResult.model_validate(
@@ -1485,3 +1677,21 @@ def public_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
             "error": receipt.get("error", receipt.get("error_json")),
         }
     ).model_dump(mode="json")
+
+
+def public_activation(operation: Mapping[str, Any]) -> dict[str, Any]:
+    """Expose progress without loader lease credentials or internal review text."""
+    return {
+        key: operation.get(key)
+        for key in (
+            "id",
+            "status",
+            "attempt_number",
+            "requested_at",
+            "started_at",
+            "materialized_at",
+            "finished_at",
+            "error_json",
+            "version",
+        )
+    }

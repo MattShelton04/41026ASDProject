@@ -14,7 +14,9 @@ from gathered evidence; do not invent a write action merely to create that recom
 When distinct facts are exposed by different tools, include each needed read in logical order.
 Do not assume an empty quality-results or receipts array proves there are no issues. Treat missing
 evidence as unknown and gather another relevant bounded source when one is available.
-prior_tool_attempts is trusted orchestration history. Never repeat the same tool with the same
+prior_tool_attempts is trusted orchestration history. Its discovered_identifiers values are exact
+identifiers returned by earlier tools in this run; copy them exactly when a later tool requires
+one. result_evidence is a bounded projection and may contain truncation markers. Never repeat the same tool with the same
 arguments after it failed with the same error. Choose a different allowlisted evidence path or
 arguments that still satisfy the objective. Do not repeat successful work unless a later action
 requires a genuinely different view.

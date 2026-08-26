@@ -82,6 +82,11 @@ ADR-021 applies the same complete-generation rule to G-NAF, BOCSAR and schools w
 separate bounded consumer products. Capacity ceilings fail atomically and never become successful
 source truncation.
 
+ADR-028 refines reviewed publication after a measured source-scale failure: the backend queues a
+leased activation, accepted address reads resolve the immutable generation selected by the
+accepted pointer, and the final pointer transaction contains no source-scale registry or warehouse
+DML.
+
 The Release 0 implementation target is the common ingestion framework plus deterministic
 fixtures and four real source families: NSW government-school master, sparse BOCSAR crime
 with an explicit coverage universe, NSW G-NAF, and complete PSI partitions using the same

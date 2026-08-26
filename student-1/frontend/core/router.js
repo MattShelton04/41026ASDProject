@@ -1,4 +1,4 @@
-export const ROUTES = new Set(["overview", "data-products", "sources", "jobs", "runs", "releases", "quality", "artifacts", "coverage", "properties", "ai"]);
+export const ROUTES = new Set(["overview", "data-products", "sources", "jobs", "runs", "releases", "quality", "artifacts", "coverage", "properties", "assistant", "ai"]);
 
 export function parseRoute(hash = "") {
   const raw = String(hash).replace(/^#/, "") || "properties";

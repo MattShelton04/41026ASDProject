@@ -12,6 +12,7 @@ from agent_core import (
     ConcurrentRunUpdateError,
     ModelMessage,
     ModelMetrics,
+    ModelOutputValidationError,
     ModelRole,
     RecoveryDisposition,
     StructuredModelRequest,
@@ -145,6 +146,33 @@ class TestPromptBuilder:
             prompt_hash="a" * 64,
             rendered_input_hash="b" * 64,
         )
+
+
+class InvalidPromptBuilder(TestPromptBuilder):
+    def __init__(self, *, fail_role: ModelRole) -> None:
+        self.fail_role = fail_role
+
+    def build_plan_request(
+        self,
+        run: AgentRun,
+        definitions: tuple[ToolDefinition, ...],
+        prior_steps: tuple[AgentStep, ...] = (),
+    ) -> StructuredModelRequest:
+        if self.fail_role is ModelRole.PLANNER:
+            raise ValueError("private prompt validation detail")
+        return super().build_plan_request(run, definitions, prior_steps)
+
+    def build_adaptation_request(
+        self,
+        run: AgentRun,
+        plan: Plan,
+        tool_result: ToolResult,
+        observation: Observation,
+        tool_results: tuple[ToolResult, ...],
+    ) -> StructuredModelRequest:
+        if self.fail_role is ModelRole.ADAPTER:
+            raise ValueError("private prompt validation detail")
+        return super().build_adaptation_request(run, plan, tool_result, observation, tool_results)
 
 
 class RecordingToolExecutor:
@@ -282,12 +310,15 @@ def _runner(
     tool_exception: Exception | None = None,
     cancel_during_execute: bool = False,
     clock: FixedClock | None = None,
+    prompt_builder: TestPromptBuilder | None = None,
+    tool_allowlist: tuple[str, ...] | None = None,
 ) -> tuple[AgentRunner, MemoryStore, RecordingToolExecutor]:
     run = create_run(
         AgentRunRequest(
             feature_key="student-1-feature",
             objective="Find verified records",
             limits=limits or RunLimits(),
+            tool_allowlist=tool_allowlist,
         ),
         run_id=uuid4(),
         request_id="request-1",
@@ -304,13 +335,30 @@ def _runner(
     runner = AgentRunner(
         store=store,
         provider=ScriptedLLMProvider(outcomes),
-        prompt_builder=TestPromptBuilder(),
+        prompt_builder=prompt_builder or TestPromptBuilder(),
         tools=ToolRegistry([tool or _tool()]),
         tool_executor=executor,
         clock=clock or FixedClock(),
         ids=RandomIds(),
     )
     return runner, store, executor
+
+
+def test_per_run_tool_allowlist_hides_and_rejects_feature_write_capabilities() -> None:
+    definition = _tool(side_effect=SideEffectClass.DESTRUCTIVE_WRITE)
+    runner, store, executor = _runner(
+        [_model_result(_plan()), _model_result(_plan()), _model_result(_plan())],
+        tool=definition,
+        tool_allowlist=("student_1.records.read.v1",),
+    )
+
+    assert runner._definitions_for_run(store.run) == ()
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "invalid_model_or_tool_data"
+    assert executor.calls == []
 
 
 def test_runner_persists_a_complete_four_phase_success() -> None:
@@ -327,6 +375,311 @@ def test_runner_persists_a_complete_four_phase_success() -> None:
     assert [step.phase.value for step in store.steps] == ["plan", "act", "observe", "adapt"]
     assert all(step.status.value == "succeeded" for step in store.steps)
     assert len(executor.calls) == 1
+
+
+def test_prompt_construction_validation_failure_terminalizes_without_recovery_loop() -> None:
+    runner, store, executor = _runner(
+        [], prompt_builder=InvalidPromptBuilder(fail_role=ModelRole.PLANNER)
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "invalid_model_or_tool_data"
+    assert result.error.message == "Prompt or model data failed validation"
+    assert store.steps[-1].status is StepStatus.FAILED
+    assert executor.calls == []
+
+
+def test_adaptation_prompt_validation_failure_terminalizes_once() -> None:
+    runner, store, executor = _runner(
+        [_model_result(_plan())],
+        prompt_builder=InvalidPromptBuilder(fail_role=ModelRole.ADAPTER),
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "invalid_model_or_tool_data"
+    assert len([step for step in store.steps if step.phase is StepPhase.ADAPT]) == 1
+    assert len(executor.calls) == 1
+
+
+def test_plan_accepts_exact_tool_discovered_non_rfc_fixture_identifier() -> None:
+    discovered_ref = "a0000000-0000-0000-0000-000000000012"
+    inspect_tool = ToolDefinition(
+        name="student_1.records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one exact record",
+        input_schema={
+            "type": "object",
+            "properties": {"record_ref": {"type": "string"}},
+            "required": ["record_ref"],
+            "additionalProperties": False,
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tool=inspect_tool)
+    discovered = AgentStep(
+        id=uuid4(),
+        run_id=store.run.id,
+        sequence=1,
+        phase=StepPhase.ACT,
+        status=StepStatus.SUCCEEDED,
+        output={
+            "tool_result": {
+                "call_id": str(uuid4()),
+                "outcome": "succeeded",
+                "content": {"record": {"record_ref": discovered_ref}},
+                "duration_ms": 1,
+                "retryable": False,
+                "evidence_references": [],
+            }
+        },
+    )
+    plan = Plan.model_validate(
+        {
+            "goal": "Inspect the discovered record",
+            "actions": [
+                {
+                    "sequence": 1,
+                    "tool_name": inspect_tool.name,
+                    "arguments": {"record_ref": discovered_ref},
+                    "purpose": "Inspect the exact result",
+                }
+            ],
+            "success_criteria": ["Exact record is inspected"],
+            "risk_level": "low",
+        }
+    )
+
+    runner._validate_model_plan(store.run, plan, (discovered,))
+
+
+def test_plan_rejects_cross_type_uuid_substitution_from_tool_evidence() -> None:
+    run_id = "70000000-0000-0000-0000-000000000001"
+    release_id = "60000000-0000-0000-0000-000000000001"
+    inspect_tool = ToolDefinition(
+        name="data.release_inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one release",
+        input_schema={
+            "type": "object",
+            "properties": {"release_id": {"type": "string", "format": "uuid"}},
+            "required": ["release_id"],
+            "additionalProperties": False,
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tool=inspect_tool)
+    discovered = AgentStep(
+        id=uuid4(),
+        run_id=store.run.id,
+        sequence=1,
+        phase=StepPhase.ACT,
+        status=StepStatus.SUCCEEDED,
+        input={"tool_call": {"tool_name": "data.runs.v1", "arguments": {}}},
+        output={
+            "tool_result": {
+                "outcome": "succeeded",
+                "content": {
+                    "items": [{"id": run_id}],
+                    "message": f"Related release in narrative: {release_id}",
+                },
+            }
+        },
+    )
+    plan = Plan.model_validate(
+        {
+            "goal": "Inspect a release",
+            "actions": [
+                {
+                    "sequence": 1,
+                    "tool_name": inspect_tool.name,
+                    "arguments": {"release_id": run_id},
+                    "purpose": "Inspect exact release evidence",
+                }
+            ],
+            "success_criteria": ["Release is inspected"],
+            "risk_level": "low",
+        }
+    )
+
+    with pytest.raises(ModelOutputValidationError, match="release_id must copy"):
+        runner._validate_model_plan(store.run, plan, (discovered,))
+
+
+@pytest.mark.parametrize(
+    ("objective", "tool_name", "content"),
+    [
+        (
+            "Validated page context:\n- ingestion_run_id: 70000000-0000-0000-0000-000000000002",
+            "data.runs.v1",
+            {},
+        ),
+        (
+            "Inspect release evidence without guessing identifiers",
+            "data.release_inspect.v1",
+            {"quality_results": [{"id": "70000000-0000-0000-0000-000000000002"}]},
+        ),
+    ],
+)
+def test_plan_rejects_typed_objective_and_nested_id_substitution(
+    objective: str, tool_name: str, content: dict[str, object]
+) -> None:
+    wrong_release_id = "70000000-0000-0000-0000-000000000002"
+    inspect_tool = ToolDefinition(
+        name="data.release_inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one release",
+        input_schema={
+            "type": "object",
+            "properties": {"release_id": {"type": "string", "format": "uuid"}},
+            "required": ["release_id"],
+            "additionalProperties": False,
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tool=inspect_tool)
+    store.run = store.run.evolve(objective=objective)
+    discovered = AgentStep(
+        id=uuid4(),
+        run_id=store.run.id,
+        sequence=1,
+        phase=StepPhase.ACT,
+        status=StepStatus.SUCCEEDED,
+        input={"tool_call": {"tool_name": tool_name, "arguments": {}}},
+        output={"tool_result": {"outcome": "succeeded", "content": content}},
+    )
+    plan = Plan.model_validate(
+        {
+            "goal": "Inspect a release",
+            "actions": [
+                {
+                    "sequence": 1,
+                    "tool_name": inspect_tool.name,
+                    "arguments": {"release_id": wrong_release_id},
+                    "purpose": "Inspect exact release evidence",
+                }
+            ],
+            "success_criteria": ["Release is inspected"],
+            "risk_level": "low",
+        }
+    )
+
+    with pytest.raises(ModelOutputValidationError, match="release_id must copy"):
+        runner._validate_model_plan(store.run, plan, (discovered,))
+
+
+def test_typed_identifier_provenance_accepts_only_matching_fields_and_paths() -> None:
+    objective_release = "60000000-0000-0000-0000-000000000010"
+    discovered_release = "60000000-0000-0000-0000-000000000011"
+    listed_release = "60000000-0000-0000-0000-000000000012"
+    discovered_run = "70000000-0000-0000-0000-000000000011"
+    discovered_property = "a0000000-0000-0000-0000-000000000012"
+    runner, store, _ = _runner([])
+    run = store.run.evolve(objective=f"Release under investigation: {objective_release}.")
+    evidence = AgentStep(
+        id=uuid4(),
+        run_id=run.id,
+        sequence=1,
+        phase=StepPhase.ACT,
+        status=StepStatus.SUCCEEDED,
+        input={"tool_call": {"tool_name": "data.releases.v1", "arguments": {}}},
+        output={
+            "tool_result": {
+                "outcome": "succeeded",
+                "content": {
+                    "release": {"id": discovered_release},
+                    "run": {"id": discovered_run},
+                    "property": {"property_ref": discovered_property},
+                    "items": [{"id": listed_release}],
+                },
+            }
+        },
+    )
+
+    runner._validate_exact_identifiers(
+        run,
+        {
+            "release_id": objective_release,
+            "predecessor_release_id": discovered_release,
+            "candidate_release_id": listed_release,
+            "run_id": discovered_run,
+            "related": [{"property_ref": discovered_property}],
+        },
+        (evidence,),
+    )
+
+
+def test_successful_call_signatures_ignore_non_action_and_failed_steps() -> None:
+    run_id = store_id = uuid4()
+    steps = (
+        AgentStep(
+            id=uuid4(),
+            run_id=run_id,
+            sequence=1,
+            phase=StepPhase.OBSERVE,
+            status=StepStatus.SUCCEEDED,
+        ),
+        AgentStep(
+            id=uuid4(),
+            run_id=store_id,
+            sequence=2,
+            phase=StepPhase.ACT,
+            status=StepStatus.FAILED,
+            input={"tool_call": {"tool_name": "data.runs.v1", "arguments": {}}},
+            output={"tool_result": {"outcome": "failed"}},
+        ),
+    )
+
+    assert AgentRunner._successful_call_signatures(steps) == set()
+
+
+def test_plan_rejects_guessed_non_rfc_fixture_identifier_before_tool_execution() -> None:
+    guessed_ref = "a0000000-0000-0000-0000-000000000099"
+    inspect_tool = ToolDefinition(
+        name="student_1.records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one exact record",
+        input_schema={
+            "type": "object",
+            "properties": {"record_ref": {"type": "string"}},
+            "required": ["record_ref"],
+            "additionalProperties": False,
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, executor = _runner([], tool=inspect_tool)
+    plan = Plan.model_validate(
+        {
+            "goal": "Inspect a guessed record",
+            "actions": [
+                {
+                    "sequence": 1,
+                    "tool_name": inspect_tool.name,
+                    "arguments": {"record_ref": guessed_ref},
+                    "purpose": "Inspect a record",
+                }
+            ],
+            "success_criteria": ["Record is inspected"],
+            "risk_level": "low",
+        }
+    )
+
+    with pytest.raises(ModelOutputValidationError, match="supplied by the user or discovered"):
+        runner._validate_model_plan(store.run, plan)
+    assert executor.calls == []
 
 
 def test_successful_intermediate_action_continues_without_an_extra_model_call() -> None:
@@ -486,6 +839,28 @@ def test_first_read_failure_can_replan_and_succeed() -> None:
     assert failed_action.error.code == "feature_unavailable"
 
 
+def test_replan_repairs_a_successful_call_repeated_inside_a_different_plan() -> None:
+    runner, store, executor = _runner(
+        [
+            _model_result(_plan()),
+            _model_result(_adaptation("replan")),
+            _model_result(_plan()),
+            _model_result(_plan(arguments={"query": "new evidence"})),
+            _model_result(_adaptation("complete")),
+        ]
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert [call.arguments for call in executor.calls] == [
+        {"query": "verified"},
+        {"query": "new evidence"},
+    ]
+    plan_steps = [step for step in store.steps if step.phase is StepPhase.PLAN]
+    assert plan_steps[-1].output["model_invocation"]["repair_count"] == 1
+
+
 def test_same_read_failure_is_terminal_on_second_identical_attempt() -> None:
     runner, store, executor = _runner(
         [
@@ -539,11 +914,12 @@ def test_continue_after_last_action_replans_instead_of_exhausting_the_plan() -> 
     ]
 
 
-def test_replanning_cannot_repeat_a_successful_plan_without_progress() -> None:
+def test_replanning_repeated_success_fails_after_bounded_repair() -> None:
     runner, store, executor = _runner(
         [
             _model_result(_plan()),
             _model_result(_adaptation("continue")),
+            _model_result(_plan()),
             _model_result(_plan()),
         ]
     )
@@ -552,10 +928,8 @@ def test_replanning_cannot_repeat_a_successful_plan_without_progress() -> None:
 
     assert result.status is RunStatus.FAILED
     assert result.error is not None
-    assert result.error.code == "run_stalled"
-    assert result.error.message == (
-        "planner repeated the previous plan after successful tool evidence"
-    )
+    assert result.error.code == "invalid_model_or_tool_data"
+    assert result.error.message == "model output failed Plan validation"
     assert len(executor.calls) == 1
 
 

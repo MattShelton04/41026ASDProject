@@ -29,7 +29,9 @@ def test_product_catalog_composes_scoped_tools() -> None:
         definition.name
         for definition in registry.definitions_for("student-1-propertyscope-data-platform")
     ] == [
+        "platform.capabilities.v1",
         "data.sources.v1",
+        "data.releases.v1",
         "data.runs.v1",
         "data.release_inspect.v1",
         "data.run_inspect.v1",

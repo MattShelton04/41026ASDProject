@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, Field, JsonValue, model_validator
+from pydantic import AwareDatetime, Field, JsonValue, field_validator, model_validator
 
 from shared_contracts.base import ContractModel
 from shared_contracts.http import IdempotencyKey, RequestId, Traceparent
@@ -120,6 +120,15 @@ class AgentRunRequest(ContractModel):
     prompt_set: PromptSet = DEFAULT_PROMPT_SET
     model_profile: Identifier = "remote-standard.v1"
     limits: RunLimits = Field(default_factory=RunLimits)
+    tool_allowlist: tuple[Identifier, ...] | None = Field(default=None, max_length=50)
+
+    @field_validator("tool_allowlist")
+    @classmethod
+    def tool_allowlist_is_unique(cls, value: tuple[str, ...] | None) -> tuple[str, ...] | None:
+        """Reject ambiguous per-run capability boundaries."""
+        if value is not None and len(value) != len(set(value)):
+            raise ValueError("tool_allowlist entries must be unique")
+        return value
 
 
 class PlanAction(ContractModel):
@@ -293,6 +302,7 @@ class AgentRun(ContractModel):
     prompt_set: Identifier
     model_profile: Identifier
     limits: RunLimits
+    tool_allowlist: tuple[Identifier, ...] | None = Field(default=None, max_length=50)
     iteration_count: int = Field(default=0, ge=0)
     tool_call_count: int = Field(default=0, ge=0)
     version: int = Field(default=0, ge=0)

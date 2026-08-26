@@ -464,6 +464,11 @@ access as model-callable tools.
 | `GET /health/live` | Process liveness only; no dependency calls |
 | `GET /health/ready` | Migration/store readiness and configured provider reachability state |
 
+`AgentRunRequest.tool_allowlist` is an optional persisted capability boundary. When present, the
+planner sees only the intersection of feature-visible tools and that list, and execution resolves
+only names in the same list. Feature adapters use this for narrower modes such as informational
+chat; older fixed workflows that omit it retain their feature-level catalogue and effect policy.
+
 The first implementation uses one controlled background executor with concurrency one
 inside a single `ai-mode` process. Its `RunQueue` port is deliberately small so a later
 Redis/RQ-style adapter can be introduced only if measurements justify another service.

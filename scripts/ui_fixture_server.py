@@ -275,7 +275,7 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
             root = SHARED_FRONTEND / "design-system"
         elif decoded.startswith(feature_prefix):
             relative = decoded.removeprefix(feature_prefix) or "index.html"
-            if relative.startswith(("browser/", "design-system/", "mapping/")):
+            if relative.startswith(("ai-chat/", "browser/", "design-system/", "mapping/")):
                 root = SHARED_FRONTEND
             else:
                 root = FEATURE_FRONTEND
