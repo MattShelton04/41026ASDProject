@@ -849,6 +849,26 @@ def test_run_list_tool_omits_large_snapshots_and_lease_internals() -> None:
     assert "lease_token" not in item
 
 
+def test_run_list_tool_defaults_to_ten_succeeded_runs() -> None:
+    def database(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["status"] == "succeeded"
+        assert request.url.params["limit"] == "10"
+        return httpx.Response(200, json={"items": []})
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post("/api/data-platform/v1/tools/runs.list.v1", json={})
+
+    assert response.status_code == 200
+    assert response.get_json() == {"items": [], "count": 0}
+
+
 def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> None:
     job_id = "20000000-0000-0000-0000-000000000004"
 

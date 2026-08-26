@@ -836,9 +836,10 @@ def create_blueprint(
     @api.post(f"{BASE}/tools/runs.list.v1")
     def tool_runs() -> Response:
         body = json_body()
-        params: dict[str, Any] = {"limit": min(int(body.get("limit", 25)), 50)}
-        if body.get("status"):
-            params["status"] = str(body["status"])
+        params: dict[str, Any] = {
+            "limit": min(int(body.get("limit", 10)), 25),
+            "status": str(body.get("status", "succeeded")),
+        }
         upstream = store.request("GET", f"{INTERNAL}/runs", headers=request.headers, params=params)
         if upstream.status_code >= 400:
             return forward(upstream)
@@ -861,7 +862,7 @@ def create_blueprint(
         )
         summaries = [
             {name: item.get(name) for name in fields if name in item}
-            for item in upstream.json().get("items", [])[:50]
+            for item in upstream.json().get("items", [])[:25]
             if isinstance(item, dict)
         ]
         return jsonify({"items": summaries, "count": len(summaries)})
