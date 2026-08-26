@@ -705,9 +705,7 @@ def test_assistant_turn_rejects_unknown_context_without_calling_ai_mode() -> Non
         store_client=DataStoreClient(
             "http://database", "secret", client=httpx.Client(transport=unavailable)
         ),
-        ai_mode_client=AiModeClient(
-            "http://ai", client=httpx.Client(transport=unavailable)
-        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=unavailable)),
     )
 
     response = app.test_client().post(

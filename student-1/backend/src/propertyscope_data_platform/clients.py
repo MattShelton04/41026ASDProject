@@ -107,9 +107,7 @@ class AiModeClient:
                 "AI mode is unavailable; direct data operations remain usable"
             ) from exc
 
-    def cancel_run(
-        self, run_id: str, headers: Mapping[str, str] | Headers
-    ) -> httpx.Response:
+    def cancel_run(self, run_id: str, headers: Mapping[str, str] | Headers) -> httpx.Response:
         """Request cancellation without exposing a general upstream POST proxy."""
         try:
             return self._client.post(

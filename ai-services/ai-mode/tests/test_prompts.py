@@ -177,12 +177,7 @@ def test_large_cumulative_tool_evidence_is_projected_below_message_limit() -> No
     result = ToolResult(
         call_id=uuid4(),
         outcome=ToolOutcome.SUCCEEDED,
-        content={
-            "items": [
-                {"record_id": record_id, "payload": "x" * 12_000}
-                for _ in range(30)
-            ]
-        },
+        content={"items": [{"record_id": record_id, "payload": "x" * 12_000} for _ in range(30)]},
         duration_ms=1,
     )
     observation = Observation(facts=("Tool call succeeded.",))

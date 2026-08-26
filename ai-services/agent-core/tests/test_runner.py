@@ -425,12 +425,14 @@ def test_plan_accepts_exact_tool_discovered_non_rfc_fixture_identifier() -> None
     plan = Plan.model_validate(
         {
             "goal": "Inspect the discovered record",
-            "actions": [{
-                "sequence": 1,
-                "tool_name": inspect_tool.name,
-                "arguments": {"record_ref": discovered_ref},
-                "purpose": "Inspect the exact result",
-            }],
+            "actions": [
+                {
+                    "sequence": 1,
+                    "tool_name": inspect_tool.name,
+                    "arguments": {"record_ref": discovered_ref},
+                    "purpose": "Inspect the exact result",
+                }
+            ],
             "success_criteria": ["Exact record is inspected"],
             "risk_level": "low",
         }
@@ -459,12 +461,14 @@ def test_plan_rejects_guessed_non_rfc_fixture_identifier_before_tool_execution()
     plan = Plan.model_validate(
         {
             "goal": "Inspect a guessed record",
-            "actions": [{
-                "sequence": 1,
-                "tool_name": inspect_tool.name,
-                "arguments": {"record_ref": guessed_ref},
-                "purpose": "Inspect a record",
-            }],
+            "actions": [
+                {
+                    "sequence": 1,
+                    "tool_name": inspect_tool.name,
+                    "arguments": {"record_ref": guessed_ref},
+                    "purpose": "Inspect a record",
+                }
+            ],
             "success_criteria": ["Record is inspected"],
             "risk_level": "low",
         }

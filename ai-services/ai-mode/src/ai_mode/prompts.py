@@ -321,16 +321,14 @@ def _bounded_json_value(value: object, max_chars: int) -> object:
         )[:50]
         per_item = max(64, (max_chars - 120) // max(1, len(priority)))
         dict_projection: dict[str, object] = {
-            str(key): _bounded_json_value(value[key], per_item)
-            for key in priority
+            str(key): _bounded_json_value(value[key], per_item) for key in priority
         }
         if len(value) > len(priority):
             dict_projection["_truncated_fields"] = len(value) - len(priority)
         # A second pass handles structural overhead and many short values.
         fields_truncated = False
         while (
-            len(json.dumps(dict_projection, sort_keys=True, separators=(",", ":")))
-            > max_chars
+            len(json.dumps(dict_projection, sort_keys=True, separators=(",", ":"))) > max_chars
             and len(dict_projection) > 1
         ):
             removable = next(
