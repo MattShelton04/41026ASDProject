@@ -87,6 +87,12 @@ accepted warehouse generation's expression indexes. If a query regresses, captur
 `EXPLAIN (ANALYZE, BUFFERS)` on a representative retained generation and verify it uses
 `gnaf_address_search_document_trgm_idx` or `gnaf_address_stable_property_ref_idx`.
 
+Numeric-only searches do not use trigram matching: short values such as `11` use the structured
+`street_number_first` column and four-digit values use `postcode`. The accepted-generation indexes
+`gnaf_address_release_street_number_idx` and `gnaf_address_release_postcode_idx` keep those lookups
+bounded. On the accepted 5,190,134-row generation, the public `11` search fell from about 29 seconds
+to about 29 ms and returned a bounded first page of real NSW addresses.
+
 Search intentionally returns a bounded result page plus `total_is_lower_bound`; it does not run an
 exact count across every fuzzy match. On the retained 5,190,134-row G-NAF generation, the exact
 multi-token `11 example street` plan used the trigram index and executed in about 3.5 ms after the

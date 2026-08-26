@@ -1879,8 +1879,48 @@ class PropertyScopeStore:
             raise ValidationError(
                 "q must include a street number, postcode, locality, or distinctive address term"
             )
+        numeric_value: int | str | None = None
+        if normalised.isdigit() and len(normalised) == 4:
+            warehouse_match = "address.postcode=%s"
+            legacy_match = "property.postcode=%s"
+            alias_match = "FALSE"
+            numeric_value = normalised
+        elif normalised.isdigit():
+            warehouse_match = "address.street_number_first=%s"
+            legacy_match = "property.street_number_first=%s"
+            alias_match = "FALSE"
+            numeric_value = int(normalised)
+        else:
+            warehouse_match = (
+                "trim(regexp_replace(lower(address.address_display), "
+                "'[^a-z0-9]+',' ','g')) LIKE '%%' || %s || '%%'"
+            )
+            legacy_match = "property.address_search LIKE '%%' || %s || '%%'"
+            alias_match = "alias.alias_search LIKE '%%' || %s || '%%'"
+        search_params: list[Any] = [
+            numeric_value if numeric_value is not None else normalised,
+            PROPERTY_SEARCH_CANDIDATE_LIMIT + 1,
+            numeric_value if numeric_value is not None else normalised,
+        ]
+        if numeric_value is None:
+            search_params.append(normalised)
+        search_params.extend(
+            [
+                PROPERTY_SEARCH_CANDIDATE_LIMIT + 1,
+                PROPERTY_SEARCH_CANDIDATE_LIMIT,
+                normalised,
+                normalised,
+                normalised,
+                normalised,
+                normalised,
+                state,
+                PROPERTY_SEARCH_CANDIDATE_LIMIT,
+                limit,
+                offset,
+            ]
+        )
         rows = self._fetch_all(
-            """
+            f"""
             WITH accepted_addresses AS MATERIALIZED (
                 SELECT COALESCE(address.property_ref,
                            md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
@@ -1895,8 +1935,7 @@ class PropertyScopeStore:
                   ON accepted.dataset_release_id=address.dataset_release_id
                 JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
                 WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
-                  AND trim(regexp_replace(lower(address.address_display),
-                      '[^a-z0-9]+',' ','g')) LIKE '%%' || %s || '%%'
+                  AND {warehouse_match}
                 LIMIT %s
             ), legacy_documents AS (
                 SELECT property.property_ref,property.address_display,property.locality,
@@ -1904,7 +1943,7 @@ class PropertyScopeStore:
                        property.address_search AS search_text,
                        property.address_display AS matched_address,'canonical' AS match_kind
                 FROM registry.property property
-                WHERE property.address_search LIKE '%%' || %s || '%%' AND EXISTS (
+                WHERE {legacy_match} AND EXISTS (
                     SELECT 1 FROM registry.property_identifier identifier
                     JOIN serving.accepted_generation accepted
                       ON accepted.dataset_release_id=identifier.source_release_id
@@ -1926,7 +1965,7 @@ class PropertyScopeStore:
                 JOIN serving.accepted_generation accepted
                   ON accepted.dataset_release_id=alias.source_release_id
                 WHERE alias.is_current
-                  AND alias.alias_search LIKE '%%' || %s || '%%'
+                  AND {alias_match}
                   AND NOT EXISTS (
                       SELECT 1 FROM warehouse.gnaf_address accepted_address
                       JOIN serving.accepted_generation accepted
@@ -1980,23 +2019,7 @@ class PropertyScopeStore:
                 ORDER BY match_rank,score DESC,address_display LIMIT %s OFFSET %s
             ) page ON true
             """,
-            (
-                normalised,
-                PROPERTY_SEARCH_CANDIDATE_LIMIT + 1,
-                normalised,
-                normalised,
-                PROPERTY_SEARCH_CANDIDATE_LIMIT + 1,
-                PROPERTY_SEARCH_CANDIDATE_LIMIT,
-                normalised,
-                normalised,
-                normalised,
-                normalised,
-                normalised,
-                state,
-                PROPERTY_SEARCH_CANDIDATE_LIMIT,
-                limit,
-                offset,
-            ),
+            search_params,
         )
         total = int(rows[0].get("total_count", 0)) if rows else 0
         total_is_lower_bound = bool(rows[0].get("total_is_lower_bound", False)) if rows else False

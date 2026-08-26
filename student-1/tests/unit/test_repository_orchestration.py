@@ -533,6 +533,31 @@ def test_property_search_accepts_selective_property_queries(query: str) -> None:
     assert store.query
 
 
+def test_property_search_uses_structured_columns_for_short_numeric_queries() -> None:
+    store = PropertyQueryStore()
+
+    store.search_properties("11", state="NSW", limit=25)
+
+    assert "address.street_number_first=%s" in store.query
+    assert "property.street_number_first=%s" in store.query
+    assert "alias.is_current AND FALSE" in store.query
+    assert "AND trim(regexp_replace(lower(address.address_display)" not in store.query
+    assert store.params[0] == 11
+    assert store.params[2] == 11
+    assert store.query.count("%s") == len(store.params)
+
+
+def test_property_search_uses_structured_columns_for_postcodes() -> None:
+    store = PropertyQueryStore()
+
+    store.search_properties("2000", state="NSW", limit=25)
+
+    assert "address.postcode=%s" in store.query
+    assert "property.postcode=%s" in store.query
+    assert store.params[0] == "2000"
+    assert store.params[2] == "2000"
+
+
 class PropertySearchApiStore:
     def __init__(self) -> None:
         self.page: tuple[str, int, int] | None = None
