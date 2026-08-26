@@ -10,10 +10,11 @@ import pytest
 from flask import Flask
 
 from propertyscope_data_store.api import create_blueprint, register_error_handlers
-from propertyscope_data_store.errors import ConflictError
+from propertyscope_data_store.errors import ConflictError, ValidationError
 from propertyscope_data_store.persistence_support import project_run
 from propertyscope_data_store.query_specs import PROPERTY_RECORD_SPEC
 from propertyscope_data_store.repository import (
+    PROPERTY_SEARCH_CANDIDATE_LIMIT,
     PropertyScopeStore,
     PropertySearchResults,
     _normalise_property_query,
@@ -429,8 +430,20 @@ def test_property_search_requires_an_accepted_identity_generation() -> None:
     assert "CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END" in store.query
     assert "document.search_text %% %s" not in store.query
     assert "count(*) OVER ()" not in store.query
-    assert store.params[-2] == 26
+    assert store.params[-2] == 25
     assert store.query.count("%s") == len(store.params)
+
+
+def test_property_search_bounds_worst_case_documents_before_scoring() -> None:
+    store = PropertyQueryStore()
+
+    store.search_properties("parramatta", state="NSW", limit=25)
+
+    assert "search_documents AS MATERIALIZED" in store.query
+    assert "SELECT * FROM search_documents LIMIT %s" in store.query
+    assert store.query.index("candidate_documents AS") < store.query.index("candidates AS")
+    assert store.params.count(PROPERTY_SEARCH_CANDIDATE_LIMIT + 1) == 2
+    assert store.params.count(PROPERTY_SEARCH_CANDIDATE_LIMIT) == 2
 
 
 def test_property_search_excludes_legacy_rows_owned_by_the_accepted_warehouse() -> None:
@@ -447,13 +460,41 @@ def test_property_search_reports_an_honest_bounded_total_without_full_count() ->
     class BoundedSearchStore(PropertyQueryStore):
         def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
             super()._fetch_all(query, params)
-            return [{"property_ref": str(uuid.uuid4())} for _ in range(26)]
+            return [
+                {
+                    "property_ref": str(uuid.uuid4()),
+                    "total_count": PROPERTY_SEARCH_CANDIDATE_LIMIT,
+                    "total_is_lower_bound": True,
+                }
+                for _ in range(25)
+            ]
 
     results = BoundedSearchStore().search_properties("parramatta", state="NSW", limit=25, offset=50)
 
     assert len(results.items) == 25
-    assert results.total == 76
+    assert results.total == PROPERTY_SEARCH_CANDIDATE_LIMIT
     assert results.total_is_lower_bound is True
+
+
+def test_property_search_out_of_range_offset_retains_the_bounded_total() -> None:
+    class OutOfRangeSearchStore(PropertyQueryStore):
+        def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+            super()._fetch_all(query, params)
+            return [
+                {
+                    "property_ref": None,
+                    "total_count": 17,
+                    "total_is_lower_bound": False,
+                }
+            ]
+
+    results = OutOfRangeSearchStore().search_properties(
+        "parramatta", state="NSW", limit=25, offset=1_000_000
+    )
+
+    assert results.items == []
+    assert results.total == 17
+    assert results.total_is_lower_bound is False
 
 
 def test_property_search_normalises_display_punctuation() -> None:
@@ -471,6 +512,25 @@ def test_property_search_does_not_broaden_punctuation_only_input() -> None:
     assert results.items == []
     assert results.total == 0
     assert store.query == ""
+
+
+@pytest.mark.parametrize("query", ["street", "NSW", "street nsw", "road", "Sydney", "Sydney NSW"])
+def test_property_search_rejects_underspecified_common_queries(query: str) -> None:
+    store = PropertyQueryStore()
+
+    with pytest.raises(ValidationError, match="street number, postcode, locality"):
+        store.search_properties(query, state="NSW", limit=25)
+
+    assert store.query == ""
+
+
+@pytest.mark.parametrize("query", ["2000", "Parramatta", "11 Example Street"])
+def test_property_search_accepts_selective_property_queries(query: str) -> None:
+    store = PropertyQueryStore()
+
+    store.search_properties(query, state="NSW", limit=25)
+
+    assert store.query
 
 
 class PropertySearchApiStore:
@@ -518,6 +578,33 @@ def test_property_search_api_returns_stable_pagination_metadata() -> None:
         "query": "Example",
         "supported": True,
     }
+
+
+def test_property_search_api_does_not_inflate_total_for_out_of_range_offset() -> None:
+    class OutOfRangeApiStore(PropertySearchApiStore):
+        def search_properties(
+            self, query: str, *, state: str, limit: int, offset: int = 0
+        ) -> PropertySearchResults:
+            self.page = (query, limit, offset)
+            return PropertySearchResults(items=[], total=17)
+
+    store = OutOfRangeApiStore()
+    app = Flask(__name__)
+    app.register_blueprint(
+        create_blueprint(cast(PropertyScopeStore, store), internal_token="secret")
+    )
+    register_error_handlers(app)
+
+    response = app.test_client().get(
+        "/internal/data-platform/v1/properties/search?q=Example&limit=25&offset=1000",
+        headers={"X-PropertyScope-Internal-Token": "secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["items"] == []
+    assert response.get_json()["total"] == 17
+    assert response.get_json()["total_is_lower_bound"] is False
+    assert response.get_json()["next_offset"] is None
 
 
 def test_release_collection_excludes_retired_assessment_sources() -> None:

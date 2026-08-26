@@ -18,7 +18,12 @@ from psycopg import Connection, errors, sql
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-from propertyscope_data_store.errors import ConflictError, LeaseConflictError, NotFoundError
+from propertyscope_data_store.errors import (
+    ConflictError,
+    LeaseConflictError,
+    NotFoundError,
+    ValidationError,
+)
 from propertyscope_data_store.import_profiles import (
     ImportResult,
     PreparedImport,
@@ -52,6 +57,31 @@ from propertyscope_data_store.query_specs import (
 )
 
 JsonObject = dict[str, Any]
+PROPERTY_SEARCH_CANDIDATE_LIMIT = 500
+PROPERTY_SEARCH_UNDERSPECIFIED_TERMS = frozenset(
+    {
+        "australia",
+        "nsw",
+        "street",
+        "st",
+        "road",
+        "rd",
+        "avenue",
+        "ave",
+        "drive",
+        "dr",
+        "lane",
+        "ln",
+        "court",
+        "ct",
+        "place",
+        "pl",
+        "highway",
+        "hwy",
+        "unit",
+        "lot",
+    }
+)
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_IMPORT_STATES = frozenset({"succeeded", "failed", "cancelled"})
 TERMINAL_ACTIVATION_STATES = frozenset({"succeeded", "failed"})
@@ -70,6 +100,18 @@ def _normalise_property_query(query: str) -> str:
     """Align user input with the punctuation-neutral registry search documents."""
 
     return re.sub(r"[^a-z0-9]+", " ", query.lower()).strip()
+
+
+def _property_query_is_underspecified(normalised: str) -> bool:
+    """Reject common address vocabulary that cannot selectively identify a property."""
+
+    tokens = tuple(normalised.split())
+    distinctive = tuple(
+        token for token in tokens if token not in PROPERTY_SEARCH_UNDERSPECIFIED_TERMS
+    )
+    if not distinctive:
+        return bool(tokens)
+    return len(distinctive) == 1 and distinctive[0].isalpha() and len(distinctive[0]) < 8
 
 
 def _activation_receipt_matches(evidence: Mapping[str, Any]) -> bool:
@@ -1833,6 +1875,10 @@ class PropertyScopeStore:
         normalised = _normalise_property_query(query)
         if not normalised:
             return PropertySearchResults(items=[], total=0)
+        if _property_query_is_underspecified(normalised):
+            raise ValidationError(
+                "q must include a street number, postcode, locality, or distinctive address term"
+            )
         rows = self._fetch_all(
             """
             WITH accepted_addresses AS MATERIALIZED (
@@ -1851,6 +1897,7 @@ class PropertyScopeStore:
                 WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
                   AND trim(regexp_replace(lower(address.address_display),
                       '[^a-z0-9]+',' ','g')) LIKE '%%' || %s || '%%'
+                LIMIT %s
             ), legacy_documents AS (
                 SELECT property.property_ref,property.address_display,property.locality,
                        property.postcode,property.state,property.resolution_status,property.geom,
@@ -1888,9 +1935,12 @@ class PropertyScopeStore:
                           md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
                           =property.property_ref
                   )
-            ), search_documents AS (
+            ), search_documents AS MATERIALIZED (
                 SELECT * FROM accepted_addresses
                 UNION ALL SELECT * FROM legacy_documents
+                LIMIT %s
+            ), candidate_documents AS (
+                SELECT * FROM search_documents LIMIT %s
             ), candidates AS (
                 SELECT document.property_ref,document.address_display,document.locality,
                        document.postcode,document.state,document.resolution_status,
@@ -1906,44 +1956,60 @@ class PropertyScopeStore:
                            WHEN document.search_text LIKE %s || '%%' THEN 1
                            ELSE 2
                        END AS match_rank
-                FROM search_documents document
+                FROM candidate_documents document
                 WHERE document.state=%s
             ), best_matches AS (
                 SELECT DISTINCT ON (property_ref) * FROM candidates
                 ORDER BY property_ref,match_rank,score DESC,
                          CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END,matched_address
+            ), summary AS (
+                SELECT count(*)::bigint AS total_count,
+                       (SELECT count(*)>%s FROM search_documents) AS total_is_lower_bound
+                FROM best_matches
             )
-            SELECT property_ref,address_display,locality,postcode,state,resolution_status,
-                   longitude,latitude,score,matched_address,match_kind,
-                   CASE match_rank
-                       WHEN 0 THEN 'exact'
-                       WHEN 1 THEN 'prefix'
-                       ELSE 'contains'
-                   END AS match_method
-            FROM best_matches
-            ORDER BY match_rank,score DESC,address_display LIMIT %s OFFSET %s
+            SELECT page.*,summary.total_count,summary.total_is_lower_bound
+            FROM summary LEFT JOIN LATERAL (
+                SELECT property_ref,address_display,locality,postcode,state,resolution_status,
+                       longitude,latitude,score,matched_address,match_kind,
+                       CASE match_rank
+                           WHEN 0 THEN 'exact'
+                           WHEN 1 THEN 'prefix'
+                           ELSE 'contains'
+                       END AS match_method
+                FROM best_matches
+                ORDER BY match_rank,score DESC,address_display LIMIT %s OFFSET %s
+            ) page ON true
             """,
             (
                 normalised,
+                PROPERTY_SEARCH_CANDIDATE_LIMIT + 1,
                 normalised,
                 normalised,
+                PROPERTY_SEARCH_CANDIDATE_LIMIT + 1,
+                PROPERTY_SEARCH_CANDIDATE_LIMIT,
                 normalised,
                 normalised,
                 normalised,
                 normalised,
                 normalised,
                 state,
-                limit + 1,
+                PROPERTY_SEARCH_CANDIDATE_LIMIT,
+                limit,
                 offset,
             ),
         )
-        has_more = len(rows) > limit
-        page = rows[:limit]
-        total = offset + len(page) + (1 if has_more else 0)
+        total = int(rows[0].get("total_count", 0)) if rows else 0
+        total_is_lower_bound = bool(rows[0].get("total_is_lower_bound", False)) if rows else False
+        page: list[JsonObject] = []
+        for row in rows:
+            row.pop("total_count", None)
+            row.pop("total_is_lower_bound", None)
+            if row.get("property_ref") is not None:
+                page.append(row)
         return PropertySearchResults(
             items=page,
             total=total,
-            total_is_lower_bound=has_more,
+            total_is_lower_bound=total_is_lower_bound,
         )
 
     def property_snapshot(self, property_ref: uuid.UUID) -> JsonObject:

@@ -155,7 +155,11 @@ test("JSON form fields reject arrays and invalid input", () => {
 
 test("Feature 1 form parsers reject coercion and explain the required correction", () => {
   assert.equal(propertySearchQuery("  11 Example Street  "), "11 Example Street");
+  assert.equal(propertySearchQuery("Parramatta"), "Parramatta");
+  assert.equal(propertySearchQuery("2000"), "2000");
   assert.throws(() => propertySearchQuery("x"), /2 to 200 characters/);
+  assert.throws(() => propertySearchQuery("Sydney NSW"), /distinctive locality/);
+  assert.throws(() => propertySearchQuery("street"), /distinctive locality/);
   assert.equal(parseIntegerField("12", "Rows", { minimum: 1 }), 12);
   assert.throws(() => parseIntegerField("12.5", "Rows", { minimum: 1 }), /whole number/);
   assert.throws(() => parseIntegerField("", "Rows", { minimum: 1 }), /at least 1/);
@@ -815,6 +819,8 @@ test("property discovery consumes shell search queries and stays product-facing"
   assert.match(source, /street, suburb, postcode or any combination/);
   assert.doesNotMatch(source, /items\.slice\(0, 5\)/);
   assert.match(source, /Show more matches/);
+  assert.match(source, /nextOffset = page\.body\.next_offset \?\? null/);
+  assert.match(source, /hasMore: nextOffset !== null/);
   assert.doesNotMatch(source, /Feature [1-5]|buyer features|Dossier report/);
   assert.match(source, /#properties\/\$\{encodeURIComponent\(item\.property_ref\)\}/);
   assert.match(source, /Property references and recorded coordinates/);
