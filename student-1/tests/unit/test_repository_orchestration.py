@@ -403,10 +403,11 @@ def test_collection_rejects_unbounded_search_query() -> None:
 class PropertyQueryStore(PropertyScopeStore):
     def __init__(self) -> None:
         self.query = ""
+        self.params: Sequence[Any] = ()
 
     def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
-        del params
         self.query = " ".join(query.split())
+        self.params = params
         return []
 
 
@@ -417,9 +418,9 @@ def test_property_search_requires_an_accepted_identity_generation() -> None:
 
     assert results.items == []
     assert results.total == 0
-    assert "JOIN serving.accepted_generation accepted" in store.query
-    assert "accepted.dataset_release_id=identifier.source_release_id" in store.query
-    assert "identifier.is_current" in store.query
+    assert "FROM warehouse.gnaf_address address" in store.query
+    assert "accepted.dataset_release_id=address.dataset_release_id" in store.query
+    assert "COALESCE(address.property_ref, md5('propertyscope-gnaf:'" in store.query
     assert "registry.address_alias alias" in store.query
     assert "document.search_text LIKE '%%' || %s || '%%'" in store.query
     assert "word_similarity(%s,document.search_text)" in store.query
@@ -428,6 +429,7 @@ def test_property_search_requires_an_accepted_identity_generation() -> None:
     assert "min(match_rank) OVER () AS best_rank" in store.query
     assert "best_rank = 4 AND score >= greatest(0.30,best_score - 0.12)" in store.query
     assert "count(*) OVER () AS total_count" in store.query
+    assert store.query.count("%s") == len(store.params)
 
 
 def test_property_search_normalises_display_punctuation() -> None:
@@ -988,6 +990,37 @@ def test_activation_final_pointer_transaction_contains_no_source_scale_dml() -> 
     assert not any("serving.property_coverage" in query for query in connection.queries)
 
 
+def test_activation_preparation_cannot_change_accepted_visible_address_fields() -> None:
+    release_id = uuid.uuid4()
+    operation_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            {
+                "id": operation_id,
+                "dataset_release_id": release_id,
+                "dataset_id": "gnaf-nsw",
+                "target_feature": "feature-1",
+                "release_status": "awaiting_review",
+                "release_version": 4,
+                "expected_release_version": 4,
+            },
+            None,
+        ]
+    )
+
+    ConnectedStore(connection).materialize_release_activation(
+        operation_id,
+        worker_id="loader-1",
+        lease_token="token",
+    )
+
+    assert connection.committed is True
+    assert any("SET materialized_at=%s" in query for query in connection.queries)
+    assert not any("registry.property" in query for query in connection.queries)
+    assert not any("warehouse.gnaf_address SET" in query for query in connection.queries)
+    assert not any("serving.property_coverage" in query for query in connection.queries)
+
+
 def test_property_coverage_derives_only_from_an_accepted_identity_generation() -> None:
     property_ref = uuid.uuid4()
 
@@ -995,9 +1028,9 @@ def test_property_coverage_derives_only_from_an_accepted_identity_generation() -
         def __init__(self) -> None:
             self.query = ""
 
-        def _required(self, query: str, params: Sequence[Any]) -> dict[str, Any]:
+        def _fetch_one(self, query: str, params: Sequence[Any]) -> dict[str, Any]:
             del query, params
-            return {"property_ref": property_ref}
+            return {"present": 1}
 
         def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
             assert params == (property_ref, property_ref)
@@ -1008,5 +1041,5 @@ def test_property_coverage_derives_only_from_an_accepted_identity_generation() -
 
     assert store.property_coverage(property_ref) == []
     assert "JOIN serving.accepted_generation accepted" in store.query
-    assert "accepted.dataset_release_id=identifier.source_release_id" in store.query
+    assert "accepted.dataset_release_id=address.dataset_release_id" in store.query
     assert "NOT EXISTS" in store.query

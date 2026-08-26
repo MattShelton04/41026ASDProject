@@ -1462,7 +1462,7 @@ class PropertyScopeStore:
         stop_event: Event | None = None,
         lease_failed_event: Event | None = None,
     ) -> None:
-        """Build registry rows while the candidate remains invisible to accepted reads."""
+        """Validate a queued activation while all release-scoped records remain isolated."""
         now = datetime.now(UTC)
         with self.connection() as connection:
             stopped = Event()
@@ -1500,15 +1500,9 @@ class PropertyScopeStore:
                     work["release_version"]
                 ) != int(work["expected_release_version"]):
                     raise ConflictError("release changed while publication was queued")
-                self._publish_address_property_spine(
-                    connection,
-                    uuid.UUID(str(work["dataset_release_id"])),
-                    now,
-                    identifier_scheme=(
-                        "gnaf_pid" if work["dataset_id"] == "gnaf-nsw" else "fixture_pid"
-                    ),
-                    include_coverage=False,
-                )
+                # Canonical address reads resolve through accepted_generation directly to the
+                # immutable warehouse generation. Candidate rows therefore need no pre-pointer
+                # upsert into global registry tables, which would leak changed address fields.
                 connection.execute(
                     """UPDATE ops.release_activation SET materialized_at=%s,version=version+1
                 WHERE id=%s AND lease_owner=%s AND lease_token=%s""",
@@ -1843,12 +1837,32 @@ class PropertyScopeStore:
             return PropertySearchResults(items=[], total=0)
         rows = self._fetch_all(
             """
-            WITH search_documents AS (
+            WITH accepted_addresses AS NOT MATERIALIZED (
+                SELECT COALESCE(address.property_ref,
+                           md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
+                       address.address_display,address.locality,address.postcode,'NSW' AS state,
+                       CASE WHEN address.source_status='CURRENT' THEN 'verified'
+                            ELSE 'retired' END AS resolution_status,address.geom,
+                       trim(regexp_replace(lower(address.address_display),
+                           '[^a-z0-9]+',' ','g')) AS search_text,
+                       address.address_display AS matched_address,'canonical' AS match_kind
+                FROM warehouse.gnaf_address address
+                JOIN serving.accepted_generation accepted
+                  ON accepted.dataset_release_id=address.dataset_release_id
+                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+                WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
+            ), legacy_documents AS (
                 SELECT property.property_ref,property.address_display,property.locality,
                        property.postcode,property.state,property.resolution_status,property.geom,
                        property.address_search AS search_text,
                        property.address_display AS matched_address,'canonical' AS match_kind
                 FROM registry.property property
+                WHERE EXISTS (
+                    SELECT 1 FROM registry.property_identifier identifier
+                    JOIN serving.accepted_generation accepted
+                      ON accepted.dataset_release_id=identifier.source_release_id
+                    WHERE identifier.property_ref=property.property_ref AND identifier.is_current
+                )
                 UNION ALL
                 SELECT property.property_ref,property.address_display,property.locality,
                        property.postcode,property.state,property.resolution_status,property.geom,
@@ -1858,6 +1872,9 @@ class PropertyScopeStore:
                 JOIN serving.accepted_generation accepted
                   ON accepted.dataset_release_id=alias.source_release_id
                 WHERE alias.is_current
+            ), search_documents AS (
+                SELECT * FROM accepted_addresses
+                UNION ALL SELECT * FROM legacy_documents
             ), candidates AS (
                 SELECT document.property_ref,document.address_display,document.locality,
                        document.postcode,document.state,document.resolution_status,
@@ -1880,20 +1897,10 @@ class PropertyScopeStore:
                        END AS match_rank
                 FROM search_documents document
                 WHERE document.state=%s
-                  AND EXISTS (
-                      SELECT 1 FROM registry.property_identifier identifier
-                      JOIN serving.accepted_generation accepted
-                        ON accepted.dataset_release_id=identifier.source_release_id
-                      WHERE identifier.property_ref=document.property_ref AND identifier.is_current
-                  )
                   AND (
                       document.search_text LIKE '%%' || %s || '%%'
                       OR document.search_text %% %s
                       OR %s <%% document.search_text
-                      OR NOT EXISTS (
-                          SELECT 1 FROM unnest(string_to_array(%s,' ')) AS token
-                          WHERE document.search_text NOT LIKE '%%' || token || '%%'
-                      )
                   )
             ), best_matches AS (
                 SELECT DISTINCT ON (property_ref) * FROM candidates
@@ -1933,7 +1940,6 @@ class PropertyScopeStore:
                 normalised,
                 normalised,
                 normalised,
-                normalised,
                 limit,
                 offset,
             ),
@@ -1944,6 +1950,57 @@ class PropertyScopeStore:
         return PropertySearchResults(items=rows, total=total)
 
     def property_snapshot(self, property_ref: uuid.UUID) -> JsonObject:
+        accepted_address = self._fetch_one(
+            """SELECT jsonb_build_object(
+                'property_ref',COALESCE(address.property_ref,
+                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid),
+                'address_display',address.address_display,'flat_type',address.flat_type,
+                'unit_number',address.unit_number,
+                'street_number_first',address.street_number_first,
+                'street_number_suffix',address.street_number_suffix,
+                'street_number_last',address.street_number_last,
+                'street_name',COALESCE(address.street_name,address.address_display),
+                'street_type',address.street_type,'locality',address.locality,
+                'postcode',address.postcode,'state','NSW',
+                'address_search',trim(regexp_replace(lower(address.address_display),
+                    '[^a-z0-9]+',' ','g')),
+                'geometry',ST_AsGeoJSON(address.geom)::jsonb,
+                'longitude',ST_X(address.geom),'latitude',ST_Y(address.geom),
+                'resolution_status',CASE WHEN address.source_status='CURRENT'
+                    THEN 'verified' ELSE 'retired' END,
+                'created_at',address.created_at,'updated_at',address.created_at,'version',1
+            ) AS property,jsonb_build_object(
+                'id',md5('propertyscope-' ||
+                    CASE WHEN release.dataset_id='gnaf-nsw' THEN 'gnaf_pid'
+                         ELSE 'fixture_pid' END || '-identifier:' || release.id::text || ':' ||
+                         address.gnaf_pid)::uuid,
+                'property_ref',COALESCE(address.property_ref,
+                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid),
+                'scheme',CASE WHEN release.dataset_id='gnaf-nsw' THEN 'gnaf_pid'
+                              ELSE 'fixture_pid' END,
+                'identifier_value',address.gnaf_pid,'source_release_id',release.id,
+                'is_current',true,'valid_from',NULL,'valid_to',NULL,
+                'match_method','source-authoritative','match_confidence',1,
+                'evidence_json',jsonb_build_object('geocode_type',address.geocode_type,
+                    'source_crs',address.source_crs),'created_at',address.created_at
+            ) AS identifier
+            FROM warehouse.gnaf_address address
+            JOIN serving.accepted_generation accepted
+              ON accepted.dataset_release_id=address.dataset_release_id
+            JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+            WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
+              AND COALESCE(address.property_ref,
+                  md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
+            LIMIT 1""",
+            (property_ref,),
+        )
+        if accepted_address is not None:
+            return {
+                "property": dict(accepted_address["property"]),
+                "identifiers": [dict(accepted_address["identifier"])],
+                "aliases": [],
+                "coverage": self.property_coverage(property_ref),
+            }
         property_row = self._required(
             """SELECT *,ST_X(geom) AS longitude,ST_Y(geom) AS latitude,
             ST_AsGeoJSON(geom)::jsonb AS geometry FROM registry.property WHERE property_ref=%s""",
@@ -1966,21 +2023,32 @@ class PropertyScopeStore:
         }
 
     def property_coverage(self, property_ref: uuid.UUID) -> list[JsonObject]:
-        self._required(
-            "SELECT property_ref FROM registry.property WHERE property_ref=%s", (property_ref,)
+        exists = self._fetch_one(
+            """SELECT 1 AS present FROM warehouse.gnaf_address address
+            JOIN serving.accepted_generation accepted
+              ON accepted.dataset_release_id=address.dataset_release_id
+            WHERE COALESCE(address.property_ref,
+                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
+            UNION ALL SELECT 1 FROM registry.property WHERE property_ref=%s LIMIT 1""",
+            (property_ref, property_ref),
         )
+        if exists is None:
+            raise NotFoundError("record does not exist")
         return self._fetch_all(
             """WITH accepted_identity AS (
-                SELECT identifier.property_ref,release.dataset_id,release.target_feature,
+                SELECT COALESCE(address.property_ref,
+                           md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
+                       release.dataset_id,release.target_feature,
                        release.id AS dataset_release_id,'supported' AS coverage_status,
                        release.coverage_json AS coverage_scope,
                        accepted.activated_at AS checked_at,release.release_version,
                        release.schema_version,release.accepted_at
-                FROM registry.property_identifier identifier
+                FROM warehouse.gnaf_address address
                 JOIN serving.accepted_generation accepted
-                  ON accepted.dataset_release_id=identifier.source_release_id
+                  ON accepted.dataset_release_id=address.dataset_release_id
                 JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
-                WHERE identifier.property_ref=%s AND identifier.is_current
+                WHERE COALESCE(address.property_ref,
+                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
             ), retained_coverage AS (
                 SELECT coverage.*,release.release_version,release.schema_version,
                        release.accepted_at

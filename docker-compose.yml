@@ -75,6 +75,18 @@ services:
   f1-postgres:
     profiles: [release-0]
     image: postgis/postgis:16-3.4
+    command:
+      - postgres
+      - -c
+      - max_wal_size=4GB
+      - -c
+      - min_wal_size=1GB
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - wal_compression=on
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${PROPERTYSCOPE_POSTGRES_DB:-propertyscope}

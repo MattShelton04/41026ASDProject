@@ -155,7 +155,14 @@ def test_publication_records_receipt_before_queueing_pointer_activation() -> Non
         return httpx.Response(
             202,
             json={
-                "activation": {"id": "activation-1", "status": "queued"},
+                "activation": {
+                    "id": "70000000-0000-0000-0000-000000000001",
+                    "status": "queued",
+                    "attempt_number": 1,
+                    "requested_at": "2026-08-26T10:00:00Z",
+                    "version": 1,
+                    "lease_token": "must-not-leak",
+                },
                 "created": True,
             },
         )
@@ -199,6 +206,7 @@ def test_publication_records_receipt_before_queueing_pointer_activation() -> Non
     assert events == ["consumer", "receipt", "activation"]
     assert response.get_json()["release"]["status"] == "awaiting_review"
     assert response.get_json()["activation"]["status"] == "queued"
+    assert "lease_token" not in response.get_json()["activation"]
     assert response.get_json()["receipt"]["consumer_operation_id"] == "publish-release-11"
     assert "id" not in response.get_json()["receipt"]
 

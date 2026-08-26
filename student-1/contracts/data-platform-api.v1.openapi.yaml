@@ -191,12 +191,12 @@ paths:
       parameters:
         - {$ref: '#/components/parameters/ReleaseId'}
         - {$ref: '#/components/parameters/IdempotencyKey'}
-      description: Calls the fixed consumer import contract, persists its immutable receipt, and advances the accepted pointer only after acceptance.
+      description: Calls the fixed consumer import contract, persists its immutable receipt, and durably queues accepted-pointer activation.
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/OperatorPublishRequest'}}}
       responses:
-        '200': {description: Consumer accepted and release activated, content: {application/json: {schema: {$ref: '#/components/schemas/PublicationResult'}}}}
+        '202': {description: Consumer accepted and background activation queued, content: {application/json: {schema: {$ref: '#/components/schemas/PublicationResult'}}}}
         '409': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/Problem'}
         '424': {$ref: '#/components/responses/Problem'}
@@ -259,7 +259,7 @@ paths:
   /tools/runs.retry.v1:
     post: {operationId: toolRunsRetry, responses: {'200': {description: Tool result}}}
   /tools/releases.publish.v1:
-    post: {operationId: toolReleasesPublish, responses: {'200': {description: Tool result}}}
+    post: {operationId: toolReleasesPublish, responses: {'202': {description: Protected publication queued}}}
 components:
   parameters:
     Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
@@ -321,7 +321,7 @@ components:
         release: {$ref: './release-detail.v1.schema.json'}
     ReleaseInspection:
       type: object
-      required: [release, quality_results, quality_summary, receipts, accepted_predecessor, release_contract]
+      required: [release, quality_results, quality_summary, receipts, activations, accepted_predecessor, release_contract]
       properties:
         release: {type: object}
         release_contract:
@@ -331,6 +331,7 @@ components:
         quality_results: {type: array, maxItems: 100, items: {type: object}}
         quality_summary: {type: object}
         receipts: {type: array, maxItems: 100, items: {$ref: './consumer-publication-receipt.v1.schema.json'}}
+        activations: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/ReleaseActivation'}}
         accepted_predecessor: {type: [object, 'null']}
     OperatorPublishRequest:
       type: object
@@ -343,11 +344,26 @@ components:
     PublicationResult:
       type: object
       additionalProperties: false
-      required: [release, receipt, replayed]
+      required: [release, receipt, activation, replayed]
       properties:
         release: {type: object}
         receipt: {$ref: './consumer-publication-receipt.v1.schema.json'}
+        activation: {$ref: '#/components/schemas/ReleaseActivation'}
         replayed: {type: boolean}
+    ReleaseActivation:
+      type: object
+      additionalProperties: false
+      required: [id, status, attempt_number, requested_at, version]
+      properties:
+        id: {type: string, format: uuid}
+        status: {enum: [queued, claimed, running, succeeded, failed, interrupted]}
+        attempt_number: {type: integer, minimum: 1, maximum: 3}
+        requested_at: {type: string, format: date-time}
+        started_at: {type: [string, 'null'], format: date-time}
+        materialized_at: {type: [string, 'null'], format: date-time}
+        finished_at: {type: [string, 'null'], format: date-time}
+        error_json: {type: [object, 'null']}
+        version: {type: integer, minimum: 1}
     SourceDefinition:
       type: object
       additionalProperties: false

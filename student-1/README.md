@@ -77,7 +77,8 @@ Open <http://localhost:5200>. The main product path is:
 4. Preview the source, limits and proposed work, then follow progress in **Update history**.
 5. Review new versions under **Published data** before publishing or rejecting them. Data checks,
    files and coverage are opened from the update or version they explain instead of appearing as
-   separate primary destinations.
+   separate primary destinations. Publication returns after queueing a durable background
+   activation; the release page shows its progress while the prior accepted version remains live.
 6. When a version needs interpretation, select **Review with AI**. AI review is optional, cannot
    publish changes and remains available later in **Activity history**.
 
@@ -102,6 +103,8 @@ The Docker stack and the frontend-only fixture server are separate environments:
 is Feature 1's direct ingress. Run `uv run scripts/dev.py stack status` for the authoritative live
 service list. Use `uv run scripts/dev.py stack logs f1-runner` when an acquisition is queued but not
 progressing; use `stack logs f1-db-loader` when it is specifically waiting in the import stage.
+For source-scale publication/write triage, safe targeted restarts and activation recovery, use the
+[large-data operations runbook](../docs/release-0/feature-1-large-data-operations.md).
 
 The acquisition path can also run without browser actions. This queues the registered deterministic
 fixture, waits for all runner and loader stages, and reports the retained candidate release:

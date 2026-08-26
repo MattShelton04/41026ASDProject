@@ -1396,7 +1396,7 @@ def complete_publication(
         {
             "release": release,
             "receipt": public_receipt(receipt),
-            "activation": activation,
+            "activation": public_activation(activation),
             "replayed": replayed,
         }
     )
@@ -1517,6 +1517,9 @@ def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Respons
         "quality_results": quality_results,
         "quality_summary": quality_summary,
         "receipts": [public_receipt(item) for item in release_envelope.get("receipts", [])],
+        "activations": [
+            public_activation(item) for item in release_envelope.get("activations", [])
+        ],
         "accepted_predecessor": predecessor,
     }
     try:
@@ -1562,3 +1565,21 @@ def public_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
             "error": receipt.get("error", receipt.get("error_json")),
         }
     ).model_dump(mode="json")
+
+
+def public_activation(operation: Mapping[str, Any]) -> dict[str, Any]:
+    """Expose progress without loader lease credentials or internal review text."""
+    return {
+        key: operation.get(key)
+        for key in (
+            "id",
+            "status",
+            "attempt_number",
+            "requested_at",
+            "started_at",
+            "materialized_at",
+            "finished_at",
+            "error_json",
+            "version",
+        )
+    }

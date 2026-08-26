@@ -107,7 +107,8 @@ All routes below are relative to `/api/data-platform/v1` and are described in Op
   consumer product or an export mechanism.
 - `POST /dataset-releases/{release_id}/submit-review`, `/publish`, and `/reject` implement the
   version-checked review lifecycle. Publish also requires an `Idempotency-Key` and explicit human
-  approval.
+  approval. A valid publish returns `202` with a durable background activation; the prior accepted
+  version remains live until that operation succeeds.
 - Property identity consumers use `GET /properties/search`, `/properties/{property_ref}`,
   `/properties/{property_ref}/map-context`, `/properties/{property_ref}/coverage`, and
   `/properties/{property_ref}/report-section`.
@@ -126,7 +127,8 @@ discover → acquire → source verification → canonical import artifact
 → registered builder → schema-valid bounded release_export
 → atomic schema/hash/count/manifest/artifact binding → candidate
 → awaiting_review → consumer validation → durable receipt
-→ accepted (prior accepted release becomes superseded)
+→ queued loader activation → atomic accepted pointer
+  (prior accepted release becomes superseded)
 ```
 
 The runner pages a private release projection over HTTP. Every response declares the same release
@@ -139,7 +141,10 @@ SHA-256, record count, manifest, provider-relative artifact path, and idempotenc
 resolves that path against its configured Feature 1 origin, downloads without redirects, validates
 the schema/hash/count, and returns a typed receipt. Feature 1 durably records that receipt before
 the accepted-pointer transaction. A rejected, malformed, mismatched, unavailable, or timed-out
-consumer leaves the predecessor active.
+consumer leaves the predecessor active. Feature 1 queues a leased activation and returns `202`
+after retaining an accepted receipt. Accepted property reads resolve the immutable warehouse
+generation selected by the accepted pointer, so candidate address fields cannot leak through a
+global registry update. The loader's final pointer transaction contains no source-scale DML.
 
 For Feature 1's own property products there is no separate downstream service. Before recording
 its local receipt, the provider re-reads the registered `release_export` from content-addressed
@@ -147,7 +152,7 @@ storage and verifies the manifest, artifact registration, exact bytes, product s
 and record count. It does not synthesize acceptance from release metadata alone.
 
 Replaying an operation that produced an accepted receipt returns that retained receipt and
-completes any interrupted pointer transition without a duplicate import. A recorded rejected,
+reconciles the durable activation without a duplicate consumer import. A recorded rejected,
 failed, or unavailable attempt is immutable; after correcting the cause, the operator starts a new
 publication operation with a new idempotency key. The same target/key with different release evidence conflicts. A consumer that missed the push calls
 the accepted-product endpoint repeatedly; lookups are stable and do not mutate state.
