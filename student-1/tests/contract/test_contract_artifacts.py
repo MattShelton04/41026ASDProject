@@ -326,6 +326,24 @@ def test_release_inspection_tool_declares_all_composed_evidence() -> None:
     assert required_names == expected
 
 
+def test_release_discovery_uses_real_statuses_and_source_metadata_is_not_load_evidence() -> None:
+    catalog = load_tool_catalog(ROOT / "tool-catalog.yaml")
+    registrations = {item.definition.name: item.definition for item in catalog.tools}
+
+    release_tool = registrations["data.releases.v1"]
+    statuses = release_tool.input_schema["properties"]["status"]["enum"]
+    assert statuses == [
+        "draft",
+        "candidate",
+        "awaiting_review",
+        "accepted",
+        "rejected",
+        "superseded",
+    ]
+    assert release_tool.side_effect.value == "read_only"
+    assert "does not prove" in registrations["data.sources.v1"].description
+
+
 def test_feature_manifest_uses_the_canonical_shared_edge_route() -> None:
     manifest = load_feature_manifest(ROOT / "feature.yaml")
 

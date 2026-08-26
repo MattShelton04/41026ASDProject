@@ -816,9 +816,32 @@ def create_blueprint(
         params: dict[str, Any] = {"limit": min(int(body.get("limit", 25)), 50)}
         if body.get("status"):
             params["status"] = str(body["status"])
-        return tool_envelope(
-            store.request("GET", f"{INTERNAL}/runs", headers=request.headers, params=params)
+        upstream = store.request("GET", f"{INTERNAL}/runs", headers=request.headers, params=params)
+        if upstream.status_code >= 400:
+            return forward(upstream)
+        fields = (
+            "id",
+            "job_definition_id",
+            "job_name",
+            "source_definition_id",
+            "source_name",
+            "status",
+            "run_mode",
+            "requested_scope_json",
+            "rows_discovered",
+            "rows_staged",
+            "rows_accepted",
+            "rows_rejected",
+            "requested_at",
+            "started_at",
+            "finished_at",
         )
+        summaries = [
+            {name: item.get(name) for name in fields if name in item}
+            for item in upstream.json().get("items", [])[:50]
+            if isinstance(item, dict)
+        ]
+        return jsonify({"items": summaries, "count": len(summaries)})
 
     @api.post(f"{BASE}/tools/runs.inspect.v1")
     def tool_run() -> Response:

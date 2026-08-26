@@ -636,6 +636,28 @@ def test_first_read_failure_can_replan_and_succeed() -> None:
     assert failed_action.error.code == "feature_unavailable"
 
 
+def test_replan_repairs_a_successful_call_repeated_inside_a_different_plan() -> None:
+    runner, store, executor = _runner(
+        [
+            _model_result(_plan()),
+            _model_result(_adaptation("replan")),
+            _model_result(_plan()),
+            _model_result(_plan(arguments={"query": "new evidence"})),
+            _model_result(_adaptation("complete")),
+        ]
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert [call.arguments for call in executor.calls] == [
+        {"query": "verified"},
+        {"query": "new evidence"},
+    ]
+    plan_steps = [step for step in store.steps if step.phase is StepPhase.PLAN]
+    assert plan_steps[-1].output["model_invocation"]["repair_count"] == 1
+
+
 def test_same_read_failure_is_terminal_on_second_identical_attempt() -> None:
     runner, store, executor = _runner(
         [
@@ -689,11 +711,12 @@ def test_continue_after_last_action_replans_instead_of_exhausting_the_plan() -> 
     ]
 
 
-def test_replanning_cannot_repeat_a_successful_plan_without_progress() -> None:
+def test_replanning_repeated_success_fails_after_bounded_repair() -> None:
     runner, store, executor = _runner(
         [
             _model_result(_plan()),
             _model_result(_adaptation("continue")),
+            _model_result(_plan()),
             _model_result(_plan()),
         ]
     )
@@ -702,10 +725,8 @@ def test_replanning_cannot_repeat_a_successful_plan_without_progress() -> None:
 
     assert result.status is RunStatus.FAILED
     assert result.error is not None
-    assert result.error.code == "run_stalled"
-    assert result.error.message == (
-        "planner repeated the previous plan after successful tool evidence"
-    )
+    assert result.error.code == "invalid_model_or_tool_data"
+    assert result.error.message == "model output failed Plan validation"
     assert len(executor.calls) == 1
 
 

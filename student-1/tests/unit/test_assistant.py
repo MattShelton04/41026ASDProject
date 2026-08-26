@@ -45,7 +45,10 @@ def test_assistant_objective_preserves_exact_validated_context() -> None:
     assert "fixed-objective Data review" in objective
     assert "Do not propose or call a write tool" in objective
     assert "data.releases.v1" in objective
+    assert "data.runs.v1" in objective
     assert "active source" in objective
+    assert "fully loaded" in objective
+    assert "unknown or partial" in objective
 
 
 @pytest.mark.parametrize(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Mapping
 from datetime import datetime, timedelta
@@ -575,13 +576,49 @@ class AgentRunner:
         prior_steps: tuple[AgentStep, ...] = (),
     ) -> None:
         """Return tool-name and argument mistakes to bounded model repair before execution."""
+        successful_calls = self._successful_call_signatures(prior_steps)
         try:
             for action in plan.actions:
                 definition = self._tools.resolve(run.feature_key, action.tool_name)
                 self._tools.validate_input(definition, action.arguments)
                 self._validate_exact_identifiers(run, action.arguments, prior_steps)
+                signature = (
+                    action.tool_name,
+                    json.dumps(action.arguments, sort_keys=True, separators=(",", ":")),
+                )
+                if signature in successful_calls:
+                    raise ModelOutputValidationError(
+                        "plan repeats a tool call that already succeeded in this run"
+                    )
         except (ToolSchemaValidationError, UnknownToolError) as exc:
             raise ModelOutputValidationError(str(exc)) from exc
+
+    @staticmethod
+    def _successful_call_signatures(
+        steps: tuple[AgentStep, ...],
+    ) -> set[tuple[str, str]]:
+        """Return canonical successful calls so replans cannot redo proven work."""
+        signatures: set[tuple[str, str]] = set()
+        for step in steps:
+            if step.phase is not StepPhase.ACT:
+                continue
+            result = step.output.get("tool_result")
+            call = step.input.get("tool_call")
+            if (
+                not isinstance(result, dict)
+                or result.get("outcome") != ToolOutcome.SUCCEEDED.value
+                or not isinstance(call, dict)
+                or not isinstance(call.get("tool_name"), str)
+                or not isinstance(call.get("arguments"), dict)
+            ):
+                continue
+            signatures.add(
+                (
+                    call["tool_name"],
+                    json.dumps(call["arguments"], sort_keys=True, separators=(",", ":")),
+                )
+            )
+        return signatures
 
     @staticmethod
     def _validate_exact_identifiers(

@@ -764,7 +764,7 @@ def test_release_list_tool_proxies_bounded_release_evidence() -> None:
     def database(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
         assert request.url.path == "/internal/data-platform/v1/releases"
-        assert request.url.params["status"] == "accepted"
+        assert request.url.params["status"] == "candidate"
         assert request.url.params["dataset_id"] == "gnaf-address"
         assert request.url.params["limit"] == "50"
         return httpx.Response(
@@ -774,7 +774,7 @@ def test_release_list_tool_proxies_bounded_release_evidence() -> None:
                     {
                         "id": release_id,
                         "dataset_id": "gnaf-address",
-                        "status": "accepted",
+                        "status": "candidate",
                         "record_count": 5_190_134,
                     }
                 ],
@@ -792,11 +792,56 @@ def test_release_list_tool_proxies_bounded_release_evidence() -> None:
 
     response = app.test_client().post(
         "/api/data-platform/v1/tools/releases.list.v1",
-        json={"status": "accepted", "dataset_id": "gnaf-address", "limit": 999},
+        json={"status": "candidate", "dataset_id": "gnaf-address", "limit": 999},
     )
 
     assert response.status_code == 200
     assert response.get_json()["items"][0]["record_count"] == 5_190_134
+
+
+def test_run_list_tool_omits_large_snapshots_and_lease_internals() -> None:
+    def database(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/internal/data-platform/v1/runs"
+        assert request.url.params["status"] == "succeeded"
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "id": "70000000-0000-0000-0000-000000000001",
+                        "source_name": "G-NAF Open NSW",
+                        "status": "succeeded",
+                        "requested_scope_json": {
+                            "profile": "full-data",
+                            "all_records": True,
+                        },
+                        "rows_accepted": 5_190_134,
+                        "source_snapshot_json": {"objects": [{"secret": "large"}] * 70},
+                        "lease_token": "internal-token",
+                    }
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/tools/runs.list.v1",
+        json={"status": "succeeded"},
+    )
+
+    assert response.status_code == 200
+    item = response.get_json()["items"][0]
+    assert item["rows_accepted"] == 5_190_134
+    assert item["requested_scope_json"]["profile"] == "full-data"
+    assert "source_snapshot_json" not in item
+    assert "lease_token" not in item
 
 
 def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> None:
