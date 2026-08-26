@@ -232,7 +232,8 @@ def test_property_result_is_a_native_link_and_back_restores_origin(
 
 def test_property_search_can_page_through_every_match(page: Page, fixture_origin: str) -> None:
     page.goto(
-        f"{fixture_origin}{FEATURE_PATH}?scenario=large&test={time.time_ns()}#properties?q=Example"
+        f"{fixture_origin}{FEATURE_PATH}?scenario=large&test={time.time_ns()}"
+        "#properties?q=11%20Example%20Street"
     )
     cards = page.locator(".result-card")
 
