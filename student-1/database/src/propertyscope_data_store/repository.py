@@ -1380,7 +1380,20 @@ class PropertyScopeStore:
                 street_type=excluded.street_type,locality=excluded.locality,
                 postcode=excluded.postcode,address_search=excluded.address_search,geom=excluded.geom,
                 resolution_status=excluded.resolution_status,updated_at=excluded.updated_at,
-                version=registry.property.version+1""",
+                version=registry.property.version+1
+            WHERE (registry.property.address_display,registry.property.flat_type,
+                   registry.property.unit_number,registry.property.street_number_first,
+                   registry.property.street_number_suffix,registry.property.street_number_last,
+                   registry.property.street_name,registry.property.street_type,
+                   registry.property.locality,registry.property.postcode,
+                   registry.property.address_search,registry.property.geom,
+                   registry.property.resolution_status)
+              IS DISTINCT FROM
+                  (excluded.address_display,excluded.flat_type,excluded.unit_number,
+                   excluded.street_number_first,excluded.street_number_suffix,
+                   excluded.street_number_last,excluded.street_name,excluded.street_type,
+                   excluded.locality,excluded.postcode,excluded.address_search,excluded.geom,
+                   excluded.resolution_status)""",
             (now, now, release_id),
         )
         connection.execute(
@@ -1401,7 +1414,8 @@ class PropertyScopeStore:
                 %s::date,NULL,'source-authoritative',1,
                 jsonb_build_object('geocode_type',geocode_type,'source_crs',source_crs),%s
             FROM warehouse.gnaf_address WHERE dataset_release_id=%s
-            ON CONFLICT (scheme,identifier_value,source_release_id) DO UPDATE SET is_current=true""",
+            ON CONFLICT (scheme,identifier_value,source_release_id) DO UPDATE SET is_current=true
+            WHERE NOT registry.property_identifier.is_current""",
             (
                 identifier_scheme,
                 release_id,
@@ -1412,12 +1426,10 @@ class PropertyScopeStore:
                 release_id,
             ),
         )
-        connection.execute(
-            """UPDATE warehouse.gnaf_address SET property_ref=COALESCE(
-                property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid)
-                WHERE dataset_release_id=%s""",
-            (release_id,),
-        )
+        # The stable UUID is deterministic and every downstream statement already derives it
+        # with COALESCE. Persisting the same value back into a source-scale immutable warehouse
+        # generation rewrote millions of tuples and all related indexes during publication.
+        # Keep the warehouse generation immutable and derive the registry key at this boundary.
         connection.execute(
             """INSERT INTO serving.property_coverage (
                 property_ref,dataset_id,target_feature,dataset_release_id,coverage_status,
@@ -1432,7 +1444,13 @@ class PropertyScopeStore:
             ON CONFLICT (property_ref,dataset_id,target_feature) DO UPDATE SET
                 dataset_release_id=excluded.dataset_release_id,
                 coverage_status=excluded.coverage_status,
-                coverage_scope=excluded.coverage_scope,checked_at=excluded.checked_at""",
+                coverage_scope=excluded.coverage_scope,checked_at=excluded.checked_at
+            WHERE (serving.property_coverage.dataset_release_id,
+                   serving.property_coverage.coverage_status,
+                   serving.property_coverage.coverage_scope)
+              IS DISTINCT FROM
+                  (excluded.dataset_release_id,excluded.coverage_status,
+                   excluded.coverage_scope)""",
             (now, release_id),
         )
 

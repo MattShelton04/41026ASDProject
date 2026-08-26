@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import pytest
@@ -814,3 +815,30 @@ def test_publication_idempotency_key_cannot_be_reused_for_another_release() -> N
                 "request_id": "request-1",
             },
         )
+
+
+def test_address_publication_does_not_rewrite_immutable_warehouse_generation() -> None:
+    """A source-scale publish derives stable IDs without updating every warehouse row."""
+    release_id = uuid.uuid4()
+    connection = ScriptedConnection([None, None, None, None])
+
+    ConnectedStore(connection)._publish_address_property_spine(
+        connection,
+        release_id,
+        datetime(2026, 8, 26, tzinfo=UTC),
+        identifier_scheme="gnaf_pid",
+    )
+
+    assert not any("UPDATE warehouse.gnaf_address" in query for query in connection.queries)
+    property_upsert = next(
+        query for query in connection.queries if "INSERT INTO registry.property" in query
+    )
+    identifier_upsert = next(
+        query for query in connection.queries if "INSERT INTO registry.property_identifier" in query
+    )
+    coverage_upsert = next(
+        query for query in connection.queries if "INSERT INTO serving.property_coverage" in query
+    )
+    assert "IS DISTINCT FROM" in property_upsert
+    assert "WHERE NOT registry.property_identifier.is_current" in identifier_upsert
+    assert "IS DISTINCT FROM" in coverage_upsert
