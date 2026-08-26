@@ -346,6 +346,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
                     "items": [],
                     "count": 0,
                     "total": 0,
+                    "total_is_lower_bound": False,
                     "limit": limit,
                     "offset": offset,
                     "next_offset": None,
@@ -360,6 +361,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
                 "items": results.items,
                 "count": len(results.items),
                 "total": results.total,
+                "total_is_lower_bound": results.total_is_lower_bound,
                 "limit": limit,
                 "offset": offset,
                 "next_offset": offset + len(results.items)

@@ -418,18 +418,34 @@ def test_property_search_requires_an_accepted_identity_generation() -> None:
 
     assert results.items == []
     assert results.total == 0
+    assert "accepted_addresses AS MATERIALIZED" in store.query
     assert "FROM warehouse.gnaf_address address" in store.query
     assert "accepted.dataset_release_id=address.dataset_release_id" in store.query
     assert "COALESCE(address.property_ref, md5('propertyscope-gnaf:'" in store.query
     assert "registry.address_alias alias" in store.query
-    assert "document.search_text LIKE '%%' || %s || '%%'" in store.query
+    assert "lower(address.address_display)" in store.query
+    assert "LIKE '%%' || %s || '%%'" in store.query
     assert "word_similarity(%s,document.search_text)" in store.query
     assert "CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END" in store.query
-    assert "WHEN 3 THEN 'all_terms'" in store.query
-    assert "min(match_rank) OVER () AS best_rank" in store.query
-    assert "best_rank = 4 AND score >= greatest(0.30,best_score - 0.12)" in store.query
-    assert "count(*) OVER () AS total_count" in store.query
+    assert "document.search_text %% %s" not in store.query
+    assert "count(*) OVER ()" not in store.query
+    assert store.params[-2] == 26
     assert store.query.count("%s") == len(store.params)
+
+
+def test_property_search_reports_an_honest_bounded_total_without_full_count() -> None:
+    class BoundedSearchStore(PropertyQueryStore):
+        def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+            super()._fetch_all(query, params)
+            return [{"property_ref": str(uuid.uuid4())} for _ in range(26)]
+
+    results = BoundedSearchStore().search_properties(
+        "parramatta", state="NSW", limit=25, offset=50
+    )
+
+    assert len(results.items) == 25
+    assert results.total == 76
+    assert results.total_is_lower_bound is True
 
 
 def test_property_search_normalises_display_punctuation() -> None:
@@ -487,6 +503,7 @@ def test_property_search_api_returns_stable_pagination_metadata() -> None:
         "items": response.get_json()["items"],
         "count": 1,
         "total": 3,
+        "total_is_lower_bound": False,
         "limit": 1,
         "offset": 2,
         "next_offset": None,

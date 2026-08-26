@@ -63,6 +63,7 @@ class PropertySearchResults:
 
     items: list[JsonObject]
     total: int
+    total_is_lower_bound: bool = False
 
 
 def _normalise_property_query(query: str) -> str:
@@ -1837,7 +1838,7 @@ class PropertyScopeStore:
             return PropertySearchResults(items=[], total=0)
         rows = self._fetch_all(
             """
-            WITH accepted_addresses AS NOT MATERIALIZED (
+            WITH accepted_addresses AS MATERIALIZED (
                 SELECT COALESCE(address.property_ref,
                            md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
                        address.address_display,address.locality,address.postcode,'NSW' AS state,
@@ -1851,13 +1852,15 @@ class PropertyScopeStore:
                   ON accepted.dataset_release_id=address.dataset_release_id
                 JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
                 WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
+                  AND trim(regexp_replace(lower(address.address_display),
+                      '[^a-z0-9]+',' ','g')) LIKE '%%' || %s || '%%'
             ), legacy_documents AS (
                 SELECT property.property_ref,property.address_display,property.locality,
                        property.postcode,property.state,property.resolution_status,property.geom,
                        property.address_search AS search_text,
                        property.address_display AS matched_address,'canonical' AS match_kind
                 FROM registry.property property
-                WHERE EXISTS (
+                WHERE property.address_search LIKE '%%' || %s || '%%' AND EXISTS (
                     SELECT 1 FROM registry.property_identifier identifier
                     JOIN serving.accepted_generation accepted
                       ON accepted.dataset_release_id=identifier.source_release_id
@@ -1872,6 +1875,7 @@ class PropertyScopeStore:
                 JOIN serving.accepted_generation accepted
                   ON accepted.dataset_release_id=alias.source_release_id
                 WHERE alias.is_current
+                  AND alias.alias_search LIKE '%%' || %s || '%%'
             ), search_documents AS (
                 SELECT * FROM accepted_addresses
                 UNION ALL SELECT * FROM legacy_documents
@@ -1888,44 +1892,23 @@ class PropertyScopeStore:
                        CASE
                            WHEN document.search_text=%s THEN 0
                            WHEN document.search_text LIKE %s || '%%' THEN 1
-                           WHEN document.search_text LIKE '%%' || %s || '%%' THEN 2
-                           WHEN NOT EXISTS (
-                               SELECT 1 FROM unnest(string_to_array(%s,' ')) AS token
-                               WHERE document.search_text NOT LIKE '%%' || token || '%%'
-                           ) THEN 3
-                           ELSE 4
+                           ELSE 2
                        END AS match_rank
                 FROM search_documents document
                 WHERE document.state=%s
-                  AND (
-                      document.search_text LIKE '%%' || %s || '%%'
-                      OR document.search_text %% %s
-                      OR %s <%% document.search_text
-                  )
             ), best_matches AS (
                 SELECT DISTINCT ON (property_ref) * FROM candidates
                 ORDER BY property_ref,match_rank,score DESC,
                          CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END,matched_address
-            ), ranked AS (
-                SELECT best_matches.*,max(score) OVER () AS best_score,
-                       min(match_rank) OVER () AS best_rank
-                FROM best_matches
-            ), filtered AS (
-                SELECT * FROM ranked
-                WHERE match_rank < 4
-                   OR (best_rank = 4 AND score >= greatest(0.30,best_score - 0.12))
             )
             SELECT property_ref,address_display,locality,postcode,state,resolution_status,
                    longitude,latitude,score,matched_address,match_kind,
                    CASE match_rank
                        WHEN 0 THEN 'exact'
                        WHEN 1 THEN 'prefix'
-                       WHEN 2 THEN 'contains'
-                       WHEN 3 THEN 'all_terms'
-                       ELSE 'fuzzy'
-                   END AS match_method,
-                   count(*) OVER () AS total_count
-            FROM filtered
+                       ELSE 'contains'
+                   END AS match_method
+            FROM best_matches
             ORDER BY match_rank,score DESC,address_display LIMIT %s OFFSET %s
             """,
             (
@@ -1936,18 +1919,20 @@ class PropertyScopeStore:
                 normalised,
                 normalised,
                 normalised,
+                normalised,
                 state,
-                normalised,
-                normalised,
-                normalised,
-                limit,
+                limit + 1,
                 offset,
             ),
         )
-        total = int(rows[0].pop("total_count")) if rows else 0
-        for row in rows[1:]:
-            row.pop("total_count", None)
-        return PropertySearchResults(items=rows, total=total)
+        has_more = len(rows) > limit
+        page = rows[:limit]
+        total = offset + len(page) + (1 if has_more else 0)
+        return PropertySearchResults(
+            items=page,
+            total=total,
+            total_is_lower_bound=has_more,
+        )
 
     def property_snapshot(self, property_ref: uuid.UUID) -> JsonObject:
         accepted_address = self._fetch_one(

@@ -275,7 +275,7 @@ components:
     PropertySearchPage:
       type: object
       additionalProperties: false
-      required: [items, count, total, limit, offset, next_offset, query, supported]
+      required: [items, count, total, total_is_lower_bound, limit, offset, next_offset, query, supported]
       properties:
         items:
           type: array
@@ -299,6 +299,7 @@ components:
               match_method: {enum: [exact, prefix, contains, all_terms, fuzzy]}
         count: {type: integer, minimum: 0, maximum: 100}
         total: {type: integer, minimum: 0}
+        total_is_lower_bound: {type: boolean}
         limit: {type: integer, minimum: 1, maximum: 100}
         offset: {type: integer, minimum: 0, maximum: 1000000}
         next_offset: {type: [integer, 'null'], minimum: 0, maximum: 1000000}
