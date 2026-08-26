@@ -20,6 +20,9 @@ Architecture sources, decisions, and exported diagrams belong here.
 - `openai-remote-provider-migration-plan.md` records the investigated problem, current API fit,
   implementation scope, acceptance criteria, and validation plan for replacing the local model
   runtime.
+- `feature-1-conversational-assistant-plan.md` records the August 2026 real-Gemini audit of the
+  implemented Feature 1 Data review flow and a phased proposal for a contextual Feature 1 assistant,
+  later shared chat, and curated project/documentation retrieval.
 - `decisions/ADR-014-append-only-safe-agent-run-events.md` records the resumable event
   persistence and cursor-polling decision.
 - `decisions/ADR-015-validated-model-registry.md` records supported-model metadata,

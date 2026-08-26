@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10262e">
+  <title>Shared PropertyScope assistant — feasibility prototype</title>
+  <link rel="stylesheet" href="prototype.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to assistant</a>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="PropertyScope NSW home">
+      <span class="brand-mark" aria-hidden="true">P</span>
+      <span class="brand-copy"><strong>PropertyScope NSW</strong><span>Property research workspace</span></span>
+    </a>
+    <div class="top-context">Shared workspace · Cross-feature assistant feasibility</div>
+    <div class="top-actions"><span class="prototype-badge">Future concept</span></div>
+  </header>
+
+  <div class="shell">
+    <aside class="rail" aria-label="PropertyScope navigation">
+      <p class="rail-label">Workspace</p>
+      <nav>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">⌂</span>Overview</a>
+        <a class="nav-item active" href="#" aria-current="page"><span class="nav-icon" aria-hidden="true">✦</span>Ask PropertyScope <span class="nav-note">Concept</span></a>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">◷</span>AI activity</a>
+      </nav>
+      <p class="rail-label">Research areas</p>
+      <nav>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">▦</span>Property data</a>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">◎</span>Feature 2 <span class="nav-note">Unavailable</span></a>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">◎</span>Feature 3 <span class="nav-note">Unavailable</span></a>
+      </nav>
+      <div class="rail-card">
+        <strong>Later-phase concept</strong>
+        <p>A shared assistant needs feature manifests, scoped routing and curated project documentation first.</p>
+      </div>
+    </aside>
+
+    <main id="main">
+      <div class="page">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Shared assistant feasibility</p>
+            <h1>Ask PropertyScope</h1>
+            <p>Explore a future assistant that can explain the website and route questions to explicitly available feature tools.</p>
+          </div>
+          <a class="button" href="feature-1-contextual-chat.html">Compare Feature 1 prototype</a>
+        </div>
+
+        <div class="notice warning" role="note"><span aria-hidden="true">!</span><span>This broader interface is a feasibility concept. It is not an implemented capability and is not recommended before the smaller Feature 1 assistant.</span></div>
+
+        <div class="workspace">
+          <section class="chat-card" aria-labelledby="shared-chat-title">
+            <header class="chat-head">
+              <div><strong id="shared-chat-title">Shared assistant conversation</strong><span>Routes each turn to a bounded feature or guide scope</span></div>
+              <span class="status-dot">Manifest catalogue ready</span>
+            </header>
+            <div class="examples" aria-label="Prototype scenarios">
+              <button class="example-btn active" type="button" data-scenario="capabilities" aria-pressed="true">What can this site do?</button>
+              <button class="example-btn" type="button" data-scenario="data" aria-pressed="false">Which property data is current?</button>
+              <button class="example-btn" type="button" data-scenario="unavailable" aria-pressed="false">Ask an unavailable feature</button>
+            </div>
+
+            <div id="conversation" class="conversation" aria-live="polite"></div>
+
+            <form class="composer" id="composer">
+              <div class="context-strip"><strong>Turn scope:</strong> <span class="context-chip" id="context-chip">Platform guide</span> <span id="context-detail">Curated docs · read-only</span></div>
+              <div class="composer-row">
+                <label class="sr-only" for="message">Ask PropertyScope</label>
+                <textarea id="message" name="message" placeholder="Ask about PropertyScope or an available research area…" required></textarea>
+                <button class="button primary" type="submit">Route question <span aria-hidden="true">→</span></button>
+              </div>
+              <p class="composer-help">The proposed router selects a small tool scope before Gemini sees the turn. It does not expose every feature tool at once.</p>
+            </form>
+          </section>
+
+          <aside class="side-stack" aria-label="Shared assistant routing scope">
+            <section class="side-card">
+              <header><h2>Research area</h2><p>Feature availability comes from versioned manifests</p></header>
+              <div class="side-body scope-picker" id="scope-picker">
+                <div class="scope-option active"><span class="scope-icon" aria-hidden="true">?</span><span class="scope-copy"><strong>Platform guide</strong><span>Website, capabilities and help</span></span><span class="scope-state">Ready</span></div>
+                <div class="scope-option"><span class="scope-icon" aria-hidden="true">▦</span><span class="scope-copy"><strong>Property data</strong><span>Feature 1 read tools</span></span><span class="scope-state">Ready</span></div>
+                <div class="scope-option disabled"><span class="scope-icon" aria-hidden="true">◎</span><span class="scope-copy"><strong>Feature 2</strong><span>No manifest registered</span></span><span class="scope-state">Off</span></div>
+                <div class="scope-option disabled"><span class="scope-icon" aria-hidden="true">◎</span><span class="scope-copy"><strong>Features 3–5</strong><span>No manifests registered</span></span><span class="scope-state">Off</span></div>
+              </div>
+            </section>
+
+            <section class="side-card">
+              <header><h2>Tools exposed this turn</h2><p>The model receives only the resolved scope</p></header>
+              <div class="side-body"><div class="tool-pills" id="tool-pills"><span class="tool-pill">platform.capabilities.v1</span><span class="tool-pill">platform.guide.v1</span></div></div>
+            </section>
+
+            <section class="side-card">
+              <header><h2>Project questions</h2><p>Proposed safe boundary</p></header>
+              <div class="side-body">
+                <ul class="capability-list">
+                  <li><span aria-hidden="true">✓</span><span>Curated living docs with path and revision citations</span></li>
+                  <li><span aria-hidden="true">✓</span><span>Generated routes and feature manifests</span></li>
+                  <li><span aria-hidden="true">—</span><span>No env files, arbitrary repository reads or shell</span></li>
+                  <li><span aria-hidden="true">—</span><span>No claim that historical reviews are current architecture</span></li>
+                </ul>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <template id="scenario-capabilities">
+    <article class="message user">
+      <div class="avatar" aria-hidden="true">You</div>
+      <div class="bubble"><p>What can this website help me do, and what AI features are actually available?</p><div class="message-meta"><span>11:06</span><span>Automatically routed to Platform guide</span></div></div>
+    </article>
+    <article class="message assistant">
+      <div class="avatar" aria-hidden="true">AI</div>
+      <div class="bubble">
+        <h2>Property data is the available research area in this prototype</h2>
+        <p>You can search the accepted property product, inspect exact property records, view source/update history, and start the implemented fixed-objective <strong>Data review</strong> assistant for unpublished releases. <a class="citation" href="#">capability manifest</a><a class="citation" href="#">Feature 1 guide</a></p>
+        <p>The conversational assistants shown here are proposals. Features 2–5 have no registered manifest in this scenario, so I will not invent their capabilities.</p>
+        <div class="notice info"><span aria-hidden="true">ⓘ</span><span>Project answers come from curated living documentation, not unrestricted code access. Each claim includes its source revision.</span></div>
+        <details class="trace"><summary>Sources and routing · 2 evidence calls</summary><ol class="trace-list"><li class="trace-step"><span class="check">✓</span><span>Resolved available feature manifests with <code>platform.capabilities.v1</code></span><time>0.4 s</time></li><li class="trace-step"><span class="check">✓</span><span>Retrieved Feature 1 help revision <code>2026-08-26</code></span><time>0.7 s</time></li></ol></details>
+        <div class="message-meta"><span>Complete · 5 s</span><a class="run-link" href="#">Open simulated run</a><span>Guide scope only</span></div>
+      </div>
+    </article>
+  </template>
+
+  <template id="scenario-data">
+    <article class="message user">
+      <div class="avatar" aria-hidden="true">You</div>
+      <div class="bubble"><p>Which property datasets are current, and is the full PSI candidate live?</p><div class="message-meta"><span>11:09</span><span>Routed to Property data</span></div></div>
+    </article>
+    <article class="message assistant">
+      <div class="avatar" aria-hidden="true">AI</div>
+      <div class="bubble">
+        <h2>The complete datasets are local candidates, not accepted products</h2>
+        <p>PSI, G-NAF, BOCSAR and schools have complete local acquisition candidates. The user-facing accepted release pointers still use deterministic showcase data, so a property search does not yet use the full G-NAF candidate. <a class="citation" href="#">data products</a><a class="citation" href="#">release states</a></p>
+        <div class="answer-summary"><div class="metric"><strong>7,335,504</strong><span>PSI unique source rows</span></div><div class="metric"><strong>5,190,134</strong><span>G-NAF accepted source rows</span></div><div class="metric"><strong>Human review</strong><span>Required before publication</span></div></div>
+        <p>No publication action was exposed for this informational turn.</p>
+        <details class="trace"><summary>Sources and routing · 3 evidence calls</summary><ol class="trace-list"><li class="trace-step"><span class="check">✓</span><span>Resolved question to <code>student-1-propertyscope-data-platform</code></span><time>0.3 s</time></li><li class="trace-step"><span class="check">✓</span><span>Read bounded data-product catalogue</span><time>0.8 s</time></li><li class="trace-step"><span class="check">✓</span><span>Checked candidate and accepted release states</span><time>0.9 s</time></li></ol></details>
+        <div class="message-meta"><span>Complete · 7 s</span><a class="run-link" href="#">Open simulated run</a><span>Feature 1 read scope</span></div>
+      </div>
+    </article>
+  </template>
+
+  <template id="scenario-unavailable">
+    <article class="message user">
+      <div class="avatar" aria-hidden="true">You</div>
+      <div class="bubble"><p>Can Feature 2 calculate the investment return for this property?</p><div class="message-meta"><span>11:13</span><span>No valid feature context attached</span></div></div>
+    </article>
+    <article class="message assistant">
+      <div class="avatar" aria-hidden="true">AI</div>
+      <div class="bubble">
+        <h2>Feature 2 is not available in this workspace</h2>
+        <div class="notice negative"><span aria-hidden="true">×</span><span>No Feature 2 capability manifest or allowlisted tools are registered, so I cannot calculate or describe that feature's behavior.</span></div>
+        <p>I can explain the available Property data tools, or you can return when Feature 2 publishes its owned manifest. I have not routed this turn to Gemini or another feature.</p>
+        <details class="trace"><summary>Routing decision · no feature tools called</summary><ol class="trace-list"><li class="trace-step"><span class="check">✓</span><span>Capability catalogue returned Feature 2 as unavailable</span><time>0.2 s</time></li></ol></details>
+        <div class="message-meta"><span>Stopped before model call</span><a class="run-link" href="#">Open routing record</a><span>No invented answer</span></div>
+      </div>
+    </article>
+  </template>
+
+  <script>
+    const scenarios = {
+      capabilities: { chip: "Platform guide", detail: "Curated docs · read-only", tools: ["platform.capabilities.v1", "platform.guide.v1"], activeScope: 0 },
+      data: { chip: "Property data", detail: "Feature 1 · read-only", tools: ["platform.capabilities.v1", "data.products.v1", "data.release_inspect.v1"], activeScope: 1 },
+      unavailable: { chip: "Feature 2", detail: "Unavailable · route rejected", tools: ["platform.capabilities.v1"], activeScope: 2 },
+    };
+
+    const conversation = document.querySelector("#conversation");
+    const contextChip = document.querySelector("#context-chip");
+    const contextDetail = document.querySelector("#context-detail");
+    const toolPills = document.querySelector("#tool-pills");
+    const scopes = [...document.querySelectorAll(".scope-option")];
+    const message = document.querySelector("#message");
+
+    function showScenario(name) {
+      const scenario = scenarios[name];
+      conversation.replaceChildren(document.querySelector(`#scenario-${name}`).content.cloneNode(true));
+      contextChip.textContent = scenario.chip;
+      contextDetail.textContent = scenario.detail;
+      toolPills.replaceChildren(...scenario.tools.map((tool) => {
+        const pill = document.createElement("span");
+        pill.className = "tool-pill";
+        pill.textContent = tool;
+        return pill;
+      }));
+      scopes.forEach((scope, index) => scope.classList.toggle("active", index === scenario.activeScope));
+      document.querySelectorAll("[data-scenario]").forEach((button) => {
+        const active = button.dataset.scenario === name;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+    }
+
+    document.querySelectorAll("[data-scenario]").forEach((button) => button.addEventListener("click", () => showScenario(button.dataset.scenario)));
+
+    document.querySelector("#composer").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const text = message.value.trim();
+      if (!text) return;
+      const userTurn = document.createElement("article");
+      userTurn.className = "message user";
+      userTurn.innerHTML = '<div class="avatar" aria-hidden="true">You</div><div class="bubble"><p></p><div class="message-meta"><span>Just now</span><span>Routing scope selected first</span></div></div>';
+      userTurn.querySelector("p").textContent = text;
+      const progress = document.createElement("article");
+      progress.className = "message assistant";
+      progress.innerHTML = '<div class="avatar" aria-hidden="true">AI</div><div class="bubble"><p class="pulse-line" role="status"><span>Resolving feature scope</span><i></i><i></i><i></i></p><div class="message-meta"><span>Capability manifest check</span></div></div>';
+      conversation.append(userTurn, progress);
+      message.value = "";
+      progress.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      window.setTimeout(() => {
+        progress.querySelector(".bubble").innerHTML = '<h2>Prototype routing complete</h2><p>A connected implementation would select a bounded guide or feature tool set, then create the turn run. Use the examples above to audit answer, unavailable and evidence states.</p><div class="message-meta"><span>Simulated</span><a class="run-link" href="#">Open routing record</a></div>';
+      }, 900);
+    });
+
+    message.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        event.currentTarget.form.requestSubmit();
+      }
+    });
+
+    showScenario("capabilities");
+  </script>
+</body>
+</html>

@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10262e">
+  <title>Feature 1 contextual assistant — interactive prototype</title>
+  <link rel="stylesheet" href="prototype.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to assistant</a>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="PropertyScope NSW home">
+      <span class="brand-mark" aria-hidden="true">P</span>
+      <span class="brand-copy"><strong>PropertyScope NSW</strong><span>Property research workspace</span></span>
+    </a>
+    <div class="top-context">Feature 1 · Property data · Contextual assistant proposal</div>
+    <div class="top-actions"><span class="prototype-badge">Simulated prototype</span></div>
+  </header>
+
+  <div class="shell">
+    <aside class="rail" aria-label="Feature 1 navigation">
+      <p class="rail-label">Research</p>
+      <nav>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">⌕</span>Property search</a>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">◇</span>Saved properties</a>
+      </nav>
+      <p class="rail-label">Property data</p>
+      <nav>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">▦</span>Data overview</a>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">↻</span>Data updates</a>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">✓</span>Data review</a>
+        <a class="nav-item active" href="#" aria-current="page"><span class="nav-icon" aria-hidden="true">✦</span>Assistant <span class="nav-note">Proposed</span></a>
+      </nav>
+      <p class="rail-label">Operations</p>
+      <nav>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">◷</span>AI activity</a>
+        <a class="nav-item" href="#"><span class="nav-icon" aria-hidden="true">?</span>Help</a>
+      </nav>
+      <div class="rail-card">
+        <strong>Data review stays separate</strong>
+        <p>The current fixed-objective release reviewer remains available and read-only.</p>
+      </div>
+    </aside>
+
+    <main id="main">
+      <div class="page">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Proposed Feature 1 experience</p>
+            <h1>Property data assistant</h1>
+            <p>Ask a read-only question about the selected release, update or property. Each message creates a recorded AI-mode run.</p>
+          </div>
+          <a class="button" href="../../architecture/feature-1-conversational-assistant-plan.md">Read feasibility plan</a>
+        </div>
+
+        <div class="notice" role="note"><span aria-hidden="true">ⓘ</span><span>This prototype uses simulated answers. The live Feature 1 product currently provides <strong>Data review</strong>, not general chat.</span></div>
+
+        <div class="workspace">
+          <section class="chat-card" aria-labelledby="chat-title">
+            <header class="chat-head">
+              <div><strong id="chat-title">Assistant conversation</strong><span>Read-only · Gemini development profile</span></div>
+              <span class="status-dot">AI-mode ready</span>
+            </header>
+            <div class="examples" aria-label="Prototype scenarios">
+              <button class="example-btn active" type="button" data-scenario="release" aria-pressed="true">Review this release</button>
+              <button class="example-btn" type="button" data-scenario="failure" aria-pressed="false">Why did the update stop?</button>
+              <button class="example-btn" type="button" data-scenario="property" aria-pressed="false">Find a Parramatta property</button>
+            </div>
+
+            <div id="conversation" class="conversation" aria-live="polite"></div>
+
+            <form class="composer" id="composer">
+              <div class="context-strip"><strong>Attached context:</strong> <span class="context-chip" id="context-chip">PSI 2025 candidate</span> <span id="context-detail">Release d6b4556c…</span></div>
+              <div class="composer-row">
+                <label class="sr-only" for="message">Ask the Property data assistant</label>
+                <textarea id="message" name="message" placeholder="Ask about this release, update or property…" required></textarea>
+                <button class="button primary" type="submit">Send message <span aria-hidden="true">→</span></button>
+              </div>
+              <p class="composer-help">Enter sends · Shift+Enter adds a new line · No protected action is available in this read-only scope.</p>
+            </form>
+          </section>
+
+          <aside class="side-stack" aria-label="Assistant context and capabilities">
+            <section class="side-card">
+              <header><h2>Current context</h2><p>Validated by Feature 1 before the run starts</p></header>
+              <div class="side-body">
+                <dl class="definition-list" id="context-list">
+                  <div><dt>Page</dt><dd>Data updates</dd></div>
+                  <div><dt>Dataset</dt><dd>NSW Property Sales Information</dd></div>
+                  <div><dt>Release</dt><dd>2025 · candidate</dd></div>
+                  <div><dt>Accepted comparison</dt><dd>2025 showcase release</dd></div>
+                </dl>
+              </div>
+            </section>
+
+            <section class="side-card">
+              <header><h2>Available in this scope</h2><p>Only relevant read tools are exposed per turn</p></header>
+              <div class="side-body">
+                <ul class="capability-list">
+                  <li><span aria-hidden="true">✓</span><span>Explain releases and update failures</span></li>
+                  <li><span aria-hidden="true">✓</span><span>Compare candidate and accepted data</span></li>
+                  <li><span aria-hidden="true">✓</span><span>Search and inspect an exact property</span></li>
+                  <li><span aria-hidden="true">✓</span><span>Show cited tool evidence and run history</span></li>
+                  <li><span aria-hidden="true">—</span><span>Cannot publish, retry or approve changes</span></li>
+                </ul>
+              </div>
+            </section>
+
+            <section class="side-card">
+              <header><h2>Turn contract</h2><p>What the proposed UI makes visible</p></header>
+              <div class="side-body">
+                <div class="tool-pills"><span class="tool-pill">1 message</span><span class="tool-pill">1 AgentRun</span><span class="tool-pill">cited tools</span><span class="tool-pill">durable events</span></div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <template id="scenario-release">
+    <article class="message user">
+      <div class="avatar" aria-hidden="true">You</div>
+      <div class="bubble"><p>Is this full PSI candidate ready to publish, and how is it different from the current version?</p><div class="message-meta"><span>10:42</span><span>Context attached before submission</span></div></div>
+    </article>
+    <article class="message assistant">
+      <div class="avatar" aria-hidden="true">AI</div>
+      <div class="bubble">
+        <h2>Ready for human publication review</h2>
+        <p>The candidate completed its required checks and keeps the accepted release unchanged. The source acquisition contains <strong>7,335,504 unique records</strong>; its bounded 2025 product contains <strong>237,349 records</strong>. <a class="citation" href="#">release</a><a class="citation" href="#">comparison</a></p>
+        <div class="answer-summary"><div class="metric"><strong>2 / 2 passed</strong><span>Required quality checks</span></div><div class="metric"><strong>237,349</strong><span>Published-product rows</span></div><div class="metric"><strong>Candidate</strong><span>No publication performed</span></div></div>
+        <p><strong>Recommended next step:</strong> review the 2025 coverage and 170.86 MB artefact, then use the separate publication workflow if it is appropriate.</p>
+        <details class="trace"><summary>How this answer was assembled · 3 evidence calls</summary><ol class="trace-list"><li class="trace-step"><span class="check">✓</span><span>Inspected candidate release <code>d6b4556c…</code></span><time>2.1 s</time></li><li class="trace-step"><span class="check">✓</span><span>Inspected accepted predecessor <code>50000000…</code></span><time>1.4 s</time></li><li class="trace-step"><span class="check">✓</span><span>Compared schema, count, coverage and status</span><time>1.8 s</time></li></ol></details>
+        <div class="message-meta"><span>Complete · 12 s</span><a class="run-link" href="#">Open run d1739ce4…</a><span>Answer generated by Gemini</span></div>
+      </div>
+    </article>
+  </template>
+
+  <template id="scenario-failure">
+    <article class="message user">
+      <div class="avatar" aria-hidden="true">You</div>
+      <div class="bubble"><p>Why did this BOCSAR update stop, and what should I do next?</p><div class="message-meta"><span>10:47</span><span>Release and ingestion run attached</span></div></div>
+    </article>
+    <article class="message assistant">
+      <div class="avatar" aria-hidden="true">AI</div>
+      <div class="bubble">
+        <h2>The import was cancelled before checks ran</h2>
+        <div class="notice warning"><span aria-hidden="true">!</span><span>The recorded ingestion run was cancelled by an operator during the import task. It produced zero rows and zero quality results; missing checks are not being treated as passes.</span></div>
+        <p>The current accepted BOCSAR release remains available with 103 showcase records. This stopped candidate did not replace it. <a class="citation" href="#">ingestion run</a><a class="citation" href="#">release</a><a class="citation" href="#">comparison</a></p>
+        <p><strong>Recommended next step:</strong> first confirm the cancellation was intentional. If not, use the existing recovery screen to reprocess the validated cached acquisition. The assistant will not execute it.</p>
+        <details class="trace"><summary>How this answer was assembled · 3 evidence calls</summary><ol class="trace-list"><li class="trace-step"><span class="check">✓</span><span>Inspected exact run <code>5d82841c…</code></span><time>1.6 s</time></li><li class="trace-step"><span class="check">✓</span><span>Inspected stopped candidate release</span><time>1.2 s</time></li><li class="trace-step"><span class="check">✓</span><span>Compared the unchanged accepted release</span><time>1.4 s</time></li></ol></details>
+        <div class="message-meta"><span>Complete · 18 s</span><a class="run-link" href="#">Open run 146dfa2e…</a><span>Read-only answer</span></div>
+      </div>
+    </article>
+  </template>
+
+  <template id="scenario-property">
+    <article class="message user">
+      <div class="avatar" aria-hidden="true">You</div>
+      <div class="bubble"><p>Find properties in Parramatta and inspect the first exact match.</p><div class="message-meta"><span>10:51</span><span>Property search page attached</span></div></div>
+    </article>
+    <article class="message assistant">
+      <div class="avatar" aria-hidden="true">AI</div>
+      <div class="bubble">
+        <h2>Exact property match found</h2>
+        <p><strong>12 Example Street, Parramatta NSW 2150</strong> is the first exact match returned by the accepted property search product. I carried its tool-returned property reference into inspection rather than generating an ID. <a class="citation" href="#">search result 1</a><a class="citation" href="#">property record</a></p>
+        <div class="answer-summary"><div class="metric"><strong>Parramatta</strong><span>Locality</span></div><div class="metric"><strong>Residential</strong><span>Property class</span></div><div class="metric"><strong>Accepted data</strong><span>Product source</span></div></div>
+        <div class="notice info"><span aria-hidden="true">ⓘ</span><span>This prototype assumes the identifier-ledger fix described in the feasibility plan. The audited implementation currently loses tool-discovered IDs during replanning.</span></div>
+        <details class="trace"><summary>How this answer was assembled · 2 evidence calls</summary><ol class="trace-list"><li class="trace-step"><span class="check">✓</span><span>Searched accepted property data for Parramatta</span><time>1.3 s</time></li><li class="trace-step"><span class="check">✓</span><span>Inspected returned ref <code>a0000000…0012</code></span><time>1.1 s</time></li></ol></details>
+        <div class="message-meta"><span>Complete · 8 s</span><a class="run-link" href="#">Open simulated run</a><span>Requires Phase 0 fix</span></div>
+      </div>
+    </article>
+  </template>
+
+  <script>
+    const scenarios = {
+      release: {
+        chip: "PSI 2025 candidate",
+        detail: "Release d6b4556c…",
+        context: [["Page", "Data updates"], ["Dataset", "NSW Property Sales Information"], ["Release", "2025 · candidate"], ["Accepted comparison", "2025 showcase release"]],
+      },
+      failure: {
+        chip: "BOCSAR stopped update",
+        detail: "Run 5d82841c…",
+        context: [["Page", "Data updates"], ["Dataset", "NSW recorded crime"], ["Release", "Stopped draft · 0 rows"], ["Ingestion run", "5d82841c… · cancelled"]],
+      },
+      property: {
+        chip: "Property search",
+        detail: "Locality: Parramatta",
+        context: [["Page", "Property search"], ["Search", "Parramatta NSW"], ["Data product", "Accepted property search"], ["Action", "Search then inspect exact result"]],
+      },
+    };
+
+    const conversation = document.querySelector("#conversation");
+    const contextChip = document.querySelector("#context-chip");
+    const contextDetail = document.querySelector("#context-detail");
+    const contextList = document.querySelector("#context-list");
+    const message = document.querySelector("#message");
+
+    function showScenario(name) {
+      const scenario = scenarios[name];
+      const template = document.querySelector(`#scenario-${name}`);
+      conversation.replaceChildren(template.content.cloneNode(true));
+      contextChip.textContent = scenario.chip;
+      contextDetail.textContent = scenario.detail;
+      contextList.replaceChildren(...scenario.context.map(([term, value]) => {
+        const row = document.createElement("div");
+        const dt = document.createElement("dt");
+        const dd = document.createElement("dd");
+        dt.textContent = term;
+        dd.textContent = value;
+        row.append(dt, dd);
+        return row;
+      }));
+      document.querySelectorAll("[data-scenario]").forEach((button) => {
+        const active = button.dataset.scenario === name;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+    }
+
+    document.querySelectorAll("[data-scenario]").forEach((button) => button.addEventListener("click", () => showScenario(button.dataset.scenario)));
+
+    document.querySelector("#composer").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const text = message.value.trim();
+      if (!text) return;
+      conversation.insertAdjacentHTML("beforeend", `<article class="message user"><div class="avatar" aria-hidden="true">You</div><div class="bubble"><p></p><div class="message-meta"><span>Just now</span><span>${contextChip.textContent} attached</span></div></div></article>`);
+      conversation.lastElementChild.querySelector("p").textContent = text;
+      const progress = document.createElement("article");
+      progress.className = "message assistant";
+      progress.innerHTML = '<div class="avatar" aria-hidden="true">AI</div><div class="bubble"><p class="pulse-line" role="status"><span>Planning this simulated turn</span><i></i><i></i><i></i></p><div class="message-meta"><span>New AgentRun would be created here</span></div></div>';
+      conversation.append(progress);
+      message.value = "";
+      progress.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      window.setTimeout(() => {
+        progress.querySelector(".bubble").innerHTML = '<h2>Prototype response</h2><p>A connected implementation would now show the Gemini answer, citations and recorded tool phases for this exact run. Use the examples above to audit proposed completed states.</p><div class="message-meta"><span>Simulated complete</span><a class="run-link" href="#">Open simulated run</a></div>';
+      }, 900);
+    });
+
+    message.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        event.currentTarget.form.requestSubmit();
+      }
+    });
+
+    showScenario("release");
+  </script>
+</body>
+</html>
