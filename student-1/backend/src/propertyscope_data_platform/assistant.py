@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ASSISTANT_FEATURE_KEY = "student-1-propertyscope-data-platform"
 AssistantScope = Literal["application", "feature"]
@@ -31,6 +31,11 @@ class AssistantTurnRequest(BaseModel):
     scope: AssistantScope = "feature"
     context: AssistantContext = Field(default_factory=AssistantContext)
 
+    @field_validator("message", mode="before")
+    @classmethod
+    def strip_message(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
 
 def capability_guide() -> dict[str, object]:
     """Return the small, versioned source of truth used by UI and model tooling."""
@@ -52,8 +57,13 @@ def capability_guide() -> dict[str, object]:
         },
         "assistant": {
             "turn_model": "Each submitted message creates one durable AI-mode AgentRun.",
-            "memory": "The visible transcript is local to this browser view; follow-up context must be explicit.",
-            "evidence": "Answers can use only recorded allowlisted HTTP tool results and this guide.",
+            "memory": (
+                "The visible transcript is local to this browser view; follow-up context "
+                "must be explicit."
+            ),
+            "evidence": (
+                "Answers can use only recorded allowlisted HTTP tool results and this guide."
+            ),
             "limitations": [
                 "It is research support, not professional advice.",
                 "It does not have arbitrary repository, filesystem, database or shell access.",
@@ -95,20 +105,24 @@ def build_assistant_objective(command: AssistantTurnRequest) -> str:
     context = command.context.model_dump(mode="json", exclude_none=True)
     context_lines = "\n".join(f"- {name}: {value}" for name, value in context.items())
     if not context_lines:
-        context_lines = "- No page entity was supplied. Ask for clarification rather than guessing an ID."
+        context_lines = (
+            "- No page entity was supplied. Ask for clarification rather than guessing an ID."
+        )
     scope_text = (
         "the PropertyScope application and its currently implemented Property data area"
         if command.scope == "application"
         else "the Property data research area"
     )
     return (
-        "Conversational assistant turn. This is separate from the fixed-objective Data review flow.\n"
+        "Conversational assistant turn. This is separate from the fixed-objective "
+        "Data review flow.\n"
         f"Scope: {scope_text}.\n"
         f"User question: {command.message.strip()}\n"
         "Validated page context (copy identifiers exactly; never invent or substitute one):\n"
         f"{context_lines}\n"
-        "Answer the user directly in plain Australian English. Use the minimum read-only tools needed. "
-        "For questions about capabilities, the website or limitations, call platform.capabilities.v1. "
+        "Answer the user directly in plain Australian English. Use the minimum read-only "
+        "tools needed. For questions about capabilities, the website or limitations, call "
+        "platform.capabilities.v1. "
         "Distinguish accepted data from candidates and missing evidence from a passing result. "
         "Return a concise summary, findings, evidence references and a useful next step. "
         "Do not propose or call a write tool in this conversational turn."

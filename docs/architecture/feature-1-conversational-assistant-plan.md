@@ -1,6 +1,6 @@
 # Feature 1 conversational assistant feasibility and Gemini audit
 
-Status: proposal and test evidence, not an implemented product commitment  
+Status: Phase 0 hardening and contextual/global interface implemented; durable cross-turn memory remains proposed
 Date: 26 August 2026  
 Scope: PropertyScope Feature 1 and the shared AI-mode boundary
 
@@ -17,8 +17,13 @@ implemented **Data review** workflow. The recommended sequence is:
 5. consider project/code questions only through a curated, versioned documentation index with
    citations. Do not expose the repository, filesystem or shell to the model.
 
-The current Feature 1 assistant remains a release/run reviewer. It has fixed review objectives,
-creates one AI-mode run, displays recorded turn-by-turn evidence, and does not offer general chat.
+The fixed Feature 1 **Data review** remains a release/run reviewer. A separate shared AI chat now
+implements application-global and Feature 1-scoped free-form turns. Each message creates one
+independent AI-mode run and displays recorded turn status and evidence; durable cross-turn memory
+has not been introduced.
+
+Implementation and usage details are maintained in
+[`docs/ui/shared-ai-chat.md`](../ui/shared-ai-chat.md).
 
 ## What was tested
 

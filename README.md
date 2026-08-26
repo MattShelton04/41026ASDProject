@@ -112,6 +112,10 @@ The helper still converts the credential to a service-scoped Compose file secret
 
 Then open the unified PropertyScope home at <http://localhost:5100> or Feature 1 at
 <http://localhost:5200>.
+The shared AI chat is available at <http://localhost:5100/#assistant>; Feature 1 also exposes the
+same reusable interface at <http://localhost:5200/#assistant>. See
+[`docs/ui/shared-ai-chat.md`](docs/ui/shared-ai-chat.md) for scopes, page context, durable run
+evidence, Gemini setup and current limitations.
 The shared home also exposes live implemented-service status at
 <http://localhost:5100/#system-status>, bounded evidence references at
 <http://localhost:5100/#evidence>, and the honest deployment capability roadmap at

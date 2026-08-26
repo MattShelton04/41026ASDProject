@@ -29,31 +29,32 @@ function activityHref(runId) {
 
 export function createAssistantRoute({ announce = () => {} } = {}) {
   let active = null;
-  return async (root) => {
+  return (root) => {
     active?.destroy();
     const client = createAssistantClient({ apiRoot: "/api/data-platform/v1/assistant" });
-    let guide = null;
-    try {
-      guide = (await client.capabilities()).body;
-    } catch { /* rendered as a safe degraded state after the component mounts */ }
     active = createAiChat({
       root,
       client,
       initialScope: assistantScope(location.hash),
       scopes: SHARED_ASSISTANT_SCOPES,
-      suggestions: (scope) => guide?.suggested_questions?.length && scope === "application"
-        ? guide.suggested_questions.slice(0, 4)
-        : sharedAssistantSuggestions(scope),
+      suggestions: sharedAssistantSuggestions,
       activityHref,
       announce,
       title: "Ask PropertyScope",
       description: "Ask about the application or use the currently available Property data tools. Every message creates one durable run with visible status, evidence and a full activity record.",
     });
-    if (!guide) {
+    const controller = active;
+    client.capabilities().then(({ body }) => {
+      if (active !== controller || !body?.suggested_questions?.length) return;
+      controller.setSuggestions((scope) => scope === "application"
+        ? body.suggested_questions.slice(0, 4)
+        : sharedAssistantSuggestions(scope));
+    }).catch(() => {
+      if (active !== controller) return;
       root.querySelector(".ps-ai-chat__intro")?.after(
         notice("warning", "Capability guide unavailable", "The assistant can still start a turn, but current scope guidance could not be refreshed."),
       );
-    }
-    return active;
+    });
+    return controller;
   };
 }

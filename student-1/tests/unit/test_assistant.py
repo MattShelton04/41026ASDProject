@@ -45,6 +45,7 @@ def test_assistant_objective_preserves_exact_validated_context() -> None:
     "payload",
     [
         {"message": "x"},
+        {"message": "   "},
         {"message": "What can it do?", "scope": "everything"},
         {"message": "What can it do?", "context": {"unknown_id": "value"}},
         {"message": "What can it do?", "context": {"release_id": "not-a-uuid"}},

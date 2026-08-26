@@ -81,6 +81,11 @@ Open <http://localhost:5200>. The main product path is:
 6. When a version needs interpretation, select **Review with AI**. AI review is optional, cannot
    publish changes and remains available later in **Activity history**.
 
+Use **Ask about Property data** for free-form, read-only questions about the feature, its sources,
+updates, releases, coverage or accepted property evidence. This shared chat interface is separate
+from the fixed Data review flow; each message creates a durable AI-mode run and shows its evidence
+and activity link. See [`docs/ui/shared-ai-chat.md`](../docs/ui/shared-ai-chat.md).
+
 ### Which local URL and container should I use?
 
 The Docker stack and the frontend-only fixture server are separate environments:

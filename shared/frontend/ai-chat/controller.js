@@ -28,6 +28,7 @@ export function createAiChat({
     turns: [],
     timers: new Map(),
     destroyed: false,
+    suggestionProvider: suggestions,
   };
   const shell = el("section", "ps-ai-chat");
   const intro = el("header", "ps-ai-chat__intro");
@@ -49,8 +50,7 @@ export function createAiChat({
   append(scopeHost, scopeLabel, contextSummary(state.context));
 
   const transcript = el("div", "ps-ai-chat__transcript");
-  transcript.setAttribute("aria-live", "polite");
-  transcript.setAttribute("aria-relevant", "additions text");
+  transcript.setAttribute("aria-label", "Assistant conversation");
   const welcome = el("section", "ps-ai-chat__welcome");
   append(welcome, el("span", "ps-ai-chat__speaker", "PropertyScope assistant"), el("h2", "", "What would you like to understand?"), el("p", "", "I can explain the website and inspect available Property data through recorded, allowlisted tools. I will show the durable run and evidence for each answer."));
   const suggestionsHost = el("div", "ps-ai-chat__suggestions");
@@ -79,7 +79,8 @@ export function createAiChat({
 
   function renderSuggestions() {
     suggestionsHost.replaceChildren();
-    const suggestedMessages = typeof suggestions === "function" ? suggestions(state.scope) : suggestions;
+    const provider = state.suggestionProvider;
+    const suggestedMessages = typeof provider === "function" ? provider(state.scope) : provider;
     for (const suggestion of suggestedMessages || []) {
       const button = el("button", "ps-ai-chat__suggestion", suggestion);
       button.type = "button";
@@ -231,6 +232,10 @@ export function createAiChat({
     setContext(next) {
       state.context = { ...next };
       scopeHost.replaceChild(contextSummary(state.context), scopeHost.lastElementChild);
+    },
+    setSuggestions(next) {
+      state.suggestionProvider = next || defaultSuggestions;
+      renderSuggestions();
     },
     focusComposer() { textarea.focus(); },
     destroy() {
