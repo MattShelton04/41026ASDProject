@@ -515,6 +515,70 @@ def test_plan_rejects_cross_type_uuid_substitution_from_tool_evidence() -> None:
         runner._validate_model_plan(store.run, plan, (discovered,))
 
 
+@pytest.mark.parametrize(
+    ("objective", "tool_name", "content"),
+    [
+        (
+            "Validated page context:\n- ingestion_run_id: 70000000-0000-0000-0000-000000000002",
+            "data.runs.v1",
+            {},
+        ),
+        (
+            "Inspect release evidence without guessing identifiers",
+            "data.release_inspect.v1",
+            {"quality_results": [{"id": "70000000-0000-0000-0000-000000000002"}]},
+        ),
+    ],
+)
+def test_plan_rejects_typed_objective_and_nested_id_substitution(
+    objective: str, tool_name: str, content: dict[str, object]
+) -> None:
+    wrong_release_id = "70000000-0000-0000-0000-000000000002"
+    inspect_tool = ToolDefinition(
+        name="data.release_inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one release",
+        input_schema={
+            "type": "object",
+            "properties": {"release_id": {"type": "string", "format": "uuid"}},
+            "required": ["release_id"],
+            "additionalProperties": False,
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tool=inspect_tool)
+    store.run = store.run.evolve(objective=objective)
+    discovered = AgentStep(
+        id=uuid4(),
+        run_id=store.run.id,
+        sequence=1,
+        phase=StepPhase.ACT,
+        status=StepStatus.SUCCEEDED,
+        input={"tool_call": {"tool_name": tool_name, "arguments": {}}},
+        output={"tool_result": {"outcome": "succeeded", "content": content}},
+    )
+    plan = Plan.model_validate(
+        {
+            "goal": "Inspect a release",
+            "actions": [
+                {
+                    "sequence": 1,
+                    "tool_name": inspect_tool.name,
+                    "arguments": {"release_id": wrong_release_id},
+                    "purpose": "Inspect exact release evidence",
+                }
+            ],
+            "success_criteria": ["Release is inspected"],
+            "risk_level": "low",
+        }
+    )
+
+    with pytest.raises(ModelOutputValidationError, match="release_id must copy"):
+        runner._validate_model_plan(store.run, plan, (discovered,))
+
+
 def test_successful_call_signatures_ignore_non_action_and_failed_steps() -> None:
     run_id = store_id = uuid4()
     steps = (

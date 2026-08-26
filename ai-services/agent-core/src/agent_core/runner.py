@@ -59,6 +59,12 @@ BLOCKED_STATUSES = TERMINAL_STATUSES | {RunStatus.REVIEW_REQUIRED}
 UUID_IDENTIFIER_PATTERN = re.compile(
     r"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"
 )
+TYPED_OBJECTIVE_IDENTIFIER_PATTERN = re.compile(
+    r"(?i)\b(?P<label>release under investigation|accepted predecessor release|"
+    r"candidate_release_id|predecessor_release_id|release_id|ingestion_run_id|run_id|"
+    r"property_ref|record_ref)\s*[:=]\s*(?P<value>[0-9a-f]{8}-[0-9a-f]{4}-"
+    r"[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b"
+)
 
 
 class AgentRunner:
@@ -642,11 +648,14 @@ class AgentRunner:
         prior_steps: tuple[AgentStep, ...],
     ) -> None:
         """Reject UUIDs guessed by the model instead of supplied or discovered in-run."""
-        supplied = set(UUID_IDENTIFIER_PATTERN.findall(run.objective))
+        typed_supplied: dict[str, set[str]] = {}
+        typed_values: set[str] = set()
         discovered: dict[str, set[str]] = {}
 
-        def identifier_kind(key: str, tool_name: str = "") -> str:
+        def identifier_kind(key: str, tool_name: str = "", path: tuple[str, ...] = ()) -> str:
             normalized = key.lower()
+            if normalized in {"release_under_investigation", "accepted_predecessor_release"}:
+                return "release_id"
             if normalized == "property_ref":
                 return "property_ref"
             if normalized == "record_ref":
@@ -656,23 +665,50 @@ class AgentRunner:
             if normalized.endswith("run_id"):
                 return "run_id"
             if normalized == "id":
-                if tool_name.startswith("data.release"):
+                parent = path[-2].lower() if len(path) >= 2 else ""
+                if parent in {"release", "candidate", "predecessor", "accepted_predecessor"}:
                     return "release_id"
-                if tool_name.startswith("data.run"):
+                if parent in {"run", "ingestion_run"}:
                     return "run_id"
+                if path[-2:] == ("items", "id"):
+                    if tool_name == "data.releases.v1":
+                        return "release_id"
+                    if tool_name == "data.runs.v1":
+                        return "run_id"
             return normalized
 
-        def collect(value: object, *, tool_name: str, key: str = "") -> None:
+        for match in TYPED_OBJECTIVE_IDENTIFIER_PATTERN.finditer(run.objective):
+            kind = identifier_kind(match.group("label").replace(" ", "_"))
+            value = match.group("value")
+            typed_supplied.setdefault(kind, set()).add(value)
+            typed_values.add(value)
+        untyped_supplied = set(UUID_IDENTIFIER_PATTERN.findall(run.objective)).difference(
+            typed_values
+        )
+
+        def collect(
+            value: object,
+            *,
+            tool_name: str,
+            key: str = "",
+            path: tuple[str, ...] = (),
+        ) -> None:
             if isinstance(value, dict):
                 for nested_key, nested in value.items():
-                    collect(nested, tool_name=tool_name, key=str(nested_key))
+                    nested_name = str(nested_key)
+                    collect(
+                        nested,
+                        tool_name=tool_name,
+                        key=nested_name,
+                        path=(*path, nested_name),
+                    )
                 return
             if isinstance(value, list):
                 for nested in value:
-                    collect(nested, tool_name=tool_name, key=key)
+                    collect(nested, tool_name=tool_name, key=key, path=path)
                 return
             if isinstance(value, str) and UUID_IDENTIFIER_PATTERN.fullmatch(value):
-                discovered.setdefault(identifier_kind(key, tool_name), set()).add(value)
+                discovered.setdefault(identifier_kind(key, tool_name, path), set()).add(value)
 
         for step in prior_steps:
             if step.phase is not StepPhase.ACT:
@@ -699,7 +735,8 @@ class AgentRunner:
                 and (key == "id" or key.endswith(("_id", "_ref")))
                 and isinstance(value, str)
                 and UUID_IDENTIFIER_PATTERN.fullmatch(value)
-                and value not in supplied
+                and value not in untyped_supplied
+                and value not in typed_supplied.get(identifier_kind(key), set())
                 and value not in discovered.get(identifier_kind(key), set())
             ):
                 raise ModelOutputValidationError(
