@@ -579,6 +579,47 @@ def test_plan_rejects_typed_objective_and_nested_id_substitution(
         runner._validate_model_plan(store.run, plan, (discovered,))
 
 
+def test_typed_identifier_provenance_accepts_only_matching_fields_and_paths() -> None:
+    objective_release = "60000000-0000-0000-0000-000000000010"
+    discovered_release = "60000000-0000-0000-0000-000000000011"
+    listed_release = "60000000-0000-0000-0000-000000000012"
+    discovered_run = "70000000-0000-0000-0000-000000000011"
+    discovered_property = "a0000000-0000-0000-0000-000000000012"
+    runner, store, _ = _runner([])
+    run = store.run.evolve(objective=f"Release under investigation: {objective_release}.")
+    evidence = AgentStep(
+        id=uuid4(),
+        run_id=run.id,
+        sequence=1,
+        phase=StepPhase.ACT,
+        status=StepStatus.SUCCEEDED,
+        input={"tool_call": {"tool_name": "data.releases.v1", "arguments": {}}},
+        output={
+            "tool_result": {
+                "outcome": "succeeded",
+                "content": {
+                    "release": {"id": discovered_release},
+                    "run": {"id": discovered_run},
+                    "property": {"property_ref": discovered_property},
+                    "items": [{"id": listed_release}],
+                },
+            }
+        },
+    )
+
+    runner._validate_exact_identifiers(
+        run,
+        {
+            "release_id": objective_release,
+            "predecessor_release_id": discovered_release,
+            "candidate_release_id": listed_release,
+            "run_id": discovered_run,
+            "related": [{"property_ref": discovered_property}],
+        },
+        (evidence,),
+    )
+
+
 def test_successful_call_signatures_ignore_non_action_and_failed_steps() -> None:
     run_id = store_id = uuid4()
     steps = (
