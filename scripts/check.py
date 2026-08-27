@@ -64,6 +64,7 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "scripts/validate_frontend_styles.py",
         "scripts/validate_model_registry.py",
         "scripts/validate_tool_catalogs.py",
+        "scripts/verify_release0_stack.py",
     ),
 )
 TEST_COMMANDS: tuple[Command, ...] = (

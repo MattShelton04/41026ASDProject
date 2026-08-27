@@ -11,6 +11,8 @@
   and Compose volume ownership boundaries
 - `validate_model_registry.py`: validate supported model metadata, profiles, and budgets
 - `validate_tool_catalogs.py`: fail-fast composition check for every feature tool catalogue
+- `verify_release0_stack.py`: bounded Shared/Feature 1 HTTP, internal-readiness, schema-fingerprint,
+  and machine-readable CI evidence checks for the running Release 0 Compose stack
 - `build/`: shared application and container build automation
 - `test/`: shared local and integration test automation
 - `deploy/`: Release 2 Azure deployment automation
