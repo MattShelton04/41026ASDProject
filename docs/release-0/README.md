@@ -19,6 +19,8 @@ capabilities until their independently owned frontends, backends and stores are 
 
 See [`openai-api-operations.md`](openai-api-operations.md) for remote-provider configuration,
 secret handling, the live smoke test, and troubleshooting.
+See [`readiness-assessment-2026-08-27.md`](readiness-assessment-2026-08-27.md) for the current
+criterion-by-criterion Shared/Feature 1 readiness verdict and the remaining group submission gates.
 Student owners should use [`feature-onboarding.md`](feature-onboarding.md) after their
 topic and feature allocation are approved; it records integration and testing
 obligations without inventing domain behavior.

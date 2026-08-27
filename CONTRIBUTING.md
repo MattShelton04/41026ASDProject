@@ -108,8 +108,12 @@ uv run pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
 ```
 
 `Integration CI / Canonical quality gate` is the single required source-quality job. The
-path-filtered Student 1 workflow adds only the Chromium form suite and integrated container checks;
-it does not repeat the whole repository gate on the same pull request.
+path-filtered Student 1 workflow adds only the Chromium form suite and the integrated Shared plus
+Feature 1 container check; it does not repeat the whole repository gate or a second shared-image
+build on the same pull request. Its working set is limited to Feature 1, agent-core/AI-mode, shared
+runtime contracts/frontend assets, Compose/build metadata, workspace manifests, and the exact dev
+and smoke commands used by that check. The container job retains a small JSON evidence artifact for
+14 days with route results, internal readiness, the database schema fingerprint, commit, and run ID.
 
 The local service exposes health endpoints and the versioned `/api/v1/agent-runs`
 create/read/cancel/review surface. Its default feature-tool registry remains empty until
