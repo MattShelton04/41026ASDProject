@@ -5,28 +5,48 @@ on:
     branches:
       - main
     paths:
-      - "student-1/**"
+      - ".dockerignore"
+      - ".github/workflows/student-1.yml"
+      - ".python-version"
+      - "ai-services/agent-core/**"
+      - "ai-services/ai-mode/**"
+      - "docker-compose.yml"
+      - "docker-compose.dev.yml"
+      - "pyproject.toml"
+      - "scripts/__init__.py"
+      - "scripts/dev.py"
+      - "scripts/devtools/**"
+      - "scripts/verify_release0_stack.py"
       - "shared/contracts/**"
       - "shared/frontend/**"
-      - "scripts/**"
-      - "docker-compose*.yml"
-      - "pyproject.toml"
+      - "student-1/**"
+      - "student-2/pyproject.toml"
+      - "student-3/pyproject.toml"
+      - "student-4/pyproject.toml"
+      - "student-5/pyproject.toml"
       - "uv.lock"
-      - ".python-version"
-      - ".pre-commit-config.yaml"
-      - ".github/workflows/student-1.yml"
   pull_request:
     paths:
-      - "student-1/**"
+      - ".dockerignore"
+      - ".github/workflows/student-1.yml"
+      - ".python-version"
+      - "ai-services/agent-core/**"
+      - "ai-services/ai-mode/**"
+      - "docker-compose.yml"
+      - "docker-compose.dev.yml"
+      - "pyproject.toml"
+      - "scripts/__init__.py"
+      - "scripts/dev.py"
+      - "scripts/devtools/**"
+      - "scripts/verify_release0_stack.py"
       - "shared/contracts/**"
       - "shared/frontend/**"
-      - "scripts/**"
-      - "docker-compose*.yml"
-      - "pyproject.toml"
+      - "student-1/**"
+      - "student-2/pyproject.toml"
+      - "student-3/pyproject.toml"
+      - "student-4/pyproject.toml"
+      - "student-5/pyproject.toml"
       - "uv.lock"
-      - ".python-version"
-      - ".pre-commit-config.yaml"
-      - ".github/workflows/student-1.yml"
   workflow_dispatch:
 
 permissions:
@@ -38,14 +58,20 @@ concurrency:
 
 jobs:
   form-browser:
+    name: Feature 1 browser forms
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
           python-version-file: .python-version
-      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.12.1"
           enable-cache: true
@@ -58,17 +84,23 @@ jobs:
         run: uv run --locked pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
 
   containers:
+    name: Integrated Release 0 stack
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       OPENAI_API_KEY_FILE: /dev/null
       AI_MODE_REQUIRE_PROVIDER_READY: "false"
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
           python-version-file: .python-version
-      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.12.1"
           enable-cache: true
@@ -102,30 +134,20 @@ jobs:
       - name: Start bounded fixture stack
         run: |
           docker compose --profile release-0 up --detach --wait --wait-timeout 180 shared-frontend shared-ai-mode f1-db-api f1-db-loader f1-backend f1-runner f1-frontend
-      - name: Verify browser and service health
-        run: |
-          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/
-          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/config.js
-          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/features/data-platform/
-          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/features/data-platform/app.js
-          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/features/data-platform/design-system/tokens.css
-          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5100/operations/ai-mode/
-          curl --fail --retry 10 --retry-all-errors http://127.0.0.1:5200/
-          curl --fail --retry 10 --retry-all-errors 'http://127.0.0.1:5200/api/data-platform/v1/properties/search?q=11%20Example%20Street&state=NSW&limit=10'
-          curl --fail --retry 10 --retry-all-errors 'http://127.0.0.1:5100/api/data-platform/v1/properties/search?q=11%20Example%20Street&state=NSW&limit=10'
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:5100/features/market-intelligence/)" = "307"
-          curl --silent --head http://127.0.0.1:5100/features/market-intelligence/ | grep --fixed-strings 'Location: /#features'
-          test "$(curl --silent --output /tmp/propertyscope-problem.json --write-out '%{http_code}' http://127.0.0.1:5100/api/does-not-exist)" = "404"
-          python -c "import json; problem=json.load(open('/tmp/propertyscope-problem.json', encoding='utf-8')); assert problem['code']=='route_not_found' and problem['request_id'], problem"
-          docker compose exec -T f1-db-api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5202/health/ready', timeout=2)"
-          docker compose exec -T f1-backend python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5201/health/ready', timeout=2)"
       - name: Run the code-driven fixture acquisition pipeline
         run: |
           uv sync --locked --all-packages --all-groups
           uv run --locked scripts/dev.py data collect fixture-property --profile test --timeout 120
-      - name: Capture deterministic database schema fingerprint
-        run: |
-          docker compose exec -T f1-db-api python -c "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:5202/internal/data-platform/v1/schema/fingerprint',headers={'X-PropertyScope-Internal-Token':'propertyscope-local-development-only'}); value=json.load(urllib.request.urlopen(request)); assert value['algorithm']=='sha256' and len(value['fingerprint'])==64, value"
+      - name: Verify the integrated stack and record bounded evidence
+        run: uv run --locked python scripts/verify_release0_stack.py
+      - name: Upload Release 0 smoke evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-0-smoke-${{ github.run_id }}
+          path: .propertyscope-runtime/ci/release-0-smoke.json
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Capture service logs
         if: failure()
         run: docker compose --profile release-0 logs --no-color --tail 300
