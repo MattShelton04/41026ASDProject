@@ -407,9 +407,7 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         "property_name": _optional_text(source, "property_name", index),
         "unit_number": _optional_text(source, "unit_number", index),
         "house_number": _optional_text(source, "house_number", index),
-        "street_number_first": _optional_integer(
-            source, "street_number_first", index, minimum=0
-        ),
+        "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
         "street_number_suffix": _optional_text(source, "street_number_suffix", index),
         "street_name": _optional_text(source, "street_name", index),
         "street_name_normalised": _optional_text(source, "street_name_normalised", index),

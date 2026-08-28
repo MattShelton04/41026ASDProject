@@ -25,11 +25,20 @@ from propertyscope_data_platform.clients import (
     ConsumerImportClient,
     DataStoreClient,
 )
-from propertyscope_data_platform.release_builders import BuildContext, resolve_release_builder
+from propertyscope_data_platform.release_builders import (
+    BuildContext,
+    default_release_builders,
+    resolve_release_builder,
+)
 from propertyscope_data_platform.runner import AcquisitionRunner, RunnerSettings
 
 ROOT = Path(__file__).parents[2]
 FIXED_TIME = datetime(2026, 8, 16, 1, 2, 3, tzinfo=UTC)
+
+
+def _builder(key: str) -> Any:
+    registered = default_release_builders()[key]
+    return resolve_release_builder(key, registered.spec.version)
 
 
 @contextmanager
@@ -217,11 +226,11 @@ def test_runner_constructs_every_registered_export_over_real_http(
     @control.get("/internal/data-platform/v1/worker/runs/<request_run_id>/release-build-context")
     def build_context(request_run_id: str) -> Any:
         assert request_run_id == run_id
-        builder = resolve_release_builder(builder_key, "1.0.0")
+        builder = _builder(builder_key)
         return jsonify(
             {
                 "context": context.model_dump(mode="json"),
-                "builder": {"key": builder_key, "version": "1.0.0"},
+                "builder": {"key": builder_key, "version": builder.spec.version},
                 "target_contract": builder.spec.contract,
                 "release_id": release_id,
             }
@@ -288,7 +297,7 @@ def test_runner_constructs_every_registered_export_over_real_http(
     assert rows_in == len(rows)
     assert rows_out == binding["record_count"]
     assert artifact["artifact_kind"] == "release_export"
-    assert artifact["schema_version"] == resolve_release_builder(builder_key, "1.0.0").spec.contract
+    assert artifact["schema_version"] == _builder(builder_key).spec.contract
     assert hashlib.sha256(content).hexdigest() == binding["content_sha256"]
     assert json.loads(content)["schema_version"] == artifact["schema_version"]
 
@@ -307,7 +316,7 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
     dataset_id: str, tmp_path: Path
 ) -> None:
     builder_key, context, rows = _product_case(dataset_id)
-    builder = resolve_release_builder(builder_key, "1.0.0")
+    builder = _builder(builder_key)
     product = builder.build(context, rows, created_at=FIXED_TIME)
     artifact = LocalArtifactStore(tmp_path).put(
         [product.content], max_bytes=50_000_000, media_type="application/json"
@@ -413,9 +422,8 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
         expected_digest = base64.b64encode(bytes.fromhex(publication["content_sha256"])).decode()
         assert response.headers["Digest"] == f"sha-256=:{expected_digest}:"
         payload = response.json()
-        schema = json.loads(
-            (ROOT / "contracts" / f"{builder_key}.v1.schema.json").read_text("utf-8")
-        )
+        schema_name = builder.spec.contract.removeprefix("propertyscope.") + ".schema.json"
+        schema = json.loads((ROOT / "contracts" / schema_name).read_text("utf-8"))
         jsonschema.validate(payload, schema)
         if dataset_id == "nsw-psi-sales":
             assert payload["records"][0]["price_aud"] is None
