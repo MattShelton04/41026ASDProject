@@ -643,8 +643,9 @@ assertion. Compare:
 4. application response cache disabled versus enabled for an eligible read-only case.
 
 Adopt an optimisation only when the dataset shows lower median and p95 latency or lower
-prompt evaluation work with no task-success regression. Store the benchmark script and
-raw results under `scripts/test/` and `docs/evaluations/`.
+prompt evaluation work with no task-success regression. Store an owned benchmark alongside its
+tests, and keep generated raw results in a Git-ignored runtime directory with bounded summaries
+under `docs/evaluations/`.
 
 ## 10. Persistence design
 
@@ -995,8 +996,11 @@ The current standard top-level structure remains intact and is extended as follo
 |       |-- main.bicep
 |       `-- parameters/
 |-- scripts/
-|   |-- build/ test/ deploy/
-|   `-- evidence/
+|   |-- check.py
+|   |-- dev.py
+|   |-- devtools/
+|   |-- ui_audit/
+|   `-- tests/
 |-- pyproject.toml
 |-- uv.lock
 |-- docker-compose.yml

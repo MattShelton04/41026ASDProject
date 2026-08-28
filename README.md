@@ -50,7 +50,7 @@ deployment.
   shared agent activity, design assets, and configuration templates
 - `student-1/` to `student-5/`: individual feature workspaces
 - `ai-services/`: agent-core and AI-mode projects plus later-release service locations
-- `scripts/`: shared quality, build, test, and deployment automation
+- `scripts/`: source-quality, Compose development, data-acquisition, fixture, and UI-audit automation
 - `docker-compose.yml`: Release 0 AI-mode, remote provider configuration, the bounded PropertyScope Feature
   1 stack, and its exclusive PostgreSQL/PostGIS and artifact-volume boundaries
 - `CONTRIBUTING.md`: environment setup, commands, ownership, and pull request workflow

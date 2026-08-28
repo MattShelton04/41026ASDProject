@@ -13,9 +13,13 @@
 - `tests/`: unit and integration tests for the assigned microservices
 - `Dockerfile`: container definition for the assigned services
 
-The completed feature supports CRUD, integrates with the unified home page and shared styling,
-interacts with the approved LLM, and remains part of the integrated group application. Data volume
-is demonstrated through registered ingestion runs rather than padding every persistence table.
+The implemented feature supports CRUD, integrates with the unified home page and shared styling,
+interacts with the configured remote LLM, and remains part of the currently integrated application
+slice. Data volume is demonstrated through registered ingestion runs rather than padding every
+persistence table. The
+[Release 0 readiness assessment](../docs/release-0/readiness-assessment-2026-08-27.md) records the
+remaining evidence and approval gates for treating those implementation claims as
+submission-complete.
 
 ## Feature boundary
 
