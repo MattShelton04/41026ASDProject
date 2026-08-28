@@ -56,13 +56,13 @@ under the ignored `.propertyscope-runtime/ui-audit/` tree.
 `stack reset` stops the local stack, removes its declared volumes, and prunes only unused volumes
 with that exact Compose project label. The Git-ignored host source cache is not removed.
 
-`data collect <job> --profile <test|showcase|full-data>` drives the same registered public HTTP path
-as the browser: it validates the plan, creates an idempotent durable run, waits by default, and
-prints the retained candidate release. Official jobs default to `full-data`; the synthetic fixture
-defaults to `showcase`. Use `--no-wait` for very long source-scale jobs. The command never publishes
-a release; human review remains an intentional product safety boundary.
+`data collect <job>` drives the same registered public HTTP path as the browser: it requests the
+complete registered source, validates the plan, creates an idempotent durable run, waits by default,
+and prints the retained candidate release. The synthetic fixture remains fast because its source is
+finite. Use `--no-wait` for very long source-scale jobs. The command never publishes a release;
+human review remains an intentional product safety boundary.
 
-PropertyScope's official connectors and small deterministic profiles are both available in the
-default stack at <http://localhost:5200>. Starting the stack performs no acquisition. Each browser
-or CLI job explicitly chooses complete, showcase or test scope and writes candidates through the
-same durable database and human-review boundary.
+PropertyScope's official connectors and deterministic finite fixture are available in the default
+stack at <http://localhost:5200>. Starting the stack performs no acquisition. Each browser or CLI
+job explicitly starts a complete registered-source import and writes candidates through the same
+durable database and human-review boundary.

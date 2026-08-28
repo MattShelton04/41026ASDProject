@@ -125,14 +125,6 @@ class SourceDefinitionUpdate(SourceDefinitionCreate):
     version: int = Field(ge=1)
 
 
-class ResourceLimits(DomainModel):
-    max_objects: int = Field(ge=1, le=100_000)
-    max_bytes: int = Field(ge=1, le=100_000_000_000)
-    max_rows: int = Field(ge=1, le=100_000_000)
-    deadline_seconds: int = Field(ge=1, le=86_400)
-    max_parallelism: int = Field(default=1, ge=1, le=16)
-
-
 class VersionedKey(DomainModel):
     key: Identifier
     version: str = Field(pattern=r"^\d+\.\d+\.\d+$", max_length=30)
@@ -155,9 +147,7 @@ class JobDefinitionCreate(DomainModel):
     refresh_strategy: RefreshStrategy
     supported_modes: tuple[RunMode, ...] = Field(min_length=1, max_length=2)
     default_run_mode: RunMode = RunMode.FULL_REFRESH
-    scope_profile: Identifier
     quality_policy: Identifier
-    limits: ResourceLimits
     status: LifecycleStatus = LifecycleStatus.DRAFT
     schedule_text: str | None = Field(default=None, max_length=200)
 
@@ -199,10 +189,8 @@ class PlannedTask(DomainModel):
 class RunPlan(DomainModel):
     job_id: UUID
     mode: RunMode
-    scope_profile: Identifier
     resolved_scope: dict[str, Any]
     tasks: tuple[PlannedTask, ...] = Field(max_length=100_000)
-    limits: ResourceLimits
     requires_confirmation: bool = False
     warnings: tuple[str, ...] = Field(default=(), max_length=50)
 

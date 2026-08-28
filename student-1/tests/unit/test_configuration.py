@@ -25,8 +25,7 @@ def test_checked_in_profiles_load_in_stable_order() -> None:
         "nsw-psi-sales-year",
     )
     fixture = registry.get_profile("fixture-property-full")
-    assert fixture.limits.max_parallelism == 1
-    assert set(fixture.scope_profiles) == {"test", "showcase"}
+    assert fixture.scope == {"profile": "full-data", "all_records": True}
 
 
 def test_unknown_profile_fails_closed() -> None:
@@ -35,7 +34,7 @@ def test_unknown_profile_fails_closed() -> None:
         registry.get_profile("arbitrary.module.Class")
 
 
-def test_checked_in_source_register_is_bounded_and_allowlisted() -> None:
+def test_checked_in_source_register_is_allowlisted() -> None:
     registry = load_source_register(ROOT / "config" / "source-register.yaml")
     assert len(registry) == 5
     assert registry.get_profile("bocsar-crime").adapter_key == "bocsar-bulk"

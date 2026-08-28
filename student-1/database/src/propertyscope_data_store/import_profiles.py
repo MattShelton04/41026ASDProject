@@ -15,7 +15,6 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 CANONICAL_SCHEMA_VERSION = "propertyscope.canonical-import.v1"
-MAX_BOUNDED_RECORDS = 100_000
 REGISTERED_PROFILES = frozenset(
     {"property-fixture", "gnaf-nsw", "psi-sales", "bocsar-sparse", "schools-master"}
 )
@@ -45,7 +44,7 @@ class ImportProfileError(ValueError):
 
 
 def prepare_import(data: bytes, *, profile: str) -> PreparedImport:
-    """Validate one bounded canonical JSON artifact without persistence side effects."""
+    """Validate one canonical JSON artifact without persistence side effects."""
     if profile not in REGISTERED_PROFILES:
         raise ImportProfileError("import profile is not registered")
     try:
@@ -63,8 +62,6 @@ def prepare_import(data: bytes, *, profile: str) -> PreparedImport:
         raise ImportProfileError("canonical import artifact must contain records")
     if not source_rows:
         raise ImportProfileError("canonical import artifact must not be empty")
-    if len(source_rows) > MAX_BOUNDED_RECORDS:
-        raise ImportProfileError("canonical import artifact exceeds bounded row limit")
     validator = _VALIDATORS[profile]
     rows = tuple(validator(row, index) for index, row in enumerate(source_rows, start=1))
     if profile == "psi-sales":

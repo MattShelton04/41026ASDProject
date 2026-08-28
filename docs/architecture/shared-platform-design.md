@@ -24,9 +24,9 @@ API, acquisition runner, database API, serial loader and PostgreSQL/PostGIS serv
 through the root Compose model. ADR-016 is implemented as a narrow exception: only the
 database API/loader receive the PostgreSQL URL; only PostgreSQL mounts its database volume;
 the runner writes the Feature 1 artifact volume and the loader reads it. Architecture checks
-enforce those imports, credentials and mounts. Deterministic CI uses bounded fixtures; the default
-development runtime connects official sources while acquisition size remains an explicit job scope
-under ADR-022. Tutor approval of the narrow
+enforce those imports, credentials and mounts. Deterministic CI uses a finite checked-in fixture;
+the default development runtime connects official sources and every Feature 1 update imports its
+complete registered source under ADR-029. Tutor approval of the narrow
 exception has been confirmed; preserving a durable copy/link remains a submission-evidence task.
 
 The first Release 0 foundation increment implemented the strict shared agent
@@ -362,8 +362,8 @@ parameters are not a general-purpose branding or redirect contract.
 ### 6.5 Compose naming convention
 
 Compose names expose ownership before implementation detail. The production-like base project is
-`ps`, and the reloadable local overlay is `ps-dev`. Official and example acquisitions share this
-runtime and differ by registered job scope under ADR-022.
+`ps`, and the reloadable local overlay is `ps-dev`. Official and finite-fixture acquisitions share
+this runtime and always consume their complete registered source under ADR-029.
 Shared services use `shared-<role>`; student-owned services use `f<number>-<role>`. Images mirror
 the service key below the descriptive `propertyscope/` namespace, and
 durable volumes use the same ownership prefix.

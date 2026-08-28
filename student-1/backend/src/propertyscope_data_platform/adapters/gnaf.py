@@ -96,7 +96,7 @@ def iter_gnaf_archive_path(
     *,
     declared_crs: str,
     maximum_records: int | None = None,
-    capacity_ceiling: int = 6_500_000,
+    capacity_ceiling: int | None = 6_500_000,
     localities: frozenset[str] | None = None,
     maximum_member_bytes: int = 1_000_000_000,
     maximum_scanned_rows: int = 7_000_000,
@@ -105,7 +105,7 @@ def iter_gnaf_archive_path(
     """Stream a complete NSW generation, spilling the large geocode join to local SQLite."""
     if maximum_records is not None and maximum_records < 1:
         raise ValueError("G-NAF maximum_records must be positive")
-    if capacity_ceiling < 1:
+    if capacity_ceiling is not None and capacity_ceiling < 1:
         raise ValueError("G-NAF capacity ceiling must be positive")
     with ZipFile(path) as archive:
         manifest = inspect_gnaf_archive(archive, declared_crs=declared_crs)
@@ -185,7 +185,7 @@ def iter_gnaf_archive_path(
                         ):
                             if maximum_records is not None and emitted >= maximum_records:
                                 return
-                            if emitted >= capacity_ceiling:
+                            if capacity_ceiling is not None and emitted >= capacity_ceiling:
                                 raise ValueError(
                                     "G-NAF canonical output exceeds the registered capacity ceiling"
                                 )
@@ -197,7 +197,7 @@ def iter_gnaf_archive_path(
                 ):
                     if maximum_records is not None and emitted >= maximum_records:
                         return
-                    if emitted >= capacity_ceiling:
+                    if capacity_ceiling is not None and emitted >= capacity_ceiling:
                         raise ValueError(
                             "G-NAF canonical output exceeds the registered capacity ceiling"
                         )

@@ -14,7 +14,6 @@ from .domain import (
     DomainModel,
     Identifier,
     RefreshStrategy,
-    ResourceLimits,
     RunMode,
     TargetContract,
     VersionedKey,
@@ -38,7 +37,6 @@ class AdapterDescriptor(DomainModel):
     expected_media_types: tuple[str, ...]
     allowed_hosts: tuple[str, ...]
     required_secrets: tuple[Identifier, ...] = ()
-    limits: ResourceLimits
 
 
 class AdapterRegister(DomainModel):
@@ -79,9 +77,8 @@ class JobProfile(DomainModel):
     release_builder: VersionedKey
     import_profile: VersionedKey
     target: TargetContract
-    scope_profiles: dict[Identifier, dict[str, object]]
+    scope: dict[str, object]
     quality_policy: Identifier
-    limits: ResourceLimits
     publication: str
 
 
@@ -171,13 +168,3 @@ def validate_job_profile(
         raise ConfigurationError("job refresh strategy is unsupported by its adapter")
     if set(profile.supported_modes) - set(adapter.supported_modes):
         raise ConfigurationError("job requests unsupported adapter modes")
-    checks = (
-        ("max_objects", profile.limits.max_objects, adapter.limits.max_objects),
-        ("max_bytes", profile.limits.max_bytes, adapter.limits.max_bytes),
-        ("max_rows", profile.limits.max_rows, adapter.limits.max_rows),
-        ("deadline", profile.limits.deadline_seconds, adapter.limits.deadline_seconds),
-        ("parallelism", profile.limits.max_parallelism, adapter.limits.max_parallelism),
-    )
-    for name, requested, maximum in checks:
-        if requested > maximum:
-            raise ConfigurationError(f"job {name} exceeds the adapter limit")

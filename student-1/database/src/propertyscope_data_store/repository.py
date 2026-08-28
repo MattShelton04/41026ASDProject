@@ -397,11 +397,6 @@ class PropertyScopeStore:
             "scope_json",
             "quality_policy_key",
             "quality_policy_version",
-            "max_parallelism",
-            "timeout_seconds",
-            "max_objects",
-            "max_bytes",
-            "max_rows",
             "status",
             "schedule_text",
         )
@@ -430,11 +425,6 @@ class PropertyScopeStore:
         editable = (
             "name",
             "scope_json",
-            "max_parallelism",
-            "timeout_seconds",
-            "max_objects",
-            "max_bytes",
-            "max_rows",
             "status",
             "schedule_text",
         )
@@ -442,19 +432,13 @@ class PropertyScopeStore:
         with self.connection() as connection:
             row = connection.execute(
                 """
-                UPDATE ops.job_definition SET name=%s,scope_json=%s,max_parallelism=%s,
-                    timeout_seconds=%s,max_objects=%s,max_bytes=%s,max_rows=%s,status=%s,
+                UPDATE ops.job_definition SET name=%s,scope_json=%s,status=%s,
                     schedule_text=%s,updated_at=%s,version=version+1
                 WHERE id=%s AND version=%s RETURNING *
                 """,
                 (
                     merged["name"],
                     _json(merged["scope_json"]),
-                    merged["max_parallelism"],
-                    merged["timeout_seconds"],
-                    merged["max_objects"],
-                    merged["max_bytes"],
-                    merged["max_rows"],
                     merged["status"],
                     merged["schedule_text"],
                     datetime.now(UTC),
@@ -816,8 +800,7 @@ class PropertyScopeStore:
                     """SELECT run.profile_key,run.run_mode,run.requested_scope_json,
                     run.source_snapshot_json,
                     job.adapter_key,job.import_profile_key,job.import_profile_version,
-                    job.dataset_id,job.target_feature,job.source_definition_id,
-                    job.max_bytes,job.max_rows,job.timeout_seconds
+                    job.dataset_id,job.target_feature,job.source_definition_id
                     FROM ops.ingestion_run run JOIN ops.job_definition job
                     ON job.id=run.job_definition_id WHERE run.id=%s""",
                     (row["ingestion_run_id"],),

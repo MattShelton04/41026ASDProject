@@ -9,15 +9,10 @@ supported_modes: [full_refresh, reprocess_cached]
 release_builder: {key: property-snapshot, version: 1.0.0}
 import_profile: {key: gnaf-nsw, version: 1.0.0}
 target: {feature: feature-1, contract: propertyscope.property-snapshot.v1}
-scope_profiles:
-  test: {state: NSW, maximum_records: 20}
-  showcase: {state: NSW, localities: [PARRAMATTA, MOSMAN, WOLLONGONG], maximum_records: 5000}
-  full-data:
-    state: NSW
-    all_records: true
-    release_scope: {maximum_records: 50000}
+scope:
+  profile: full-data
+  state: NSW
+  all_records: true
+  release_scope: {maximum_records: 50000}
 quality_policy: gnaf-nsw.v1
-limits:
-  {max_objects: 10, max_bytes: 2500000000, max_rows: 6500000,
-   deadline_seconds: 86400, max_parallelism: 1}
 publication: human_review

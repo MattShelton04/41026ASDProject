@@ -1,6 +1,6 @@
 import { collection } from "../core/api.js";
 import { append, el } from "../core/dom.js";
-import { displayName, formatNumber, humanise, researchAreaLabel } from "../core/formats.js?v=18";
+import { displayName, humanise, researchAreaLabel } from "../core/formats.js?v=18";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
@@ -26,7 +26,6 @@ export function createDataProductRoutes({ view, request, loading, rerender }) {
             { label: "Research area" },
             { label: "Publishing process" },
             { label: "Schema" },
-            { label: "Portable product limit" },
             { label: "Availability" },
             { label: "Published version" },
             { label: "Download" },
@@ -44,7 +43,6 @@ export function createDataProductRoutes({ view, request, loading, rerender }) {
               cell(researchAreaLabel(product.target_feature)),
               cell(`${product.builder_key} ${product.builder_version}`),
               cell(product.product_schema_version, "mono"),
-              cell(formatNumber(product.max_rows), "numeric"),
               cell(badge(humanise(product.capability_state))),
               cell(product.latest_accepted_release?.release_version || "No published version yet"),
               cell(product.download_permitted ? "Permitted" : "Restricted"),
@@ -77,8 +75,7 @@ export function createDataProductRoutes({ view, request, loading, rerender }) {
         ["Publishing process", `${product.builder_key} ${product.builder_version}`],
         ["Schema", product.product_schema_version],
         ["Ordering", product.ordering_rule],
-        ["Allowed update methods", product.supported_scope_profiles.join(", ")],
-        ["Portable product limit", `${formatNumber(product.max_rows)} rows / ${formatNumber(product.max_bytes)} bytes`],
+        ["Acquisition scope", "Complete registered source"],
         ["Redistribution", `${product.redistribution_decision} (${product.download_permitted ? "download permitted" : "download restricted"})`],
         ["Availability", badge(product.capability_state)],
         ["Published version", accepted ? technicalDetails(accepted, "Inspect published version") : "No published version yet"],

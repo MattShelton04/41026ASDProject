@@ -4,7 +4,7 @@
   "title": "PropertyScope adapter descriptor v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "key", "version", "publisher", "supported_refresh_strategies", "supported_modes", "partition_dimensions", "expected_media_types", "allowed_hosts", "required_secrets", "limits"],
+  "required": ["schema_version", "key", "version", "publisher", "supported_refresh_strategies", "supported_modes", "partition_dimensions", "expected_media_types", "allowed_hosts", "required_secrets"],
   "properties": {
     "schema_version": {"const": "propertyscope.adapter-descriptor.v1"},
     "key": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
@@ -15,17 +15,6 @@
     "partition_dimensions": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
     "expected_media_types": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
     "allowed_hosts": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-    "required_secrets": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-    "limits": {
-      "type": "object", "additionalProperties": false,
-      "required": ["max_objects", "max_bytes", "max_rows", "deadline_seconds", "max_parallelism"],
-      "properties": {
-        "max_objects": {"type": "integer", "minimum": 1},
-        "max_bytes": {"type": "integer", "minimum": 1},
-        "max_rows": {"type": "integer", "minimum": 1},
-        "deadline_seconds": {"type": "integer", "minimum": 1},
-        "max_parallelism": {"type": "integer", "minimum": 1, "maximum": 16}
-      }
-    }
+    "required_secrets": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
   }
 }

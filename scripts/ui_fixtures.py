@@ -114,17 +114,11 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
             "refresh_strategy": "full_snapshot",
             "default_run_mode": "full_refresh",
             "scope_json": {
-                "profile": "showcase",
-                "localities": ["PARRAMATTA", "MOSMAN", "WOLLONGONG"],
-                "maximum_records": 100,
+                "profile": "full-data",
+                "all_records": True,
             },
             "quality_policy_key": "property-fixture.v1",
             "quality_policy_version": "1.0.0",
-            "max_parallelism": 1,
-            "timeout_seconds": 60,
-            "max_objects": 2,
-            "max_bytes": 1_000_000,
-            "max_rows": 1_000,
             "status": "active",
             "schedule_text": "On demand",
             "created_at": TIMESTAMP,
@@ -227,7 +221,7 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
             "product_schema_version": PRODUCT_SCHEMA,
             "builder_key": "property-snapshot",
             "builder_version": "1.0.0",
-            "supported_scope_profiles": ["showcase", "test"],
+            "supported_scope_profiles": ["full-data"],
             "redistribution_decision": "committed-synthetic-fixture",
             "download_permitted": True,
             "capability_state": "fixture_backed",
@@ -494,7 +488,6 @@ def fixture_response(
                 "cached_source_years": {"psi-sales": []},
                 "cached_source_weeks": {"psi-sales": []},
                 "catalogued_profiles": ["psi-sales"],
-                "showcase_available": True,
             },
             delay_seconds=delay,
         )
@@ -709,13 +702,6 @@ def _job_capabilities() -> dict[str, Any]:
         "profile_key": "fixture-property-full",
         "refresh_strategy": "full_snapshot",
         "supported_modes": ["full_refresh", "reprocess_cached"],
-        "limits": {
-            "max_objects": 2,
-            "max_bytes": 1_000_000,
-            "max_rows": 1_000,
-            "timeout_seconds": 60,
-            "max_parallelism": 1,
-        },
         "registered": {
             "adapter": "fixture-snapshot",
             "release_builder": "property-snapshot",
@@ -740,9 +726,8 @@ def _job_plan() -> dict[str, Any]:
         "job_id": JOB_ID,
         "run_mode": "full_refresh",
         "scope": {
-            "profile": "showcase",
-            "localities": ["PARRAMATTA", "MOSMAN", "WOLLONGONG"],
-            "maximum_records": 100,
+            "profile": "full-data",
+            "all_records": True,
         },
         "network_required": False,
         "source_cache_required": False,
@@ -750,12 +735,6 @@ def _job_plan() -> dict[str, Any]:
             {"sequence": index + 1, "stage": stage, "logical_key": f"{index:02d}/{stage}"}
             for index, stage in enumerate(stages)
         ],
-        "hard_limits": {
-            "max_objects": 2,
-            "max_bytes": 1_000_000,
-            "max_rows": 1_000,
-            "timeout_seconds": 60,
-        },
         "accepted_watermark_unchanged_until_publication": True,
     }
 

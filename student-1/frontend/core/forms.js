@@ -51,7 +51,7 @@ export function parseJsonField(value, label, fieldName = "") {
     if (result === null || typeof result !== "object" || Array.isArray(result)) throw new Error();
     return result;
   } catch {
-    return validationError(fieldName, `${label} must be a JSON object, for example {"profile":"showcase"}.`, jsonObjectValue);
+    return validationError(fieldName, `${label} must be a JSON object, for example {"profile":"full-data","all_records":true}.`, jsonObjectValue);
   }
 }
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -55,19 +54,19 @@ def validate_job_scope(
     *,
     run_mode: str,
 ) -> tuple[dict[str, Any] | None, ScopeProblem | None]:
-    """Bound operator scope overrides and reject unavailable live transports."""
+    """Validate complete-source acquisition and reject unavailable live transports."""
     if not isinstance(raw_scope, dict):
         return None, _invalid("Run scope must be a JSON object")
     if len(raw_scope) > 20:
         return None, _invalid("Run scope has too many fields")
     scope = dict(raw_scope)
-    profile = scope.get("profile", "showcase")
-    if profile not in {"test", "showcase", "full-data"}:
-        return None, _invalid("Scope profile is not registered")
-    scope["profile"] = profile
-    if profile == "full-data" and scope.get("all_records") is not True:
+    profile = scope.get("profile", "full-data")
+    if profile != "full-data":
+        return None, _invalid("Feature 1 updates always import the complete registered source")
+    scope["profile"] = "full-data"
+    if scope.get("all_records") is not True:
         return None, _invalid("Complete official data must request all available source records")
-    if profile == "full-data" and "maximum_records" in scope:
+    if "maximum_records" in scope:
         return None, _invalid("Complete official data does not accept a source record limit")
     bounded_scope = scope.get("release_scope", scope)
     if not isinstance(bounded_scope, dict):
@@ -110,14 +109,10 @@ def validate_job_scope(
 
 
 def resolve_registered_scope(job: Mapping[str, Any], raw_scope: Any, job_profiles: Any) -> Any:
-    """Overlay bounded operator fields onto the declarative registered profile."""
+    """Resolve the immutable declarative complete-source scope for a job."""
     requested = {} if raw_scope is None else raw_scope
     if not isinstance(requested, dict):
         return requested
-    profile_name = requested.get("profile")
-    if profile_name is None and isinstance(job.get("scope_json"), dict):
-        profile_name = job["scope_json"].get("profile")
-    profile_name = profile_name or "showcase"
     try:
         profile_key = job.get("profile_key")
         if profile_key is None:
@@ -128,28 +123,11 @@ def resolve_registered_scope(job: Mapping[str, Any], raw_scope: Any, job_profile
                 if job_profiles.get_profile(key).import_profile.key == import_key
             )
         registered = job_profiles.get_profile(str(profile_key))
-        defaults = registered.scope_profiles[str(profile_name)]
+        defaults = registered.scope
     except (KeyError, StopIteration, ValueError):
         return requested
-    resolved = copy.deepcopy(defaults)
-    for key, value in requested.items():
-        if key == "release_scope" and isinstance(value, dict):
-            nested = resolved.get(key, {})
-            if isinstance(nested, dict):
-                nested.update(value)
-                resolved[key] = nested
-            else:
-                resolved[key] = value
-        else:
-            resolved[key] = value
-    if "years" in requested:
-        resolved.setdefault("weeks", [])
-    if "years" in requested or "weeks" in requested:
-        if "all_history" not in requested:
-            resolved["all_history"] = False
-        if "include_current_weekly" not in requested:
-            resolved["include_current_weekly"] = False
-    resolved["profile"] = profile_name
+    resolved = dict(defaults)
+    resolved["profile"] = "full-data"
     return resolved
 
 

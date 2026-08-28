@@ -201,8 +201,8 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             task_id,
             worker_id=required_text(body, "worker_id"),
             lease_token=required_text(body, "lease_token"),
-            rows_in=bounded_integer(body, "rows_in", minimum=0, maximum=100000000, default=0),
-            rows_out=bounded_integer(body, "rows_out", minimum=0, maximum=100000000, default=0),
+            rows_in=nonnegative_integer(body, "rows_in", default=0),
+            rows_out=nonnegative_integer(body, "rows_out", default=0),
         )
         return jsonify({"task": task})
 
@@ -500,7 +500,14 @@ def bounded_integer(
     raw = body.get(name, default)
     if isinstance(raw, bool) or not isinstance(raw, int) or not minimum <= raw <= maximum:
         raise ValidationError(f"{name} must be between {minimum} and {maximum}")
-    return raw
+    return int(raw)
+
+
+def nonnegative_integer(body: dict[str, Any], name: str, *, default: int = 0) -> int:
+    raw = body.get(name, default)
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
+        raise ValidationError(f"{name} must be a non-negative integer")
+    return int(raw)
 
 
 def required_text(body: dict[str, Any], name: str) -> str:

@@ -40,17 +40,16 @@ Version-controlled source/job configuration lives in `config/`, HTTP and release
 licensed; live and licensed source artifacts remain outside Git.
 
 The default stack connects the official NSW schools CSV, BOCSAR archives, Geoscape G-NAF bulk
-archive and PSI sales sources. Starting services never starts a download: operators choose a
-complete official, example or test scope for each job. All scopes use the same durable run,
+archive and PSI sales sources. Starting services never starts a download. When an operator starts
+an update, Feature 1 imports every record or registered partition through the same durable run,
 content-addressed artifact, serial loader, candidate generation, quality and human publication
-path. Complete mode retrieves every record or registered partition; resource ceilings remain
-fail-closed capacity safeguards rather than truncation limits.
+path. There is no smaller acquisition mode and no operator data-volume ceiling.
 
 The PSI adapter is verified against real publisher archives and parses every annual archive from
-1990 onward plus current Monday weekly updates. Archives download into bounded temporary files and
+1990 onward plus current Monday weekly updates. Archives download into temporary files and
 DAT members are consumed as streams, so the archive and expanded records are not duplicated in
 application memory. Ordinary publisher requests may receive HTTP 403, so acquisition retries
-through validated bounded Range requests; a read-only cache can avoid repeat downloads. Fixture
+through validated Range requests; a read-only cache can avoid repeat downloads. Fixture
 runs never silently stand in for a requested live run. A handful of publisher rows contain an
 undocumented area unit or impossible nonblank date: the original sale/area facts remain retained,
 while derived square metres or dates are left unknown rather than guessed.
@@ -78,7 +77,7 @@ Open <http://localhost:5200>. The main product path is:
 1. Use **Property search** to find a NSW address and review the sources available for it.
 2. Use **Data overview** to check whether published property data is current or needs attention.
 3. Open **Data updates**, choose an update, then select **Start update** or **Load earlier data**.
-4. Preview the source, limits and proposed work, then follow progress in **Update history**.
+4. Preview the source and proposed work, then follow progress in **Update history**.
 5. Review new versions under **Published data** before publishing or rejecting them. Data checks,
    files and coverage are opened from the update or version they explain instead of appearing as
    separate primary destinations. Publication returns after queueing a durable background
@@ -114,12 +113,11 @@ The acquisition path can also run without browser actions. This queues the regis
 fixture, waits for all runner and loader stages, and reports the retained candidate release:
 
 ```text
-uv run scripts/dev.py data collect fixture-property --profile test
+uv run scripts/dev.py data collect fixture-property
 ```
 
-Use `schools-master`, `bocsar-crime`, `gnaf-nsw`, or `psi-sales` without `--profile` to request the
-complete official scope by default. Use `--profile showcase` or `--profile test` for a smaller run,
-and add `--no-wait` for a long job. These commands automate discovery,
+Use `schools-master`, `bocsar-crime`, `gnaf-nsw`, or `psi-sales` to request the complete registered
+source, and add `--no-wait` for a long job. These commands automate discovery,
 acquisition, validation, import, normalisation, quality checks, and candidate construction. They do
 not bypass the separate human decision to submit, accept, or reject a candidate.
 
@@ -139,9 +137,9 @@ A complete project reset is also code-driven: `uv run scripts/dev.py stack reset
 local project's labelled Docker volumes. The following `stack up` recreates PostgreSQL, migrates it,
 and restores the deterministic operator baseline automatically.
 
-| Import profile | Full-data status | Upstream behaviour |
+| Import profile | Status | Upstream behaviour |
 |---|---|---|
-| `schools-master` | Connected | Streams the official Data.NSW master CSV with byte/row limits. |
+| `schools-master` | Connected | Imports every row in the official Data.NSW master CSV. |
 | `bocsar-sparse` | Connected | Streams the complete official postcode and suburb ZIPs into sparse observations plus explicit coverage rows; the downstream consumer release remains separately bounded. |
 | `gnaf-nsw` | Connected | Discovers the latest registered PSV ZIP from Data.gov.au, or uses the optional local source cache below; preserves unit identity and transforms declared GDA94/GDA2020 coordinates to WGS84 at import. |
 | `psi-sales` | Connected | Streams complete annual history and current weekly packages, including the pre-2001 root-DAT format. Stable source keys collapse identical retransmissions. |
@@ -155,18 +153,15 @@ uv run scripts/dev.py stack up
 ```
 
 The cache directory is Git-ignored and mounted read-only. Without a cache, the runner discovers
-and downloads the latest registered archive from the official CKAN package. Complete mode streams
-every NSW address into an isolated candidate generation; the 6.5-million-row registration is a
-capacity alarm which fails the run if the source grows beyond the reviewed operating envelope.
-Targeted showcase runs remain available for fast local demonstrations.
+and downloads the latest registered archive from the official CKAN package. The runner streams
+every NSW address into an isolated candidate generation without an operator row ceiling.
+Deterministic demonstrations use the finite fixture source instead of reducing G-NAF.
 
 The same cache supports official PSI annual packages. Place any unmodified publisher archive at
 `.propertyscope-source-cache/psi/<year>.zip` (for example `psi/2025.zip`) before starting the
-stack. Missing years are acquired from the official source. Complete mode processes annual
-archives from 1990 through the previous year and every Monday weekly partition in the current year;
-explicit subsets remain available. Canonical NDJSON and PostgreSQL COPY stream without a record cap.
-The 100-million-row, 20 GB and per-archive expansion ceilings are corruption/capacity alarms that
-fail the candidate atomically rather than returning a partial dataset.
+stack. Missing years are acquired from the official source. Each update processes annual archives
+from 1990 through the previous year and every Monday weekly partition in the current year.
+Canonical NDJSON and PostgreSQL COPY stream without a record cap or job byte ceiling.
 
 For a true from-scratch PSI build, `uv run scripts/dev.py data sync-psi --all` acquires and ZIP-verifies
 every annual archive plus the current-year Monday archives on the host, where the publisher does not
@@ -176,9 +171,8 @@ the application mounts read-only. Targeted alternatives are `--year 2025`, `--we
 
 Every release detail page includes a release-scoped dataset preview. Preview queries use fixed
 registered projections, cap pages at 100 records and never mix candidate and accepted
-generations. The API's runtime-capability response drives the browser controls. Official sources
-are connected in the default stack, complete data is selected by default, and example/test options
-remain available.
+generations. Official sources are connected in the default stack and complete acquisition is the
+only update scope.
 
 ## Shared integration boundary
 

@@ -1,0 +1,56 @@
+# ADR-029: Make complete-source acquisition the only Feature 1 update scope
+
+- Status: Accepted
+- Date: 28 August 2026
+- Owner: PropertyScope Feature 1
+- Supersedes: ADR-021 and ADR-022 acquisition-scope and job-capacity decisions
+
+## Context
+
+Feature 1 exposed `test`, `showcase`, and `full-data` acquisition profiles plus row, byte, object,
+and deadline alarms. Those controls were originally added for deterministic CI, fast demonstrations,
+and fail-closed handling of unexpectedly large publisher artifacts. They did not intentionally
+truncate a successful `full-data` run, but operators still had to decide whether a requested update
+was complete and whether a displayed alarm could prevent the load. That ambiguity worked against
+the data-platform operator's normal intent: import the registered source in full.
+
+Deterministic tests do not need a partial-production mode. They can consume every row in a finite,
+checked-in synthetic source. Source validation, allowlisted transport, streaming, checksums,
+transactional candidate isolation, cancellation, and human publication review provide the relevant
+safety boundaries without making data volume an operator decision.
+
+## Decision
+
+- Every Feature 1 job has one immutable acquisition scope: `full-data` with `all_records: true`.
+- PSI always resolves annual history from 1990 onward plus every current-year Monday partition.
+  G-NAF, BOCSAR, schools, and the deterministic fixture consume their complete registered source.
+- The browser and data CLI do not expose a profile selector, record-count field, year-range field,
+  advanced acquisition JSON, or `--profile` option.
+- Job and adapter definitions no longer contain row, byte, object, task-parallelism, or deadline
+  limits. The runner does not stop a valid import because the source crossed one of those values.
+- Tests remain deterministic by using a finite fixture source, not by selecting a reduced import.
+- HTTP pagination, property-search candidate bounds, AI/tool budgets, archive path validation,
+  checksums, and downstream consumer-product projections are unchanged. They bound responses or
+  separate published products; they do not reduce the Feature 1 warehouse generation.
+- Stack startup still performs no acquisition. An operator or CLI action is required, and the
+  accepted generation changes only after human review and atomic publication.
+
+## Consequences
+
+Operators can treat every started update as a complete-source request without comparing modes or
+interpreting capacity alarms. Publisher growth may consume more network, disk, and processing time,
+so monitoring, cancellation, streaming, and durable recovery remain important. A finite fixture is
+the supported fast path for local UI and CI work.
+
+Historical migrations and evidence records continue to mention the superseded limits because they
+preserve point-in-time database evolution and assessment evidence. Migration 026 removes the
+columns from current databases and rewrites active job scopes to the complete-source policy.
+
+## Alternatives considered
+
+- **Keep the alarms but hide them:** rejected because a hidden ceiling could still abort a valid
+  source-growth import and would preserve the operator's underlying uncertainty.
+- **Keep reduced profiles only in the CLI:** rejected because the CLI and browser should exercise
+  the same public plan/run contract.
+- **Use reduced production profiles for tests:** rejected because a finite synthetic source proves
+  deterministic integration behavior without creating an incomplete-production mode.

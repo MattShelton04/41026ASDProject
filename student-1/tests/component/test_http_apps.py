@@ -1030,7 +1030,7 @@ def test_default_runtime_reports_and_allows_official_acquisition() -> None:
     assert plan.status_code == 200
 
 
-def test_job_plan_enables_psi_when_official_archive_cache_is_available() -> None:
+def test_job_plan_requires_the_complete_psi_history_even_when_one_archive_is_cached() -> None:
     job_id = "20000000-0000-0000-0000-000000000001"
 
     def database(_: httpx.Request) -> httpx.Response:
@@ -1041,11 +1041,7 @@ def test_job_plan_enables_psi_when_official_archive_cache_is_available() -> None
                     "id": job_id,
                     "adapter_key": "psi-yearly-zip",
                     "import_profile_key": "psi-sales",
-                    "scope_json": {"profile": "showcase"},
-                    "max_objects": 10,
-                    "max_bytes": 800_000_000,
-                    "max_rows": 500_000,
-                    "timeout_seconds": 7_200,
+                    "scope_json": {"profile": "full-data", "all_records": True},
                 }
             },
         )
@@ -1073,49 +1069,13 @@ def test_job_plan_enables_psi_when_official_archive_cache_is_available() -> None
     assert "psi-sales" in capabilities.get_json()["connected_live_profiles"]
     assert capabilities.get_json()["cached_live_profiles"] == ["psi-sales"]
     assert response.status_code == 200
-    assert response.get_json()["network_required"] is False
-    assert response.get_json()["source_cache_required"] is True
+    assert response.get_json()["network_required"] is True
+    assert response.get_json()["source_cache_required"] is False
     assert capabilities.get_json()["cached_source_years"] == {"psi-sales": [2025]}
     assert capabilities.get_json()["cached_source_weeks"] == {"psi-sales": ["2026-08-10"]}
 
-    missing = client.post(
-        f"/api/data-platform/v1/jobs/{job_id}/plans",
-        json={"run_mode": "full_refresh", "scope": {"profile": "full-data", "years": [2024]}},
-    )
-    assert missing.status_code == 200
-    assert missing.get_json()["network_required"] is True
-    assert missing.get_json()["source_cache_required"] is False
 
-    weekly = client.post(
-        f"/api/data-platform/v1/jobs/{job_id}/plans",
-        json={
-            "run_mode": "full_refresh",
-            "scope": {"profile": "full-data", "weeks": ["2026-08-10"]},
-        },
-    )
-    assert weekly.status_code == 200
-    assert weekly.get_json()["network_required"] is False
-    assert weekly.get_json()["source_cache_required"] is True
-
-    showcase = client.post(
-        f"/api/data-platform/v1/jobs/{job_id}/plans",
-        json={"run_mode": "full_refresh", "scope": {"profile": "showcase", "years": [2025]}},
-    )
-    assert showcase.status_code == 200
-    assert showcase.get_json()["source_cache_required"] is False
-
-    invalid_release_scope = client.post(
-        f"/api/data-platform/v1/jobs/{job_id}/plans",
-        json={
-            "run_mode": "full_refresh",
-            "scope": {"profile": "full-data", "release_scope": {"years": None}},
-        },
-    )
-    assert invalid_release_scope.status_code == 422
-    assert invalid_release_scope.get_json()["code"] == "invalid_scope"
-
-
-def test_job_plan_merges_registered_bounds_and_rejects_product_overflow() -> None:
+def test_job_plan_ignores_attempts_to_reduce_the_registered_complete_scope() -> None:
     job_id = "20000000-0000-0000-0000-000000000003"
 
     def database(_: httpx.Request) -> httpx.Response:
@@ -1127,11 +1087,7 @@ def test_job_plan_merges_registered_bounds_and_rejects_product_overflow() -> Non
                     "profile_key": "gnaf-nsw-address-registry",
                     "release_builder_key": "property-snapshot",
                     "import_profile_key": "gnaf-nsw",
-                    "scope_json": {"profile": "showcase"},
-                    "max_objects": 10,
-                    "max_bytes": 2_500_000_000,
-                    "max_rows": 6_500_000,
-                    "timeout_seconds": 86_400,
+                    "scope_json": {"profile": "full-data", "all_records": True},
                 }
             },
         )
@@ -1156,20 +1112,11 @@ def test_job_plan_merges_registered_bounds_and_rejects_product_overflow() -> Non
             "scope": {"profile": "full-data", "maximum_records": 50_001},
         },
     )
-    missing_bound = client.post(
-        f"/api/data-platform/v1/jobs/{job_id}/plans",
-        json={
-            "run_mode": "full_refresh",
-            "scope": {"profile": "showcase", "maximum_records": None},
-        },
-    )
-
     assert merged.status_code == 200
-    assert merged.get_json()["scope"]["maximum_records"] == 5000
-    assert overflow.status_code == 422
-    assert overflow.get_json()["code"] == "invalid_scope"
-    assert missing_bound.status_code == 422
-    assert missing_bound.get_json()["code"] == "invalid_scope"
+    assert merged.get_json()["scope"]["all_records"] is True
+    assert "maximum_records" not in merged.get_json()["scope"]
+    assert overflow.status_code == 200
+    assert "maximum_records" not in overflow.get_json()["scope"]
 
 
 def test_protected_tool_rejects_forged_agent_run_header() -> None:

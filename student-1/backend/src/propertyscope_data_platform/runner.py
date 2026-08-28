@@ -48,8 +48,6 @@ BOCSAR_URLS = {
     "suburb": "https://bocsarblob.blob.core.windows.net/bocsar-open-data/SuburbData.zip",
     "postcode": "https://bocsarblob.blob.core.windows.net/bocsar-open-data/PostcodeData.zip",
 }
-BOCSAR_SOURCE_ROW_CAPACITY = 500_000
-BOCSAR_ARCHIVE_EXPANSION_CAPACITY = 750_000_000
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip"
 PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{date}.zip"
 GNAF_CKAN_URL = (
@@ -94,7 +92,7 @@ class RunnerSettings:
 
 
 class AcquisitionRunner:
-    """Bounded deterministic worker; source transports are selected by registered jobs only."""
+    """Deterministic worker; source transports are selected by registered jobs only."""
 
     def __init__(
         self,
@@ -215,7 +213,6 @@ class AcquisitionRunner:
                     canonical_chunks = self._live_bocsar_chunks(task, scope, counter)
                 artifact = self.artifacts.put(
                     canonical_chunks,
-                    max_bytes=int(task.get("max_bytes", 20_000_000_000)),
                     media_type="application/x-ndjson",
                 )
                 self._register_stage_artifact(
@@ -247,7 +244,6 @@ class AcquisitionRunner:
             canonical = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
             artifact = self.artifacts.put(
                 (canonical,),
-                max_bytes=int(task.get("max_bytes", 1_000_000)),
                 media_type="application/json",
             )
             self._register_stage_artifact(
@@ -442,9 +438,8 @@ class AcquisitionRunner:
             return self._live_psi(task, scope)
         if profile == "gnaf-nsw":
             raise RuntimeError("G-NAF live acquisition is available through the run worker")
-        maximum_bytes = min(int(task.get("max_bytes", 25_000_000)), 25_000_000)
-        content = self._download_registered(SCHOOLS_MASTER_URL, maximum_bytes=maximum_bytes)
-        parsed = parse_schools_csv(content, maximum_rows=int(task.get("max_rows", 5_000)))
+        content = self._download_registered(SCHOOLS_MASTER_URL)
+        parsed = parse_schools_csv(content)
         records: list[dict[str, object]] = [
             {
                 "school_code": record.school_code,
@@ -522,24 +517,21 @@ class AcquisitionRunner:
         kind = str(scope.get("geography_kind", "postcode"))
         if kind not in BOCSAR_URLS:
             raise RuntimeError("BOCSAR geography_kind must be postcode or suburb")
-        maximum_records = _record_limit(task, scope)
         raw_values = scope.get("geography_values")
         geography_values = (
             frozenset(str(value).strip() for value in raw_values)
             if isinstance(raw_values, list) and raw_values
             else None
         )
-        content = self._download_registered(
-            BOCSAR_URLS[kind], maximum_bytes=min(int(task.get("max_bytes", 50_000_000)), 50_000_000)
-        )
+        content = self._download_registered(BOCSAR_URLS[kind])
         observations, coverage = parse_bocsar_archive(
             content,
             geography_kind=kind,
-            maximum_rows=int(task.get("max_rows", 100_000)),
+            maximum_rows=None,
             geography_values=geography_values,
             start_month=_month_scope(scope.get("start_month")),
             end_month=_month_scope(scope.get("end_month")),
-            maximum_records=maximum_records,
+            maximum_records=None,
         )
         records: list[dict[str, object]] = [
             {
@@ -577,32 +569,19 @@ class AcquisitionRunner:
             else None
         )
         for kind in _bocsar_kinds(scope):
-            content = self._download_registered(
-                BOCSAR_URLS[kind],
-                maximum_bytes=min(int(task.get("max_bytes", 50_000_000)), 50_000_000),
-            )
+            content = self._download_registered(BOCSAR_URLS[kind])
             records = iter_bocsar_archive(
                 content,
                 geography_kind=kind,
-                maximum_rows=min(
-                    int(task.get("max_rows", BOCSAR_SOURCE_ROW_CAPACITY)),
-                    BOCSAR_SOURCE_ROW_CAPACITY,
-                ),
+                maximum_rows=None,
                 geography_values=geography_values,
                 start_month=_month_scope(scope.get("start_month")),
                 end_month=_month_scope(scope.get("end_month")),
-                maximum_records=_record_limit(task, scope),
-                maximum_uncompressed_bytes=min(
-                    int(task.get("max_bytes", BOCSAR_ARCHIVE_EXPANSION_CAPACITY)),
-                    BOCSAR_ARCHIVE_EXPANSION_CAPACITY,
-                ),
+                maximum_records=None,
+                maximum_uncompressed_bytes=None,
             )
             for item in records:
                 counter[0] += 1
-                if counter[0] > int(task.get("max_rows", 15_000_000)):
-                    raise RuntimeError(
-                        "BOCSAR canonical output exceeds the registered capacity ceiling"
-                    )
                 if counter[0] % 25_000 == 0:
                     self._heartbeat(str(task["id"]), str(task["lease_token"]))
                 yield (
@@ -626,11 +605,8 @@ class AcquisitionRunner:
         for year in years:
             url = PSI_YEARLY_URL.format(year=year)
             source_urls.append(url)
-            maximum_bytes = min(int(task.get("max_bytes", 50_000_000)), 50_000_000)
             cached = self._psi_archive(year)
             if cached is not None:
-                if cached.stat().st_size > maximum_bytes:
-                    raise RuntimeError("Cached PSI archive exceeds the configured byte limit")
                 cached_years.append(year)
             source: AbstractContextManager[Path]
             if cached is not None:
@@ -639,7 +615,6 @@ class AcquisitionRunner:
                 source = self.source_transport.psi_archive_path(
                     url,
                     directory=self.settings.artifact_root,
-                    maximum_bytes=maximum_bytes,
                     progress=self._heartbeat_progress(task),
                 )
             with source as path:
@@ -670,10 +645,7 @@ class AcquisitionRunner:
         )
         if not sources:
             raise RuntimeError("PSI full-data scope contains no annual or weekly partitions")
-        per_archive_limit = 750_000_000
         for source_year, url, cached in sources:
-            if cached is not None and cached.stat().st_size > per_archive_limit:
-                raise RuntimeError("Cached PSI archive exceeds the corruption-safety limit")
             source: AbstractContextManager[Path]
             if cached is not None:
                 source = nullcontext(cached)
@@ -681,14 +653,11 @@ class AcquisitionRunner:
                 source = self.source_transport.psi_archive_path(
                     url,
                     directory=self.settings.artifact_root,
-                    maximum_bytes=per_archive_limit,
                     progress=self._heartbeat_progress(task),
                 )
             with source as path:
                 for sale in iter_psi_archive_path(path, source_year=source_year):
                     counter[0] += 1
-                    if counter[0] > int(task.get("max_rows", 100_000_000)):
-                        raise RuntimeError("PSI source exceeds the registered capacity ceiling")
                     if counter[0] % 25_000 == 0:
                         self._heartbeat(str(task["id"]), str(task["lease_token"]))
                     yield (
@@ -719,13 +688,11 @@ class AcquisitionRunner:
     ) -> Iterable[bytes]:
         """Stream the complete registered NSW address generation without retaining it in RAM."""
         source_url, declared_crs = self._discovered_gnaf_source(task)
-        maximum_bytes = min(int(task.get("max_bytes", 2_500_000_000)), 2_500_000_000)
         if self.settings.gnaf_archive_path and self.settings.gnaf_archive_path.is_file():
             stream = self.settings.gnaf_archive_path.open("rb")
             try:
                 raw_artifact = self.artifacts.put(
                     self._heartbeat_chunks(task, iter(lambda: stream.read(1024 * 1024), b"")),
-                    max_bytes=maximum_bytes,
                     media_type="application/zip",
                 )
             finally:
@@ -741,14 +708,12 @@ class AcquisitionRunner:
                     raise RuntimeError("G-NAF download left the registered host")
                 raw_artifact = self.artifacts.put(
                     self._heartbeat_chunks(task, response.iter_bytes()),
-                    max_bytes=maximum_bytes,
                     media_type="application/zip",
                 )
         raw_path = self.artifacts.verified_path(
             raw_artifact.storage_key,
             raw_artifact.sha256,
             expected_bytes=raw_artifact.bytes,
-            max_bytes=maximum_bytes,
         )
         registration = self.client.post(
             f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task['id']}/artifacts",
@@ -775,8 +740,8 @@ class AcquisitionRunner:
         parsed = iter_gnaf_archive_path(
             raw_path,
             declared_crs=declared_crs,
-            maximum_records=_record_limit(task, scope),
-            capacity_ceiling=int(task.get("max_rows", 6_500_000)),
+            maximum_records=None,
+            capacity_ceiling=None,
             localities=localities,
             progress=self._heartbeat_progress(task),
         )
@@ -849,8 +814,8 @@ class AcquisitionRunner:
 
         return report_progress
 
-    def _download_registered(self, url: str, *, maximum_bytes: int) -> bytes:
-        return self.source_transport.download_bytes(url, maximum_bytes=maximum_bytes)
+    def _download_registered(self, url: str) -> bytes:
+        return self.source_transport.download_bytes(url)
 
     def _execute_import(self, task: dict[str, Any]) -> tuple[int, int]:
         response = self._control_request(
@@ -862,10 +827,7 @@ class AcquisitionRunner:
         )
         response.raise_for_status()
         operation = response.json()["operation"]
-        deadline = time.monotonic() + int(task.get("timeout_seconds", 120))
         while operation["status"] not in {"succeeded", "failed", "cancelled"}:
-            if time.monotonic() >= deadline:
-                raise RuntimeError("Registered import did not complete inside the task deadline")
             self.stop_event.wait(min(self.settings.poll_seconds, 1.0))
             self._heartbeat(str(task["id"]), str(task["lease_token"]))
             response = self._control_request(
@@ -923,15 +885,6 @@ def _safe_message(exc: Exception) -> str:
 def _cancellation_poll_interval(lease_seconds: int) -> float:
     """Keep cancellation responsive without shortening the durable recovery lease."""
     return min(5.0, max(1.0, lease_seconds / 3))
-
-
-def _record_limit(task: dict[str, Any], scope: dict[str, object]) -> int | None:
-    if scope.get("all_records") is True:
-        return None
-    requested = scope.get("maximum_records", task.get("max_rows", 100_000_000))
-    if not isinstance(requested, int) or isinstance(requested, bool) or requested < 1:
-        raise RuntimeError("maximum_records must be a positive integer")
-    return min(requested, int(task.get("max_rows", requested)))
 
 
 def _psi_years(scope: dict[str, object]) -> list[int]:

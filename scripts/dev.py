@@ -521,33 +521,29 @@ def _json_response(response: httpx.Response) -> dict[str, Any]:
     return value
 
 
-def _collection_definition(job_profile: str, profile: str) -> tuple[str, dict[str, Any]]:
+def _collection_definition(job_profile: str) -> tuple[str, dict[str, Any]]:
     path = JOB_PROFILE_DIRECTORY / f"{job_profile}.yaml"
     if not path.is_file():
         raise RuntimeError(f"Unknown registered collection job: {job_profile}")
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict) or not isinstance(raw.get("key"), str):
         raise RuntimeError(f"Registered job profile is malformed: {path.name}")
-    profiles = raw.get("scope_profiles")
-    scope = profiles.get(profile) if isinstance(profiles, dict) else None
+    scope = raw.get("scope")
     if not isinstance(scope, dict):
-        raise RuntimeError(f"{job_profile} does not define the {profile!r} acquisition profile")
-    resolved_scope = dict(scope)
-    resolved_scope["profile"] = profile
-    return raw["key"], resolved_scope
+        raise RuntimeError(f"{job_profile} does not define its complete acquisition scope")
+    return raw["key"], dict(scope)
 
 
 def _collect_with_client(
     client: httpx.Client,
     *,
     job_profile: str,
-    profile: str,
     wait: bool,
     timeout_seconds: int,
     poll_seconds: float = 1.0,
 ) -> dict[str, Any]:
     """Plan and launch one registered Feature 1 collection over its public HTTP API."""
-    profile_key, scope = _collection_definition(job_profile, profile)
+    profile_key, scope = _collection_definition(job_profile)
     jobs = _json_response(client.get("jobs", params={"limit": 100})).get("items")
     if not isinstance(jobs, list):
         raise RuntimeError("PropertyScope did not return its registered jobs")
@@ -566,7 +562,7 @@ def _collect_with_client(
     plan = _json_response(client.post(f"jobs/{job['id']}/plans", json=request_body))
     print(
         "Collection plan validated: "
-        f"{profile_key} ({profile}); network_required={plan.get('network_required', False)}; "
+        f"{profile_key} (complete source); network_required={plan.get('network_required', False)}; "
         f"source_cache_required={plan.get('source_cache_required', False)}",
         flush=True,
     )
@@ -654,7 +650,6 @@ def _collect_with_client(
 def _collect(
     *,
     job_profile: str,
-    profile: str,
     wait: bool,
     timeout_seconds: int,
     base_url: str,
@@ -665,7 +660,6 @@ def _collect(
         _collect_with_client(
             client,
             job_profile=job_profile,
-            profile=profile,
             wait=wait,
             timeout_seconds=timeout_seconds,
         )
@@ -731,12 +725,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             )
         elif command == ("data", "collect"):
-            profile = arguments.profile or (
-                "showcase" if arguments.job == "fixture-property" else "full-data"
-            )
             _collect(
                 job_profile=arguments.job,
-                profile=profile,
                 wait=arguments.wait,
                 timeout_seconds=arguments.timeout,
                 base_url=arguments.base_url,

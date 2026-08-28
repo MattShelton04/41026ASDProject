@@ -148,10 +148,11 @@ Run `uv run scripts/dev.py ui audit quick` for the deterministic laptop/mobile i
 shard, severity and artifact details are in
 [`docs/ui/feature-1-audit.md`](docs/ui/feature-1-audit.md).
 
-The default PropertyScope stack connects official schools, BOCSAR, G-NAF and PSI acquisition while
-retaining small deterministic test/showcase job scopes. Starting the stack does not contact a
-publisher; complete acquisition begins only after an operator previews and starts a job in the
-browser or CLI. PSI uses optional unmodified annual archives under
+The default PropertyScope stack connects official schools, BOCSAR, G-NAF and PSI acquisition.
+Every data update imports the complete registered source; deterministic tests stay small because
+their checked-in fixture source is finite, not because the import is capped. Starting the stack
+does not contact a publisher; acquisition begins only after an operator previews and starts a job
+in the browser or CLI. PSI uses optional unmodified annual archives under
 `.propertyscope-source-cache/psi/` and acquires missing annual/current-weekly partitions with
 validated requests. Complete history streams every record from 1990 onward and never substitutes
 synthetic data:
@@ -174,7 +175,7 @@ registered plan, queues the official schools acquisition, waits for the durable 
 pipeline, and reports its candidate release:
 
 ```text
-uv run scripts/dev.py data collect schools-master --profile full-data
+uv run scripts/dev.py data collect schools-master
 ```
 
 Acquisition and candidate generation are automatic. Publication is deliberately not automatic:

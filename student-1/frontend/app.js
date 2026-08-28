@@ -114,11 +114,6 @@ const JOB_FIELDS = [
   { name: "scope_json", label: "Default update scope", type: "json", wide: true },
   { name: "quality_policy_key", label: "Quality policy", required: true },
   { name: "quality_policy_version", label: "Quality policy version", required: true },
-  { name: "max_parallelism", label: "Maximum parallel tasks", type: "number", min: 1, max: 16, required: true, help: "1–16 tasks." },
-  { name: "timeout_seconds", label: "Time limit (seconds)", type: "number", min: 1, max: 86400, required: true, help: "1–86,400 seconds (24 hours)." },
-  { name: "max_objects", label: "Object limit", type: "number", min: 1, max: 100000, required: true, help: "1–100,000 source objects." },
-  { name: "max_bytes", label: "Byte limit", type: "number", min: 1, max: 100000000000, required: true, help: "1–100,000,000,000 bytes." },
-  { name: "max_rows", label: "Row limit", type: "number", min: 1, max: 100000000, required: true, help: "1–100,000,000 rows." },
   { name: "status", label: "Lifecycle status", options: ["draft", "active", "disabled", "retired"], required: true },
   { name: "schedule_text", label: "Schedule note", wide: true, maxLength: 200, help: "Optional, up to 200 characters. Descriptive only; no scheduler is enabled." },
 ];
@@ -136,11 +131,6 @@ async function openEntityDialog(kind, item = null) {
     target_feature: item?.target?.feature,
     target_features: item?.target_features_json,
     quality_policy_key: item?.quality_policy,
-    max_parallelism: item?.limits?.max_parallelism,
-    timeout_seconds: item?.limits?.deadline_seconds,
-    max_objects: item?.limits?.max_objects,
-    max_bytes: item?.limits?.max_bytes,
-    max_rows: item?.limits?.max_rows,
   })[name];
   fieldHost.replaceChildren(...fields.map((definition) => formField(definition, fieldValue(definition.name))));
   const saved = await runDialogForm({

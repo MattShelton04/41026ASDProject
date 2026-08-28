@@ -439,26 +439,24 @@ def test_removed_full_data_stack_flag_is_rejected() -> None:
         dev.main(["stack", "config", "--full-data"])
 
 
-def test_collection_parser_keeps_complete_and_small_profiles_explicit() -> None:
+def test_collection_parser_does_not_offer_reduced_data_profiles() -> None:
     parser = dev.build_parser()
 
-    assert parser.parse_args(["data", "collect", "schools-master"]).profile is None
-    assert (
-        parser.parse_args(["data", "collect", "schools-master", "--profile", "showcase"]).profile
-        == "showcase"
-    )
+    parser.parse_args(["data", "collect", "schools-master"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["data", "collect", "schools-master", "--profile", "showcase"])
 
 
-def test_collection_defaults_official_sources_to_complete_and_fixtures_to_showcase(
+def test_collection_uses_the_registered_complete_scope_for_every_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    profiles: list[str] = []
-    monkeypatch.setattr(dev, "_collect", lambda **values: profiles.append(values["profile"]))
+    jobs: list[str] = []
+    monkeypatch.setattr(dev, "_collect", lambda **values: jobs.append(values["job_profile"]))
 
     assert dev.main(["data", "collect", "schools-master"]) == 0
     assert dev.main(["data", "collect", "fixture-property"]) == 0
 
-    assert profiles == ["full-data", "showcase"]
+    assert jobs == ["schools-master", "fixture-property"]
 
 
 def test_collection_command_runs_registered_pipeline_to_candidate(
@@ -469,8 +467,7 @@ def test_collection_command_runs_registered_pipeline_to_candidate(
     profile_directory.mkdir()
     (profile_directory / "fixture-property.yaml").write_text(
         """key: fixture-property-full
-scope_profiles:
-  test: {maximum_records: 20}
+scope: {profile: full-data, all_records: true}
 """,
         encoding="utf-8",
     )
@@ -490,7 +487,10 @@ scope_profiles:
                 json={"items": [{"id": "job-1", "profile_key": "fixture-property-full"}]},
             )
         if path.endswith("/plans"):
-            assert json.loads(request.content)["scope"]["profile"] == "test"
+            assert json.loads(request.content)["scope"] == {
+                "profile": "full-data",
+                "all_records": True,
+            }
             return httpx.Response(200, json={"network_required": False})
         if path.endswith("/runs") and request.method == "POST":
             return httpx.Response(201, json=next(run_responses))
@@ -519,7 +519,6 @@ scope_profiles:
         result = dev._collect_with_client(
             client,
             job_profile="fixture-property",
-            profile="test",
             wait=True,
             timeout_seconds=5,
             poll_seconds=0,
@@ -529,15 +528,15 @@ scope_profiles:
     assert result["release"]["status"] == "candidate"
 
 
-def test_collection_rejects_unregistered_scope_profile(
+def test_collection_rejects_a_job_without_complete_scope(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(dev, "JOB_PROFILE_DIRECTORY", tmp_path)
     (tmp_path / "fixture-property.yaml").write_text(
-        "key: fixture-property-full\nscope_profiles: {test: {maximum_records: 20}}\n",
+        "key: fixture-property-full\n",
         encoding="utf-8",
     )
 
     with pytest.raises(RuntimeError, match="does not define"):
-        dev._collection_definition("fixture-property", "full-data")
+        dev._collection_definition("fixture-property")

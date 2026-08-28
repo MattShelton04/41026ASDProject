@@ -32,10 +32,8 @@ class FixtureProperty(DomainModel):
     source_pid: str = Field(min_length=1, max_length=100)
 
 
-def parse_property_fixture(content: bytes, *, maximum_rows: int) -> tuple[FixtureProperty, ...]:
-    """Parse bounded UTF-8 CSV without filesystem, network, or persistence access."""
-    if maximum_rows < 1:
-        raise ValueError("maximum_rows must be positive")
+def parse_property_fixture(content: bytes) -> tuple[FixtureProperty, ...]:
+    """Parse UTF-8 CSV without filesystem, network, or persistence access."""
     try:
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
@@ -45,8 +43,6 @@ def parse_property_fixture(content: bytes, *, maximum_rows: int) -> tuple[Fixtur
         raise ValueError("property fixture headers do not match the registered schema")
     records: list[FixtureProperty] = []
     for row in reader:
-        if len(records) >= maximum_rows:
-            raise ValueError("property fixture exceeds the registered row limit")
         records.append(
             FixtureProperty(
                 property_ref=row["property_ref"],

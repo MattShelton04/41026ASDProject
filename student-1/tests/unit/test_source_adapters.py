@@ -43,7 +43,7 @@ def test_schools_preserves_and_normalises_locality() -> None:
         b"Latitude,Longitude\n1,Example,Primary,Open, North Sydney ,North Sydney,"
         b"-33.84,151.21\n"
     )
-    record = parse_schools_csv(payload, maximum_rows=2)[0]
+    record = parse_schools_csv(payload)[0]
     assert record.locality_original == "North Sydney"
     assert record.locality_normalised == "NORTH SYDNEY"
 
@@ -53,7 +53,7 @@ def test_schools_accepts_current_real_master_headers() -> None:
         b"School_code,School_name,Level_of_schooling,Town_suburb,LGA,Latitude,Longitude\n"
         b"1001,Example Public School,Primary Schools,Sydney,City of Sydney,-33.86,151.20\n"
     )
-    record = parse_schools_csv(payload, maximum_rows=2)[0]
+    record = parse_schools_csv(payload)[0]
     assert record.school_type == "Primary Schools"
     assert record.status == "Open"
 
@@ -64,10 +64,10 @@ def test_schools_accepts_nsw_lord_howe_island_coordinates() -> None:
         b"1921,Lord Howe Island Central School,Central Schools,Lord Howe Island,,"
         b"-31.530072,159.069032\n"
     )
-    assert parse_schools_csv(payload, maximum_rows=2)[0].school_code == "1921"
+    assert parse_schools_csv(payload)[0].school_code == "1921"
 
 
-def test_full_data_schools_download_invokes_real_parser_with_bounds(tmp_path: Path) -> None:
+def test_full_data_schools_download_imports_the_registered_source(tmp_path: Path) -> None:
     payload = (
         b"School_code,School_name,Level_of_schooling,Town_suburb,LGA,Latitude,Longitude\n"
         b"1001,Example Public School,Primary Schools,Sydney,City of Sydney,-33.86,151.20\n"
@@ -203,16 +203,16 @@ def test_bocsar_archive_filters_geography_and_months() -> None:
     assert coverage[0].observed_months == (date(2025, 1, 1), date(2025, 2, 1))
 
 
-def test_full_data_bocsar_uses_the_registered_archive_expansion_budget(
+def test_full_data_bocsar_has_no_row_or_expansion_ceiling(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    observed: list[tuple[int, int]] = []
+    observed: list[tuple[object, object]] = []
 
     def archive_records(_content: bytes, **options: object) -> tuple[()]:
         observed.append(
             (
-                cast(int, options["maximum_rows"]),
-                cast(int, options["maximum_uncompressed_bytes"]),
+                options["maximum_rows"],
+                options["maximum_uncompressed_bytes"],
             )
         )
         return ()
@@ -239,16 +239,16 @@ def test_full_data_bocsar_uses_the_registered_archive_expansion_budget(
         )
         == []
     )
-    assert observed == [(500_000, 750_000_000), (500_000, 750_000_000)]
+    assert observed == [(None, None), (None, None)]
 
 
-def test_full_data_bocsar_enforces_canonical_capacity(
+def test_full_data_bocsar_does_not_cap_canonical_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    observed_source_limits: list[int] = []
+    observed_source_limits: list[object] = []
 
     def archive_records(_content: bytes, **options: object) -> tuple[CrimeCoverage, ...]:
-        observed_source_limits.append(cast(int, options["maximum_rows"]))
+        observed_source_limits.append(options["maximum_rows"])
         return tuple(
             CrimeCoverage("postcode", str(index), "category", (date(2026, 1, 1),))
             for index in range(3)
@@ -267,9 +267,8 @@ def test_full_data_bocsar_enforces_canonical_capacity(
         "max_rows": 2,
     }
 
-    with pytest.raises(RuntimeError, match="canonical output exceeds"):
-        list(runner._live_bocsar_chunks(task, {"geography_kind": "postcode"}, [0]))
-    assert observed_source_limits == [2]
+    assert len(list(runner._live_bocsar_chunks(task, {"geography_kind": "postcode"}, [0]))) == 3
+    assert observed_source_limits == [None]
 
 
 def test_psi_source_key_and_hectare_conversion() -> None:
@@ -502,7 +501,6 @@ def test_psi_downloader_uses_verified_ranges_after_publisher_403(tmp_path: Path)
     with runner.source_transport.psi_archive_path(
         "https://www.valuergeneral.nsw.gov.au/x.zip",
         directory=tmp_path,
-        maximum_bytes=100_000,
         progress=progress.append,
     ) as downloaded:
         assert downloaded.read_bytes() == payload

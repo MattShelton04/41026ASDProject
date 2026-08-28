@@ -80,7 +80,7 @@ Use the checked-in `.env.example` files for documented, non-secret defaults.
 | Start the complete reloadable stack | `uv run scripts/dev.py stack up` |
 | Start data flows without a live model | `uv run scripts/dev.py stack up --offline` |
 | Check Docker and Compose prerequisites | `uv run scripts/dev.py stack doctor` |
-| Run a code-driven fixture acquisition | `uv run scripts/dev.py data collect fixture-property --profile test` |
+| Run a code-driven fixture acquisition | `uv run scripts/dev.py data collect fixture-property` |
 | Follow local stack logs | `uv run scripts/dev.py stack logs` |
 | Rebuild changed container images | `uv run scripts/dev.py stack rebuild` |
 | Stop the stack and preserve data | `uv run scripts/dev.py stack down` |
@@ -125,8 +125,8 @@ includes the independently built shared shell, and the
 final overlay bind-mounts frontend/source files and enables Gunicorn reload
 for a short edit-refresh loop while retaining the same service-to-service HTTP and exclusive
 database-ownership boundaries used by the production-like stack. The default runtime connects
-official PropertyScope sources but never starts acquisition during service startup. Operators choose
-complete, showcase or test scope per job; all scopes use the same PostgreSQL and review path. `up`
+official PropertyScope sources but never starts acquisition during service startup. Every job
+imports its complete registered source through the same PostgreSQL and review path. `up`
 performs a cache-backed build reconciliation so dependency changes from a pull cannot silently reuse
 stale images. `reset` is intentionally destructive but label-scoped; it does not delete the
 host-side source cache.

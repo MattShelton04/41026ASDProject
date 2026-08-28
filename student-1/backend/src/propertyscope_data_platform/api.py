@@ -109,7 +109,6 @@ def create_blueprint(
                 "cached_source_years": {"psi-sales": list(psi_cached_years)},
                 "cached_source_weeks": {"psi-sales": list(psi_cached_weeks)},
                 "catalogued_profiles": ["psi-sales"],
-                "showcase_available": True,
             }
         )
 
@@ -260,16 +259,6 @@ def create_blueprint(
                 "profile_key": job_data["profile_key"],
                 "refresh_strategy": job_data["refresh_strategy"],
                 "supported_modes": ["full_refresh", "reprocess_cached"],
-                "limits": {
-                    name: job_data[name]
-                    for name in (
-                        "max_objects",
-                        "max_bytes",
-                        "max_rows",
-                        "timeout_seconds",
-                        "max_parallelism",
-                    )
-                },
                 "registered": {
                     "adapter": job_data["adapter_key"],
                     "release_builder": job_data["release_builder_key"],
@@ -331,10 +320,6 @@ def create_blueprint(
                         )
                     )
                 ],
-                "hard_limits": {
-                    name: job_data[name]
-                    for name in ("max_objects", "max_bytes", "max_rows", "timeout_seconds")
-                },
                 "accepted_watermark_unchanged_until_publication": True,
             }
         )

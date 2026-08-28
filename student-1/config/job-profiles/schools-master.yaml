@@ -9,14 +9,9 @@ supported_modes: [full_refresh, reprocess_cached]
 release_builder: {key: school-points, version: 1.0.0}
 import_profile: {key: schools-master, version: 1.0.0}
 target: {feature: feature-3, contract: propertyscope.school-points.v1}
-scope_profiles:
-  test: {maximum_records: 20}
-  showcase: {maximum_records: 2500}
-  full-data:
-    all_records: true
-    release_scope: {maximum_records: 5000}
+scope:
+  profile: full-data
+  all_records: true
+  release_scope: {maximum_records: 5000}
 quality_policy: schools-master.v1
-limits:
-  {max_objects: 2, max_bytes: 25000000, max_rows: 5000, deadline_seconds: 300,
-   max_parallelism: 1}
 publication: human_review
