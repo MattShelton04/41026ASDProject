@@ -1,6 +1,6 @@
 # Feature data and Shared adoption plan
 
-Status: implementation in progress
+Status: implemented and verified locally
 Updated: 28 August 2026
 
 ## Decision
