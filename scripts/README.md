@@ -11,14 +11,14 @@
   and Compose volume ownership boundaries
 - `validate_model_registry.py`: validate supported model metadata, profiles, and budgets
 - `validate_tool_catalogs.py`: fail-fast composition check for every feature tool catalogue
-- `verify_release0_stack.py`: bounded Shared/Feature 1 HTTP, internal-readiness, schema-fingerprint,
-  and machine-readable CI evidence checks for the running Release 0 Compose stack
-- `build/`: shared application and container build automation
-- `test/`: shared local and integration test automation
-- `deploy/`: Release 2 Azure deployment automation
+- `ui_fixture_server.py` and `ui_fixtures.py`: deterministic same-origin Shared/Feature 1 browser
+  fixtures used by local UI work, audits, and Playwright tests
+- `ui_smoke.py`: the minimal browser render/console smoke
+- `ui_audit/`: the resumable route, state, control, and viewport interaction audit
 
 Scripts should validate and operate the integrated application rather than
-deploying isolated student features.
+deploying isolated student features. Empty future `build`, `test`, and `deploy` scaffolds are not
+kept here; add an owned executable only when a release needs it.
 
 Run `uv run scripts/dev.py --help` for the three workflow groups. The common container loop is
 `stack doctor`, `stack up`, edit source with automatic reload, and `stack down`. `stack up`
