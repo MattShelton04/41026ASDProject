@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createAssistantClient } from "./client.js";
+import { featureActivityHref } from "./feature-route.js";
 import {
   assistantStatus, defaultSuggestions, findAssistantScope, normalizeAssistantScopes,
 } from "./definitions.js";
@@ -68,6 +69,27 @@ test("assistant client uses the wrapper-supplied same-origin API root", async ()
   assert.equal(calls[0].url, "/api/feature-x/v1/assistant/turns");
   assert.equal(calls[0].options.method, "POST");
   assert.equal(JSON.parse(calls[0].options.body).scope, "feature");
+});
+
+test("feature assistant activity links retain independently supplied ownership", () => {
+  const href = featureActivityHref({
+    featureKey: "student-3-place-insights",
+    featureLabel: "Place insights",
+    returnTo: "/features/place-insights/#assistant",
+  })("10000000-0000-0000-0000-000000000001");
+  const url = new URL(href, "http://propertyscope.local");
+  assert.equal(url.pathname, "/operations/ai-mode/");
+  assert.equal(url.searchParams.get("feature_key"), "student-3-place-insights");
+  assert.equal(url.searchParams.get("feature_label"), "Place insights");
+  assert.equal(url.searchParams.get("return_to"), "/features/place-insights/#assistant");
+  assert.equal(url.searchParams.get("run"), "10000000-0000-0000-0000-000000000001");
+});
+
+test("feature assistant activity links fail closed without ownership inputs", () => {
+  assert.throws(
+    () => featureActivityHref({ featureKey: "feature", featureLabel: "Feature" }),
+    /returnTo/,
+  );
 });
 
 test("component source preserves disclosure/focus state and surfaces polling warnings", async () => {

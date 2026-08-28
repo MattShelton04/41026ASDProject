@@ -19,6 +19,11 @@ export function createAiChat({
   description = "Ask about the application or use the available research tools. Every message creates a reviewable activity run.",
   scopes = undefined,
   suggestions = defaultSuggestions,
+  assistantLabel = "PropertyScope assistant",
+  welcomeTitle = "What would you like to understand?",
+  welcomeMessage = "I can inspect available feature data through recorded, allowlisted tools. I will show the durable run and evidence for each answer.",
+  composerLabel = "Message PropertyScope assistant",
+  placeholder = "Ask about this research area, its evidence or an available record…",
 } = {}) {
   if (!root || !client) throw new TypeError("createAiChat requires root and client");
   const scopeDefinitions = normalizeAssistantScopes(scopes);
@@ -52,7 +57,7 @@ export function createAiChat({
   const transcript = el("div", "ps-ai-chat__transcript");
   transcript.setAttribute("aria-label", "Assistant conversation");
   const welcome = el("section", "ps-ai-chat__welcome");
-  append(welcome, el("span", "ps-ai-chat__speaker", "PropertyScope assistant"), el("h2", "", "What would you like to understand?"), el("p", "", "I can explain the website and inspect available Property data through recorded, allowlisted tools. I will show the durable run and evidence for each answer."));
+  append(welcome, el("span", "ps-ai-chat__speaker", assistantLabel), el("h2", "", welcomeTitle), el("p", "", welcomeMessage));
   const suggestionsHost = el("div", "ps-ai-chat__suggestions");
   append(welcome, suggestionsHost);
   append(transcript, welcome);
@@ -61,7 +66,7 @@ export function createAiChat({
   const textareaLabel = el("label");
   textareaLabel.htmlFor = "ps-ai-chat-message";
   textareaLabel.className = "ps-ai-chat__composer-label";
-  textareaLabel.textContent = "Message PropertyScope assistant";
+  textareaLabel.textContent = composerLabel;
   const textarea = el("textarea");
   textarea.id = "ps-ai-chat-message";
   textarea.name = "message";
@@ -69,7 +74,7 @@ export function createAiChat({
   textarea.minLength = 2;
   textarea.maxLength = 2000;
   textarea.required = true;
-  textarea.placeholder = "Ask about PropertyScope, a dataset, an update or an accepted property record…";
+  textarea.placeholder = placeholder;
   const composerFooter = el("div", "ps-ai-chat__composer-footer");
   const helper = el("p", "", "Enter sends · Shift+Enter adds a line · no hidden conversation memory");
   const submit = el("button", "ps-button ps-button--primary", "Send message");
