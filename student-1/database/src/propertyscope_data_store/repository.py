@@ -387,7 +387,9 @@ class PropertyScopeStore:
             "profile_key",
             "profile_version",
             "adapter_key",
+            "adapter_version",
             "release_builder_key",
+            "release_builder_version",
             "import_profile_key",
             "import_profile_version",
             "target_feature",
@@ -399,7 +401,12 @@ class PropertyScopeStore:
             "status",
             "schedule_text",
         )
-        parameters = [values[name] for name in columns]
+        parameters = [
+            values.get(name, "1.0.0")
+            if name in {"adapter_version", "release_builder_version"}
+            else values[name]
+            for name in columns
+        ]
         try:
             with self.connection() as connection:
                 row = connection.execute(
@@ -506,13 +513,15 @@ class PropertyScopeStore:
                         release_builder_version,import_profile_version,normalisation_version,
                         profile_key,run_mode,requested_scope_json,attempt_number,parent_run_id,
                         requested_at,status,request_id,idempotency_key,created_at
-                    ) VALUES (%s,%s,%s,'1.0.0','1.0.0',%s,'1.0.0',%s,%s,%s,%s,%s,%s,'queued',%s,%s,%s)
+                    ) VALUES (%s,%s,%s,%s,%s,%s,'1.0.0',%s,%s,%s,%s,%s,%s,'queued',%s,%s,%s)
                     RETURNING *
                     """,
                     (
                         run_id,
                         job_id,
                         job["source_definition_id"],
+                        job["adapter_version"],
+                        job["release_builder_version"],
                         job["import_profile_version"],
                         job["profile_key"],
                         mode,

@@ -188,3 +188,16 @@ def test_complete_import_policy_removes_operator_limits_and_saved_scopes() -> No
     assert "DROP COLUMN max_bytes" in migration
     assert "DROP COLUMN max_rows" in migration
     assert "DROP COLUMN timeout_seconds" in migration
+
+
+def test_registered_runtime_versions_are_persisted_for_future_runs() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("030_persist_registered_runtime_versions.sql")
+        .read_text("utf-8")
+    )
+
+    assert "ADD COLUMN adapter_version" in migration
+    assert "ADD COLUMN release_builder_version" in migration
+    assert "release_builder_version='2.0.0'" in migration
+    assert "release_builder_key='property-sales'" in migration
