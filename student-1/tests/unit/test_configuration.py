@@ -25,7 +25,11 @@ def test_checked_in_profiles_load_in_stable_order() -> None:
         "nsw-psi-sales-year",
     )
     fixture = registry.get_profile("fixture-property-full")
-    assert fixture.scope == {"profile": "full-data", "all_records": True}
+    assert fixture.scope == {
+        "profile": "full-data",
+        "all_records": True,
+        "release_scope": {"maximum_records": 50000},
+    }
 
 
 def test_unknown_profile_fails_closed() -> None:

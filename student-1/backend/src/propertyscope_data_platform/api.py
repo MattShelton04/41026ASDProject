@@ -323,6 +323,7 @@ def create_blueprint(
                 "scope": scope,
                 "network_required": mode == "full_refresh"
                 and scope.get("profile") == "full-data"
+                and job_data.get("import_profile_key") != "property-fixture"
                 and not cached_psi,
                 "source_cache_required": cached_psi,
                 "tasks": [

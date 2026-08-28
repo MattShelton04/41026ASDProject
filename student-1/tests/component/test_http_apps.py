@@ -990,6 +990,39 @@ def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> N
     assert response.get_json()["network_required"] is True
 
 
+def test_complete_fixture_plan_does_not_claim_network_work() -> None:
+    job_id = "20000000-0000-0000-0000-000000000010"
+
+    def database(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "job": {
+                    "id": job_id,
+                    "profile_key": "fixture-property-full",
+                    "release_builder_key": "property-snapshot",
+                    "import_profile_key": "property-fixture",
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post(
+        f"/api/data-platform/v1/jobs/{job_id}/plans",
+        json={"run_mode": "full_refresh", "scope": {"profile": "full-data"}},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["network_required"] is False
+
+
 def test_default_runtime_reports_and_allows_official_acquisition() -> None:
     job_id = "20000000-0000-0000-0000-000000000004"
 
