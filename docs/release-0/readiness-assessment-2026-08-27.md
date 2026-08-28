@@ -25,7 +25,7 @@ to 6 September 2026 at 11:59 pm Sydney time.
 | AI-mode and approved model | Shared AI-mode, durable runs, Feature 1 tools, live provider evaluations and offline degradation exist. The retained evaluation says written approval is still required for the remote Gemini/OpenAI departure from the published Ollama/open-source-model requirement. | **Approval gap** |
 | Plan → Act → Observe → Adapt | A bounded persisted state machine, tool evidence, recovery behavior, review gates and deterministic/live scenarios are implemented and documented. | **Ready for the slice** |
 | Prompt/context management | Versioned planner/adapter prompts, bounded tool contracts, model profiles and real-provider evaluation evidence exist. | **Ready for the slice** |
-| GitHub Actions | Integration CI owns the canonical source gate. Student 1 owns browser-form and integrated Shared/Feature 1 stack checks with bounded JSON evidence. Actions are SHA-pinned and workflow syntax is linted. | **Ready when this PR passes** |
+| GitHub Actions | Integration CI owns the canonical source gate. Student 1 owns browser-form and focused integrated Shared/Feature 1 stack checks. Actions are SHA-pinned and workflow syntax is linted. | **Ready when this PR passes** |
 | Docker Compose | The production-like and development Compose models build and run Shared plus Feature 1 with exclusive database ownership. They do not and cannot yet demonstrate the sample five-feature group topology. | **Slice ready; group blocked** |
 | Working integrated software | Shared and Feature 1 health, property search, CRUD, ingestion, release review and agent diagnosis have executable coverage and retained live-source evidence. Cross-feature Feature 2–5 journeys cannot run until those owners implement them. | **Slice ready; group blocked** |
 | Report and demonstration | Feature 1 marking/evaluation material and design captures exist. `docs/reports/` has no Release 0 technical report, published video URL, final contribution/attendance evidence, or complete five-member demonstration record. | **Not complete** |
@@ -43,7 +43,7 @@ Before calling Shared and Feature 1 submission-complete:
 4. Accept and publish the intended showcase candidate through the existing human-review boundary so
    current product data is demonstrable.
 5. Capture one successful canonical workflow run and one successful Student 1 workflow run for the
-   release commit; retain the Student 1 smoke-evidence artifact.
+   release commit.
 
 The group must also allocate and integrate Features 2–5, complete the report and diagrams, capture
 screenshots and contribution/attendance evidence, publish the maximum ten-minute group video, and

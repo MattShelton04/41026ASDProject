@@ -112,8 +112,9 @@ path-filtered Student 1 workflow adds only the Chromium form suite and the integ
 Feature 1 container check; it does not repeat the whole repository gate or a second shared-image
 build on the same pull request. Its working set is limited to Feature 1, agent-core/AI-mode, shared
 runtime contracts/frontend assets, Compose/build metadata, workspace manifests, and the exact dev
-and smoke commands used by that check. The container job retains a small JSON evidence artifact for
-14 days with route results, internal readiness, the database schema fingerprint, commit, and run ID.
+command used by that check. Compose readiness and a deterministic fixture collection exercise the
+service pipeline; a short inline smoke then checks the shared Feature 1 route/proxy and migrated
+database schema fingerprint.
 
 The local service exposes health endpoints and the versioned `/api/v1/agent-runs`
 create/read/cancel/review surface. Its default feature-tool registry remains empty until

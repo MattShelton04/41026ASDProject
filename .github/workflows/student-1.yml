@@ -16,7 +16,6 @@ on:
       - "scripts/__init__.py"
       - "scripts/dev.py"
       - "scripts/devtools/**"
-      - "scripts/verify_release0_stack.py"
       - "shared/contracts/**"
       - "shared/frontend/**"
       - "student-1/**"
@@ -38,7 +37,6 @@ on:
       - "scripts/__init__.py"
       - "scripts/dev.py"
       - "scripts/devtools/**"
-      - "scripts/verify_release0_stack.py"
       - "shared/contracts/**"
       - "shared/frontend/**"
       - "student-1/**"
@@ -84,7 +82,7 @@ jobs:
         run: uv run --locked pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
 
   containers:
-    name: Integrated Release 0 stack
+    name: Feature 1 integrated stack
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -109,7 +107,7 @@ jobs:
         run: docker compose --file docker-compose.yml --file docker-compose.dev.yml --profile release-0 config --quiet
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-      - name: Build cached Feature 1 targets
+      - name: Build cached Shared and Feature 1 targets
         uses: docker/bake-action@82490499d2e5613fcead7e128237ef0b0ea210f7 # v7.0.0
         with:
           source: .
@@ -138,16 +136,12 @@ jobs:
         run: |
           uv sync --locked --all-packages --all-groups
           uv run --locked scripts/dev.py data collect fixture-property --profile test --timeout 120
-      - name: Verify the integrated stack and record bounded evidence
-        run: uv run --locked python scripts/verify_release0_stack.py
-      - name: Upload Release 0 smoke evidence
-        if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-0-smoke-${{ github.run_id }}
-          path: .propertyscope-runtime/ci/release-0-smoke.json
-          if-no-files-found: ignore
-          retention-days: 14
+      - name: Smoke the Shared and Feature 1 boundary
+        run: |
+          curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5100/features/data-platform/
+          curl --fail --silent --show-error --max-time 5 'http://127.0.0.1:5100/api/data-platform/v1/properties/search?q=11%20Example%20Street&state=NSW&limit=10' --output /tmp/propertyscope-search.json
+          python -c "import json; value=json.load(open('/tmp/propertyscope-search.json', encoding='utf-8')); assert value.get('items'), value"
+          docker compose exec -T f1-db-api python -c "import json,os,urllib.request; request=urllib.request.Request('http://127.0.0.1:5202/internal/data-platform/v1/schema/fingerprint',headers={'X-PropertyScope-Internal-Token':os.environ['PROPERTYSCOPE_INTERNAL_TOKEN']}); value=json.load(urllib.request.urlopen(request,timeout=2)); assert value['algorithm']=='sha256' and len(value['fingerprint'])==64, value"
       - name: Capture service logs
         if: failure()
         run: docker compose --profile release-0 logs --no-color --tail 300
