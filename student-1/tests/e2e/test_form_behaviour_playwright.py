@@ -472,6 +472,7 @@ def test_source_job_and_release_create_edit_forms_retain_server_failures(
     expect(page.locator('[name="max_objects"]')).to_have_count(0)
     expect(page.locator('[name="max_bytes"]')).to_have_count(0)
     expect(page.locator('[name="max_rows"]')).to_have_count(0)
+    expect(page.locator('[name="scope_json"]')).to_have_count(0)
     schedule.fill("Retained job schedule note")
     job_writes = _fail_first_write(page, "**/api/data-platform/v1/jobs/*", method="PUT")
     page.locator("#entity-save").click()

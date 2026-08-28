@@ -18,6 +18,7 @@ from typing import Any
 
 import httpx
 
+from propertyscope_data_platform.acquisition_scope import complete_scope_error
 from propertyscope_data_platform.adapters.bocsar import (
     CrimeCoverage,
     CrimeObservation,
@@ -195,12 +196,10 @@ class AcquisitionRunner:
             )
         if stage in {"discover", "acquire"}:
             profile = str(task.get("import_profile_key", "property-fixture"))
-            live_requested = scope.get("profile") == "full-data"
-            if (
-                live_requested
-                and profile in {"psi-sales", "gnaf-nsw", "bocsar-sparse"}
-                and stage == "acquire"
-            ):
+            scope_error = complete_scope_error(profile, scope)
+            if scope_error is not None:
+                raise RuntimeError(f"Incomplete acquisition scope: {scope_error}")
+            if profile in {"psi-sales", "gnaf-nsw", "bocsar-sparse"} and stage == "acquire":
                 scope = task.get("partition_json") or {}
                 if not isinstance(scope, dict):
                     raise RuntimeError("Registered live scope is invalid")
@@ -222,10 +221,10 @@ class AcquisitionRunner:
                     schema_version="propertyscope.canonical-import.v1",
                 )
                 return counter[0], counter[0]
-            if live_requested and profile != "property-fixture":
+            if profile != "property-fixture":
                 document, records = self._live_document(task, stage=stage, profile=profile)
             else:
-                records = _canonical_records(profile) if stage == "acquire" else []
+                records = _fixture_records() if stage == "acquire" else []
                 document = (
                     {
                         "schema_version": "propertyscope.canonical-import.v1",
@@ -1042,121 +1041,38 @@ def _optional_path(value: str | None) -> Path | None:
     return Path(value).resolve() if value and value.strip() else None
 
 
-def _canonical_records(profile: str) -> list[dict[str, object]]:
-    """Produce bounded licensed synthetic evidence through every registered import profile."""
-    if profile == "property-fixture":
-        localities = (
-            ("PARRAMATTA", "2150", -33.8151, 151.0011),
-            ("MOSMAN", "2088", -33.8298, 151.2441),
-            ("WOLLONGONG", "2500", -34.4278, 150.8931),
-        )
-        return [
-            {
-                "source_pid": f"FIX-{index:03d}",
-                "property_ref": None,
-                "address_display": (
-                    f"{index} FIXTURE STREET {localities[(index - 1) % 3][0]} NSW "
-                    f"{localities[(index - 1) % 3][1]}"
-                ),
-                "flat_type": None,
-                "unit_number": None,
-                "street_number_first": index,
-                "street_number_suffix": None,
-                "street_number_last": None,
-                "street_name": "FIXTURE",
-                "street_type": "STREET",
-                "locality": localities[(index - 1) % 3][0],
-                "postcode": localities[(index - 1) % 3][1],
-                "source_status": "CURRENT",
-                "geocode_type": "FIXTURE",
-                "source_crs": 4326,
-                "latitude": localities[(index - 1) % 3][2] + index * 0.00001,
-                "longitude": localities[(index - 1) % 3][3] + index * 0.00001,
-            }
-            for index in range(1, 11)
-        ]
-    if profile == "schools-master":
-        return [
-            {
-                "school_code": f"S{index:04d}",
-                "school_name": f"Example Public School {index}",
-                "school_type": "Primary",
-                "status": "Open",
-                "locality_original": "Sydney",
-                "locality_normalised": "SYDNEY",
-                "lga_name": "City of Sydney",
-                "latitude": -33.9 + index * 0.001,
-                "longitude": 151.1 + index * 0.001,
-            }
-            for index in range(1, 11)
-        ]
-    if profile == "gnaf-nsw":
-        return [
-            {
-                "gnaf_pid": f"GANSWFIXTURE{index:04d}",
-                "property_ref": None,
-                "address_display": f"{index} Fixture Street, Sydney NSW 2000",
-                "locality": "SYDNEY",
-                "postcode": "2000",
-                "source_status": "CURRENT",
-                "geocode_type": "PC",
-                "source_crs": 7844,
-                "latitude": -33.9 + index * 0.001,
-                "longitude": 151.1 + index * 0.001,
-            }
-            for index in range(1, 11)
-        ]
-    if profile == "psi-sales":
-        return [
-            {
-                "source_business_key": f"001:P{index}:1",
-                "source_revision": 1,
-                "source_era": "post-2001",
-                "source_partition_year": 2025,
-                "district_code": "001",
-                "property_id": f"P{index}",
-                "dealing_id": f"D{index}",
-                "contract_date": "2025-01-01",
-                "settlement_date": "2025-02-01",
-                "price_aud": 800_000 + index,
-                "area_original": "500",
-                "area_unit": "M",
-                "area_square_metres": "500",
-                "property_ref": None,
-                "match_tier": "MISS",
-                "match_confidence": "0",
-                "geographic_precision": "unmatched",
-            }
-            for index in range(1, 11)
-        ]
-    if profile == "bocsar-sparse":
-        records: list[dict[str, object]] = []
-        for index in range(1, 6):
-            category = f"fixture-category-{index}"
-            records.extend(
-                (
-                    {
-                        "record_kind": "observation",
-                        "geography_kind": "postcode",
-                        "geography_value": "2000",
-                        "source_category_key": category,
-                        "offence_label": "Synthetic offence",
-                        "subcategory_label": f"Synthetic category {index}",
-                        "month": "2025-02-01",
-                        "count": index,
-                    },
-                    {
-                        "record_kind": "coverage",
-                        "geography_kind": "postcode",
-                        "geography_value": "2000",
-                        "source_category_key": category,
-                        "observed_months": ["2025-01-01", "2025-02-01"],
-                        "blank_means_observed_zero": True,
-                    },
-                )
-            )
-        return records
-    raise RuntimeError("Task import profile is not registered by this runner")
+def _fixture_records() -> list[dict[str, object]]:
+    """Return every record in the finite, explicitly synthetic fixture source."""
+    localities = (
+        ("PARRAMATTA", "2150", -33.8151, 151.0011),
+        ("MOSMAN", "2088", -33.8298, 151.2441),
+        ("WOLLONGONG", "2500", -34.4278, 150.8931),
+    )
+    return [
+        {
+            "source_pid": f"FIX-{index:03d}",
+            "property_ref": None,
+            "address_display": (
+                f"{index} FIXTURE STREET {localities[(index - 1) % 3][0]} NSW "
+                f"{localities[(index - 1) % 3][1]}"
+            ),
+            "flat_type": None,
+            "unit_number": None,
+            "street_number_first": index,
+            "street_number_suffix": None,
+            "street_number_last": None,
+            "street_name": "FIXTURE",
+            "street_type": "STREET",
+            "locality": localities[(index - 1) % 3][0],
+            "postcode": localities[(index - 1) % 3][1],
+            "source_status": "CURRENT",
+            "geocode_type": "FIXTURE",
+            "source_crs": 4326,
+            "latitude": localities[(index - 1) % 3][2] + index * 0.00001,
+            "longitude": localities[(index - 1) % 3][3] + index * 0.00001,
+        }
+        for index in range(1, 11)
+    ]
 
 
 def main() -> None:

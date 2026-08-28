@@ -17,6 +17,8 @@ from pydantic import (
     model_validator,
 )
 
+from propertyscope_data_platform.acquisition_scope import complete_scope_error
+
 Identifier = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9._-]*$", max_length=100)]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 SafeText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
@@ -166,8 +168,9 @@ class JobDefinitionUpdate(JobDefinitionCreate):
 
 class RunRequest(DomainModel):
     mode: RunMode
-    scope_profile: Identifier
-    scope: dict[str, Any] = Field(default_factory=dict)
+    scope: dict[str, Any] = Field(
+        default_factory=lambda: {"profile": "full-data", "all_records": True}
+    )
     idempotency_key: str = Field(min_length=8, max_length=200)
     force_reacquire: bool = False
 
@@ -177,6 +180,9 @@ class RunRequest(DomainModel):
             raise ValueError("scope cannot contain more than 20 fields")
         if self.mode is RunMode.REPROCESS_CACHED and self.force_reacquire:
             raise ValueError("reprocess_cached cannot force reacquisition")
+        scope_error = complete_scope_error("", self.scope)
+        if scope_error is not None:
+            raise ValueError(scope_error)
         return self
 
 

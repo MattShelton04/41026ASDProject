@@ -39,7 +39,6 @@ from scripts.devtools.config import (
     OFFLINE_OPENAI_CREDENTIAL,
     PRODUCTION_BUILD_SERVICES,
     PROFILES,
-    PSI_ARCHIVE_BYTE_LIMIT,
     PSI_WEEKLY_URL,
     PSI_YEARLY_URL,
     REPOSITORY_ROOT,
@@ -299,15 +298,13 @@ def _download_psi_archive(client: httpx.Client, url: str) -> bytes:
     )
     if response.status_code != 403:
         response.raise_for_status()
-        if len(response.content) > PSI_ARCHIVE_BYTE_LIMIT:
-            raise RuntimeError("PSI archive exceeds the 750 MB compressed safety limit")
         return response.content
     chunks: list[bytes] = []
     offset = 0
     expected_total: int | None = None
     chunk_size = 4 * 1024 * 1024
     while expected_total is None or offset < expected_total:
-        end = min(offset + chunk_size - 1, PSI_ARCHIVE_BYTE_LIMIT - 1)
+        end = offset + chunk_size - 1
         ranged = client.get(
             url,
             headers={
@@ -318,13 +315,13 @@ def _download_psi_archive(client: httpx.Client, url: str) -> bytes:
         )
         if ranged.status_code != 206:
             ranged.raise_for_status()
-            raise RuntimeError("PSI publisher rejected bounded Range acquisition")
+            raise RuntimeError("PSI publisher rejected Range acquisition")
         match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", ranged.headers.get("content-range", ""))
         if match is None or int(match.group(1)) != offset:
             raise RuntimeError("PSI publisher returned an invalid content range")
         range_end, total = int(match.group(2)), int(match.group(3))
-        if total > PSI_ARCHIVE_BYTE_LIMIT or len(ranged.content) != range_end - offset + 1:
-            raise RuntimeError("PSI archive exceeds the compressed safety limit")
+        if len(ranged.content) != range_end - offset + 1:
+            raise RuntimeError("PSI publisher returned an incomplete content range")
         if expected_total is not None and total != expected_total:
             raise RuntimeError("PSI archive changed during acquisition")
         expected_total = total

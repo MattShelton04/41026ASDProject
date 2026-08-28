@@ -17,7 +17,7 @@ import { createEvidenceRoutes } from "./routes/evidence.js?v=17";
 import { renderOverview } from "./routes/overview.js?v=21";
 import { createPropertyRoutes } from "./routes/properties.js?v=21";
 import { createReleaseRoutes } from "./routes/releases.js?v=20";
-import { createRunPlanner } from "./routes/run-plan.js?v=19";
+import { createRunPlanner } from "./routes/run-plan.js?v=20";
 import { createRunRoutes } from "./routes/runs.js?v=19";
 
 const view = document.querySelector("#view");
@@ -111,7 +111,6 @@ const JOB_FIELDS = [
   { name: "dataset_id", label: "Dataset ID", required: true },
   { name: "refresh_strategy", label: "Refresh strategy", options: ["full_snapshot", "append_only_partitioned", "partitioned_snapshot", "manual_versioned_import"], required: true },
   { name: "default_run_mode", label: "Default run mode", options: ["full_refresh", "reprocess_cached"], required: true },
-  { name: "scope_json", label: "Default update scope", type: "json", wide: true },
   { name: "quality_policy_key", label: "Quality policy", required: true },
   { name: "quality_policy_version", label: "Quality policy version", required: true },
   { name: "status", label: "Lifecycle status", options: ["draft", "active", "disabled", "retired"], required: true },

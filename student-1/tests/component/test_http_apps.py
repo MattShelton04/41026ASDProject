@@ -1119,6 +1119,109 @@ def test_job_plan_ignores_attempts_to_reduce_the_registered_complete_scope() -> 
     assert "maximum_records" not in overflow.get_json()["scope"]
 
 
+def test_retry_of_legacy_partial_run_reacquires_the_complete_registered_source() -> None:
+    run_id = "30000000-0000-0000-0000-000000000031"
+    job_id = "20000000-0000-0000-0000-000000000004"
+    created_body: dict[str, object] = {}
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path.endswith(f"/runs/{run_id}"):
+            return httpx.Response(
+                200,
+                json={
+                    "run": {
+                        "job_definition_id": job_id,
+                        "run_mode": "full_refresh",
+                        "requested_scope_json": {"profile": "showcase", "maximum_records": 100},
+                    }
+                },
+            )
+        if request.method == "GET" and request.url.path.endswith(f"/jobs/{job_id}"):
+            return httpx.Response(
+                200,
+                json={
+                    "job": {
+                        "id": job_id,
+                        "profile_key": "nsw-government-schools-master",
+                        "import_profile_key": "schools-master",
+                        "release_builder_key": "school-points",
+                    }
+                },
+            )
+        if request.method == "POST" and request.url.path.endswith(f"/jobs/{job_id}/runs"):
+            created_body.update(json.loads(request.content))
+            return httpx.Response(201, json={"run": {"id": "new-complete-run"}})
+        raise AssertionError(f"unexpected store request: {request.method} {request.url.path}")
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post(
+        f"/api/data-platform/v1/ingestion-runs/{run_id}/retry",
+        headers={"Idempotency-Key": "retry-complete-001"},
+    )
+
+    assert response.status_code == 201
+    assert created_body["scope"] == {
+        "profile": "full-data",
+        "all_records": True,
+        "release_scope": {"maximum_records": 5000},
+    }
+
+
+@pytest.mark.parametrize("action", ["resume", "reprocess-cached"])
+def test_legacy_partial_run_cannot_reuse_partial_work(action: str) -> None:
+    run_id = "30000000-0000-0000-0000-000000000032"
+    job_id = "20000000-0000-0000-0000-000000000004"
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path.endswith(f"/runs/{run_id}"):
+            return httpx.Response(
+                200,
+                json={
+                    "run": {
+                        "job_definition_id": job_id,
+                        "run_mode": "full_refresh",
+                        "requested_scope_json": {"profile": "showcase", "maximum_records": 100},
+                    }
+                },
+            )
+        if request.method == "GET" and request.url.path.endswith(f"/jobs/{job_id}"):
+            return httpx.Response(
+                200,
+                json={
+                    "job": {
+                        "id": job_id,
+                        "profile_key": "nsw-government-schools-master",
+                        "import_profile_key": "schools-master",
+                        "release_builder_key": "school-points",
+                    }
+                },
+            )
+        raise AssertionError("partial lineage must not be continued in the data store")
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post(
+        f"/api/data-platform/v1/ingestion-runs/{run_id}/{action}",
+        headers={"Idempotency-Key": "legacy-lineage-001"},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "incomplete_legacy_run"
+
+
 def test_protected_tool_rejects_forged_agent_run_header() -> None:
     run_id = "70000000-0000-0000-0000-000000000001"
     source_run_id = "30000000-0000-0000-0000-000000000003"

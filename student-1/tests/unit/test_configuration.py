@@ -46,3 +46,22 @@ def test_job_profiles_fit_registered_adapter_capabilities() -> None:
     adapters = load_adapter_register(ROOT / "config" / "adapter-register.yaml")
     for key in profiles:
         validate_job_profile(profiles.get_profile(key), sources=sources, adapters=adapters)
+
+
+def test_job_profile_validation_rejects_partial_acquisition_selectors() -> None:
+    profiles = load_job_profiles(ROOT / "config" / "job-profiles")
+    sources = load_source_register(ROOT / "config" / "source-register.yaml")
+    adapters = load_adapter_register(ROOT / "config" / "adapter-register.yaml")
+    profile = profiles.get_profile("nsw-psi-sales-year").model_copy(
+        update={
+            "scope": {
+                "profile": "full-data",
+                "all_records": True,
+                "years": [2025],
+                "release_scope": {"years": [2025], "maximum_records": 250000},
+            }
+        }
+    )
+
+    with pytest.raises(ConfigurationError, match="subset selector fields: years"):
+        validate_job_profile(profile, sources=sources, adapters=adapters)

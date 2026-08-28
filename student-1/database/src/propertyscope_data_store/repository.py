@@ -394,14 +394,12 @@ class PropertyScopeStore:
             "dataset_id",
             "refresh_strategy",
             "default_run_mode",
-            "scope_json",
             "quality_policy_key",
             "quality_policy_version",
             "status",
             "schedule_text",
         )
         parameters = [values[name] for name in columns]
-        parameters[12] = _json(parameters[12])
         try:
             with self.connection() as connection:
                 row = connection.execute(
@@ -424,7 +422,6 @@ class PropertyScopeStore:
             raise ConflictError("retired jobs cannot be reactivated")
         editable = (
             "name",
-            "scope_json",
             "status",
             "schedule_text",
         )
@@ -432,13 +429,12 @@ class PropertyScopeStore:
         with self.connection() as connection:
             row = connection.execute(
                 """
-                UPDATE ops.job_definition SET name=%s,scope_json=%s,status=%s,
+                UPDATE ops.job_definition SET name=%s,status=%s,
                     schedule_text=%s,updated_at=%s,version=version+1
                 WHERE id=%s AND version=%s RETURNING *
                 """,
                 (
                     merged["name"],
-                    _json(merged["scope_json"]),
                     merged["status"],
                     merged["schedule_text"],
                     datetime.now(UTC),
@@ -474,6 +470,8 @@ class PropertyScopeStore:
         job = self.get_job(job_id)
         if job["status"] != "active":
             raise ConflictError("job is not active")
+        if not _is_complete_acquisition_scope(scope):
+            raise ConflictError("runs must request the complete registered source")
         existing = self._fetch_one(
             "SELECT * FROM ops.ingestion_run WHERE job_definition_id=%s AND idempotency_key=%s",
             (job_id, idempotency_key),
@@ -485,6 +483,8 @@ class PropertyScopeStore:
         if parent_run_id is not None:
             parent = self.get_run(parent_run_id)
             attempt_number = validate_retry_parent(job_id, mode, parent)
+            if mode == "reprocess_cached" and parent["requested_scope_json"] != dict(scope):
+                raise ConflictError("cached reprocessing requires the same complete source scope")
             if (
                 mode == "reprocess_cached"
                 and self._fetch_one(
@@ -698,6 +698,8 @@ class PropertyScopeStore:
         run = self.get_run(run_id)
         if run["status"] != "interrupted":
             raise ConflictError("only interrupted runs can resume")
+        if not _is_complete_acquisition_scope(run["requested_scope_json"]):
+            raise ConflictError("historical partial runs cannot resume")
         now = datetime.now(UTC)
         with self.connection() as connection:
             connection.execute(
@@ -2586,3 +2588,23 @@ class PropertyScopeStore:
         with self.connection() as connection:
             rows = connection.execute(query, params).fetchall()
         return _rows(rows)
+
+
+def _is_complete_acquisition_scope(scope: Mapping[str, Any]) -> bool:
+    subset_fields = {
+        "geography_kind",
+        "geography_values",
+        "localities",
+        "maximum_records",
+        "scenario",
+        "source_year",
+        "start_month",
+        "end_month",
+        "years",
+        "weeks",
+    }
+    return (
+        scope.get("profile") == "full-data"
+        and scope.get("all_records") is True
+        and not subset_fields.intersection(scope)
+    )

@@ -9,7 +9,7 @@ from typing import Any, cast
 
 import pytest
 
-from propertyscope_data_platform.runner import _canonical_records
+from propertyscope_data_platform.runner import _fixture_records
 from propertyscope_data_store.import_profiles import (
     _PROFILE_INSERT_SQL,
     CANONICAL_SCHEMA_VERSION,
@@ -32,6 +32,92 @@ def _artifact(profile: str, records: list[dict[str, object]]) -> bytes:
         sort_keys=True,
         separators=(",", ":"),
     ).encode()
+
+
+def _contract_records(profile: str) -> list[dict[str, object]]:
+    """Build finite test-only records for each database import contract."""
+    if profile == "property-fixture":
+        return _fixture_records()
+    if profile == "schools-master":
+        return [
+            {
+                "school_code": f"S{index:04d}",
+                "school_name": f"Example Public School {index}",
+                "school_type": "Primary",
+                "status": "Open",
+                "locality_original": "Sydney",
+                "locality_normalised": "SYDNEY",
+                "lga_name": "City of Sydney",
+                "latitude": -33.9 + index * 0.001,
+                "longitude": 151.1 + index * 0.001,
+            }
+            for index in range(1, 11)
+        ]
+    if profile == "gnaf-nsw":
+        return [
+            {
+                "gnaf_pid": f"GANSWFIXTURE{index:04d}",
+                "property_ref": None,
+                "address_display": f"{index} Fixture Street, Sydney NSW 2000",
+                "locality": "SYDNEY",
+                "postcode": "2000",
+                "source_status": "CURRENT",
+                "geocode_type": "PC",
+                "source_crs": 7844,
+                "latitude": -33.9 + index * 0.001,
+                "longitude": 151.1 + index * 0.001,
+            }
+            for index in range(1, 11)
+        ]
+    if profile == "psi-sales":
+        return [
+            {
+                "source_business_key": f"001:P{index}:1",
+                "source_revision": 1,
+                "source_era": "post-2001",
+                "source_partition_year": 2025,
+                "district_code": "001",
+                "property_id": f"P{index}",
+                "dealing_id": f"D{index}",
+                "contract_date": "2025-01-01",
+                "settlement_date": "2025-02-01",
+                "price_aud": 800_000 + index,
+                "area_original": "500",
+                "area_unit": "M",
+                "area_square_metres": "500",
+                "property_ref": None,
+                "match_tier": "MISS",
+                "match_confidence": "0",
+                "geographic_precision": "unmatched",
+            }
+            for index in range(1, 11)
+        ]
+    if profile == "bocsar-sparse":
+        return [
+            record
+            for index in range(1, 6)
+            for record in (
+                {
+                    "record_kind": "observation",
+                    "geography_kind": "postcode",
+                    "geography_value": "2000",
+                    "source_category_key": f"fixture-category-{index}",
+                    "offence_label": "Synthetic offence",
+                    "subcategory_label": f"Synthetic category {index}",
+                    "month": "2025-02-01",
+                    "count": index,
+                },
+                {
+                    "record_kind": "coverage",
+                    "geography_kind": "postcode",
+                    "geography_value": "2000",
+                    "source_category_key": f"fixture-category-{index}",
+                    "observed_months": ["2025-01-01", "2025-02-01"],
+                    "blank_means_observed_zero": True,
+                },
+            )
+        ]
+    raise AssertionError(f"missing test records for {profile}")
 
 
 @pytest.mark.parametrize(
@@ -132,7 +218,7 @@ def test_bocsar_requires_sparse_observation_and_explicit_coverage_contracts() ->
 
 
 def test_profile_mismatch_and_duplicate_natural_keys_fail_before_copy() -> None:
-    record = _canonical_records("property-fixture")[0]
+    record = _fixture_records()[0]
     with pytest.raises(ImportProfileError, match="does not match"):
         prepare_import(_artifact("property-fixture", [record]), profile="schools-master")
     with pytest.raises(ImportProfileError, match="natural keys"):
@@ -265,7 +351,7 @@ def test_loader_shutdown_leaves_activation_explicitly_recoverable(tmp_path: Path
 
 
 def test_loader_verifies_artifact_then_delegates_registered_copy_profile(tmp_path: Path) -> None:
-    data = _artifact("property-fixture", [_canonical_records("property-fixture")[0]])
+    data = _artifact("property-fixture", [_fixture_records()[0]])
     digest = hashlib.sha256(data).hexdigest()
     relative = Path("sha256") / digest[:2] / digest
     path = tmp_path / relative
@@ -290,7 +376,7 @@ def test_loader_verifies_artifact_then_delegates_registered_copy_profile(tmp_pat
 
 
 def test_loader_stops_before_reading_a_cancelled_import(tmp_path: Path) -> None:
-    data = _artifact("property-fixture", [_canonical_records("property-fixture")[0]])
+    data = _artifact("property-fixture", [_fixture_records()[0]])
     digest = hashlib.sha256(data).hexdigest()
     relative = Path("sha256") / digest[:2] / digest
     path = tmp_path / relative
@@ -316,8 +402,8 @@ def test_loader_stops_before_reading_a_cancelled_import(tmp_path: Path) -> None:
     "profile",
     ["property-fixture", "gnaf-nsw", "psi-sales", "bocsar-sparse", "schools-master"],
 )
-def test_runner_showcase_records_use_the_database_canonical_contract(profile: str) -> None:
-    records = _canonical_records(profile)
+def test_deterministic_canonical_samples_use_the_database_contract(profile: str) -> None:
+    records = _contract_records(profile)
 
     prepared = prepare_import(_artifact(profile, records), profile=profile)
 

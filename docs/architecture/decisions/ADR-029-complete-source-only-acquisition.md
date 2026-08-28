@@ -28,6 +28,12 @@ safety boundaries without making data volume an operator decision.
   advanced acquisition JSON, or `--profile` option.
 - Job and adapter definitions no longer contain row, byte, object, task-parallelism, or deadline
   limits. The runner does not stop a valid import because the source crossed one of those values.
+- Official archive readers retain path, format, and integrity validation but have no default
+  compressed-byte, expanded-byte, member-count, scanned-row, or canonical-output ceiling.
+- Retry resolves the current registered complete scope. Resume and cached reprocessing reject
+  historical partial runs because their already-acquired artifacts cannot prove completeness.
+- Saved jobs do not persist an editable acquisition scope. The immutable registry supplies it, and
+  validation rejects source-specific subset selectors before the service starts.
 - Tests remain deterministic by using a finite fixture source, not by selecting a reduced import.
 - HTTP pagination, property-search candidate bounds, AI/tool budgets, archive path validation,
   checksums, and downstream consumer-product projections are unchanged. They bound responses or
@@ -44,7 +50,9 @@ the supported fast path for local UI and CI work.
 
 Historical migrations and evidence records continue to mention the superseded limits because they
 preserve point-in-time database evolution and assessment evidence. Migration 026 removes the
-columns from current databases and rewrites active job scopes to the complete-source policy.
+capacity columns and saved-job scope from current databases. It does not rewrite historical run
+evidence: operators must start a fresh complete update instead of resuming or reprocessing a
+partial historical artifact.
 
 ## Alternatives considered
 

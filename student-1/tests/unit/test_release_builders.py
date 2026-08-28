@@ -215,7 +215,7 @@ def test_discovery_persists_manifest_source_release_evidence(tmp_path: Path) -> 
             "stage": "discover",
             "logical_key": "00/discover",
             "import_profile_key": "property-fixture",
-            "partition_json": {"profile": "showcase", "maximum_records": 10},
+            "partition_json": {"profile": "full-data", "all_records": True},
         }
     )
 

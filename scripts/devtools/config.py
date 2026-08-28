@@ -48,4 +48,3 @@ UI_FIXTURE_SCENARIOS = (
 DEFAULT_UI_FIXTURE_PORT = 5300
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{partition}.zip"
 PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{partition}.zip"
-PSI_ARCHIVE_BYTE_LIMIT = 750_000_000

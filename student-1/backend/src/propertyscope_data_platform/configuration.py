@@ -10,6 +10,7 @@ from typing import Generic, TypeVar
 import yaml
 from pydantic import AnyHttpUrl, Field, ValidationError
 
+from .acquisition_scope import complete_scope_error
 from .domain import (
     DomainModel,
     Identifier,
@@ -168,3 +169,6 @@ def validate_job_profile(
         raise ConfigurationError("job refresh strategy is unsupported by its adapter")
     if set(profile.supported_modes) - set(adapter.supported_modes):
         raise ConfigurationError("job requests unsupported adapter modes")
+    scope_error = complete_scope_error(profile.import_profile.key, profile.scope)
+    if scope_error is not None:
+        raise ConfigurationError(scope_error)

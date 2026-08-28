@@ -9,7 +9,6 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
     const wrapper = el("div", "stack");
     const isBackfill = intent === "backfill";
     const psi = isPsiJob(job);
-    const importProfile = job.import_profile_key || job.import_profile;
     append(wrapper, el("div", `notice ${isBackfill ? "warning" : ""}`, isBackfill
       ? "Loading earlier data starts a separate update. Published data changes only after the new version passes review."
       : "This update imports every record available from the registered source. Published data changes only after review."));
@@ -27,26 +26,7 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
     append(modeLabel, mode);
     append(wrapper, modeLabel);
 
-    const requestedScope = () => {
-      const value = { ...(job.scope_json || {}), profile: "full-data", all_records: true };
-      delete value.maximum_records;
-      delete value.localities;
-      delete value.years;
-      delete value.weeks;
-      if (importProfile === "bocsar-sparse") {
-        delete value.geography_kind;
-        delete value.geography_values;
-        delete value.start_month;
-        delete value.end_month;
-        value.geography_kinds = ["postcode", "suburb"];
-      }
-      if (psi) {
-        value.all_history = true;
-        value.include_current_weekly = true;
-        value.partition_type = "annual_and_weekly";
-      }
-      return value;
-    };
+    const requestedScope = () => ({ profile: "full-data", all_records: true });
 
     const preview = button("Preview update", "button secondary");
     const evidence = el("div");
@@ -56,7 +36,7 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
       try {
         const payload = { run_mode: mode.value, scope: requestedScope() };
         const result = await request(`jobs/${job.id}/plans`, { method: "POST", body: payload });
-        const scopeSummary = psi && payload.scope.all_history ? "Complete sales history: annual archives from 1990 plus current weekly updates" : "Complete dataset: all available source records";
+        const scopeSummary = psi && result.body.scope?.all_history ? "Complete sales history: annual archives from 1990 plus current weekly updates" : "Complete dataset: all available source records";
         evidence.replaceChildren(el("div", "notice", `Update checked · ${scopeSummary}. Review the work before starting.`), technicalDetails(result.body, "Technical plan details"));
       } catch (error) {
         evidence.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}.` : ""} Your update settings are unchanged.`));

@@ -96,6 +96,23 @@ def test_full_data_never_silently_substitutes_unconnected_sources(tmp_path: Path
         runner._live_document({}, stage="acquire", profile="spatial-features")
 
 
+def test_runner_rejects_legacy_partial_official_task_before_acquisition(tmp_path: Path) -> None:
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30)
+    )
+
+    with pytest.raises(RuntimeError, match="Incomplete acquisition scope"):
+        runner._execute(
+            {
+                "id": "task-legacy",
+                "ingestion_run_id": "run-legacy",
+                "stage": "acquire",
+                "import_profile_key": "schools-master",
+                "partition_json": {"profile": "showcase", "maximum_records": 100},
+            }
+        )
+
+
 def test_runner_stops_cooperatively_cancelled_work_without_reporting_a_failure(
     tmp_path: Path,
 ) -> None:

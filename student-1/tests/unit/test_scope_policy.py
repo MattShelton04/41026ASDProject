@@ -47,7 +47,7 @@ def test_registered_scope_ignores_operator_attempts_to_reduce_the_import() -> No
     ("scope", "detail"),
     [
         (None, "JSON object"),
-        ({"profile": "unknown"}, "complete registered source"),
+        ({"profile": "unknown"}, "all records"),
         (
             {
                 "profile": "full-data",
@@ -55,7 +55,7 @@ def test_registered_scope_ignores_operator_attempts_to_reduce_the_import() -> No
                 "maximum_records": 1,
                 "release_scope": {"maximum_records": 10, "years": [2025]},
             },
-            "does not accept",
+            "subset selector",
         ),
         (
             {
@@ -64,7 +64,7 @@ def test_registered_scope_ignores_operator_attempts_to_reduce_the_import() -> No
                 "years": [2025, 2024],
                 "release_scope": {"years": [2024, 2025], "maximum_records": 10},
             },
-            "unique and sorted",
+            "subset selector",
         ),
         (
             {
@@ -73,7 +73,7 @@ def test_registered_scope_ignores_operator_attempts_to_reduce_the_import() -> No
                 "weeks": ["not-a-date"],
                 "release_scope": {"years": [2025], "maximum_records": 10},
             },
-            "ISO dates",
+            "subset selector",
         ),
     ],
 )
@@ -91,12 +91,17 @@ def test_live_scope_policy_connects_registered_sources_and_rejects_unknown_trans
     scope = {
         "profile": "full-data",
         "all_records": True,
-        "years": [2025],
+        "all_history": True,
+        "include_current_weekly": True,
         "release_scope": {"years": [2025], "maximum_records": 10},
     }
 
     unknown_job = {**PSI_JOB, "import_profile_key": "spatial-features"}
-    _, transport_error = validate_job_scope(unknown_job, scope, run_mode="full_refresh")
+    _, transport_error = validate_job_scope(
+        unknown_job,
+        {"profile": "full-data", "all_records": True, "release_scope": {"maximum_records": 10}},
+        run_mode="full_refresh",
+    )
     resolved, error = validate_job_scope(
         PSI_JOB,
         scope,

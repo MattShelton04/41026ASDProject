@@ -17,7 +17,20 @@
     "release_builder": {"$ref": "#/$defs/versionedKey"},
     "import_profile": {"$ref": "#/$defs/versionedKey"},
     "target": {"type": "object", "additionalProperties": false, "required": ["feature", "contract"], "properties": {"feature": {"type": "string"}, "contract": {"type": "string"}}},
-    "scope": {"type": "object", "required": ["profile", "all_records"], "properties": {"profile": {"const": "full-data"}, "all_records": {"const": true}}},
+    "scope": {
+      "type": "object",
+      "required": ["profile", "all_records"],
+      "properties": {
+        "profile": {"const": "full-data"},
+        "all_records": {"const": true},
+        "geography_kinds": {"type": "array", "items": {"enum": ["postcode", "suburb"]}, "uniqueItems": true},
+        "state": {"const": "NSW"},
+        "all_history": {"const": true},
+        "include_current_weekly": {"const": true},
+        "release_scope": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
     "quality_policy": {"type": "string"},
     "publication": {"const": "human_review"}
   },
