@@ -28,8 +28,8 @@ following gaps block dependable downstream use:
    the historical wire layout.
 2. Consequently almost every loaded sale is marked `MISS`; only 10 of about 7.3 million retained
    PSI rows currently have a `property_ref`.
-3. The closed `propertyscope.property-sales.v1` product cannot gain those fields additively. A v2
-   contract and builder are required; v1 remains readable for retained releases.
+3. The closed earlier sales draft cannot gain those fields additively. It is replaced completely by
+   the v2 contract and builder so there is one sales contract to adopt.
 4. Sales, crime and school candidates exist, but no Feature 2/3 consumer callback has accepted them.
    Feature 1 must not invent acceptance or write a consumer database directly.
 5. Shared AI chat is implemented and used by Feature 1, but a new feature still has to infer the
@@ -53,8 +53,9 @@ with invented data.
 
 ### 2. Publish a versioned sales product
 
-- Add `propertyscope.property-sales.v2`, a checked-in JSON Schema and valid/invalid fixtures.
-- Register builder `property-sales 2.0.0` and update the PSI job target without mutating v1.
+- Add `propertyscope.property-sales.v2`, a checked-in JSON Schema and valid/invalid fixtures, and
+  remove the undeployed v1 draft.
+- Register builder `property-sales 2.0.0` and update the PSI job target.
 - Project the richer fields in release preview and immutable artifacts.
 - Keep bounded release scope, deterministic ordering, checksums, licence policy and consumer receipt
   flow unchanged.

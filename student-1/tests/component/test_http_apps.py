@@ -517,7 +517,7 @@ def test_local_artifact_verification_failure_records_receipt_and_preserves_relea
                 json={
                     "consumer_operation_id": "another-operation",
                     "status": "accepted",
-                    "schema_version": "propertyscope.property-sales.v1",
+                    "schema_version": "propertyscope.property-sales.v2",
                     "content_sha256": "a" * 64,
                     "rows_received": 1,
                     "rows_accepted": 1,
@@ -533,7 +533,7 @@ def test_local_artifact_verification_failure_records_receipt_and_preserves_relea
                 json={
                     "consumer_operation_id": "publish-release",
                     "status": "accepted",
-                    "schema_version": "propertyscope.property-sales.v1",
+                    "schema_version": "propertyscope.property-sales.v2",
                     "content_sha256": "b" * 64,
                     "rows_received": 1,
                     "rows_accepted": 1,
@@ -559,7 +559,7 @@ def test_consumer_receipt_mismatch_and_redirects_fail_closed(
     publication = ConsumerPublicationRequest(
         release_id="60000000-0000-0000-0000-000000000099",
         dataset_id="nsw-psi-sales",
-        schema_version="propertyscope.property-sales.v1",
+        schema_version="propertyscope.property-sales.v2",
         content_sha256="a" * 64,
         record_count=1,
         manifest={},
@@ -586,7 +586,7 @@ def test_consumer_unavailability_returns_retryable_safe_receipt() -> None:
     publication = ConsumerPublicationRequest(
         release_id="60000000-0000-0000-0000-000000000099",
         dataset_id="nsw-psi-sales",
-        schema_version="propertyscope.property-sales.v1",
+        schema_version="propertyscope.property-sales.v2",
         content_sha256="a" * 64,
         record_count=1,
         manifest={},

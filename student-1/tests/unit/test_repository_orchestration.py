@@ -808,7 +808,7 @@ def test_candidate_export_replay_allows_new_clock_but_rejects_changed_evidence()
             {
                 "id": release_id,
                 "status": "candidate",
-                "schema_version": "propertyscope.property-sales.v1",
+                "schema_version": "propertyscope.property-sales.v2",
                 "content_sha256": digest,
                 "record_count": 1,
                 "artifact_record_id": artifact_id,
@@ -826,7 +826,7 @@ def test_candidate_export_replay_allows_new_clock_but_rejects_changed_evidence()
             release_id,
             {
                 "artifact_record_id": artifact_id,
-                "schema_version": "propertyscope.property-sales.v1",
+                "schema_version": "propertyscope.property-sales.v2",
                 "content_sha256": digest,
                 "record_count": 1,
                 "manifest": {
@@ -940,7 +940,7 @@ def test_publication_idempotency_key_cannot_be_reused_for_another_release() -> N
             return {
                 "dataset_release_id": first_release,
                 "status": "accepted",
-                "schema_version": "propertyscope.property-sales.v1",
+                "schema_version": "propertyscope.property-sales.v2",
                 "content_sha256": "f" * 64,
                 "rows_received": 1,
                 "rows_accepted": 1,
@@ -954,7 +954,7 @@ def test_publication_idempotency_key_cannot_be_reused_for_another_release() -> N
                 "target_feature": "feature-2",
                 "consumer_operation_id": "same-operation-key",
                 "status": "accepted",
-                "schema_version": "propertyscope.property-sales.v1",
+                "schema_version": "propertyscope.property-sales.v2",
                 "content_sha256": "f" * 64,
                 "rows_received": 1,
                 "rows_accepted": 1,

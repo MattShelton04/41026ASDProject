@@ -8,7 +8,10 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from propertyscope_data_platform.acquisition_scope import complete_scope_error
-from propertyscope_data_platform.release_builders import resolve_release_builder
+from propertyscope_data_platform.release_builders import (
+    default_release_builders,
+    resolve_release_builder,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +78,11 @@ def validate_job_scope(
         "psi-sales": "property-sales",
         "schools-master": "school-points",
     }.get(str(job.get("import_profile_key")))
-    builder = resolve_release_builder(str(builder_key), "1.0.0")
+    registered_builder = default_release_builders().get(str(builder_key))
+    builder_version = job.get("release_builder_version") or (
+        registered_builder.spec.version if registered_builder is not None else "unknown"
+    )
+    builder = resolve_release_builder(str(builder_key), str(builder_version))
     maximum_records = bounded_scope.get("maximum_records")
     if (
         not isinstance(maximum_records, int)

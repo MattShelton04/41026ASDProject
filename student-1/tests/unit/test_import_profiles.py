@@ -288,6 +288,10 @@ def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions(
     assert "source_row_sha256" in source
     assert "derived_revision" in source
     assert "source_partition_year" in source
+    assert "street_name_normalised" in source
+    assert "registry.property" in source
+    assert "count(*)=1" in source
+    assert "exact_address" in source
 
 
 class _Store:

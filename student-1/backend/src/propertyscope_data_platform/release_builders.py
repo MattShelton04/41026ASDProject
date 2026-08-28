@@ -92,6 +92,28 @@ class PropertySaleRecord(ProductModel):
     match_tier: str = Field(min_length=1, max_length=20)
     match_confidence: str = Field(pattern=r"^(0(\.\d{1,4})?|1(\.0{1,4})?)$")
     geographic_precision: str = Field(min_length=1, max_length=100)
+    source_system: str | None = None
+    valuation_number: str | None = None
+    source_downloaded_at: str | None = None
+    property_name: str | None = None
+    unit_number: str | None = None
+    house_number: str | None = None
+    street_number_first: int | None = Field(default=None, ge=0)
+    street_number_suffix: str | None = None
+    street_name: str | None = None
+    street_name_normalised: str | None = None
+    street_type: str | None = None
+    locality: str | None = None
+    postcode: str | None = Field(default=None, pattern=r"^\d{4}$")
+    land_description: str | None = None
+    dimensions: str | None = None
+    zoning_code: str | None = None
+    nature_code: str | None = None
+    primary_purpose: str | None = None
+    strata_lot_number: str | None = None
+    component_code: str | None = None
+    sale_code: str | None = None
+    interest_of_sale: str | None = None
     provenance: ProductProvenance
 
 
@@ -173,7 +195,7 @@ class PropertySnapshotProduct(ProductModel):
 
 
 class PropertySalesProduct(ProductModel):
-    schema_version: str = Field(pattern=r"^propertyscope\.property-sales\.v1$")
+    schema_version: str = Field(pattern=r"^propertyscope\.property-sales\.v2$")
     release_id: uuid.UUID
     release_version: str
     dataset_id: str
@@ -492,28 +514,60 @@ class RegisteredReleaseBuilder:
         result = []
         for row in rows:
             confidence = format(Decimal(str(row["match_confidence"])), "f")
-            record = PropertySaleRecord(
-                source_business_key=str(row["source_business_key"]),
-                source_revision=int(row["source_revision"]),
-                source_era=str(row["source_era"]),
-                district_code=row.get("district_code"),
-                source_property_id=row.get("property_id"),
-                dealing_id=row.get("dealing_id"),
-                contract_date=row.get("contract_date"),
-                settlement_date=row.get("settlement_date"),
-                price_aud=row.get("price_aud"),
-                area_original=str(row["area_original"])
+            values: dict[str, Any] = {
+                "source_business_key": str(row["source_business_key"]),
+                "source_revision": int(row["source_revision"]),
+                "source_era": str(row["source_era"]),
+                "district_code": row.get("district_code"),
+                "source_property_id": row.get("property_id"),
+                "dealing_id": row.get("dealing_id"),
+                "contract_date": row.get("contract_date"),
+                "settlement_date": row.get("settlement_date"),
+                "price_aud": row.get("price_aud"),
+                "area_original": str(row["area_original"])
                 if row.get("area_original") is not None
                 else None,
-                area_unit=row.get("area_unit"),
-                area_square_metres=str(row["area_square_metres"])
+                "area_unit": row.get("area_unit"),
+                "area_square_metres": str(row["area_square_metres"])
                 if row.get("area_square_metres") is not None
                 else None,
-                property_ref=row.get("property_ref"),
-                match_tier=str(row["match_tier"]),
-                match_confidence=confidence,
-                geographic_precision=str(row["geographic_precision"]),
-                provenance=ProductProvenance.model_validate(_provenance(context, row)),
+                "property_ref": row.get("property_ref"),
+                "match_tier": str(row["match_tier"]),
+                "match_confidence": confidence,
+                "geographic_precision": str(row["geographic_precision"]),
+                "provenance": ProductProvenance.model_validate(_provenance(context, row)),
+            }
+            values.update(
+                {
+                    name: row.get(name)
+                    for name in (
+                        "source_system",
+                        "valuation_number",
+                        "source_downloaded_at",
+                        "property_name",
+                        "unit_number",
+                        "house_number",
+                        "street_number_first",
+                        "street_number_suffix",
+                        "street_name",
+                        "street_name_normalised",
+                        "street_type",
+                        "locality",
+                        "postcode",
+                        "land_description",
+                        "dimensions",
+                        "zoning_code",
+                        "nature_code",
+                        "primary_purpose",
+                        "strata_lot_number",
+                        "component_code",
+                        "sale_code",
+                        "interest_of_sale",
+                    )
+                }
+            )
+            record = PropertySaleRecord(
+                **values,
             )
             result.append(record.model_dump(mode="json"))
         result.sort(key=lambda item: (item["source_business_key"], item["source_revision"]))
@@ -689,9 +743,9 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
         ),
         ReleaseBuilderSpec(
             "property-sales",
-            "1.0.0",
+            "2.0.0",
             frozenset({"psi-sales"}),
-            "propertyscope.property-sales.v1",
+            "propertyscope.property-sales.v2",
             "feature-2",
             "application/json",
             None,
@@ -784,7 +838,7 @@ def validate_release_job(
 def validate_product_record(schema_version: str, payload: Mapping[str, Any]) -> None:
     adapters: dict[str, TypeAdapter[Any]] = {
         "propertyscope.property-snapshot.v1": TypeAdapter(PropertySnapshotRecord),
-        "propertyscope.property-sales.v1": TypeAdapter(PropertySaleRecord),
+        "propertyscope.property-sales.v2": TypeAdapter(PropertySaleRecord),
         "propertyscope.crime-series.v1": TypeAdapter(CrimeSeriesRecord),
         "propertyscope.school-points.v1": TypeAdapter(SchoolPointRecord),
     }
@@ -801,7 +855,7 @@ def product_schema_documents() -> dict[str, dict[str, Any]]:
     """Return the checked-in JSON Schema source documents for drift validation."""
     models: dict[str, type[BaseModel]] = {
         "property-snapshot.v1.schema.json": PropertySnapshotProduct,
-        "property-sales.v1.schema.json": PropertySalesProduct,
+        "property-sales.v2.schema.json": PropertySalesProduct,
         "crime-series.v1.schema.json": CrimeSeriesProduct,
         "school-points.v1.schema.json": SchoolPointsProduct,
         "release-manifest.v1.schema.json": ReleaseManifestV1,

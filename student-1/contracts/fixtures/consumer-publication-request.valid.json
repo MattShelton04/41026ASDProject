@@ -1,12 +1,12 @@
 {
   "release_id": "60000000-0000-0000-0000-000000000002",
   "dataset_id": "nsw-psi-sales",
-  "schema_version": "propertyscope.property-sales.v1",
+  "schema_version": "propertyscope.property-sales.v2",
   "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "record_count": 1,
   "manifest": {
     "manifest_schema_version": "propertyscope.release-manifest.v1",
-    "product_schema_version": "propertyscope.property-sales.v1",
+    "product_schema_version": "propertyscope.property-sales.v2",
     "release_id": "60000000-0000-0000-0000-000000000002",
     "release_version": "release-fixture-sales-v1",
     "dataset_id": "nsw-psi-sales",
