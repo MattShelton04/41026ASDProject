@@ -307,12 +307,12 @@ def _fixture(row: object, index: int) -> dict[str, Any]:
         "property_ref": _optional_uuid(source, "property_ref", index),
         "address_display": _text(source, "address_display", index),
         "flat_type": _optional_text(source, "flat_type", index),
-        "unit_number": _optional_text(source, "unit_number", index),
+        "unit_number": _optional_upper_text(source, "unit_number", index),
         "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
-        "street_number_suffix": _optional_text(source, "street_number_suffix", index),
+        "street_number_suffix": _optional_upper_text(source, "street_number_suffix", index),
         "street_number_last": _optional_integer(source, "street_number_last", index, minimum=0),
-        "street_name": _optional_text(source, "street_name", index),
-        "street_type": _optional_text(source, "street_type", index),
+        "street_name": _optional_upper_text(source, "street_name", index),
+        "street_type": _optional_upper_text(source, "street_type", index),
         "locality": _text(source, "locality", index).upper(),
         "postcode": _postcode(source, index),
         "source_status": _text(source, "source_status", index),
@@ -350,12 +350,12 @@ def _gnaf(row: object, index: int) -> dict[str, Any]:
         "property_ref": property_ref,
         "address_display": _text(source, "address_display", index),
         "flat_type": _optional_text(source, "flat_type", index),
-        "unit_number": _optional_text(source, "unit_number", index),
+        "unit_number": _optional_upper_text(source, "unit_number", index),
         "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
-        "street_number_suffix": _optional_text(source, "street_number_suffix", index),
+        "street_number_suffix": _optional_upper_text(source, "street_number_suffix", index),
         "street_number_last": _optional_integer(source, "street_number_last", index, minimum=0),
-        "street_name": _optional_text(source, "street_name", index),
-        "street_type": _optional_text(source, "street_type", index),
+        "street_name": _optional_upper_text(source, "street_name", index),
+        "street_type": _optional_upper_text(source, "street_type", index),
         "locality": _text(source, "locality", index).upper(),
         "postcode": _postcode(source, index),
         "source_status": _text(source, "source_status", index),
@@ -405,14 +405,15 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         "valuation_number": _optional_text(source, "valuation_number", index),
         "source_downloaded_at": source_downloaded_at,
         "property_name": _optional_text(source, "property_name", index),
-        "unit_number": _optional_text(source, "unit_number", index),
+        "unit_number": _optional_upper_text(source, "unit_number", index),
         "house_number": _optional_text(source, "house_number", index),
         "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
-        "street_number_suffix": _optional_text(source, "street_number_suffix", index),
+        "street_number_last": _optional_integer(source, "street_number_last", index, minimum=0),
+        "street_number_suffix": _optional_upper_text(source, "street_number_suffix", index),
         "street_name": _optional_text(source, "street_name", index),
-        "street_name_normalised": _optional_text(source, "street_name_normalised", index),
-        "street_type": _optional_text(source, "street_type", index),
-        "locality": _optional_text(source, "locality", index),
+        "street_name_normalised": _optional_upper_text(source, "street_name_normalised", index),
+        "street_type": _optional_upper_text(source, "street_type", index),
+        "locality": _optional_upper_text(source, "locality", index),
         "postcode": postcode,
         "land_description": _optional_source_text(
             source, "land_description", index, maximum_length=1_000
@@ -521,6 +522,11 @@ def _optional_source_text(
             f"record {index} {field} must contain at most {maximum_length} characters"
         )
     return value.strip()
+
+
+def _optional_upper_text(row: Mapping[str, Any], field: str, index: int) -> str | None:
+    value = _optional_text(row, field, index)
+    return value.upper() if value is not None else None
 
 
 def _integer(
@@ -701,46 +707,45 @@ _PROFILE_INSERT_SQL = {
                 PARTITION BY payload->>'source_business_key' ORDER BY ordinal
             )::integer AS derived_revision
             FROM distinct_source_rows
-        )
-        , prepared_rows AS (
-            SELECT ranked.*,candidate.property_ref AS exact_property_ref
+        ), exact_candidates AS (
+            SELECT ranked.payload->>'source_business_key' AS source_business_key,
+                ranked.derived_revision,min(property.property_ref::text)::uuid
+                    AS exact_property_ref
             FROM ranked_source_rows ranked
-            LEFT JOIN LATERAL (
-                SELECT CASE WHEN count(*)=1 THEN min(matches.property_ref::text)::uuid END
-                    AS property_ref
-                FROM (
-                    SELECT property.property_ref
-                    FROM registry.property property
-                    WHERE NULLIF(ranked.payload->>'street_number_first','') IS NOT NULL
-                      AND NULLIF(ranked.payload->>'street_name_normalised','') IS NOT NULL
-                      AND NULLIF(ranked.payload->>'locality','') IS NOT NULL
-                      AND NULLIF(ranked.payload->>'postcode','') IS NOT NULL
-                      AND property.street_number_first=
-                          (ranked.payload->>'street_number_first')::integer
-                      AND upper(property.street_name)=
-                          upper(ranked.payload->>'street_name_normalised')
-                      AND upper(property.locality)=upper(ranked.payload->>'locality')
-                      AND property.postcode=ranked.payload->>'postcode'
-                      AND (
-                          NULLIF(ranked.payload->>'street_type','') IS NULL
-                          OR upper(COALESCE(property.street_type,''))=
-                             upper(ranked.payload->>'street_type')
-                      )
-                      AND (
-                          NULLIF(ranked.payload->>'unit_number','') IS NULL
-                          OR upper(COALESCE(property.unit_number,''))=
-                             upper(ranked.payload->>'unit_number')
-                      )
-                    ORDER BY property.property_ref
-                    LIMIT 2
-                ) matches
-            ) candidate ON true
+            JOIN registry.property property
+              ON property.postcode=ranked.payload->>'postcode'
+             AND property.locality=ranked.payload->>'locality'
+             AND property.street_name=ranked.payload->>'street_name_normalised'
+             AND property.street_type=ranked.payload->>'street_type'
+             AND property.street_number_first=
+                 (ranked.payload->>'street_number_first')::integer
+             AND COALESCE(property.street_number_last,-1)=COALESCE(
+                 NULLIF(ranked.payload->>'street_number_last','')::integer,-1)
+             AND COALESCE(property.street_number_suffix,'')=COALESCE(
+                 ranked.payload->>'street_number_suffix','')
+             AND COALESCE(property.unit_number,'')=COALESCE(
+                 ranked.payload->>'unit_number','')
+            WHERE NULLIF(ranked.payload->>'postcode','') IS NOT NULL
+              AND NULLIF(ranked.payload->>'locality','') IS NOT NULL
+              AND NULLIF(ranked.payload->>'street_name_normalised','') IS NOT NULL
+              AND NULLIF(ranked.payload->>'street_type','') IS NOT NULL
+              AND NULLIF(ranked.payload->>'street_number_first','') IS NOT NULL
+              AND ranked.payload->>'house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
+            GROUP BY ranked.payload->>'source_business_key',ranked.derived_revision
+            HAVING count(*)=1
+        ), prepared_rows AS (
+            SELECT ranked.*,candidate.exact_property_ref
+            FROM ranked_source_rows ranked
+            LEFT JOIN exact_candidates candidate
+              ON candidate.source_business_key=ranked.payload->>'source_business_key'
+             AND candidate.derived_revision=ranked.derived_revision
         )
         INSERT INTO warehouse.psi_sale (
             dataset_release_id,source_business_key,source_revision,source_era,
             source_partition_year,district_code,
             property_id,dealing_id,source_system,valuation_number,source_downloaded_at,
-            property_name,unit_number,house_number,street_number_first,street_number_suffix,
+            property_name,unit_number,house_number,street_number_first,street_number_last,
+            street_number_suffix,
             street_name,street_name_normalised,street_type,locality,postcode,land_description,
             dimensions,zoning_code,nature_code,primary_purpose,strata_lot_number,component_code,
             sale_code,interest_of_sale,contract_date,settlement_date,price_aud,area_original,
@@ -756,6 +761,7 @@ _PROFILE_INSERT_SQL = {
             NULLIF(payload->>'property_name',''),NULLIF(payload->>'unit_number',''),
             NULLIF(payload->>'house_number',''),
             NULLIF(payload->>'street_number_first','')::integer,
+            NULLIF(payload->>'street_number_last','')::integer,
             NULLIF(payload->>'street_number_suffix',''),NULLIF(payload->>'street_name',''),
             NULLIF(payload->>'street_name_normalised',''),NULLIF(payload->>'street_type',''),
             NULLIF(payload->>'locality',''),NULLIF(payload->>'postcode',''),

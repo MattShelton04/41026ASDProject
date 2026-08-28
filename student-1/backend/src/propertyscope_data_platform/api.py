@@ -250,6 +250,61 @@ def create_blueprint(
             )
         return jsonify({"release": release_contract})
 
+    @api.get(f"{BASE}/data-products/<dataset_id>/source-records")
+    def data_product_source_records(dataset_id: str) -> Response:
+        """Expose complete accepted PSI facts through stable, year-bounded pages."""
+        entry = next((item for item in product_catalogue if item.dataset_id == dataset_id), None)
+        if entry is None:
+            return problem(404, "data_product_not_found", "Data product is not registered")
+        if dataset_id != "nsw-psi-sales":
+            return problem(
+                409,
+                "source_records_unsupported",
+                "This data product does not expose a separate source-record feed",
+            )
+        allowed = {"year", "limit", "offset", "release_id"}
+        if set(request.args) - allowed:
+            return problem(422, "invalid_query", "Source-record query contains unknown fields")
+        try:
+            year = int(request.args["year"])
+            limit = int(request.args.get("limit", "1000"))
+            offset = int(request.args.get("offset", "0"))
+            release_id = (
+                uuid.UUID(request.args["release_id"]) if request.args.get("release_id") else None
+            )
+        except (KeyError, TypeError, ValueError):
+            return problem(422, "invalid_query", "year and pagination fields must be integers")
+        if not 1990 <= year <= 9999 or not 1 <= limit <= 5_000 or not 0 <= offset <= 1_000_000:
+            return problem(422, "invalid_query", "Source-record query is outside its bounds")
+        if release_id is None:
+            accepted_response = store.request(
+                "GET",
+                f"{INTERNAL}/releases",
+                headers=request.headers,
+                params={
+                    "status": "accepted",
+                    "dataset_id": dataset_id,
+                    "target_feature": entry.target_feature,
+                    "limit": 1,
+                    "offset": 0,
+                },
+            )
+            if accepted_response.status_code >= 400:
+                return forward(accepted_response)
+            accepted = next(iter(accepted_response.json().get("items", [])), None)
+            if accepted is None:
+                return problem(
+                    404, "accepted_release_not_found", "No accepted release is available"
+                )
+            release_id = uuid.UUID(str(accepted["id"]))
+        upstream = store.request(
+            "GET",
+            f"{INTERNAL}/releases/{release_id}/sales-source-records",
+            headers=request.headers,
+            params={"year": year, "limit": limit, "offset": offset},
+        )
+        return forward(upstream)
+
     @api.route(f"{BASE}/sources", methods=["GET", "POST"])
     def sources() -> Response:
         return proxy_collection(store, f"{INTERNAL}/sources")

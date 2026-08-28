@@ -1,6 +1,6 @@
 # Feature data and Shared adoption plan
 
-Status: implementation in progress  
+Status: implementation in progress
 Updated: 28 August 2026
 
 ## Decision
@@ -57,6 +57,8 @@ with invented data.
   remove the undeployed v1 draft.
 - Register builder `property-sales 2.0.0` and update the PSI job target.
 - Project the richer fields in release preview and immutable artifacts.
+- Expose every retained historical year through an accepted-generation, year-partitioned source
+  feed whose pages can be pinned to one immutable release ID.
 - Keep bounded release scope, deterministic ordering, checksums, licence policy and consumer receipt
   flow unchanged.
 

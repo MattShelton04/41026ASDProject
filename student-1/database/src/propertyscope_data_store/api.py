@@ -283,6 +283,14 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         limit, offset = pagination(maximum_limit=5_000, default_limit=5_000)
         return jsonify(store.release_product_records(release_id, limit=limit, offset=offset))
 
+    @api.get("/internal/data-platform/v1/releases/<uuid:release_id>/sales-source-records")
+    def releases_sales_source_records(release_id: uuid.UUID) -> Response:
+        year = query_integer("year", minimum=1990, maximum=9999, default=0)
+        limit, offset = pagination(maximum_limit=5_000, default_limit=1_000)
+        return jsonify(
+            store.release_sales_source_records(release_id, year=year, limit=limit, offset=offset)
+        )
+
     @api.post("/internal/data-platform/v1/releases/<uuid:release_id>/bind-export")
     def releases_bind_export(release_id: uuid.UUID) -> Response:
         return jsonify({"release": store.bind_release_export(release_id, payload())})

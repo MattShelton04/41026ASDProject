@@ -933,6 +933,7 @@ def _psi_record(sale: PsiSale, *, source_year: int) -> dict[str, object]:
         "unit_number": sale.unit_number,
         "house_number": sale.house_number,
         "street_number_first": sale.street_number_first,
+        "street_number_last": sale.street_number_last,
         "street_number_suffix": sale.street_number_suffix,
         "street_name": sale.street_name,
         "street_name_normalised": sale.street_name_normalised,

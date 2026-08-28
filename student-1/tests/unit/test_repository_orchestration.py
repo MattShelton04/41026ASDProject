@@ -51,6 +51,45 @@ class ConnectedStore(PropertyScopeStore):
         yield self.test_connection
 
 
+def test_job_creation_derives_registered_runtime_versions() -> None:
+    source_id = uuid.uuid4()
+    connection = ScriptedConnection([{"id": uuid.uuid4()}])
+    values = {
+        "source_definition_id": source_id,
+        "name": "PSI sales",
+        "profile_key": "nsw-psi-sales-year",
+        "profile_version": "1.0.0",
+        "adapter_key": "psi-bulk",
+        "adapter_version": "caller-must-not-control-this",
+        "release_builder_key": "property-sales",
+        "release_builder_version": "caller-must-not-control-this",
+        "import_profile_key": "psi-sales",
+        "import_profile_version": "1.0.0",
+        "target_feature": "feature-2",
+        "dataset_id": "nsw-psi-sales",
+        "refresh_strategy": "full_refresh",
+        "default_run_mode": "full_refresh",
+        "quality_policy_key": "psi-sales",
+        "quality_policy_version": "1.0.0",
+        "status": "active",
+        "schedule_text": "manual",
+    }
+
+    ConnectedStore(connection).create_job(values)
+
+    parameters = connection.parameters[0]
+    assert parameters is not None
+    assert parameters[6] == "1.0.0"
+    assert parameters[8] == "2.0.0"
+
+
+def test_job_creation_rejects_unregistered_runtime_components() -> None:
+    with pytest.raises(ConflictError, match="unregistered runtime component"):
+        ConnectedStore(ScriptedConnection([])).create_job(
+            {"adapter_key": "unknown", "release_builder_key": "property-sales"}
+        )
+
+
 def test_claim_reconciles_expiry_and_only_claims_the_first_eligible_stage() -> None:
     run_id = uuid.uuid4()
     task_id = uuid.uuid4()
@@ -733,7 +772,7 @@ def test_release_preview_uses_the_same_registered_psi_scope_as_the_export() -> N
 
     assert "source_partition_year=ANY(%s)" in store.select_query
     assert store.select_parameters == (release_id, [2025], 25, 0)
-    assert store.count_parameters == (250_000, release_id, [2025])
+    assert store.count_parameters == (release_id, [2025])
     assert preview["total"] == 237_349
     assert preview["items"] == [
         {
@@ -742,6 +781,48 @@ def test_release_preview_uses_the_same_registered_psi_scope_as_the_export() -> N
             "source_era": "post-2001",
         }
     ]
+
+
+class SalesSourceStore(PropertyScopeStore):
+    def __init__(self, release_id: uuid.UUID) -> None:
+        self.release_id = release_id
+        self.required_calls = 0
+        self.select_query = ""
+        self.select_parameters: Sequence[Any] = ()
+
+    def _required(self, query: str, params: Sequence[Any]) -> dict[str, Any]:
+        del query, params
+        self.required_calls += 1
+        if self.required_calls == 1:
+            return {
+                "id": str(self.release_id),
+                "dataset_id": "nsw-psi-sales",
+                "release_version": "2026-08",
+                "status": "accepted",
+                "schema_version": "propertyscope.property-sales.v2",
+                "import_profile_key": "psi-sales",
+            }
+        return {"count": 12_345}
+
+    def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+        self.select_query = " ".join(query.split())
+        self.select_parameters = params
+        return [{"source_business_key": "001:P1:1", "source_revision": 1}]
+
+
+def test_sales_source_feed_pages_complete_accepted_generation_by_year() -> None:
+    release_id = uuid.uuid4()
+    store = SalesSourceStore(release_id)
+
+    page = store.release_sales_source_records(release_id, year=1999, limit=1000, offset=2000)
+
+    assert "FROM warehouse.psi_sale" in store.select_query
+    assert "source_partition_year=%s" in store.select_query
+    assert "property_id AS source_property_id" in store.select_query
+    assert store.select_parameters == (release_id, 1999, 1000, 2000)
+    assert page["schema_version"] == "propertyscope.psi-source-records.v1"
+    assert page["total"] == 12_345
+    assert page["next_offset"] == 2001
 
 
 def test_release_export_binding_is_atomic_and_requires_matching_evidence() -> None:

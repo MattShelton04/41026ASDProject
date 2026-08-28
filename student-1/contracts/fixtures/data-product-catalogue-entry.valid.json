@@ -7,7 +7,7 @@
   "target_feature": "feature-2",
   "product_schema_version": "propertyscope.property-sales.v2",
   "builder_key": "property-sales",
-  "builder_version": "1.0.0",
+  "builder_version": "2.0.0",
   "supported_scope_profiles": ["test"],
   "redistribution_decision": "bounded-derived-release",
   "download_permitted": true,

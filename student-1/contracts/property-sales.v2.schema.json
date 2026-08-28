@@ -286,6 +286,19 @@
           "default": null,
           "title": "Street Number First"
         },
+        "street_number_last": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Street Number Last"
+        },
         "street_number_suffix": {
           "anyOf": [
             {

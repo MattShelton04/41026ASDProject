@@ -63,6 +63,21 @@ paths:
         '200': {description: Current accepted release, content: {application/json: {schema: {$ref: '#/components/schemas/AcceptedRelease'}}}}
         '404': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /data-products/{dataset_id}/source-records:
+    get:
+      operationId: listAcceptedSourceRecords
+      description: Pages complete PSI source facts from one immutable accepted or superseded generation, partitioned by source year.
+      parameters:
+        - {name: dataset_id, in: path, required: true, schema: {type: string}}
+        - {name: year, in: query, required: true, schema: {type: integer, minimum: 1990, maximum: 9999}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 5000, default: 1000}}
+        - {name: offset, in: query, schema: {type: integer, minimum: 0, maximum: 1000000, default: 0}}
+        - {name: release_id, in: query, description: Pins subsequent pages to the immutable generation returned by the first page., schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Complete accepted-generation source facts for one year, content: {application/json: {schema: {$ref: '#/components/schemas/SalesSourceRecordPage'}}}}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
   /sources:
     get:
       operationId: listSources
@@ -322,6 +337,29 @@ components:
       required: [release]
       properties:
         release: {$ref: './release-detail.v1.schema.json'}
+    SalesSourceRecordPage:
+      type: object
+      additionalProperties: false
+      required: [schema_version, release, source_partition_year, items, count, total, limit, offset, next_offset]
+      properties:
+        schema_version: {const: propertyscope.psi-source-records.v1}
+        release:
+          type: object
+          additionalProperties: false
+          required: [id, dataset_id, release_version, status, schema_version]
+          properties:
+            id: {type: string, format: uuid}
+            dataset_id: {const: nsw-psi-sales}
+            release_version: {type: string, minLength: 1}
+            status: {enum: [accepted, superseded]}
+            schema_version: {const: propertyscope.property-sales.v2}
+        source_partition_year: {type: integer, minimum: 1990, maximum: 9999}
+        items: {type: array, maxItems: 5000, items: {type: object}}
+        count: {type: integer, minimum: 0, maximum: 5000}
+        total: {type: integer, minimum: 0}
+        limit: {type: integer, minimum: 1, maximum: 5000}
+        offset: {type: integer, minimum: 0, maximum: 1000000}
+        next_offset: {type: [integer, 'null'], minimum: 0, maximum: 1000000}
     ReleaseInspection:
       type: object
       required: [release, quality_results, quality_summary, receipts, activations, accepted_predecessor, release_contract]

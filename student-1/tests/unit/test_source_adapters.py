@@ -333,7 +333,7 @@ def test_psi_archive_parses_nested_current_format_and_caps_records() -> None:
     assert sales[0].street_number_first == 10
     assert sales[0].street_name == "GEORGE ST"
     assert sales[0].street_name_normalised == "GEORGE"
-    assert sales[0].street_type == "STREET"
+    assert sales[0].street_type == "ST"
     assert sales[0].locality == "SYDNEY"
     assert sales[0].postcode == "2000"
     assert sales[0].zoning_code == "R"
@@ -409,9 +409,25 @@ def test_psi_archive_parses_pre_2001_root_dat_and_deduplicates_retransmission() 
     assert sales[0].house_number == "10"
     assert sales[0].street_name == "GEORGE ST"
     assert sales[0].street_name_normalised == "GEORGE"
-    assert sales[0].street_type == "STREET"
+    assert sales[0].street_type == "ST"
     assert sales[0].locality == "SYDNEY"
     assert sales[0].postcode == "2000"
+
+
+def test_psi_address_parser_preserves_supported_number_ranges_and_suffixes() -> None:
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr(
+            "20250106.DAT",
+            "B;001;P1;1;20250101;;;10A-12;GEORGE STREET;SYDNEY;2000;500;M;"
+            "20250101;20250201;900000;R;R;RESIDENCE;;;X;;D1\n",
+        )
+    sale = next(iter_psi_archive(stream.getvalue(), source_year=2025))
+
+    assert sale.street_number_first == 10
+    assert sale.street_number_last == 12
+    assert sale.street_number_suffix == "A"
+    assert sale.street_type == "ST"
 
 
 def test_psi_archive_preserves_undocumented_legacy_area_unit_without_conversion() -> None:

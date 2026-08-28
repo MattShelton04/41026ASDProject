@@ -99,6 +99,7 @@ class PropertySaleRecord(ProductModel):
     unit_number: str | None = None
     house_number: str | None = None
     street_number_first: int | None = Field(default=None, ge=0)
+    street_number_last: int | None = Field(default=None, ge=0)
     street_number_suffix: str | None = None
     street_name: str | None = None
     street_name_normalised: str | None = None
@@ -548,6 +549,7 @@ class RegisteredReleaseBuilder:
                         "unit_number",
                         "house_number",
                         "street_number_first",
+                        "street_number_last",
                         "street_number_suffix",
                         "street_name",
                         "street_name_normalised",

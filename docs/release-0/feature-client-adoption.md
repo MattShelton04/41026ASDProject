@@ -35,7 +35,12 @@ bulk import API and do not treat a candidate as accepted. Normal feature request
 own database after import; they do not fan out to Feature 1.
 
 Feature 2 should accept `propertyscope.property-sales.v2`. It preserves source addresses and sales
-classifications in addition to v1 facts. Feature 3 currently has separate crime-series and school-
+classifications in addition to v1 facts. The accepted artifact remains a bounded publication unit;
+all retained historical source facts are available from
+`GET /api/data-platform/v1/data-products/nsw-psi-sales/source-records?year=YYYY`. Start without a
+`release_id`, retain the returned immutable release ID, and pin every subsequent page with that ID.
+Feature 2 should ingest each year into its own database and checkpoint `(release_id, year, offset)`;
+it must not use the operator preview as a bulk API. Feature 3 currently has separate crime-series and school-
 point products. Feature 4 has no approved Feature 1 product. Feature 5 composes bounded runtime
 sections from feature backend APIs and does not import all upstream databases.
 

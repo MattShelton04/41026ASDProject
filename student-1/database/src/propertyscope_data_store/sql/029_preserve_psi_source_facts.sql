@@ -8,6 +8,7 @@ ALTER TABLE warehouse.psi_sale
     ADD COLUMN unit_number TEXT,
     ADD COLUMN house_number TEXT,
     ADD COLUMN street_number_first INTEGER,
+    ADD COLUMN street_number_last INTEGER,
     ADD COLUMN street_number_suffix TEXT,
     ADD COLUMN street_name TEXT,
     ADD COLUMN street_name_normalised TEXT,
@@ -38,5 +39,7 @@ CREATE INDEX property_exact_address_components_idx
         street_name,
         street_type,
         street_number_first,
+        street_number_last,
+        street_number_suffix,
         unit_number
     );

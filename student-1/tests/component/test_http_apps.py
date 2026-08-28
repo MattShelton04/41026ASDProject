@@ -107,6 +107,68 @@ def test_backend_proxies_bounded_release_record_preview() -> None:
     assert response.get_json()["total"] == 2210
 
 
+def test_backend_exposes_complete_sales_source_pages_from_accepted_generation() -> None:
+    release_id = "60000000-0000-0000-0000-000000000022"
+    requests: list[str] = []
+
+    def database(request: httpx.Request) -> httpx.Response:
+        requests.append(request.url.path)
+        if request.url.path == "/internal/data-platform/v1/releases":
+            assert request.url.params["status"] == "accepted"
+            assert request.url.params["dataset_id"] == "nsw-psi-sales"
+            return httpx.Response(200, json={"items": [{"id": release_id}]})
+        assert request.url.path == (
+            f"/internal/data-platform/v1/releases/{release_id}/sales-source-records"
+        )
+        assert request.url.params["year"] == "1999"
+        assert request.url.params["limit"] == "5000"
+        assert request.url.params["offset"] == "10000"
+        return httpx.Response(
+            200,
+            json={
+                "schema_version": "propertyscope.psi-source-records.v1",
+                "release": {
+                    "id": release_id,
+                    "dataset_id": "nsw-psi-sales",
+                    "release_version": "2026-08",
+                    "status": "accepted",
+                    "schema_version": "propertyscope.property-sales.v2",
+                },
+                "source_partition_year": 1999,
+                "items": [{"source_business_key": "001:P1:1"}],
+                "count": 1,
+                "total": 12345,
+                "limit": 5000,
+                "offset": 10000,
+                "next_offset": 10001,
+            },
+        )
+
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database",
+            "secret",
+            client=httpx.Client(transport=httpx.MockTransport(database)),
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai",
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
+        ),
+    )
+
+    response = app.test_client().get(
+        "/api/data-platform/v1/data-products/nsw-psi-sales/source-records"
+        "?year=1999&limit=5000&offset=10000"
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["total"] == 12345
+    assert requests == [
+        "/internal/data-platform/v1/releases",
+        f"/internal/data-platform/v1/releases/{release_id}/sales-source-records",
+    ]
+
+
 def test_backend_protects_runner_and_publication() -> None:
     transport = httpx.MockTransport(lambda _: httpx.Response(500, json={"code": "unexpected"}))
     app = create_backend_app(

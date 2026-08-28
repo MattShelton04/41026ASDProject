@@ -42,6 +42,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/data-products",
         "/data-products/{dataset_id}",
         "/data-products/{dataset_id}/accepted",
+        "/data-products/{dataset_id}/source-records",
         "/sources",
         "/sources/{source_id}",
         "/jobs",

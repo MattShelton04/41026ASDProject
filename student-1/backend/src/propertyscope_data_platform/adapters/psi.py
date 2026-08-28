@@ -38,6 +38,7 @@ class PsiSale:
     unit_number: str | None = None
     house_number: str | None = None
     street_number_first: int | None = None
+    street_number_last: int | None = None
     street_number_suffix: str | None = None
     street_name: str | None = None
     street_name_normalised: str | None = None
@@ -376,6 +377,7 @@ def _parse_source_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiS
             unit_number=padded[5] or None,
             house_number=padded[6] or None,
             street_number_first=_street_number_first(padded[6]),
+            street_number_last=_street_number_last(padded[6]),
             street_number_suffix=_street_number_suffix(padded[6]),
             street_name=padded[7] or None,
             street_name_normalised=_street_parts(padded[7])[0],
@@ -415,6 +417,7 @@ def _parse_source_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiS
         unit_number=padded[6] or None,
         house_number=padded[7] or None,
         street_number_first=_street_number_first(padded[7]),
+        street_number_last=_street_number_last(padded[7]),
         street_number_suffix=_street_number_suffix(padded[7]),
         street_name=padded[8] or None,
         street_name_normalised=_street_parts(padded[8])[0],
@@ -432,32 +435,32 @@ def _parse_source_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiS
 
 
 _STREET_TYPE_ALIASES = {
-    "AV": "AVENUE",
-    "AVE": "AVENUE",
-    "AVENUE": "AVENUE",
-    "CL": "CLOSE",
-    "CLOSE": "CLOSE",
-    "CT": "COURT",
-    "COURT": "COURT",
-    "CRES": "CRESCENT",
-    "CR": "CRESCENT",
-    "CRESCENT": "CRESCENT",
-    "DR": "DRIVE",
-    "DRIVE": "DRIVE",
-    "HWY": "HIGHWAY",
-    "HIGHWAY": "HIGHWAY",
+    "AV": "AV",
+    "AVE": "AV",
+    "AVENUE": "AV",
+    "CL": "CL",
+    "CLOSE": "CL",
+    "CT": "CT",
+    "COURT": "CT",
+    "CRES": "CR",
+    "CR": "CR",
+    "CRESCENT": "CR",
+    "DR": "DR",
+    "DRIVE": "DR",
+    "HWY": "HWY",
+    "HIGHWAY": "HWY",
     "LANE": "LANE",
     "LN": "LANE",
-    "PDE": "PARADE",
-    "PARADE": "PARADE",
-    "PL": "PLACE",
-    "PLACE": "PLACE",
-    "RD": "ROAD",
-    "ROAD": "ROAD",
-    "ST": "STREET",
-    "STREET": "STREET",
-    "TCE": "TERRACE",
-    "TERRACE": "TERRACE",
+    "PDE": "PDE",
+    "PARADE": "PDE",
+    "PL": "PL",
+    "PLACE": "PL",
+    "RD": "RD",
+    "ROAD": "RD",
+    "ST": "ST",
+    "STREET": "ST",
+    "TCE": "TCE",
+    "TERRACE": "TCE",
 }
 
 
@@ -494,6 +497,20 @@ def _street_number_suffix(value: str) -> str | None:
         else:
             break
     return suffix or None
+
+
+def _street_number_last(value: str) -> int | None:
+    stripped = value.strip()
+    if "-" not in stripped:
+        return None
+    remainder = stripped.split("-", 1)[1].strip()
+    digits = ""
+    for character in remainder:
+        if character.isdigit():
+            digits += character
+        elif digits:
+            break
+    return int(digits) if digits else None
 
 
 def _source_datetime(value: str) -> datetime | None:
