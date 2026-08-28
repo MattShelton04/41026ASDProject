@@ -752,7 +752,7 @@ test("operator UI exposes working submit controls, backfills and durable histori
   assert.match(source, /apply\.type = "submit"/);
   assert.match(source, /button\("Start update"/);
   assert.match(source, /button\("Load earlier data"/);
-  assert.match(source, /First annual archive/);
+  assert.match(source, /imports every record available/);
   assert.match(source, /Complete sales history/);
   assert.match(source, /Preview update/);
   assert.match(source, /link\("Update history"/);
@@ -830,19 +830,15 @@ test("property discovery consumes shell search queries and stays product-facing"
   assert.doesNotMatch(source, /Advanced identity evidence/);
 });
 
-test("live acquisition controls use truthful runtime capability evidence", async () => {
+test("live acquisition controls always use the complete registered source", async () => {
   const app = [
     await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
     await readFile(new URL("../../frontend/routes/run-plan.js", import.meta.url), "utf8"),
   ].join("\n");
-  assert.match(app, /request\("runtime-capabilities"\)/);
-  assert.match(app, /Official source imports are disabled in this workspace/);
-  assert.match(app, /implemented_live_profiles/);
-  assert.match(app, /liveOption\.disabled = !liveAvailable/);
-  assert.match(app, /liveAvailable \? "full-data"/);
-  assert.match(app, /Maximum addresses/);
-  assert.match(app, /cached_source_years/);
-  assert.match(app, /Detected official archive years/);
+  assert.match(app, /profile: "full-data", all_records: true/);
+  assert.match(app, /Complete dataset: all available source records/);
+  assert.doesNotMatch(app, /scope-profile|Maximum addresses|maximum-records/);
+  assert.doesNotMatch(app, /request\("runtime-capabilities"\)/);
 });
 
 test("AI review history is loaded from the shared service projection without redundant consent", async () => {

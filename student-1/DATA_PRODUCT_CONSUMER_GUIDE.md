@@ -11,9 +11,9 @@ connect to its PostgreSQL/PostGIS database.
 | --- | --- | --- | --- | --- | --- |
 | `fixture-property` | `property-snapshot 1.0.0` | `propertyscope.property-snapshot.v1` | Feature 1 | Executable offline | Download permitted, synthetic fixture |
 | `gnaf-nsw` | `property-snapshot 1.0.0` | `propertyscope.property-snapshot.v1` | Feature 1 | Executable fixture and optional official archive | Licence-controlled; public artifact returns 403 |
-| `nsw-psi-sales` | `property-sales 1.0.0` | `propertyscope.property-sales.v1` | Feature 2 | Executable bounded fixture and cached/live transport | Bounded derived artifact |
-| `bocsar-crime` | `crime-series 1.0.0` | `propertyscope.crime-series.v1` | Feature 3 | Executable bounded fixture and live transport | Approved bounded extract |
-| `nsw-government-schools` | `school-points 1.0.0` | `propertyscope.school-points.v1` | Feature 3 | Executable bounded fixture and live transport | Approved bounded extract |
+| `nsw-psi-sales` | `property-sales 1.0.0` | `propertyscope.property-sales.v1` | Feature 2 | Complete cached/live transport | Bounded derived artifact |
+| `bocsar-crime` | `crime-series 1.0.0` | `propertyscope.crime-series.v1` | Feature 3 | Complete live transport | Approved bounded extract |
+| `nsw-government-schools` | `school-points 1.0.0` | `propertyscope.school-points.v1` | Feature 3 | Complete live transport | Approved bounded extract |
 
 Feature 4 and Feature 5 have no registered source jobs. Spatial database capability is not a data
 product, and this feature does not invent planning, hazard, zoning, strata, building, or dossier
@@ -90,8 +90,9 @@ that test is the quickest executable onboarding proof and imports no Feature 1 p
 
 All routes below are relative to `/api/data-platform/v1` and are described in OpenAPI 3.1.
 
-- `GET /data-products` lists every registration, builder/schema version, supported scopes,
-  capability, limits, redistribution decision, limitations, and latest accepted release.
+- `GET /data-products` lists every registration, builder/schema version, complete acquisition
+  scope, downstream product projection, redistribution decision, limitations, and latest accepted
+  release.
 - `GET /data-products/{dataset_id}` returns one definition.
 - `GET /data-products/{dataset_id}/accepted?target_feature=feature-N` reconciles the current
   accepted release after downtime or a missed push.
@@ -161,7 +162,7 @@ Accepted artifacts and manifests are immutable. Corrections are new releases wit
 reference. Cached reprocessing creates a new candidate from retained verified evidence and cannot
 replace an accepted artifact in place.
 
-## Envelope, hashing, and bounds
+## Envelope, hashing, and downstream product projections
 
 Every product is UTF-8 JSON with no byte-order mark, compression, or trailing newline. Object keys
 are lexicographically sorted, separators are `,` and `:`, non-ASCII text is retained as UTF-8, and
@@ -170,13 +171,12 @@ NaN/infinity are forbidden. Builders make record ordering explicit. Null source 
 SHA-256 covers the exact downloadable bytes, not a re-serialised object. The manifest count is the
 number of records in the product envelope and its byte count is the exact artifact length.
 
-Release 0 uses one immutable JSON artifact per release. Every builder enforces a row limit and the
-50,000,000-byte artifact limit. Planning resolves the selected declarative profile first, so its
-registered `maximum_records` is present even when an operator supplies only the profile name; an
-override cannot exceed the product builder limit. PSI full acquisition still narrows its downstream
-release to explicit years and its partition year is retained even when business dates are null. Exceeding either bound fails
-with an instruction to narrow geography, period, category, or record scope. There is no silent
-truncation and no multipart or compressed-product fallback.
+Release 0 uses one immutable JSON artifact per downstream consumer release. Builder row and byte
+projections describe that separately published artifact; they do not limit the complete generation
+imported into the Feature 1 warehouse. PSI retains explicit downstream years and its partition year
+even when business dates are null. Exceeding a consumer projection fails release construction and
+does not alter or truncate the imported candidate generation. There is no silent truncation and no
+multipart or compressed-product fallback.
 
 Schemas are closed (`additionalProperties: false`). Additive record fields therefore require a
 new declared schema revision and builder registration; silently changing v1 is not compatible.
@@ -236,8 +236,8 @@ A future owner must complete all of these before startup accepts a registration:
 
 1. Register a source with attribution, target feature, capability state, and safe redistribution
    decision in `config/source-register.yaml`.
-2. Add a bounded job profile naming an existing adapter/import profile or their separately tested
-   implementations.
+2. Add a complete-source job profile naming an existing adapter/import profile or their separately
+   tested implementations.
 3. Define a versioned product model and checked-in JSON Schema plus synthetic valid/invalid
    fixtures.
 4. Register an exact builder key/version with supported import profiles, target, contract, media
@@ -247,7 +247,7 @@ A future owner must complete all of these before startup accepts a registration:
 6. Add the dataset-specific quality policy and document source semantics and limitations.
 
 Unknown builders/versions, mismatched import/target/contract, absent schemas, unsafe policies,
-unsupported media, or unbounded scopes fail startup. The generic catalogue, release, review,
+unsupported media, or incomplete acquisition scopes fail startup. The generic catalogue, release, review,
 artifact, receipt, and accepted-lookup APIs do not change.
 
 ## Deterministic demonstration
@@ -261,7 +261,7 @@ uv run scripts/dev.py stack up
 ```
 
 Open <http://localhost:5200>, then use **Data-product catalogue** to inspect registrations. Launch a
-showcase job, inspect the candidate release count/bytes/checksum/coverage/licence/quality evidence,
+fixture job, inspect the candidate release count/bytes/checksum/coverage/licence/quality evidence,
 and submit it for review. Use the real-HTTP publication test above for the independent consumer
 accept/reject demonstration; the normal Compose profile intentionally does not pretend that an
 unallocated feature backend exists. Reconcile accepted evidence with the accepted-product endpoint.

@@ -9,16 +9,11 @@ supported_modes: [full_refresh, reprocess_cached]
 release_builder: {key: property-sales, version: 1.0.0}
 import_profile: {key: psi-sales, version: 1.0.0}
 target: {feature: feature-2, contract: propertyscope.property-sales.v1}
-scope_profiles:
-  test: {years: [2025], maximum_records: 20}
-  showcase: {years: [2025], maximum_records: 250000}
-  full-data:
-    all_records: true
-    all_history: true
-    include_current_weekly: true
-    release_scope: {years: [2025], maximum_records: 250000}
+scope:
+  profile: full-data
+  all_records: true
+  all_history: true
+  include_current_weekly: true
+  release_scope: {years: [2025], maximum_records: 250000}
 quality_policy: psi-sales.v1
-limits:
-  {max_objects: 1000, max_bytes: 20000000000, max_rows: 100000000,
-   deadline_seconds: 86400, max_parallelism: 1}
 publication: human_review

@@ -17,6 +17,8 @@ from pydantic import (
     model_validator,
 )
 
+from propertyscope_data_platform.acquisition_scope import complete_scope_error
+
 Identifier = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9._-]*$", max_length=100)]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 SafeText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
@@ -125,14 +127,6 @@ class SourceDefinitionUpdate(SourceDefinitionCreate):
     version: int = Field(ge=1)
 
 
-class ResourceLimits(DomainModel):
-    max_objects: int = Field(ge=1, le=100_000)
-    max_bytes: int = Field(ge=1, le=100_000_000_000)
-    max_rows: int = Field(ge=1, le=100_000_000)
-    deadline_seconds: int = Field(ge=1, le=86_400)
-    max_parallelism: int = Field(default=1, ge=1, le=16)
-
-
 class VersionedKey(DomainModel):
     key: Identifier
     version: str = Field(pattern=r"^\d+\.\d+\.\d+$", max_length=30)
@@ -155,9 +149,7 @@ class JobDefinitionCreate(DomainModel):
     refresh_strategy: RefreshStrategy
     supported_modes: tuple[RunMode, ...] = Field(min_length=1, max_length=2)
     default_run_mode: RunMode = RunMode.FULL_REFRESH
-    scope_profile: Identifier
     quality_policy: Identifier
-    limits: ResourceLimits
     status: LifecycleStatus = LifecycleStatus.DRAFT
     schedule_text: str | None = Field(default=None, max_length=200)
 
@@ -176,8 +168,9 @@ class JobDefinitionUpdate(JobDefinitionCreate):
 
 class RunRequest(DomainModel):
     mode: RunMode
-    scope_profile: Identifier
-    scope: dict[str, Any] = Field(default_factory=dict)
+    scope: dict[str, Any] = Field(
+        default_factory=lambda: {"profile": "full-data", "all_records": True}
+    )
     idempotency_key: str = Field(min_length=8, max_length=200)
     force_reacquire: bool = False
 
@@ -187,6 +180,9 @@ class RunRequest(DomainModel):
             raise ValueError("scope cannot contain more than 20 fields")
         if self.mode is RunMode.REPROCESS_CACHED and self.force_reacquire:
             raise ValueError("reprocess_cached cannot force reacquisition")
+        scope_error = complete_scope_error("", self.scope)
+        if scope_error is not None:
+            raise ValueError(scope_error)
         return self
 
 
@@ -199,10 +195,8 @@ class PlannedTask(DomainModel):
 class RunPlan(DomainModel):
     job_id: UUID
     mode: RunMode
-    scope_profile: Identifier
     resolved_scope: dict[str, Any]
     tasks: tuple[PlannedTask, ...] = Field(max_length=100_000)
-    limits: ResourceLimits
     requires_confirmation: bool = False
     warnings: tuple[str, ...] = Field(default=(), max_length=50)
 

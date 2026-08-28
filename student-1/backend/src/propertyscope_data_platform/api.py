@@ -77,6 +77,25 @@ def create_blueprint(
     product_catalogue = data_product_catalogue(resolved_feature_root)
     job_profiles = load_job_profiles(resolved_feature_root / "config" / "job-profiles")
 
+    def complete_lineage_scope(
+        run_data: Mapping[str, Any], *, run_mode: str
+    ) -> tuple[dict[str, Any] | None, Response | None]:
+        """Resolve the current complete scope before continuing a historical run lineage."""
+        job_id = run_data["job_definition_id"]
+        job_response = store.request("GET", f"{INTERNAL}/jobs/{job_id}", headers=request.headers)
+        if job_response.status_code >= 400:
+            return None, forward(job_response)
+        job_data = job_response.json()["job"]
+        scope, scope_error = validate_job_scope(
+            job_data,
+            resolve_registered_scope(job_data, {}, job_profiles),
+            run_mode=run_mode,
+        )
+        if scope_error is not None:
+            return None, problem(scope_error.status, scope_error.code, scope_error.detail)
+        assert scope is not None
+        return scope, None
+
     @api.get("/health/live")
     def live() -> tuple[Response, int]:
         return jsonify({"status": "healthy", "service": "propertyscope-data-platform"}), 200
@@ -109,7 +128,6 @@ def create_blueprint(
                 "cached_source_years": {"psi-sales": list(psi_cached_years)},
                 "cached_source_weeks": {"psi-sales": list(psi_cached_weeks)},
                 "catalogued_profiles": ["psi-sales"],
-                "showcase_available": True,
             }
         )
 
@@ -260,16 +278,6 @@ def create_blueprint(
                 "profile_key": job_data["profile_key"],
                 "refresh_strategy": job_data["refresh_strategy"],
                 "supported_modes": ["full_refresh", "reprocess_cached"],
-                "limits": {
-                    name: job_data[name]
-                    for name in (
-                        "max_objects",
-                        "max_bytes",
-                        "max_rows",
-                        "timeout_seconds",
-                        "max_parallelism",
-                    )
-                },
                 "registered": {
                     "adapter": job_data["adapter_key"],
                     "release_builder": job_data["release_builder_key"],
@@ -315,6 +323,7 @@ def create_blueprint(
                 "scope": scope,
                 "network_required": mode == "full_refresh"
                 and scope.get("profile") == "full-data"
+                and job_data.get("import_profile_key") != "property-fixture"
                 and not cached_psi,
                 "source_cache_required": cached_psi,
                 "tasks": [
@@ -331,10 +340,6 @@ def create_blueprint(
                         )
                     )
                 ],
-                "hard_limits": {
-                    name: job_data[name]
-                    for name in ("max_objects", "max_bytes", "max_rows", "timeout_seconds")
-                },
                 "accepted_watermark_unchanged_until_publication": True,
             }
         )
@@ -398,23 +403,39 @@ def create_blueprint(
             f"{BASE}/ingestion-runs/<uuid:run_id>/{child}", endpoint, run_child, methods=["GET"]
         )
 
-    for action in ("cancel", "resume"):
-
-        def run_action(run_id: uuid.UUID, action: str = action) -> Response:
-            return forward(
-                store.request(
-                    "POST",
-                    f"{INTERNAL}/runs/{run_id}/{action}",
-                    headers=request.headers,
-                    json=json_body(optional=True),
-                )
+    @api.post(f"{BASE}/ingestion-runs/<uuid:run_id>/cancel")
+    def run_cancel(run_id: uuid.UUID) -> Response:
+        return forward(
+            store.request(
+                "POST",
+                f"{INTERNAL}/runs/{run_id}/cancel",
+                headers=request.headers,
+                json=json_body(optional=True),
             )
+        )
 
-        api.add_url_rule(
-            f"{BASE}/ingestion-runs/<uuid:run_id>/{action}",
-            f"run_{action}",
-            run_action,
-            methods=["POST"],
+    @api.post(f"{BASE}/ingestion-runs/<uuid:run_id>/resume")
+    def run_resume(run_id: uuid.UUID) -> Response:
+        original = store.request("GET", f"{INTERNAL}/runs/{run_id}", headers=request.headers)
+        if original.status_code >= 400:
+            return forward(original)
+        run_data = original.json()["run"]
+        scope, scope_response = complete_lineage_scope(run_data, run_mode=str(run_data["run_mode"]))
+        if scope_response is not None:
+            return scope_response
+        if run_data.get("requested_scope_json") != scope:
+            return problem(
+                409,
+                "incomplete_legacy_run",
+                "This historical partial run cannot resume; start a new complete update",
+            )
+        return forward(
+            store.request(
+                "POST",
+                f"{INTERNAL}/runs/{run_id}/resume",
+                headers=request.headers,
+                json=json_body(optional=True),
+            )
         )
 
     @api.post(f"{BASE}/ingestion-runs/<uuid:run_id>/retry")
@@ -426,9 +447,12 @@ def create_blueprint(
         key = request.headers.get("Idempotency-Key", "").strip()
         if not key:
             return problem(422, "idempotency_key_required", "Idempotency-Key is required")
+        scope, scope_response = complete_lineage_scope(run_data, run_mode="full_refresh")
+        if scope_response is not None:
+            return scope_response
         body = {
             "run_mode": "full_refresh",
-            "scope": run_data["requested_scope_json"],
+            "scope": scope,
             "parent_run_id": str(run_id),
             "idempotency_key": key,
             "request_id": request.headers.get("X-Request-ID", str(uuid.uuid4())),
@@ -451,9 +475,19 @@ def create_blueprint(
         key = request.headers.get("Idempotency-Key", "").strip()
         if not key:
             return problem(422, "idempotency_key_required", "Idempotency-Key is required")
+        scope, scope_response = complete_lineage_scope(run_data, run_mode="reprocess_cached")
+        if scope_response is not None:
+            return scope_response
+        if run_data.get("requested_scope_json") != scope:
+            return problem(
+                409,
+                "incomplete_legacy_run",
+                "Cached artifacts from a historical partial run cannot be reprocessed; "
+                "start a new complete update",
+            )
         body = {
             "run_mode": "reprocess_cached",
-            "scope": run_data["requested_scope_json"],
+            "scope": scope,
             "parent_run_id": str(run_id),
             "idempotency_key": key,
             "request_id": request.headers.get("X-Request-ID", str(uuid.uuid4())),

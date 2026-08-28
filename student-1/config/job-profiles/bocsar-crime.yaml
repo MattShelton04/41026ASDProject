@@ -9,15 +9,10 @@ supported_modes: [full_refresh, reprocess_cached]
 release_builder: {key: crime-series, version: 1.0.0}
 import_profile: {key: bocsar-sparse, version: 1.0.0}
 target: {feature: feature-3, contract: propertyscope.crime-series.v1}
-scope_profiles:
-  test: {geography_kind: postcode, geography_values: ["2000", "2007"], start_month: 2025-01, end_month: 2025-12, maximum_records: 50000}
-  showcase: {geography_kind: postcode, geography_values: ["2000", "2007", "2010"], start_month: 2021-01, end_month: 2025-12, maximum_records: 50000}
-  full-data:
-    geography_kinds: [postcode, suburb]
-    all_records: true
-    release_scope: {maximum_records: 50000}
+scope:
+  profile: full-data
+  geography_kinds: [postcode, suburb]
+  all_records: true
+  release_scope: {maximum_records: 50000}
 quality_policy: crime-quarterly.v1
-limits:
-  {max_objects: 4, max_bytes: 5000000000, max_rows: 15000000,
-   deadline_seconds: 86400, max_parallelism: 1}
 publication: human_review

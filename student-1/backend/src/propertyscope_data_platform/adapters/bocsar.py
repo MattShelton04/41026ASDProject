@@ -37,7 +37,7 @@ def parse_bocsar_csv(
     content: bytes,
     *,
     geography_kind: str,
-    maximum_rows: int,
+    maximum_rows: int | None,
     geography_values: frozenset[str] | None = None,
     start_month: date | None = None,
     end_month: date | None = None,
@@ -66,7 +66,7 @@ def iter_bocsar_csv(
     content: bytes,
     *,
     geography_kind: str,
-    maximum_rows: int,
+    maximum_rows: int | None,
     geography_values: frozenset[str] | None = None,
     start_month: date | None = None,
     end_month: date | None = None,
@@ -88,7 +88,7 @@ def iter_bocsar_csv(
         raise ValueError("BOCSAR source has no months inside the requested range")
     emitted = 0
     for index, row in enumerate(reader):
-        if index >= maximum_rows:
+        if maximum_rows is not None and index >= maximum_rows:
             raise ValueError("BOCSAR source exceeds registered row limit")
         geography = str(row[headers[0]]).strip()
         offence = str(row[headers[1]]).strip()
@@ -130,12 +130,12 @@ def parse_bocsar_archive(
     content: bytes,
     *,
     geography_kind: str,
-    maximum_rows: int,
+    maximum_rows: int | None,
     geography_values: frozenset[str] | None = None,
     start_month: date | None = None,
     end_month: date | None = None,
     maximum_records: int | None = None,
-    maximum_uncompressed_bytes: int = 100_000_000,
+    maximum_uncompressed_bytes: int | None = 100_000_000,
 ) -> tuple[tuple[CrimeObservation, ...], tuple[CrimeCoverage, ...]]:
     """Validate a registered BOCSAR ZIP and parse its single wide CSV."""
     records = iter_bocsar_archive(
@@ -162,12 +162,12 @@ def iter_bocsar_archive(
     content: bytes,
     *,
     geography_kind: str,
-    maximum_rows: int,
+    maximum_rows: int | None,
     geography_values: frozenset[str] | None = None,
     start_month: date | None = None,
     end_month: date | None = None,
     maximum_records: int | None = None,
-    maximum_uncompressed_bytes: int = 100_000_000,
+    maximum_uncompressed_bytes: int | None = 100_000_000,
 ) -> Iterator[CrimeObservation | CrimeCoverage]:
     """Validate the registered ZIP and stream its complete canonical sparse projection."""
     try:
@@ -179,7 +179,10 @@ def iter_bocsar_archive(
             parts = member.filename.replace("\\", "/").split("/")
             if member.filename.startswith("/") or ".." in parts:
                 raise ValueError("BOCSAR archive contains an unsafe member path")
-            if member.file_size > maximum_uncompressed_bytes:
+            if (
+                maximum_uncompressed_bytes is not None
+                and member.file_size > maximum_uncompressed_bytes
+            ):
                 raise ValueError("BOCSAR archive exceeds the uncompressed byte limit")
             yield from iter_bocsar_csv(
                 archive.read(member),

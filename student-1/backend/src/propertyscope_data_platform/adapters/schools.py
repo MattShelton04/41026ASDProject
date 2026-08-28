@@ -1,4 +1,4 @@
-"""Pure bounded NSW government-school master parser."""
+"""Pure NSW government-school master parser."""
 
 from __future__ import annotations
 
@@ -20,14 +20,12 @@ class SchoolRecord:
     longitude: float
 
 
-def parse_schools_csv(content: bytes, *, maximum_rows: int) -> tuple[SchoolRecord, ...]:
+def parse_schools_csv(content: bytes) -> tuple[SchoolRecord, ...]:
     """Parse source header aliases while preserving original locality evidence."""
     reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig"), newline=""))
     rows: list[SchoolRecord] = []
     seen: set[str] = set()
     for source in reader:
-        if len(rows) >= maximum_rows:
-            raise ValueError("schools source exceeds registered row limit")
         code = _field(source, "School_code", "school_code", "School Code")
         if code in seen:
             raise ValueError("school_code must be unique")

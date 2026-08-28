@@ -47,10 +47,10 @@ class GnafAddress:
 
 
 def inspect_gnaf_archive(
-    archive: ZipFile, *, maximum_members: int = 1000, declared_crs: str | None = None
+    archive: ZipFile, *, maximum_members: int | None = None, declared_crs: str | None = None
 ) -> GnafMemberManifest:
     names = tuple(sorted(info.filename for info in archive.infolist() if not info.is_dir()))
-    if len(names) > maximum_members:
+    if maximum_members is not None and len(names) > maximum_members:
         raise ValueError("G-NAF archive exceeds registered member limit")
     for name in names:
         if name.startswith("/") or ".." in name.replace("\\", "/").split("/"):
@@ -73,12 +73,12 @@ def parse_gnaf_archive_path(
     path: Path,
     *,
     declared_crs: str,
-    maximum_records: int | None,
+    maximum_records: int | None = None,
     localities: frozenset[str] | None = None,
-    maximum_member_bytes: int = 1_000_000_000,
-    maximum_scanned_rows: int = 7_000_000,
+    maximum_member_bytes: int | None = None,
+    maximum_scanned_rows: int | None = None,
 ) -> tuple[GnafAddress, ...]:
-    """Return a selected slice; source-scale callers should consume the streaming iterator."""
+    """Return all selected addresses; source-scale callers should consume the iterator."""
     return tuple(
         iter_gnaf_archive_path(
             path,
@@ -96,22 +96,25 @@ def iter_gnaf_archive_path(
     *,
     declared_crs: str,
     maximum_records: int | None = None,
-    capacity_ceiling: int = 6_500_000,
+    capacity_ceiling: int | None = None,
     localities: frozenset[str] | None = None,
-    maximum_member_bytes: int = 1_000_000_000,
-    maximum_scanned_rows: int = 7_000_000,
+    maximum_member_bytes: int | None = None,
+    maximum_scanned_rows: int | None = None,
     progress: Callable[[int], None] | None = None,
 ) -> Iterator[GnafAddress]:
     """Stream a complete NSW generation, spilling the large geocode join to local SQLite."""
     if maximum_records is not None and maximum_records < 1:
         raise ValueError("G-NAF maximum_records must be positive")
-    if capacity_ceiling < 1:
+    if capacity_ceiling is not None and capacity_ceiling < 1:
         raise ValueError("G-NAF capacity ceiling must be positive")
     with ZipFile(path) as archive:
         manifest = inspect_gnaf_archive(archive, declared_crs=declared_crs)
         members = {suffix: _member(manifest.members, suffix) for suffix in REQUIRED_MEMBER_SUFFIXES}
         for member in members.values():
-            if archive.getinfo(member).file_size > maximum_member_bytes:
+            if (
+                maximum_member_bytes is not None
+                and archive.getinfo(member).file_size > maximum_member_bytes
+            ):
                 raise ValueError("G-NAF member exceeds the uncompressed byte limit")
         locality_rows = {
             row["LOCALITY_PID"]: row
@@ -141,7 +144,7 @@ def iter_gnaf_archive_path(
                 for index, row in enumerate(
                     _psv_rows(archive, members["NSW_ADDRESS_DEFAULT_GEOCODE_PSV.PSV"])
                 ):
-                    if index >= maximum_scanned_rows:
+                    if maximum_scanned_rows is not None and index >= maximum_scanned_rows:
                         raise ValueError(
                             "G-NAF geocode scan exceeds the registered capacity ceiling"
                         )
@@ -171,7 +174,7 @@ def iter_gnaf_archive_path(
                 for index, row in enumerate(
                     _psv_rows(archive, members["NSW_ADDRESS_DETAIL_PSV.PSV"])
                 ):
-                    if index >= maximum_scanned_rows:
+                    if maximum_scanned_rows is not None and index >= maximum_scanned_rows:
                         raise ValueError(
                             "G-NAF address scan exceeds the registered capacity ceiling"
                         )
@@ -185,7 +188,7 @@ def iter_gnaf_archive_path(
                         ):
                             if maximum_records is not None and emitted >= maximum_records:
                                 return
-                            if emitted >= capacity_ceiling:
+                            if capacity_ceiling is not None and emitted >= capacity_ceiling:
                                 raise ValueError(
                                     "G-NAF canonical output exceeds the registered capacity ceiling"
                                 )
@@ -197,7 +200,7 @@ def iter_gnaf_archive_path(
                 ):
                     if maximum_records is not None and emitted >= maximum_records:
                         return
-                    if emitted >= capacity_ceiling:
+                    if capacity_ceiling is not None and emitted >= capacity_ceiling:
                         raise ValueError(
                             "G-NAF canonical output exceeds the registered capacity ceiling"
                         )

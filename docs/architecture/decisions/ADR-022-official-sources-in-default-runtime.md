@@ -1,6 +1,6 @@
 # ADR-022: Connect official sources in the default local runtime
 
-- Status: Accepted
+- Status: Superseded by ADR-029 for acquisition-scope selection; single-runtime decision retained
 - Date: 25 August 2026
 - Owner: PropertyScope Feature 1
 - Supersedes: the isolated full-data deployment portion of ADR-016 and ADR-021

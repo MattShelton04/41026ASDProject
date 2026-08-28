@@ -8,41 +8,27 @@ import pytest
 from propertyscope_data_platform.source_transport import RegisteredSourceTransport
 
 
-def test_small_source_download_is_bounded_and_allowlisted() -> None:
+def test_source_download_is_complete_and_allowlisted() -> None:
     def source(request: httpx.Request) -> httpx.Response:
         assert request.url.host == "data.nsw.gov.au"
         return httpx.Response(200, content=b"a,b\n1,2\n", headers={"Content-Type": "text/csv"})
 
     with httpx.Client(transport=httpx.MockTransport(source)) as client:
         transport = RegisteredSourceTransport(client)
-        assert (
-            transport.download_bytes("https://data.nsw.gov.au/source.csv", maximum_bytes=20)
-            == b"a,b\n1,2\n"
-        )
+        assert transport.download_bytes("https://data.nsw.gov.au/source.csv") == b"a,b\n1,2\n"
         with pytest.raises(RuntimeError, match="allowlist"):
-            transport.download_bytes("http://data.nsw.gov.au/source.csv", maximum_bytes=20)
+            transport.download_bytes("http://data.nsw.gov.au/source.csv")
 
 
-@pytest.mark.parametrize(
-    ("headers", "message"),
-    [
-        ({"Content-Type": "text/html"}, "media type"),
-        ({"Content-Type": "text/csv", "Content-Length": "100"}, "byte limit"),
-    ],
-)
-def test_small_source_rejects_unregistered_or_oversized_responses(
-    headers: dict[str, str], message: str
-) -> None:
+def test_source_rejects_an_unregistered_media_type() -> None:
     def source(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, content=b"body", headers=headers)
+        return httpx.Response(200, content=b"body", headers={"Content-Type": "text/html"})
 
     with (
         httpx.Client(transport=httpx.MockTransport(source)) as client,
-        pytest.raises(RuntimeError, match=message),
+        pytest.raises(RuntimeError, match="media type"),
     ):
-        RegisteredSourceTransport(client).download_bytes(
-            "https://data.nsw.gov.au/source.csv", maximum_bytes=10
-        )
+        RegisteredSourceTransport(client).download_bytes("https://data.nsw.gov.au/source.csv")
 
 
 def test_psi_range_failure_cleans_temporary_archive(tmp_path: Path) -> None:
@@ -59,7 +45,6 @@ def test_psi_range_failure_cleans_temporary_archive(tmp_path: Path) -> None:
         with transport.psi_archive_path(
             "https://www.valuergeneral.nsw.gov.au/source.zip",
             directory=tmp_path,
-            maximum_bytes=100,
         ):
             pass
 

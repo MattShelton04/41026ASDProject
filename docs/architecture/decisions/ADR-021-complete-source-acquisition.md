@@ -1,6 +1,6 @@
 # ADR-021: Separate complete source acquisition from bounded consumer products
 
-- Status: Accepted; deployment isolation superseded by ADR-022
+- Status: Superseded by ADR-029 for acquisition scopes and ceilings; consumer-product separation retained
 - Date: 25 August 2026
 - Owner: PropertyScope Feature 1
 - Extends: ADR-016

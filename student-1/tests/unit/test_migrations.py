@@ -173,3 +173,18 @@ def test_current_bocsar_capacity_reconciles_the_durable_job() -> None:
     assert "max_objects=4" in migration
     assert "max_bytes=5000000000" in migration
     assert "max_rows=15000000" in migration
+
+
+def test_complete_import_policy_removes_operator_limits_and_saved_scopes() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("026_complete_imports_without_operator_limits.sql")
+        .read_text("utf-8")
+    )
+
+    assert "DROP COLUMN scope_json" in migration
+    assert "DROP COLUMN max_parallelism" in migration
+    assert "DROP COLUMN max_objects" in migration
+    assert "DROP COLUMN max_bytes" in migration
+    assert "DROP COLUMN max_rows" in migration
+    assert "DROP COLUMN timeout_seconds" in migration

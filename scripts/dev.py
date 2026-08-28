@@ -39,7 +39,6 @@ from scripts.devtools.config import (
     OFFLINE_OPENAI_CREDENTIAL,
     PRODUCTION_BUILD_SERVICES,
     PROFILES,
-    PSI_ARCHIVE_BYTE_LIMIT,
     PSI_WEEKLY_URL,
     PSI_YEARLY_URL,
     REPOSITORY_ROOT,
@@ -299,15 +298,13 @@ def _download_psi_archive(client: httpx.Client, url: str) -> bytes:
     )
     if response.status_code != 403:
         response.raise_for_status()
-        if len(response.content) > PSI_ARCHIVE_BYTE_LIMIT:
-            raise RuntimeError("PSI archive exceeds the 750 MB compressed safety limit")
         return response.content
     chunks: list[bytes] = []
     offset = 0
     expected_total: int | None = None
     chunk_size = 4 * 1024 * 1024
     while expected_total is None or offset < expected_total:
-        end = min(offset + chunk_size - 1, PSI_ARCHIVE_BYTE_LIMIT - 1)
+        end = offset + chunk_size - 1
         ranged = client.get(
             url,
             headers={
@@ -318,13 +315,13 @@ def _download_psi_archive(client: httpx.Client, url: str) -> bytes:
         )
         if ranged.status_code != 206:
             ranged.raise_for_status()
-            raise RuntimeError("PSI publisher rejected bounded Range acquisition")
+            raise RuntimeError("PSI publisher rejected Range acquisition")
         match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", ranged.headers.get("content-range", ""))
         if match is None or int(match.group(1)) != offset:
             raise RuntimeError("PSI publisher returned an invalid content range")
         range_end, total = int(match.group(2)), int(match.group(3))
-        if total > PSI_ARCHIVE_BYTE_LIMIT or len(ranged.content) != range_end - offset + 1:
-            raise RuntimeError("PSI archive exceeds the compressed safety limit")
+        if len(ranged.content) != range_end - offset + 1:
+            raise RuntimeError("PSI publisher returned an incomplete content range")
         if expected_total is not None and total != expected_total:
             raise RuntimeError("PSI archive changed during acquisition")
         expected_total = total
@@ -521,33 +518,29 @@ def _json_response(response: httpx.Response) -> dict[str, Any]:
     return value
 
 
-def _collection_definition(job_profile: str, profile: str) -> tuple[str, dict[str, Any]]:
+def _collection_definition(job_profile: str) -> tuple[str, dict[str, Any]]:
     path = JOB_PROFILE_DIRECTORY / f"{job_profile}.yaml"
     if not path.is_file():
         raise RuntimeError(f"Unknown registered collection job: {job_profile}")
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict) or not isinstance(raw.get("key"), str):
         raise RuntimeError(f"Registered job profile is malformed: {path.name}")
-    profiles = raw.get("scope_profiles")
-    scope = profiles.get(profile) if isinstance(profiles, dict) else None
+    scope = raw.get("scope")
     if not isinstance(scope, dict):
-        raise RuntimeError(f"{job_profile} does not define the {profile!r} acquisition profile")
-    resolved_scope = dict(scope)
-    resolved_scope["profile"] = profile
-    return raw["key"], resolved_scope
+        raise RuntimeError(f"{job_profile} does not define its complete acquisition scope")
+    return raw["key"], dict(scope)
 
 
 def _collect_with_client(
     client: httpx.Client,
     *,
     job_profile: str,
-    profile: str,
     wait: bool,
     timeout_seconds: int,
     poll_seconds: float = 1.0,
 ) -> dict[str, Any]:
     """Plan and launch one registered Feature 1 collection over its public HTTP API."""
-    profile_key, scope = _collection_definition(job_profile, profile)
+    profile_key, scope = _collection_definition(job_profile)
     jobs = _json_response(client.get("jobs", params={"limit": 100})).get("items")
     if not isinstance(jobs, list):
         raise RuntimeError("PropertyScope did not return its registered jobs")
@@ -566,7 +559,7 @@ def _collect_with_client(
     plan = _json_response(client.post(f"jobs/{job['id']}/plans", json=request_body))
     print(
         "Collection plan validated: "
-        f"{profile_key} ({profile}); network_required={plan.get('network_required', False)}; "
+        f"{profile_key} (complete source); network_required={plan.get('network_required', False)}; "
         f"source_cache_required={plan.get('source_cache_required', False)}",
         flush=True,
     )
@@ -654,7 +647,6 @@ def _collect_with_client(
 def _collect(
     *,
     job_profile: str,
-    profile: str,
     wait: bool,
     timeout_seconds: int,
     base_url: str,
@@ -665,7 +657,6 @@ def _collect(
         _collect_with_client(
             client,
             job_profile=job_profile,
-            profile=profile,
             wait=wait,
             timeout_seconds=timeout_seconds,
         )
@@ -731,12 +722,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             )
         elif command == ("data", "collect"):
-            profile = arguments.profile or (
-                "showcase" if arguments.job == "fixture-property" else "full-data"
-            )
             _collect(
                 job_profile=arguments.job,
-                profile=profile,
                 wait=arguments.wait,
                 timeout_seconds=arguments.timeout,
                 base_url=arguments.base_url,

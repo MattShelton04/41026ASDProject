@@ -7,7 +7,7 @@ from typing import Protocol
 
 from pydantic import Field, field_validator
 
-from ..domain import DomainModel, Identifier, ResourceLimits, Sha256
+from ..domain import DomainModel, Identifier, Sha256
 
 
 class SourceObject(DomainModel):
@@ -51,4 +51,3 @@ class RunContext(DomainModel):
     run_id: str = Field(min_length=1, max_length=100)
     source_key: Identifier
     scope: dict[str, object]
-    limits: ResourceLimits

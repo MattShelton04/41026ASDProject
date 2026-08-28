@@ -18,6 +18,7 @@ from typing import Any
 
 import httpx
 
+from propertyscope_data_platform.acquisition_scope import complete_scope_error
 from propertyscope_data_platform.adapters.bocsar import (
     CrimeCoverage,
     CrimeObservation,
@@ -48,8 +49,6 @@ BOCSAR_URLS = {
     "suburb": "https://bocsarblob.blob.core.windows.net/bocsar-open-data/SuburbData.zip",
     "postcode": "https://bocsarblob.blob.core.windows.net/bocsar-open-data/PostcodeData.zip",
 }
-BOCSAR_SOURCE_ROW_CAPACITY = 500_000
-BOCSAR_ARCHIVE_EXPANSION_CAPACITY = 750_000_000
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip"
 PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{date}.zip"
 GNAF_CKAN_URL = (
@@ -94,7 +93,7 @@ class RunnerSettings:
 
 
 class AcquisitionRunner:
-    """Bounded deterministic worker; source transports are selected by registered jobs only."""
+    """Deterministic worker; source transports are selected by registered jobs only."""
 
     def __init__(
         self,
@@ -197,12 +196,10 @@ class AcquisitionRunner:
             )
         if stage in {"discover", "acquire"}:
             profile = str(task.get("import_profile_key", "property-fixture"))
-            live_requested = scope.get("profile") == "full-data"
-            if (
-                live_requested
-                and profile in {"psi-sales", "gnaf-nsw", "bocsar-sparse"}
-                and stage == "acquire"
-            ):
+            scope_error = complete_scope_error(profile, scope)
+            if scope_error is not None:
+                raise RuntimeError(f"Incomplete acquisition scope: {scope_error}")
+            if profile in {"psi-sales", "gnaf-nsw", "bocsar-sparse"} and stage == "acquire":
                 scope = task.get("partition_json") or {}
                 if not isinstance(scope, dict):
                     raise RuntimeError("Registered live scope is invalid")
@@ -215,7 +212,6 @@ class AcquisitionRunner:
                     canonical_chunks = self._live_bocsar_chunks(task, scope, counter)
                 artifact = self.artifacts.put(
                     canonical_chunks,
-                    max_bytes=int(task.get("max_bytes", 20_000_000_000)),
                     media_type="application/x-ndjson",
                 )
                 self._register_stage_artifact(
@@ -225,10 +221,10 @@ class AcquisitionRunner:
                     schema_version="propertyscope.canonical-import.v1",
                 )
                 return counter[0], counter[0]
-            if live_requested and profile != "property-fixture":
+            if profile != "property-fixture":
                 document, records = self._live_document(task, stage=stage, profile=profile)
             else:
-                records = _canonical_records(profile) if stage == "acquire" else []
+                records = _fixture_records() if stage == "acquire" else []
                 document = (
                     {
                         "schema_version": "propertyscope.canonical-import.v1",
@@ -247,7 +243,6 @@ class AcquisitionRunner:
             canonical = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
             artifact = self.artifacts.put(
                 (canonical,),
-                max_bytes=int(task.get("max_bytes", 1_000_000)),
                 media_type="application/json",
             )
             self._register_stage_artifact(
@@ -442,9 +437,8 @@ class AcquisitionRunner:
             return self._live_psi(task, scope)
         if profile == "gnaf-nsw":
             raise RuntimeError("G-NAF live acquisition is available through the run worker")
-        maximum_bytes = min(int(task.get("max_bytes", 25_000_000)), 25_000_000)
-        content = self._download_registered(SCHOOLS_MASTER_URL, maximum_bytes=maximum_bytes)
-        parsed = parse_schools_csv(content, maximum_rows=int(task.get("max_rows", 5_000)))
+        content = self._download_registered(SCHOOLS_MASTER_URL)
+        parsed = parse_schools_csv(content)
         records: list[dict[str, object]] = [
             {
                 "school_code": record.school_code,
@@ -522,24 +516,21 @@ class AcquisitionRunner:
         kind = str(scope.get("geography_kind", "postcode"))
         if kind not in BOCSAR_URLS:
             raise RuntimeError("BOCSAR geography_kind must be postcode or suburb")
-        maximum_records = _record_limit(task, scope)
         raw_values = scope.get("geography_values")
         geography_values = (
             frozenset(str(value).strip() for value in raw_values)
             if isinstance(raw_values, list) and raw_values
             else None
         )
-        content = self._download_registered(
-            BOCSAR_URLS[kind], maximum_bytes=min(int(task.get("max_bytes", 50_000_000)), 50_000_000)
-        )
+        content = self._download_registered(BOCSAR_URLS[kind])
         observations, coverage = parse_bocsar_archive(
             content,
             geography_kind=kind,
-            maximum_rows=int(task.get("max_rows", 100_000)),
+            maximum_rows=None,
             geography_values=geography_values,
             start_month=_month_scope(scope.get("start_month")),
             end_month=_month_scope(scope.get("end_month")),
-            maximum_records=maximum_records,
+            maximum_records=None,
         )
         records: list[dict[str, object]] = [
             {
@@ -577,32 +568,19 @@ class AcquisitionRunner:
             else None
         )
         for kind in _bocsar_kinds(scope):
-            content = self._download_registered(
-                BOCSAR_URLS[kind],
-                maximum_bytes=min(int(task.get("max_bytes", 50_000_000)), 50_000_000),
-            )
+            content = self._download_registered(BOCSAR_URLS[kind])
             records = iter_bocsar_archive(
                 content,
                 geography_kind=kind,
-                maximum_rows=min(
-                    int(task.get("max_rows", BOCSAR_SOURCE_ROW_CAPACITY)),
-                    BOCSAR_SOURCE_ROW_CAPACITY,
-                ),
+                maximum_rows=None,
                 geography_values=geography_values,
                 start_month=_month_scope(scope.get("start_month")),
                 end_month=_month_scope(scope.get("end_month")),
-                maximum_records=_record_limit(task, scope),
-                maximum_uncompressed_bytes=min(
-                    int(task.get("max_bytes", BOCSAR_ARCHIVE_EXPANSION_CAPACITY)),
-                    BOCSAR_ARCHIVE_EXPANSION_CAPACITY,
-                ),
+                maximum_records=None,
+                maximum_uncompressed_bytes=None,
             )
             for item in records:
                 counter[0] += 1
-                if counter[0] > int(task.get("max_rows", 15_000_000)):
-                    raise RuntimeError(
-                        "BOCSAR canonical output exceeds the registered capacity ceiling"
-                    )
                 if counter[0] % 25_000 == 0:
                     self._heartbeat(str(task["id"]), str(task["lease_token"]))
                 yield (
@@ -626,11 +604,8 @@ class AcquisitionRunner:
         for year in years:
             url = PSI_YEARLY_URL.format(year=year)
             source_urls.append(url)
-            maximum_bytes = min(int(task.get("max_bytes", 50_000_000)), 50_000_000)
             cached = self._psi_archive(year)
             if cached is not None:
-                if cached.stat().st_size > maximum_bytes:
-                    raise RuntimeError("Cached PSI archive exceeds the configured byte limit")
                 cached_years.append(year)
             source: AbstractContextManager[Path]
             if cached is not None:
@@ -639,7 +614,6 @@ class AcquisitionRunner:
                 source = self.source_transport.psi_archive_path(
                     url,
                     directory=self.settings.artifact_root,
-                    maximum_bytes=maximum_bytes,
                     progress=self._heartbeat_progress(task),
                 )
             with source as path:
@@ -670,10 +644,7 @@ class AcquisitionRunner:
         )
         if not sources:
             raise RuntimeError("PSI full-data scope contains no annual or weekly partitions")
-        per_archive_limit = 750_000_000
         for source_year, url, cached in sources:
-            if cached is not None and cached.stat().st_size > per_archive_limit:
-                raise RuntimeError("Cached PSI archive exceeds the corruption-safety limit")
             source: AbstractContextManager[Path]
             if cached is not None:
                 source = nullcontext(cached)
@@ -681,14 +652,11 @@ class AcquisitionRunner:
                 source = self.source_transport.psi_archive_path(
                     url,
                     directory=self.settings.artifact_root,
-                    maximum_bytes=per_archive_limit,
                     progress=self._heartbeat_progress(task),
                 )
             with source as path:
                 for sale in iter_psi_archive_path(path, source_year=source_year):
                     counter[0] += 1
-                    if counter[0] > int(task.get("max_rows", 100_000_000)):
-                        raise RuntimeError("PSI source exceeds the registered capacity ceiling")
                     if counter[0] % 25_000 == 0:
                         self._heartbeat(str(task["id"]), str(task["lease_token"]))
                     yield (
@@ -719,13 +687,11 @@ class AcquisitionRunner:
     ) -> Iterable[bytes]:
         """Stream the complete registered NSW address generation without retaining it in RAM."""
         source_url, declared_crs = self._discovered_gnaf_source(task)
-        maximum_bytes = min(int(task.get("max_bytes", 2_500_000_000)), 2_500_000_000)
         if self.settings.gnaf_archive_path and self.settings.gnaf_archive_path.is_file():
             stream = self.settings.gnaf_archive_path.open("rb")
             try:
                 raw_artifact = self.artifacts.put(
                     self._heartbeat_chunks(task, iter(lambda: stream.read(1024 * 1024), b"")),
-                    max_bytes=maximum_bytes,
                     media_type="application/zip",
                 )
             finally:
@@ -741,14 +707,12 @@ class AcquisitionRunner:
                     raise RuntimeError("G-NAF download left the registered host")
                 raw_artifact = self.artifacts.put(
                     self._heartbeat_chunks(task, response.iter_bytes()),
-                    max_bytes=maximum_bytes,
                     media_type="application/zip",
                 )
         raw_path = self.artifacts.verified_path(
             raw_artifact.storage_key,
             raw_artifact.sha256,
             expected_bytes=raw_artifact.bytes,
-            max_bytes=maximum_bytes,
         )
         registration = self.client.post(
             f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task['id']}/artifacts",
@@ -775,8 +739,8 @@ class AcquisitionRunner:
         parsed = iter_gnaf_archive_path(
             raw_path,
             declared_crs=declared_crs,
-            maximum_records=_record_limit(task, scope),
-            capacity_ceiling=int(task.get("max_rows", 6_500_000)),
+            maximum_records=None,
+            capacity_ceiling=None,
             localities=localities,
             progress=self._heartbeat_progress(task),
         )
@@ -849,8 +813,8 @@ class AcquisitionRunner:
 
         return report_progress
 
-    def _download_registered(self, url: str, *, maximum_bytes: int) -> bytes:
-        return self.source_transport.download_bytes(url, maximum_bytes=maximum_bytes)
+    def _download_registered(self, url: str) -> bytes:
+        return self.source_transport.download_bytes(url)
 
     def _execute_import(self, task: dict[str, Any]) -> tuple[int, int]:
         response = self._control_request(
@@ -862,10 +826,7 @@ class AcquisitionRunner:
         )
         response.raise_for_status()
         operation = response.json()["operation"]
-        deadline = time.monotonic() + int(task.get("timeout_seconds", 120))
         while operation["status"] not in {"succeeded", "failed", "cancelled"}:
-            if time.monotonic() >= deadline:
-                raise RuntimeError("Registered import did not complete inside the task deadline")
             self.stop_event.wait(min(self.settings.poll_seconds, 1.0))
             self._heartbeat(str(task["id"]), str(task["lease_token"]))
             response = self._control_request(
@@ -923,15 +884,6 @@ def _safe_message(exc: Exception) -> str:
 def _cancellation_poll_interval(lease_seconds: int) -> float:
     """Keep cancellation responsive without shortening the durable recovery lease."""
     return min(5.0, max(1.0, lease_seconds / 3))
-
-
-def _record_limit(task: dict[str, Any], scope: dict[str, object]) -> int | None:
-    if scope.get("all_records") is True:
-        return None
-    requested = scope.get("maximum_records", task.get("max_rows", 100_000_000))
-    if not isinstance(requested, int) or isinstance(requested, bool) or requested < 1:
-        raise RuntimeError("maximum_records must be a positive integer")
-    return min(requested, int(task.get("max_rows", requested)))
 
 
 def _psi_years(scope: dict[str, object]) -> list[int]:
@@ -1089,121 +1041,38 @@ def _optional_path(value: str | None) -> Path | None:
     return Path(value).resolve() if value and value.strip() else None
 
 
-def _canonical_records(profile: str) -> list[dict[str, object]]:
-    """Produce bounded licensed synthetic evidence through every registered import profile."""
-    if profile == "property-fixture":
-        localities = (
-            ("PARRAMATTA", "2150", -33.8151, 151.0011),
-            ("MOSMAN", "2088", -33.8298, 151.2441),
-            ("WOLLONGONG", "2500", -34.4278, 150.8931),
-        )
-        return [
-            {
-                "source_pid": f"FIX-{index:03d}",
-                "property_ref": None,
-                "address_display": (
-                    f"{index} FIXTURE STREET {localities[(index - 1) % 3][0]} NSW "
-                    f"{localities[(index - 1) % 3][1]}"
-                ),
-                "flat_type": None,
-                "unit_number": None,
-                "street_number_first": index,
-                "street_number_suffix": None,
-                "street_number_last": None,
-                "street_name": "FIXTURE",
-                "street_type": "STREET",
-                "locality": localities[(index - 1) % 3][0],
-                "postcode": localities[(index - 1) % 3][1],
-                "source_status": "CURRENT",
-                "geocode_type": "FIXTURE",
-                "source_crs": 4326,
-                "latitude": localities[(index - 1) % 3][2] + index * 0.00001,
-                "longitude": localities[(index - 1) % 3][3] + index * 0.00001,
-            }
-            for index in range(1, 11)
-        ]
-    if profile == "schools-master":
-        return [
-            {
-                "school_code": f"S{index:04d}",
-                "school_name": f"Example Public School {index}",
-                "school_type": "Primary",
-                "status": "Open",
-                "locality_original": "Sydney",
-                "locality_normalised": "SYDNEY",
-                "lga_name": "City of Sydney",
-                "latitude": -33.9 + index * 0.001,
-                "longitude": 151.1 + index * 0.001,
-            }
-            for index in range(1, 11)
-        ]
-    if profile == "gnaf-nsw":
-        return [
-            {
-                "gnaf_pid": f"GANSWFIXTURE{index:04d}",
-                "property_ref": None,
-                "address_display": f"{index} Fixture Street, Sydney NSW 2000",
-                "locality": "SYDNEY",
-                "postcode": "2000",
-                "source_status": "CURRENT",
-                "geocode_type": "PC",
-                "source_crs": 7844,
-                "latitude": -33.9 + index * 0.001,
-                "longitude": 151.1 + index * 0.001,
-            }
-            for index in range(1, 11)
-        ]
-    if profile == "psi-sales":
-        return [
-            {
-                "source_business_key": f"001:P{index}:1",
-                "source_revision": 1,
-                "source_era": "post-2001",
-                "source_partition_year": 2025,
-                "district_code": "001",
-                "property_id": f"P{index}",
-                "dealing_id": f"D{index}",
-                "contract_date": "2025-01-01",
-                "settlement_date": "2025-02-01",
-                "price_aud": 800_000 + index,
-                "area_original": "500",
-                "area_unit": "M",
-                "area_square_metres": "500",
-                "property_ref": None,
-                "match_tier": "MISS",
-                "match_confidence": "0",
-                "geographic_precision": "unmatched",
-            }
-            for index in range(1, 11)
-        ]
-    if profile == "bocsar-sparse":
-        records: list[dict[str, object]] = []
-        for index in range(1, 6):
-            category = f"fixture-category-{index}"
-            records.extend(
-                (
-                    {
-                        "record_kind": "observation",
-                        "geography_kind": "postcode",
-                        "geography_value": "2000",
-                        "source_category_key": category,
-                        "offence_label": "Synthetic offence",
-                        "subcategory_label": f"Synthetic category {index}",
-                        "month": "2025-02-01",
-                        "count": index,
-                    },
-                    {
-                        "record_kind": "coverage",
-                        "geography_kind": "postcode",
-                        "geography_value": "2000",
-                        "source_category_key": category,
-                        "observed_months": ["2025-01-01", "2025-02-01"],
-                        "blank_means_observed_zero": True,
-                    },
-                )
-            )
-        return records
-    raise RuntimeError("Task import profile is not registered by this runner")
+def _fixture_records() -> list[dict[str, object]]:
+    """Return every record in the finite, explicitly synthetic fixture source."""
+    localities = (
+        ("PARRAMATTA", "2150", -33.8151, 151.0011),
+        ("MOSMAN", "2088", -33.8298, 151.2441),
+        ("WOLLONGONG", "2500", -34.4278, 150.8931),
+    )
+    return [
+        {
+            "source_pid": f"FIX-{index:03d}",
+            "property_ref": None,
+            "address_display": (
+                f"{index} FIXTURE STREET {localities[(index - 1) % 3][0]} NSW "
+                f"{localities[(index - 1) % 3][1]}"
+            ),
+            "flat_type": None,
+            "unit_number": None,
+            "street_number_first": index,
+            "street_number_suffix": None,
+            "street_number_last": None,
+            "street_name": "FIXTURE",
+            "street_type": "STREET",
+            "locality": localities[(index - 1) % 3][0],
+            "postcode": localities[(index - 1) % 3][1],
+            "source_status": "CURRENT",
+            "geocode_type": "FIXTURE",
+            "source_crs": 4326,
+            "latitude": localities[(index - 1) % 3][2] + index * 0.00001,
+            "longitude": localities[(index - 1) % 3][3] + index * 0.00001,
+        }
+        for index in range(1, 11)
+    ]
 
 
 def main() -> None:

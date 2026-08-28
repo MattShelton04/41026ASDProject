@@ -194,6 +194,7 @@ def test_resume_requeues_cancelled_unfinished_task_from_interrupted_run() -> Non
         "status": "interrupted",
         "run_mode": "full_refresh",
         "parent_run_id": None,
+        "requested_scope_json": {"profile": "full-data", "all_records": True},
     }
 
     run = store.resume_run(run_id)

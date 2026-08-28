@@ -73,14 +73,13 @@ Source-scale PSI candidates use canonical NDJSON between the credential-free run
 credential-owning loader. Both sides stream: acquisition writes records directly to the
 content-addressed artifact and the loader validates rows into PostgreSQL `COPY`. Annual archives
 from 1990 through the previous year and current Monday weekly archives may therefore form one
-complete candidate without an application-memory or presentation-size row cap. Archive member,
-expansion, artifact-byte and capacity ceilings fail the candidate; they never truncate it. The
+complete candidate without an application-memory or presentation-size row cap. The
 warehouse natural key collapses identical annual/weekly retransmissions inside each isolated
 candidate, so a rerun remains deterministic and cannot stack duplicates into accepted data.
 
-ADR-021 applies the same complete-generation rule to G-NAF, BOCSAR and schools while preserving
-separate bounded consumer products. Capacity ceilings fail atomically and never become successful
-source truncation.
+ADR-029 applies the same complete-generation rule to G-NAF, BOCSAR and schools without selectable
+acquisition scopes or job data-volume ceilings. Downstream consumer products remain separate from
+the warehouse import.
 
 ADR-028 refines reviewed publication after a measured source-scale failure: the backend queues a
 leased activation, accepted address reads resolve the immutable generation selected by the

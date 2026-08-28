@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+from propertyscope_data_platform.acquisition_scope import complete_scope_error
 from propertyscope_data_platform.release_builders import resolve_release_builder
 
 
@@ -55,20 +55,16 @@ def validate_job_scope(
     *,
     run_mode: str,
 ) -> tuple[dict[str, Any] | None, ScopeProblem | None]:
-    """Bound operator scope overrides and reject unavailable live transports."""
+    """Validate complete-source acquisition and reject unavailable live transports."""
     if not isinstance(raw_scope, dict):
         return None, _invalid("Run scope must be a JSON object")
     if len(raw_scope) > 20:
         return None, _invalid("Run scope has too many fields")
     scope = dict(raw_scope)
-    profile = scope.get("profile", "showcase")
-    if profile not in {"test", "showcase", "full-data"}:
-        return None, _invalid("Scope profile is not registered")
-    scope["profile"] = profile
-    if profile == "full-data" and scope.get("all_records") is not True:
-        return None, _invalid("Complete official data must request all available source records")
-    if profile == "full-data" and "maximum_records" in scope:
-        return None, _invalid("Complete official data does not accept a source record limit")
+    import_profile = str(job.get("import_profile_key"))
+    completeness_error = complete_scope_error(import_profile, scope)
+    if completeness_error is not None:
+        return None, _invalid(completeness_error)
     bounded_scope = scope.get("release_scope", scope)
     if not isinstance(bounded_scope, dict):
         return None, _invalid("release_scope must be a JSON object")
@@ -88,11 +84,10 @@ def validate_job_scope(
         or maximum_records > builder.spec.max_rows
     ):
         return None, _invalid("maximum_records exceeds the product limit")
-    if str(job.get("import_profile_key")) == "psi-sales":
-        error = _validate_psi_scope(scope, bounded_scope)
+    if import_profile == "psi-sales":
+        error = _validate_psi_release_scope(bounded_scope)
         if error is not None:
             return None, error
-    import_profile = str(job.get("import_profile_key"))
     connected = import_profile in {
         "schools-master",
         "bocsar-sparse",
@@ -100,7 +95,7 @@ def validate_job_scope(
         "property-fixture",
         "psi-sales",
     }
-    if run_mode == "full_refresh" and profile == "full-data" and not connected:
+    if run_mode == "full_refresh" and not connected:
         return None, ScopeProblem(
             422,
             "live_transport_unavailable",
@@ -110,14 +105,10 @@ def validate_job_scope(
 
 
 def resolve_registered_scope(job: Mapping[str, Any], raw_scope: Any, job_profiles: Any) -> Any:
-    """Overlay bounded operator fields onto the declarative registered profile."""
+    """Resolve the immutable declarative complete-source scope for a job."""
     requested = {} if raw_scope is None else raw_scope
     if not isinstance(requested, dict):
         return requested
-    profile_name = requested.get("profile")
-    if profile_name is None and isinstance(job.get("scope_json"), dict):
-        profile_name = job["scope_json"].get("profile")
-    profile_name = profile_name or "showcase"
     try:
         profile_key = job.get("profile_key")
         if profile_key is None:
@@ -128,58 +119,16 @@ def resolve_registered_scope(job: Mapping[str, Any], raw_scope: Any, job_profile
                 if job_profiles.get_profile(key).import_profile.key == import_key
             )
         registered = job_profiles.get_profile(str(profile_key))
-        defaults = registered.scope_profiles[str(profile_name)]
+        defaults = registered.scope
     except (KeyError, StopIteration, ValueError):
         return requested
-    resolved = copy.deepcopy(defaults)
-    for key, value in requested.items():
-        if key == "release_scope" and isinstance(value, dict):
-            nested = resolved.get(key, {})
-            if isinstance(nested, dict):
-                nested.update(value)
-                resolved[key] = nested
-            else:
-                resolved[key] = value
-        else:
-            resolved[key] = value
-    if "years" in requested:
-        resolved.setdefault("weeks", [])
-    if "years" in requested or "weeks" in requested:
-        if "all_history" not in requested:
-            resolved["all_history"] = False
-        if "include_current_weekly" not in requested:
-            resolved["include_current_weekly"] = False
-    resolved["profile"] = profile_name
+    resolved = dict(defaults)
+    resolved["profile"] = "full-data"
     return resolved
 
 
-def _validate_psi_scope(
-    scope: Mapping[str, Any], bounded_scope: Mapping[str, Any]
-) -> ScopeProblem | None:
-    years = scope.get("years")
-    all_history = scope.get("all_history") is True
-    weekly_only = isinstance(scope.get("weeks"), list) and bool(scope.get("weeks"))
-    if (
-        not all_history
-        and not weekly_only
-        and (not isinstance(years, list) or not years or len(years) > 100)
-    ):
-        return _invalid("PSI scope requires source years or complete history")
-    checked_years: list[Any] = [] if all_history or not isinstance(years, list) else list(years)
+def _validate_psi_release_scope(bounded_scope: Mapping[str, Any]) -> ScopeProblem | None:
     maximum_year = datetime.now(UTC).year + 1
-    if any(not _valid_year(year, maximum_year) for year in checked_years):
-        return _invalid("PSI source year is outside the range")
-    if checked_years != sorted(set(checked_years)):
-        return _invalid("PSI source years must be unique and sorted")
-    weeks = scope.get("weeks", [])
-    if not isinstance(weeks, list) or len(weeks) > 1000:
-        return _invalid("PSI weekly partitions are invalid")
-    try:
-        parsed_weeks = [date.fromisoformat(value) for value in weeks]
-    except (TypeError, ValueError):
-        return _invalid("PSI weeks must use ISO dates")
-    if parsed_weeks != sorted(set(parsed_weeks)):
-        return _invalid("PSI weeks must be unique and sorted")
     release_years = bounded_scope.get("years")
     if not isinstance(release_years, list) or not release_years or len(release_years) > 100:
         return _invalid("PSI release scope requires explicit source years")

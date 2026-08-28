@@ -25,8 +25,11 @@ def test_checked_in_profiles_load_in_stable_order() -> None:
         "nsw-psi-sales-year",
     )
     fixture = registry.get_profile("fixture-property-full")
-    assert fixture.limits.max_parallelism == 1
-    assert set(fixture.scope_profiles) == {"test", "showcase"}
+    assert fixture.scope == {
+        "profile": "full-data",
+        "all_records": True,
+        "release_scope": {"maximum_records": 50000},
+    }
 
 
 def test_unknown_profile_fails_closed() -> None:
@@ -35,7 +38,7 @@ def test_unknown_profile_fails_closed() -> None:
         registry.get_profile("arbitrary.module.Class")
 
 
-def test_checked_in_source_register_is_bounded_and_allowlisted() -> None:
+def test_checked_in_source_register_is_allowlisted() -> None:
     registry = load_source_register(ROOT / "config" / "source-register.yaml")
     assert len(registry) == 5
     assert registry.get_profile("bocsar-crime").adapter_key == "bocsar-bulk"
@@ -47,3 +50,22 @@ def test_job_profiles_fit_registered_adapter_capabilities() -> None:
     adapters = load_adapter_register(ROOT / "config" / "adapter-register.yaml")
     for key in profiles:
         validate_job_profile(profiles.get_profile(key), sources=sources, adapters=adapters)
+
+
+def test_job_profile_validation_rejects_partial_acquisition_selectors() -> None:
+    profiles = load_job_profiles(ROOT / "config" / "job-profiles")
+    sources = load_source_register(ROOT / "config" / "source-register.yaml")
+    adapters = load_adapter_register(ROOT / "config" / "adapter-register.yaml")
+    profile = profiles.get_profile("nsw-psi-sales-year").model_copy(
+        update={
+            "scope": {
+                "profile": "full-data",
+                "all_records": True,
+                "years": [2025],
+                "release_scope": {"years": [2025], "maximum_records": 250000},
+            }
+        }
+    )
+
+    with pytest.raises(ConfigurationError, match="subset selector fields: years"):
+        validate_job_profile(profile, sources=sources, adapters=adapters)

@@ -17,11 +17,11 @@ PSI_JOB = {
     "profile_key": "nsw-psi-sales-year",
     "import_profile_key": "psi-sales",
     "release_builder_key": "property-sales",
-    "scope_json": {"profile": "showcase"},
+    "scope_json": {"profile": "full-data", "all_records": True},
 }
 
 
-def test_registered_scope_merges_bounds_without_mutating_defaults() -> None:
+def test_registered_scope_ignores_operator_attempts_to_reduce_the_import() -> None:
     profiles = load_job_profiles(ROOT / "config" / "job-profiles")
 
     resolved = resolve_registered_scope(
@@ -34,12 +34,12 @@ def test_registered_scope_merges_bounds_without_mutating_defaults() -> None:
         },
         profiles,
     )
-    defaults = profiles.get_profile("nsw-psi-sales-year").scope_profiles["full-data"]
+    defaults = profiles.get_profile("nsw-psi-sales-year").scope
 
-    assert resolved["years"] == [2025]
-    assert resolved["all_history"] is False
-    assert resolved["include_current_weekly"] is False
-    assert resolved["release_scope"]["maximum_records"] == 500
+    assert "years" not in resolved
+    assert resolved["all_history"] is True
+    assert resolved["include_current_weekly"] is True
+    assert resolved["release_scope"]["maximum_records"] == 250000
     assert defaults["all_history"] is True
 
 
@@ -47,26 +47,33 @@ def test_registered_scope_merges_bounds_without_mutating_defaults() -> None:
     ("scope", "detail"),
     [
         (None, "JSON object"),
-        ({"profile": "unknown"}, "not registered"),
+        ({"profile": "unknown"}, "all records"),
         (
-            {"profile": "showcase", "release_scope": {"maximum_records": True}},
-            "product limit",
+            {
+                "profile": "full-data",
+                "all_records": True,
+                "maximum_records": 1,
+                "release_scope": {"maximum_records": 10, "years": [2025]},
+            },
+            "subset selector",
         ),
         (
             {
-                "profile": "showcase",
+                "profile": "full-data",
+                "all_records": True,
                 "years": [2025, 2024],
                 "release_scope": {"years": [2024, 2025], "maximum_records": 10},
             },
-            "unique and sorted",
+            "subset selector",
         ),
         (
             {
-                "profile": "showcase",
+                "profile": "full-data",
+                "all_records": True,
                 "weeks": ["not-a-date"],
                 "release_scope": {"years": [2025], "maximum_records": 10},
             },
-            "ISO dates",
+            "subset selector",
         ),
     ],
 )
@@ -84,12 +91,17 @@ def test_live_scope_policy_connects_registered_sources_and_rejects_unknown_trans
     scope = {
         "profile": "full-data",
         "all_records": True,
-        "years": [2025],
+        "all_history": True,
+        "include_current_weekly": True,
         "release_scope": {"years": [2025], "maximum_records": 10},
     }
 
     unknown_job = {**PSI_JOB, "import_profile_key": "spatial-features"}
-    _, transport_error = validate_job_scope(unknown_job, scope, run_mode="full_refresh")
+    _, transport_error = validate_job_scope(
+        unknown_job,
+        {"profile": "full-data", "all_records": True, "release_scope": {"maximum_records": 10}},
+        run_mode="full_refresh",
+    )
     resolved, error = validate_job_scope(
         PSI_JOB,
         scope,

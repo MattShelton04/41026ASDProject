@@ -1,7 +1,6 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js?v=18";
-import { isPsiJob } from "../core/forms.js?v=18";
+import { displayName, formatDate, humanise, researchAreaLabel } from "../core/formats.js?v=18";
 import { routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
@@ -42,7 +41,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
       }
       const columns = isSource
         ? [{ label: "Source" }, { label: "Publisher" }, { label: "Adapter" }, { label: "Cadence" }, { label: "Status" }, { label: "Actions" }]
-        : [{ label: "Update" }, { label: "Dataset / area" }, { label: "Method" }, { label: "Capacity alarm" }, { label: "Status" }, { label: "Actions" }];
+        : [{ label: "Update" }, { label: "Dataset / area" }, { label: "Method" }, { label: "Import scope" }, { label: "Status" }, { label: "Actions" }];
       const table = makeTable(columns, items, (item) => {
         const row = el("tr");
         const actions = el("div", "row-actions");
@@ -78,7 +77,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
           if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", `${control.textContent.trim()} ${item.name}`);
         }
         if (isSource) append(row, cell(primaryCell(displayName(item.name), item.id)), cell(item.publisher), cell(displayName(item.adapter_key), "mono"), cell(humanise(item.cadence)), cell(badge(item.status)), cell(actions, "actions-cell"));
-        else append(row, cell(primaryCell(displayName(item.name), displayName(item.profile_key))), cell(primaryCell(displayName(item.dataset_id || item.target?.contract), researchAreaLabel(item.target_feature || item.target?.feature))), cell(humanise(item.refresh_strategy)), cell(`${formatNumber(item.max_rows ?? item.limits?.max_rows)}-row alarm`, "numeric"), cell(badge(item.status)), cell(actions, "actions-cell"));
+        else append(row, cell(primaryCell(displayName(item.name), displayName(item.profile_key))), cell(primaryCell(displayName(item.dataset_id || item.target?.contract), researchAreaLabel(item.target_feature || item.target?.feature))), cell(humanise(item.refresh_strategy)), cell("Complete source"), cell(badge(item.status)), cell(actions, "actions-cell"));
         return row;
       }, isSource ? "Registered data sources" : "Saved data updates", { responsive: true });
       const resultLabel = isSource ? (items.length === 1 ? "source" : "sources") : (items.length === 1 ? "data update" : "data updates");
@@ -120,15 +119,10 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
       if (kind === "sources") {
         append(right, panel("Download protection", "Only approved source locations can be requested", el("div", "notice", "The attribution URL describes the publisher. Downloads still use the approved host and path configured for this source adapter.")));
       } else {
-        const limits = el("div", "metric-strip");
-        for (const [label, value] of [["Row alarm", formatNumber(item.max_rows ?? item.limits?.max_rows)], ["Byte alarm", formatBytes(item.max_bytes ?? item.limits?.max_bytes)], ["Object alarm", formatNumber(item.max_objects ?? item.limits?.max_objects)], ["Time alarm", `${formatNumber(item.timeout_seconds ?? item.limits?.deadline_seconds)}s`]]) {
-          const metric = el("div"); append(metric, el("span", "", label), el("strong", "", value)); append(limits, metric);
-        }
-        append(right, panel("Capacity safeguards", "The update fails atomically instead of returning partial data when a registered alarm is crossed", limits));
         const workflow = el("div", "operation-guide");
         append(workflow,
-          operationStep("1", "Choose scope", isPsiJob(item) ? "Run complete history plus current weekly updates, or select explicit annual/weekly partitions." : "Review the registered job scope."),
-          operationStep("2", "Preview update", "Check the source, work and limits before starting."),
+          operationStep("1", "Import the complete source", "Every registered source record or partition is included automatically."),
+          operationStep("2", "Preview update", "Check the source and proposed work before starting."),
           operationStep("3", "Review the result", "Follow progress, then retry a failed update if needed."),
         );
         append(right, panel("How this update works", "Preview, process and review", workflow));

@@ -135,7 +135,7 @@ jobs:
       - name: Run the code-driven fixture acquisition pipeline
         run: |
           uv sync --locked --all-packages --all-groups
-          uv run --locked scripts/dev.py data collect fixture-property --profile test --timeout 120
+          uv run --locked scripts/dev.py data collect fixture-property --timeout 120
       - name: Smoke the Shared and Feature 1 boundary
         run: |
           curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5100/features/data-platform/

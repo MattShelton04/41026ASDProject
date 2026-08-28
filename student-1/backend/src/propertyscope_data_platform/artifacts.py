@@ -29,7 +29,9 @@ class LocalArtifactStore:
         self._root = root.resolve()
         self._root.mkdir(parents=True, exist_ok=True)
 
-    def put(self, chunks: Iterable[bytes], *, max_bytes: int, media_type: str) -> ArtifactRef:
+    def put(
+        self, chunks: Iterable[bytes], *, media_type: str, max_bytes: int | None = None
+    ) -> ArtifactRef:
         digest = hashlib.sha256()
         byte_count = 0
         descriptor, temporary_name = tempfile.mkstemp(prefix="artifact-", dir=self._root)
@@ -37,7 +39,7 @@ class LocalArtifactStore:
             with os.fdopen(descriptor, "wb") as stream:
                 for chunk in chunks:
                     byte_count += len(chunk)
-                    if byte_count > max_bytes:
+                    if max_bytes is not None and byte_count > max_bytes:
                         raise ArtifactError("artifact exceeds registered byte limit")
                     digest.update(chunk)
                     stream.write(chunk)
@@ -68,13 +70,20 @@ class LocalArtifactStore:
         return data
 
     def verified_path(
-        self, storage_key: str, expected_sha256: str, *, expected_bytes: int, max_bytes: int
+        self,
+        storage_key: str,
+        expected_sha256: str,
+        *,
+        expected_bytes: int,
+        max_bytes: int | None = None,
     ) -> Path:
         """Verify a large artifact without materialising it in memory, then return its path."""
         path = self._resolve(storage_key)
         if not path.is_file():
             raise ArtifactError("artifact does not exist")
-        if expected_bytes > max_bytes or path.stat().st_size != expected_bytes:
+        if (
+            max_bytes is not None and expected_bytes > max_bytes
+        ) or path.stat().st_size != expected_bytes:
             raise ArtifactError("artifact size does not match registered metadata")
         digest = hashlib.sha256()
         with path.open("rb") as stream:

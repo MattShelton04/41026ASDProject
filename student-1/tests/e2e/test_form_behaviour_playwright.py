@@ -467,11 +467,12 @@ def test_source_job_and_release_create_edit_forms_retain_server_failures(
     page.get_by_role("button", name="Edit Example property records update").click()
     schedule = page.locator('[name="schedule_text"]')
     expect(schedule).to_have_attribute("maxlength", "200")
-    expect(page.locator('[name="max_parallelism"]')).to_have_attribute("max", "16")
-    expect(page.locator('[name="timeout_seconds"]')).to_have_attribute("max", "86400")
-    expect(page.locator('[name="max_objects"]')).to_have_attribute("max", "100000")
-    expect(page.locator('[name="max_bytes"]')).to_have_attribute("max", "100000000000")
-    expect(page.locator('[name="max_rows"]')).to_have_attribute("max", "100000000")
+    expect(page.locator('[name="max_parallelism"]')).to_have_count(0)
+    expect(page.locator('[name="timeout_seconds"]')).to_have_count(0)
+    expect(page.locator('[name="max_objects"]')).to_have_count(0)
+    expect(page.locator('[name="max_bytes"]')).to_have_count(0)
+    expect(page.locator('[name="max_rows"]')).to_have_count(0)
+    expect(page.locator('[name="scope_json"]')).to_have_count(0)
     schedule.fill("Retained job schedule note")
     job_writes = _fail_first_write(page, "**/api/data-platform/v1/jobs/*", method="PUT")
     page.locator("#entity-save").click()
@@ -507,21 +508,11 @@ def test_planner_release_decisions_and_ai_retry_in_the_open_form(
 ) -> None:
     _open(page, fixture_origin, "jobs")
     page.get_by_role("button", name="Start update Example property records update").click()
-    scope = page.locator('[name="advanced_scope"]')
-    page.get_by_text("Advanced partition JSON (optional)").click()
-    scope.fill("[]")
-    page.get_by_role("button", name="Preview update").click()
-    expect(page.locator("#action-error")).to_contain_text("Please correct Advanced partition JSON")
-    expect(scope).to_be_focused()
-    expect(scope).to_have_attribute("aria-describedby", "advanced-scope-error")
-    scope.fill('{"profile":"showcase"}')
-    expect(page.locator("#advanced-scope-error")).to_have_count(0)
-    expect(scope).not_to_have_attribute("aria-invalid", "true")
-    expect(page.locator("#action-error")).to_be_empty()
+    expect(page.get_by_text("imports every record available", exact=False)).to_be_visible()
     run_writes = _fail_first_write(page, f"**/api/data-platform/v1/jobs/{JOB_ID}/runs")
     page.locator("#action-confirm").click()
     expect(page.locator("#action-error")).to_contain_text("values are still here")
-    expect(scope).to_have_value('{"profile":"showcase"}')
+    expect(page.get_by_text("imports every record available", exact=False)).to_be_visible()
     page.locator("#action-confirm").click()
     page.wait_for_function("() => location.hash.startsWith('#runs/')")
     assert len(run_writes) == 2
@@ -672,7 +663,7 @@ def test_guarded_confirmations_dirty_navigation_and_controller_generation(
     assert generation_result == {"navigationBlocked": True, "replacementStayedOpen": True}
 
 
-def test_planner_year_and_address_bounds_have_associated_browser_errors(
+def test_planner_exposes_no_year_or_address_reduction_controls(
     page: Page, fixture_origin: str
 ) -> None:
     pattern = "**/api/data-platform/v1/jobs?*"
@@ -684,7 +675,7 @@ def test_planner_year_and_address_bounds_have_associated_browser_errors(
             job = payload["items"][0]
             job["profile_key"] = profile
             job["import_profile_key"] = profile
-            job["scope_json"] = {"profile": "showcase", "source_year": 2025, "maximum_records": 100}
+            job["scope_json"] = {"profile": "full-data", "all_records": True}
             route.fulfill(response=response, json=payload)
 
         return handler
@@ -693,22 +684,10 @@ def test_planner_year_and_address_bounds_have_associated_browser_errors(
     page.route(pattern, psi_handler)
     _open(page, fixture_origin, "jobs")
     page.get_by_role("button", name="Start update Example property records update").click()
-    page.locator("#scope-profile").select_option("showcase")
-    first_year = page.locator("#psi-start-year")
-    last_year = page.locator("#psi-end-year")
-    expect(first_year).to_be_visible()
-    first_year.fill("2026")
-    last_year.fill("2025")
-    page.locator("#action-confirm").click()
-    expect(page.locator("#action-error")).to_contain_text("Please correct Last annual archive")
-    expect(last_year).to_have_attribute("aria-describedby", "psi-end-year-error")
-    last_year.fill("2026")
-    expect(page.locator("#psi-end-year-error")).to_have_count(0)
-    expect(last_year).not_to_have_attribute("aria-invalid", "true")
-    expect(page.locator("#action-error")).to_be_empty()
-    page.keyboard.press("Escape")
-    expect(page.locator("#discard-dialog")).to_be_visible()
-    page.locator("#discard-confirm").click()
+    expect(page.locator("#scope-profile")).to_have_count(0)
+    expect(page.locator("#psi-start-year")).to_have_count(0)
+    expect(page.locator("#psi-end-year")).to_have_count(0)
+    page.get_by_role("button", name="Go back").click()
     expect(page.locator("#action-dialog")).not_to_be_visible()
     page.unroute(pattern, psi_handler)
 
@@ -716,17 +695,8 @@ def test_planner_year_and_address_bounds_have_associated_browser_errors(
     page.route(pattern, gnaf_handler)
     _open(page, fixture_origin, "jobs")
     page.get_by_role("button", name="Start update Example property records update").click()
-    page.locator("#scope-profile").select_option("showcase")
-    maximum = page.locator("#maximum-records")
-    expect(maximum).to_be_visible()
-    maximum.fill("1001")
-    page.locator("#action-confirm").click()
-    expect(page.locator("#action-error")).to_contain_text("Please correct Maximum addresses")
-    expect(maximum).to_have_attribute("aria-describedby", "maximum-records-error")
-    maximum.fill("1000")
-    expect(page.locator("#maximum-records-error")).to_have_count(0)
-    expect(maximum).not_to_have_attribute("aria-invalid", "true")
-    expect(page.locator("#action-error")).to_be_empty()
+    expect(page.locator("#scope-profile")).to_have_count(0)
+    expect(page.locator("#maximum-records")).to_have_count(0)
 
 
 def test_complete_official_profile_is_default_without_visible_row_cap(
@@ -759,11 +729,13 @@ def test_complete_official_profile_is_default_without_visible_row_cap(
     _open(page, fixture_origin, "jobs")
     page.get_by_role("button", name="Start update Example property records update").click()
 
-    expect(page.locator("#scope-profile")).to_have_value("full-data")
-    expect(page.locator("#maximum-records")).to_be_hidden()
-    expect(page.get_by_text("Capacity safeguards fail the update", exact=False)).to_be_visible()
+    expect(page.locator("#scope-profile")).to_have_count(0)
+    expect(page.locator("#maximum-records")).to_have_count(0)
+    expect(page.get_by_text("imports every record available", exact=False)).to_be_visible()
     page.get_by_role("button", name="Preview update").click()
-    expect(page.get_by_text("Complete official dataset", exact=False)).to_be_visible()
+    expect(
+        page.get_by_text("Complete dataset: all available source records", exact=False)
+    ).to_be_visible()
 
     assert observed_plans
     scope = observed_plans[-1]["scope"]

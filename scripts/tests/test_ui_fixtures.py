@@ -165,7 +165,6 @@ def test_fixture_payload_is_stable_and_uses_contract_envelopes() -> None:
         "profile_key",
         "dataset_id",
         "target_feature",
-        "max_rows",
         "status",
         "version",
     } <= set(first.body["items"][0])
@@ -399,14 +398,12 @@ def test_capabilities_plan_manifest_and_release_inspection_match_production_shap
         "cached_source_years",
         "cached_source_weeks",
         "catalogued_profiles",
-        "showcase_available",
     }
     assert set(capabilities.body) == {
         "job_id",
         "profile_key",
         "refresh_strategy",
         "supported_modes",
-        "limits",
         "registered",
     }
     assert set(plan.body) == {
@@ -417,7 +414,6 @@ def test_capabilities_plan_manifest_and_release_inspection_match_production_shap
         "network_required",
         "source_cache_required",
         "tasks",
-        "hard_limits",
         "accepted_watermark_unchanged_until_publication",
     }
     assert [task["stage"] for task in plan.body["tasks"]] == [

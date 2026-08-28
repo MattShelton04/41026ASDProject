@@ -771,15 +771,14 @@ def validate_release_job(
         raise ConfigurationError("source redistribution policy is unsafe or unknown")
     if source.redistribution_policy not in spec.redistribution_policies:
         raise ConfigurationError("source redistribution policy does not match the release builder")
-    for scope_name, scope in profile.scope_profiles.items():
-        product_scope = scope.get("release_scope", scope)
-        if not isinstance(product_scope, dict):
-            raise ConfigurationError(f"job scope {scope_name} has an invalid release scope")
-        maximum = product_scope.get("maximum_records")
-        if maximum is None or not isinstance(maximum, int) or maximum < 1:
-            raise ConfigurationError(f"job scope {scope_name} is not explicitly row bounded")
-        if maximum > spec.max_rows:
-            raise ConfigurationError(f"job scope {scope_name} exceeds the release row bound")
+    product_scope = profile.scope.get("release_scope", profile.scope)
+    if not isinstance(product_scope, dict):
+        raise ConfigurationError("job has an invalid release scope")
+    maximum = product_scope.get("maximum_records")
+    if maximum is not None and (not isinstance(maximum, int) or maximum < 1):
+        raise ConfigurationError("job release scope has an invalid row projection")
+    if isinstance(maximum, int) and maximum > spec.max_rows:
+        raise ConfigurationError("job release scope exceeds the release row projection")
 
 
 def validate_product_record(schema_version: str, payload: Mapping[str, Any]) -> None:
@@ -889,7 +888,7 @@ def data_product_catalogue(feature_root: Path) -> tuple[DataProductCatalogueEntr
                 product_schema_version=job.target.contract,
                 builder_key=builder.spec.key,
                 builder_version=builder.spec.version,
-                supported_scope_profiles=tuple(sorted(job.scope_profiles)),
+                supported_scope_profiles=("full-data",),
                 redistribution_decision=source.redistribution_policy,
                 download_permitted=source.redistribution_policy in PUBLIC_REDISTRIBUTION_POLICIES,
                 capability_state=source.catalogue_status,

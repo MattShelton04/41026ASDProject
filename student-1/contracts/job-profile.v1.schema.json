@@ -4,7 +4,7 @@
   "title": "PropertyScope registered job profile v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "key", "version", "display_name", "source_key", "adapter", "refresh_strategy", "supported_modes", "release_builder", "import_profile", "target", "scope_profiles", "quality_policy", "limits", "publication"],
+  "required": ["schema_version", "key", "version", "display_name", "source_key", "adapter", "refresh_strategy", "supported_modes", "release_builder", "import_profile", "target", "scope", "quality_policy", "publication"],
   "properties": {
     "schema_version": {"const": "propertyscope.job-profile.v1"},
     "key": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
@@ -17,9 +17,21 @@
     "release_builder": {"$ref": "#/$defs/versionedKey"},
     "import_profile": {"$ref": "#/$defs/versionedKey"},
     "target": {"type": "object", "additionalProperties": false, "required": ["feature", "contract"], "properties": {"feature": {"type": "string"}, "contract": {"type": "string"}}},
-    "scope_profiles": {"type": "object", "minProperties": 1, "maxProperties": 20, "additionalProperties": {"type": "object"}},
+    "scope": {
+      "type": "object",
+      "required": ["profile", "all_records"],
+      "properties": {
+        "profile": {"const": "full-data"},
+        "all_records": {"const": true},
+        "geography_kinds": {"type": "array", "items": {"enum": ["postcode", "suburb"]}, "uniqueItems": true},
+        "state": {"const": "NSW"},
+        "all_history": {"const": true},
+        "include_current_weekly": {"const": true},
+        "release_scope": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
     "quality_policy": {"type": "string"},
-    "limits": {"type": "object", "additionalProperties": false, "required": ["max_objects", "max_bytes", "max_rows", "deadline_seconds", "max_parallelism"], "properties": {"max_objects": {"type": "integer", "minimum": 1}, "max_bytes": {"type": "integer", "minimum": 1}, "max_rows": {"type": "integer", "minimum": 1}, "deadline_seconds": {"type": "integer", "minimum": 1}, "max_parallelism": {"type": "integer", "minimum": 1, "maximum": 16}}},
     "publication": {"const": "human_review"}
   },
   "$defs": {"versionedKey": {"type": "object", "additionalProperties": false, "required": ["key", "version"], "properties": {"key": {"type": "string"}, "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"}}}}

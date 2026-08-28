@@ -113,12 +113,6 @@ def _data_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         "collect", help="Plan, queue, and optionally wait for a registered acquisition"
     )
     collect.add_argument("job", choices=COLLECTION_JOBS)
-    collect.add_argument(
-        "--profile",
-        choices=("test", "showcase", "full-data"),
-        default=None,
-        help="Acquisition size (default: full-data for official sources; showcase for fixtures)",
-    )
     collect.add_argument("--wait", action=argparse.BooleanOptionalAction, default=True)
     collect.add_argument("--timeout", type=int, default=900)
     collect.add_argument("--base-url", default=PROPERTYSCOPE_API_URL)

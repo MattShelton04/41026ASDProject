@@ -105,8 +105,8 @@ def parse_psi_archive(
     *,
     source_year: int,
     maximum_records: int | None = None,
-    maximum_members: int = 100_000,
-    maximum_uncompressed_bytes: int = 750_000_000,
+    maximum_members: int | None = None,
+    maximum_uncompressed_bytes: int | None = None,
 ) -> tuple[PsiSale, ...]:
     """Parse a registered annual PSI archive across its historical format eras."""
     if maximum_records is not None and maximum_records < 1:
@@ -127,8 +127,8 @@ def iter_psi_archive(
     *,
     source_year: int,
     maximum_records: int | None = None,
-    maximum_members: int = 100_000,
-    maximum_uncompressed_bytes: int = 750_000_000,
+    maximum_members: int | None = None,
+    maximum_uncompressed_bytes: int | None = None,
 ) -> Iterator[PsiSale]:
     """Yield every unique sale in an annual or standalone weekly PSI archive.
 
@@ -155,10 +155,10 @@ def parse_psi_archive_path(
     *,
     source_year: int,
     maximum_records: int | None = None,
-    maximum_members: int = 100_000,
-    maximum_uncompressed_bytes: int = 750_000_000,
+    maximum_members: int | None = None,
+    maximum_uncompressed_bytes: int | None = None,
 ) -> tuple[PsiSale, ...]:
-    """Parse a bounded PSI archive from disk without materialising the ZIP in memory."""
+    """Parse a PSI archive from disk without materialising the ZIP in memory."""
     return tuple(
         iter_psi_archive_path(
             path,
@@ -175,10 +175,10 @@ def iter_psi_archive_path(
     *,
     source_year: int,
     maximum_records: int | None = None,
-    maximum_members: int = 100_000,
-    maximum_uncompressed_bytes: int = 750_000_000,
+    maximum_members: int | None = None,
+    maximum_uncompressed_bytes: int | None = None,
 ) -> Iterator[PsiSale]:
-    """Yield PSI sales from a filesystem archive using bounded streaming reads."""
+    """Yield every PSI sale from a filesystem archive using streaming reads."""
     if maximum_records is not None and maximum_records < 1:
         raise ValueError("PSI maximum_records must be positive")
     try:
@@ -199,8 +199,8 @@ def _iter_psi_zip(
     *,
     source_year: int,
     maximum_records: int | None,
-    maximum_members: int,
-    maximum_uncompressed_bytes: int,
+    maximum_members: int | None,
+    maximum_uncompressed_bytes: int | None,
 ) -> Iterator[PsiSale]:
     seen: set[tuple[str, str]] = set()
     yielded = 0
@@ -237,7 +237,7 @@ def _sale_fingerprint(sale: PsiSale) -> str:
 
 
 def _source_b_records(
-    archive: ZipFile, *, maximum_members: int, maximum_uncompressed_bytes: int
+    archive: ZipFile, *, maximum_members: int | None, maximum_uncompressed_bytes: int | None
 ) -> Iterator[tuple[str, ...]]:
     members = [item for item in archive.infolist() if not item.is_dir()]
     if not members:
@@ -248,15 +248,15 @@ def _source_b_records(
 
 @dataclass(slots=True)
 class _ArchiveBudget:
-    maximum_members: int
-    maximum_uncompressed_bytes: int
+    maximum_members: int | None
+    maximum_uncompressed_bytes: int | None
     members: int = 0
     uncompressed_bytes: int = 0
 
     def register(self, members: list[ZipInfo]) -> None:
         """Consume one global member/expanded-byte budget across nested archives."""
         self.members += len(members)
-        if self.members > self.maximum_members:
+        if self.maximum_members is not None and self.members > self.maximum_members:
             raise ValueError("PSI archive member count is outside the registered limit")
         for member in members:
             parts = member.filename.replace("\\", "/").split("/")
@@ -265,11 +265,17 @@ class _ArchiveBudget:
             if member.filename.lower().endswith(".zip"):
                 # The nested ZIP bytes are a container, not expanded source data. Bound
                 # each container while counting its leaf members against the global budget.
-                if member.file_size > self.maximum_uncompressed_bytes:
+                if (
+                    self.maximum_uncompressed_bytes is not None
+                    and member.file_size > self.maximum_uncompressed_bytes
+                ):
                     raise ValueError("PSI nested ZIP exceeds the container byte limit")
                 continue
             self.uncompressed_bytes += member.file_size
-            if self.uncompressed_bytes > self.maximum_uncompressed_bytes:
+            if (
+                self.maximum_uncompressed_bytes is not None
+                and self.uncompressed_bytes > self.maximum_uncompressed_bytes
+            ):
                 raise ValueError("PSI archive exceeds the uncompressed byte limit")
 
 

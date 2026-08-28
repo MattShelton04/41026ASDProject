@@ -23,9 +23,17 @@ def test_run_request_rejects_network_for_cached_reprocess() -> None:
     with pytest.raises(ValidationError, match="cannot force reacquisition"):
         RunRequest(
             mode=RunMode.REPROCESS_CACHED,
-            scope_profile="showcase",
             idempotency_key="cached-run-001",
             force_reacquire=True,
+        )
+
+
+def test_run_request_rejects_partial_scope() -> None:
+    with pytest.raises(ValidationError, match="complete registered source"):
+        RunRequest(
+            mode=RunMode.FULL_REFRESH,
+            scope={"profile": "showcase"},
+            idempotency_key="partial-run-001",
         )
 
 
