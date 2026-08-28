@@ -1204,6 +1204,8 @@ class PropertyScopeStore:
         )
         if context["dataset_id"] != "nsw-psi-sales" or context["import_profile_key"] != "psi-sales":
             raise ConflictError("release does not contain PSI sales source records")
+        if context["schema_version"] != "propertyscope.property-sales.v2":
+            raise ConflictError("sales source records require the current v2 sales contract")
         if context["status"] not in {"accepted", "superseded"}:
             raise ConflictError("sales source records require an accepted immutable generation")
         select_sql = """SELECT source_business_key,source_revision,source_era,

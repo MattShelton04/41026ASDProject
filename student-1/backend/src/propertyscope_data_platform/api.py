@@ -291,7 +291,14 @@ def create_blueprint(
             )
             if accepted_response.status_code >= 400:
                 return forward(accepted_response)
-            accepted = next(iter(accepted_response.json().get("items", [])), None)
+            accepted = next(
+                (
+                    item
+                    for item in accepted_response.json().get("items", [])
+                    if item.get("schema_version") == entry.product_schema_version
+                ),
+                None,
+            )
             if accepted is None:
                 return problem(
                     404, "accepted_release_not_found", "No accepted release is available"

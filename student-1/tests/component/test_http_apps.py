@@ -116,7 +116,17 @@ def test_backend_exposes_complete_sales_source_pages_from_accepted_generation() 
         if request.url.path == "/internal/data-platform/v1/releases":
             assert request.url.params["status"] == "accepted"
             assert request.url.params["dataset_id"] == "nsw-psi-sales"
-            return httpx.Response(200, json={"items": [{"id": release_id}]})
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": release_id,
+                            "schema_version": "propertyscope.property-sales.v2",
+                        }
+                    ]
+                },
+            )
         assert request.url.path == (
             f"/internal/data-platform/v1/releases/{release_id}/sales-source-records"
         )
