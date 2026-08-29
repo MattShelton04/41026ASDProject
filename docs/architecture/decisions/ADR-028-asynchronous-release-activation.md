@@ -34,6 +34,10 @@ and write-amplification failure.
 - The existing serial credential-owning database loader claims activations with a renewable lease.
   Lease loss cancels the PostgreSQL connection; an interrupted or expired operation can be claimed
   again, with a maximum of three attempts.
+- After claiming, the loader (the artifact-volume owner) streams the release export once to verify
+  physical existence, exact bytes and SHA-256 against the durable artifact ledger while its lease
+  heartbeat continues. Missing or corrupt content fails the activation before materialisation and
+  cannot change the accepted pointer.
 - A source-scale warehouse/index transaction never updates the leased activation row. It commits
   first, then a separate short transaction records `materialized_at`, allowing heartbeats to renew
   throughout the long statement. A crash between those commits is recovered by the idempotent
@@ -58,10 +62,11 @@ and write-amplification failure.
 
 ## Consequences
 
-Publication requests are bounded by artifact verification and queue persistence. Loader restart or
-connection loss cannot expose a half-accepted generation. A successful pointer switch is small and
-idempotent, while the accepted warehouse generation remains the single source of canonical address
-fields.
+Publication requests are bounded by metadata-binding checks and queue persistence. Physical export
+verification and source-scale preparation run asynchronously under the loader lease. Loader restart,
+missing content, corruption or connection loss cannot expose a half-accepted generation. A
+successful pointer switch is small and idempotent, while the accepted warehouse generation remains
+the single source of canonical address fields.
 
 The G-NAF search indexes add durable storage and index-maintenance cost to candidate imports. This
 is bounded and observable, unlike repeated table rewrites, but retention/partitioning should be

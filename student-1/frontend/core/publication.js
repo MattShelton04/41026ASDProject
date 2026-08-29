@@ -23,7 +23,9 @@ export function createPublicationAttemptKeys(generateKey) {
 
 export function reconcilePublication(body) {
   const release = body?.release || body?.item || {};
-  const activations = Array.isArray(body?.activations) ? body.activations : [];
+  const activations = Array.isArray(body?.activations)
+    ? body.activations
+    : (body?.activation ? [body.activation] : []);
   if (release.status === "accepted" || activations.some((item) => item.status === "succeeded")) {
     return "completed";
   }

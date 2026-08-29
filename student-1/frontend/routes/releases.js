@@ -2,7 +2,8 @@ import { collection, entity, newRequestId, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=18";
 import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js?v=18";
-import { createPublicationAttemptKeys, reconcilePublication } from "../core/publication.js";
+import { createPublicationAttemptKeys } from "../core/publication.js?v=2";
+import { publicationSuccessMessage, reconcilePublicationTimeout } from "./release-publication.js?v=2";
 import { runDialogForm } from "../components/dialogs.js?v=18";
 import { formField, filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
@@ -73,33 +74,22 @@ export function createReleaseRoutes({
   async function publishReviewedRelease(release, comment) {
     const key = publicationKeys.acquire(release);
     try {
-      const result = await mutate(`dataset-releases/${release.id}/publish`, {
+      const { body, requestId } = await request(`dataset-releases/${release.id}/publish`, {
+        method: "POST",
         body: { approved: true, version: release.version, comment },
-        success: "Publication requested",
-        idempotencyKey: key.value,
+        headers: { "Idempotency-Key": key.value },
       });
+      showToast(`${publicationSuccessMessage(body)}. Request ID ${requestId}`);
       publicationKeys.clear(key.identity);
-      return result;
+      return body;
     } catch (error) {
       if (error?.status !== 0 || !String(error?.message || "").includes("timed out")) {
         publicationKeys.clear(key.identity);
         throw error;
       }
-      try {
-        const { body, requestId } = await request(`dataset-releases/${release.id}`);
-        const outcome = reconcilePublication(body);
-        if (["completed", "pending"].includes(outcome)) {
-          publicationKeys.clear(key.identity);
-          const progress = outcome === "completed" ? "completed" : "continues in the database loader";
-          showToast(`Publication ${progress}. Request ID ${requestId}`);
-          return body;
-        }
-        if (outcome === "failed") publicationKeys.clear(key.identity);
-      } catch (reconciliationError) {
-        if (reconciliationError?.status !== 0) throw reconciliationError;
-      }
-      error.message = `${error.message} Its outcome is not known yet; retrying will reuse the same publication key.`;
-      throw error;
+      return reconcilePublicationTimeout({
+        release, request, publicationKeys, key, showToast, timeoutError: error,
+      });
     }
   }
 

@@ -37,6 +37,9 @@ warehouse generation exceeded the old projection bound. That did not meet the pr
   content-addressed export. The interactive request checks the registered manifest, checksum,
   byte count, schema, release identity and storage key, then returns after queueing; it does not
   repeat the complete stream validation synchronously.
+- Before materialisation, the artifact-volume-owning loader streams the queued export to recheck
+  physical existence, exact bytes and SHA-256 against that durable ledger evidence. The activation
+  lease heartbeat remains active during the scan; failure leaves the accepted pointer unchanged.
 - The durable timeline is simplified to Discover, Acquire, Import, and Build release. Canonical
   verification, COPY, candidate insertion and import quality are observable subphases of Import;
   they are not instant placeholder stages.

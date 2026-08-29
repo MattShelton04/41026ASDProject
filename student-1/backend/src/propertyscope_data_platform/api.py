@@ -1619,26 +1619,29 @@ def complete_publication(
     )
     if queued.status_code >= 400:
         return forward(queued)
-    activation = queued.json()["activation"]
+    activation_envelope = queued.json()
+    activation = activation_envelope["activation"]
+    completed = activation_envelope.get("outcome") == "completed"
     if tool_output:
         response = jsonify(
             {
-                "status": "pending",
+                "status": "accepted" if completed else "pending",
                 "receipt_id": receipt["id"],
                 "replayed": replayed,
             }
         )
-        response.status_code = 202
+        response.status_code = 200 if completed else 202
         return response
     response = jsonify(
         {
             "release": release,
             "receipt": public_receipt(receipt),
             "activation": public_activation(activation),
+            "publication_status": "completed" if completed else "pending",
             "replayed": replayed,
         }
     )
-    response.status_code = 202
+    response.status_code = 200 if completed else 202
     return response
 
 

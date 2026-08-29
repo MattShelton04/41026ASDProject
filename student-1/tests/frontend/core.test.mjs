@@ -57,6 +57,10 @@ import {
   createPublicationAttemptKeys,
   reconcilePublication,
 } from "../../frontend/core/publication.js";
+import {
+  publicationSuccessMessage,
+  reconcilePublicationTimeout,
+} from "../../frontend/routes/release-publication.js";
 
 function response(body, { status = 200, headers = {} } = {}) {
   return {
@@ -93,6 +97,56 @@ test("publication timeout reconciliation distinguishes durable progress from fai
   assert.equal(reconcilePublication({ release: { status: "awaiting_review" }, activations: [{ status: "running" }] }), "pending");
   assert.equal(reconcilePublication({ release: { status: "awaiting_review" }, activations: [{ status: "failed" }] }), "failed");
   assert.equal(reconcilePublication({ release: { status: "awaiting_review" }, activations: [] }), "unknown");
+});
+
+test("publication response messaging distinguishes completed from queued work", () => {
+  assert.equal(
+    publicationSuccessMessage({
+      publication_status: "completed",
+      activation: { status: "succeeded" },
+    }),
+    "Publication completed",
+  );
+  assert.equal(
+    publicationSuccessMessage({
+      publication_status: "pending",
+      activation: { status: "queued" },
+    }),
+    "Publication requested",
+  );
+  assert.throws(
+    () => publicationSuccessMessage({ activation: { status: "failed" } }),
+    /fresh retry is safe/,
+  );
+});
+
+test("failed publication timeout reconciliation permits a fresh retry", async () => {
+  const cleared = [];
+  const timeoutError = Object.assign(new Error("The request timed out after 10 seconds."), {
+    status: 0,
+  });
+
+  await assert.rejects(
+    reconcilePublicationTimeout({
+      release: { id: "release-1", version: 4 },
+      request: async () => ({
+        body: {
+          release: { status: "awaiting_review" },
+          activations: [{ status: "failed" }],
+        },
+        requestId: "reconcile-request",
+      }),
+      publicationKeys: { clear: (identity) => cleared.push(identity) },
+      key: { identity: "release-1:v4", value: "publish-release-1:v4-request-1" },
+      showToast: () => assert.fail("failed publication must not show a success toast"),
+      timeoutError,
+    }),
+    (error) => error === timeoutError
+      && /Background publication failed/.test(error.message)
+      && /fresh retry is safe/.test(error.message)
+      && !/outcome is not known/.test(error.message),
+  );
+  assert.deepEqual(cleared, ["release-1:v4"]);
 });
 
 test("requestJson adds correlation and idempotency-compatible JSON headers", async () => {
@@ -187,7 +241,23 @@ test("Feature 1 assistant cache versions load its adapter and shared graph atomi
   assert.match(route, /ai-chat\/index\.js\?v=3/);
   assert.match(route, /integration\/assistant\.js\?v=2/);
   assert.match(app, /routes\/assistant\.js\?v=3/);
-  assert.match(html, /app\.js\?v=39/);
+  assert.match(html, /app\.js\?v=41/);
+});
+
+test("release publication timeout fixes load through one versioned module graph", async () => {
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  const route = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
+  const helper = await readFile(
+    new URL("../../frontend/routes/release-publication.js", import.meta.url),
+    "utf8",
+  );
+  const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
+
+  assert.match(html, /app\.js\?v=41/);
+  assert.match(app, /routes\/releases\.js\?v=23/);
+  assert.match(route, /core\/publication\.js\?v=2/);
+  assert.match(route, /release-publication\.js\?v=2/);
+  assert.match(helper, /core\/publication\.js\?v=2/);
 });
 
 test("JSON form fields reject arrays and invalid input", () => {

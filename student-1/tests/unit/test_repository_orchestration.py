@@ -9,6 +9,7 @@ from typing import Any, cast
 
 import pytest
 from flask import Flask
+from psycopg import errors
 
 from propertyscope_data_store.api import create_blueprint, register_error_handlers
 from propertyscope_data_store.errors import ConflictError, ValidationError
@@ -1309,6 +1310,118 @@ def test_activation_queue_coalesces_a_second_nonterminal_release_version() -> No
     assert created is False
     assert operation["id"] == str(existing_id)
     assert not any("INSERT INTO ops.release_activation" in query for query in connection.queries)
+
+
+def test_activation_queue_recovers_winner_that_terminalises_after_unique_race() -> None:
+    release_id = uuid.uuid4()
+    receipt_id = uuid.uuid4()
+    winner_id = uuid.uuid4()
+    evidence = {
+        "id": release_id,
+        "status": "awaiting_review",
+        "version": 4,
+        "schema_version": "propertyscope.property-snapshot.v1",
+        "content_sha256": "a" * 64,
+        "record_count": 5_190_134,
+        "receipt_id": receipt_id,
+        "receipt_status": "accepted",
+        "receipt_schema_version": "propertyscope.property-snapshot.v1",
+        "receipt_content_sha256": "a" * 64,
+        "rows_received": 5_190_134,
+        "rows_accepted": 5_190_134,
+        "rows_rejected": 0,
+    }
+    winner = {
+        "id": winner_id,
+        "dataset_release_id": release_id,
+        "publication_receipt_id": receipt_id,
+        "expected_release_version": 4,
+        "review_comment": "Competing review",
+        "status": "succeeded",
+        "idempotency_key": "competing-request",
+    }
+
+    class UniqueRaceConnection(ScriptedConnection):
+        def execute(
+            self, query: str, parameters: Sequence[object] | None = None
+        ) -> ScriptedConnection:
+            if "INSERT INTO ops.release_activation" in query:
+                self.queries.append(" ".join(query.split()))
+                self.parameters.append(parameters)
+                raise errors.UniqueViolation("competing activation")
+            return super().execute(query, parameters)
+
+    connection = UniqueRaceConnection([None, evidence, {"count": 0}, None, None, winner])
+
+    operation, created = ConnectedStore(connection).create_release_activation(
+        release_id,
+        {
+            "publication_receipt_id": receipt_id,
+            "expected_release_version": 4,
+            "comment": "Repeated review",
+            "idempotency_key": "retry-after-race",
+        },
+    )
+
+    assert created is False
+    assert operation["id"] == str(winner_id)
+    assert operation["status"] == "succeeded"
+    fallback = connection.queries[-1]
+    assert "status IN" not in fallback
+    assert "ORDER BY requested_at DESC LIMIT 1" in fallback
+
+
+@pytest.mark.parametrize(
+    ("activation_status", "expected_http", "expected_outcome"),
+    [
+        ("queued", 202, "pending"),
+        ("running", 202, "pending"),
+        ("succeeded", 200, "completed"),
+        ("failed", 409, None),
+    ],
+)
+def test_activation_api_distinguishes_active_and_terminal_outcomes(
+    activation_status: str,
+    expected_http: int,
+    expected_outcome: str | None,
+) -> None:
+    release_id = uuid.uuid4()
+    operation_id = uuid.uuid4()
+
+    class ActivationApiStore:
+        def create_release_activation(
+            self, requested_release_id: uuid.UUID, values: Mapping[str, Any]
+        ) -> tuple[dict[str, Any], bool]:
+            assert requested_release_id == release_id
+            assert values["idempotency_key"] == "publication-key"
+            return {"id": operation_id, "status": activation_status}, False
+
+    app = Flask(__name__)
+    app.register_blueprint(
+        create_blueprint(cast(PropertyScopeStore, ActivationApiStore()), internal_token="secret")
+    )
+    register_error_handlers(app)
+
+    response = app.test_client().post(
+        f"/internal/data-platform/v1/releases/{release_id}/activations",
+        headers={"X-PropertyScope-Internal-Token": "secret"},
+        json={
+            "publication_receipt_id": str(uuid.uuid4()),
+            "expected_release_version": 4,
+            "comment": "Reviewed",
+            "idempotency_key": "publication-key",
+        },
+    )
+
+    assert response.status_code == expected_http
+    body = response.get_json()
+    if activation_status == "failed":
+        assert response.content_type == "application/problem+json"
+        assert body["code"] == "release_activation_failed"
+        assert "fresh request" in body["detail"]
+    else:
+        assert body["outcome"] == expected_outcome
+        assert body["activation"]["status"] == activation_status
 
 
 def test_activation_claim_recovers_expired_lease_with_bounded_attempts() -> None:

@@ -350,7 +350,22 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
                 "idempotency_key": required_text(body, "idempotency_key"),
             },
         )
-        return jsonify({"activation": operation, "created": created}), 202
+        status = str(operation["status"])
+        if status == "failed":
+            return (
+                problem(
+                    409,
+                    "release_activation_failed",
+                    "The publication activation failed before the live version changed; "
+                    "a fresh request can retry it",
+                ),
+                409,
+            )
+        outcome = "completed" if status == "succeeded" else "pending"
+        response_status = 200 if outcome == "completed" else 202
+        return jsonify(
+            {"activation": operation, "created": created, "outcome": outcome}
+        ), response_status
 
     @api.get("/internal/data-platform/v1/activations/<uuid:operation_id>")
     def activation_get(operation_id: uuid.UUID) -> Response:

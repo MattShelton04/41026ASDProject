@@ -17,9 +17,15 @@ Feature 1's own complete artifact was schema-validated and content-hashed while 
 publish request checks that immutable artifact's durable binding and queues the activation; it does
 not rescan the complete gzip stream. Browser retries retain the same request key while the outcome
 is unknown, and the database coalesces another request for the same nonterminal release/version.
+The loader then streams the physical export to recheck its registered byte size and SHA-256 while
+renewing the activation lease. Missing or corrupt bytes fail before warehouse materialisation or the
+accepted-pointer transaction.
 
 The current accepted generation remains visible during every long-running step. A browser timeout
 must not be treated as publication success; inspect the release activation instead.
+Activation submission returns `202` only for queued or recoverable work, `200` when a competing
+activation already completed, and a structured `409 release_activation_failed` when the durable
+winner failed. The browser clears the attempt key after that known failure so a fresh retry is safe.
 
 ## Safe service recovery
 

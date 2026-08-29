@@ -1567,8 +1567,7 @@ class PropertyScopeStore:
                     raced = self._required(
                         """SELECT * FROM ops.release_activation
                         WHERE dataset_release_id=%s AND expected_release_version=%s
-                          AND status IN ('queued','claimed','running','interrupted')
-                        ORDER BY requested_at LIMIT 1""",
+                        ORDER BY requested_at DESC LIMIT 1""",
                         (release_id, expected_version),
                     )
                     return raced, False
