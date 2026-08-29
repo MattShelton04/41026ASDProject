@@ -950,7 +950,10 @@ def test_run_poll_keeps_cached_supporting_evidence_disclosure_focus_and_scroll(
             route.continue_()
 
     page.route("**/api/data-platform/v1/ingestion-runs/**", run_feeds)
-    page.route("**/api/data-platform/v1/dataset-releases?limit=100", release_feed)
+    page.route(
+        f"**/api/data-platform/v1/dataset-releases?ingestion_run_id={RUN_ID}&limit=100",
+        release_feed,
+    )
     _open(page, fixture_origin, f"runs/{RUN_ID}")
     expect(page.locator(".timeline li").first).to_be_visible()
     technical_summary = page.locator("details.technical > summary").last
