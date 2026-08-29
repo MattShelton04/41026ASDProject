@@ -10,10 +10,12 @@ export {
   assistantStatus,
   defaultSuggestions,
   findAssistantScope,
+  normalizeAssistantContexts,
   normalizeAssistantScopes,
 } from "./definitions.js";
 export {
   answerSections,
+  completedTurnHistory,
   evidenceSteps,
   formatAssistantDate,
   humaniseAssistantValue,

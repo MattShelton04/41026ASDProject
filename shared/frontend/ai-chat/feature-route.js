@@ -41,6 +41,7 @@ export function createFeatureAssistant({
   scopes,
   suggestions,
   context = {},
+  contextOptions = [],
   initialScope = "feature",
   fetcher = globalThis.fetch?.bind(globalThis),
   announce = () => {},
@@ -62,6 +63,7 @@ export function createFeatureAssistant({
     client,
     initialScope,
     context,
+    contextOptions,
     activityHref: featureActivityHref({
       featureKey,
       featureLabel,

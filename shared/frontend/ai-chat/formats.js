@@ -50,6 +50,34 @@ export function answerSections(result) {
   return sections.slice(0, 8);
 }
 
+/**
+ * Project completed visible answers into bounded conversational context.
+ * The backend validates the same envelope; this browser bound keeps accidental
+ * transcript growth out of each new durable run request.
+ */
+export function completedTurnHistory(turns = [], { maxMessages = 8 } = {}) {
+  const messages = [];
+  for (const turn of turns) {
+    if (String(turn?.run?.status || "").toLowerCase() !== "succeeded") continue;
+    const sections = answerSections(turn.run?.final_result);
+    if (!sections.length) continue;
+    const user = String(turn.message || "").trim().slice(0, 2_000);
+    const assistant = sections
+      .map((section) => `${section.label}: ${section.values.join("; ")}`)
+      .join("\n")
+      .trim()
+      .slice(0, 2_000);
+    if (!user || !assistant) continue;
+    messages.push({ role: "user", content: user }, { role: "assistant", content: assistant });
+  }
+  const bounded = Math.max(0, Math.min(8, Number(maxMessages) || 0));
+  const evenBound = bounded - (bounded % 2);
+  if (!evenBound) return [];
+  const selected = messages.slice(-evenBound);
+  const perMessageLimit = Math.min(2_000, Math.floor(8_000 / selected.length));
+  return selected.map((message) => ({ ...message, content: message.content.slice(0, perMessageLimit) }));
+}
+
 export function evidenceSteps(detail, events = []) {
   const steps = Array.isArray(detail?.steps) && detail.steps.length ? detail.steps : events;
   return steps.map((step) => {

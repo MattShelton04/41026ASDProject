@@ -93,9 +93,10 @@ Open <http://localhost:5200>. The main product path is:
 
 Use **Ask about Property data** for free-form, read-only questions about the feature, its sources,
 updates, releases, coverage or accepted property evidence. This shared chat interface is separate
-from the fixed Data review flow; each message creates a durable AI-mode run and shows its evidence
-and activity link. From an update detail page, **Ask AI about update** supplies the exact run as
-validated page context, allowing the assistant to explain the current stage, durable counters,
+from the fixed Data review flow; each message creates a durable AI-mode run, shows its evidence and
+activity link, and supplies a bounded copy of completed visible exchanges to the next follow-up.
+Only one response runs at a time. From an update detail page, **Ask AI about update** supplies the
+exact run as validated page context, allowing the assistant to explain the current stage, durable counters,
 quality evidence, errors and limitations without inventing a remaining-time forecast. See
 [`docs/ui/shared-ai-chat.md`](../docs/ui/shared-ai-chat.md).
 

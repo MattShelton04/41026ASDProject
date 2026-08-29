@@ -53,7 +53,7 @@ test("feature registry is the bounded source for shell routes and availability",
 
 test("shared navigation distinguishes global destinations from research-area transitions", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  assert.match(html, /src="app\.js\?v=14"/);
+  assert.match(html, /src="app\.js\?v=15"/);
   assert.match(html, /class="area-launcher"/);
   assert.match(html, /Open research area/);
   assert.match(html, /class="rail-area-link"/);
@@ -69,7 +69,7 @@ test("shared home loads the pinned local HTMX build with a strict configuration"
   const provenance = readFileSync(new URL("./vendor/README.md", import.meta.url), "utf8");
 
   assert.match(html, /src="vendor\/htmx-2\.0\.10\.min\.js"/);
-  assert.ok(html.indexOf("htmx-2.0.10.min.js") < html.indexOf("app.js?v=14"));
+  assert.ok(html.indexOf("htmx-2.0.10.min.js") < html.indexOf("app.js?v=15"));
   assert.match(html, /"allowEval":false/);
   assert.match(html, /"allowScriptTags":false/);
   assert.doesNotMatch(html, /https?:\/\/[^"']*htmx/i);
@@ -193,6 +193,8 @@ test("the shell renders before its optional Feature 1 projection loads", () => {
   assert.match(app, /feature-1-bridge\.js\?v=12/);
   assert.ok(app.indexOf("renderRoute();") < app.indexOf("loadFeature1Bridge({ overrides: externalConfig"));
   assert.doesNotMatch(app, /await\s+loadFeature1Bridge/);
+  assert.match(app, /\["features", "system-status", "evidence"\]\.includes\(parseShellRoute\(location\.hash\)\)/);
+  assert.doesNotMatch(app, /parseShellRoute\(location\.hash\) !== "home"/);
 });
 
 test("AI activity context accepts only the bounded Feature 1 transition", () => {

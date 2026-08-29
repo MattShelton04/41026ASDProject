@@ -36,15 +36,19 @@ Shared or Feature 1 browser
   <- run snapshot + resumable cursor events
 ```
 
-The visible transcript groups independent runs for convenience. It is intentionally local to the
-open page and is not hidden server-side conversation memory. Follow-up questions must repeat or
-attach the required entity context. Every assistant message shows its state, durable run ID, full
-activity link and a collapsed source/tool record. The UI shows recorded phases and evidence—not
-private chain-of-thought.
+The visible transcript keeps each message as an independently reviewable run while supplying a
+bounded copy of completed visible exchanges to the next message. This allows follow-up questions
+without allowing an unfinished answer to race a second run. At most four prior user/assistant
+exchanges are included, and the transcript remains local to the open page rather than becoming
+hidden server-side memory. Exact entity context remains explicit and separately validated. Every
+assistant message shows its state, durable run ID, full activity link and a collapsed source/tool
+record. The UI shows recorded phases and evidence—not private chain-of-thought.
 
 Supported visible states are queued, planning, plan ready, checking a source, recording evidence,
-preparing an answer, complete, needs human review, failed and cancelled. A temporary polling error
-keeps the last recorded answer visible and retries with bounded backoff.
+preparing an answer, complete, needs human review, failed and cancelled. Active states include a
+reduced-motion-safe progress ellipsis. Polling replaces only the changing turn and preserves the
+current disclosure, focus and viewport anchor. A temporary polling error keeps the last recorded
+answer visible and retries with bounded backoff.
 
 ## Page-linked context
 
@@ -60,6 +64,11 @@ Only `route`, `release_id`, `ingestion_run_id` and `property_ref` are accepted. 
 filters them before submission and the backend validates them again. Exact identifiers are copied
 into the run objective; unknown fields and malformed UUIDs are rejected rather than passed to the
 model.
+
+When chat is opened without page context, the Property data wrapper offers a general question,
+dataset release, data update or property-record selector. Entity choices require an exact UUID and
+produce only the canonical route/parameter combinations above. Changing this selector updates the
+next turn directly; it does not navigate, refresh the route or discard the transcript.
 
 ## Current capabilities and limits
 

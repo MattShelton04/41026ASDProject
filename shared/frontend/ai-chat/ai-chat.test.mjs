@@ -4,9 +4,12 @@ import test from "node:test";
 import { createAssistantClient } from "./client.js";
 import { featureActivityHref } from "./feature-route.js";
 import {
-  assistantStatus, defaultSuggestions, findAssistantScope, normalizeAssistantScopes,
+  assistantStatus, defaultSuggestions, findAssistantScope, normalizeAssistantContexts,
+  normalizeAssistantScopes,
 } from "./definitions.js";
-import { answerSections, evidenceSteps, normalizeTurnDetail, shortRunId } from "./formats.js";
+import {
+  answerSections, completedTurnHistory, evidenceSteps, normalizeTurnDetail, shortRunId,
+} from "./formats.js";
 import { mergeAssistantEvents, nextAssistantPollDelay, restoreEventCursor } from "./polling.js";
 
 function response(body, status = 200) {
@@ -35,6 +38,39 @@ test("structured answers prefer user-facing sections and omit nested opaque stat
   });
   assert.deepEqual(sections.map((item) => item.label), ["Answer", "Key findings", "Useful next step", "Confidence"]);
   assert.equal(shortRunId("12345678-0000-0000-0000-000000000000"), "12345678…");
+});
+
+test("completed turns become bounded alternating follow-up history", () => {
+  const turns = Array.from({ length: 6 }, (_, index) => ({
+    message: `Question ${index}`,
+    run: index === 2
+      ? { status: "failed", final_result: null }
+      : { status: "succeeded", final_result: { summary: `Answer ${index}` } },
+  }));
+  const history = completedTurnHistory(turns);
+  assert.equal(history.length, 8);
+  assert.deepEqual(history.map((item) => item.role), [
+    "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant",
+  ]);
+  assert.equal(history[0].content, "Question 1");
+  assert.match(history.at(-1).content, /Answer 5/);
+  assert.deepEqual(completedTurnHistory([{ message: "Still running", run: { status: "acting" } }]), []);
+});
+
+test("context editor definitions remain injected and domain neutral", () => {
+  const contexts = normalizeAssistantContexts([
+    { id: "general", label: "General", context: {} },
+    {
+      id: "record",
+      label: "Record",
+      context: { route: "records/detail" },
+      parameter: { name: "record_id", label: "Record ID", pattern: "[a-z]+" },
+    },
+    { id: "invalid" },
+  ]);
+  assert.equal(contexts.length, 2);
+  assert.equal(contexts[1].parameter.name, "record_id");
+  assert.deepEqual(normalizeAssistantContexts(null), []);
 });
 
 test("run details and evidence normalize without a private-reasoning field", () => {
@@ -97,9 +133,15 @@ test("component source preserves disclosure/focus state and surfaces polling war
   const components = await import("node:fs").then(({ readFileSync }) => readFileSync(new URL("./components.js", import.meta.url), "utf8"));
   assert.match(source, /disclosureState/);
   assert.match(source, /transcriptFocusKey/);
+  assert.match(source, /existing\.replaceWith\(article\)/);
+  assert.doesNotMatch(source, /transcript\.replaceChildren/);
+  assert.match(source, /completedTurnHistory\(state\.turns\)/);
+  assert.match(source, /state\.turns\.some\(activeTurn\)/);
   assert.match(components, /pollWarning/);
   assert.match(components, /retry automatically/);
   assert.match(source, /turn\.run\.status !== previousStatus/);
-  assert.match(source, /turn\.cancelWarning = error;\s+renderTranscript\(\)/);
+  assert.match(source, /turn\.cancelWarning = error;\s+renderTurn\(turn\)/);
   assert.match(components, /Cancellation could not be requested/);
+  assert.match(components, /turn\.run\?\.error\?\.message/);
+  assert.match(components, /ps-ai-chat__typing-dots/);
 });
