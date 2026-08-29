@@ -52,6 +52,7 @@ from propertyscope_data_platform.release_builders import (
     data_product_catalogue,
     resolve_release_builder,
 )
+from propertyscope_data_platform.run_insight import build_run_inspection
 from propertyscope_data_platform.scope_policy import (
     psi_scope_is_cached,
     resolve_registered_scope,
@@ -1037,6 +1038,32 @@ def create_blueprint(
                 "tasks": tasks.json().get("items", []),
                 "quality_results": quality.json().get("items", []),
             }
+        )
+
+    @api.post(f"{BASE}/tools/runs.explain.v1")
+    def tool_run_explain() -> Response:
+        run_id = required_uuid(json_body(), "run_id")
+        run_response = store.request("GET", f"{INTERNAL}/runs/{run_id}", headers=request.headers)
+        if run_response.status_code >= 400:
+            return forward(run_response)
+        tasks = store.request(
+            "GET",
+            f"{INTERNAL}/runs/{run_id}/tasks",
+            headers=request.headers,
+            params={"limit": 100},
+        )
+        quality = store.request(
+            "GET",
+            f"{INTERNAL}/runs/{run_id}/quality-results",
+            headers=request.headers,
+            params={"limit": 100},
+        )
+        return jsonify(
+            build_run_inspection(
+                run_response.json()["run"],
+                tasks.json().get("items", []),
+                quality.json().get("items", []),
+            )
         )
 
     @api.post(f"{BASE}/tools/releases.inspect.v1")

@@ -35,6 +35,7 @@ def test_product_catalog_composes_scoped_tools() -> None:
         "data.runs.v1",
         "data.release_inspect.v1",
         "data.run_inspect.v1",
+        "data.run_explain.v1",
         "data.release_compare.v1",
         "data.coverage.v1",
         "property.search.v1",

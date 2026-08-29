@@ -82,6 +82,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/tools/platform.capabilities.v1",
         "/tools/runs.list.v1",
         "/tools/runs.inspect.v1",
+        "/tools/runs.explain.v1",
         "/tools/releases.inspect.v1",
         "/tools/releases.compare.v1",
         "/tools/coverage.inspect.v1",

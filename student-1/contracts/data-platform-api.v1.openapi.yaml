@@ -272,6 +272,8 @@ paths:
     post: {operationId: toolRunsList, responses: {'200': {description: Tool result}}}
   /tools/runs.inspect.v1:
     post: {operationId: toolRunsInspect, responses: {'200': {description: Tool result}}}
+  /tools/runs.explain.v1:
+    post: {operationId: toolRunsExplain, responses: {'200': {description: Bounded current run explanation evidence}}}
   /tools/releases.inspect.v1:
     post: {operationId: toolReleasesInspect, responses: {'200': {description: Tool result}}}
   /tools/releases.compare.v1:
