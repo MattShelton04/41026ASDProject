@@ -66,6 +66,28 @@ export function formatDate(value) {
   return Number.isNaN(date.valueOf()) ? String(value) : new Intl.DateTimeFormat("en-AU", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
+export function durationMilliseconds(start, end = Date.now()) {
+  if (start === null || start === undefined || start === "") return null;
+  const started = new Date(start).valueOf();
+  const finished = end instanceof Date ? end.valueOf() : new Date(end).valueOf();
+  if (!Number.isFinite(started) || !Number.isFinite(finished)) return null;
+  return Math.max(0, finished - started);
+}
+
+export function formatDuration(start, end = Date.now()) {
+  const milliseconds = durationMilliseconds(start, end);
+  if (milliseconds === null) return "Not recorded";
+  const seconds = Math.round(milliseconds / 1000);
+  if (seconds < 1) return "less than 1s";
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes < 60) return `${minutes}m ${remainingSeconds}s`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}h ${remainingMinutes}m`;
+}
+
 export function statusTone(status) {
   const value = String(status || "unknown").toLowerCase();
   if (["accepted", "succeeded", "pass", "passed", "active", "available", "supported", "complete", "completed", "healthy", "published", "observed", "confirmed", "verified", "unchanged"].includes(value)) return "positive";

@@ -17,8 +17,10 @@ import {
   createLatestRequestGuard,
   coverageRows,
   displayName,
+  durationMilliseconds,
   entity,
   formatBytes,
+  formatDuration,
   humanise,
   FieldValidationError,
   formState,
@@ -705,6 +707,10 @@ test("formatting pairs states with text and handles byte boundaries", () => {
   assert.equal(displayName("G-NAF NSW address registry"), "G-NAF NSW address registry");
   assert.equal(humanise("awaiting_review"), "Awaiting review");
   assert.equal(humanise("full_snapshot"), "Full snapshot");
+  assert.equal(durationMilliseconds("2026-08-29T00:00:00Z", "2026-08-29T00:01:05Z"), 65_000);
+  assert.equal(formatDuration("2026-08-29T00:00:00Z", "2026-08-29T00:01:05Z"), "1m 5s");
+  assert.equal(formatDuration("2026-08-29T00:00:00Z", "2026-08-29T02:03:00Z"), "2h 3m");
+  assert.equal(formatDuration(null, "2026-08-29T00:00:00Z"), "Not recorded");
 });
 
 test("release comparison keeps candidate and accepted evidence visibly distinct", () => {

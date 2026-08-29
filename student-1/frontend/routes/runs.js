@@ -1,6 +1,6 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, formatDate, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=18";
+import { displayName, durationMilliseconds, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=18";
 import { actionAvailability, createLatestRequestGuard, nextPollDelay, retainRecent } from "../core/polling.js?v=18";
 import { parseRoute, routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js?v=17";
@@ -21,9 +21,42 @@ function runTimeline(tasks, { available = true } = {}) {
     const marker = el("span", `timeline-marker ${tone}`, stateLabel(task.status).symbol);
     const detail = el("div");
     const durableRows = Math.max(Number(task.rows_out || 0), Number(task.progress_rows || 0));
-    const total = task.progress_total_rows == null ? "total unknown" : `${formatNumber(task.progress_total_rows)} total`;
     const phase = task.progress_phase ? ` · ${task.progress_phase}` : "";
-    append(detail, el("h3", "", `${humanise(task.stage)} · ${task.logical_key || "Task"}`), el("p", "", `${humanise(task.status)}${phase} · attempt ${task.attempt_number ?? 1} · ${formatNumber(durableRows)} rows · ${total}`));
+    const finished = task.finished_at || Date.now();
+    const elapsed = task.started_at ? formatDuration(task.started_at, finished) : "not started";
+    const rowTotal = task.progress_total_rows == null ? null : Number(task.progress_total_rows);
+    const byteTotal = task.progress_total_bytes == null ? null : Number(task.progress_total_bytes);
+    const usesRows = Number.isFinite(rowTotal) && rowTotal > 0;
+    const processed = usesRows ? durableRows : Number(task.progress_bytes || 0);
+    const total = usesRows ? rowTotal : byteTotal;
+    const unitProgress = usesRows
+      ? `${formatNumber(processed)} of ${formatNumber(total)} rows`
+      : Number.isFinite(total) && total > 0
+        ? `${formatBytes(processed)} of ${formatBytes(total)}`
+        : `${formatNumber(durableRows)} rows · total not yet known`;
+    const progressRatio = Number.isFinite(total) && total > 0
+      ? Math.max(0, Math.min(1, processed / total))
+      : null;
+    const elapsedMs = task.started_at ? durationMilliseconds(task.started_at, finished) : null;
+    const remainingMs = task.status === "running" && progressRatio > 0 && progressRatio < 1
+      && elapsedMs >= 10_000 ? elapsedMs * ((1 - progressRatio) / progressRatio) : null;
+    const timing = task.finished_at
+      ? `took ${elapsed}`
+      : task.started_at
+        ? `${elapsed} elapsed${remainingMs === null ? "" : ` · about ${formatDuration(0, remainingMs)} remaining`}`
+        : elapsed;
+    append(detail,
+      el("h3", "", `${humanise(task.stage)} · ${task.logical_key || "Task"}`),
+      el("p", "", `${humanise(task.status)}${phase} · attempt ${task.attempt_number ?? 1}`),
+      el("span", "timeline-meta", `${unitProgress}${progressRatio === null ? "" : ` (${Math.round(progressRatio * 100)}%)`} · ${timing}`),
+    );
+    if (task.status === "running" && progressRatio !== null) {
+      const bar = el("progress", "timeline-progress");
+      bar.max = 1;
+      bar.value = progressRatio;
+      bar.setAttribute("aria-label", `${humanise(task.stage)} ${Math.round(progressRatio * 100)}% complete`);
+      append(detail, bar);
+    }
     if (task.error_json) append(detail, technicalDetails(task.error_json, "Failure details"));
     append(item, marker, detail);
     append(list, item);

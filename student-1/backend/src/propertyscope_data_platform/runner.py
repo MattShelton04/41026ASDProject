@@ -738,7 +738,9 @@ class AcquisitionRunner:
             maximum_records=None,
             capacity_ceiling=None,
             localities=localities,
-            progress=self._heartbeat_progress(task, metric="rows"),
+            # The adapter scans both geocode and address members. Those are work units,
+            # not distinct discovered addresses, so report only canonical rows emitted.
+            progress=self._heartbeat_observed_rows(task, counter),
         )
         for item in parsed:
             counter[0] += 1
@@ -817,6 +819,29 @@ class AcquisitionRunner:
                     },
                 )
                 last_heartbeat = time.monotonic()
+
+        return report_progress
+
+    def _heartbeat_observed_rows(
+        self, task: dict[str, Any], counter: list[int]
+    ) -> Callable[[int], None]:
+        """Keep a long source scan leased without presenting scan work as output rows."""
+        last_heartbeat = time.monotonic()
+        interval = _cancellation_poll_interval(self.settings.lease_seconds)
+
+        def report_progress(_scanned_rows: int) -> None:
+            nonlocal last_heartbeat
+            now = time.monotonic()
+            if now - last_heartbeat >= interval:
+                self._heartbeat(
+                    str(task["id"]),
+                    str(task["lease_token"]),
+                    progress={
+                        "phase": "canonicalising addresses",
+                        "rows_processed": counter[0],
+                    },
+                )
+                last_heartbeat = now
 
         return report_progress
 

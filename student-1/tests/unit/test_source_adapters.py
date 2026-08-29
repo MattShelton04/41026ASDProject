@@ -191,6 +191,31 @@ def test_cancellation_polling_is_bounded_independently_of_the_recovery_lease() -
     assert _cancellation_poll_interval(5) == pytest.approx(5 / 3)
 
 
+def test_gnaf_scan_heartbeat_reports_canonical_output_not_scanned_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "runner", 0.1, 30)
+    )
+    observed: list[dict[str, object]] = []
+    clock = iter((0.0, 6.0))
+    monkeypatch.setattr("propertyscope_data_platform.runner.time.monotonic", lambda: next(clock))
+    monkeypatch.setattr(
+        runner,
+        "_heartbeat",
+        lambda *_args, **kwargs: observed.append(cast(dict[str, object], kwargs["progress"])),
+    )
+
+    progress = runner._heartbeat_observed_rows(
+        {"id": "task-1", "lease_token": "lease-1"}, [321]
+    )
+    progress(10_000)
+
+    assert observed == [
+        {"phase": "canonicalising addresses", "rows_processed": 321}
+    ]
+
+
 def test_bocsar_preserves_leading_zero_and_sparse_zero() -> None:
     payload = b"Postcode,Offence,Subcategory,Jan 2025,Feb 2025\n0077,Theft,Other,,3\n"
     observations, coverage = parse_bocsar_csv(payload, geography_kind="postcode", maximum_rows=2)
