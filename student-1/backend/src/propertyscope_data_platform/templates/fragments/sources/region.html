@@ -13,7 +13,7 @@
         {% for value, label in [('active','Active'),('draft','Draft'),('disabled','Disabled'),('retired','Retired'),('all','All statuses')] %}<option value="{{ value }}"{% if status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
       </select></label>
     </div>
-    <div class="button-row"><button class="button secondary" type="submit">Apply filters</button><button class="button secondary" type="button" hx-get="{{ fragment_base }}?status=all" hx-target="#source-crud-region" hx-swap="outerHTML">Reset filters</button></div>
+    <div class="button-row"><button class="button secondary" type="submit">Apply filters</button><button class="button secondary" type="button" hx-get="{{ fragment_base }}?status=all" hx-target="#source-crud-region" hx-swap="outerHTML" hx-disabled-elt="this">Reset filters</button></div>
     {% if query or status != 'all' %}<div class="active-filters"><span class="field-help">{{ (1 if query else 0) + (1 if status != 'all' else 0) }} active {{ 'filter' if ((1 if query else 0) + (1 if status != 'all' else 0)) == 1 else 'filters' }}</span></div>{% endif %}
   </form>
   <span id="source-list-indicator" class="htmx-indicator field-help" role="status">Loading source definitions…</span>

@@ -73,6 +73,11 @@ def test_source_list_fragment_is_html_escaped_and_uses_real_htmx_actions() -> No
     assert b"&lt;script&gt;unsafe&lt;/script&gt;" in response.data
     assert b"<script>unsafe</script>" not in response.data
     assert b'hx-get="/fragments/data-platform/v1/sources/new"' in response.data
+    assert (
+        b'hx-get="/fragments/data-platform/v1/sources?status=all" '
+        b'hx-target="#source-crud-region" hx-swap="outerHTML" hx-disabled-elt="this"'
+        in response.data
+    )
     assert b"hx-put=" not in response.data
     assert b"/api/data-platform/v1/sources" not in response.data
     assert response.headers["X-Request-ID"] == "fragment-list-request"

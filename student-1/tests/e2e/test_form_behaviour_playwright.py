@@ -357,6 +357,11 @@ def test_property_partial_and_fatal_states_keep_local_recovery(
 def test_search_and_every_filter_use_native_keyboard_and_explicit_reset(
     page: Page, fixture_origin: str
 ) -> None:
+    console_errors: list[str] = []
+    page.on(
+        "console",
+        lambda message: console_errors.append(message.text) if message.type == "error" else None,
+    )
     _open(page, fixture_origin, "properties")
     query = page.get_by_label("Address, suburb or postcode")
     query.fill("x")
@@ -416,6 +421,7 @@ def test_search_and_every_filter_use_native_keyboard_and_explicit_reset(
         expect(page.get_by_role("button", name="Reset filters")).to_be_visible()
         page.get_by_role("button", name="Reset filters").click()
         expect(page.locator(".active-filters")).to_have_count(0)
+    assert not [message for message in console_errors if "hx-disabled-elt" in message]
 
 
 def test_source_job_and_release_create_edit_forms_retain_server_failures(
