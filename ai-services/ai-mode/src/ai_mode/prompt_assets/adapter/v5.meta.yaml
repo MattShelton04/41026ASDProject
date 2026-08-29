@@ -1,0 +1,5 @@
+prompt_id: adapter
+version: v5
+role: adapter
+template: v5.system.j2
+description: Conversation-aware reporting with plain capability boundaries and safe alternatives.

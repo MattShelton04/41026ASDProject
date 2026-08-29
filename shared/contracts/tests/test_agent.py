@@ -54,8 +54,8 @@ def test_agent_request_rejects_unknown_and_unbounded_values() -> None:
             unexpected=True,  # type: ignore[call-arg]
         )
 
-    with pytest.raises(ValidationError, match="String should have at most 4000 characters"):
-        AgentRunRequest(feature_key="student-1-feature", objective="x" * 4_001)
+    with pytest.raises(ValidationError, match="String should have at most 16000 characters"):
+        AgentRunRequest(feature_key="student-1-feature", objective="x" * 16_001)
 
     with pytest.raises(ValidationError, match=r"default\.v1"):
         AgentRunRequest(
@@ -63,6 +63,15 @@ def test_agent_request_rejects_unknown_and_unbounded_values() -> None:
             objective="Find matching records",
             prompt_set="unregistered.v1",  # type: ignore[arg-type]
         )
+
+    assert (
+        AgentRunRequest(
+            feature_key="student-1-feature",
+            objective="Use bounded explicit conversation context",
+            prompt_set="default.v5",
+        ).prompt_set
+        == "default.v5"
+    )
 
     with pytest.raises(ValidationError, match="tool_allowlist entries must be unique"):
         AgentRunRequest(

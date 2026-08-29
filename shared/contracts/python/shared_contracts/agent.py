@@ -13,12 +13,13 @@ from shared_contracts.http import IdempotencyKey, RequestId, Traceparent
 
 Identifier = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-z0-9][a-z0-9_.-]*$")]
 JsonObject = dict[str, JsonValue]
-PromptSet = Literal["default.v1", "default.v2", "default.v3", "default.v4"]
+PromptSet = Literal["default.v1", "default.v2", "default.v3", "default.v4", "default.v5"]
 SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = (
     "default.v1",
     "default.v2",
     "default.v3",
     "default.v4",
+    "default.v5",
 )
 DEFAULT_PROMPT_SET: PromptSet = "default.v4"
 DEFAULT_EVENT_PAGE_SIZE = 100
@@ -116,7 +117,7 @@ class AgentRunRequest(ContractModel):
     """Request accepted from a feature backend to start one agent run."""
 
     feature_key: Identifier
-    objective: str = Field(min_length=1, max_length=4_000)
+    objective: str = Field(min_length=1, max_length=16_000)
     prompt_set: PromptSet = DEFAULT_PROMPT_SET
     model_profile: Identifier = "remote-standard.v1"
     limits: RunLimits = Field(default_factory=RunLimits)
@@ -297,7 +298,7 @@ class AgentRun(ContractModel):
     request_id: RequestId
     traceparent: Traceparent | None = None
     feature_key: Identifier
-    objective: str = Field(min_length=1, max_length=4_000)
+    objective: str = Field(min_length=1, max_length=16_000)
     status: RunStatus
     prompt_set: Identifier
     model_profile: Identifier

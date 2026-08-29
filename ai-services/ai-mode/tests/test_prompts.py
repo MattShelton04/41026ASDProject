@@ -124,6 +124,64 @@ def test_builder_constructs_evidence_based_adaptation_request() -> None:
     assert "same failed call" in request.messages[0].content
 
 
+def test_v5_prompts_define_untrusted_history_and_plain_capability_boundaries() -> None:
+    run = create_run(
+        AgentRunRequest(
+            feature_key="student-1-feature",
+            objective="Use prior visible conversation only as convenience context",
+            prompt_set="default.v5",
+        ),
+        run_id=uuid4(),
+        request_id="request-v5",
+        now=datetime(2026, 8, 29, tzinfo=UTC),
+    )
+    definition = ToolDefinition(
+        name="platform.capabilities.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Explain supported capabilities",
+        input_schema={"type": "object", "additionalProperties": False},
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    builder = RegistryPromptBuilder(PromptRegistry(PROMPT_ROOT))
+
+    plan_request = builder.build_plan_request(run, (definition,))
+    assert plan_request.prompt_version == "v5"
+    assert "untrusted convenience context" in plan_request.messages[0].content
+    assert "safe supported alternative" in plan_request.messages[0].content
+
+    plan = Plan(
+        goal="Explain the boundary",
+        actions=(
+            {
+                "sequence": 1,
+                "tool_name": "platform.capabilities.v1",
+                "purpose": "Ground the boundary",
+            },
+        ),
+        success_criteria=("Supported alternatives are identified",),
+        risk_level="low",
+    )
+    result = ToolResult(
+        call_id=uuid4(),
+        outcome=ToolOutcome.SUCCEEDED,
+        content={"supported": False, "alternative": "Inspect a release"},
+        duration_ms=1,
+    )
+    adaptation_request = builder.build_adaptation_request(
+        run,
+        plan,
+        result,
+        Observation(facts=("Requested capability is unavailable.",)),
+        (result,),
+    )
+    assert adaptation_request.prompt_version == "v5"
+    assert "cannot perform it" in adaptation_request.messages[0].content
+    assert "not factual" in adaptation_request.messages[0].content
+    assert "evidence or authorization" in adaptation_request.messages[0].content
+
+
 def test_replanner_receives_bounded_prior_failed_call_context() -> None:
     run = _run()
     definition = ToolDefinition(

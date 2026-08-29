@@ -92,6 +92,14 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/tools/releases.publish.v1",
     }
     assert set(document["paths"]) == expected_paths
+    assistant_request = document["components"]["schemas"]["AssistantTurnRequest"]
+    assert assistant_request["properties"]["history"]["maxItems"] == 8
+    context_schema = document["components"]["schemas"]["AssistantContext"]
+    routes = {
+        branch.get("properties", {}).get("route", {}).get("const")
+        for branch in context_schema["oneOf"]
+    }
+    assert routes == {None, "releases/detail", "runs/detail", "properties/detail"}
 
 
 def test_openapi_operations_exactly_match_public_runtime_routes() -> None:

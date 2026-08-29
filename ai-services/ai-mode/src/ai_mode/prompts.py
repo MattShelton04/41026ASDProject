@@ -126,6 +126,10 @@ class RegistryPromptBuilder(PromptBuilder):
             ModelRole.PLANNER: ("planner", "v4"),
             ModelRole.ADAPTER: ("adapter", "v4"),
         },
+        "default.v5": {
+            ModelRole.PLANNER: ("planner", "v5"),
+            ModelRole.ADAPTER: ("adapter", "v5"),
+        },
     }
 
     def __init__(self, registry: PromptRegistry) -> None:

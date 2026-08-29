@@ -1,0 +1,5 @@
+prompt_id: planner
+version: v5
+role: planner
+template: v5.system.j2
+description: Conversation-aware planner with explicit unsupported-capability and trust boundaries.
