@@ -4,7 +4,9 @@ Store maintained project documentation here throughout all three releases.
 
 ## First-class documentation map
 
-- [Root README](../README.md): current repository status, team placeholders, and quick start
+- [Root README](../README.md): current repository status, approved team allocation, and quick start
+- [Approved feature scope](architecture/registered-feature-scope.md): tutor-approved team ownership,
+  feature purposes, minimum frontend/backend/database boundaries, and implementation-status caveat
 - [Contributing guide](../CONTRIBUTING.md): current developer workflow and canonical commands
 - [Agent instructions](../AGENTS.md): current coding-agent ownership and quality rules
 - [Shared-platform design](architecture/shared-platform-design.md): living cross-release

@@ -7,13 +7,15 @@ the Feature 1 sales v2 contract and reusable assistant adapter.
 
 Architecture sources, decisions, and exported diagrams belong here.
 
+- `registered-feature-scope.md` is the approved ownership and minimum feature-boundary authority.
+  Detailed plans may refine implementation but must not silently expand or reallocate that scope.
 - `repository-architecture.md` is the historical initial-scaffold record. Its point-in-time
   status is evidence, not the current implementation summary.
 - `shared-platform-design.md` is the living shared-service, agentic-harness, contract,
   testing, caching, portability, and deployment architecture for Releases 0-2.
-- `propertyscope-product-and-feature-plan.md` is the proposed PropertyScope NSW product,
-  five-feature, data, UI, API, AI, and delivery plan. It remains subject to team and tutor
-  approval and does not supersede the domain-neutral shared-platform decisions.
+- `propertyscope-product-and-feature-plan.md` is the earlier detailed PropertyScope NSW product,
+  data, UI, API, AI, and delivery proposal. It is a planning reference subordinate to the approved
+  scope record and does not turn optional stretch concepts into commitments.
 - `feature-integration-and-experience-contract.md` is the implementable cross-feature baseline for
   edge routes, browser context hand-off, HTTP dependencies, publication/composition flows, common
   styling, failure behaviour, onboarding and group integration tests.
@@ -36,8 +38,7 @@ Architecture sources, decisions, and exported diagrams belong here.
   selects the OpenAI Responses API with GPT-5.6 Luna as the default provider/model boundary.
 - `decisions/ADR-016-propertyscope-feature-1-postgresql-postgis.md` records the implemented
   Feature 1-only PostgreSQL/PostGIS exception for PropertyScope's verified statewide data
-  scale. The repository owner authorised implementation; formal tutor/team approval evidence
-  must still be linked before the team makes assessed-release claims.
+  scale. Tutor/team approval of that exception is confirmed in the approved scope baseline.
 - `decisions/ADR-020-shared-browser-mapping-provider.md` records the domain-neutral MapLibre,
   provider, GeoJSON safety and viewport-loading seam while preserving feature-owned map layers.
 - `reviews/` retains external/adversarial review inputs. Findings are not

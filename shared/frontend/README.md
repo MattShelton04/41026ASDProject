@@ -42,8 +42,8 @@ Agent runs          http://localhost:5100/operations/ai-mode/
 
 Feature 1 remains directly reachable at `http://localhost:5200` for isolated development. Its
 relative static assets and namespaced public API allow the same image to work at either ingress.
-Features 2–5 have reserved registry/base-path entries but no live edge route until their complete
-feature slice is implemented and enabled.
+Features 2–5 are approved and allocated, and have reserved registry/base-path entries, but no live
+edge route until their complete feature slice is implemented and enabled.
 
 A deployment may override them in the same-origin `config.js` loaded before `app.js`:
 
