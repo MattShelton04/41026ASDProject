@@ -32,8 +32,10 @@ from propertyscope_data_platform.adapters.psi import (
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
 from propertyscope_data_platform.runner import (
     AcquisitionRunner,
+    RegisteredImportError,
     RunnerSettings,
     _cancellation_poll_interval,
+    _safe_task_error,
 )
 
 
@@ -433,6 +435,48 @@ def test_psi_archive_parses_pre_2001_root_dat_and_deduplicates_retransmission() 
     assert sales[0].street_type == "ST"
     assert sales[0].locality == "SYDNEY"
     assert sales[0].postcode == "2000"
+
+
+@pytest.mark.parametrize("publisher_postcode", ["0", "09", "200"])
+def test_psi_archive_treats_non_postcode_publisher_values_as_unknown(
+    publisher_postcode: str,
+) -> None:
+    row = f"B;001;X;V1;P1;U1;10;GEORGE ST;SYDNEY;{publisher_postcode};31/12/1999;400000;X;1.5;H\n"
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("ARCHIVE_SALES_1999.DAT", row)
+
+    sale = next(iter_psi_archive(stream.getvalue(), source_year=1999))
+
+    assert sale.postcode is None
+
+
+def test_psi_archive_rejects_unexpected_nonnumeric_postcode_corruption() -> None:
+    row = "B;001;X;V1;P1;U1;10;GEORGE ST;SYDNEY;20O0;31/12/1999;400000;X;1.5;H\n"
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("ARCHIVE_SALES_1999.DAT", row)
+
+    with pytest.raises(ValueError, match="postcode is malformed"):
+        next(iter_psi_archive(stream.getvalue(), source_year=1999))
+
+
+def test_runner_propagates_bounded_import_diagnostics_to_the_run_ledger() -> None:
+    failure = RegisteredImportError(
+        {
+            "code": "canonical_record_invalid",
+            "category": "data_validation",
+            "message": "Import stopped because record 1978 postcode must contain four digits.",
+            "private_trace": "must not escape",
+        }
+    )
+
+    assert _safe_task_error({"stage": "import"}, failure) == {
+        "code": "canonical_record_invalid",
+        "category": "data_validation",
+        "message": "Import stopped because record 1978 postcode must contain four digits.",
+        "retryable": False,
+    }
 
 
 def test_psi_address_parser_preserves_supported_number_ranges_and_suffixes() -> None:

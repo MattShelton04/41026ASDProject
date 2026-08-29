@@ -27,6 +27,7 @@ from propertyscope_data_store.import_profiles import (
 from propertyscope_data_store.loader import (
     DatabaseLoader,
     ImportCancelledError,
+    _safe_loader_error,
     _VerifiedLineStream,
 )
 
@@ -288,6 +289,35 @@ def test_psi_scope_partition_survives_nullable_business_dates() -> None:
         _artifact("psi-sales", [record, later_partition]), profile="psi-sales"
     )
     assert len(retransmission.rows) == 1
+
+
+@pytest.mark.parametrize("publisher_postcode", ["0", "09", "200"])
+def test_psi_import_maps_historical_non_postcodes_to_unknown(
+    publisher_postcode: str,
+) -> None:
+    record = {**_contract_records("psi-sales")[0], "postcode": publisher_postcode}
+
+    prepared = prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
+
+    assert prepared.rows[0]["postcode"] is None
+
+
+def test_psi_import_rejects_unexpected_nonnumeric_postcode_corruption() -> None:
+    record = {**_contract_records("psi-sales")[0], "postcode": "20O0"}
+
+    with pytest.raises(ImportProfileError, match="postcode must contain four digits"):
+        prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
+
+
+def test_loader_exposes_bounded_canonical_validation_evidence() -> None:
+    error = _safe_loader_error(ImportProfileError("record 1978 postcode must contain four digits"))
+
+    assert error == {
+        "code": "canonical_record_invalid",
+        "category": "data_validation",
+        "message": "Import stopped because record 1978 postcode must contain four digits.",
+        "retryable": False,
+    }
 
 
 def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions() -> None:

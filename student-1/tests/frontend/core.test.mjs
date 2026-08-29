@@ -61,6 +61,7 @@ import {
   publicationSuccessMessage,
   reconcilePublicationTimeout,
 } from "../../frontend/routes/release-publication.js";
+import { runFailureSummary } from "../../frontend/core/run-failure.js";
 
 function response(body, { status = 200, headers = {} } = {}) {
   return {
@@ -241,7 +242,7 @@ test("Feature 1 assistant cache versions load its adapter and shared graph atomi
   assert.match(route, /ai-chat\/index\.js\?v=3/);
   assert.match(route, /integration\/assistant\.js\?v=2/);
   assert.match(app, /routes\/assistant\.js\?v=3/);
-  assert.match(html, /app\.js\?v=41/);
+  assert.match(html, /app\.js\?v=42/);
 });
 
 test("release publication timeout fixes load through one versioned module graph", async () => {
@@ -253,11 +254,53 @@ test("release publication timeout fixes load through one versioned module graph"
   );
   const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
 
-  assert.match(html, /app\.js\?v=41/);
+  assert.match(html, /app\.js\?v=42/);
   assert.match(app, /routes\/releases\.js\?v=23/);
   assert.match(route, /core\/publication\.js\?v=2/);
   assert.match(route, /release-publication\.js\?v=2/);
   assert.match(helper, /core\/publication\.js\?v=2/);
+});
+
+test("failed update summary prefers specific step evidence over a generic run error", () => {
+  const summary = runFailureSummary(
+    { error_json: { code: "stage_execution_failed", message: "Generic failure" } },
+    [{
+      stage: "import",
+      status: "failed",
+      error_json: {
+        code: "canonical_record_invalid",
+        message: "Import stopped because record 1978 postcode must contain four digits.",
+      },
+    }],
+  );
+
+  assert.deepEqual(summary, {
+    code: "canonical_record_invalid",
+    title: "Import could not continue",
+    message: "Import stopped because record 1978 postcode must contain four digits.",
+    cachedReplayRecommended: false,
+  });
+});
+
+test("cached replay guidance is limited to the proven PSI postcode compatibility case", () => {
+  const summary = runFailureSummary({
+    error_json: {
+      code: "psi_postcode_placeholder",
+      message: "Historical PSI postcodes used short numeric placeholders.",
+    },
+  });
+
+  assert.equal(summary.cachedReplayRecommended, true);
+});
+
+test("run failure diagnostics load through a versioned route module", async () => {
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
+
+  assert.match(html, /app\.js\?v=42/);
+  assert.match(app, /routes\/runs\.js\?v=21/);
+  const route = await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8");
+  assert.match(route, /core\/run-failure\.js\?v=1/);
 });
 
 test("JSON form fields reject arrays and invalid input", () => {
