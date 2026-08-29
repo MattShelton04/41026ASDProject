@@ -10,6 +10,9 @@ independently buildable `student-N/frontend/` services.
 - `index.html` — unified entry point covering all five features and shared operational surfaces.
 - `app.js` — shell composition root for home/search, bounded hash routing and mobile navigation.
 - `features.js` — the bounded five-area navigation registry and canonical feature ingress paths.
+- `fragments/research-areas.html` — same-origin HTMX projection of the five approved research areas.
+- `vendor/htmx-2.0.10.min.js` — pinned local HTMX production build; provenance, licence and
+  SHA-256 are recorded in `vendor/README.md`.
 - `browser/index.js` — stable public JavaScript barrel for domain-neutral DOM helpers.
 - `ai-chat/index.js` — reusable assistant client, polling, formatting, semantic states, accessible transcript controller and `createFeatureAssistant` route factory; feature vocabulary is injected by route wrappers.
 - `feature-1-bridge.js` — bounded, failure-safe loading for Feature 1's public shell adapter.
@@ -64,6 +67,25 @@ Property records is linked as a live user journey; the other areas remain visibl
 do not fall through to Feature 1. Data and agent operations are secondary operator destinations.
 The shell does not infer service health from a static page or claim future functionality is running.
 
+## Shared-shell HTMX flow
+
+The home-page research-area directory is the shared Release 0 HTMX slice. `index.html` contains an
+understandable Property data fallback and a retry control, then HTMX performs a real same-origin
+`GET /fragments/research-areas.html` and swaps the returned HTML into `#feature-area-list`. Nginx
+serves shared static fragments directly and returns `404` for an unknown fragment instead of the
+SPA shell. Feature 1 fragment paths have a separate backend proxy.
+
+HTMX is vendored as version 2.0.10 from the upstream `htmx.org` npm distribution and runs with
+evaluation and fragment script execution disabled. `dashboard.test.mjs` verifies its exact SHA-256
+and compares every fragment row with `features.js`: ID, label, owner, canonical route,
+`implemented`, and `enabled`. This deliberate parity check keeps the static no-build fragment honest;
+only Feature 1 is interactive and Features 2–5 remain planned.
+
+Small external JavaScript listeners retain ownership of configuration-link projection, request
+status, retry focus, and re-processing after the shell hash router restores the home markup. Maps,
+AI chat and run timelines, adaptive polling, dashboards, and other existing routes intentionally
+remain JavaScript because they need richer client state than an HTML swap provides.
+
 ## Public frontend boundary
 
 Feature frontends consume Shared JavaScript only through documented `index.js` barrels. The current
@@ -116,3 +138,8 @@ uv run scripts/dev.py stack up
 
 Open `http://localhost:5100`. The shell remains an independently built container and the development
 overlay bind-mounts its source for the same edit-refresh loop as the other frontends.
+
+For deterministic validation, run `uv run scripts/dev.py ui serve`, open the printed Shared URL,
+and inspect the request for `/fragments/research-areas.html`. Run `uv run scripts/dev.py ui smoke`
+for the request/status/card-count assertions. Compose validation uses the same local HTMX asset and
+fragment at `http://localhost:5100`; neither path needs internet access.

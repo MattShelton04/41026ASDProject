@@ -219,6 +219,35 @@ are not presented as competing top-level workflows. `app.js` is the transition c
 The independently built frontend image copies shared design-system v0.1 assets, while the
 development overlay mounts the same source files for reload.
 
+### Source-definition HTMX CRUD
+
+Source definitions are the representative Release 0 HTMX CRUD slice. Opening `#sources` creates a
+loading region that performs a real request to `/fragments/data-platform/v1/sources`. Feature 1
+Nginx proxies that same-origin path to the existing Flask backend, whose Jinja fragment blueprint
+uses the injected `DataStoreClient` to call `/internal/data-platform/v1/sources` on the private
+database API. The frontend and backend never import the database implementation or open PostgreSQL.
+
+The list, detail, create, edit, validation/conflict, delete-confirmation, success, empty, not-found,
+dependency-failure, and retry states are server-rendered and autoescaped. Forms use `hx-get`,
+`hx-post`, `hx-put`, and `hx-delete` with explicit targets, swaps, indicators, and disabled controls.
+Request IDs and supported correlation/idempotency headers continue through the existing client;
+optimistic updates submit the stored `version`. Current persistence does not claim replay-safe
+create/delete idempotency beyond the conventions already implemented by the database service.
+
+External `frontend/routes/sources-htmx.js` glue keeps native dialog dirty-state protection, swaps
+HTML error responses for 409/422/503, restores focus, and keeps hash deep links coherent. The old
+Source JSON renderer and submit handler are removed so one user action produces one mutation. Jobs
+and all other JSON routes remain unchanged. Maps, assistant chat, agent/run timelines, adaptive
+polling, charts, route composition, and the existing robust dialog primitives intentionally remain
+JavaScript.
+
+`uv run scripts/dev.py ui serve` provides a bounded per-browser-session in-memory Source store for
+isolated create/update/conflict/delete checks; it never writes a database or volume. Validate with
+`uv run pytest student-1/tests/component/test_source_fragments.py --no-cov -q` and
+`uv run pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q`. In Compose, the
+same asset and fragment routes are available through ports 5100 and 5200 and the fragment request
+continues through the real Feature 1 backend/private database API boundary.
+
 `frontend/integration/shell.js` is Feature 1's public adapter for the Shared product shell. Its
 `createFeature1ShellAdapter()` export owns
 Feature 1 search routing, release-envelope projection, data-store readiness interpretation and

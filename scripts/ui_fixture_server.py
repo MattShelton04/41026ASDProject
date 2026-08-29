@@ -9,6 +9,8 @@ import os
 import sys
 import threading
 import time
+import uuid
+from collections import OrderedDict
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -30,6 +32,8 @@ FEATURE_FRONTEND = REPOSITORY_ROOT / "student-1" / "frontend"
 LOOPBACK_HOST = "127.0.0.1"
 DEFAULT_PORT = 5300
 SCENARIO_COOKIE = "propertyscope_ui_scenario"
+SESSION_COOKIE = "propertyscope_ui_session"
+MAX_SOURCE_SESSIONS = 64
 
 CANARY_PAGES = {
     "/__ui-fixture__/canary/clean": """<!doctype html>
@@ -117,6 +121,31 @@ class UIFixtureServer(ThreadingHTTPServer):
     def __init__(self, port: int, scenario: str) -> None:
         super().__init__((LOOPBACK_HOST, port), UIFixtureRequestHandler)
         self.fixture_scenario = scenario
+        self.source_fragment_apps: OrderedDict[str, Any] = OrderedDict()
+        self.source_fragment_lock = threading.RLock()
+
+    def source_fragment_app(self, session_key: str, scenario: str) -> Any:
+        """Return one bounded Flask fragment app over session-isolated in-memory data."""
+        cache_key = f"{scenario}:{session_key}"
+        with self.source_fragment_lock:
+            if app := self.source_fragment_apps.get(cache_key):
+                self.source_fragment_apps.move_to_end(cache_key)
+                return app
+            from propertyscope_data_platform.app import create_app as create_feature_app
+            from scripts.ui_fixture_sources import FixtureSourceStoreClient
+
+            app = create_feature_app(
+                store_client=FixtureSourceStoreClient(
+                    session_key=session_key,
+                    scenario=scenario,
+                ),
+                feature_root=REPOSITORY_ROOT / "student-1",
+            )
+            app.config.update(TESTING=True)
+            self.source_fragment_apps[cache_key] = app
+            while len(self.source_fragment_apps) > MAX_SOURCE_SESSIONS:
+                self.source_fragment_apps.popitem(last=False)
+            return app
 
 
 class UIFixtureRequestHandler(BaseHTTPRequestHandler):
@@ -168,6 +197,7 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
             return
         target = urlsplit(self.path)
         scenario, selected_by_query = self._scenario(target.query)
+        self._response_fixture_session = self._fixture_session(target.query)
         if target.path in CANARY_PAGES:
             self._send_bytes(
                 HTTPStatus.OK,
@@ -182,6 +212,29 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
                 b"ok\n",
                 "text/plain; charset=utf-8",
                 include_body=include_body,
+            )
+            return
+        if target.path.startswith("/fragments/data-platform/v1/sources"):
+            if scenario == "slow":
+                time.sleep(1.25)
+            response = self._source_fragment_response(target.path, target.query, scenario)
+            self._send_bytes(
+                response.status_code,
+                response.get_data(),
+                response.content_type,
+                include_body=include_body,
+                scenario=scenario if selected_by_query else None,
+                request_id=response.headers.get("X-Request-ID") or REQUEST_ID,
+                extra_headers={
+                    name: response.headers[name]
+                    for name in (
+                        "Cache-Control",
+                        "HX-Retarget",
+                        "HX-Reswap",
+                        "HX-Trigger-After-Swap",
+                    )
+                    if name in response.headers
+                },
             )
             return
         if target.path.startswith("/api/") or target.path in {
@@ -212,6 +265,7 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
             self.send_header(
                 "Location", f"/features/data-platform/{self._query_suffix(target.query)}"
             )
+            self._send_session_cookie()
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -238,6 +292,7 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
         return host in {"127.0.0.1", "localhost", "::1"}
 
     def _consume_request_body(self, *, include_body: bool) -> bool:
+        self.request_body = b""
         if self.command in {"GET", "HEAD"}:
             return True
         raw_length = self.headers.get("Content-Length", "0")
@@ -249,8 +304,44 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
                 include_body=include_body,
             )
             return False
-        self.rfile.read(int(raw_length))
+        self.request_body = self.rfile.read(int(raw_length))
         return True
+
+    def _fixture_session(self, query: str) -> str:
+        selected = parse_qs(query).get("test", [None])[0]
+        if selected:
+            return str(uuid.uuid5(uuid.NAMESPACE_URL, f"propertyscope-ui:{selected[:200]}"))
+        cookie = SimpleCookie(self.headers.get("Cookie", ""))
+        if morsel := cookie.get(SESSION_COOKIE):
+            try:
+                return str(uuid.UUID(morsel.value))
+            except ValueError:
+                pass
+        return str(uuid.uuid4())
+
+    def _source_fragment_response(self, path: str, query: str, scenario: str) -> Any:
+        app = self.server.source_fragment_app(self._response_fixture_session, scenario)
+        forwarded = {
+            name: self.headers[name]
+            for name in (
+                "HX-Request",
+                "HX-Target",
+                "HX-Trigger",
+                "X-Request-ID",
+                "Idempotency-Key",
+                "traceparent",
+            )
+            if name in self.headers
+        }
+        forwarded.setdefault("X-Request-ID", REQUEST_ID)
+        content_type = self.headers.get("Content-Type")
+        return app.test_client().open(
+            f"{path}{self._query_suffix(query)}",
+            method=self.command,
+            data=self.request_body,
+            headers=forwarded,
+            content_type=content_type,
+        )
 
     def _scenario(self, query: str) -> tuple[str, bool]:
         selected = parse_qs(query).get("scenario", [None])[0]
@@ -275,7 +366,9 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
             root = SHARED_FRONTEND / "design-system"
         elif decoded.startswith(feature_prefix):
             relative = decoded.removeprefix(feature_prefix) or "index.html"
-            if relative.startswith(("ai-chat/", "browser/", "design-system/", "mapping/")):
+            if relative.startswith(
+                ("ai-chat/", "browser/", "design-system/", "mapping/", "vendor/")
+            ):
                 root = SHARED_FRONTEND
             else:
                 root = FEATURE_FRONTEND
@@ -304,6 +397,7 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
         include_body: bool,
         scenario: str | None = None,
         request_id: object = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -313,17 +407,29 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "same-origin")
         if request_id:
             self.send_header("X-Request-ID", str(request_id))
+        for name, value in (extra_headers or {}).items():
+            if name.lower() not in {"content-length", "content-type", "set-cookie"}:
+                self.send_header(name, value)
         if scenario is not None:
             self.send_header(
                 "Set-Cookie",
                 f"{SCENARIO_COOKIE}={scenario}; Path=/; SameSite=Strict",
             )
+        self._send_session_cookie()
         self.end_headers()
         if include_body:
             try:
                 self.wfile.write(payload)
             except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
                 return
+
+    def _send_session_cookie(self) -> None:
+        session_key = getattr(self, "_response_fixture_session", None)
+        if session_key:
+            self.send_header(
+                "Set-Cookie",
+                f"{SESSION_COOKIE}={session_key}; Path=/; SameSite=Strict; HttpOnly",
+            )
 
 
 def _wait_until_ready(port: int, timeout_seconds: float = 5.0) -> None:

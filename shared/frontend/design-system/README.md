@@ -70,6 +70,14 @@ routes, forms, domain tables and CRUD behavior. Use small JavaScript islands onl
 HTMX or native HTML cannot express well, such as maps, charts, adaptive polling and complex
 review dialogs.
 
+Release 0 proves that division with two bounded flows: the Shared research-area directory is a
+static same-origin fragment, while Feature 1 Source definitions are server-rendered form/list/detail
+fragments. Use `hx-indicator` with a readable status, disable the initiating control during a
+request, retain useful fallback content, and focus the new heading, alert, or first invalid field
+after a swap. Error fragments remain HTML and use `HX-Retarget`/`HX-Reswap` where the form or
+confirmation dialog must retain entered state. Executable `hx-on` attributes and inline scripts are
+not part of the public pattern; external listeners preserve the strict CSP.
+
 Do not place feature API clients, entities or business rules in this directory.
 
 Domain-neutral JavaScript is a separate public surface. Import DOM helpers from

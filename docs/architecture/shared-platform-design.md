@@ -361,6 +361,29 @@ Feature transitions into the Shared AI activity view use one bounded metadata tu
 spoofed labels, protocol-relative destinations and any non-matching return route are ignored; query
 parameters are not a general-purpose branding or redirect contract.
 
+#### 6.4.1 Release 0 HTMX request paths
+
+The integrated shared shell serves a pinned local HTMX 2.0.10 asset and replaces its home-page
+research-area fallback with `/fragments/research-areas.html`. Registry/fragment parity is executable,
+so Feature 1 remains the only enabled link and Features 2–5 remain honest planned content.
+
+Feature 1 demonstrates the assessed write path without changing service ownership:
+
+```text
+browser HTMX Source form/list
+  -> Feature 1 Nginx /fragments/data-platform/v1/sources
+  -> Feature 1 Flask/Jinja fragment adapter
+  -> injected DataStoreClient over private HTTP
+  -> Feature 1 database API
+  -> Feature 1-owned PostgreSQL/PostGIS
+```
+
+The fragment adapter is presentation-only and reuses the existing Pydantic validation and private
+client boundary. Its error/status responses are HTML; the public JSON Source API remains a separate,
+compatible surface. Correlation headers, safe errors, autoescaping, optimistic versions, exclusive
+database credentials, and the architecture import/mount checks continue to apply. Maps, AI chat,
+adaptive polling, charts, run timelines and other state-heavy routes deliberately remain JavaScript.
+
 ### 6.5 Compose naming convention
 
 Compose names expose ownership before implementation detail. The production-like base project is

@@ -519,7 +519,7 @@ def _apply_setup(page: Page, steps: tuple[dict[str, Any], ...]) -> None:
 
 
 def _named_flow(page: Page, name: str) -> None:
-    if name in {"edit-job-submit", "edit-source-submit"}:
+    if name in {"edit-job-submit", "edit-source-submit", "edit-source-conflict-submit"}:
         edit = page.locator("button").filter(has_text=re.compile(r"^Edit$")).first
         if not edit.is_visible():
             page.get_by_role("button", name=re.compile(r"^More actions for ")).first.click(
@@ -527,6 +527,27 @@ def _named_flow(page: Page, name: str) -> None:
             )
         edit.click(timeout=5_000)
         page.locator("#entity-dialog[open]").wait_for(state="visible")
+        if name == "edit-source-conflict-submit":
+            save = page.get_by_role("button", name="Save changes", exact=True)
+            target = save.get_attribute("hx-put")
+            if not target:
+                raise RuntimeError("source conflict flow requires an HTMX PUT target")
+            form = page.locator("#entity-form").evaluate(
+                "form => Object.fromEntries(new FormData(form).entries())"
+            )
+            current = urlparse(page.url)
+            concurrent = page.request.put(
+                f"{current.scheme}://{current.netloc}{target}",
+                form=form,
+                headers={"HX-Request": "true"},
+            )
+            try:
+                if not concurrent.ok:
+                    raise RuntimeError(
+                        f"source conflict setup failed with HTTP {concurrent.status}"
+                    )
+            finally:
+                concurrent.dispose()
         page.get_by_role("button", name="Save changes", exact=True).click(timeout=5_000)
     elif name == "retry-run-confirm":
         page.locator("#view").get_by_role("button", name="Retry update", exact=True).click(

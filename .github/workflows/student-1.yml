@@ -139,8 +139,16 @@ jobs:
       - name: Smoke the Shared and Feature 1 boundary
         run: |
           curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5100/features/data-platform/
+          curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5100/vendor/htmx-2.0.10.min.js --output /tmp/shared-htmx.js
+          curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5200/vendor/htmx-2.0.10.min.js --output /tmp/feature-htmx.js
+          curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5100/fragments/research-areas.html --output /tmp/research-areas.html
+          curl --fail --silent --show-error --max-time 5 -H 'HX-Request: true' 'http://127.0.0.1:5200/fragments/data-platform/v1/sources?status=all' --output /tmp/source-fragment.html
+          grep -q 'data-feature-id="property-records"' /tmp/research-areas.html
+          grep -q 'id="source-crud-region"' /tmp/source-fragment.html
           curl --fail --silent --show-error --max-time 5 'http://127.0.0.1:5100/api/data-platform/v1/properties/search?q=11%20Example%20Street&state=NSW&limit=10' --output /tmp/propertyscope-search.json
+          curl --fail --silent --show-error --max-time 5 'http://127.0.0.1:5200/api/data-platform/v1/sources?status=all' --output /tmp/propertyscope-sources.json
           python -c "import json; value=json.load(open('/tmp/propertyscope-search.json', encoding='utf-8')); assert value.get('items'), value"
+          python -c "import json; value=json.load(open('/tmp/propertyscope-sources.json', encoding='utf-8')); assert 'items' in value, value"
           docker compose exec -T f1-db-api python -c "import json,os,urllib.request; request=urllib.request.Request('http://127.0.0.1:5202/internal/data-platform/v1/schema/fingerprint',headers={'X-PropertyScope-Internal-Token':os.environ['PROPERTYSCOPE_INTERNAL_TOKEN']}); value=json.load(urllib.request.urlopen(request,timeout=2)); assert value['algorithm']=='sha256' and len(value['fingerprint'])==64, value"
       - name: Capture service logs
         if: failure()

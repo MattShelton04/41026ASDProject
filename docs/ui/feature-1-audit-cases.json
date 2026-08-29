@@ -188,8 +188,8 @@
       "cases": [
         "loading", "populated", "empty",
         {"id": "filtered-empty", "scenario": "populated", "states": ["filtered-empty"], "path": "#sources?q=no-such-source&status=active", "overrides": [{"method": "GET", "urlContains": "/sources?", "body": {"items": [], "count": 0, "limit": 100, "offset": 0, "next_offset": null}}]},
-        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "expectedFailures": [{"method": "PUT", "target": "/api/data-platform/v1/sources/10000000-0000-0000-0000-000000000001", "statuses": [422]}], "setup": [{"action": "named-flow", "name": "edit-source-submit"}]},
-        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "expectedFailures": [{"method": "PUT", "target": "/api/data-platform/v1/sources/10000000-0000-0000-0000-000000000001", "statuses": [409]}], "overrides": [{"method": "PUT", "urlContains": "/sources/", "status": 409, "problemCode": "version_conflict"}], "setup": [{"action": "named-flow", "name": "edit-source-submit"}]},
+        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "expectedFailures": [{"method": "PUT", "target": "/fragments/data-platform/v1/sources/10000000-0000-0000-0000-000000000001", "statuses": [422]}], "setup": [{"action": "named-flow", "name": "edit-source-submit"}]},
+        {"id": "conflict", "scenario": "populated", "states": ["conflict"], "expectedFailures": [{"method": "PUT", "target": "/fragments/data-platform/v1/sources/10000000-0000-0000-0000-000000000001", "statuses": [409]}], "setup": [{"action": "named-flow", "name": "edit-source-conflict-submit"}]},
         "error", "long-content"
       ],
       "deferredStates": {}

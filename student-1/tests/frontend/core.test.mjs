@@ -487,15 +487,16 @@ test("every existing Feature 1 form is wired to explicit retention and submissio
     runs: await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8"),
     ai: await readFile(new URL("../../frontend/routes/ai-diagnosis.js", import.meta.url), "utf8"),
   };
-  assert.match(sources.shell, /runDialogForm\(\{/); // source and job create/edit
+  assert.match(sources.shell, /runDialogForm\(\{/); // job create/edit
   assert.match(sources.shell, /propertySearchQuery\(headerPropertyQuery\.value/); // header search
-  assert.match(sources.forms, /Reset filters/); // source, job and release filters
+  assert.match(sources.forms, /Reset filters/); // job and release filters
   assert.match(sources.forms, /active-filters/);
   assert.match(sources.properties, /propertySearchQuery\(input\.value\)/); // property discovery
   assert.match(sources.properties, /createSubmissionGuard/);
   assert.match(sources.plan, /onConfirm: async \(\) =>/); // run planner and confirmation
   assert.match(sources.plan, /discardMessage: "Discard your changed update scope\?"/);
-  assert.match(sources.entities, /onConfirm: \(\) => mutate\(`\$\{kind\}\/\$\{item\.id\}`/);
+  assert.match(sources.entities, /mutate\(`jobs\/\$\{item\.id\}`/);
+  assert.doesNotMatch(sources.entities, /kind === "sources"|request\(`sources/);
   assert.match(sources.releases, /runDialogForm\(\{/); // release create/edit
   assert.equal((sources.releases.match(/onConfirm: \(\) => mutate/g) || []).length, 4); // delete, submit, publish, reject
   assert.match(sources.runs, /onConfirm: async \(\) => \{ created = await mutate/);
@@ -631,10 +632,26 @@ test("tables use named contained scroll regions and native links instead of inte
 test("the frontend proxy keeps browser traffic on the public backend boundary", async () => {
   const nginx = await readFile(new URL("../../frontend/nginx.conf", import.meta.url), "utf8");
   assert.match(nginx, /location \/api\/data-platform\//);
+  assert.match(nginx, /location \/fragments\/data-platform\//);
   assert.match(nginx, /proxy_pass http:\/\/f1-backend:5201/);
   assert.doesNotMatch(nginx, /propertyscope-database/);
   assert.match(nginx, /https:\/\/tiles\.openfreemap\.org/);
   assert.match(nginx, /worker-src blob:/);
+});
+
+test("Source CRUD is exclusively wired through local HTMX fragments", async () => {
+  const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  const sourceRoute = await readFile(new URL("../../frontend/routes/sources-htmx.js", import.meta.url), "utf8");
+  assert.match(html, /vendor\/htmx-2\.0\.10\.min\.js/);
+  assert.match(html, /"allowEval":false/);
+  assert.match(app, /route === "sources"\) renderSources\(id\)/);
+  assert.doesNotMatch(app, /SOURCE_FIELDS|openEntityDialog\("source"/);
+  assert.match(sourceRoute, /\/fragments\/data-platform\/v1\/sources/);
+  assert.match(sourceRoute, /htmx:beforeSwap/);
+  assert.match(sourceRoute, /contentType\.startsWith\("text\/html"\)/);
+  assert.match(sourceRoute, /path\.startsWith\(FRAGMENT_BASE\)/);
+  assert.doesNotMatch(sourceRoute, /\/api\/data-platform\/v1\/sources/);
 });
 
 test("property discovery uses the shared mapping public entrypoint", async () => {

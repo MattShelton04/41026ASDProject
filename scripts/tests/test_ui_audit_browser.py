@@ -135,7 +135,12 @@ def test_configured_named_flows_reach_their_response_state(tmp_path: Path) -> No
             "Deterministic UI audit case",
         ),
         ("sources-list", "validation"): ("PUT", 422, "/sources/", "submitted value conflicts"),
-        ("sources-list", "conflict"): ("PUT", 409, "/sources/", "Deterministic UI audit case"),
+        ("sources-list", "conflict"): (
+            "PUT",
+            409,
+            "/sources/",
+            "source changed after this form was opened",
+        ),
         ("ai-review-new", "provider-unavailable"): (
             "POST",
             503,

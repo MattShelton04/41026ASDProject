@@ -239,6 +239,28 @@ The edge strips the feature ingress prefix only when proxying static feature req
 rewrite feature hashes, interpret domain routes or proxy database APIs. Security headers remain at
 least as strict as the current shared and Feature 1 Nginx configurations.
 
+### 4.6 Release 0 HTMX slices
+
+The shared shell vendors HTMX 2.0.10 locally and uses it for the visible research-area directory:
+`GET /fragments/research-areas.html` replaces a readable fallback. The deployed browser registry
+remains the navigation authority; an executable parity test compares its IDs, labels, owners,
+routes, implemented state and enabled state with the static fragment. This prevents the four planned
+areas from becoming links or being presented as implemented.
+
+Feature 1 Source-definition CRUD is the complete feature-owned slice. Browser requests under
+`/fragments/data-platform/v1/sources` are proxied to the Feature 1 backend, rendered as autoescaped
+HTML, and call the owning private database API through the existing injected `DataStoreClient`.
+Existing `/api/data-platform/v1/sources` JSON contracts remain available and unchanged. The fragment
+adapter does not call its own public API and neither frontend nor backend receives database
+credentials. Validation and optimistic conflicts retain form values; safe error fragments expose a
+request ID, loading/retry controls remain readable, and external CSP-compatible JavaScript restores
+dialog/heading focus and preserves dirty-navigation protection.
+
+This is a focused migration, not a frontend rewrite. Maps/spatial rendering, AI chat and run
+timelines, adaptive polling, charts, complex client state, and unaffected feature routes remain
+JavaScript-owned. Both fragment paths must be exercised in deterministic fixture mode and through
+the containerised edge; fixture Source mutations use session-isolated memory only.
+
 ## 5. Cross-feature data and API integration
 
 ### 5.1 Identity contract

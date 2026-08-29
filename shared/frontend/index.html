@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#102f36">
     <meta name="description" content="PropertyScope NSW — research a property and understand the evidence behind it">
+    <meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false}'>
     <title>PropertyScope NSW</title>
-    <link rel="stylesheet" href="styles.css?v=5">
+    <link rel="stylesheet" href="styles.css?v=6">
     <link rel="stylesheet" href="ai-chat/styles.css?v=2">
     <script src="config.js?v=1"></script>
-    <script type="module" src="app.js?v=13"></script>
+    <script src="vendor/htmx-2.0.10.min.js"></script>
+    <script type="module" src="app.js?v=14"></script>
   </head>
   <body>
     <a class="ps-skip-link" href="#main-content">Skip to main content</a>
@@ -116,8 +118,45 @@
               <div><p class="ps-eyebrow">Research workspace</p><h2 id="research-heading">Build the picture around a property</h2></div>
               <p>Property identity is ready to use. The remaining research areas will appear here as their data becomes available.</p>
             </div>
-            <div class="area-list" id="feature-area-list"></div>
-            <noscript><p class="dashboard-notice dashboard-notice--warning">Enable JavaScript to view the current research-area registry.</p></noscript>
+            <div
+              class="area-list research-area-fragment"
+              id="feature-area-list"
+              hx-get="/fragments/research-areas.html"
+              hx-trigger="load"
+              hx-target="this"
+              hx-swap="innerHTML"
+              hx-indicator="#research-areas-loading"
+              hx-disabled-elt="#research-areas-retry"
+              aria-busy="false"
+              tabindex="-1"
+            >
+              <div class="research-area-fallback area-row area-row--available" data-research-area-fallback>
+                <div class="area-icon" aria-hidden="true">⌂</div>
+                <div>
+                  <span class="area-kicker">Available now</span>
+                  <h3>Property data</h3>
+                  <p>Search NSW addresses and review available sources, coordinates and published datasets.</p>
+                  <p class="research-area-fallback__planned">Sales and market, Suburb context, Site and planning, and Buyer workspace are planned and not available yet.</p>
+                </div>
+                <div class="research-area-fallback__actions">
+                  <a class="ps-button ps-button--primary" data-config-link="propertyDiscovery" href="/features/data-platform/#properties">Open Property data</a>
+                  <button
+                    class="ps-button ps-button--small"
+                    id="research-areas-retry"
+                    type="button"
+                    hx-get="/fragments/research-areas.html"
+                    hx-target="#feature-area-list"
+                    hx-swap="innerHTML"
+                    hx-indicator="#research-areas-loading"
+                    hx-disabled-elt="this"
+                    data-research-area-retry
+                  >Retry directory</button>
+                </div>
+              </div>
+            </div>
+            <p class="research-area-loading htmx-indicator" id="research-areas-loading" role="status">Loading the current research areas…</p>
+            <p class="ps-sr-only" id="research-areas-status" role="status" aria-live="polite"></p>
+            <noscript><p class="dashboard-notice dashboard-notice--warning">The live directory refresh needs JavaScript. Property data remains available from the link above; the other four research areas are planned.</p></noscript>
           </section>
 
           <section class="home-section operations-strip" id="operations" aria-labelledby="operations-heading">
