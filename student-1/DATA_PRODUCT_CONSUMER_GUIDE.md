@@ -11,7 +11,7 @@ connect to its PostgreSQL/PostGIS database.
 | --- | --- | --- | --- | --- | --- |
 | `fixture-property` | `property-snapshot 1.0.0` | `propertyscope.property-snapshot.v1` | Feature 1 | Executable offline | Download permitted, synthetic fixture |
 | `gnaf-nsw` | `property-snapshot 1.0.0` | `propertyscope.property-snapshot.v1` | Feature 1 | Executable fixture and optional official archive | Licence-controlled; public artifact returns 403 |
-| `nsw-psi-sales` | `property-sales 1.0.0` | `propertyscope.property-sales.v1` | Feature 2 | Complete cached/live transport | Bounded derived artifact |
+| `nsw-psi-sales` | `property-sales 2.0.0` | `propertyscope.property-sales.v2` | Feature 2 | Complete cached/live transport | Bounded derived artifact |
 | `bocsar-crime` | `crime-series 1.0.0` | `propertyscope.crime-series.v1` | Feature 3 | Complete live transport | Approved bounded extract |
 | `nsw-government-schools` | `school-points 1.0.0` | `propertyscope.school-points.v1` | Feature 3 | Complete live transport | Approved bounded extract |
 
@@ -201,6 +201,12 @@ integration surface allowed by policy.
 The product preserves source business key and revision, source era, district/property/dealing IDs,
 nullable contract/settlement dates, nullable AUD price, original and square-metre area strings,
 nullable `property_ref`, match tier/confidence/geographic precision, hashes, and provenance.
+Version 2 additionally preserves the official source/download identifiers, historical valuation
+number, property name, unit/house/street/locality/postcode fields, land description/dimensions,
+zoning, nature, primary purpose, strata lot, component, sale code and interest-of-sale fields.
+Feature 1 derives conservative street components and assigns an exact-address `property_ref` only
+when those components resolve to one unique accepted registry property; ambiguous rows remain
+`MISS`. The pre-deployment v1 draft was removed rather than retained as a second supported contract.
 Ordering is business key then revision, and a duplicate key/revision fails construction. Unmatched,
 nominal, unusual, part-sale, bulk, and future-dated source records are not silently converted into
 analytics. Feature 2 owns exclusions, comparable semantics, medians, trends, valuations, forecasts,

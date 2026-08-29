@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import io
 import json
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import cast
@@ -315,9 +315,9 @@ def test_psi_archive_parses_nested_current_format_and_caps_records() -> None:
     with ZipFile(nested, "w") as archive:
         archive.writestr(
             "20250101.DAT",
-            "B;001;P1;2;20250101;;1;10;ROAD;SYDNEY;2000;1.5;H;20250101;"
+            "B;001;P1;2;20250101;;1;10;GEORGE ST;SYDNEY;2000;1.5;H;20250101;"
             "20250201;900000;R;R;;;X;;;D1\n"
-            "B;001;P2;1;20250101;;2;10;ROAD;SYDNEY;2000;500;M;20250101;"
+            "B;001;P2;1;20250101;;2;10;GEORGE ST;SYDNEY;2000;500;M;20250101;"
             "20250201;800000;R;R;;;X;;;D2\n",
         )
     outer = io.BytesIO()
@@ -327,6 +327,19 @@ def test_psi_archive_parses_nested_current_format_and_caps_records() -> None:
     assert len(sales) == 1
     assert sales[0].source_business_key == "001:P1:2"
     assert sales[0].area_square_metres == 15000
+    assert sales[0].source_downloaded_at == datetime(2025, 1, 1)
+    assert sales[0].unit_number == "1"
+    assert sales[0].house_number == "10"
+    assert sales[0].street_number_first == 10
+    assert sales[0].street_name == "GEORGE ST"
+    assert sales[0].street_name_normalised == "GEORGE"
+    assert sales[0].street_type == "ST"
+    assert sales[0].locality == "SYDNEY"
+    assert sales[0].postcode == "2000"
+    assert sales[0].zoning_code == "R"
+    assert sales[0].nature_code == "R"
+    assert sales[0].component_code == "X"
+    assert sales[0].dealing_id == "D1"
 
 
 def test_psi_archive_applies_member_and_expansion_budgets_across_nested_zips() -> None:
@@ -389,6 +402,32 @@ def test_psi_archive_parses_pre_2001_root_dat_and_deduplicates_retransmission() 
     assert sales[0].source_era == "pre-2001"
     assert sales[0].contract_date == date(1999, 12, 31)
     assert sales[0].area_square_metres == 15000
+    assert sales[0].source_system == "X"
+    assert sales[0].valuation_number == "V1"
+    assert sales[0].property_id == "P1"
+    assert sales[0].unit_number == "U1"
+    assert sales[0].house_number == "10"
+    assert sales[0].street_name == "GEORGE ST"
+    assert sales[0].street_name_normalised == "GEORGE"
+    assert sales[0].street_type == "ST"
+    assert sales[0].locality == "SYDNEY"
+    assert sales[0].postcode == "2000"
+
+
+def test_psi_address_parser_preserves_supported_number_ranges_and_suffixes() -> None:
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr(
+            "20250106.DAT",
+            "B;001;P1;1;20250101;;;10A-12;GEORGE STREET;SYDNEY;2000;500;M;"
+            "20250101;20250201;900000;R;R;RESIDENCE;;;X;;D1\n",
+        )
+    sale = next(iter_psi_archive(stream.getvalue(), source_year=2025))
+
+    assert sale.street_number_first == 10
+    assert sale.street_number_last == 12
+    assert sale.street_number_suffix == "A"
+    assert sale.street_type == "ST"
 
 
 def test_psi_archive_preserves_undocumented_legacy_area_unit_without_conversion() -> None:

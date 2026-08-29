@@ -267,7 +267,7 @@ def test_release_builder_registry_fails_closed() -> None:
 
 
 def test_sales_builder_preserves_revisions_nulls_and_source_aligned_fields() -> None:
-    builder = resolve_release_builder("property-sales", "1.0.0")
+    builder = resolve_release_builder("property-sales", "2.0.0")
     context = _context(
         dataset_id="nsw-psi-sales",
         target_feature="feature-2",
@@ -291,6 +291,17 @@ def test_sales_builder_preserves_revisions_nulls_and_source_aligned_fields() -> 
         "geographic_precision": "unmatched",
         "source_row_sha256": "b" * 64,
         "normalisation_version": "1.0.0",
+        "source_downloaded_at": "2025-01-06 01:05:00",
+        "house_number": "178",
+        "street_number_first": 178,
+        "street_name": "HOPETOUN ST",
+        "street_name_normalised": "HOPETOUN",
+        "street_type": "STREET",
+        "locality": "KURRI KURRI",
+        "postcode": "2327",
+        "zoning_code": "R3",
+        "nature_code": "R",
+        "primary_purpose": "RESIDENCE",
     }
     product = builder.build(
         context,
@@ -306,6 +317,9 @@ def test_sales_builder_preserves_revisions_nulls_and_source_aligned_fields() -> 
     assert payload["records"][0]["price_aud"] is None
     assert payload["records"][0]["property_ref"] is None
     assert payload["records"][0]["area_original"] == "1.5"
+    assert payload["schema_version"] == "propertyscope.property-sales.v2"
+    assert payload["records"][0]["street_name"] == "HOPETOUN ST"
+    assert payload["records"][0]["zoning_code"] == "R3"
 
 
 def test_crime_builder_preserves_exact_coverage_and_coverage_only_series() -> None:

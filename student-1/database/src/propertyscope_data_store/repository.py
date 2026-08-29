@@ -85,6 +85,19 @@ PROPERTY_SEARCH_UNDERSPECIFIED_TERMS = frozenset(
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_IMPORT_STATES = frozenset({"succeeded", "failed", "cancelled"})
 TERMINAL_ACTIVATION_STATES = frozenset({"succeeded", "failed"})
+REGISTERED_ADAPTER_VERSIONS = {
+    "fixture-snapshot": "1.0.0",
+    "gnaf-bulk": "1.0.0",
+    "psi-bulk": "1.0.0",
+    "bocsar-bulk": "1.0.0",
+    "schools-csv": "1.0.0",
+}
+REGISTERED_RELEASE_BUILDER_VERSIONS = {
+    "property-snapshot": "1.0.0",
+    "property-sales": "2.0.0",
+    "crime-series": "1.0.0",
+    "school-points": "1.0.0",
+}
 
 
 @dataclass(frozen=True)
@@ -381,13 +394,22 @@ class PropertyScopeStore:
     def create_job(self, values: Mapping[str, Any]) -> JsonObject:
         job_id = uuid.UUID(str(values.get("id", uuid.uuid4())))
         now = datetime.now(UTC)
+        adapter_key = str(values["adapter_key"])
+        builder_key = str(values["release_builder_key"])
+        try:
+            adapter_version = REGISTERED_ADAPTER_VERSIONS[adapter_key]
+            builder_version = REGISTERED_RELEASE_BUILDER_VERSIONS[builder_key]
+        except KeyError as exc:
+            raise ConflictError("job references an unregistered runtime component") from exc
         columns = (
             "source_definition_id",
             "name",
             "profile_key",
             "profile_version",
             "adapter_key",
+            "adapter_version",
             "release_builder_key",
+            "release_builder_version",
             "import_profile_key",
             "import_profile_version",
             "target_feature",
@@ -399,7 +421,13 @@ class PropertyScopeStore:
             "status",
             "schedule_text",
         )
-        parameters = [values[name] for name in columns]
+        runtime_versions = {
+            "adapter_version": adapter_version,
+            "release_builder_version": builder_version,
+        }
+        parameters = [
+            runtime_versions[name] if name in runtime_versions else values[name] for name in columns
+        ]
         try:
             with self.connection() as connection:
                 row = connection.execute(
@@ -506,13 +534,15 @@ class PropertyScopeStore:
                         release_builder_version,import_profile_version,normalisation_version,
                         profile_key,run_mode,requested_scope_json,attempt_number,parent_run_id,
                         requested_at,status,request_id,idempotency_key,created_at
-                    ) VALUES (%s,%s,%s,'1.0.0','1.0.0',%s,'1.0.0',%s,%s,%s,%s,%s,%s,'queued',%s,%s,%s)
+                    ) VALUES (%s,%s,%s,%s,%s,%s,'1.0.0',%s,%s,%s,%s,%s,%s,'queued',%s,%s,%s)
                     RETURNING *
                     """,
                     (
                         run_id,
                         job_id,
                         job["source_definition_id"],
+                        job["adapter_version"],
+                        job["release_builder_version"],
                         job["import_profile_version"],
                         job["profile_key"],
                         mode,
@@ -1157,6 +1187,59 @@ class PropertyScopeStore:
             "limit": limit,
             "offset": offset,
             "next_offset": offset + len(rows) if offset + len(rows) < total else None,
+        }
+
+    def release_sales_source_records(
+        self, release_id: uuid.UUID, *, year: int, limit: int, offset: int
+    ) -> JsonObject:
+        """Page complete PSI facts from an immutable accepted generation by source year."""
+        context = self._required(
+            """SELECT release.id,release.dataset_id,release.release_version,release.status,
+            release.schema_version,job.import_profile_key
+            FROM ops.dataset_release release JOIN ops.ingestion_run run
+              ON run.id=release.ingestion_run_id
+            JOIN ops.job_definition job ON job.id=run.job_definition_id
+            WHERE release.id=%s""",
+            (release_id,),
+        )
+        if context["dataset_id"] != "nsw-psi-sales" or context["import_profile_key"] != "psi-sales":
+            raise ConflictError("release does not contain PSI sales source records")
+        if context["schema_version"] != "propertyscope.property-sales.v2":
+            raise ConflictError("sales source records require the current v2 sales contract")
+        if context["status"] not in {"accepted", "superseded"}:
+            raise ConflictError("sales source records require an accepted immutable generation")
+        select_sql = """SELECT source_business_key,source_revision,source_era,
+            source_partition_year,district_code,property_id AS source_property_id,dealing_id,
+            source_system,valuation_number,source_downloaded_at::text,property_name,
+            unit_number,house_number,street_number_first,street_number_last,
+            street_number_suffix,street_name,street_name_normalised,street_type,locality,
+            postcode,land_description,dimensions,zoning_code,nature_code,primary_purpose,
+            strata_lot_number,component_code,sale_code,interest_of_sale,contract_date::text,
+            settlement_date::text,price_aud,area_original::text,area_unit,
+            area_square_metres::text,property_ref,match_tier,match_confidence::text,
+            geographic_precision,source_row_sha256,normalisation_version
+            FROM warehouse.psi_sale WHERE dataset_release_id=%s AND source_partition_year=%s
+            ORDER BY source_business_key,source_revision LIMIT %s OFFSET %s"""
+        items = self._fetch_all(select_sql, (release_id, year, limit, offset))
+        total_row = self._required(
+            """SELECT count(*) AS count FROM warehouse.psi_sale
+            WHERE dataset_release_id=%s AND source_partition_year=%s""",
+            (release_id, year),
+        )
+        total = int(total_row["count"])
+        return {
+            "schema_version": "propertyscope.psi-source-records.v1",
+            "release": {
+                key: context[key]
+                for key in ("id", "dataset_id", "release_version", "status", "schema_version")
+            },
+            "source_partition_year": year,
+            "items": items,
+            "count": len(items),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "next_offset": offset + len(items) if offset + len(items) < total else None,
         }
 
     def bind_release_export(self, release_id: uuid.UUID, values: Mapping[str, Any]) -> JsonObject:

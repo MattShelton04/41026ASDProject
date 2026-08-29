@@ -1,7 +1,7 @@
 {
   "consumer_operation_id": "synthetic-publication-1",
   "status": "accepted",
-  "schema_version": "propertyscope.property-sales.v1",
+  "schema_version": "propertyscope.property-sales.v2",
   "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "rows_received": 1,
   "rows_accepted": 1,

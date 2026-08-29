@@ -1,5 +1,8 @@
 # Release 0
 
+Features 2–5 should start with the independent data-client and Shared assistant recipe in
+[`feature-client-adoption.md`](feature-client-adoption.md).
+
 Release 0 establishes the integrated frontend, backend/API, and database
 microservices; AI mode with a remote OpenAI model; the shared
 Plan -> Act -> Observe -> Adapt loop; Docker Compose; student CI; local testing;

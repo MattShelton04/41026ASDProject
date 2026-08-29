@@ -288,6 +288,18 @@ def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions(
     assert "source_row_sha256" in source
     assert "derived_revision" in source
     assert "source_partition_year" in source
+    assert "street_name_normalised" in source
+    assert "registry.property" in source
+    assert "count(*)=1" in source
+    assert "exact_address" in source
+    assert "LEFT JOIN LATERAL" not in source
+    assert "upper(" not in source
+    assert "HAVING count(*)=1" in source
+    assert "property.street_number_last" in source
+    assert "property.street_number_suffix" in source
+    assert "property.unit_number" in source
+    assert "NULLIF(ranked.payload->>'street_type','') IS NOT NULL" in source
+    assert "house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'" in source
 
 
 class _Store:

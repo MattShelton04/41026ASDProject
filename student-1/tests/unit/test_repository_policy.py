@@ -148,7 +148,8 @@ def test_psi_product_query_requires_and_applies_explicit_source_years() -> None:
 
     assert "source_partition_year=ANY(%s)" in query.select_sql
     assert query.select_params == (release_id, [2024, 2025], 10, 0)
-    assert query.count_params == (100, release_id, [2024, 2025])
+    assert query.count_params == (release_id, [2024, 2025])
+    assert "least(" not in query.count_sql.lower()
 
 
 def test_bocsar_product_query_merges_only_the_bounded_page_window() -> None:

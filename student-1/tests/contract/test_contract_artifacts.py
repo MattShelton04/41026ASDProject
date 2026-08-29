@@ -42,6 +42,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/data-products",
         "/data-products/{dataset_id}",
         "/data-products/{dataset_id}/accepted",
+        "/data-products/{dataset_id}/source-records",
         "/sources",
         "/sources/{source_id}",
         "/jobs",
@@ -144,9 +145,9 @@ def test_release_manifest_fixtures_encode_success_and_failure() -> None:
             "property-snapshot.invalid-coordinate.json",
         ),
         (
-            "property-sales.v1.schema.json",
-            "property-sales.valid.json",
-            "property-sales.invalid-date.json",
+            "property-sales.v2.schema.json",
+            "property-sales.v2.valid.json",
+            "property-sales.v2.invalid-postcode.json",
         ),
         (
             "crime-series.v1.schema.json",
@@ -207,7 +208,7 @@ def test_discovery_and_publication_contracts_have_representative_fixtures(
     ("schema_name", "valid_fixture"),
     [
         ("property-snapshot.v1.schema.json", "property-snapshot.valid.json"),
-        ("property-sales.v1.schema.json", "property-sales.valid.json"),
+        ("property-sales.v2.schema.json", "property-sales.v2.valid.json"),
         ("crime-series.v1.schema.json", "crime-series.valid.json"),
         ("school-points.v1.schema.json", "school-points.valid.json"),
         (
@@ -259,7 +260,7 @@ def test_datastore_receipt_is_projected_to_the_closed_public_schema() -> None:
             "target_feature": "feature-2",
             "consumer_operation_id": "publish-fixture",
             "status": "accepted",
-            "schema_version": "propertyscope.property-sales.v1",
+            "schema_version": "propertyscope.property-sales.v2",
             "content_sha256": "a" * 64,
             "rows_received": 1,
             "rows_accepted": 1,

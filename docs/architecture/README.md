@@ -1,5 +1,10 @@
 # Architecture
 
+The current cross-feature data and Shared AI/chat adoption work is tracked in
+[`feature-data-and-shared-adoption-plan.md`](feature-data-and-shared-adoption-plan.md). It records the
+verified running-stack gaps, independent client ownership decision and implementation slices for
+the Feature 1 sales v2 contract and reusable assistant adapter.
+
 Architecture sources, decisions, and exported diagrams belong here.
 
 - `repository-architecture.md` is the historical initial-scaffold record. Its point-in-time

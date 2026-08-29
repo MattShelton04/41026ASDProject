@@ -11,7 +11,7 @@ independently buildable `student-N/frontend/` services.
 - `app.js` — shell composition root for home/search, bounded hash routing and mobile navigation.
 - `features.js` — the bounded five-area navigation registry and canonical feature ingress paths.
 - `browser/index.js` — stable public JavaScript barrel for domain-neutral DOM helpers.
-- `ai-chat/index.js` — reusable assistant client, polling, formatting, semantic states and accessible transcript controller; feature vocabulary is injected by route wrappers.
+- `ai-chat/index.js` — reusable assistant client, polling, formatting, semantic states, accessible transcript controller and `createFeatureAssistant` route factory; feature vocabulary is injected by route wrappers.
 - `feature-1-bridge.js` — bounded, failure-safe loading for Feature 1's public shell adapter.
 - `core.js` — safe DOM, formatting, table and correlated public-request helpers.
 - `capabilities.js` — static Release 0 deployment capability manifest; implemented and enabled remain separate.
@@ -83,6 +83,10 @@ the shell retains registry navigation and reports unavailable evidence without i
 imports in the canonical quality gate. Network-URL module imports fail closed rather than bypassing
 same-origin ownership resolution.
 Any later feature bridge requires a reviewed real call site and a separately allowlisted public ingress.
+
+Assistant adoption does not require a Shared shell bridge. Feature-owned assistant routes use the
+domain-neutral `createFeatureAssistant` export and the independent backend recipe in
+[`docs/release-0/feature-client-adoption.md`](../../docs/release-0/feature-client-adoption.md).
 
 ## Shared dashboards
 

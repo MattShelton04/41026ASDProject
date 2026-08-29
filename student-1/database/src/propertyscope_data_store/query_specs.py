@@ -55,7 +55,11 @@ PREVIEW_SPECS: dict[str, ReleasePreviewSpec] = {
     "gnaf-nsw": PROPERTY_RECORD_SPEC,
     "psi-sales": ReleasePreviewSpec(
         """SELECT source_business_key,source_revision,source_era,district_code,property_id,
-        dealing_id,contract_date::text,settlement_date::text,price_aud,
+        dealing_id,source_system,valuation_number,source_downloaded_at::text,property_name,
+        unit_number,house_number,street_number_first,street_number_suffix,street_name,
+        street_name_normalised,street_type,locality,postcode,land_description,dimensions,
+        zoning_code,nature_code,primary_purpose,strata_lot_number,component_code,sale_code,
+        interest_of_sale,contract_date::text,settlement_date::text,price_aud,
         area_square_metres::text,property_ref,match_tier,match_confidence::float8,
         geographic_precision FROM warehouse.psi_sale WHERE dataset_release_id=%s
         ORDER BY contract_date NULLS LAST,source_business_key,source_revision LIMIT %s OFFSET %s""",
@@ -67,6 +71,28 @@ PREVIEW_SPECS: dict[str, ReleasePreviewSpec] = {
             "district_code",
             "property_id",
             "dealing_id",
+            "source_system",
+            "valuation_number",
+            "source_downloaded_at",
+            "property_name",
+            "unit_number",
+            "house_number",
+            "street_number_first",
+            "street_number_suffix",
+            "street_name",
+            "street_name_normalised",
+            "street_type",
+            "locality",
+            "postcode",
+            "land_description",
+            "dimensions",
+            "zoning_code",
+            "nature_code",
+            "primary_purpose",
+            "strata_lot_number",
+            "component_code",
+            "sale_code",
+            "interest_of_sale",
             "contract_date",
             "settlement_date",
             "price_aud",
@@ -176,9 +202,8 @@ def release_product_query(
                 WHERE dataset_release_id=%s
                 ORDER BY gnaf_pid LIMIT %s OFFSET %s""",
             (release_id, page_limit, offset),
-            """SELECT least(count(*),%s) AS count FROM warehouse.gnaf_address
-                WHERE dataset_release_id=%s""",
-            (maximum_records, release_id),
+            "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
+            (release_id,),
         )
     if profile == "psi-sales":
         years = release_scope.get("years", [])
@@ -186,16 +211,22 @@ def release_product_query(
             raise ConflictError("PSI release construction requires an explicit bounded year scope")
         return ReleaseProductQuery(
             """SELECT source_business_key,source_revision,source_era,district_code,
-                property_id,dealing_id,contract_date::text,settlement_date::text,price_aud,
+                property_id,dealing_id,source_system,valuation_number,
+                source_downloaded_at::text,property_name,unit_number,house_number,
+                street_number_first,street_number_last,street_number_suffix,street_name,
+                street_name_normalised,
+                street_type,locality,postcode,land_description,dimensions,zoning_code,
+                nature_code,primary_purpose,strata_lot_number,component_code,sale_code,
+                interest_of_sale,contract_date::text,settlement_date::text,price_aud,
                 area_original::text,area_unit,area_square_metres::text,property_ref,match_tier,
                 match_confidence::text,geographic_precision,source_row_sha256,
                 normalisation_version FROM warehouse.psi_sale WHERE dataset_release_id=%s
                   AND source_partition_year=ANY(%s)
                 ORDER BY source_business_key,source_revision LIMIT %s OFFSET %s""",
             (release_id, years, page_limit, offset),
-            """SELECT least(count(*),%s) AS count FROM warehouse.psi_sale
+            """SELECT count(*) AS count FROM warehouse.psi_sale
                 WHERE dataset_release_id=%s AND source_partition_year=ANY(%s)""",
-            (maximum_records, release_id, years),
+            (release_id, years),
         )
     if profile == "bocsar-sparse":
         merge_window = offset + page_limit
@@ -226,11 +257,11 @@ def release_product_query(
                 ) product ORDER BY geography_kind,geography_value,source_category_key,
                 record_kind,month NULLS LAST LIMIT %s OFFSET %s""",
             (release_id, merge_window, release_id, merge_window, page_limit, offset),
-            """SELECT least((SELECT count(*) FROM warehouse.bocsar_observation
+            """SELECT (SELECT count(*) FROM warehouse.bocsar_observation
                 WHERE dataset_release_id=%s) +
                 (SELECT count(*) FROM warehouse.bocsar_coverage
-                WHERE dataset_release_id=%s),%s) AS count""",
-            (release_id, release_id, maximum_records),
+                WHERE dataset_release_id=%s) AS count""",
+            (release_id, release_id),
         )
     if profile == "schools-master":
         return ReleaseProductQuery(
@@ -239,8 +270,8 @@ def release_product_query(
                 source_row_sha256,normalisation_version FROM warehouse.school
                 WHERE dataset_release_id=%s ORDER BY school_code LIMIT %s OFFSET %s""",
             (release_id, page_limit, offset),
-            "SELECT least(count(*),%s) AS count FROM warehouse.school WHERE dataset_release_id=%s",
-            (maximum_records, release_id),
+            "SELECT count(*) AS count FROM warehouse.school WHERE dataset_release_id=%s",
+            (release_id,),
         )
     raise AssertionError("unreachable registered product projection")
 

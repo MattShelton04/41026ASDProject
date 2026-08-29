@@ -1,7 +1,7 @@
 {
   "release_id": "60000000-0000-0000-0000-000000000002",
   "dataset_id": "nsw-psi-sales",
-  "schema_version": "propertyscope.property-sales.v1",
+  "schema_version": "propertyscope.property-sales.v2",
   "content_sha256": "not-a-sha256",
   "record_count": 1,
   "manifest": {},
