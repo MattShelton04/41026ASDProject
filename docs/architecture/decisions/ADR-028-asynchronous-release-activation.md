@@ -23,12 +23,23 @@ and write-amplification failure.
 
 ## Decision
 
-- Publication validates the bounded consumer artifact and durably records its receipt first.
+- Publication validates the consumer evidence and durably records its receipt first. For Feature
+  1 self-publication, complete release construction has already schema-validated every streamed
+  row and atomically hashed and fsynced the content-addressed artifact. The HTTP request therefore
+  validates only the durable manifest/artifact/release binding; it does not reread, decompress and
+  revalidate millions of records. Any later source-scale preparation remains in the loader before
+  the accepted pointer changes.
 - The database API creates an `ops.release_activation` operation and returns HTTP `202`. It never
   performs source-scale activation work in an HTTP request.
 - The existing serial credential-owning database loader claims activations with a renewable lease.
   Lease loss cancels the PostgreSQL connection; an interrupted or expired operation can be claimed
   again, with a maximum of three attempts.
+- A source-scale warehouse/index transaction never updates the leased activation row. It commits
+  first, then a separate short transaction records `materialized_at`, allowing heartbeats to renew
+  throughout the long statement. A crash between those commits is recovered by the idempotent
+  `published = false` predicate before the marker is retried.
+- Only one nonterminal activation may exist for a release/version. A browser retry with an unknown
+  outcome reuses its request key, while a different key is coalesced onto the already queued work.
 - Candidate address rows remain only in their immutable, release-scoped
   `warehouse.gnaf_address` generation. Activation preparation never copies or updates canonical
   fields in global registry tables.

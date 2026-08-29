@@ -1,10 +1,10 @@
-import { createAiChat, createAssistantClient } from "../ai-chat/index.js";
+import { createAiChat, createAssistantClient } from "../ai-chat/index.js?v=3";
 import {
   FEATURE_ASSISTANT_SCOPES,
   FEATURE_ASSISTANT_CONTEXTS,
   assistantContextFromHash,
   featureAssistantSuggestions,
-} from "../integration/assistant.js";
+} from "../integration/assistant.js?v=2";
 
 function activityHref(runId) {
   const integrated = window.location.pathname.startsWith("/features/data-platform/");

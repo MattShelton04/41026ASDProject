@@ -1,7 +1,8 @@
-import { collection, entity, queryString } from "../core/api.js";
+import { collection, entity, newRequestId, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=18";
 import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js?v=18";
+import { createPublicationAttemptKeys, reconcilePublication } from "../core/publication.js";
 import { runDialogForm } from "../components/dialogs.js?v=18";
 import { formField, filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
@@ -67,6 +68,41 @@ function releaseStateTabs(releases, selected, filters) {
 export function createReleaseRoutes({
   view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, rerender,
 }) {
+  const publicationKeys = createPublicationAttemptKeys(newRequestId);
+
+  async function publishReviewedRelease(release, comment) {
+    const key = publicationKeys.acquire(release);
+    try {
+      const result = await mutate(`dataset-releases/${release.id}/publish`, {
+        body: { approved: true, version: release.version, comment },
+        success: "Publication requested",
+        idempotencyKey: key.value,
+      });
+      publicationKeys.clear(key.identity);
+      return result;
+    } catch (error) {
+      if (error?.status !== 0 || !String(error?.message || "").includes("timed out")) {
+        publicationKeys.clear(key.identity);
+        throw error;
+      }
+      try {
+        const { body, requestId } = await request(`dataset-releases/${release.id}`);
+        const outcome = reconcilePublication(body);
+        if (["completed", "pending"].includes(outcome)) {
+          publicationKeys.clear(key.identity);
+          const progress = outcome === "completed" ? "completed" : "continues in the database loader";
+          showToast(`Publication ${progress}. Request ID ${requestId}`);
+          return body;
+        }
+        if (outcome === "failed") publicationKeys.clear(key.identity);
+      } catch (reconciliationError) {
+        if (reconciliationError?.status !== 0) throw reconciliationError;
+      }
+      error.message = `${error.message} Its outcome is not known yet; retrying will reuse the same publication key.`;
+      throw error;
+    }
+  }
+
   async function openReleaseDialog(item = null) {
     document.querySelector("#entity-kicker").textContent = "Dataset release";
     document.querySelector("#entity-title").textContent = `${item ? "Edit" : "Create"} draft release`;
@@ -188,7 +224,7 @@ export function createReleaseRoutes({
         extra: comment,
         progressLabel: "Publishing…",
         discardMessage: "Discard your approval note?",
-        onConfirm: () => mutate(`dataset-releases/${id}/publish`, { body: { approved: true, version: release.version, comment: requiredReviewValue(comment, "Approval note") }, success: "Publication requested" }),
+        onConfirm: () => publishReviewedRelease(release, requiredReviewValue(comment, "Approval note")),
       });
       if (ok) rerender();
     }));

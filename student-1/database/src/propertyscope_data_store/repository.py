@@ -1530,6 +1530,15 @@ class PropertyScopeStore:
             ).fetchone()
             if blocking and int(blocking["count"]):
                 raise ConflictError("release has blocking quality failures")
+            pending = connection.execute(
+                """SELECT * FROM ops.release_activation
+                WHERE dataset_release_id=%s AND expected_release_version=%s
+                  AND status IN ('queued','claimed','running','interrupted')
+                ORDER BY requested_at LIMIT 1 FOR UPDATE""",
+                (release_id, expected_version),
+            ).fetchone()
+            if pending is not None:
+                return _dict(pending), False
             now = datetime.now(UTC)
             try:
                 row = connection.execute(
@@ -1549,10 +1558,20 @@ class PropertyScopeStore:
                 ).fetchone()
                 connection.commit()
             except errors.UniqueViolation:
-                raced = self._required(
+                connection.rollback()
+                raced = self._fetch_one(
                     "SELECT * FROM ops.release_activation WHERE idempotency_key=%s",
                     (idempotency_key,),
                 )
+                if raced is None:
+                    raced = self._required(
+                        """SELECT * FROM ops.release_activation
+                        WHERE dataset_release_id=%s AND expected_release_version=%s
+                          AND status IN ('queued','claimed','running','interrupted')
+                        ORDER BY requested_at LIMIT 1""",
+                        (release_id, expected_version),
+                    )
+                    return raced, False
                 actual = (
                     uuid.UUID(str(raced["dataset_release_id"])),
                     uuid.UUID(str(raced["publication_receipt_id"])),
@@ -1658,63 +1677,76 @@ class PropertyScopeStore:
         lease_failed_event: Event | None = None,
     ) -> None:
         """Validate a queued activation while all release-scoped records remain isolated."""
-        now = datetime.now(UTC)
+        checked_at = datetime.now(UTC)
         with self.connection() as connection:
-            stopped = Event()
+            work = connection.execute(
+                """SELECT operation.*,release.dataset_id,release.target_feature,
+            release.status AS release_status,release.version AS release_version
+            FROM ops.release_activation operation JOIN ops.dataset_release release
+              ON release.id=operation.dataset_release_id
+            WHERE operation.id=%s AND operation.lease_owner=%s
+              AND operation.lease_token=%s AND operation.lease_expires_at>%s
+              AND operation.status IN ('claimed','running')""",
+                (operation_id, worker_id, lease_token, checked_at),
+            ).fetchone()
+        if work is None:
+            raise LeaseConflictError("activation lease is stale or owned by another loader")
+        if work["release_status"] != "awaiting_review" or int(work["release_version"]) != int(
+            work["expected_release_version"]
+        ):
+            raise ConflictError("release changed while publication was queued")
 
-            def monitor_stop() -> None:
-                if stop_event is None and lease_failed_event is None:
-                    return
-                while not stopped.wait(0.5):
-                    if (stop_event is not None and stop_event.is_set()) or (
-                        lease_failed_event is not None and lease_failed_event.is_set()
-                    ):
-                        connection.cancel()
+        # Keep the source-scale transaction independent from the activation row. The heartbeat
+        # connection can therefore renew the lease while PostgreSQL populates accepted-only
+        # indexes. If the process stops after this commit but before the marker below, recovery
+        # safely repeats the published=FALSE update and then records materialisation.
+        if work["dataset_id"] in {"gnaf-nsw", "fixture-property"}:
+            with self.connection() as connection:
+                stopped = Event()
+
+                def monitor_stop() -> None:
+                    if stop_event is None and lease_failed_event is None:
                         return
+                    while not stopped.wait(0.5):
+                        if (stop_event is not None and stop_event.is_set()) or (
+                            lease_failed_event is not None and lease_failed_event.is_set()
+                        ):
+                            connection.cancel()
+                            return
 
-            watcher = Thread(
-                target=monitor_stop, name=f"activation-cancel-{operation_id}", daemon=True
-            )
-            watcher.start()
-            try:
-                work = connection.execute(
-                    """SELECT operation.*,release.dataset_id,release.target_feature,
-                release.status AS release_status,release.version AS release_version
-                FROM ops.release_activation operation JOIN ops.dataset_release release
-                  ON release.id=operation.dataset_release_id
-                WHERE operation.id=%s AND operation.lease_owner=%s
-                  AND operation.lease_token=%s AND operation.lease_expires_at>%s
-                  AND operation.status IN ('claimed','running')""",
-                    (operation_id, worker_id, lease_token, now),
-                ).fetchone()
-                if work is None:
-                    raise LeaseConflictError("activation lease is stale or owned by another loader")
-                if work["release_status"] != "awaiting_review" or int(
-                    work["release_version"]
-                ) != int(work["expected_release_version"]):
-                    raise ConflictError("release changed while publication was queued")
-                # Canonical address reads resolve through accepted_generation directly to the
-                # immutable warehouse generation. Candidate rows therefore need no pre-pointer
-                # upsert into global registry tables, which would leak changed address fields.
-                if work["dataset_id"] in {"gnaf-nsw", "fixture-property"}:
+                watcher = Thread(
+                    target=monitor_stop, name=f"activation-cancel-{operation_id}", daemon=True
+                )
+                watcher.start()
+                try:
                     connection.execute(
-                        """WITH indexed_candidate AS (
-                            UPDATE warehouse.gnaf_address SET published=TRUE
-                            WHERE dataset_release_id=%s AND published=FALSE RETURNING 1
-                        ) UPDATE ops.release_activation SET materialized_at=%s,version=version+1
-                        WHERE id=%s AND lease_owner=%s AND lease_token=%s""",
-                        (work["dataset_release_id"], now, operation_id, worker_id, lease_token),
+                        """UPDATE warehouse.gnaf_address SET published=TRUE
+                        WHERE dataset_release_id=%s AND published=FALSE""",
+                        (work["dataset_release_id"],),
                     )
-                else:
-                    connection.execute(
-                        """UPDATE ops.release_activation SET materialized_at=%s,version=version+1
-                    WHERE id=%s AND lease_owner=%s AND lease_token=%s""",
-                        (now, operation_id, worker_id, lease_token),
-                    )
-                connection.commit()
-            finally:
-                stopped.set()
-                watcher.join(timeout=2)
+                    connection.commit()
+                finally:
+                    stopped.set()
+                    watcher.join(timeout=2)
+
+        materialized_at = datetime.now(UTC)
+        with self.connection() as connection:
+            row = connection.execute(
+                """UPDATE ops.release_activation SET materialized_at=%s,version=version+1
+                WHERE id=%s AND lease_owner=%s AND lease_token=%s
+                  AND lease_expires_at>%s AND status IN ('claimed','running')
+                RETURNING *""",
+                (
+                    materialized_at,
+                    operation_id,
+                    worker_id,
+                    lease_token,
+                    materialized_at,
+                ),
+            ).fetchone()
+            connection.commit()
+        if row is None:
+            raise LeaseConflictError("activation lease is stale or owned by another loader")
 
     def finish_release_activation(
         self,

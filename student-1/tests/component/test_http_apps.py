@@ -468,7 +468,7 @@ def test_typed_consumer_rejection_preserves_receipt_evidence(status_code: int) -
     assert receipt.error.code == "unsupported_period"
 
 
-def test_local_artifact_verification_failure_records_receipt_and_preserves_release(
+def test_local_publication_uses_durable_binding_without_rereading_artifact(
     tmp_path: Path,
 ) -> None:
     release_id = "60000000-0000-0000-0000-000000000014"
@@ -481,7 +481,7 @@ def test_local_artifact_verification_failure_records_receipt_and_preserves_relea
         "dataset_id": "fixture-property",
         "target_feature": "feature-1",
         "builder_key": "property-snapshot",
-        "builder_version": "1.0.0",
+        "builder_version": "2.0.0",
         "import_profile": "property-fixture",
         "normalisation_version": "1.0.0",
         "publisher": "PropertyScope test",
@@ -493,8 +493,8 @@ def test_local_artifact_verification_failure_records_receipt_and_preserves_relea
         "record_count": 1,
         "record_count_definition": "property records",
         "content_sha256": digest,
-        "media_type": "application/json",
-        "content_encoding": None,
+        "media_type": "application/x-ndjson",
+        "content_encoding": "gzip",
         "byte_count": 100,
         "geography_coverage": ["NSW"],
         "temporal_coverage": None,
@@ -536,11 +536,23 @@ def test_local_artifact_verification_failure_records_receipt_and_preserves_relea
             )
         if request.method == "GET":
             return httpx.Response(200, json={"release": release, "receipts": receipts})
+        if request.url.path.endswith("/activations"):
+            return httpx.Response(
+                202,
+                json={
+                    "activation": {
+                        "id": "70000000-0000-0000-0000-000000000014",
+                        "status": "queued",
+                        "attempt_number": 1,
+                    },
+                    "created": True,
+                },
+            )
         assert request.url.path.endswith("/receipts")
         body = cast(dict[str, Any], json.loads(request.content))
-        assert body["status"] == "failed"
-        assert body["rows_received"] == body["rows_rejected"] == 1
-        receipt = {"id": "receipt-local-failure", **body}
+        assert body["status"] == "accepted"
+        assert body["rows_received"] == body["rows_accepted"] == 1
+        receipt = {"id": "receipt-local-binding", **body}
         receipts.append(receipt)
         return httpx.Response(201, json={"receipt": receipt, "created": True})
 
@@ -559,7 +571,8 @@ def test_local_artifact_verification_failure_records_receipt_and_preserves_relea
         json={"version": 1, "comment": "Reviewed", "approved": True},
     )
 
-    assert response.status_code == 424
+    assert response.status_code == 202
+    assert response.get_json()["activation"]["status"] == "queued"
     assert release["status"] == "awaiting_review"
     assert len(receipts) == 1
 
@@ -762,12 +775,14 @@ def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None
         assert request.url.path == "/api/v1/agent-runs"
         body = json.loads(request.content)
         assert body["feature_key"] == "student-1-propertyscope-data-platform"
-        assert body["prompt_set"] == "default.v4"
+        assert body["prompt_set"] == "default.v5"
         assert body["limits"]["max_tool_calls"] == 10
         assert "data.run_retry.v1" not in body["tool_allowlist"]
         assert "data.release_publish.v1" not in body["tool_allowlist"]
         assert "property.search.v1" in body["tool_allowlist"]
         assert "What can PropertyScope do?" in body["objective"]
+        assert "Earlier answer about releases" in body["objective"]
+        assert "browser-supplied, possibly incomplete or altered" in body["objective"]
         assert "platform.capabilities.v1" in body["objective"]
         assert "Do not propose or call a write tool" in body["objective"]
         return httpx.Response(
@@ -788,7 +803,14 @@ def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None
 
     response = app.test_client().post(
         "/api/data-platform/v1/assistant/turns",
-        json={"message": "What can PropertyScope do?", "scope": "application"},
+        json={
+            "message": "What can PropertyScope do?",
+            "scope": "application",
+            "history": [
+                {"role": "user", "content": "What about releases?"},
+                {"role": "assistant", "content": "Earlier answer about releases"},
+            ],
+        },
     )
 
     assert response.status_code == 202
@@ -854,6 +876,30 @@ def test_assistant_turn_rejects_unknown_context_without_calling_ai_mode() -> Non
     response = app.test_client().post(
         "/api/data-platform/v1/assistant/turns",
         json={"message": "Explain this", "context": {"made_up_id": "unsafe"}},
+    )
+
+    assert response.status_code == 422
+    assert response.get_json()["code"] == "invalid_assistant_turn"
+
+
+def test_assistant_turn_rejects_noncanonical_context_without_calling_ai_mode() -> None:
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=unavailable)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=unavailable)),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/assistant/turns",
+        json={
+            "message": "Explain this",
+            "context": {
+                "route": "releases/detail",
+                "ingestion_run_id": "70000000-0000-0000-0000-000000000004",
+            },
+        },
     )
 
     assert response.status_code == 422

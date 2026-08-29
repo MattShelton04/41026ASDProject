@@ -13,6 +13,11 @@ human review -> consumer receipt -> ops.release_activation (202)
              -> serial f1-db-loader -> short accepted-generation pointer transaction
 ```
 
+Feature 1's own complete artifact was schema-validated and content-hashed while it was built. The
+publish request checks that immutable artifact's durable binding and queues the activation; it does
+not rescan the complete gzip stream. Browser retries retain the same request key while the outcome
+is unknown, and the database coalesces another request for the same nonterminal release/version.
+
 The current accepted generation remains visible during every long-running step. A browser timeout
 must not be treated as publication success; inspect the release activation instead.
 
@@ -66,6 +71,11 @@ the release detail response under `activations`.
 - `failed`: inspect the bounded error and start a new reviewed publication operation after fixing
   the cause;
 - `succeeded`: release and accepted-generation pointer committed together.
+
+For G-NAF, accepted-only index population can remain source-scale. Its warehouse transaction is
+separate from the short activation marker transaction, so the renewable lease heartbeat continues
+during the update. If the loader stops after the warehouse commit but before `materialized_at`, the
+next attempt safely updates only rows still marked unpublished and then records the marker.
 
 The loader prioritizes a queued activation before claiming another bulk import. A lost live lease
 is recovered up to three total attempts. Lease-heartbeat failure cancels the materialization

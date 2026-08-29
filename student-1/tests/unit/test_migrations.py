@@ -230,6 +230,16 @@ def test_gnaf_candidate_loads_do_not_maintain_serving_indexes() -> None:
     assert "gnaf_address_geom_idx" in migration
 
 
+def test_release_activation_migration_prevents_duplicate_nonterminal_work() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE).joinpath("037_coalesce_release_activations.sql").read_text("utf-8")
+    )
+
+    assert "CREATE UNIQUE INDEX release_activation_nonterminal_release_version_uq" in migration
+    assert "dataset_release_id, expected_release_version" in migration
+    assert "'queued','claimed','running','interrupted'" in migration
+
+
 def test_durable_jobs_select_the_complete_streaming_builders() -> None:
     migration = (
         files(MIGRATION_PACKAGE)

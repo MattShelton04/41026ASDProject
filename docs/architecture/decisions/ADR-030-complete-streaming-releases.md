@@ -33,6 +33,10 @@ warehouse generation exceeded the old projection bound. That did not meet the pr
 - Licence-controlled complete artifacts are retained and evidenced by the release but are not
   made anonymously downloadable. Public/approved redistribution policies continue to govern the
   artifact download endpoint.
+- Feature 1 self-publication trusts the durable construction evidence for its own immutable
+  content-addressed export. The interactive request checks the registered manifest, checksum,
+  byte count, schema, release identity and storage key, then returns after queueing; it does not
+  repeat the complete stream validation synchronously.
 - The durable timeline is simplified to Discover, Acquire, Import, and Build release. Canonical
   verification, COPY, candidate insertion and import quality are observable subphases of Import;
   they are not instant placeholder stages.
@@ -48,6 +52,9 @@ G-NAF candidates maintain their generation key but not the expensive serving sea
 postcode, street-number or stable-reference indexes. Those indexes contain accepted rows only and
 are populated during reviewed activation before the accepted pointer changes. A cancelled import
 therefore cannot repeat the historical 1.088 GB global serving-index growth pattern.
+The source-scale `published` update commits independently of the activation-row marker so loader
+heartbeats cannot wait behind their own long transaction. Recovery after a crash between commits
+replays only rows still marked unpublished before the accepted pointer transaction is considered.
 
 Cancelled or failed ingestion-owned draft/candidate releases become immutable `abandoned` records
 linked to the run and bounded terminal error. They remain audit evidence but are excluded from the
@@ -66,4 +73,3 @@ have no artifact-ledger reference, honours an explicit grace period, and default
   truncation and monolithic memory use.
 - **Keep the v1 JSON envelope for source scale:** rejected because it encourages whole-document
   materialisation and does not provide a practical restart/cursor boundary.
-

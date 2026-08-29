@@ -50,7 +50,13 @@ import {
   agentRunReferences,
   createFeature1ShellAdapter,
 } from "../../frontend/integration/shell.js";
-import { assistantContextFromHash, FEATURE_ASSISTANT_SCOPES } from "../../frontend/integration/assistant.js";
+import {
+  assistantContextFromHash, FEATURE_ASSISTANT_CONTEXTS, FEATURE_ASSISTANT_SCOPES,
+} from "../../frontend/integration/assistant.js";
+import {
+  createPublicationAttemptKeys,
+  reconcilePublication,
+} from "../../frontend/core/publication.js";
 
 function response(body, { status = 200, headers = {} } = {}) {
   return {
@@ -69,6 +75,24 @@ test("collection and entity tolerate the documented response envelopes", () => {
   assert.deepEqual(collection({ other: items }), []);
   assert.deepEqual(entity({ property: items[0], identifiers: [] }, "property"), items[0]);
   assert.deepEqual(entity({ release: items[1], receipts: [] }, "release"), items[1]);
+});
+
+test("publication retries retain one key until the outcome is definitive", () => {
+  let sequence = 0;
+  const attempts = createPublicationAttemptKeys(() => `request-${++sequence}`);
+  const release = { id: "release-1", version: 4 };
+
+  assert.equal(attempts.acquire(release).value, "publish-release-1:v4-request-1");
+  assert.equal(attempts.acquire(release).value, "publish-release-1:v4-request-1");
+  attempts.clear(release);
+  assert.equal(attempts.acquire(release).value, "publish-release-1:v4-request-2");
+});
+
+test("publication timeout reconciliation distinguishes durable progress from failure", () => {
+  assert.equal(reconcilePublication({ release: { status: "accepted" }, activations: [] }), "completed");
+  assert.equal(reconcilePublication({ release: { status: "awaiting_review" }, activations: [{ status: "running" }] }), "pending");
+  assert.equal(reconcilePublication({ release: { status: "awaiting_review" }, activations: [{ status: "failed" }] }), "failed");
+  assert.equal(reconcilePublication({ release: { status: "awaiting_review" }, activations: [] }), "unknown");
 });
 
 test("requestJson adds correlation and idempotency-compatible JSON headers", async () => {
@@ -146,6 +170,24 @@ test("Feature 1 assistant wrapper projects only allowlisted typed page context",
     ingestion_run_id: "10000000-0000-4000-8000-000000000004",
   });
   assert.deepEqual(FEATURE_ASSISTANT_SCOPES.map((scope) => scope.id), ["feature"]);
+  assert.deepEqual(FEATURE_ASSISTANT_CONTEXTS.map((contextOption) => contextOption.id), [
+    "general", "release", "run", "property",
+  ]);
+  assert.deepEqual(FEATURE_ASSISTANT_CONTEXTS.slice(1).map((contextOption) => contextOption.context.route), [
+    "releases/detail", "runs/detail", "properties/detail",
+  ]);
+  assert.deepEqual(assistantContextFromHash("#assistant?route=runs/detail&release_id=10000000-0000-4000-8000-000000000004"), {});
+  assert.deepEqual(assistantContextFromHash("#assistant?route=made-up&ingestion_run_id=10000000-0000-4000-8000-000000000004"), {});
+});
+
+test("Feature 1 assistant cache versions load its adapter and shared graph atomically", async () => {
+  const route = await readFile(new URL("../../frontend/routes/assistant.js", import.meta.url), "utf8");
+  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
+  assert.match(route, /ai-chat\/index\.js\?v=3/);
+  assert.match(route, /integration\/assistant\.js\?v=2/);
+  assert.match(app, /routes\/assistant\.js\?v=3/);
+  assert.match(html, /app\.js\?v=39/);
 });
 
 test("JSON form fields reject arrays and invalid input", () => {
@@ -500,7 +542,8 @@ test("every existing Feature 1 form is wired to explicit retention and submissio
   assert.match(sources.entities, /mutate\(`jobs\/\$\{item\.id\}`/);
   assert.doesNotMatch(sources.entities, /kind === "sources"|request\(`sources/);
   assert.match(sources.releases, /runDialogForm\(\{/); // release create/edit
-  assert.equal((sources.releases.match(/onConfirm: \(\) => mutate/g) || []).length, 4); // delete, submit, publish, reject
+  assert.equal((sources.releases.match(/onConfirm: \(\) => mutate/g) || []).length, 3); // delete, submit, reject
+  assert.match(sources.releases, /onConfirm: \(\) => publishReviewedRelease/); // bounded publish + timeout reconciliation
   assert.match(sources.runs, /onConfirm: async \(\) => \{ created = await mutate/);
   assert.match(sources.ai, /createSubmissionGuard/); // AI review
   assert.doesNotMatch(sources.shell, /entityDialog\.close\("save"\)/);
@@ -798,7 +841,7 @@ test("operator state routes preserve partial evidence and explain lifecycle cont
   assert.match(releases, /primaryCell\(releaseLink, release\.release_version/);
   assert.match(runs, /not run \(cached result reused\)/);
   assert.match(runs, /about \$\{formatDuration\(0, remainingMs\)\} remaining/);
-  assert.match(runs, /#assistant\?route=runs&ingestion_run_id=/);
+  assert.match(runs, /#assistant\?route=runs\/detail&ingestion_run_id=/);
 });
 
 test("run polling preserves the rendered view and isolates supporting feed failures", async () => {
