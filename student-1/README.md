@@ -3,7 +3,7 @@
 - Name: Matthew Shelton
 - Student ID: 24763373
 - UTS email: matthew.n.shelton@student.uts.edu.au
-- Feature: PropertyScope Data Platform and Property Discovery (Feature 1)
+- Feature: Data Platform and Property Discovery (Feature 1)
 
 ## Ownership
 
@@ -20,6 +20,9 @@ persistence table. The
 [Release 0 readiness assessment](../docs/release-0/readiness-assessment-2026-08-27.md) records the
 remaining evidence and approval gates for treating those implementation claims as
 submission-complete.
+
+This ownership and feature boundary are part of the tutor-approved team allocation recorded in the
+[approved feature scope](../docs/architecture/registered-feature-scope.md).
 
 ## Feature boundary
 

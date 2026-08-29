@@ -4,11 +4,11 @@
 
 | Field | Value |
 |---|---|
-| Status | Living architecture; Release 0 shared baseline and PropertyScope Feature 1 integrated |
-| Last verified | 22 August 2026 |
+| Status | Living architecture; approved five-feature allocation, Release 0 shared baseline and Feature 1 integrated |
+| Last verified | 29 August 2026 |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
-| Related records | `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
+| Related records | `docs/architecture/registered-feature-scope.md`, `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
 
 ### Implementation status (15 August 2026)
 
@@ -62,17 +62,19 @@ database repository retains atomic PostgreSQL operations but delegates immutable
 query registration, retry/task planning, serialization and replay matching to deterministic modules.
 PSI acquisition is disk-backed and member-streamed under the same registered limits.
 
-This does not complete the five-feature shared-foundation definition of done. Owners must
-still supply approved manifests and endpoints for Features 2–5; the product edge, complete
-five-slice topology, approval records, and team-owned release evidence remain. The optional live
+This does not complete the five-feature shared-foundation definition of done. Features 2–5 now have
+approved owners and domain boundaries in [`registered-feature-scope.md`](registered-feature-scope.md),
+but their owners must still supply implemented manifests and endpoints; the product edge, complete
+five-slice topology and team-owned release evidence remain. The optional live
 API diagnostic remains useful shared-boundary evidence, not a substitute for assessed product
 evidence. MCP, RAG, and multi-agent runtime behavior remains
 disabled and unclaimed.
 
-This document is both a high-level design and a detailed build guide. It deliberately
-defines the stable shared platform before the project domain and five feature schemas
-are known. Feature-specific entities, prompts, and business rules remain owned by the
-student responsible for that feature.
+This document is both a high-level design and a detailed build guide. The shared platform was
+deliberately defined before the project domain and five feature schemas were known; the approved
+scope record now supplies those ownership boundaries without moving them into the shared kernel.
+Feature-specific entities, prompts, and business rules remain owned by the student responsible for
+that feature.
 
 ## 1. Executive decision
 
@@ -183,7 +185,7 @@ The main architectural constraints are:
 
 ### 3.2 Non-goals
 
-- Defining feature domain entities before the topic is approved.
+- Moving approved feature-domain entities or business rules into shared packages.
 - Sharing feature database tables or ORM models.
 - Building a general-purpose autonomous agent platform.
 - Storing hidden chain-of-thought or using it as audit evidence.
@@ -1131,9 +1133,7 @@ The foundation is complete when:
 
 ## 22. Open decisions
 
-- Approved project topic and the five feature boundaries.
-- Tutor confirmation of the separate SQLite database-service interpretation if published
-  course sources or implementation guidance conflict.
+- Bounded Release 0 datasets, routes and schema details within each approved feature boundary.
 - Team ownership of each shared service and review responsibility.
 - Authentication/identity needs implied by the eventual domain.
 - Retrieval document types, corpus size, and data licensing.
@@ -1177,7 +1177,7 @@ The foundation is complete when:
 
 Review this design at four points:
 
-1. after tutor approval of the topic and feature allocation;
+1. after tutor approval of the topic and feature allocation (completed in August 2026);
 2. after the reference vertical slice and first measured remote-provider evaluation;
 3. before enabling MCP/RAG for Release 1; and
 4. before committing to the Azure persistence and compute profile for Release 2.

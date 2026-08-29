@@ -35,9 +35,9 @@ following gaps block dependable downstream use:
 5. Shared AI chat is implemented and used by Feature 1, but a new feature still has to infer the
    exact frontend/backend adoption steps from several documents.
 
-Feature 4 has no approved source registration and Feature 5 is a composition feature rather than a
-Feature 1 dataset consumer. Those are product/allocation inputs, not defects that Feature 1 can fill
-with invented data.
+Feature 4's approved domain still needs an owner-defined source registration, and Feature 5 is a
+buyer-case composition feature rather than a Feature 1 dataset consumer. Those are implementation
+inputs, not defects that Feature 1 can fill with invented data.
 
 ## Implementation slices
 
@@ -94,5 +94,5 @@ with invented data.
   become accepted.
 - Feature 3 must implement its consumer endpoint and approve its crime/school semantics before those
   candidates can become accepted.
-- Feature 4's source/data contract and Feature 5's provider-section clients require team/tutor-approved
-  product decisions.
+- Feature 4's source/data contract and Feature 5's provider-section clients must now be designed by
+  their approved owners within the registered feature boundaries.

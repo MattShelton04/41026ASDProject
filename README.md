@@ -2,8 +2,10 @@
 
 Shared repository for the Spring 2026 group project.
 
-The project is PropertyScope NSW. Feature 1, owned by Matthew Shelton, provides its data
-operations and property-discovery platform. The repository contains a reproducible Python
+The project is the tutor-approved PropertyScope NSW application. Feature 1, owned by Matthew
+Shelton, provides its data operations and property-discovery platform. Features 2–5 are allocated
+and approved, but remain planned and unimplemented until their owners deliver them. The repository
+contains a reproducible Python
 workspace, strict shared contracts/test utilities, a
 framework-independent bounded agent state machine, and an AI-mode foundation with
 SQLite workflow persistence, versioned prompts, OpenAI Responses API integration, an opt-in
@@ -12,7 +14,7 @@ agent-run APIs, a serial background worker, feature-scoped HTTP tools, resumable
 events, request idempotency, and human-review gating. Feature 1 is integrated through
 independently deployed frontend,
 backend, runner, database API/loader and PostgreSQL/PostGIS containers; Features 2–5 remain
-unallocated placeholders.
+disabled product placeholders rather than implemented capabilities.
 
 ## Team
 
@@ -21,14 +23,17 @@ published course specification and registration requirements.
 
 | Student | Name | Student ID | UTS email | Feature |
 |---|---|---|---|---|
-| 1 | Matthew Shelton | 24763373 | matthew.n.shelton@student.uts.edu.au | PropertyScope Data Platform and Property Discovery |
-| 2 | To be confirmed | To be confirmed | To be confirmed | To be decided |
-| 3 | To be confirmed | To be confirmed | To be confirmed | To be decided |
-| 4 | To be confirmed | To be confirmed | To be confirmed | To be decided |
-| 5 | To be confirmed | To be confirmed | To be confirmed | To be decided |
+| 1 | Matthew Shelton | 24763373 | matthew.n.shelton@student.uts.edu.au | Data Platform and Property Discovery |
+| 2 | Burhan Naeem | 24764134 | Burhan.Naeem@wisetechglobal.com | Property Sales Explorer and Market Cases |
+| 3 | James Huang | 24970865 | Zihuang.huang@student.uts.edu.au | Suburb, Crime, and Liveability Analytics |
+| 4 | Michael White | 24846267 | Michael.h.white@student.uts.edu.au | Site, Planning, and Building Due Diligence |
+| 5 | Derek Song | 24833978 | Derek.song@student.uts.edu.au | Buyer Journey and Agent Workspace |
 
 Each student has an equivalent `student-N/` workspace for their frontend,
 backend/API, database, tests, Dockerfile, and ownership notes.
+The approved purposes, frontend/backend responsibilities and persistence boundaries are recorded in
+[`docs/architecture/registered-feature-scope.md`](docs/architecture/registered-feature-scope.md).
+That allocation record does not claim that the planned Features 2–5 are already implemented.
 
 ## Release path
 
@@ -205,9 +210,9 @@ the dashboard plus its list/evidence API routes when disabled. The implementatio
 remaining remote-access decisions are documented in
 [`docs/release-0/ai-mode-operations-interface-plan.md`](docs/release-0/ai-mode-operations-interface-plan.md).
 
-## Remaining allocation decisions
+## Remaining delivery decisions
 
-The team should confirm its membership and project approval with the tutor, allocate Features
-2–5, retain a durable link/copy of the confirmed tutor approval for Feature 1's
-PostgreSQL/PostGIS exception, and confirm the eventual Azure-or-AWS provider. Features 2–5 retain
-independent stores and never receive Feature 1 database credentials.
+The topic, team, five-feature split, Azure target and Feature 1 PostgreSQL/PostGIS exception are
+approved. Feature owners must still finalise their bounded Release 0 datasets, route/schema details,
+authentication approach where required, source licensing and integration evidence. Features 2–5
+retain independent stores and never receive Feature 1 database credentials.

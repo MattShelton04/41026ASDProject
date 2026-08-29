@@ -1,11 +1,14 @@
-# Features 2–5 — full product and implementation scope
+# Features 2–5 — optional product and implementation design
 
 ## 1. Purpose of this document
 
-Features 2–5 are not implemented in the supplied repository. They should remain independently owned
-and persisted rather than being prematurely folded into Feature 1 or a shared database. This
-document freezes a balanced, full-release scope so each owner can build a thin compliant vertical
-slice first and then deepen it without changing the integrated product model.
+Features 2–5 are approved and allocated but are not implemented in the supplied repository. They
+must remain independently owned and persisted rather than being prematurely folded into Feature 1
+or a shared database. The approved minimum purposes, functions and database boundaries are recorded
+in [`../architecture/registered-feature-scope.md`](../architecture/registered-feature-scope.md).
+That record controls if this older design exploration differs from it. The richer screens, routes,
+comparables, dossiers and report concepts below are optional implementation ideas, not confirmed
+commitments.
 
 All proposed routes use the existing architecture plan's namespaces:
 
@@ -26,7 +29,8 @@ Feature 5  /features/buyer-workspaces/       /api/buyer-workspaces/v1/
    Python package or access another database/volume/credentials.
 4. Feature 1 owns canonical `property_ref`, release publication and source-aligned acquisition.
 5. Consumer feature owners define their product semantics, schema, import acceptance and calculations.
-6. Feature 5 owns cross-feature dossier composition; shared AI-mode does not become a product backend.
+6. Feature 5 owns cross-feature buyer-case research composition; any dossier/report extension needs
+   separate scope approval, and shared AI-mode does not become a product backend.
 7. Direct CRUD and deterministic reads work without the LLM provider/MCP/RAG/multi-agent services.
 8. Source-backed evidence is immutable/superseded where appropriate; assessed CRUD is prominent on
    legitimate user-owned work records.

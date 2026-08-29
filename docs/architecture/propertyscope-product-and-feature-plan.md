@@ -4,15 +4,20 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed product and feature plan; topic and allocations require team and tutor approval |
+| Status | Detailed planning reference; approved ownership and minimum scope are recorded separately |
 | Prepared | 9 August 2026 |
 | Scope | Releases 0–2, with detailed Release 0 delivery boundaries |
 | Intended audience | Project team, tutor, feature owners, architecture reviewers, and report authors |
 | Primary course sources | ASD 2026 Project Specifications, Assessment 1 brief, and Release 0 rubric |
 | Prior product and data work | Previous project work completed by Matthew Shelton, including an attributed NSW property-data warehouse and ingestion research |
-| Related architecture | [`shared-platform-design.md`](shared-platform-design.md), [`decisions/ADR-016-propertyscope-feature-1-postgresql-postgis.md`](decisions/ADR-016-propertyscope-feature-1-postgresql-postgis.md), and [`../release-0/feature-onboarding.md`](../release-0/feature-onboarding.md) |
+| Related architecture | [`registered-feature-scope.md`](registered-feature-scope.md), [`shared-platform-design.md`](shared-platform-design.md), [`decisions/ADR-016-propertyscope-feature-1-postgresql-postgis.md`](decisions/ADR-016-propertyscope-feature-1-postgresql-postgis.md), and [`../release-0/feature-onboarding.md`](../release-0/feature-onboarding.md) |
 
-This document proposes product behaviour and feature boundaries. It does not approve the topic, allocate named students, or authorise one student to implement another student's assessed feature. Decisions marked “recommended” remain subject to team agreement and tutor approval.
+The team and tutor have approved PropertyScope, its five owners and the minimum feature boundaries in
+[`registered-feature-scope.md`](registered-feature-scope.md). That record is authoritative. This
+earlier document remains useful for implementation options, data research and release sequencing,
+but concepts beyond the approved minimum—such as comparables, dossiers, printable reports or broad
+source coverage—are optional stretch proposals unless separately approved. It does not authorise one
+student to implement another student's assessed feature.
 
 ## 1. Executive decision
 
@@ -26,13 +31,13 @@ The product must not answer:
 
 > “What will this property be worth?” or “Should I buy it?”
 
-The recommended five assessed features are:
+The approved five assessed features are:
 
-1. **Data Platform, Provenance, and Property Discovery** — source catalogue, ingestion/release operations, canonical property identity, coverage explorer, and address/map search.
-2. **Sales and Market Intelligence** — address sale history, comparable evidence, saved market cases, and market trends.
-3. **Suburb, Crime, and Liveability Analytics** — saved suburb comparisons, schools, monthly crime trends, area context, connectivity, traffic, and user-defined practical priorities.
+1. **Data Platform and Property Discovery** — source catalogue, ingestion/release operations, canonical property identity, coverage explorer, and address/map search.
+2. **Property Sales Explorer and Market Cases** — attributed sale history, simple deterministic summaries, saved market cases, and grounded AI explanations without valuation or purchase advice.
+3. **Suburb, Crime, and Liveability Analytics** — suburb facts, approved crime/liveability indicators, amenities, visualisations, and saved/favourite suburbs.
 4. **Site, Planning, and Building Due Diligence** — planning controls, environmental overlays, strata, tribunal, building evidence, and saved site reviews with explicit coverage states.
-5. **Buyer Journey and Agent Workspace** — watchlists, buyer profiles, candidate comparison, follow-up tasks, stakeholder question guides, cross-feature dossiers, and human review.
+5. **Buyer Journey and Agent Workspace** — buyer cases, shortlists, journey stages, notes, tasks, related cross-feature research, and evidence-aware AI summaries/next actions.
 
 This allocation makes the data platform a real, assessed feature rather than invisible shared labour. It has its own users, CRUD, frontend, backend, Feature 1-owned PostgreSQL/PostGIS database, AI workflow, and downstream publication contracts. It does not replace the other four students' independently owned databases or become a general SQL surface. It also promotes crime analytics into a first-class feature and combines uneven planning/hazard/building sources into a resilient **due-diligence evidence** slice.
 
@@ -58,7 +63,7 @@ Each of the five features needs its own:
 - frontend microservice/container;
 - backend/API microservice/container;
 - database API microservice/container;
-- feature-owned database store opened exclusively by that database service—PostgreSQL/PostGIS for Feature 1 subject to written tutor approval, SQLite for Features 2–5;
+- feature-owned database store opened exclusively by that database service—approved PostgreSQL/PostGIS for Feature 1 and SQLite for Features 2–5;
 - complete create, read, update, and delete flow visible through the frontend;
 - minimum ten records in every database table;
 - AI interaction initiated from the feature frontend through its backend and shared AI-mode;
@@ -85,7 +90,10 @@ Other features access data only through the owning backend/API. They must not im
 
 The general technology table permits “SQLite / PostgreSQL,” but the more specific assessment text repeatedly requires integrated SQLite database microservices in Release 0, the Release 1 submission, and Release 2 cloud deployment. It also makes every student individually responsible for one database microservice. The supplied rubric further says each database container owns its assigned SQLite schema.
 
-The proposed baseline is therefore **five feature-owned database services**: Feature 1 uses PostgreSQL 16/PostGIS because the verified corpus is approximately 29 GB and spatial; Features 2–5 retain SQLite. This is a targeted exception, not one shared team database, and requires explicit written tutor approval before implementation. If approval is denied, Feature 1 must switch to a bounded SQLite extract and stop claiming full-state ingestion. The decision and fallback are recorded in the proposed PostgreSQL/PostGIS ADR.
+The approved baseline is therefore **five feature-owned database services**: Feature 1 uses
+PostgreSQL 16/PostGIS because the verified corpus is approximately 29 GB and spatial; Features 2–5
+retain SQLite. This is a targeted exception, not one shared team database. The decision and fallback
+are recorded in the PostgreSQL/PostGIS ADR.
 
 ### 2.2 Rubric-to-design mapping
 
@@ -447,7 +455,11 @@ The actionable Release 0 build sequence is maintained in [`../release-0/property
 
 **Purpose:** Own the product's data control plane, accepted dataset-release catalogue, canonical property identity, coverage discovery, and address/map search.
 
-The team may describe this informally as the **data warehouse and ingestion feature**, but the registration name should include **Property Discovery** so its end-user value and integrated product role are unmistakable. Subject to written tutor approval, PostgreSQL 16/PostGIS is its feature-owned persistence implementation; the public boundary remains its frontend/backend API and publication contracts, never SQL access.
+The team may describe this informally as the **data warehouse and ingestion feature**, but the
+approved registration name includes **Property Discovery** so its end-user value and integrated
+product role are unmistakable. PostgreSQL 16/PostGIS is its approved feature-owned persistence
+implementation; the public boundary remains its frontend/backend API and publication contracts,
+never SQL access.
 
 **In scope:**
 
@@ -1395,7 +1407,7 @@ Feature 1 owns a real PostgreSQL/PostGIS data plane because address, source and 
 |---|---|---|---|
 | One central PostgreSQL store replaces the five stores | Poor | Other students no longer clearly maintain their own database microservice; repeated SQLite deliverables are missed | Do not use |
 | Feature 1 PostgreSQL becomes a general query/API dependency for every screen | Poor | Creates a god service, weakens domain ownership and couples availability/performance | Do not use |
-| Feature 1 owns PostgreSQL/PostGIS; four consumers own SQLite and receive bounded releases | Strong if approved | Fits the verified scale while preserving five database services and API-only ownership | **Recommended; written tutor approval required** |
+| Feature 1 owns PostgreSQL/PostGIS; four consumers own SQLite and receive bounded releases | Approved | Fits the verified scale while preserving five database services and API-only ownership | **Selected** |
 | Feature 1 uses bounded SQLite only | Acceptable fallback | Demonstrates the contracts but cannot truthfully offer full NSW ingestion/search | Use only if the PostgreSQL exception is rejected |
 | Later shared RAG index has its own derived persistence | Strong with approval | It is a required shared Release 1 service, not a replacement product database | Design separately and document it |
 
@@ -1936,23 +1948,23 @@ Animated maps or elaborate valuation models are lower value until every rubric r
 | Prior project work obscures new contributions | Individual evidence risk | Attribute prior work clearly; log new export tooling separately; each owner authors their service/schema/tests/prompts and contribution record |
 | Polished map hides incomplete CRUD | Lost binary marks | CRUD/evidence checklist is the release gate before visual extras |
 
-## 23. Decisions to take to the tutor/team
+## 23. Remaining product and delivery decisions
 
-Seek explicit agreement on:
+The topic, five owners, minimum feature boundaries, Azure target and Feature 1 persistence exception
+are approved. The team should still agree on:
 
-1. the recommended five-feature split and Feature 5's single-owner report/follow-up orchestration boundary, with section contracts contributed by Features 1–4;
+1. whether any dossier, printable report, comparable-selection or stakeholder-guide concept becomes
+   a separately approved stretch target beyond the registered minimum;
 2. whether nearby-school data is acceptable without catchment claims;
 3. the curated Release 0 geography and candidate addresses;
 4. treatment/licensing of bounded source-derived fixtures in a shared repository;
-5. whether every official observation requires UI delete, or whether assessed CRUD may focus on student-owned records while observation corrections use controlled admin CRUD;
-6. whether printable HTML is sufficient for “report generation” in Release 0;
-7. acceptable disclaimers and avoidance of valuation/advice claims;
-8. individual feature allocation and balanced ownership; and
-9. PropertyScope NSW as the registration name;
-10. five independently owned database microservices, with written approval for Feature 1 PostgreSQL/PostGIS and Features 2–5 SQLite;
-11. Feature 1's combined assessed data-platform/property-discovery boundary and the separate attribution of prior work; and
-12. Release 1 ownership: shared MCP/RAG infrastructure plus one MCP capability, corpus and grounded interaction per student; and
-13. BOCSAR crime comparison scope, rate/denominator handling and prohibition on predictive or safe/unsafe scoring.
+5. whether every official observation requires UI delete, or whether assessed CRUD may focus on
+   student-owned records while observation corrections use controlled admin CRUD;
+6. acceptable disclaimers and avoidance of valuation/advice claims;
+7. Release 1 ownership for shared MCP/RAG infrastructure plus per-student capabilities, corpora and
+   grounded interactions; and
+8. BOCSAR crime/liveability scope, rate/denominator handling and the prohibition on predictive or
+   safe/unsafe scoring.
 
 The fifth point matters because deleting source history is poor data practice, yet the rubric says working CRUD. The lowest-risk implementation is to provide complete authenticated/admin CRUD endpoints and tests for observations while making student-owned aggregates the prominent user CRUD. Confirm this interpretation early.
 
@@ -1960,12 +1972,13 @@ The fifth point matters because deleting source history is poor data practice, y
 
 ### Phase A — approve and freeze contracts
 
-- Obtain tutor approval for topic/split.
+- Treat the approved registration scope as the allocation baseline.
 - Choose supported localities and 10–30 golden properties.
 - Allocate student owners.
 - Write one-page vocabulary, disclaimers, data licence register and support matrix.
 - Approve OpenAPI examples, evidence envelope and provider dependency graph.
-- Obtain written tutor approval for Feature 1 PostgreSQL/PostGIS, the four SQLite consumer stores, data-publication boundary and bounded SQLite fallback.
+- Record the approved Feature 1 PostgreSQL/PostGIS exception and four SQLite consumer-store boundary
+  in release evidence.
 
 ### Phase B — prove five thin vertical slices
 

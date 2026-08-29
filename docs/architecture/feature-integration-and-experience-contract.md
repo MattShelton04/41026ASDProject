@@ -4,16 +4,18 @@
 
 | Field | Value |
 |---|---|
-| Status | Team integration baseline; Feature 1 implemented, Features 2–5 remain subject to allocation and tutor approval |
-| Last verified | 22 August 2026 |
+| Status | Team integration baseline; approved five-feature allocation, Feature 1 implemented, Features 2–5 planned |
+| Last verified | 29 August 2026 |
 | Scope | Browser navigation, HTTP integration, cross-feature data flow, shared styling, failure behaviour, onboarding and integration tests |
 | Audience | Feature owners, shared-platform maintainers, reviewers and demonstrators |
 | Normative language | **Must** is required for integration; **should** is the preferred default; **may** is optional |
-| Related architecture | [`shared-platform-design.md`](shared-platform-design.md) and [`propertyscope-product-and-feature-plan.md`](propertyscope-product-and-feature-plan.md) |
+| Related architecture | [`registered-feature-scope.md`](registered-feature-scope.md), [`shared-platform-design.md`](shared-platform-design.md) and [`propertyscope-product-and-feature-plan.md`](propertyscope-product-and-feature-plan.md) |
 
-This document turns the approved repository boundaries and the proposed PropertyScope product plan
-into one implementable integration contract. It does not allocate Features 2–5, approve the topic
-on behalf of the tutor, or authorise one student to implement another student's assessed work.
+This document turns the approved repository boundaries and PropertyScope feature allocation into one
+implementable integration contract. [`registered-feature-scope.md`](registered-feature-scope.md) is
+the authority for owner, purpose and minimum feature scope. This contract refines integration
+mechanics but does not authorise one student to implement another student's assessed work or turn an
+optional design concept into a required capability.
 Feature owners can change a domain contract through review, but they must preserve the integration
 rules here or update this document and the affected contract tests in the same pull request.
 
@@ -59,7 +61,7 @@ Compose model and living architecture win if an old prototype screen disagrees w
 | Shared shell | Implemented at port 5100 | Becomes the stable product entry and same-origin edge |
 | Shared design system | Implemented and consumed by Feature 1 | Treat `--ps-*` tokens and `.ps-*` primitives as a versioned API |
 | Feature 1 | Implemented at port 5200 with backend, runner, database API/loader and PostgreSQL/PostGIS | Preserve direct development access while adding canonical edge routing |
-| Features 2–5 | Unallocated placeholders | Reserve routes and contracts; never present them as available until their complete thin slice is healthy |
+| Features 2–5 | Approved and allocated; not implemented | Reserve routes and contracts; never present them as available until their complete thin slice is healthy |
 | AI-mode | Implemented at port 5005 | Features create bounded runs through their own backend; global operations remain secondary navigation |
 | MCP, RAG, multi-agent and cloud | Later-release seams | Capability-gate them; ordinary CRUD and evidence reads must not depend on them |
 
@@ -100,10 +102,10 @@ database service.
 | Feature | Runtime authority | Public API base | Canonical frontend base | May synchronously call |
 |---|---|---|---|---|
 | 1 Data platform and discovery | Property identity, source/release control plane, accepted property projections | `/api/data-platform/v1/` | `/features/data-platform/` | AI-mode; its own database API |
-| 2 Market intelligence | Recorded-sale interpretation, comparables, market cases | `/api/market-intelligence/v1/` | `/features/market-intelligence/` | Feature 1 for bounded identity validation; AI-mode; its own database API |
-| 3 Suburb analytics | Crime/place/area interpretation, saved comparisons | `/api/suburb-analytics/v1/` | `/features/suburb-analytics/` | Feature 1 for bounded identity/locality validation; AI-mode; its own database API |
+| 2 Sales explorer and market cases | Recorded-sale interpretation, simple deterministic summaries, market cases | `/api/market-intelligence/v1/` | `/features/market-intelligence/` | Feature 1 for bounded identity validation; AI-mode; its own database API |
+| 3 Suburb, crime and liveability | Suburb/crime/amenity interpretation, saved and favourite suburbs | `/api/suburb-analytics/v1/` | `/features/suburb-analytics/` | Feature 1 for bounded identity/locality validation; AI-mode; its own database API |
 | 4 Due diligence | Planning/site/building coverage semantics, site reviews | `/api/due-diligence/v1/` | `/features/due-diligence/` | Feature 1 for bounded identity/location validation; AI-mode; its own database API |
-| 5 Buyer workspace | Profiles, watchlists, dossiers, follow-ups, cross-feature composition and human review | `/api/buyer-workspaces/v1/` | `/features/buyer-workspaces/` | Feature APIs 1–4; AI-mode; its own database API |
+| 5 Buyer journey and agent workspace | Buyer cases, shortlisted properties, notes, tasks, cross-feature research summaries and next actions | `/api/buyer-workspaces/v1/` | `/features/buyer-workspaces/` | Feature APIs 1–4; AI-mode; its own database API |
 
 ### 3.1 Prohibited coupling
 
@@ -147,7 +149,7 @@ Each feature owns its hash routes below its base. The baseline landing hashes ar
 ```text
 /features/data-platform/#properties
 /features/market-intelligence/#market-cases
-/features/suburb-analytics/#suburb-comparisons
+/features/suburb-analytics/#suburbs
 /features/due-diligence/#site-reviews
 /features/buyer-workspaces/#workspace
 ```
@@ -176,8 +178,8 @@ The registry must not contain feature entities, API payloads or business calcula
 services stay explicit—the registry does not generate hidden topology. An implemented feature's
 validated `feature.yaml` remains the machine-readable ownership and service-path authority; shell
 tests must cross-check its identity and canonical frontend path against the browser projection.
-Placeholder registry entries for unallocated features reserve product routes only and do not stand
-in for a feature manifest.
+Planned registry entries for approved but unimplemented features reserve product routes only and do
+not stand in for an implemented feature manifest.
 
 ### 4.3 In-feature navigation
 
@@ -213,7 +215,7 @@ Preferred parameters are:
 |---|---|---|
 | `property_ref` | Opaque canonical PropertyScope property identifier | Feature 1 |
 | `state` + `locality` | Locality identity; both are required | Feature 1 validates; consuming feature owns its observations |
-| `dossier_id`, `market_case_id`, `comparison_id`, `site_review_id` | Feature-owned aggregate identifier | Named feature only |
+| `buyer_case_id`, `market_case_id`, `saved_suburb_id`, `site_review_id` | Feature-owned aggregate identifier | Named feature only |
 | `evidence_id`, `run_id`, `release_id` | Trace/detail reference, not embedded content | Provider named by the link |
 
 For example, Feature 1 may link to:
@@ -315,9 +317,10 @@ live. Publication/import operations require an idempotency key and auditable rec
 
 ### 5.4 Runtime composition
 
-Only Feature 5 composes cross-feature product responses. It calls bounded report-section endpoints
-from Features 1–4, validates every response and snapshots provider/evidence/release/request IDs. It
-does not recalculate another feature's metrics or remove provider caveats.
+Only Feature 5 composes cross-feature product responses for a buyer case. It calls bounded research
+section endpoints from Features 1–4, validates every response and snapshots provider, evidence,
+release and request IDs. It does not recalculate another feature's metrics or remove provider
+caveats.
 
 | Provider | Feature 5 consumes | Provider remains responsible for |
 |---|---|---|
@@ -328,7 +331,7 @@ does not recalculate another feature's metrics or remove provider caveats.
 
 Feature 5 returns independent section states: `complete`, `partial`, `unavailable`,
 `needs_verification` or `conflicting`. One provider failure must not discard other successful
-sections. The overall dossier may complete as `needs_verification`.
+sections. The overall buyer-case research summary may complete as `needs_verification`.
 
 ### 5.5 AI-mode integration
 
@@ -436,19 +439,19 @@ practical. Layouts must remain usable at 320 CSS pixels.
 
 Desktop may use a persistent feature rail and split evidence views. Tablet collapses the rail and
 prioritises columns. Mobile uses a single-column task flow and list-to-detail navigation rather than
-squeezed split panes. Print/report styles belong to Feature 5.
+squeezed split panes. Any printable buyer-case summary styles belong to Feature 5.
 
 ## 8. Integrated journeys
 
-### 8.1 Property research and dossier
+### 8.1 Property research and buyer case
 
 1. The shell forwards an address query to Feature 1 through the canonical edge route.
 2. Feature 1 resolves the address and the user confirms a `property_ref`.
 3. A contextual link opens Feature 5, which stores the candidate in a user-owned workspace.
 4. Feature 5 retrieves independent bounded sections from Features 1–4.
 5. AI-mode plans and observes allowlisted retrieval; missing or conflicting evidence is retained.
-6. Feature 5 saves a review-gated draft with provider/evidence/release/run references.
-7. The user edits and approves the dossier, then explicitly accepts any proposed follow-up tasks.
+6. Feature 5 saves a buyer-case summary with provider/evidence/release/run references.
+7. The user reviews the summary and explicitly accepts, edits or rejects any suggested next action.
 
 ### 8.2 Data publication
 
@@ -462,7 +465,7 @@ squeezed split panes. Print/report styles belong to Feature 5.
 
 1. Feature 5 requests four provider sections with bounded concurrency and timeouts.
 2. Feature 4 is unavailable; the other providers succeed.
-3. The dossier persists the successful snapshots and the Feature 4 structured failure/request ID.
+3. The buyer case preserves the successful snapshots and the Feature 4 structured failure/request ID.
 4. The agent may adapt once but cannot invent site evidence.
 5. The result is `needs_verification`, with an editable follow-up for a qualified professional.
 
@@ -524,7 +527,7 @@ named volumes.
 | 2 Edge proof | Proxy Feature 1 at its canonical path; keep direct port | Make Feature 1 assets base-path compatible | Same-origin navigation and API smoke |
 | 3 Thin slices | Add explicit route/service slots as owners deliver | Features 2–5 CRUD/API/database/AI slice | Per-student workflow and Compose health |
 | 4 Publication | Manifest/receipt conventions and group fixture | Provider exports and consumer validation/import | Accept/reject/rollback integration tests |
-| 5 Composition | Golden-path and partial-failure harness | Feature 5 provider clients/report lifecycle | Full and degraded dossier evidence |
+| 5 Composition | Golden-path and partial-failure harness | Feature 5 provider clients, case summaries and next-action flow | Full and degraded buyer-case evidence |
 | 6 Release extensions | Capability gates for MCP/RAG/multi-agent/cloud | Feature-owned tools/corpora/evaluations | Release-specific integration evidence |
 
 Commits should stay staggered by concern: documentation/contract, edge/registry, styling adoption,
@@ -534,17 +537,15 @@ tests/fixes and review amendments. Shared-contract or edge changes require affec
 
 The following are intentionally not invented here:
 
-- tutor approval of PropertyScope and the exact five-feature split;
-- named owners for Features 2–5;
 - the curated Release 0 geography and candidate properties;
 - the evidence-envelope promotion into `shared_contracts`;
 - the approved browser end-to-end stack;
 - authentication and user identity requirements;
 - source licences/redistribution treatment; and
-- final cloud provider, persistence and public-ingress configuration.
+- Azure persistence and public-ingress configuration.
 
-Until these are resolved, reserved routes and proposed feature labels are safe planning constraints,
-not claims that the associated assessed feature exists.
+Until these are resolved, reserved routes and approved feature labels are safe planning constraints,
+not claims that the associated assessed feature is implemented.
 
 ## 13. Change control
 
