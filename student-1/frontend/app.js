@@ -9,7 +9,7 @@ import { createDrawerController, createToastController } from "./browser/index.j
 import { formField } from "./components/forms.js?v=17";
 import { hydrateIcons } from "./components/icons.js?v=1";
 import { renderLoading } from "./components/states.js";
-import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=19";
+import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=20";
 import { createFeatureAssistantRoute } from "./routes/assistant.js?v=1";
 import { createEntityRoutes } from "./routes/entities.js?v=20";
 import { createDataProductRoutes } from "./routes/data-products.js?v=18";

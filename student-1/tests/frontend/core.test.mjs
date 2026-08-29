@@ -887,6 +887,9 @@ test("AI review history is loaded from the shared service projection without red
   assert.match(source, /aria-live/);
   assert.match(source, /Recommended next step/);
   assert.match(source, /The review recovered from/);
+  assert.match(source, /AI review failed/);
+  assert.match(source, /retained activity record and cannot be changed/);
+  assert.match(source, /function reviewPresentation/);
   assert.match(source, /recommended_next_step/);
   assert.match(source, /function traceStep/);
 });

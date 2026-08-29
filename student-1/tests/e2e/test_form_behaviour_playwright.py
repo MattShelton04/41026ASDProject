@@ -1079,6 +1079,43 @@ def test_ai_manual_refresh_preserves_disclosure_and_refresh_focus(
     expect(page.get_by_role("button", name="Refresh result")).to_be_focused()
 
 
+def test_run_and_failed_ai_details_remain_clear_at_mobile_width(
+    page: Page, fixture_origin: str
+) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    _open(page, fixture_origin, f"runs/{RUN_ID}")
+
+    expect(page.get_by_role("heading", name="Example property records update")).to_be_visible()
+    for label in ("Use downloaded file", "Ask AI about update", "Review candidate data"):
+        expect(page.get_by_role("button", name=label)).to_be_visible()
+    assert page.evaluate(
+        "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+
+    def failed_agent_run(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        payload["run"]["status"] = "failed"
+        payload["run"]["final_result"] = None
+        payload["run"]["error"] = {
+            "code": "fixture_failed",
+            "message": "Deterministic AI review failure",
+        }
+        route.fulfill(response=response, json=payload)
+
+    page.route(f"**/api/data-platform/v1/agent-runs/{AGENT_RUN_ID}", failed_agent_run)
+    _open(page, fixture_origin, f"ai/{AGENT_RUN_ID}")
+
+    expect(page.get_by_role("heading", name="AI review failed", exact=True)).to_be_visible()
+    expect(
+        page.get_by_text("retained activity record and cannot be changed", exact=False)
+    ).to_be_visible()
+    expect(page.get_by_role("heading", name="AI review in progress", exact=True)).to_have_count(0)
+    assert page.evaluate(
+        "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+
+
 def test_ai_active_poll_preserves_disclosure_without_stealing_external_focus(
     page: Page, fixture_origin: str
 ) -> None:
