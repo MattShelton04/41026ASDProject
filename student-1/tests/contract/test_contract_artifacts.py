@@ -315,6 +315,7 @@ def test_release_inspection_tool_declares_all_composed_evidence() -> None:
         "quality_results",
         "quality_summary",
         "receipts",
+        "activations",
         "accepted_predecessor",
         "release_contract",
     }

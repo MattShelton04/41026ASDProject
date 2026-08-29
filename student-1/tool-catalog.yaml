@@ -106,7 +106,7 @@ tools:
       name: data.release_inspect.v1
       version: v1
       feature_key: student-1-propertyscope-data-platform
-      description: Inspect one dataset release, its quality evidence, and accepted predecessor by exact release ID.
+      description: Inspect one dataset release, its quality evidence, publication receipts and activations, and accepted predecessor by exact release ID.
       input_schema:
         type: object
         properties:
@@ -128,6 +128,7 @@ tools:
             required: [total, passed, failed, blocking_failures]
             additionalProperties: false
           receipts: {type: array, maxItems: 100, items: {type: object}}
+          activations: {type: array, maxItems: 100, items: {type: object}}
           accepted_predecessor: {type: [object, "null"]}
           release_contract: {type: [object, "null"]}
         required:
@@ -135,6 +136,7 @@ tools:
           - quality_results
           - quality_summary
           - receipts
+          - activations
           - accepted_predecessor
           - release_contract
         additionalProperties: false
