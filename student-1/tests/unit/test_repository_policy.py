@@ -20,7 +20,9 @@ from propertyscope_data_store.persistence_support import (
 from propertyscope_data_store.query_specs import (
     PREVIEW_SPECS,
     PROPERTY_RECORD_SPEC,
+    encode_export_cursor,
     normalise_product_rows,
+    release_export_query,
     release_product_query,
 )
 
@@ -32,17 +34,13 @@ def test_run_task_plan_has_stable_order_and_cached_skip_policy() -> None:
     assert tuple(task.logical_key for task in full_refresh) == (
         "00/discover",
         "01/acquire",
-        "02/validate_artifact",
-        "03/import",
-        "04/normalise",
-        "05/quality",
-        "06/build_release",
+        "02/import",
+        "03/build_release",
     )
     assert not any(task.skipped for task in full_refresh)
     assert tuple(task.stage for task in cached if task.skipped) == (
         "discover",
         "acquire",
-        "validate_artifact",
     )
 
 
@@ -51,10 +49,7 @@ def test_run_task_plan_has_stable_order_and_cached_skip_policy() -> None:
     [
         ("discover", "discovering"),
         ("acquire", "acquiring"),
-        ("validate_artifact", "acquiring"),
         ("import", "staging"),
-        ("normalise", "normalising"),
-        ("quality", "validating"),
         ("build_release", "building_release"),
     ],
 )
@@ -169,6 +164,40 @@ def test_property_product_query_uses_the_generation_primary_key_order() -> None:
     )
 
     assert "ORDER BY gnaf_pid" in query.select_sql
+
+
+@pytest.mark.parametrize(
+    ("profile", "row", "keyset_predicate"),
+    [
+        ("gnaf-nsw", {"source_address_id": "G-2"}, "gnaf_pid>%s"),
+        (
+            "psi-sales",
+            {"source_business_key": "sale-2", "source_revision": 3},
+            "(source_business_key,source_revision)>(%s,%s)",
+        ),
+        ("schools-master", {"school_code": "S-2"}, "school_code>%s"),
+        (
+            "bocsar-sparse",
+            {
+                "geography_kind": "postcode",
+                "geography_value": "2000",
+                "source_category_key": "theft",
+            },
+            ">( %s,%s,%s)".replace(" ", ""),
+        ),
+    ],
+)
+def test_complete_export_uses_stable_keyset_cursors_without_offset(
+    profile: str, row: dict[str, object], keyset_predicate: str
+) -> None:
+    first = release_export_query(profile, uuid.uuid4(), limit=5000, cursor=None)
+    cursor = encode_export_cursor(row, first.cursor_columns)
+    following = release_export_query(profile, uuid.uuid4(), limit=5000, cursor=cursor)
+
+    compact_sql = following.select_sql.replace(" ", "").replace("\n", "")
+    assert "OFFSET" not in following.select_sql
+    assert keyset_predicate.replace(" ", "") in compact_sql
+    assert following.select_params[-1] == 5000
 
 
 def test_product_query_rejects_unregistered_profile_and_normalises_bocsar_dates() -> None:

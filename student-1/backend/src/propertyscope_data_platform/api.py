@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import json
 import uuid
 from collections.abc import Mapping
@@ -10,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, jsonify, request, send_file
 from pydantic import ValidationError
 from werkzeug.datastructures import Headers
 
@@ -110,6 +111,34 @@ def create_blueprint(
     @api.get(f"{BASE}/overview")
     def overview() -> Response:
         return forward(store.request("GET", f"{INTERNAL}/overview", headers=request.headers))
+
+    @api.route(f"{BASE}/artifact-retention", methods=["GET", "POST"])
+    def artifact_retention() -> Response:
+        inventory_response = store.request(
+            "GET", f"{INTERNAL}/artifact-retention", headers=request.headers
+        )
+        if inventory_response.status_code >= 400 or request.method == "GET":
+            return forward(inventory_response)
+        inventory = inventory_response.json()
+        body = json_body()
+        grace_days = body.get("grace_days", 7)
+        if (
+            not isinstance(grace_days, int)
+            or isinstance(grace_days, bool)
+            or not 1 <= grace_days <= 3650
+        ):
+            return problem(422, "invalid_grace_period", "grace_days must be between 1 and 3650")
+        referenced = {
+            str(item["storage_key"])
+            for item in inventory.get("items", [])
+            if isinstance(item, dict) and item.get("storage_key")
+        }
+        cleanup = LocalArtifactStore(artifact_root).cleanup_unreferenced(
+            referenced,
+            grace_seconds=grace_days * 86_400,
+            dry_run=body.get("dry_run", True) is not False,
+        )
+        return jsonify({"inventory": inventory, "cleanup": cleanup})
 
     @api.get(f"{BASE}/runtime-capabilities")
     def runtime_capabilities() -> Response:
@@ -607,21 +636,24 @@ def create_blueprint(
                 "redistribution_not_permitted",
                 "This source licence permits metadata evidence only",
             )
-        if (
-            artifact["artifact_kind"] != "release_export"
-            or int(artifact["bytes"]) > MAX_PUBLIC_ARTIFACT_BYTES
-        ):
-            return problem(413, "artifact_not_bounded", "Release artifact exceeds export policy")
+        if artifact["artifact_kind"] != "release_export":
+            return problem(409, "artifact_invalid", "Release artifact is not a registered export")
         try:
-            data = LocalArtifactStore(artifact_root).read_verified(
+            path = LocalArtifactStore(artifact_root).verified_path(
                 artifact["storage_key"],
                 artifact["content_sha256"],
-                max_bytes=MAX_PUBLIC_ARTIFACT_BYTES,
+                expected_bytes=int(artifact["bytes"]),
             )
         except ArtifactError:
             return problem(503, "artifact_unavailable", "Verified release artifact is unavailable")
-        response = Response(data, content_type=artifact["media_type"])
-        response.headers["Content-Disposition"] = f'attachment; filename="{release_id}.json"'
+        suffix = ".ndjson.gz" if artifact.get("content_encoding") == "gzip" else ".json"
+        response = send_file(
+            path,
+            mimetype=artifact["media_type"],
+            as_attachment=True,
+            download_name=f"{release_id}{suffix}",
+            conditional=True,
+        )
         digest_bytes = bytes.fromhex(artifact["content_sha256"])
         response.headers["Digest"] = f"sha-256=:{base64.b64encode(digest_bytes).decode()}:"
         response.headers["ETag"] = f'"sha256-{artifact["content_sha256"]}"'
@@ -1607,22 +1639,36 @@ def verify_local_publication(
             or int(artifact["bytes"]) != int(publication.manifest["byte_count"])
         ):
             raise ArtifactError("artifact registration does not match the release")
-        content = LocalArtifactStore(artifact_root).read_verified(
+        path = LocalArtifactStore(artifact_root).verified_path(
             artifact["storage_key"],
             publication.content_sha256,
-            max_bytes=MAX_PUBLIC_ARTIFACT_BYTES,
+            expected_bytes=int(artifact["bytes"]),
         )
-        envelope = ProductEnvelope.model_validate(json.loads(content))
-        if (
-            envelope.schema_version != publication.schema_version
-            or envelope.release_id != publication.release_id
-            or envelope.dataset_id != publication.dataset_id
-            or len(envelope.records) != publication.record_count
-        ):
-            raise ArtifactError("product envelope does not match the release")
         builder = resolve_release_builder(manifest.builder_key, manifest.builder_version)
-        for record in envelope.records:
-            builder.spec.record_adapter.validate_python(record)
+        if manifest.content_encoding == "gzip" and manifest.media_type == "application/x-ndjson":
+            count = 0
+            with gzip.open(path, "rt", encoding="utf-8") as stream:
+                for line in stream:
+                    if not line.strip():
+                        continue
+                    builder.spec.record_adapter.validate_python(json.loads(line))
+                    count += 1
+            if count != publication.record_count:
+                raise ArtifactError("product stream count does not match the release")
+        else:
+            content = path.read_bytes()
+            if len(content) > MAX_PUBLIC_ARTIFACT_BYTES:
+                raise ArtifactError("legacy product envelope exceeds its registered bound")
+            envelope = ProductEnvelope.model_validate(json.loads(content))
+            if (
+                envelope.schema_version != publication.schema_version
+                or envelope.release_id != publication.release_id
+                or envelope.dataset_id != publication.dataset_id
+                or len(envelope.records) != publication.record_count
+            ):
+                raise ArtifactError("product envelope does not match the release")
+            for record in envelope.records:
+                builder.spec.record_adapter.validate_python(record)
     except (ArtifactError, KeyError, TypeError, ValueError, ValidationError, httpx.HTTPError):
         return PublicationReceiptResult(
             consumer_operation_id=publication.idempotency_key,

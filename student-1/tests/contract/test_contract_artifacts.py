@@ -33,6 +33,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
     assert document["openapi"] == "3.1.0"
     expected_paths = {
         "/overview",
+        "/artifact-retention",
         "/runtime-capabilities",
         "/assistant/capabilities",
         "/assistant/turns",
@@ -343,6 +344,7 @@ def test_release_discovery_uses_real_statuses_and_source_metadata_is_not_load_ev
         "accepted",
         "rejected",
         "superseded",
+        "abandoned",
     ]
     assert release_tool.side_effect.value == "read_only"
     assert "does not prove" in registrations["data.sources.v1"].description

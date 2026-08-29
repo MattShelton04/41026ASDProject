@@ -1275,7 +1275,6 @@ def test_retry_of_legacy_partial_run_reacquires_the_complete_registered_source()
     assert created_body["scope"] == {
         "profile": "full-data",
         "all_records": True,
-        "release_scope": {"maximum_records": 5000},
     }
 
 

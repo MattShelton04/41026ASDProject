@@ -20,7 +20,10 @@ function runTimeline(tasks, { available = true } = {}) {
     const tone = statusTone(task.status);
     const marker = el("span", `timeline-marker ${tone}`, stateLabel(task.status).symbol);
     const detail = el("div");
-    append(detail, el("h3", "", `${humanise(task.stage)} · ${task.logical_key || "Task"}`), el("p", "", `${humanise(task.status)} · attempt ${task.attempt_number ?? 1} · ${formatNumber(task.rows_out)} rows out`));
+    const durableRows = Math.max(Number(task.rows_out || 0), Number(task.progress_rows || 0));
+    const total = task.progress_total_rows == null ? "total unknown" : `${formatNumber(task.progress_total_rows)} total`;
+    const phase = task.progress_phase ? ` · ${task.progress_phase}` : "";
+    append(detail, el("h3", "", `${humanise(task.stage)} · ${task.logical_key || "Task"}`), el("p", "", `${humanise(task.status)}${phase} · attempt ${task.attempt_number ?? 1} · ${formatNumber(durableRows)} rows · ${total}`));
     if (task.error_json) append(detail, technicalDetails(task.error_json, "Failure details"));
     append(item, marker, detail);
     append(list, item);
@@ -150,7 +153,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
     try {
       const supportingFeeds = Promise.allSettled([
         request(`ingestion-runs/${id}/tasks?limit=100`), request(`ingestion-runs/${id}/quality-results?limit=100`), request(`ingestion-runs/${id}/artifacts?limit=100`),
-        request("dataset-releases?limit=100"),
+        request(`dataset-releases?ingestion_run_id=${encodeURIComponent(id)}&limit=100`),
       ]);
       const detailResult = await request(`ingestion-runs/${id}`);
       if (!isCurrent()) return;
@@ -219,7 +222,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       if (qualityWarning) append(evidenceAvailability, qualityWarning);
       if (artifactsWarning) append(evidenceAvailability, artifactsWarning);
       append(evidence,
-        panel("Update status", "Current state", detailList([["Status", badge(run.status)], ["Last activity", formatDate(run.heartbeat_at)], ["Attempt", run.attempt_number], ["Previous update", run.parent_run_id ? link(String(run.parent_run_id), `#runs/${run.parent_run_id}`) : "None"], ["Reference", el("code", "mono", run.request_id || detailResult.requestId)], ["Finished", formatDate(run.finished_at)]])),
+        panel("Update status", "Current state", detailList([["Status", badge(run.status)], ["Last activity", formatDate(run.last_activity_at || run.finished_at || run.heartbeat_at)], ["Attempt", run.attempt_number], ["Previous update", run.parent_run_id ? link(String(run.parent_run_id), `#runs/${run.parent_run_id}`) : "None"], ["Reference", el("code", "mono", run.request_id || detailResult.requestId)], ["Finished", formatDate(run.finished_at)]])),
         panel("Saved progress", "Technical checkpoints used if the update must resume", detailList([["Input checkpoint", JSON.stringify(run.input_checkpoint_json || {})], ["Candidate checkpoint", JSON.stringify(run.output_checkpoint_json || {})], ["Published watermark", JSON.stringify(run.accepted_watermark_json || {})]])),
         panel("Checks and files", "Specialist details for this update", el("div", "stack", "")),
       );

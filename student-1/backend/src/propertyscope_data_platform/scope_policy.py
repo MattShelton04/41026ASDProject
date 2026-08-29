@@ -8,10 +8,6 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from propertyscope_data_platform.acquisition_scope import complete_scope_error
-from propertyscope_data_platform.release_builders import (
-    default_release_builders,
-    resolve_release_builder,
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,33 +64,6 @@ def validate_job_scope(
     completeness_error = complete_scope_error(import_profile, scope)
     if completeness_error is not None:
         return None, _invalid(completeness_error)
-    bounded_scope = scope.get("release_scope", scope)
-    if not isinstance(bounded_scope, dict):
-        return None, _invalid("release_scope must be a JSON object")
-    builder_key = job.get("release_builder_key") or {
-        "bocsar-sparse": "crime-series",
-        "gnaf-nsw": "property-snapshot",
-        "property-fixture": "property-snapshot",
-        "psi-sales": "property-sales",
-        "schools-master": "school-points",
-    }.get(str(job.get("import_profile_key")))
-    registered_builder = default_release_builders().get(str(builder_key))
-    builder_version = job.get("release_builder_version") or (
-        registered_builder.spec.version if registered_builder is not None else "unknown"
-    )
-    builder = resolve_release_builder(str(builder_key), str(builder_version))
-    maximum_records = bounded_scope.get("maximum_records")
-    if (
-        not isinstance(maximum_records, int)
-        or isinstance(maximum_records, bool)
-        or maximum_records < 1
-        or maximum_records > builder.spec.max_rows
-    ):
-        return None, _invalid("maximum_records exceeds the product limit")
-    if import_profile == "psi-sales":
-        error = _validate_psi_release_scope(bounded_scope)
-        if error is not None:
-            return None, error
     connected = import_profile in {
         "schools-master",
         "bocsar-sparse",
@@ -132,21 +101,6 @@ def resolve_registered_scope(job: Mapping[str, Any], raw_scope: Any, job_profile
     resolved = dict(defaults)
     resolved["profile"] = "full-data"
     return resolved
-
-
-def _validate_psi_release_scope(bounded_scope: Mapping[str, Any]) -> ScopeProblem | None:
-    maximum_year = datetime.now(UTC).year + 1
-    release_years = bounded_scope.get("years")
-    if not isinstance(release_years, list) or not release_years or len(release_years) > 100:
-        return _invalid("PSI release scope requires explicit source years")
-    invalid_year = any(not _valid_year(year, maximum_year) for year in release_years)
-    if invalid_year or release_years != sorted(set(release_years)):
-        return _invalid("PSI release years must be unique, sorted, and in range")
-    return None
-
-
-def _valid_year(value: Any, maximum_year: int) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and 1990 <= value <= maximum_year
 
 
 def _invalid(detail: str) -> ScopeProblem:

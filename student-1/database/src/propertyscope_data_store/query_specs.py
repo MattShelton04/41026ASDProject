@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -161,6 +163,149 @@ class ReleaseProductQuery:
     select_params: tuple[Any, ...]
     count_sql: str
     count_params: tuple[Any, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ReleaseExportQuery:
+    """One keyset page for complete release construction."""
+
+    select_sql: str
+    select_params: tuple[Any, ...]
+    count_sql: str
+    count_params: tuple[Any, ...]
+    cursor_columns: tuple[str, ...]
+
+
+def encode_export_cursor(row: Mapping[str, Any], columns: tuple[str, ...]) -> str:
+    payload = json.dumps([row[column] for column in columns], separators=(",", ":"), default=str)
+    return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+
+
+def decode_export_cursor(value: str | None, columns: tuple[str, ...]) -> tuple[Any, ...] | None:
+    if value is None:
+        return None
+    try:
+        raw = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+        decoded = json.loads(raw)
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise ConflictError("release construction cursor is invalid") from exc
+    if not isinstance(decoded, list) or len(decoded) != len(columns):
+        raise ConflictError("release construction cursor is invalid")
+    return tuple(decoded)
+
+
+def release_export_query(
+    profile: str,
+    release_id: uuid.UUID,
+    *,
+    limit: int,
+    cursor: str | None,
+) -> ReleaseExportQuery:
+    """Resolve a complete deterministic keyset projection; count is executed only on page one."""
+    if profile in {"property-fixture", "gnaf-nsw"}:
+        columns: tuple[str, ...] = ("source_address_id",)
+        values = decode_export_cursor(cursor, columns)
+        predicate = " AND gnaf_pid>%s" if values else ""
+        params: tuple[Any, ...] = (release_id, *(values or ()), limit)
+        return ReleaseExportQuery(
+            f"""SELECT COALESCE(property_ref,md5('propertyscope-gnaf:' || gnaf_pid)::uuid)
+                AS property_ref,gnaf_pid AS source_address_id,address_display,flat_type,
+                unit_number,street_number_first,street_number_suffix,street_number_last,
+                street_name,street_type,locality,postcode,source_status,geocode_type,
+                source_crs,ST_AsGeoJSON(geom)::jsonb AS geometry,source_row_sha256,
+                normalisation_version FROM warehouse.gnaf_address
+                WHERE dataset_release_id=%s{predicate}
+                ORDER BY gnaf_pid LIMIT %s""",
+            params,
+            "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
+            (release_id,),
+            columns,
+        )
+    if profile == "psi-sales":
+        columns = ("source_business_key", "source_revision")
+        values = decode_export_cursor(cursor, columns)
+        predicate = " AND (source_business_key,source_revision)>(%s,%s)" if values else ""
+        params = (release_id, *(values or ()), limit)
+        return ReleaseExportQuery(
+            f"""SELECT source_business_key,source_revision,source_era,district_code,
+                property_id,dealing_id,source_system,valuation_number,
+                source_downloaded_at::text,property_name,unit_number,house_number,
+                street_number_first,street_number_last,street_number_suffix,street_name,
+                street_name_normalised,street_type,locality,postcode,land_description,
+                dimensions,zoning_code,nature_code,primary_purpose,strata_lot_number,
+                component_code,sale_code,interest_of_sale,contract_date::text,
+                settlement_date::text,price_aud,area_original::text,area_unit,
+                area_square_metres::text,property_ref,match_tier,match_confidence::text,
+                geographic_precision,source_row_sha256,normalisation_version
+                FROM warehouse.psi_sale WHERE dataset_release_id=%s{predicate}
+                ORDER BY source_business_key,source_revision LIMIT %s""",
+            params,
+            "SELECT count(*) AS count FROM warehouse.psi_sale WHERE dataset_release_id=%s",
+            (release_id,),
+            columns,
+        )
+    if profile == "schools-master":
+        columns = ("school_code",)
+        values = decode_export_cursor(cursor, columns)
+        predicate = " AND school_code>%s" if values else ""
+        params = (release_id, *(values or ()), limit)
+        return ReleaseExportQuery(
+            f"""SELECT school_code,school_name,school_type,status,locality_original,
+                locality_normalised,lga_name,ST_AsGeoJSON(geom)::jsonb AS geometry,
+                source_row_sha256,normalisation_version FROM warehouse.school
+                WHERE dataset_release_id=%s{predicate} ORDER BY school_code LIMIT %s""",
+            params,
+            "SELECT count(*) AS count FROM warehouse.school WHERE dataset_release_id=%s",
+            (release_id,),
+            columns,
+        )
+    if profile == "bocsar-sparse":
+        columns = ("geography_kind", "geography_value", "source_category_key")
+        values = decode_export_cursor(cursor, columns)
+        predicate = (
+            " AND (coverage.geography_kind,coverage.geography_value,coverage.source_category_key)"
+            ">(%s,%s,%s)"
+            if values
+            else ""
+        )
+        params = (release_id, *(values or ()), limit)
+        return ReleaseExportQuery(
+            f"""SELECT coverage.geography_kind,coverage.geography_value,
+                coverage.source_category_key,coverage.observed_months,coverage.first_month::text,
+                coverage.last_month::text,coverage.month_count,coverage.blank_means_observed_zero,
+                coverage.completeness_sha256,coverage.source_row_sha256,
+                coverage.normalisation_version,
+                (SELECT observation.offence_label FROM warehouse.bocsar_observation observation
+                 WHERE observation.dataset_release_id=coverage.dataset_release_id
+                   AND observation.geography_kind=coverage.geography_kind
+                   AND observation.geography_value=coverage.geography_value
+                   AND observation.source_category_key=coverage.source_category_key
+                 ORDER BY observation.month LIMIT 1) AS offence_label,
+                (SELECT observation.subcategory_label FROM warehouse.bocsar_observation observation
+                 WHERE observation.dataset_release_id=coverage.dataset_release_id
+                   AND observation.geography_kind=coverage.geography_kind
+                   AND observation.geography_value=coverage.geography_value
+                   AND observation.source_category_key=coverage.source_category_key
+                 ORDER BY observation.month LIMIT 1) AS subcategory_label,
+                COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                    'month',observation.month::text,'count',observation.count,
+                    'source_row_sha256',observation.source_row_sha256) ORDER BY observation.month)
+                 FROM warehouse.bocsar_observation observation
+                 WHERE observation.dataset_release_id=coverage.dataset_release_id
+                   AND observation.geography_kind=coverage.geography_kind
+                   AND observation.geography_value=coverage.geography_value
+                   AND observation.source_category_key=coverage.source_category_key),'[]'::jsonb)
+                 AS observations
+                FROM warehouse.bocsar_coverage coverage
+                WHERE coverage.dataset_release_id=%s{predicate}
+                ORDER BY coverage.geography_kind,coverage.geography_value,
+                    coverage.source_category_key LIMIT %s""",
+            params,
+            "SELECT count(*) AS count FROM warehouse.bocsar_coverage WHERE dataset_release_id=%s",
+            (release_id,),
+            columns,
+        )
+    raise ConflictError("release import profile has no registered complete export projection")
 
 
 def release_product_query(

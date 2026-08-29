@@ -52,7 +52,9 @@ from propertyscope_data_store.persistence_support import (
 )
 from propertyscope_data_store.query_specs import (
     PREVIEW_SPECS,
+    encode_export_cursor,
     normalise_product_rows,
+    release_export_query,
     release_product_query,
 )
 
@@ -93,10 +95,10 @@ REGISTERED_ADAPTER_VERSIONS = {
     "schools-csv": "1.0.0",
 }
 REGISTERED_RELEASE_BUILDER_VERSIONS = {
-    "property-snapshot": "1.0.0",
-    "property-sales": "2.0.0",
-    "crime-series": "1.0.0",
-    "school-points": "1.0.0",
+    "property-snapshot": "2.0.0",
+    "property-sales": "3.0.0",
+    "crime-series": "2.0.0",
+    "school-points": "2.0.0",
 }
 
 
@@ -669,6 +671,30 @@ class PropertyScopeStore:
             (run_id, limit, offset),
         )
 
+    def artifact_retention_inventory(self) -> list[JsonObject]:
+        """Expose physical references, retained size, and the strongest retention reason."""
+        return self._fetch_all(
+            """SELECT artifact.storage_key,artifact.content_sha256,
+            max(artifact.bytes) AS bytes,count(*) AS reference_count,
+            array_agg(DISTINCT artifact.retention_class ORDER BY artifact.retention_class)
+                AS retention_classes,
+            array_agg(DISTINCT run.status ORDER BY run.status) AS run_statuses,
+            bool_or(release.id IS NOT NULL) AS referenced_by_release,
+            CASE
+              WHEN bool_or(release.status IN ('accepted','superseded')) THEN 'published_release_evidence'
+              WHEN bool_or(release.id IS NOT NULL) THEN 'candidate_release_evidence'
+              WHEN bool_or(run.status IN ('failed','cancelled')) THEN 'terminal_run_audit_evidence'
+              WHEN bool_or(artifact.retention_class='source-cache') THEN 'reusable_source_cache'
+              ELSE 'active_run_lineage'
+            END AS retention_reason
+            FROM ops.artifact_record artifact
+            JOIN ops.ingestion_run run ON run.id=artifact.ingestion_run_id
+            LEFT JOIN ops.dataset_release release ON release.artifact_record_id=artifact.id
+            GROUP BY artifact.storage_key,artifact.content_sha256
+            ORDER BY max(artifact.bytes) DESC,artifact.storage_key""",
+            (),
+        )
+
     def request_cancel(self, run_id: uuid.UUID) -> JsonObject:
         now = datetime.now(UTC)
         with self.connection() as connection:
@@ -700,7 +726,12 @@ class PropertyScopeStore:
             ).fetchone()
             terminal = active is None or int(active["count"]) == 0
             row = connection.execute(
-                """UPDATE ops.ingestion_run SET cancel_requested_at=COALESCE(cancel_requested_at,%s),
+                """WITH abandoned AS (
+                    UPDATE ops.dataset_release SET status='abandoned',terminal_reason_json=%s,
+                    review_comment='System-terminalized cancelled ingestion candidate; retained for audit.',
+                    updated_at=%s,version=version+1
+                    WHERE ingestion_run_id=%s AND status IN ('draft','candidate') RETURNING id
+                ) UPDATE ops.ingestion_run SET cancel_requested_at=COALESCE(cancel_requested_at,%s),
                 status=CASE WHEN %s THEN 'cancelled' ELSE status END,
                 finished_at=CASE WHEN %s THEN %s ELSE finished_at END,
                 error_json=CASE WHEN %s THEN %s ELSE error_json END,
@@ -709,6 +740,16 @@ class PropertyScopeStore:
                 lease_expires_at=CASE WHEN %s THEN NULL ELSE lease_expires_at END
                 WHERE id=%s RETURNING *""",
                 (
+                    _json(
+                        {
+                            "code": "ingestion_cancelled",
+                            "message": "Candidate release abandoned after operator cancellation",
+                            "ingestion_run_id": str(run_id),
+                            "bounded_error": _cancellation_error(),
+                        }
+                    ),
+                    now,
+                    run_id,
                     now,
                     terminal,
                     terminal,
@@ -843,7 +884,13 @@ class PropertyScopeStore:
         return _dict(row) if row else None
 
     def heartbeat_task(
-        self, task_id: uuid.UUID, *, worker_id: str, lease_token: str, lease_seconds: int
+        self,
+        task_id: uuid.UUID,
+        *,
+        worker_id: str,
+        lease_token: str,
+        lease_seconds: int,
+        progress: Mapping[str, Any] | None = None,
     ) -> JsonObject:
         now = datetime.now(UTC)
         with self.connection() as connection:
@@ -891,6 +938,41 @@ class PropertyScopeStore:
                     error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL
                     WHERE id=%s AND cancel_requested_at IS NOT NULL""",
                     (now, _json(_cancellation_error()), run_id),
+                )
+            elif row is not None:
+                run_id = row["ingestion_run_id"]
+                task_stage = row["stage"]
+                if progress:
+                    phase = str(progress.get("phase") or row["stage"])[:100]
+                    progress_rows = max(0, int(progress.get("rows_processed", 0)))
+                    progress_bytes = max(0, int(progress.get("bytes_processed", 0)))
+                    total_rows = progress.get("total_rows")
+                    total_bytes = progress.get("total_bytes")
+                    row = connection.execute(
+                        """UPDATE ops.run_task SET progress_phase=%s,progress_rows=%s,
+                        progress_bytes=%s,progress_total_rows=%s,progress_total_bytes=%s,
+                        progress_updated_at=%s WHERE id=%s RETURNING *""",
+                        (
+                            phase,
+                            progress_rows,
+                            progress_bytes,
+                            int(total_rows) if total_rows is not None else None,
+                            int(total_bytes) if total_bytes is not None else None,
+                            now,
+                            task_id,
+                        ),
+                    ).fetchone()
+                connection.execute(
+                    """UPDATE ops.ingestion_run SET heartbeat_at=%s,
+                    rows_discovered=CASE WHEN %s='acquire' THEN GREATEST(rows_discovered,%s)
+                        ELSE rows_discovered END
+                    WHERE id=%s""",
+                    (
+                        now,
+                        task_stage,
+                        int(progress.get("rows_processed", 0)) if progress else 0,
+                        run_id,
+                    ),
                 )
             connection.commit()
         if row is None:
@@ -954,6 +1036,8 @@ class PropertyScopeStore:
         if status:
             predicates.append("release.status=%s")
             params.append(status)
+        elif not ingestion_run_id:
+            predicates.append("release.status<>'abandoned'")
         for column, value in (
             ("dataset_id", dataset_id),
             ("target_feature", target_feature),
@@ -975,6 +1059,7 @@ class PropertyScopeStore:
         return self._required(
             """SELECT artifact.*,
             release.manifest_json->>'redistribution_decision' AS redistribution_policy,
+            release.manifest_json->>'content_encoding' AS content_encoding,
             release.status AS release_status
             FROM ops.dataset_release release
             JOIN ops.artifact_record artifact ON artifact.id=release.artifact_record_id
@@ -1154,9 +1239,9 @@ class PropertyScopeStore:
         )
 
     def release_product_records(
-        self, release_id: uuid.UUID, *, limit: int, offset: int
+        self, release_id: uuid.UUID, *, limit: int, cursor: str | None
     ) -> JsonObject:
-        """Page the immutable candidate projection used only by registered builders."""
+        """Keyset-page the complete immutable candidate projection."""
         context = self._required(
             """SELECT release.id,release.coverage_json,job.import_profile_key
             FROM ops.dataset_release release JOIN ops.ingestion_run run
@@ -1166,18 +1251,18 @@ class PropertyScopeStore:
             (release_id,),
         )
         profile = str(context["import_profile_key"])
-        query = release_product_query(
-            profile,
-            release_id,
-            context["coverage_json"],
-            limit=limit,
-            offset=offset,
-        )
+        query = release_export_query(profile, release_id, limit=limit, cursor=cursor)
         rows = normalise_product_rows(
             profile, self._fetch_all(query.select_sql, query.select_params)
         )
-        count = self._required(query.count_sql, query.count_params)
-        total = int(count["count"])
+        total = (
+            int(self._required(query.count_sql, query.count_params)["count"])
+            if cursor is None
+            else None
+        )
+        next_cursor = (
+            encode_export_cursor(rows[-1], query.cursor_columns) if len(rows) == limit else None
+        )
         return {
             "release_id": str(release_id),
             "candidate_generation_id": str(release_id),
@@ -1185,8 +1270,8 @@ class PropertyScopeStore:
             "count": len(rows),
             "total": total,
             "limit": limit,
-            "offset": offset,
-            "next_offset": offset + len(rows) if offset + len(rows) < total else None,
+            "cursor": cursor,
+            "next_cursor": next_cursor,
         }
 
     def release_sales_source_records(
@@ -1611,11 +1696,21 @@ class PropertyScopeStore:
                 # Canonical address reads resolve through accepted_generation directly to the
                 # immutable warehouse generation. Candidate rows therefore need no pre-pointer
                 # upsert into global registry tables, which would leak changed address fields.
-                connection.execute(
-                    """UPDATE ops.release_activation SET materialized_at=%s,version=version+1
-                WHERE id=%s AND lease_owner=%s AND lease_token=%s""",
-                    (now, operation_id, worker_id, lease_token),
-                )
+                if work["dataset_id"] in {"gnaf-nsw", "fixture-property"}:
+                    connection.execute(
+                        """WITH indexed_candidate AS (
+                            UPDATE warehouse.gnaf_address SET published=TRUE
+                            WHERE dataset_release_id=%s AND published=FALSE RETURNING 1
+                        ) UPDATE ops.release_activation SET materialized_at=%s,version=version+1
+                        WHERE id=%s AND lease_owner=%s AND lease_token=%s""",
+                        (work["dataset_release_id"], now, operation_id, worker_id, lease_token),
+                    )
+                else:
+                    connection.execute(
+                        """UPDATE ops.release_activation SET materialized_at=%s,version=version+1
+                    WHERE id=%s AND lease_owner=%s AND lease_token=%s""",
+                        (now, operation_id, worker_id, lease_token),
+                    )
                 connection.commit()
             finally:
                 stopped.set()
@@ -1744,6 +1839,7 @@ class PropertyScopeStore:
             "accepted": {"superseded"},
             "rejected": set(),
             "superseded": set(),
+            "abandoned": set(),
         }
         current = self.get_release(release_id)
         if target not in allowed[str(current["status"])]:
@@ -2003,6 +2099,7 @@ class PropertyScopeStore:
                   ON accepted.dataset_release_id=address.dataset_release_id
                 JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
                 WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
+                  AND address.published
                   AND {warehouse_match}
                 LIMIT %s
             ), legacy_documents AS (
@@ -2020,7 +2117,7 @@ class PropertyScopeStore:
                     SELECT 1 FROM warehouse.gnaf_address accepted_address
                     JOIN serving.accepted_generation accepted
                       ON accepted.dataset_release_id=accepted_address.dataset_release_id
-                    WHERE COALESCE(accepted_address.property_ref,
+                    WHERE accepted_address.published AND COALESCE(accepted_address.property_ref,
                         md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
                         =property.property_ref
                 )
@@ -2038,7 +2135,7 @@ class PropertyScopeStore:
                       SELECT 1 FROM warehouse.gnaf_address accepted_address
                       JOIN serving.accepted_generation accepted
                         ON accepted.dataset_release_id=accepted_address.dataset_release_id
-                      WHERE COALESCE(accepted_address.property_ref,
+                      WHERE accepted_address.published AND COALESCE(accepted_address.property_ref,
                           md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
                           =property.property_ref
                   )
@@ -2143,6 +2240,7 @@ class PropertyScopeStore:
               ON accepted.dataset_release_id=address.dataset_release_id
             JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
             WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
+              AND address.published
               AND COALESCE(address.property_ref,
                   md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
             LIMIT 1""",
@@ -2181,7 +2279,7 @@ class PropertyScopeStore:
             """SELECT 1 AS present FROM warehouse.gnaf_address address
             JOIN serving.accepted_generation accepted
               ON accepted.dataset_release_id=address.dataset_release_id
-            WHERE COALESCE(address.property_ref,
+            WHERE address.published AND COALESCE(address.property_ref,
                 md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
             UNION ALL SELECT 1 FROM registry.property WHERE property_ref=%s LIMIT 1""",
             (property_ref, property_ref),
@@ -2201,7 +2299,7 @@ class PropertyScopeStore:
                 JOIN serving.accepted_generation accepted
                   ON accepted.dataset_release_id=address.dataset_release_id
                 JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
-                WHERE COALESCE(address.property_ref,
+                WHERE address.published AND COALESCE(address.property_ref,
                     md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
             ), retained_coverage AS (
                 SELECT coverage.*,release.release_version,release.schema_version,
@@ -2318,12 +2416,75 @@ class PropertyScopeStore:
             return execute_import(connection, work, prepared)
 
     def execute_stream_import_profile(
-        self, work: Mapping[str, Any], *, profile: str, rows: Any
+        self,
+        work: Mapping[str, Any],
+        *,
+        profile: str,
+        rows: Any,
+        verify_complete: Any | None = None,
+        phase_callback: Any | None = None,
     ) -> ImportResult:
         """Execute a source-scale streaming COPY inside the credential boundary."""
         operation_id = uuid.UUID(str(work["id"]))
         with self._cancellable_import_connection(operation_id) as connection:
-            return execute_stream_import(connection, work, profile=profile, rows=rows)
+            result = execute_stream_import(
+                connection, work, profile=profile, rows=rows, phase_callback=phase_callback
+            )
+            if verify_complete is not None:
+                verify_complete()
+            return result
+
+    def update_import_progress(
+        self,
+        operation_id: uuid.UUID,
+        *,
+        phase: str,
+        rows_processed: int,
+        bytes_processed: int,
+        total_rows: int | None = None,
+        total_bytes: int | None = None,
+    ) -> None:
+        """Persist throttled loader progress and make it effective run activity."""
+        now = datetime.now(UTC)
+        with self.connection() as connection:
+            row = connection.execute(
+                """UPDATE ops.import_operation SET progress_phase=%s,progress_rows=%s,
+                progress_bytes=%s,progress_total_rows=%s,progress_total_bytes=%s,
+                progress_updated_at=%s,heartbeat_at=%s,version=version+1
+                WHERE id=%s AND status IN ('claimed','running') RETURNING ingestion_run_id,run_task_id""",
+                (
+                    phase[:100],
+                    max(0, rows_processed),
+                    max(0, bytes_processed),
+                    total_rows,
+                    total_bytes,
+                    now,
+                    now,
+                    operation_id,
+                ),
+            ).fetchone()
+            if row is not None:
+                connection.execute(
+                    """UPDATE ops.run_task SET progress_phase=%s,progress_rows=%s,
+                    progress_bytes=%s,progress_total_rows=%s,progress_total_bytes=%s,
+                    progress_updated_at=%s,heartbeat_at=%s WHERE id=%s""",
+                    (
+                        phase[:100],
+                        max(0, rows_processed),
+                        max(0, bytes_processed),
+                        total_rows,
+                        total_bytes,
+                        now,
+                        now,
+                        row["run_task_id"],
+                    ),
+                )
+                connection.execute(
+                    """UPDATE ops.ingestion_run SET heartbeat_at=%s,
+                    rows_staged=GREATEST(rows_staged,%s) WHERE id=%s""",
+                    (now, max(0, rows_processed), row["ingestion_run_id"]),
+                )
+            connection.commit()
 
     @contextmanager
     def _cancellable_import_connection(self, operation_id: uuid.UUID) -> Iterator[Connection[Any]]:
@@ -2557,6 +2718,10 @@ class PropertyScopeStore:
         with self.connection() as connection:
             row = connection.execute(
                 """UPDATE ops.run_task SET status=%s,rows_in=%s,rows_out=%s,error_json=%s,
+                progress_rows=CASE WHEN %s='succeeded' THEN %s ELSE progress_rows END,
+                progress_total_rows=CASE WHEN %s='succeeded'
+                    THEN COALESCE(progress_total_rows,%s) ELSE progress_total_rows END,
+                progress_updated_at=CASE WHEN %s='succeeded' THEN %s ELSE progress_updated_at END,
                 finished_at=CASE WHEN %s IN ('succeeded','failed','cancelled','skipped') THEN %s ELSE NULL END,
                 lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
                 updated_at=%s,version=version+1 WHERE id=%s AND lease_owner=%s AND lease_token=%s
@@ -2566,6 +2731,12 @@ class PropertyScopeStore:
                     rows_in,
                     rows_out,
                     _json(error) if error else None,
+                    status,
+                    rows_out,
+                    status,
+                    rows_out,
+                    status,
+                    now,
                     status,
                     now,
                     now,
@@ -2591,8 +2762,11 @@ class PropertyScopeStore:
                 )
                 connection.execute(
                     """UPDATE ops.ingestion_run SET status='cancelled',finished_at=%s,error_json=%s,
-                    lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL WHERE id=%s""",
-                    (now, _json(_cancellation_error()), run_id),
+                    rows_discovered=COALESCE((SELECT max(rows_out) FROM ops.run_task
+                        WHERE ingestion_run_id=%s AND stage='acquire' AND status='succeeded'),
+                        rows_discovered),lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL
+                    WHERE id=%s""",
+                    (now, _json(_cancellation_error()), run_id, run_id),
                 )
             elif status == "retry_wait":
                 connection.execute(
@@ -2613,9 +2787,34 @@ class PropertyScopeStore:
             elif status == "failed":
                 connection.execute(
                     """UPDATE ops.ingestion_run SET status='failed',finished_at=%s,error_json=%s,
-                    lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL WHERE id=%s
+                    rows_discovered=COALESCE((SELECT max(rows_out) FROM ops.run_task
+                        WHERE ingestion_run_id=%s AND stage='acquire' AND status='succeeded'),
+                        rows_discovered),lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL WHERE id=%s
                     AND status NOT IN ('succeeded','failed','cancelled')""",
-                    (now, _json(error) if error else _json({"code": "task_failed"}), run_id),
+                    (
+                        now,
+                        _json(error) if error else _json({"code": "task_failed"}),
+                        run_id,
+                        run_id,
+                    ),
+                )
+                connection.execute(
+                    """UPDATE ops.dataset_release SET status='abandoned',terminal_reason_json=%s,
+                    review_comment='System-terminalized failed ingestion candidate; retained for audit.',
+                    updated_at=%s,version=version+1
+                    WHERE ingestion_run_id=%s AND status IN ('draft','candidate')""",
+                    (
+                        _json(
+                            {
+                                "code": "ingestion_failed",
+                                "message": "Candidate release abandoned after ingestion failure",
+                                "ingestion_run_id": str(run_id),
+                                "bounded_error": dict(error or {"code": "task_failed"}),
+                            }
+                        ),
+                        now,
+                        run_id,
+                    ),
                 )
             elif status == "succeeded":
                 remaining = connection.execute(
@@ -2638,8 +2837,24 @@ class PropertyScopeStore:
                 else:
                     stage_status = run_status_for_stage(str(row["stage"]))
                     connection.execute(
-                        "UPDATE ops.ingestion_run SET status=%s,heartbeat_at=%s WHERE id=%s",
-                        (stage_status, now, run_id),
+                        """UPDATE ops.ingestion_run SET status=%s,heartbeat_at=%s,
+                        rows_discovered=CASE WHEN %s='acquire' THEN GREATEST(rows_discovered,%s)
+                            ELSE rows_discovered END,
+                        rows_staged=CASE WHEN %s='import' THEN GREATEST(rows_staged,%s)
+                            ELSE rows_staged END,
+                        rows_accepted=CASE WHEN %s='import' THEN GREATEST(rows_accepted,%s)
+                            ELSE rows_accepted END WHERE id=%s""",
+                        (
+                            stage_status,
+                            now,
+                            row["stage"],
+                            rows_out,
+                            row["stage"],
+                            rows_in,
+                            row["stage"],
+                            rows_out,
+                            run_id,
+                        ),
                     )
             connection.commit()
         return _dict(row)

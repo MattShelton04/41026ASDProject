@@ -6,7 +6,7 @@ source_key: nsw-psi-sales
 adapter: {key: psi-bulk, version: 1.0.0}
 refresh_strategy: append_only_partitioned
 supported_modes: [full_refresh, reprocess_cached]
-release_builder: {key: property-sales, version: 2.0.0}
+release_builder: {key: property-sales, version: 3.0.0}
 import_profile: {key: psi-sales, version: 1.0.0}
 target: {feature: feature-2, contract: propertyscope.property-sales.v2}
 scope:
@@ -14,6 +14,5 @@ scope:
   all_records: true
   all_history: true
   include_current_weekly: true
-  release_scope: {years: [2025], maximum_records: 250000}
 quality_policy: psi-sales.v1
 publication: human_review

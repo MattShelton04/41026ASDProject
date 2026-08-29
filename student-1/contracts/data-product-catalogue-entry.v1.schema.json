@@ -57,12 +57,26 @@
       "title": "Latest Accepted Release"
     },
     "max_bytes": {
-      "title": "Max Bytes",
-      "type": "integer"
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Max Bytes"
     },
     "max_rows": {
-      "title": "Max Rows",
-      "type": "integer"
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Max Rows"
     },
     "ordering_rule": {
       "title": "Ordering Rule",

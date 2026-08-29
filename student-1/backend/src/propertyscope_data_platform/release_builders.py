@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+import zlib
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
@@ -247,7 +248,7 @@ class ReleaseManifestV1(ProductModel):
     content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     media_type: str
     content_encoding: str | None = None
-    byte_count: int = Field(ge=1, le=MAX_PUBLIC_ARTIFACT_BYTES)
+    byte_count: int = Field(ge=1)
     geography_coverage: tuple[str, ...]
     temporal_coverage: dict[str, str] | None = None
     measures: tuple[str, ...]
@@ -278,8 +279,8 @@ class DataProductCatalogueEntry(ProductModel):
         pattern=r"^(registered|fixture_backed|executable_cached|executable_live|blocked|deferred|catalogued)$"
     )
     ordering_rule: str
-    max_rows: int
-    max_bytes: int
+    max_rows: int | None
+    max_bytes: int | None
     known_limitations: tuple[str, ...]
     latest_accepted_release: dict[str, Any] | None = None
 
@@ -290,7 +291,9 @@ class ReleaseDetailContract(ProductModel):
     target_feature: str
     release_version: str
     schema_version: str
-    status: str = Field(pattern=r"^(draft|candidate|awaiting_review|accepted|rejected|superseded)$")
+    status: str = Field(
+        pattern=r"^(draft|candidate|awaiting_review|accepted|rejected|superseded|abandoned)$"
+    )
     record_count: int = Field(ge=0)
     content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     manifest_json: ReleaseManifestV1
@@ -335,8 +338,8 @@ class ReleaseBuilderSpec:
     media_type: str
     content_encoding: str | None
     ordering_rule: str
-    max_rows: int
-    max_bytes: int
+    max_rows: int | None
+    max_bytes: int | None
     redistribution_policies: frozenset[str]
     record_adapter: TypeAdapter[Any]
 
@@ -402,7 +405,7 @@ class RegisteredReleaseBuilder:
         records = self._records(context, rows)
         if not records:
             raise ValueError("release product must not be empty")
-        if len(records) > self.spec.max_rows:
+        if self.spec.max_rows is not None and len(records) > self.spec.max_rows:
             raise ValueError("release product exceeds the registered row bound; narrow its scope")
         envelope = ProductEnvelope(
             schema_version=self.spec.contract,
@@ -414,7 +417,7 @@ class RegisteredReleaseBuilder:
             records=tuple(records),
         )
         content = _canonical_bytes(envelope.model_dump(mode="json"))
-        if len(content) > self.spec.max_bytes:
+        if self.spec.max_bytes is not None and len(content) > self.spec.max_bytes:
             raise ValueError("release product exceeds the registered byte bound; narrow its scope")
         digest = hashlib.sha256(content).hexdigest()
         geographies, temporal, measures, entities, count_definition, limitations = self._summary(
@@ -441,8 +444,8 @@ class RegisteredReleaseBuilder:
             record_count=len(records),
             record_count_definition=count_definition,
             content_sha256=digest,
-            media_type=self.spec.media_type,
-            content_encoding=self.spec.content_encoding,
+            media_type="application/json",
+            content_encoding=None,
             byte_count=len(content),
             geography_coverage=tuple(sorted(geographies)),
             temporal_coverage=temporal,
@@ -457,6 +460,16 @@ class RegisteredReleaseBuilder:
             supersedes_release_id=context.supersedes_release_id,
         )
         return BuiltProduct(content=content, manifest=manifest)
+
+    def stream(self, context: BuildContext, rows: Iterable[Mapping[str, Any]]) -> StreamingProduct:
+        """Build the complete deterministic product without retaining it in memory."""
+        if context.import_profile not in self.spec.import_profiles:
+            raise ValueError("release builder/import profile mismatch")
+        if context.target_feature != self.spec.target_feature:
+            raise ValueError("release builder/target feature mismatch")
+        if context.redistribution_policy not in self.spec.redistribution_policies:
+            raise ValueError("release builder/redistribution policy mismatch")
+        return StreamingProduct(self, context, rows)
 
     def _records(
         self, context: BuildContext, rows: Iterable[Mapping[str, Any]]
@@ -583,6 +596,8 @@ class RegisteredReleaseBuilder:
         self, context: BuildContext, rows: Iterable[Mapping[str, Any]]
     ) -> list[dict[str, Any]]:
         materialised = list(rows)
+        if materialised and all(isinstance(row.get("observations"), list) for row in materialised):
+            return [self._aggregated_crime_record(context, row) for row in materialised]
         observations: dict[tuple[str, str, str], list[Mapping[str, Any]]] = {}
         coverage_rows: list[Mapping[str, Any]] = []
         for row in materialised:
@@ -640,6 +655,30 @@ class RegisteredReleaseBuilder:
             )
         )
         return result
+
+    def _aggregated_crime_record(
+        self, context: BuildContext, row: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        observations = row.get("observations")
+        if not isinstance(observations, list):
+            raise ValueError("crime-series projection is missing observations")
+        record = CrimeSeriesRecord(
+            geography_kind=str(row["geography_kind"]),
+            geography_value=str(row["geography_value"]),
+            state="NSW",
+            source_category_key=str(row["source_category_key"]),
+            offence_label=row.get("offence_label"),
+            subcategory_label=row.get("subcategory_label"),
+            observed_months=tuple(str(value) for value in row["observed_months"]),
+            first_month=str(row["first_month"]),
+            last_month=str(row["last_month"]),
+            month_count=int(row["month_count"]),
+            blank_means_observed_zero=bool(row["blank_means_observed_zero"]),
+            completeness_sha256=str(row["completeness_sha256"]),
+            observations=tuple(CrimeObservation.model_validate(value) for value in observations),
+            provenance=ProductProvenance.model_validate(_provenance(context, row)),
+        )
+        return record.model_dump(mode="json")
 
     def _school_records(
         self, context: BuildContext, rows: Iterable[Mapping[str, Any]]
@@ -727,61 +766,170 @@ class RegisteredReleaseBuilder:
         )
 
 
+class StreamingProduct:
+    """Single-use gzip NDJSON product stream with bounded summary state."""
+
+    def __init__(
+        self,
+        builder: RegisteredReleaseBuilder,
+        context: BuildContext,
+        rows: Iterable[Mapping[str, Any]],
+    ) -> None:
+        self._builder = builder
+        self._context = context
+        self._rows = rows
+        self._consumed = False
+        self._record_count = 0
+        self._geographies: set[str] = set()
+        self._measures: set[str] = set()
+        self._entities: set[str] = set()
+        self._temporal_from: str | None = None
+        self._temporal_to: str | None = None
+        self._count_definition = ""
+        self._limitations: tuple[str, ...] = ()
+
+    def chunks(self) -> Iterable[bytes]:
+        if self._consumed:
+            raise RuntimeError("release product stream is single-use")
+        self._consumed = True
+        compressor = zlib.compressobj(level=6, method=zlib.DEFLATED, wbits=31)
+        for row in self._rows:
+            records = self._builder._records(self._context, (row,))
+            if len(records) != 1:
+                raise ValueError("streaming release projection must emit exactly one record")
+            record = records[0]
+            self._observe(record)
+            payload = _canonical_bytes(record) + b"\n"
+            chunk = compressor.compress(payload)
+            if chunk:
+                yield chunk
+        final = compressor.flush()
+        if final:
+            yield final
+
+    def _observe(self, record: dict[str, Any]) -> None:
+        geographies, temporal, measures, entities, count_definition, limitations = (
+            self._builder._summary(self._context, [record])
+        )
+        self._record_count += 1
+        self._geographies.update(geographies)
+        self._measures.update(measures)
+        self._entities.update(entities)
+        self._count_definition = count_definition
+        self._limitations = limitations
+        if temporal:
+            start = temporal.get("from")
+            end = temporal.get("to")
+            if start and (self._temporal_from is None or start < self._temporal_from):
+                self._temporal_from = start
+            if end and (self._temporal_to is None or end > self._temporal_to):
+                self._temporal_to = end
+
+    def manifest(
+        self, *, content_sha256: str, byte_count: int, created_at: datetime
+    ) -> ReleaseManifestV1:
+        if not self._consumed:
+            raise RuntimeError("release product stream has not been consumed")
+        if self._record_count == 0:
+            raise ValueError("release product must not be empty")
+        temporal = (
+            {"from": self._temporal_from, "to": self._temporal_to}
+            if self._temporal_from is not None and self._temporal_to is not None
+            else None
+        )
+        decision = self._context.redistribution_policy
+        return ReleaseManifestV1(
+            manifest_schema_version="propertyscope.release-manifest.v1",
+            product_schema_version=self._builder.spec.contract,
+            release_id=self._context.release_id,
+            release_version=self._context.release_version,
+            dataset_id=self._context.dataset_id,
+            target_feature=self._context.target_feature,
+            builder_key=self._builder.spec.key,
+            builder_version=self._builder.spec.version,
+            import_profile=self._context.import_profile,
+            normalisation_version=self._context.normalisation_version,
+            publisher=self._context.publisher,
+            source=self._context.source,
+            source_release=self._context.source_release,
+            source_retrieved_at=self._context.source_retrieved_at,
+            source_effective_at=self._context.source_effective_at,
+            candidate_generation_id=self._context.candidate_generation_id,
+            record_count=self._record_count,
+            record_count_definition=self._count_definition,
+            content_sha256=content_sha256,
+            media_type="application/x-ndjson",
+            content_encoding="gzip",
+            byte_count=byte_count,
+            geography_coverage=tuple(sorted(self._geographies)),
+            temporal_coverage=temporal,
+            measures=tuple(sorted(self._measures)),
+            entity_types=tuple(sorted(self._entities)),
+            source_licence=self._context.source_licence,
+            licence_url=self._context.licence_url,
+            redistribution_decision=decision,
+            download_permitted=decision in PUBLIC_REDISTRIBUTION_POLICIES,
+            known_limitations=self._limitations,
+            created_at=created_at,
+            supersedes_release_id=self._context.supersedes_release_id,
+        )
+
+
 def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
     definitions = (
         ReleaseBuilderSpec(
             "property-snapshot",
-            "1.0.0",
+            "2.0.0",
             frozenset({"property-fixture", "gnaf-nsw"}),
             "propertyscope.property-snapshot.v1",
             "feature-1",
-            "application/json",
-            None,
+            "application/x-ndjson",
+            "gzip",
             "property_ref, source_address_id",
-            50_000,
-            DEFAULT_PUBLIC_ARTIFACT_BYTES,
+            None,
+            None,
             frozenset({"committed-synthetic-fixture", "licence-controlled"}),
             TypeAdapter(PropertySnapshotRecord),
         ),
         ReleaseBuilderSpec(
             "property-sales",
-            "2.0.0",
+            "3.0.0",
             frozenset({"psi-sales"}),
             "propertyscope.property-sales.v2",
             "feature-2",
-            "application/json",
-            None,
+            "application/x-ndjson",
+            "gzip",
             "source_business_key, source_revision",
-            250_000,
-            MAX_PUBLIC_ARTIFACT_BYTES,
+            None,
+            None,
             frozenset({"bounded-derived-release"}),
             TypeAdapter(PropertySaleRecord),
         ),
         ReleaseBuilderSpec(
             "crime-series",
-            "1.0.0",
+            "2.0.0",
             frozenset({"bocsar-sparse"}),
             "propertyscope.crime-series.v1",
             "feature-3",
-            "application/json",
-            None,
+            "application/x-ndjson",
+            "gzip",
             "geography_kind, geography_value, source_category_key",
-            50_000,
-            DEFAULT_PUBLIC_ARTIFACT_BYTES,
+            None,
+            None,
             frozenset({"approved-bounded-extract"}),
             TypeAdapter(CrimeSeriesRecord),
         ),
         ReleaseBuilderSpec(
             "school-points",
-            "1.0.0",
+            "2.0.0",
             frozenset({"schools-master"}),
             "propertyscope.school-points.v1",
             "feature-3",
-            "application/json",
-            None,
+            "application/x-ndjson",
+            "gzip",
             "school_code",
-            5_000,
-            DEFAULT_PUBLIC_ARTIFACT_BYTES,
+            None,
+            None,
             frozenset({"approved-bounded-extract"}),
             TypeAdapter(SchoolPointRecord),
         ),
@@ -821,20 +969,14 @@ def validate_release_job(
         raise ConfigurationError("job target feature does not match its release builder")
     if spec.contract not in set(schema_names):
         raise ConfigurationError("release builder contract schema is absent")
-    if spec.media_type != "application/json" or spec.content_encoding is not None:
+    if spec.media_type != "application/x-ndjson" or spec.content_encoding != "gzip":
         raise ConfigurationError("release builder media type or encoding is unsupported")
     if source.redistribution_policy not in SAFE_REDISTRIBUTION_POLICIES:
         raise ConfigurationError("source redistribution policy is unsafe or unknown")
     if source.redistribution_policy not in spec.redistribution_policies:
         raise ConfigurationError("source redistribution policy does not match the release builder")
-    product_scope = profile.scope.get("release_scope", profile.scope)
-    if not isinstance(product_scope, dict):
-        raise ConfigurationError("job has an invalid release scope")
-    maximum = product_scope.get("maximum_records")
-    if maximum is not None and (not isinstance(maximum, int) or maximum < 1):
-        raise ConfigurationError("job release scope has an invalid row projection")
-    if isinstance(maximum, int) and maximum > spec.max_rows:
-        raise ConfigurationError("job release scope exceeds the release row projection")
+    if "release_scope" in profile.scope:
+        raise ConfigurationError("complete release jobs must not contain a bounded release_scope")
 
 
 def validate_product_record(schema_version: str, payload: Mapping[str, Any]) -> None:

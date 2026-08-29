@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -148,6 +148,7 @@ def execute_stream_import(
     *,
     profile: str,
     rows: Iterable[dict[str, Any]],
+    phase_callback: Callable[[str, int], None] | None = None,
 ) -> ImportResult:
     """Stream validated rows through COPY and collapse retransmitted PSI keys atomically."""
     run_id = uuid.UUID(str(work["ingestion_run_id"]))
@@ -164,9 +165,13 @@ def execute_stream_import(
                 copy.write_row((staged, Jsonb(row)))
         if staged == 0:
             raise ImportProfileError("canonical import artifact must not be empty")
+        if phase_callback is not None:
+            phase_callback("inserting candidate generation", staged)
         accepted = _insert_profile_rows(
             cursor, profile, release_id=release_id, artifact_id=artifact_id, run_id=run_id
         )
+        if phase_callback is not None:
+            phase_callback("recording import quality", accepted)
         quality_checks = _record_quality(
             cursor,
             profile=profile,
@@ -186,7 +191,6 @@ def execute_stream_import(
         )
         if cursor.rowcount != 1:
             raise ImportProfileError("candidate release is not mutable for this import")
-    connection.commit()
     return ImportResult(staged, staged, accepted, 0, quality_checks)
 
 

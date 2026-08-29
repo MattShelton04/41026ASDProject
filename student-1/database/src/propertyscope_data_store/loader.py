@@ -8,7 +8,7 @@ import os
 import signal
 import time
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from threading import Event, Thread
 from typing import Any
@@ -195,7 +195,6 @@ class DatabaseLoader:
         path = self._artifact_path(str(work["storage_key"]))
         if path.stat().st_size != int(work["artifact_bytes"]):
             raise RuntimeError("artifact size does not match registered metadata")
-        digest = hashlib.sha256()
         last_cancel_check = 0.0
 
         def raise_if_cancelled(*, force: bool = False) -> None:
@@ -207,22 +206,58 @@ class DatabaseLoader:
             if self.store.import_cancel_requested(uuid.UUID(str(work["id"]))):
                 raise ImportCancelledError("Run cancelled by operator")
 
+        operation_id = uuid.UUID(str(work["id"]))
+        total_bytes = int(work["artifact_bytes"])
+        self._update_import_progress(
+            operation_id,
+            phase="verifying and copying canonical stream",
+            rows_processed=0,
+            bytes_processed=0,
+            total_bytes=total_bytes,
+        )
         raise_if_cancelled(force=True)
-        with path.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
-                raise_if_cancelled()
-        if digest.hexdigest() != work["content_sha256"]:
-            raise RuntimeError("artifact checksum does not match registered metadata")
         if work["media_type"] == "application/x-ndjson":
             with path.open("rb") as stream:
-                rows = iter_ndjson_import(stream, profile=profile)
+                verified = _VerifiedLineStream(
+                    stream,
+                    expected_sha256=str(work["content_sha256"]),
+                    expected_bytes=total_bytes,
+                    progress=lambda rows, bytes_: self._update_import_progress(
+                        operation_id,
+                        phase="verifying and copying canonical stream",
+                        rows_processed=rows,
+                        bytes_processed=bytes_,
+                        total_bytes=total_bytes,
+                    ),
+                    raise_if_cancelled=raise_if_cancelled,
+                )
+                rows = iter_ndjson_import(verified, profile=profile)
                 cancellable_rows = _raise_between_rows(rows, raise_if_cancelled)
                 imported = self.store.execute_stream_import_profile(
-                    work, profile=profile, rows=cancellable_rows
+                    work,
+                    profile=profile,
+                    rows=cancellable_rows,
+                    verify_complete=verified.verify_complete,
+                    phase_callback=lambda phase, count: self._update_import_progress(
+                        operation_id,
+                        phase=phase,
+                        rows_processed=count,
+                        bytes_processed=verified.bytes_processed,
+                        total_bytes=total_bytes,
+                    ),
                 )
         elif work["media_type"] == "application/json":
-            prepared = prepare_import(path.read_bytes(), profile=profile)
+            data = path.read_bytes()
+            if hashlib.sha256(data).hexdigest() != work["content_sha256"]:
+                raise RuntimeError("artifact checksum does not match registered metadata")
+            self._update_import_progress(
+                operation_id,
+                phase="verified canonical document",
+                rows_processed=0,
+                bytes_processed=len(data),
+                total_bytes=total_bytes,
+            )
+            prepared = prepare_import(data, profile=profile)
             raise_if_cancelled(force=True)
             imported = self.store.execute_import_profile(work, prepared)
         else:
@@ -242,6 +277,11 @@ class DatabaseLoader:
             "accepted_generation_unchanged": True,
         }
 
+    def _update_import_progress(self, operation_id: uuid.UUID, **values: Any) -> None:
+        reporter = getattr(self.store, "update_import_progress", None)
+        if reporter is not None:
+            reporter(operation_id, **values)
+
     def _artifact_path(self, storage_key: str) -> Path:
         if not storage_key.startswith("sha256/") or ".." in Path(storage_key).parts:
             raise RuntimeError("artifact storage key is invalid")
@@ -257,6 +297,50 @@ def _raise_between_rows(
     for row in rows:
         raise_if_cancelled()
         yield row
+
+
+class _VerifiedLineStream:
+    """Hash one NDJSON file while the same bytes are parsed and copied."""
+
+    def __init__(
+        self,
+        stream: Any,
+        *,
+        expected_sha256: str,
+        expected_bytes: int,
+        progress: Callable[[int, int], None],
+        raise_if_cancelled: Callable[[], None],
+    ) -> None:
+        self._stream = stream
+        self._expected_sha256 = expected_sha256
+        self._expected_bytes = expected_bytes
+        self._progress = progress
+        self._raise_if_cancelled = raise_if_cancelled
+        self._digest = hashlib.sha256()
+        self._rows = 0
+        self.bytes_processed = 0
+        self._last_report = time.monotonic()
+
+    def __iter__(self) -> Iterator[bytes]:
+        for line in self._stream:
+            self._digest.update(line)
+            self.bytes_processed += len(line)
+            if line.strip():
+                self._rows += 1
+            now = time.monotonic()
+            if now - self._last_report >= 1.0:
+                self._progress(self._rows, self.bytes_processed)
+                self._raise_if_cancelled()
+                self._last_report = now
+            yield line
+        self._progress(self._rows, self.bytes_processed)
+
+    def verify_complete(self) -> None:
+        self._raise_if_cancelled()
+        if self.bytes_processed != self._expected_bytes:
+            raise RuntimeError("artifact size does not match registered metadata")
+        if self._digest.hexdigest() != self._expected_sha256:
+            raise RuntimeError("artifact checksum does not match registered metadata")
 
 
 def _safe_loader_message(exc: Exception) -> str:

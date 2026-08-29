@@ -39,7 +39,7 @@ def test_registered_scope_ignores_operator_attempts_to_reduce_the_import() -> No
     assert "years" not in resolved
     assert resolved["all_history"] is True
     assert resolved["include_current_weekly"] is True
-    assert resolved["release_scope"]["maximum_records"] == 250000
+    assert "release_scope" not in resolved
     assert defaults["all_history"] is True
 
 
@@ -93,13 +93,12 @@ def test_live_scope_policy_connects_registered_sources_and_rejects_unknown_trans
         "all_records": True,
         "all_history": True,
         "include_current_weekly": True,
-        "release_scope": {"years": [2025], "maximum_records": 10},
     }
 
     unknown_job = {**PSI_JOB, "import_profile_key": "spatial-features"}
     _, transport_error = validate_job_scope(
         unknown_job,
-        {"profile": "full-data", "all_records": True, "release_scope": {"maximum_records": 10}},
+        {"profile": "full-data", "all_records": True},
         run_mode="full_refresh",
     )
     resolved, error = validate_job_scope(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import tempfile
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -92,6 +93,41 @@ class LocalArtifactStore:
         if digest.hexdigest() != expected_sha256:
             raise ArtifactError("artifact checksum failed")
         return path
+
+    def cleanup_unreferenced(
+        self,
+        referenced_storage_keys: set[str],
+        *,
+        grace_seconds: int,
+        dry_run: bool = True,
+    ) -> dict[str, object]:
+        """Report or remove only content objects absent from the durable reference ledger."""
+        if grace_seconds < 1:
+            raise ArtifactError("artifact cleanup requires a positive grace period")
+        cutoff = time.time() - grace_seconds
+        candidates: list[dict[str, object]] = []
+        removed_bytes = 0
+        content_root = self._root / "sha256"
+        if content_root.is_dir():
+            for path in content_root.glob("*/*"):
+                if not path.is_file():
+                    continue
+                storage_key = path.relative_to(self._root).as_posix()
+                if storage_key in referenced_storage_keys or path.stat().st_mtime > cutoff:
+                    continue
+                size = path.stat().st_size
+                candidates.append({"storage_key": storage_key, "bytes": size})
+                if not dry_run:
+                    path.unlink()
+                    removed_bytes += size
+        return {
+            "dry_run": dry_run,
+            "grace_seconds": grace_seconds,
+            "candidate_count": len(candidates),
+            "candidate_bytes": sum(int(str(item["bytes"])) for item in candidates),
+            "removed_bytes": removed_bytes,
+            "candidates": candidates,
+        }
 
     def _resolve(self, storage_key: str) -> Path:
         if not storage_key.startswith("sha256/") or ".." in Path(storage_key).parts:

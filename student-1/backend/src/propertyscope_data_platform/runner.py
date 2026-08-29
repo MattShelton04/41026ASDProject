@@ -280,74 +280,70 @@ class AcquisitionRunner:
             raise RuntimeError("Release target contract does not match the registered builder")
         context = BuildContext.model_validate(payload.get("context"))
         release_id = str(payload["release_id"])
-        product_scope = context.scope.get("release_scope", context.scope)
-        if not isinstance(product_scope, dict):
-            raise RuntimeError("Release product scope is invalid")
-        maximum_records = product_scope.get("maximum_records")
-        if (
-            not isinstance(maximum_records, int)
-            or isinstance(maximum_records, bool)
-            or maximum_records < 1
-            or maximum_records > builder.spec.max_rows
-        ):
-            raise RuntimeError("Release product scope has no valid registered row bound")
-        rows: list[dict[str, Any]] = []
-        offset = 0
         page_size = 5_000
         expected_total: int | None = None
-        while True:
-            page_response = self._control_request(
-                "GET",
-                f"{self.settings.backend_url}/internal/data-platform/v1/worker/releases/"
-                f"{release_id}/product-records",
-                headers=self._headers(),
-                params={"limit": page_size, "offset": offset},
-                timeout=120,
-            )
-            page_response.raise_for_status()
-            page = page_response.json()
-            page_release_id = str(page.get("release_id", release_id))
-            generation_id = str(
-                page.get("candidate_generation_id", context.candidate_generation_id)
-            )
-            if page_release_id != release_id or generation_id != str(
-                context.candidate_generation_id
-            ):
-                raise RuntimeError("Candidate generation changed during release construction")
-            total = int(page["total"])
-            if expected_total is None:
-                expected_total = total
-                if total > maximum_records:
-                    raise RuntimeError(
-                        "Release product exceeds requested maximum_records; narrow the scope"
-                    )
-            elif total != expected_total:
-                raise RuntimeError("Candidate generation count changed during release construction")
-            items = page.get("items")
-            if not isinstance(items, list):
-                raise RuntimeError("Release product page is malformed")
-            rows.extend(items)
-            if len(rows) > builder.spec.max_rows:
-                raise RuntimeError(
-                    "Release product exceeds its row bound; narrow the requested scope"
+
+        def product_rows() -> Iterable[dict[str, Any]]:
+            nonlocal expected_total
+            cursor: str | None = None
+            processed = 0
+            while True:
+                params: dict[str, int | str] = {"limit": page_size}
+                if cursor is not None:
+                    params["cursor"] = cursor
+                page_response = self._control_request(
+                    "GET",
+                    f"{self.settings.backend_url}/internal/data-platform/v1/worker/releases/"
+                    f"{release_id}/product-records",
+                    headers=self._headers(),
+                    params=params,
+                    timeout=120,
                 )
-            next_offset = page.get("next_offset")
-            if next_offset is None:
-                break
-            if not isinstance(next_offset, int) or next_offset <= offset:
-                raise RuntimeError("Release product pagination cursor is invalid")
-            lease_token = task.get("lease_token")
-            if isinstance(lease_token, str) and lease_token:
-                self._heartbeat(str(task["id"]), lease_token)
-            offset = next_offset
-        if expected_total != len(rows):
-            raise RuntimeError("Release product page count is inconsistent")
-        product = builder.build(context, rows, created_at=self.clock())
+                page_response.raise_for_status()
+                page = page_response.json()
+                if str(page.get("release_id", release_id)) != release_id or str(
+                    page.get("candidate_generation_id", context.candidate_generation_id)
+                ) != str(context.candidate_generation_id):
+                    raise RuntimeError("Candidate generation changed during release construction")
+                if expected_total is None:
+                    total = page.get("total")
+                    if not isinstance(total, int) or isinstance(total, bool):
+                        raise RuntimeError("Release product first page has no candidate total")
+                    expected_total = total
+                items = page.get("items")
+                if not isinstance(items, list):
+                    raise RuntimeError("Release product page is malformed")
+                yield from items
+                processed += len(items)
+                next_cursor = page.get("next_cursor")
+                if next_cursor is None:
+                    break
+                if not isinstance(next_cursor, str) or next_cursor == cursor:
+                    raise RuntimeError("Release product pagination cursor is invalid")
+                self._heartbeat(
+                    str(task["id"]),
+                    str(task["lease_token"]),
+                    progress={
+                        "phase": "compressing complete release",
+                        "rows_processed": processed,
+                        "total_rows": expected_total,
+                    },
+                )
+                cursor = next_cursor
+
+        product = builder.stream(context, product_rows())
         artifact = self.artifacts.put(
-            (product.content,),
+            product.chunks(),
             max_bytes=builder.spec.max_bytes,
             media_type=builder.spec.media_type,
         )
+        manifest = product.manifest(
+            content_sha256=artifact.sha256,
+            byte_count=artifact.bytes,
+            created_at=self.clock(),
+        )
+        if expected_total != manifest.record_count:
+            raise RuntimeError("Release product page count is inconsistent")
         registration = self._control_request(
             "POST",
             f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/"
@@ -376,12 +372,12 @@ class AcquisitionRunner:
                 "artifact_record_id": artifact_record["id"],
                 "schema_version": builder.spec.contract,
                 "content_sha256": artifact.sha256,
-                "record_count": product.manifest.record_count,
-                "manifest": product.manifest.model_dump(mode="json"),
+                "record_count": manifest.record_count,
+                "manifest": manifest.model_dump(mode="json"),
             },
         )
         finalize.raise_for_status()
-        return len(rows), product.manifest.record_count
+        return manifest.record_count, manifest.record_count
 
     def _register_stage_artifact(
         self,
@@ -742,7 +738,7 @@ class AcquisitionRunner:
             maximum_records=None,
             capacity_ceiling=None,
             localities=localities,
-            progress=self._heartbeat_progress(task),
+            progress=self._heartbeat_progress(task, metric="rows"),
         )
         for item in parsed:
             counter[0] += 1
@@ -801,14 +797,25 @@ class AcquisitionRunner:
             progress(len(chunk))
             yield chunk
 
-    def _heartbeat_progress(self, task: dict[str, Any]) -> Callable[[int], None]:
+    def _heartbeat_progress(
+        self, task: dict[str, Any], *, metric: str = "bytes"
+    ) -> Callable[[int], None]:
         last_heartbeat = time.monotonic()
         interval = _cancellation_poll_interval(self.settings.lease_seconds)
+        processed = 0
 
-        def report_progress(_bytes_processed: int) -> None:
-            nonlocal last_heartbeat
+        def report_progress(delta: int) -> None:
+            nonlocal last_heartbeat, processed
+            processed += delta
             if time.monotonic() - last_heartbeat >= interval:
-                self._heartbeat(str(task["id"]), str(task["lease_token"]))
+                self._heartbeat(
+                    str(task["id"]),
+                    str(task["lease_token"]),
+                    progress={
+                        "phase": "canonicalising" if metric == "rows" else "reading source",
+                        "rows_processed" if metric == "rows" else "bytes_processed": processed,
+                    },
+                )
                 last_heartbeat = time.monotonic()
 
         return report_progress
@@ -841,7 +848,13 @@ class AcquisitionRunner:
             raise RuntimeError("Registered import failed; accepted generation remains unchanged")
         return int(operation["rows_in"]), int(operation["rows_accepted"])
 
-    def _heartbeat(self, task_id: str, lease_token: str) -> None:
+    def _heartbeat(
+        self,
+        task_id: str,
+        lease_token: str,
+        *,
+        progress: dict[str, Any] | None = None,
+    ) -> None:
         response = self._control_request(
             "POST",
             f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task_id}/heartbeat",
@@ -850,6 +863,7 @@ class AcquisitionRunner:
                 "worker_id": self.settings.worker_id,
                 "lease_token": lease_token,
                 "lease_seconds": self.settings.lease_seconds,
+                **({"progress": progress} if progress is not None else {}),
             },
         )
         response.raise_for_status()

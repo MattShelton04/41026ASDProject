@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import io
 import json
+import time
 import uuid
 from pathlib import Path
 from typing import Any, cast
@@ -19,7 +21,11 @@ from propertyscope_data_store.import_profiles import (
     iter_ndjson_import,
     prepare_import,
 )
-from propertyscope_data_store.loader import DatabaseLoader, ImportCancelledError
+from propertyscope_data_store.loader import (
+    DatabaseLoader,
+    ImportCancelledError,
+    _VerifiedLineStream,
+)
 
 
 def _artifact(profile: str, records: list[dict[str, object]]) -> bytes:
@@ -408,6 +414,42 @@ def test_loader_stops_before_reading_a_cancelled_import(tmp_path: Path) -> None:
                 "candidate_release_id": "60000000-0000-0000-0000-000000000001",
             }
         )
+
+
+def test_source_scale_stream_hashes_the_same_bytes_and_reports_final_progress() -> None:
+    payload = b'{"row":1}\n{"row":2}\n'
+    progress: list[tuple[int, int]] = []
+    stream = _VerifiedLineStream(
+        io.BytesIO(payload),
+        expected_sha256=hashlib.sha256(payload).hexdigest(),
+        expected_bytes=len(payload),
+        progress=lambda rows, byte_count: progress.append((rows, byte_count)),
+        raise_if_cancelled=lambda: None,
+    )
+
+    assert b"".join(stream) == payload
+    stream.verify_complete()
+    assert progress[-1] == (2, len(payload))
+
+
+def test_source_scale_stream_observes_cancellation_during_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = b'{"row":1}\n{"row":2}\n'
+    moments = iter((0.0, 2.0))
+    monkeypatch.setattr(time, "monotonic", lambda: next(moments))
+    stream = _VerifiedLineStream(
+        io.BytesIO(payload),
+        expected_sha256=hashlib.sha256(payload).hexdigest(),
+        expected_bytes=len(payload),
+        progress=lambda _rows, _bytes: None,
+        raise_if_cancelled=lambda: (_ for _ in ()).throw(
+            ImportCancelledError("cancelled by operator")
+        ),
+    )
+
+    with pytest.raises(ImportCancelledError, match="cancelled by operator"):
+        list(stream)
 
 
 @pytest.mark.parametrize(

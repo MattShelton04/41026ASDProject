@@ -80,7 +80,6 @@
           "type": "string"
         },
         "byte_count": {
-          "maximum": 250000000,
           "minimum": 1,
           "title": "Byte Count",
           "type": "integer"
@@ -381,7 +380,7 @@
       "type": "string"
     },
     "status": {
-      "pattern": "^(draft|candidate|awaiting_review|accepted|rejected|superseded)$",
+      "pattern": "^(draft|candidate|awaiting_review|accepted|rejected|superseded|abandoned)$",
       "title": "Status",
       "type": "string"
     },

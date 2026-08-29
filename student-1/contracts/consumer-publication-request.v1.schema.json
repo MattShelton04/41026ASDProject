@@ -148,7 +148,6 @@
           "title": "Content Encoding"
         },
         "byte_count": {
-          "maximum": 250000000,
           "minimum": 1,
           "title": "Byte Count",
           "type": "integer"

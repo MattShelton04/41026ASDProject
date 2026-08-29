@@ -104,6 +104,52 @@ describe different addresses under the same reference.
 
 Complete candidate generations intentionally consume source-scale storage. Publication no longer
 duplicates every accepted G-NAF row into three serving/registry structures and never persists a
-derivable property UUID back into the immutable warehouse table. Search indexes still require
-bounded one-time build and per-import maintenance. Retention of old complete generations should be
-decided explicitly before unattended repeated full refreshes are scheduled.
+derivable property UUID back into the immutable warehouse table. Search indexes require a bounded
+one-time build only during reviewed activation; candidate imports do not maintain them. Retention of
+old complete generations should be decided explicitly before unattended repeated full refreshes are
+scheduled.
+
+## Complete artifact and preview semantics
+
+The release artifact is the complete deterministic generation export in gzip NDJSON. The record
+view in the browser and `/records` API is a bounded preview (maximum 100 rows per page), not an
+export and not a statement that the release is truncated. Licence-controlled artifacts retain
+their full hash/count/size evidence but remain unavailable to anonymous download.
+
+## Cancelled candidates and artifact retention
+
+Failed or cancelled ingestion-owned candidates are migrated and reconciled to `abandoned`. They
+remain linked from the run for audit but do not appear in the normal Published data workflow.
+
+`GET /api/data-platform/v1/artifact-retention` reports each referenced physical object, retained
+bytes, reference count, run states and retention reason. Cleanup is explicit and dry-run by
+default:
+
+```text
+POST /api/data-platform/v1/artifact-retention
+{"grace_days": 7, "dry_run": true}
+```
+
+Set `dry_run` to `false` only after reviewing the returned keys. Cleanup considers an object only
+when no artifact ledger record references its content-addressed storage key and its modification
+time is older than the grace period. Source-cache, candidate, cancelled/failed-run, accepted and
+superseded evidence therefore remains protected while referenced. Incomplete `artifact-*` files
+are removed immediately by the atomic writer on cancellation or failure.
+
+## Targeted remediation for pre-031 development volumes
+
+Migrations 031 and 032 terminalize empty cancelled/failed candidates, separate physical artifact
+deduplication from lineage, add durable progress, and replace G-NAF's global serving indexes with
+accepted-row partial indexes. This targeted index replacement is the approved remediation for the
+historical development volume; do not run `VACUUM FULL`, reset the volume, or reindex unrelated
+schemas. After migration, inspect exact sizes with:
+
+```text
+docker exec ps-dev-f1-postgres-1 sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -P pager=off -c "SELECT indexrelid::regclass AS index,pg_size_pretty(pg_relation_size(indexrelid)) AS size FROM pg_stat_user_indexes WHERE schemaname=\$\$warehouse\$\$ AND relname=\$\$gnaf_address\$\$ ORDER BY pg_relation_size(indexrelid) DESC;"'
+```
+
+Autovacuum removes aborted heap tuples and checkpoints make committed pages durable; neither is
+expected to shrink an already enlarged index file. The accepted-only index migration is what
+reclaims that persistent index allocation. Candidate imports still maintain the compact generation
+primary key required for deterministic keyset export; PostgreSQL can reuse its aborted B-tree pages,
+while the historically dominant GIN/GiST/lookup indexes receive no candidate entries.

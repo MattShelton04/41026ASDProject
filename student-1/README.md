@@ -172,10 +172,13 @@ issue the Cloudflare Linux-container challenge. It writes atomically into the Gi
 the application mounts read-only. Targeted alternatives are `--year 2025`, `--week 2026-08-10`, and
 `--current-weekly`; rerunning retains already verified archives.
 
-Every release detail page includes a release-scoped dataset preview. Preview queries use fixed
-registered projections, cap pages at 100 records and never mix candidate and accepted
-generations. Official sources are connected in the default stack and complete acquisition is the
-only update scope.
+Every completed release contains the complete immutable generation as a deterministic gzip NDJSON
+artifact. Every release detail page also includes a separately labelled, release-scoped dataset
+preview. Preview queries use fixed registered projections, cap pages at 100 records and never mix
+candidate and accepted generations; that browser bound does not truncate the release. Official
+sources are connected in the default stack and complete acquisition/release construction is the
+only update scope. Licence and redistribution policy still controls whether the complete artifact
+may be downloaded or retained as metadata-only evidence.
 
 ## Shared integration boundary
 

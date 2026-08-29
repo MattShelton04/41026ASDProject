@@ -26,6 +26,12 @@ def project_run(run: JsonObject) -> JsonObject:
         projected["execution_semantics"] = "cached_artifact_reprocess"
     else:
         projected["execution_semantics"] = "full_pipeline_retry"
+    activity = [
+        value
+        for key in ("finished_at", "heartbeat_at", "started_at", "requested_at", "created_at")
+        if (value := projected.get(key)) is not None
+    ]
+    projected["last_activity_at"] = max(activity) if activity else None
     return projected
 
 

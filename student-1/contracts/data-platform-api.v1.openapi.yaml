@@ -8,6 +8,15 @@ servers:
 paths:
   /overview:
     get: {operationId: getOverview, responses: {'200': {description: Platform overview}}}
+  /artifact-retention:
+    get:
+      operationId: getArtifactRetention
+      description: Reports referenced physical size and durable retention reasons.
+      responses: {'200': {description: Artifact retention inventory}}
+    post:
+      operationId: cleanupUnreferencedArtifacts
+      description: Dry-runs by default and removes only grace-expired physical objects with no durable artifact reference.
+      responses: {'200': {description: Reference-aware cleanup result}, '422': {$ref: '#/components/responses/Problem'}}
   /runtime-capabilities:
     get:
       operationId: getRuntimeCapabilities
