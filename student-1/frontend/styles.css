@@ -489,3 +489,7 @@ pre.json { max-height: 350px; overflow: auto; padding: .75rem; border-radius: 8p
   .property-results-pagination { align-items: stretch; flex-direction: column; }
   .property-results-pagination .button { width: 100%; }
 }
+/* Source definitions use the locally vendored HTMX runtime; CSP forbids HTMX's inline defaults. */
+.htmx-indicator { display: none; }
+.htmx-indicator.htmx-request,
+.htmx-request .htmx-indicator { display: inline-block; }

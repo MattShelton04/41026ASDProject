@@ -23,115 +23,205 @@ export function jobLifecycleMessage(status) {
 }
 
 export function createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, rerender }) {
-  async function renderEntityList(kind) {
-    const isSource = kind === "sources";
+  async function renderEntityList() {
     const params = routeQuery(location.hash);
     const selectedStatus = params.has("status") ? params.get("status") || "all" : "active";
     const filters = { q: params.get("q") || "", status: selectedStatus };
-    renderLoading(view, `Loading ${kind}`);
+    renderLoading(view, "Loading jobs");
     try {
-      const { body } = await request(`${kind}${queryString({ q: filters.q, status: filters.status === "all" ? "" : filters.status, limit: 100 })}`);
+      const { body } = await request(`jobs${queryString({ q: filters.q, status: filters.status === "all" ? "" : filters.status, limit: 100 })}`);
       const items = collection(body);
       view.replaceChildren();
-      append(view, pageHeading("Property data", isSource ? "Data sources" : "Data updates", isSource ? "Manage the publishers, licences and schedules behind property data." : "Start repeatable data imports and preview what each update will do.", [button(`Create ${isSource ? "source" : "update"}`, "button primary", () => openEntityDialog(isSource ? "source" : "job"))]));
-      append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: ["active", "draft", "disabled", "retired", "all"], placeholder: isSource ? "Source or publisher" : "Update or dataset", onApply: (values) => { location.hash = `#${kind}${queryString(values)}`; } }));
+      append(
+        view,
+        pageHeading(
+          "Property data",
+          "Data updates",
+          "Start repeatable data imports and preview what each update will do.",
+          [button("Create update", "button primary", () => openEntityDialog("job"))],
+        ),
+      );
+      append(
+        view,
+        filterToolbar({
+          search: filters.q,
+          status: filters.status,
+          statuses: ["active", "draft", "disabled", "retired", "all"],
+          placeholder: "Update or dataset",
+          onApply: (values) => {
+            location.hash = `#jobs${queryString(values)}`;
+          },
+        }),
+      );
       if (!items.length) {
-        append(view, emptyState(`No ${isSource ? "sources" : "data updates"} found`, filters.q || filters.status ? "Try clearing the current filters." : `Create the first ${isSource ? "source record" : "data update"}.`));
+        append(
+          view,
+          emptyState(
+            "No data updates found",
+            filters.q || filters.status ? "Try clearing the current filters." : "Create the first data update.",
+          ),
+        );
         return;
       }
-      const columns = isSource
-        ? [{ label: "Source" }, { label: "Publisher" }, { label: "Adapter" }, { label: "Cadence" }, { label: "Status" }, { label: "Actions" }]
-        : [{ label: "Update" }, { label: "Dataset / area" }, { label: "Method" }, { label: "Import scope" }, { label: "Status" }, { label: "Actions" }];
-      const table = makeTable(columns, items, (item) => {
-        const row = el("tr");
-        const actions = el("div", "row-actions");
-        const viewDetails = link("View details", `#${kind}/${item.id}`, "button secondary small");
-        const edit = button("Edit", "button secondary small", () => openEntityDialog(isSource ? "source" : "job", item));
-        const remove = button("Delete", "button small danger", async () => {
-          const confirmed = await confirmAction({
-            title: `Delete ${item.name}?`,
-            description: "Only unused draft/test definitions can be deleted. Existing provenance remains protected.",
-            label: "Delete definition",
-            progressLabel: "Deleting…",
-            onConfirm: () => mutate(`${kind}/${item.id}`, { method: "DELETE", body: item.version === undefined ? undefined : { version: item.version }, success: `${humanise(isSource ? "source" : "job")} deleted` }),
+      const columns = [
+        { label: "Update" },
+        { label: "Dataset / area" },
+        { label: "Method" },
+        { label: "Import scope" },
+        { label: "Status" },
+        { label: "Actions" },
+      ];
+      const table = makeTable(
+        columns,
+        items,
+        (item) => {
+          const row = el("tr");
+          const actions = el("div", "row-actions");
+          const viewDetails = link("View details", `#jobs/${item.id}`, "button secondary small");
+          const edit = button("Edit", "button secondary small", () => openEntityDialog("job", item));
+          const remove = button("Delete", "button small danger", async () => {
+            const confirmed = await confirmAction({
+              title: `Delete ${item.name}?`,
+              description: "Only unused draft/test definitions can be deleted. Existing provenance remains protected.",
+              label: "Delete definition",
+              progressLabel: "Deleting…",
+              onConfirm: () =>
+                mutate(`jobs/${item.id}`, {
+                  method: "DELETE",
+                  body: item.version === undefined ? undefined : { version: item.version },
+                  success: "Job deleted",
+                }),
+            });
+            if (!confirmed) return;
+            await rerender();
           });
-          if (!confirmed) return;
-          await rerender();
-        });
-        if (!isSource) {
           const runNow = button("Start update", "button primary small", () => openPlanDialog(item, null, { intent: "run" }));
           const backfill = button("Load earlier data", "button secondary small", () => openPlanDialog(item, null, { intent: "backfill" }));
           runNow.disabled = item.status !== "active";
           backfill.disabled = item.status !== "active";
-          append(actions, runNow, actionMenu(`More actions for ${item.name}`, [
-            viewDetails,
-            link("View history", `#runs${queryString({ job: item.id })}`, "button secondary small"),
-            backfill,
-            edit,
-            remove,
-          ]));
-        } else {
-          append(actions, viewDetails, actionMenu(`More actions for ${item.name}`, [edit, remove]));
-        }
-        for (const control of actions.querySelectorAll("button, a")) {
-          if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", `${control.textContent.trim()} ${item.name}`);
-        }
-        if (isSource) append(row, cell(primaryCell(displayName(item.name), item.id)), cell(item.publisher), cell(displayName(item.adapter_key), "mono"), cell(humanise(item.cadence)), cell(badge(item.status)), cell(actions, "actions-cell"));
-        else append(row, cell(primaryCell(displayName(item.name), displayName(item.profile_key))), cell(primaryCell(displayName(item.dataset_id || item.target?.contract), researchAreaLabel(item.target_feature || item.target?.feature))), cell(humanise(item.refresh_strategy)), cell("Complete source"), cell(badge(item.status)), cell(actions, "actions-cell"));
-        return row;
-      }, isSource ? "Registered data sources" : "Saved data updates", { responsive: true });
-      const resultLabel = isSource ? (items.length === 1 ? "source" : "sources") : (items.length === 1 ? "data update" : "data updates");
+          append(
+            actions,
+            runNow,
+            actionMenu(`More actions for ${item.name}`, [
+              viewDetails,
+              link("View history", `#runs${queryString({ job: item.id })}`, "button secondary small"),
+              backfill,
+              edit,
+              remove,
+            ]),
+          );
+          for (const control of actions.querySelectorAll("button, a")) {
+            if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", `${control.textContent.trim()} ${item.name}`);
+          }
+          append(
+            row,
+            cell(primaryCell(displayName(item.name), displayName(item.profile_key))),
+            cell(
+              primaryCell(
+                displayName(item.dataset_id || item.target?.contract),
+                researchAreaLabel(item.target_feature || item.target?.feature),
+              ),
+            ),
+            cell(humanise(item.refresh_strategy)),
+            cell("Complete source"),
+            cell(badge(item.status)),
+            cell(actions, "actions-cell"),
+          );
+          return row;
+        },
+        "Saved data updates",
+        { responsive: true },
+      );
+      const resultLabel = items.length === 1 ? "data update" : "data updates";
       append(view, panel(`${items.length} ${resultLabel}`, "Showing up to 100 results", table));
-    } catch (error) { view.replaceChildren(errorState(error, rerender)); }
+    } catch (error) {
+      view.replaceChildren(errorState(error, rerender));
+    }
   }
 
-  async function renderEntityDetail(kind, id) {
-    const singular = kind === "sources" ? "source" : "job";
-    renderLoading(view, `Loading ${singular}`);
+  async function renderEntityDetail(id) {
+    renderLoading(view, "Loading job");
     try {
-      const result = await request(`${kind}/${encodeURIComponent(id)}`);
-      const item = entity(result.body, singular);
+      const result = await request(`jobs/${encodeURIComponent(id)}`);
+      const item = entity(result.body, "job");
       let capabilities = null;
       let capabilitiesError = null;
-      if (kind === "jobs") {
-        try { capabilities = (await request(`jobs/${encodeURIComponent(id)}/capabilities`)).body; } catch (error) { capabilitiesError = error; }
+      try {
+        capabilities = (await request(`jobs/${encodeURIComponent(id)}/capabilities`)).body;
+      } catch (error) {
+        capabilitiesError = error;
       }
       view.replaceChildren();
-      const actions = [button("Edit", "button secondary", () => openEntityDialog(singular, item))];
-      if (kind === "jobs") {
-        const runNow = button("Start update", "button primary", () => openPlanDialog(item, capabilities, { intent: "run" }));
-        const backfill = button("Load earlier data", "button secondary", () => openPlanDialog(item, capabilities, { intent: "backfill" }));
-        runNow.disabled = item.status !== "active";
-        backfill.disabled = item.status !== "active";
-        actions.unshift(runNow, backfill, link("Update history", `#runs${queryString({ job: item.id })}`, "button secondary"));
-      }
-      append(view, pageHeading(kind === "sources" ? "Data source" : "Data update", displayName(item.name || singular), `${kind === "sources" ? item.publisher || "Attributed source" : displayName(item.dataset_id || item.target?.contract || "Data update")} · Version ${item.version ?? "—"}`, actions));
-      if (kind === "jobs" && jobLifecycleMessage(item.status)) append(view, el("div", "notice warning", jobLifecycleMessage(item.status)));
-      if (capabilitiesError) append(view, el("div", "notice warning", `Available processing options could not be checked. Saved settings and update history remain available.${capabilitiesError.requestId ? ` Request ID ${capabilitiesError.requestId}.` : ""}`));
-      const left = el("div");
-      const entries = kind === "sources" ? [
-        ["Status", badge(item.status)], ["Publisher", item.publisher], ["Update cadence", item.cadence], ["Connector", displayName(item.adapter_key)], ["Licence", item.licence_id], ["Redistribution", item.redistribution_policy], ["Attribution URL", item.source_url], ["Updated", formatDate(item.updated_at)],
-      ] : [
-        ["Status", badge(item.status)], ["Dataset", displayName(item.dataset_id || item.target?.contract)], ["Research area", researchAreaLabel(item.target_feature || item.target?.feature)], ["Update profile", displayName(item.profile_key)], ["Refresh strategy", humanise(item.refresh_strategy)], ["Default mode", humanise(item.default_run_mode)], ["Data-check policy", item.quality_policy_key || item.quality_policy], ["Updated", formatDate(item.updated_at)],
+      const runNow = button("Start update", "button primary", () => openPlanDialog(item, capabilities, { intent: "run" }));
+      const backfill = button("Load earlier data", "button secondary", () => openPlanDialog(item, capabilities, { intent: "backfill" }));
+      runNow.disabled = item.status !== "active";
+      backfill.disabled = item.status !== "active";
+      const actions = [
+        runNow,
+        backfill,
+        link("Update history", `#runs${queryString({ job: item.id })}`, "button secondary"),
+        button("Edit", "button secondary", () => openEntityDialog("job", item)),
       ];
-      append(left, detailList(entries), technicalDetails(item));
-      const right = el("div", "stack");
-      if (kind === "sources") {
-        append(right, panel("Download protection", "Only approved source locations can be requested", el("div", "notice", "The attribution URL describes the publisher. Downloads still use the approved host and path configured for this source adapter.")));
-      } else {
-        const workflow = el("div", "operation-guide");
-        append(workflow,
-          operationStep("1", "Import the complete source", "Every registered source record or partition is included automatically."),
-          operationStep("2", "Preview update", "Check the source and proposed work before starting."),
-          operationStep("3", "Review the result", "Follow progress, then retry a failed update if needed."),
+      append(
+        view,
+        pageHeading(
+          "Data update",
+          displayName(item.name || "job"),
+          `${displayName(item.dataset_id || item.target?.contract || "Data update")} · Version ${item.version ?? "—"}`,
+          actions,
+        ),
+      );
+      if (jobLifecycleMessage(item.status)) append(view, el("div", "notice warning", jobLifecycleMessage(item.status)));
+      if (capabilitiesError) {
+        append(
+          view,
+          el(
+            "div",
+            "notice warning",
+            `Available processing options could not be checked. Saved settings and update history remain available.${capabilitiesError.requestId ? ` Request ID ${capabilitiesError.requestId}.` : ""}`,
+          ),
         );
-        append(right, panel("How this update works", "Preview, process and review", workflow));
-        if (capabilities) append(right, panel("Available processing options", "Resolved adapter and dataset behaviour", technicalDetails(capabilities, "Inspect technical contract")));
+      }
+      const left = el("div");
+      append(
+        left,
+        detailList([
+          ["Status", badge(item.status)],
+          ["Dataset", displayName(item.dataset_id || item.target?.contract)],
+          ["Research area", researchAreaLabel(item.target_feature || item.target?.feature)],
+          ["Update profile", displayName(item.profile_key)],
+          ["Refresh strategy", humanise(item.refresh_strategy)],
+          ["Default mode", humanise(item.default_run_mode)],
+          ["Data-check policy", item.quality_policy_key || item.quality_policy],
+          ["Updated", formatDate(item.updated_at)],
+        ]),
+        technicalDetails(item),
+      );
+      const right = el("div", "stack");
+      const workflow = el("div", "operation-guide");
+      append(
+        workflow,
+        operationStep("1", "Import the complete source", "Every registered source record or partition is included automatically."),
+        operationStep("2", "Preview update", "Check the source and proposed work before starting."),
+        operationStep("3", "Review the result", "Follow progress, then retry a failed update if needed."),
+      );
+      append(right, panel("How this update works", "Preview, process and review", workflow));
+      if (capabilities) {
+        append(
+          right,
+          panel(
+            "Available processing options",
+            "Resolved adapter and dataset behaviour",
+            technicalDetails(capabilities, "Inspect technical contract"),
+          ),
+        );
       }
       const layout = el("div", "detail-layout");
-      append(layout, panel(kind === "sources" ? "Source details" : "Update settings", "Saved settings used for this data update", left), right);
+      append(layout, panel("Update settings", "Saved settings used for this data update", left), right);
       append(view, layout);
-    } catch (error) { view.replaceChildren(errorState(error, rerender)); }
+    } catch (error) {
+      view.replaceChildren(errorState(error, rerender));
+    }
   }
 
   return { renderEntityList, renderEntityDetail };

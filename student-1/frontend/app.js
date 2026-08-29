@@ -1,7 +1,7 @@
 import { API_BASE, newRequestId, requestJson } from "./core/api.js";
 import { append, el } from "./core/dom.js";
 import { humanise } from "./core/formats.js?v=18";
-import { parseIntegerField, parseJsonField, parseJsonTextList, propertySearchQuery } from "./core/forms.js?v=18";
+import { parseIntegerField, parseJsonField, propertySearchQuery } from "./core/forms.js?v=18";
 import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js?v=18";
 import { parseRoute } from "./core/router.js?v=7";
 import { requestActiveDialogClose, runDialogForm } from "./components/dialogs.js?v=18";
@@ -19,6 +19,7 @@ import { createPropertyRoutes } from "./routes/properties.js?v=21";
 import { createReleaseRoutes } from "./routes/releases.js?v=20";
 import { createRunPlanner } from "./routes/run-plan.js?v=20";
 import { createRunRoutes } from "./routes/runs.js?v=19";
+import { createSourceHtmxRoute } from "./routes/sources-htmx.js?v=1";
 
 const view = document.querySelector("#view");
 const liveRegion = document.querySelector("#live-region");
@@ -84,20 +85,6 @@ function request(path, options = {}) {
   return requestJson(fetch, path.startsWith("/") ? path : `${API_BASE}/${path}`, options);
 }
 
-const SOURCE_FIELDS = [
-  { name: "name", label: "Source name", required: true },
-  { name: "publisher", label: "Publisher", required: true },
-  { name: "source_url", label: "Attribution URL", type: "url", required: true, wide: true, help: "Metadata only; acquisition remains allowlisted" },
-  { name: "adapter_key", label: "Connector", required: true },
-  { name: "cadence", label: "Update cadence", required: true },
-  { name: "licence_id", label: "Licence", required: true },
-  { name: "licence_url", label: "Licence URL", type: "url", required: true },
-  { name: "redistribution_policy", label: "Redistribution policy", required: true, wide: true },
-  { name: "target_features", label: "Research area keys", type: "json_array", wide: true, required: true, maximumItems: 5, uniqueItems: true, help: "One to five unique stored contract keys as JSON, for example [\"feature-1\"]" },
-  { name: "status", label: "Lifecycle status", options: ["draft", "active", "disabled", "retired"], required: true },
-  { name: "notes", label: "Operator notes", type: "textarea", wide: true, maxLength: 2000, help: "Up to 2,000 characters; optional." },
-];
-
 const JOB_FIELDS = [
   { name: "source_definition_id", label: "Source ID", required: true, wide: true },
   { name: "name", label: "Job name", required: true },
@@ -118,9 +105,9 @@ const JOB_FIELDS = [
 ];
 
 async function openEntityDialog(kind, item = null) {
-  const isSource = kind === "source";
-  const fields = isSource ? SOURCE_FIELDS : JOB_FIELDS;
-  document.querySelector("#entity-kicker").textContent = isSource ? "Source definition" : "Job definition";
+  const fields = JOB_FIELDS;
+  document.querySelector("#entity-form [data-source-editor]")?.removeAttribute("data-source-editor");
+  document.querySelector("#entity-kicker").textContent = "Job definition";
   document.querySelector("#entity-title").textContent = `${item ? "Edit" : "Create"} ${kind}`;
   const fieldHost = document.querySelector("#entity-fields");
   const fieldValue = (name) => item?.[name] ?? ({
@@ -128,14 +115,15 @@ async function openEntityDialog(kind, item = null) {
     import_profile_key: item?.import_profile?.key,
     import_profile_version: item?.import_profile?.version,
     target_feature: item?.target?.feature,
-    target_features: item?.target_features_json,
     quality_policy_key: item?.quality_policy,
   })[name];
   fieldHost.replaceChildren(...fields.map((definition) => formField(definition, fieldValue(definition.name))));
+  const entitySave = document.querySelector("#entity-save");
+  for (const attribute of ["hx-delete", "hx-post", "hx-put", "hx-include", "hx-target", "hx-swap", "hx-indicator", "hx-disabled-elt"]) entitySave.removeAttribute(attribute);
   const saved = await runDialogForm({
     dialog: entityDialog,
     form: entityForm,
-    submitButton: document.querySelector("#entity-save"),
+    submitButton: entitySave,
     errorHost: document.querySelector("#entity-error"),
     acceptedValue: "save",
     progressLabel: item ? "Saving changes…" : `Creating ${kind}…`,
@@ -146,12 +134,6 @@ async function openEntityDialog(kind, item = null) {
       for (const definition of fields.filter((field) => field.type === "json")) {
         data[definition.name] = parseJsonField(data[definition.name], definition.label, definition.name);
       }
-      for (const definition of fields.filter((field) => field.type === "json_array")) {
-        data[definition.name] = parseJsonTextList(data[definition.name], definition.label, definition.name, {
-          maximum: definition.maximumItems ?? null,
-          unique: Boolean(definition.uniqueItems),
-        });
-      }
       for (const definition of fields.filter((field) => field.type === "number")) {
         data[definition.name] = parseIntegerField(data[definition.name], definition.label, {
           fieldName: definition.name,
@@ -160,8 +142,7 @@ async function openEntityDialog(kind, item = null) {
         });
       }
       if (item?.version !== undefined) data.version = item.version;
-      const path = isSource ? "sources" : "jobs";
-      const result = await request(`${path}${item ? `/${encodeURIComponent(item.id)}` : ""}`, { method: item ? "PUT" : "POST", body: data });
+      const result = await request(`jobs${item ? `/${encodeURIComponent(item.id)}` : ""}`, { method: item ? "PUT" : "POST", body: data });
       showToast(`${humanise(kind)} ${item ? "updated" : "created"}. Request ID ${result.requestId}`);
     },
   });
@@ -169,11 +150,13 @@ async function openEntityDialog(kind, item = null) {
 }
 
 function confirmAction({ title, description, label = "Confirm", tone = "danger", extra = null, onConfirm = null, progressLabel = "Working…", discardMessage = "Discard your entered changes?" }) {
+  document.querySelector("#action-form [data-source-delete]")?.removeAttribute("data-source-delete");
   document.querySelector("#action-title").textContent = title;
   document.querySelector("#action-description").textContent = description;
   document.querySelector("#action-error").textContent = "";
   const host = document.querySelector("#action-extra"); host.replaceChildren(); if (extra) append(host, extra);
   const confirm = document.querySelector("#action-confirm"); confirm.textContent = label; confirm.className = `button ${tone}`;
+  for (const attribute of ["hx-delete", "hx-post", "hx-put", "hx-target", "hx-swap", "hx-indicator", "hx-disabled-elt"]) confirm.removeAttribute(attribute);
   return runDialogForm({
     dialog: actionDialog,
     form: actionForm,
@@ -210,6 +193,7 @@ async function mutate(path, { method = "POST", body = {}, success = "Action comp
 const openPlanDialog = createRunPlanner({ request, mutate, confirmAction });
 const retryRoute = () => renderRoute({ focus: true });
 const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, rerender: retryRoute });
+const { renderSources, requestSourceDialogClose } = createSourceHtmxRoute({ view, entityDialog, actionDialog, confirmDiscard, announce, showToast });
 const { renderRuns, renderRunDetail } = createRunRoutes({ view, request, mutate, confirmAction, announce, state, generationGuard, rerender: retryRoute });
 const { renderProperties } = createPropertyRoutes({ view, request, announce, rerender: retryRoute });
 const { renderDataProducts } = createDataProductRoutes({ view, request, loading, rerender: retryRoute });
@@ -232,7 +216,8 @@ async function renderRoute({ focus = false } = {}) {
   try {
     if (route === "overview") await renderOverview({ view, request, rerender: retryRoute });
     else if (route === "data-products") await renderDataProducts(id);
-    else if (route === "sources" || route === "jobs") id ? await renderEntityDetail(route, id) : await renderEntityList(route);
+    else if (route === "sources") renderSources(id);
+    else if (route === "jobs") id ? await renderEntityDetail(id) : await renderEntityList();
     else if (route === "runs") id ? await renderRunDetail(id) : await renderRuns();
     else if (route === "releases") await renderReleases(id);
     else if (route === "quality" || route === "artifacts") await renderEvidenceExplorer(route, id);
@@ -296,7 +281,8 @@ window.addEventListener("hashchange", () => {
     pendingGuardedNavigation = null;
   };
   const blockedDialog = [entityDialog, actionDialog]
-    .find((dialog) => !requestActiveDialogClose(dialog, { onDiscardDecision: discardDecided }));
+    .find((dialog) => !requestSourceDialogClose(dialog, { onDiscardDecision: discardDecided })
+      || !requestActiveDialogClose(dialog, { onDiscardDecision: discardDecided }));
   if (blockedDialog) {
     if (pendingGuardedNavigation) {
       pendingGuardedNavigation.dialog.removeEventListener("close", pendingGuardedNavigation.resume);

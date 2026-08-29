@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qs
@@ -243,6 +244,15 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
         "properties": properties,
         "products": products,
     }
+
+
+def fixture_source_records(scenario: str) -> list[dict[str, Any]]:
+    """Return an isolated copy of the source rows used by one browser fixture session."""
+    if scenario not in SCENARIOS:
+        raise ValueError(f"unknown fixture scenario: {scenario}")
+    if scenario == "empty":
+        return []
+    return copy.deepcopy(_expanded(_records(scenario)["sources"], scenario))
 
 
 def _release_manifest(release: dict[str, Any]) -> dict[str, Any]:
@@ -491,6 +501,10 @@ def fixture_response(
             },
             delay_seconds=delay,
         )
+    if route == "assistant/capabilities":
+        from propertyscope_data_platform.assistant import capability_guide
+
+        return FixtureResponse(200, capability_guide(), delay_seconds=delay)
     if route == "properties/search":
         matches = [] if scenario == "empty" else _expanded(properties, scenario)
         limit = min(100, max(1, int(params.get("limit", ["25"])[0])))

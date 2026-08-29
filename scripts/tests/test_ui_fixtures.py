@@ -13,6 +13,7 @@ from uuid import UUID
 import pytest
 from scripts import ui_smoke
 from scripts.ui_fixture_server import LOOPBACK_HOST, SCENARIO_COOKIE, UIFixtureServer
+from scripts.ui_fixture_sources import INTERNAL_SOURCES, FixtureSourceStoreClient
 from scripts.ui_fixtures import (
     AGENT_RUN_ID,
     DATASET_ID,
@@ -105,6 +106,15 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
         gallery = response.read()
         assert b"Design foundation" in gallery
         assert b"ps-density--comfortable" in gallery
+    with urlopen(f"{fixture_origin}/fragments/research-areas.html", timeout=2) as response:
+        fragment = response.read()
+        assert response.headers.get_content_type() == "text/html"
+        assert fragment.count(b"data-feature-id=") == 5
+        assert fragment.count(b'data-feature-state="planned"') == 4
+    with urlopen(f"{fixture_origin}/vendor/htmx-2.0.10.min.js", timeout=2) as response:
+        htmx = response.read()
+        assert response.headers.get_content_type() in {"text/javascript", "application/javascript"}
+        assert b'version:"2.0.10"' in htmx
     with urlopen(f"{fixture_origin}/operations/ai-mode/assets/app.js", timeout=2) as response:
         assert b'const API_ROOT = "/api/v1"' in response.read()
     with urlopen(f"{fixture_origin}/healthz", timeout=2) as response:
@@ -150,6 +160,47 @@ def test_query_scenario_sets_session_cookie_used_by_api(fixture_origin: str) -> 
 
     assert body["items"] == []
     assert body["count"] == 0
+
+
+def test_source_fragment_fixture_store_has_isolated_real_crud_and_concurrency() -> None:
+    first = FixtureSourceStoreClient(session_key="browser-a", scenario="populated")
+    second = FixtureSourceStoreClient(session_key="browser-b", scenario="populated")
+    source = {
+        "name": "Isolated HTMX source",
+        "publisher": "PropertyScope QA",
+        "source_url": "https://example.test/source",
+        "adapter_key": "fixture.adapter",
+        "cadence": "weekly",
+        "licence_id": "cc-by-4.0",
+        "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+        "redistribution_policy": "attribution",
+        "target_features": ["feature-1"],
+        "status": "draft",
+        "notes": "Ephemeral fixture data.",
+    }
+
+    created = first.request("POST", INTERNAL_SOURCES, json=source).json()["source"]
+    assert created["version"] == 1
+    assert first.request("GET", INTERNAL_SOURCES).json()["total"] == 2
+    assert second.request("GET", INTERNAL_SOURCES).json()["total"] == 1
+
+    conflict = first.request(
+        "PUT", f"{INTERNAL_SOURCES}/{created['id']}", json={**source, "version": 99}
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["code"] == "version_conflict"
+
+    updated = first.request(
+        "PUT",
+        f"{INTERNAL_SOURCES}/{created['id']}",
+        json={**source, "name": "Updated HTMX source", "version": 1},
+    ).json()["source"]
+    assert updated["name"] == "Updated HTMX source"
+    assert updated["version"] == 2
+
+    deleted = first.request("DELETE", f"{INTERNAL_SOURCES}/{created['id']}")
+    assert deleted.status_code == 204
+    assert first.request("GET", INTERNAL_SOURCES).json()["total"] == 1
 
 
 def test_fixture_payload_is_stable_and_uses_contract_envelopes() -> None:
@@ -306,6 +357,9 @@ def test_shared_health_evidence_and_ai_operations_projections_are_contract_valid
     feature_detail = fixture_response(
         "GET", f"/api/data-platform/v1/agent-runs/{AGENT_RUN_ID}", "", "populated"
     )
+    assistant = fixture_response(
+        "GET", "/api/data-platform/v1/assistant/capabilities", "", "populated"
+    )
 
     assert health.body["dependencies"] == {"database": True}
     HealthResponse.model_validate(ai_health.body)
@@ -317,6 +371,9 @@ def test_shared_health_evidence_and_ai_operations_projections_are_contract_valid
     AgentRunEvidenceDetail.model_validate(detail.body)
     AgentRunEventPage.model_validate(events.body)
     AgentRunDetail.model_validate(feature_detail.body)
+    assert assistant.status == 200
+    assert assistant.body["application"]["name"] == "PropertyScope NSW"
+    assert assistant.body["features"][0]["status"] == "available"
 
 
 def test_release_ai_creation_and_operator_mutation_statuses_match_production() -> None:

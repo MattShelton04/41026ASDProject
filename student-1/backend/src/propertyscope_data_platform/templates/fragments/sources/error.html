@@ -1,0 +1,5 @@
+<section id="source-crud-region" class="stack" data-source-route-hash="#sources">
+  <div class="page-heading"><div><p class="eyebrow">Property data</p><h1 tabindex="-1">Data sources</h1><p>Manage the publishers, licences and schedules behind property data.</p></div></div>
+  <div class="notice negative" role="alert" tabindex="-1"><strong>Source definitions could not be loaded.</strong> {{ message }} Request ID {{ request_id }}.</div>
+  <button class="button secondary" type="button" hx-get="{{ fragment_base }}?q={{ query|urlencode }}&amp;status={{ status|urlencode }}" hx-target="#source-crud-region" hx-swap="outerHTML" hx-disabled-elt="this">Retry</button>
+</section>

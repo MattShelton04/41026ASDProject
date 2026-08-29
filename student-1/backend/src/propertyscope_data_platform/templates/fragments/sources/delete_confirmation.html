@@ -1,0 +1,7 @@
+<div data-source-delete>
+  <div class="dialog-heading"><div><p class="eyebrow">Confirm action</p><h2 id="action-title">Delete {{ source.name }}?</h2></div><button class="close-button" type="submit" value="cancel" formnovalidate aria-label="Close dialog">×</button></div>
+  <p id="action-description" class="dialog-copy">Only unused draft/test definitions can be deleted. Existing provenance remains protected.</p><div id="action-extra"></div>
+  <p id="action-error" class="form-error" role="alert" tabindex="-1">{% if summary %}{{ summary }} Request ID {{ request_id }}.{% endif %}</p>
+  <span id="source-delete-indicator" class="htmx-indicator field-help" role="status">Deleting source…</span>
+  <div class="dialog-actions"><button class="button secondary" type="submit" value="cancel" formnovalidate>Go back</button><button id="action-confirm" class="button danger" type="submit" value="confirm" hx-delete="{{ fragment_base }}/{{ source.id }}" hx-target="#source-crud-region" hx-swap="outerHTML" hx-indicator="#source-delete-indicator" hx-disabled-elt="#action-form button">Delete definition</button></div>
+</div>

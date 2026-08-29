@@ -17,6 +17,7 @@ from propertyscope_data_platform.clients import (
 )
 from propertyscope_data_platform.http_support import register_error_handlers
 from propertyscope_data_platform.release_builders import validate_feature_registration
+from propertyscope_data_platform.source_fragments import create_source_fragment_blueprint
 from shared_contracts import is_valid_request_id, is_valid_traceparent
 
 
@@ -96,6 +97,7 @@ def create_app(
             feature_root=resolved_feature_root,
         )
     )
+    app.register_blueprint(create_source_fragment_blueprint(store))
     worker_token = os.environ.get("PROPERTYSCOPE_RUNNER_TOKEN", "local-runner-only")
 
     @app.before_request

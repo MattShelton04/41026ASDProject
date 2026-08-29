@@ -1,0 +1,32 @@
+<section id="source-crud-region" class="stack" data-source-route-hash="#sources{% if query or status != 'active' %}?{% if query %}q={{ query|urlencode }}{% endif %}{% if query and status != 'active' %}&amp;{% endif %}{% if status != 'active' %}status={{ status|urlencode }}{% endif %}{% endif %}">
+  <div class="page-heading">
+    <div><p class="eyebrow">Property data</p><h1 tabindex="-1">Data sources</h1><p>Manage the publishers, licences and schedules behind property data.</p></div>
+    <div class="page-actions">
+      <button class="button primary" type="button" hx-get="{{ fragment_base }}/new" hx-target="#entity-form" hx-swap="innerHTML" hx-indicator="#source-list-indicator" hx-disabled-elt="this">Create source</button>
+    </div>
+  </div>
+  {% if success %}<div class="notice positive" data-source-success tabindex="-1" role="status">{{ success }} Request ID {{ request_id }}.</div>{% endif %}
+  <form class="toolbar" hx-get="{{ fragment_base }}" hx-target="#source-crud-region" hx-swap="outerHTML" hx-indicator="#source-list-indicator" hx-disabled-elt="find button[type='submit']">
+    <div class="filter-row">
+      <label class="field"><span>Search (optional)</span><input type="search" name="q" value="{{ query }}" placeholder="Source or publisher" autocomplete="off" maxlength="200"></label>
+      <label class="field"><span>Status (optional)</span><select name="status">
+        {% for value, label in [('active','Active'),('draft','Draft'),('disabled','Disabled'),('retired','Retired'),('all','All statuses')] %}<option value="{{ value }}"{% if status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select></label>
+    </div>
+    <div class="button-row"><button class="button secondary" type="submit">Apply filters</button><button class="button secondary" type="button" hx-get="{{ fragment_base }}?status=all" hx-target="#source-crud-region" hx-swap="outerHTML">Reset filters</button></div>
+    {% if query or status != 'all' %}<div class="active-filters"><span class="field-help">{{ (1 if query else 0) + (1 if status != 'all' else 0) }} active {{ 'filter' if ((1 if query else 0) + (1 if status != 'all' else 0)) == 1 else 'filters' }}</span></div>{% endif %}
+  </form>
+  <span id="source-list-indicator" class="htmx-indicator field-help" role="status">Loading source definitions…</span>
+  {% if not items %}
+    <section class="empty-state"><h2>No sources found</h2><p>{% if query or status != 'all' %}Try clearing the current filters.{% else %}Create the first source record.{% endif %}</p></section>
+  {% else %}
+    <section class="panel"><div class="panel-heading"><div><h2>{{ items|length }} {{ 'source' if items|length == 1 else 'sources' }}</h2><p>Showing up to 100 results</p></div></div>
+      <div class="ps-table-region" role="region" aria-label="Registered data sources" tabindex="0"><table><caption class="visually-hidden">Registered data sources</caption><thead><tr><th scope="col">Source</th><th scope="col">Publisher</th><th scope="col">Adapter</th><th scope="col">Cadence</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>
+      {% for source in items %}<tr>
+        <td><strong>{{ source.name }}</strong><small class="mono">{{ source.id }}</small></td><td>{{ source.publisher }}</td><td class="mono">{{ source.adapter_key }}</td><td>{{ source.cadence }}</td><td><span class="badge {{ source.status }}">{{ source.status|replace('_',' ')|title }}</span></td>
+        <td class="actions-cell"><div class="row-actions"><a class="button secondary small" href="#sources/{{ source.id }}">View details</a><button class="button secondary small" type="button" aria-label="Edit {{ source.name }}" hx-get="{{ fragment_base }}/{{ source.id }}/edit" hx-target="#entity-form" hx-swap="innerHTML" hx-indicator="#source-list-indicator" hx-disabled-elt="this">Edit</button><button class="button small danger" type="button" aria-label="Delete {{ source.name }}" hx-get="{{ fragment_base }}/{{ source.id }}/delete-confirmation" hx-target="#action-form" hx-swap="innerHTML" hx-indicator="#source-list-indicator" hx-disabled-elt="this">Delete</button></div></td>
+      </tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+  {% endif %}
+</section>

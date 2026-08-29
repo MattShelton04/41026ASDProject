@@ -190,11 +190,37 @@ def run_smoke(*, port: int, scenario: str, all_routes: bool = False) -> None:
                 try:
                     context = browser.new_context(viewport={"width": 1440, "height": 1000})
                     page = context.new_page()
+                    fragment_statuses: list[int] = []
+                    page.on(
+                        "response",
+                        lambda response: (
+                            fragment_statuses.append(response.status)
+                            if response.url.endswith("/fragments/research-areas.html")
+                            else None
+                        ),
+                    )
                     _verify_page(
                         page,
                         f"{base_url}/?scenario={scenario}#home",
                         "Research a property",
+                        ready_selector="#feature-area-list [data-feature-id]",
                     )
+                    if fragment_statuses != [200]:
+                        raise RuntimeError(
+                            "Shared research-area HTMX fragment did not return exactly one HTTP 200"
+                        )
+                    if page.locator("#feature-area-list [data-feature-id]").count() != 5:
+                        raise RuntimeError(
+                            "Shared research-area HTMX fragment did not render five rows"
+                        )
+                    if page.locator("#feature-area-list a").count() != 1:
+                        raise RuntimeError(
+                            "Shared research-area HTMX fragment did not retain one enabled link"
+                        )
+                    if page.locator(
+                        "#feature-area-list [data-feature-state=planned] :is(a, button)"
+                    ).count():
+                        raise RuntimeError("A planned research area became interactive")
                     page.close()
                     page = context.new_page()
                     _verify_page(

@@ -425,38 +425,66 @@ def test_source_job_and_release_create_edit_forms_retain_server_failures(
     page.get_by_role("button", name="Create source").click()
     expect(page.locator('[name="name"]')).to_be_focused()
     page.locator("#entity-save").click()
-    expect(page.locator("#entity-error")).to_contain_text("Please correct Source name")
+    expect(page.locator("#entity-error")).to_contain_text("Please correct the highlighted fields")
     expect(page.locator('[name="name"]')).to_be_focused()
-    page.get_by_role("button", name="Cancel").click()
-
-    _open_row_actions(page, "Example NSW property records")
-    page.get_by_role("button", name="Edit Example NSW property records").click()
-    source_notes = page.locator('[name="notes"]')
-    targets = page.locator('[name="target_features"]')
-    targets.fill('["one","two","three","four","five","six"]')
-    page.locator("#entity-save").click()
-    expect(page.locator("#entity-error")).to_contain_text("Please correct Research area keys")
-    expect(targets).to_have_attribute("aria-describedby", "form-field-target_features-error")
-    targets.fill('["one","one"]')
-    expect(page.locator("#form-field-target_features-error")).to_contain_text("at most 5 values")
-    page.locator("#entity-save").click()
-    expect(page.locator("#form-field-target_features-error")).to_contain_text(
-        "must not contain duplicate values"
-    )
-    targets.fill('["feature-1"]')
-    expect(page.locator("#form-field-target_features-error")).to_have_count(0)
-    expect(targets).not_to_have_attribute("aria-invalid", "true")
-    expect(targets).not_to_have_attribute("aria-describedby", "form-field-target_features-error")
-    expect(page.locator("#entity-error")).to_be_empty()
-    source_notes.fill("Retained source evidence")
-    source_writes = _fail_first_write(page, "**/api/data-platform/v1/sources/*", method="PUT")
-    page.locator("#entity-save").click()
-    expect(page.locator("#entity-dialog")).to_be_visible()
-    expect(page.locator("#entity-error")).to_contain_text("values are still here")
-    expect(source_notes).to_have_value("Retained source evidence")
+    source_name = f"Isolated HTMX source {time.time_ns()}"
+    for name, value in {
+        "name": source_name,
+        "publisher": "HTMX fixture publisher",
+        "source_url": "https://example.invalid/htmx-source",
+        "adapter_key": "fixture-htmx",
+        "cadence": "on-demand",
+        "licence_id": "synthetic-test-data",
+        "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "redistribution_policy": "committed-synthetic-fixture",
+        "notes": "Created through the HTML fragment adapter",
+    }.items():
+        page.locator(f'[name="{name}"]').fill(value)
     page.locator("#entity-save").click()
     expect(page.locator("#entity-dialog")).not_to_be_visible()
-    assert len(source_writes) == 2
+    expect(page.get_by_text(source_name, exact=True)).to_be_visible()
+
+    page.get_by_role("button", name=f"Edit {source_name}").click()
+    expect(page.locator('[name="version"]')).to_have_value("1")
+    source_notes = page.locator('[name="notes"]')
+    source_notes.fill("Updated through HTMX with retained server values")
+    page.locator("#entity-save").click()
+    expect(page.locator("#entity-dialog")).not_to_be_visible()
+    expect(page.get_by_text(source_name, exact=True)).to_be_visible()
+
+    page.get_by_role("button", name=f"Edit {source_name}").click()
+    expect(page.locator('[name="version"]')).to_have_value("2")
+    update_path = page.locator("#entity-save").get_attribute("hx-put")
+    assert update_path is not None
+    concurrent_values = page.locator("#entity-form").evaluate(
+        "form => Object.fromEntries(new FormData(form).entries())"
+    )
+    concurrent_values["notes"] = "A concurrent fixture writer"
+    concurrent = page.request.put(
+        f"{fixture_origin}{update_path}",
+        form=concurrent_values,
+        headers={"HX-Request": "true", "X-Request-ID": "concurrent-source-update"},
+    )
+    assert concurrent.status == 200
+    conflict_notes = page.locator('[name="notes"]')
+    conflict_notes.fill("A stale browser edit that must be retained")
+    page.locator("#entity-save").click()
+    expect(page.locator("#entity-dialog")).to_be_visible()
+    expect(page.locator("#entity-error")).to_contain_text("changed after this form was opened")
+    expect(conflict_notes).to_have_value("A stale browser edit that must be retained")
+    expect(page.locator("#entity-error")).to_be_focused()
+    page.get_by_role("button", name="Cancel", exact=True).click()
+    page.locator("#discard-confirm").click()
+    expect(page.locator("#entity-dialog")).not_to_be_visible()
+
+    page.get_by_role("button", name=f"Delete {source_name}").click()
+    expect(page.locator("#action-dialog")).to_be_visible()
+    page.locator('#action-form button[value="cancel"]:not(.close-button)').click()
+    expect(page.locator("#action-dialog")).not_to_be_visible()
+    page.get_by_role("button", name=f"Delete {source_name}").click()
+    page.locator("#action-confirm").click()
+    expect(page.locator("#action-dialog")).not_to_be_visible()
+    expect(page.get_by_text(source_name, exact=True)).to_have_count(0)
 
     _open(page, fixture_origin, "jobs")
     page.get_by_role("button", name="Create update").click()
@@ -568,7 +596,6 @@ def test_guarded_confirmations_dirty_navigation_and_controller_generation(
     page: Page, fixture_origin: str
 ) -> None:
     _open(page, fixture_origin, "sources")
-    _open_row_actions(page, "Example NSW property records")
     page.get_by_role("button", name="Edit Example NSW property records").click()
     notes = page.locator('[name="notes"]')
     initial_notes = notes.input_value()
@@ -586,7 +613,6 @@ def test_guarded_confirmations_dirty_navigation_and_controller_generation(
     expect(page.locator("#entity-dialog")).not_to_be_visible()
     page.wait_for_function("() => location.hash === '#sources'")
 
-    _open_row_actions(page, "Example NSW property records")
     page.get_by_role("button", name="Edit Example NSW property records").click()
     page.locator('[name="notes"]').fill("Saved after keeping the form open")
     page.evaluate("location.hash = '#jobs'")
@@ -597,32 +623,24 @@ def test_guarded_confirmations_dirty_navigation_and_controller_generation(
     page.wait_for_timeout(10)
     page.locator("#entity-save").click()
     expect(page.locator("#entity-dialog")).not_to_be_visible()
-    page.wait_for_function("() => location.hash === '#sources'")
+    page.wait_for_function("() => location.hash === '#sources?status=all'")
 
-    _open_row_actions(page, "Example NSW property records")
     page.get_by_role("button", name="Edit Example NSW property records").click()
     page.locator('[name="notes"]').fill("Discarded for latest navigation")
     page.evaluate("location.hash = '#jobs'")
     expect(page.locator("#discard-dialog")).to_be_visible()
     page.wait_for_function("() => location.hash === '#sources'")
-    page.evaluate("location.hash = '#runs'")
-    page.wait_for_function("() => location.hash === '#sources'")
     page.locator("#discard-confirm").click()
     expect(page.locator("#entity-dialog")).not_to_be_visible()
-    page.wait_for_function("() => location.hash === '#runs'")
+    page.wait_for_function("() => location.hash === '#jobs'")
 
     _open(page, fixture_origin, "sources")
-    delete_writes = _fail_first_write(
-        page, f"**/api/data-platform/v1/sources/{SOURCE_ID}", method="DELETE"
-    )
-    _open_row_actions(page, "Example NSW property records")
     page.get_by_role("button", name="Delete Example NSW property records").click()
     page.locator("#action-confirm").click()
-    expect(page.locator("#action-error")).to_contain_text("values are still here")
+    expect(page.locator("#action-error")).to_contain_text("Only unused draft")
     expect(page.locator("#action-dialog")).to_be_visible()
-    page.locator("#action-confirm").click()
+    page.locator('#action-form button[value="cancel"]:not(.close-button)').click()
     expect(page.locator("#action-dialog")).not_to_be_visible()
-    assert len(delete_writes) == 2
 
     page.goto(f"{fixture_origin}/healthz")
     generation_result = page.evaluate(
