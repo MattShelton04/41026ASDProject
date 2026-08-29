@@ -9,7 +9,7 @@ import { createDrawerController, createToastController } from "./browser/index.j
 import { formField } from "./components/forms.js?v=17";
 import { hydrateIcons } from "./components/icons.js?v=1";
 import { renderLoading } from "./components/states.js";
-import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=19";
+import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=20";
 import { createFeatureAssistantRoute } from "./routes/assistant.js?v=1";
 import { createEntityRoutes } from "./routes/entities.js?v=20";
 import { createDataProductRoutes } from "./routes/data-products.js?v=18";
@@ -18,7 +18,7 @@ import { renderOverview } from "./routes/overview.js?v=21";
 import { createPropertyRoutes } from "./routes/properties.js?v=21";
 import { createReleaseRoutes } from "./routes/releases.js?v=20";
 import { createRunPlanner } from "./routes/run-plan.js?v=20";
-import { createRunRoutes } from "./routes/runs.js?v=19";
+import { createRunRoutes } from "./routes/runs.js?v=20";
 import { createSourceHtmxRoute } from "./routes/sources-htmx.js?v=1";
 
 const view = document.querySelector("#view");

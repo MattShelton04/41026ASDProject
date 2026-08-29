@@ -4,6 +4,7 @@ import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from threading import Event
 from typing import Any, cast
 
 import pytest
@@ -51,6 +52,67 @@ class ConnectedStore(PropertyScopeStore):
         yield self.test_connection
 
 
+class CancellableConnection(ScriptedConnection):
+    def __init__(self, responses: Sequence[Mapping[str, Any] | None]) -> None:
+        super().__init__(responses)
+        self.cancelled = Event()
+
+    def cancel(self) -> None:
+        self.cancelled.set()
+
+
+def test_import_watcher_cancels_source_scale_insertion_statement() -> None:
+    operation_id = uuid.uuid4()
+    connection = CancellableConnection([])
+
+    class CancelledStore(ConnectedStore):
+        def import_cancel_requested(self, requested: uuid.UUID) -> bool:
+            assert requested == operation_id
+            return True
+
+    with CancelledStore(connection)._cancellable_import_connection(operation_id):
+        assert connection.cancelled.wait(1.5)
+
+
+def test_activation_watcher_cancels_candidate_index_materialisation() -> None:
+    operation_id = uuid.uuid4()
+    release_id = uuid.uuid4()
+    connection = CancellableConnection(
+        [
+            {
+                "id": operation_id,
+                "dataset_release_id": release_id,
+                "dataset_id": "gnaf-nsw",
+                "release_status": "awaiting_review",
+                "release_version": 4,
+                "expected_release_version": 4,
+            }
+        ]
+    )
+    original_execute = connection.execute
+
+    def execute_until_cancelled(
+        query: str, parameters: Sequence[object] | None = None
+    ) -> CancellableConnection:
+        if "WITH indexed_candidate" in query:
+            assert connection.cancelled.wait(1.5)
+            raise RuntimeError("statement cancelled")
+        return cast(CancellableConnection, original_execute(query, parameters))
+
+    connection.execute = execute_until_cancelled  # type: ignore[method-assign]
+    stop = Event()
+    stop.set()
+
+    with pytest.raises(RuntimeError, match="statement cancelled"):
+        ConnectedStore(connection).materialize_release_activation(
+            operation_id,
+            worker_id="loader-1",
+            lease_token="lease-1",
+            stop_event=stop,
+        )
+    assert connection.cancelled.is_set()
+
+
 def test_job_creation_derives_registered_runtime_versions() -> None:
     source_id = uuid.uuid4()
     connection = ScriptedConnection([{"id": uuid.uuid4()}])
@@ -80,7 +142,7 @@ def test_job_creation_derives_registered_runtime_versions() -> None:
     parameters = connection.parameters[0]
     assert parameters is not None
     assert parameters[6] == "1.0.0"
-    assert parameters[8] == "2.0.0"
+    assert parameters[8] == "3.0.0"
 
 
 def test_job_creation_rejects_unregistered_runtime_components() -> None:
@@ -160,7 +222,7 @@ def test_queued_cancellation_is_immediately_terminal_and_cancels_pending_tasks()
     assert "SET status='cancelled'" in task_update
     run_update_parameters = connection.parameters[4]
     assert run_update_parameters is not None
-    assert run_update_parameters[1] is True
+    assert run_update_parameters[4] is True
 
 
 def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> None:
@@ -185,7 +247,7 @@ def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> N
     assert run["status"] == "acquiring"
     run_update_parameters = connection.parameters[4]
     assert run_update_parameters is not None
-    assert run_update_parameters[1] is False
+    assert run_update_parameters[4] is False
 
 
 def test_active_cancellation_is_acknowledged_by_the_next_task_heartbeat() -> None:
@@ -939,7 +1001,7 @@ def test_release_product_projection_is_bound_to_one_candidate_generation() -> No
             connection.parameters.append(params)
             return [{"source_business_key": "sale-1", "source_revision": 1}]
 
-    page = ProjectionStore(connection).release_product_records(release_id, limit=25, offset=0)
+    page = ProjectionStore(connection).release_product_records(release_id, limit=25, cursor=None)
 
     assert page["release_id"] == str(release_id)
     assert page["candidate_generation_id"] == str(release_id)
@@ -949,7 +1011,7 @@ def test_release_product_projection_is_bound_to_one_candidate_generation() -> No
     )
     projection = next(query for query in connection.queries if "warehouse.psi_sale" in query)
     assert "dataset_release_id=%s" in projection
-    assert "source_partition_year=ANY" in projection
+    assert "source_partition_year=ANY" not in projection
     assert "EXTRACT(YEAR FROM contract_date)" not in projection
     assert "ORDER BY source_business_key,source_revision" in projection
 
@@ -1254,7 +1316,7 @@ def test_activation_preparation_cannot_change_accepted_visible_address_fields() 
     assert connection.committed is True
     assert any("SET materialized_at=%s" in query for query in connection.queries)
     assert not any("registry.property" in query for query in connection.queries)
-    assert not any("warehouse.gnaf_address SET" in query for query in connection.queries)
+    assert any("warehouse.gnaf_address SET published=TRUE" in query for query in connection.queries)
     assert not any("serving.property_coverage" in query for query in connection.queries)
 
 

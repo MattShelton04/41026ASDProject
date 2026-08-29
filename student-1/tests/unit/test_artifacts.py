@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import time
 from pathlib import Path
 
 import pytest
@@ -36,3 +38,39 @@ def test_verified_path_rejects_size_checksum_and_missing_artifacts(tmp_path: Pat
         store.verified_path(artifact.storage_key, "0" * 64, expected_bytes=7, max_bytes=7)
     with pytest.raises(ArtifactError, match="does not exist"):
         store.verified_path("sha256/00/" + "0" * 64, "0" * 64, expected_bytes=0, max_bytes=1)
+
+
+def test_content_reuse_and_retention_cleanup_preserve_durable_references(tmp_path: Path) -> None:
+    store = LocalArtifactStore(tmp_path)
+    referenced = store.put((b"same-content",), media_type="application/octet-stream")
+    retransmission = store.put((b"same-content",), media_type="application/octet-stream")
+    orphan = store.put((b"unreferenced",), media_type="application/octet-stream")
+    assert retransmission.storage_key == referenced.storage_key
+
+    old = time.time() - 7200
+    os.utime(tmp_path / referenced.storage_key, (old, old))
+    os.utime(tmp_path / orphan.storage_key, (old, old))
+    inventory = store.cleanup_unreferenced(
+        {referenced.storage_key}, grace_seconds=3600, dry_run=True
+    )
+
+    assert inventory["candidate_count"] == 1
+    assert (tmp_path / orphan.storage_key).is_file()
+    removed = store.cleanup_unreferenced(
+        {referenced.storage_key}, grace_seconds=3600, dry_run=False
+    )
+    assert removed["removed_bytes"] == len(b"unreferenced")
+    assert (tmp_path / referenced.storage_key).is_file()
+    assert not (tmp_path / orphan.storage_key).exists()
+
+
+def test_content_reuse_repairs_a_corrupt_existing_object(tmp_path: Path) -> None:
+    store = LocalArtifactStore(tmp_path)
+    payload = b"verified-content" * 100
+    original = store.put((payload,), media_type="application/octet-stream")
+    (tmp_path / original.storage_key).write_bytes(b"truncated")
+
+    retransmission = store.put((payload,), media_type="application/octet-stream")
+
+    assert retransmission.storage_key == original.storage_key
+    assert (tmp_path / original.storage_key).read_bytes() == payload

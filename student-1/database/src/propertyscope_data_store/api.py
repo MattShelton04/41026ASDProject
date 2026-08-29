@@ -41,6 +41,17 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     def overview() -> Response:
         return jsonify(store.overview())
 
+    @api.get("/internal/data-platform/v1/artifact-retention")
+    def artifact_retention() -> Response:
+        items = store.artifact_retention_inventory()
+        return jsonify(
+            {
+                "items": items,
+                "referenced_bytes": sum(int(item["bytes"]) for item in items),
+                "physical_objects": len(items),
+            }
+        )
+
     @api.get("/internal/data-platform/v1/schema/counts")
     def counts() -> Response:
         return jsonify({"tables": store.counts()})
@@ -191,6 +202,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             lease_seconds=bounded_integer(
                 body, "lease_seconds", minimum=5, maximum=300, default=30
             ),
+            progress=object_value(body["progress"]) if body.get("progress") is not None else None,
         )
         return jsonify({"task": task})
 
@@ -280,8 +292,12 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
 
     @api.get("/internal/data-platform/v1/releases/<uuid:release_id>/product-records")
     def releases_product_records(release_id: uuid.UUID) -> Response:
-        limit, offset = pagination(maximum_limit=5_000, default_limit=5_000)
-        return jsonify(store.release_product_records(release_id, limit=limit, offset=offset))
+        limit = query_integer("limit", minimum=1, maximum=20_000, default=20_000)
+        return jsonify(
+            store.release_product_records(
+                release_id, limit=limit, cursor=request.args.get("cursor") or None
+            )
+        )
 
     @api.get("/internal/data-platform/v1/releases/<uuid:release_id>/sales-source-records")
     def releases_sales_source_records(release_id: uuid.UUID) -> Response:

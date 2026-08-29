@@ -13,20 +13,14 @@ TERMINAL_RUN_STATES = frozenset({"succeeded", "failed", "cancelled"})
 RUN_STAGES = (
     "discover",
     "acquire",
-    "validate_artifact",
     "import",
-    "normalise",
-    "quality",
     "build_release",
 )
-_CACHED_PREREQUISITE_STAGES = frozenset({"discover", "acquire", "validate_artifact"})
+_CACHED_PREREQUISITE_STAGES = frozenset({"discover", "acquire"})
 _RUN_STATUS_BY_STAGE = {
     "discover": "discovering",
     "acquire": "acquiring",
-    "validate_artifact": "acquiring",
     "import": "staging",
-    "normalise": "normalising",
-    "quality": "validating",
     "build_release": "building_release",
 }
 

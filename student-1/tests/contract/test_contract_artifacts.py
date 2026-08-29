@@ -33,6 +33,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
     assert document["openapi"] == "3.1.0"
     expected_paths = {
         "/overview",
+        "/artifact-retention",
         "/runtime-capabilities",
         "/assistant/capabilities",
         "/assistant/turns",
@@ -81,6 +82,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/tools/platform.capabilities.v1",
         "/tools/runs.list.v1",
         "/tools/runs.inspect.v1",
+        "/tools/runs.explain.v1",
         "/tools/releases.inspect.v1",
         "/tools/releases.compare.v1",
         "/tools/coverage.inspect.v1",
@@ -314,6 +316,7 @@ def test_release_inspection_tool_declares_all_composed_evidence() -> None:
         "quality_results",
         "quality_summary",
         "receipts",
+        "activations",
         "accepted_predecessor",
         "release_contract",
     }
@@ -343,6 +346,7 @@ def test_release_discovery_uses_real_statuses_and_source_metadata_is_not_load_ev
         "accepted",
         "rejected",
         "superseded",
+        "abandoned",
     ]
     assert release_tool.side_effect.value == "read_only"
     assert "does not prove" in registrations["data.sources.v1"].description

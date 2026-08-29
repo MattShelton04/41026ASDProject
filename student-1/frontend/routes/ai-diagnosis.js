@@ -179,6 +179,7 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     if (detailError) append(body, el("div", "notice warning", `Latest run summary is unavailable. Previously recorded events remain below.${problemSuffix(detailError)}`));
     if (eventsError) append(body, el("div", "notice warning", `Some activity details could not be loaded. Previously recorded results have not been changed.${problemSuffix(eventsError)}`));
     if (run.error) append(body, el("div", "notice negative", `${humanise(run.error.code || "AI review failed")}: ${run.error.message || "Activity history shows where the review stopped."}`));
+    if (["failed", "cancelled"].includes(run.status)) append(body, el("div", "notice warning", "This review is a retained activity record and cannot be changed. Start a new AI review to try again with the current data and tool contracts."));
     if (repairCount) append(body, el("div", "notice", `The assistant corrected ${formatNumber(repairCount)} invalid response${repairCount === 1 ? "" : "s"} before continuing. Each attempt remains available in the technical details.`));
     if (providerRetryCount) append(body, el("div", "notice", `Recovered from ${formatNumber(providerRetryCount)} incomplete model response${providerRetryCount === 1 ? "" : "s"} by requesting the complete structured result again within the original run deadline.`));
     if (failedSteps.length && run.status === "succeeded") append(body, el("div", "notice positive", `The review recovered from ${formatNumber(failedSteps.length)} source-check issue${failedSteps.length === 1 ? "" : "s"}. Earlier failed attempts remain in the activity details.`));
@@ -193,7 +194,8 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     if (["review_required", "awaiting_review"].includes(run.status)) append(body, el("div", "notice warning", "Proposed action only: a protected retry or publication is paused. Review and execution are separate human-controlled steps in Agent activity; no write has occurred."));
     append(body, technicalDetails({ model_profile: run.model_profile, agent_run_id: run.id || id, request_id: run.request_id || detailResult.value?.requestId || null }, "Technical run references"));
     const controls = el("div", "dialog-actions"); append(controls, sharedRunLink(id, "Open full activity details"), button("Refresh result", "button secondary", () => renderAgentTrace(id, host))); append(body, controls);
-    host.replaceChildren(panel(run.final_result ? "AI review result" : "AI review in progress", "Based on recorded Feature 1 checks", body));
+    const presentation = reviewPresentation(run);
+    host.replaceChildren(panel(presentation.title, presentation.subtitle, body));
     annotateTraceRefreshState(host);
     restoreTraceRefreshState(host, refreshState);
     host.setAttribute("aria-busy", "false");
@@ -232,6 +234,14 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
 }
 
 function option(value, label) { const item = el("option", "", label); item.value = value; return item; }
+function reviewPresentation(run) {
+  if (run.final_result) return { title: "AI review result", subtitle: "Based on recorded Feature 1 checks" };
+  if (run.status === "failed") return { title: "AI review failed", subtitle: "Recorded evidence shows where the review stopped" };
+  if (run.status === "cancelled") return { title: "AI review stopped", subtitle: "Recorded evidence remains available for inspection" };
+  if (["review_required", "awaiting_review"].includes(run.status)) return { title: "AI review needs review", subtitle: "A proposed action is waiting for a human decision" };
+  if (run.status === "succeeded") return { title: "AI review complete", subtitle: "Recorded Feature 1 checks are available below" };
+  return { title: "AI review in progress", subtitle: "Based on recorded Feature 1 checks" };
+}
 function diagnosisTitle(run) {
   const objective = String(run.objective_preview || "").toLowerCase();
   if (objective.includes("quality")) return "Quality-check investigation";

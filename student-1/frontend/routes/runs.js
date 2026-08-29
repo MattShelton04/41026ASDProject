@@ -1,6 +1,6 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, formatDate, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=18";
+import { displayName, durationMilliseconds, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=19";
 import { actionAvailability, createLatestRequestGuard, nextPollDelay, retainRecent } from "../core/polling.js?v=18";
 import { parseRoute, routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js?v=17";
@@ -20,7 +20,45 @@ function runTimeline(tasks, { available = true } = {}) {
     const tone = statusTone(task.status);
     const marker = el("span", `timeline-marker ${tone}`, stateLabel(task.status).symbol);
     const detail = el("div");
-    append(detail, el("h3", "", `${humanise(task.stage)} · ${task.logical_key || "Task"}`), el("p", "", `${humanise(task.status)} · attempt ${task.attempt_number ?? 1} · ${formatNumber(task.rows_out)} rows out`));
+    const durableRows = Math.max(Number(task.rows_out || 0), Number(task.progress_rows || 0));
+    const phase = task.progress_phase ? ` · ${task.progress_phase}` : "";
+    const finished = task.finished_at || Date.now();
+    const elapsed = task.started_at ? formatDuration(task.started_at, finished) : "not started";
+    const rowTotal = task.progress_total_rows == null ? null : Number(task.progress_total_rows);
+    const byteTotal = task.progress_total_bytes == null ? null : Number(task.progress_total_bytes);
+    const usesRows = Number.isFinite(rowTotal) && rowTotal > 0;
+    const processed = usesRows ? durableRows : Number(task.progress_bytes || 0);
+    const total = usesRows ? rowTotal : byteTotal;
+    const unitProgress = usesRows
+      ? `${formatNumber(processed)} of ${formatNumber(total)} rows`
+      : Number.isFinite(total) && total > 0
+        ? `${formatBytes(processed)} of ${formatBytes(total)}`
+        : `${formatNumber(durableRows)} rows · total not yet known`;
+    const progressRatio = Number.isFinite(total) && total > 0
+      ? Math.max(0, Math.min(1, processed / total))
+      : null;
+    const elapsedMs = task.started_at ? durationMilliseconds(task.started_at, finished) : null;
+    const remainingMs = task.status === "running" && progressRatio > 0 && progressRatio < 1
+      && elapsedMs >= 10_000 ? elapsedMs * ((1 - progressRatio) / progressRatio) : null;
+    const timing = task.started_at
+      ? task.finished_at
+        ? `took ${elapsed}`
+        : `${elapsed} elapsed${remainingMs === null ? "" : ` · about ${formatDuration(0, remainingMs)} remaining`}`
+      : task.status === "skipped"
+        ? "not run (cached result reused)"
+        : "not started";
+    append(detail,
+      el("h3", "", `${humanise(task.stage)} · ${task.logical_key || "Task"}`),
+      el("p", "", `${humanise(task.status)}${phase} · attempt ${task.attempt_number ?? 1}`),
+      el("span", "timeline-meta", `${unitProgress}${progressRatio === null ? "" : ` (${Math.round(progressRatio * 100)}%)`} · ${timing}`),
+    );
+    if (task.status === "running" && progressRatio !== null) {
+      const bar = el("progress", "timeline-progress");
+      bar.max = 1;
+      bar.value = progressRatio;
+      bar.setAttribute("aria-label", `${humanise(task.stage)} ${Math.round(progressRatio * 100)}% complete`);
+      append(detail, bar);
+    }
     if (task.error_json) append(detail, technicalDetails(task.error_json, "Failure details"));
     append(item, marker, detail);
     append(list, item);
@@ -150,7 +188,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
     try {
       const supportingFeeds = Promise.allSettled([
         request(`ingestion-runs/${id}/tasks?limit=100`), request(`ingestion-runs/${id}/quality-results?limit=100`), request(`ingestion-runs/${id}/artifacts?limit=100`),
-        request("dataset-releases?limit=100"),
+        request(`dataset-releases?ingestion_run_id=${encodeURIComponent(id)}&limit=100`),
       ]);
       const detailResult = await request(`ingestion-runs/${id}`);
       if (!isCurrent()) return;
@@ -191,7 +229,16 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       if (availability.cancel) runAction("cancel", "Cancel update", "Stop the update. Completed steps will remain in its history.", "danger");
       if (availability.diagnose) {
         const failed = run.status === "failed";
-        actions.push(button(failed ? "Explain this failure" : "Ask AI about run", `button ${failed ? "primary" : "secondary"}`, () => { location.hash = linkedRelease ? `#ai/release:${linkedRelease.id}?goal=${failed ? "quality" : "compare"}` : "#ai"; }));
+        actions.push(button(
+          failed ? "Explain this failure" : "Ask AI about update",
+          `button ${failed ? "primary" : "secondary"}`,
+          () => { location.hash = `#assistant?route=runs&ingestion_run_id=${encodeURIComponent(id)}`; },
+        ));
+        if (linkedRelease) {
+          actions.push(button("Review candidate data", "button secondary", () => {
+            location.hash = `#ai/release:${linkedRelease.id}?goal=${failed ? "quality" : "compare"}`;
+          }));
+        }
       }
       append(view, pageHeading("Data update", displayName(run.job_name || `Update ${String(id).slice(0, 8)}`), `${humanise(run.run_mode)} · started ${formatDate(run.requested_at)}`, actions));
       const refreshStatus = el("p", "run-refresh-status", nextPollDelay(run.status) !== null
@@ -219,7 +266,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       if (qualityWarning) append(evidenceAvailability, qualityWarning);
       if (artifactsWarning) append(evidenceAvailability, artifactsWarning);
       append(evidence,
-        panel("Update status", "Current state", detailList([["Status", badge(run.status)], ["Last activity", formatDate(run.heartbeat_at)], ["Attempt", run.attempt_number], ["Previous update", run.parent_run_id ? link(String(run.parent_run_id), `#runs/${run.parent_run_id}`) : "None"], ["Reference", el("code", "mono", run.request_id || detailResult.requestId)], ["Finished", formatDate(run.finished_at)]])),
+        panel("Update status", "Current state", detailList([["Status", badge(run.status)], ["Last activity", formatDate(run.last_activity_at || run.finished_at || run.heartbeat_at)], ["Attempt", run.attempt_number], ["Previous update", run.parent_run_id ? link(String(run.parent_run_id), `#runs/${run.parent_run_id}`) : "None"], ["Reference", el("code", "mono", run.request_id || detailResult.requestId)], ["Finished", formatDate(run.finished_at)]])),
         panel("Saved progress", "Technical checkpoints used if the update must resume", detailList([["Input checkpoint", JSON.stringify(run.input_checkpoint_json || {})], ["Candidate checkpoint", JSON.stringify(run.output_checkpoint_json || {})], ["Published watermark", JSON.stringify(run.accepted_watermark_json || {})]])),
         panel("Checks and files", "Specialist details for this update", el("div", "stack", "")),
       );

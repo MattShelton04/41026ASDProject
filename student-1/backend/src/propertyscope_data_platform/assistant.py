@@ -15,6 +15,7 @@ ASSISTANT_TOOL_ALLOWLIST = (
     "data.runs.v1",
     "data.release_inspect.v1",
     "data.run_inspect.v1",
+    "data.run_explain.v1",
     "data.release_compare.v1",
     "data.coverage.v1",
     "property.search.v1",
@@ -94,6 +95,7 @@ def capability_guide() -> dict[str, object]:
                     "Describe registered datasets and sources",
                     "Search accepted NSW property address evidence",
                     "Inspect an exact property, update run or dataset release",
+                    "Explain the current stage and saved progress of an exact data update",
                     "Compare candidate and accepted dataset releases",
                     "Explain coverage and quality evidence",
                 ],
@@ -142,6 +144,11 @@ def build_assistant_objective(command: AssistantTurnRequest) -> str:
         "run whose requested scope explicitly says full-data or all-records; otherwise say the "
         "load extent is unknown or partial. data.runs.v1 defaults to the latest bounded "
         "succeeded runs so its requested_scope_json and row counts remain visible. "
+        "When validated page context supplies ingestion_run_id, call data.run_explain.v1 "
+        "with that exact ID before explaining what is happening. Treat its current activity, "
+        "progress, timestamps, bounded errors and quality results as recorded evidence. Its "
+        "progress values are saved checkpoints rather than a throughput forecast; do not invent "
+        "a remaining-time estimate. "
         "Distinguish accepted data from candidates and missing evidence from a passing result. "
         "Return a concise summary, findings, evidence references and a useful next step. "
         "Do not propose or call a write tool in this conversational turn."

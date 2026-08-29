@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import hashlib
 import json
 import threading
@@ -217,6 +218,25 @@ def test_runner_constructs_every_registered_export_over_real_http(
     dataset_id: str, tmp_path: Path
 ) -> None:
     builder_key, context, rows = _product_case(dataset_id)
+    export_rows = rows
+    if builder_key == "crime-series":
+        coverage = next(row for row in rows if row["record_kind"] == "coverage")
+        observations = [row for row in rows if row["record_kind"] == "observation"]
+        export_rows = [
+            {
+                **coverage,
+                "offence_label": observations[0]["offence_label"],
+                "subcategory_label": observations[0]["subcategory_label"],
+                "observations": [
+                    {
+                        "month": row["month"],
+                        "count": row["count"],
+                        "source_row_sha256": row["source_row_sha256"],
+                    }
+                    for row in observations
+                ],
+            }
+        ]
     release_id = str(context.release_id)
     run_id = "50000000-0000-0000-0000-000000000099"
     task_id = "40000000-0000-0000-0000-000000000099"
@@ -243,10 +263,10 @@ def test_runner_constructs_every_registered_export_over_real_http(
             {
                 "release_id": release_id,
                 "candidate_generation_id": release_id,
-                "items": rows,
-                "count": len(rows),
-                "total": len(rows),
-                "next_offset": None,
+                "items": export_rows,
+                "count": len(export_rows),
+                "total": len(export_rows),
+                "next_cursor": None,
             }
         )
 
@@ -294,12 +314,14 @@ def test_runner_constructs_every_registered_export_over_real_http(
     binding = observed["binding"]
     artifact = observed["artifact"]
     content = (tmp_path / artifact["storage_key"]).read_bytes()
-    assert rows_in == len(rows)
+    assert rows_in == len(export_rows)
     assert rows_out == binding["record_count"]
     assert artifact["artifact_kind"] == "release_export"
     assert artifact["schema_version"] == _builder(builder_key).spec.contract
     assert hashlib.sha256(content).hexdigest() == binding["content_sha256"]
-    assert json.loads(content)["schema_version"] == artifact["schema_version"]
+    records = [json.loads(line) for line in gzip.decompress(content).splitlines()]
+    assert len(records) == len(export_rows)
+    assert all(record["provenance"]["release_id"] == release_id for record in records)
 
 
 @pytest.mark.parametrize(

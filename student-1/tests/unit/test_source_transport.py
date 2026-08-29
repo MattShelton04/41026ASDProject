@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import httpx
 import pytest
 
 from propertyscope_data_platform.source_transport import RegisteredSourceTransport
+
+
+class _ChunkStream(httpx.SyncByteStream):
+    def __iter__(self) -> Iterator[bytes]:
+        yield b"ab"
+        yield b"cde"
 
 
 def test_source_download_is_complete_and_allowlisted() -> None:
@@ -18,6 +25,27 @@ def test_source_download_is_complete_and_allowlisted() -> None:
         assert transport.download_bytes("https://data.nsw.gov.au/source.csv") == b"a,b\n1,2\n"
         with pytest.raises(RuntimeError, match="allowlist"):
             transport.download_bytes("http://data.nsw.gov.au/source.csv")
+
+
+def test_source_progress_reports_byte_deltas_not_cumulative_totals(tmp_path: Path) -> None:
+    def source(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            stream=_ChunkStream(),
+            headers={"Content-Type": "application/zip"},
+        )
+
+    progress: list[int] = []
+    with httpx.Client(transport=httpx.MockTransport(source)) as client:
+        transport = RegisteredSourceTransport(client)
+        with transport.psi_archive_path(
+            "https://www.valuergeneral.nsw.gov.au/source.zip",
+            directory=tmp_path,
+            progress=progress.append,
+        ) as path:
+            assert path.read_bytes() == b"abcde"
+
+    assert progress == [2, 3]
 
 
 def test_source_rejects_an_unregistered_media_type() -> None:

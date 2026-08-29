@@ -28,7 +28,6 @@ def test_checked_in_profiles_load_in_stable_order() -> None:
     assert fixture.scope == {
         "profile": "full-data",
         "all_records": True,
-        "release_scope": {"maximum_records": 50000},
     }
 
 
@@ -67,5 +66,5 @@ def test_job_profile_validation_rejects_partial_acquisition_selectors() -> None:
         }
     )
 
-    with pytest.raises(ConfigurationError, match="subset selector fields: years"):
+    with pytest.raises(ConfigurationError, match="subset selector fields: release_scope, years"):
         validate_job_profile(profile, sources=sources, adapters=adapters)

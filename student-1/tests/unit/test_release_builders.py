@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import uuid
@@ -11,6 +12,7 @@ from typing import Any, cast
 import httpx
 import pytest
 
+from propertyscope_data_platform.artifacts import LocalArtifactStore
 from propertyscope_data_platform.configuration import (
     ConfigurationError,
     load_job_profiles,
@@ -23,7 +25,11 @@ from propertyscope_data_platform.release_builders import (
     resolve_release_builder,
     validate_release_job,
 )
-from propertyscope_data_platform.runner import AcquisitionRunner, RunnerSettings
+from propertyscope_data_platform.runner import (
+    AcquisitionRunner,
+    RunnerSettings,
+    TaskCancelledError,
+)
 
 ROOT = Path(__file__).parents[2]
 FIXED_TIME = datetime(2026, 8, 16, 1, 2, 3, tzinfo=UTC)
@@ -84,6 +90,19 @@ def _property_row(index: int = 1) -> dict[str, Any]:
     }
 
 
+def test_release_cancellation_removes_partial_stream_artifact(tmp_path: Path) -> None:
+    def cancelled_rows() -> Any:
+        yield _property_row()
+        raise TaskCancelledError("Run task cancelled by operator")
+
+    builder = default_release_builders()["property-snapshot"]
+    product = builder.stream(_context(), cancelled_rows())
+
+    with pytest.raises(TaskCancelledError, match="cancelled by operator"):
+        LocalArtifactStore(tmp_path).put(product.chunks(), media_type=builder.spec.media_type)
+    assert not any(path.is_file() for path in tmp_path.rglob("*"))
+
+
 def test_existing_build_release_defect_is_closed_by_constructing_the_configured_export(
     tmp_path: Path,
 ) -> None:
@@ -99,23 +118,30 @@ def test_existing_build_release_defect_is_closed_by_constructing_the_configured_
                 200,
                 json={
                     "context": _context().model_dump(mode="json"),
-                    "builder": {"key": "property-snapshot", "version": "1.0.0"},
+                    "builder": {"key": "property-snapshot", "version": "2.0.0"},
                     "target_contract": "propertyscope.property-snapshot.v1",
                     "release_id": release_id,
                 },
             )
         if request.method == "GET" and request.url.path.endswith("/product-records"):
-            assert request.url.params["limit"] == "5000"
+            assert request.url.params["limit"] == "20000"
             return httpx.Response(
                 200,
-                json={"items": [_property_row()], "count": 1, "total": 1, "next_offset": None},
+                json={
+                    "release_id": release_id,
+                    "candidate_generation_id": release_id,
+                    "items": [_property_row()],
+                    "count": 1,
+                    "total": 1,
+                    "next_cursor": None,
+                },
             )
         if request.method == "POST" and request.url.path.endswith(f"/tasks/{task_id}/artifacts"):
             body = cast(dict[str, Any], json.loads(request.content))
             observed["artifact"] = body
             artifact_path = tmp_path / body["storage_key"]
             content = artifact_path.read_bytes()
-            observed["content"] = json.loads(content)
+            observed["content"] = json.loads(gzip.decompress(content))
             assert hashlib.sha256(content).hexdigest() == body["content_sha256"]
             return httpx.Response(
                 201,
@@ -147,7 +173,9 @@ def test_existing_build_release_defect_is_closed_by_constructing_the_configured_
     assert (rows_in, rows_out) == (1, 1)
     assert observed["artifact"]["artifact_kind"] == "release_export"
     assert observed["artifact"]["schema_version"] == "propertyscope.property-snapshot.v1"
-    assert observed["content"]["schema_version"] == "propertyscope.property-snapshot.v1"
+    assert observed["content"]["source_address_id"] == "FIX-001"
+    assert observed["finalize"]["manifest"]["content_encoding"] == "gzip"
+    assert observed["finalize"]["manifest"]["media_type"] == "application/x-ndjson"
     assert observed["finalize"]["artifact_record_id"] == "70000000-0000-0000-0000-000000000099"
     assert (
         observed["finalize"]["manifest"]["content_sha256"] == observed["artifact"]["content_sha256"]
@@ -156,14 +184,14 @@ def test_existing_build_release_defect_is_closed_by_constructing_the_configured_
     assert observed["finalize"]["schema_version"] == "propertyscope.property-snapshot.v1"
 
 
-def test_runner_enforces_requested_product_bound_before_paging_all_rows(tmp_path: Path) -> None:
+def test_runner_rejects_an_inconsistent_complete_page_count(tmp_path: Path) -> None:
     def backend(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/release-build-context"):
             return httpx.Response(
                 200,
                 json={
                     "context": _context(scope={"maximum_records": 1}).model_dump(mode="json"),
-                    "builder": {"key": "property-snapshot", "version": "1.0.0"},
+                    "builder": {"key": "property-snapshot", "version": "2.0.0"},
                     "target_contract": "propertyscope.property-snapshot.v1",
                     "release_id": "60000000-0000-0000-0000-000000000099",
                 },
@@ -176,7 +204,7 @@ def test_runner_enforces_requested_product_bound_before_paging_all_rows(tmp_path
                     "candidate_generation_id": "60000000-0000-0000-0000-000000000099",
                     "items": [_property_row()],
                     "total": 2,
-                    "next_offset": 1,
+                    "next_cursor": None,
                 },
             )
         raise AssertionError("runner must fail before registering an over-bound export")
@@ -187,7 +215,7 @@ def test_runner_enforces_requested_product_bound_before_paging_all_rows(tmp_path
         clock=lambda: FIXED_TIME,
     )
 
-    with pytest.raises(RuntimeError, match="maximum_records"):
+    with pytest.raises(RuntimeError, match="page count is inconsistent"):
         runner._execute(
             {
                 "id": "40000000-0000-0000-0000-000000000099",
@@ -224,7 +252,7 @@ def test_discovery_persists_manifest_source_release_evidence(tmp_path: Path) -> 
 
 
 def test_registered_property_builder_is_byte_deterministic() -> None:
-    builder = resolve_release_builder("property-snapshot", "1.0.0")
+    builder = resolve_release_builder("property-snapshot", "2.0.0")
     rows = [_property_row(2), _property_row(1)]
 
     first = builder.build(_context(), rows, created_at=FIXED_TIME)
@@ -239,16 +267,14 @@ def test_registered_property_builder_is_byte_deterministic() -> None:
 def test_release_byte_bounds_cover_registered_scope_without_widening_other_products() -> None:
     builders = default_release_builders()
 
-    assert builders["property-sales"].spec.max_rows == 250_000
-    assert builders["property-sales"].spec.max_bytes == 250_000_000
-    assert builders["property-snapshot"].spec.max_bytes == 50_000_000
-    assert builders["crime-series"].spec.max_bytes == 50_000_000
-    assert builders["school-points"].spec.max_bytes == 50_000_000
+    assert all(builder.spec.max_rows is None for builder in builders.values())
+    assert all(builder.spec.max_bytes is None for builder in builders.values())
+    assert all(builder.spec.content_encoding == "gzip" for builder in builders.values())
 
 
 def test_property_builder_preserves_published_identity_without_inventing_precision() -> None:
     property_ref = "a0000000-0000-0000-0000-000000000001"
-    product = resolve_release_builder("property-snapshot", "1.0.0").build(
+    product = resolve_release_builder("property-snapshot", "2.0.0").build(
         _context(),
         [{**_property_row(), "property_ref": property_ref, "geocode_precision": None}],
         created_at=FIXED_TIME,
@@ -263,11 +289,11 @@ def test_release_builder_registry_fails_closed() -> None:
     with pytest.raises(ConfigurationError, match="unknown release builder"):
         resolve_release_builder("not-registered", "1.0.0")
     with pytest.raises(ConfigurationError, match="unsupported release builder version"):
-        resolve_release_builder("property-snapshot", "2.0.0")
+        resolve_release_builder("property-snapshot", "1.0.0")
 
 
 def test_sales_builder_preserves_revisions_nulls_and_source_aligned_fields() -> None:
-    builder = resolve_release_builder("property-sales", "2.0.0")
+    builder = resolve_release_builder("property-sales", "3.0.0")
     context = _context(
         dataset_id="nsw-psi-sales",
         target_feature="feature-2",
@@ -323,7 +349,7 @@ def test_sales_builder_preserves_revisions_nulls_and_source_aligned_fields() -> 
 
 
 def test_crime_builder_preserves_exact_coverage_and_coverage_only_series() -> None:
-    builder = resolve_release_builder("crime-series", "1.0.0")
+    builder = resolve_release_builder("crime-series", "2.0.0")
     context = _context(
         dataset_id="bocsar-crime",
         target_feature="feature-3",
@@ -359,7 +385,7 @@ def test_crime_builder_preserves_exact_coverage_and_coverage_only_series() -> No
 
 
 def test_crime_builder_accepts_current_official_coverage_history() -> None:
-    builder = resolve_release_builder("crime-series", "1.0.0")
+    builder = resolve_release_builder("crime-series", "2.0.0")
     context = _context(
         dataset_id="bocsar-crime",
         target_feature="feature-3",
@@ -391,7 +417,7 @@ def test_crime_builder_accepts_current_official_coverage_history() -> None:
 
 
 def test_school_builder_orders_codes_and_preserves_non_operational_status() -> None:
-    builder = resolve_release_builder("school-points", "1.0.0")
+    builder = resolve_release_builder("school-points", "2.0.0")
     context = _context(
         dataset_id="nsw-government-schools",
         target_feature="feature-3",
@@ -429,7 +455,7 @@ def test_school_builder_accepts_registered_lord_howe_footprint() -> None:
         import_profile="schools-master",
         redistribution_policy="approved-bounded-extract",
     )
-    product = resolve_release_builder("school-points", "1.0.0").build(
+    product = resolve_release_builder("school-points", "2.0.0").build(
         context,
         [
             {
@@ -466,7 +492,7 @@ def test_every_job_profile_matches_a_complete_release_builder_registration() -> 
 
 
 def test_builder_bounds_fail_without_silent_truncation() -> None:
-    registered = resolve_release_builder("property-snapshot", "1.0.0")
+    registered = resolve_release_builder("property-snapshot", "2.0.0")
     row_bounded = RegisteredReleaseBuilder(replace(registered.spec, max_rows=1))
     byte_bounded = RegisteredReleaseBuilder(replace(registered.spec, max_bytes=10))
 
@@ -481,7 +507,7 @@ def test_builder_bounds_fail_without_silent_truncation() -> None:
     [
         ({"release_builder": {"key": "missing", "version": "1.0.0"}}, None, "unknown"),
         (
-            {"release_builder": {"key": "property-snapshot", "version": "2.0.0"}},
+            {"release_builder": {"key": "property-snapshot", "version": "1.0.0"}},
             None,
             "unsupported",
         ),
@@ -532,7 +558,7 @@ def test_runner_rejects_generation_change_during_pagination(tmp_path: Path) -> N
                 200,
                 json={
                     "context": context.model_dump(mode="json"),
-                    "builder": {"key": "property-snapshot", "version": "1.0.0"},
+                    "builder": {"key": "property-snapshot", "version": "2.0.0"},
                     "target_contract": "propertyscope.property-snapshot.v1",
                     "release_id": release_id,
                 },
@@ -549,7 +575,7 @@ def test_runner_rejects_generation_change_during_pagination(tmp_path: Path) -> N
                 "items": [_property_row(page)],
                 "count": 1,
                 "total": 2,
-                "next_offset": 1 if page == 1 else None,
+                "next_cursor": "next-page" if page == 1 else None,
             },
         )
 

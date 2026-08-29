@@ -17,8 +17,10 @@ import {
   createLatestRequestGuard,
   coverageRows,
   displayName,
+  durationMilliseconds,
   entity,
   formatBytes,
+  formatDuration,
   humanise,
   FieldValidationError,
   formState,
@@ -705,6 +707,10 @@ test("formatting pairs states with text and handles byte boundaries", () => {
   assert.equal(displayName("G-NAF NSW address registry"), "G-NAF NSW address registry");
   assert.equal(humanise("awaiting_review"), "Awaiting review");
   assert.equal(humanise("full_snapshot"), "Full snapshot");
+  assert.equal(durationMilliseconds("2026-08-29T00:00:00Z", "2026-08-29T00:01:05Z"), 65_000);
+  assert.equal(formatDuration("2026-08-29T00:00:00Z", "2026-08-29T00:01:05Z"), "1m 5s");
+  assert.equal(formatDuration("2026-08-29T00:00:00Z", "2026-08-29T02:03:00Z"), "2h 3m");
+  assert.equal(formatDuration(null, "2026-08-29T00:00:00Z"), "Not recorded");
 });
 
 test("release comparison keeps candidate and accepted evidence visibly distinct", () => {
@@ -780,6 +786,7 @@ test("operator state routes preserve partial evidence and explain lifecycle cont
   const overview = await readFile(new URL("../../frontend/routes/overview.js", import.meta.url), "utf8");
   const entities = await readFile(new URL("../../frontend/routes/entities.js", import.meta.url), "utf8");
   const releases = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
+  const runs = await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8");
   assert.match(overview, /projectOverviewFeeds/);
   assert.match(overview, /allUnavailable/);
   assert.match(overview, /runsAvailable \? active : "Unavailable"/);
@@ -789,6 +796,9 @@ test("operator state routes preserve partial evidence and explain lifecycle cont
   assert.match(entities, /This data update is disabled/);
   assert.match(releases, /releaseLifecycleContext/);
   assert.match(releases, /primaryCell\(releaseLink, release\.release_version/);
+  assert.match(runs, /not run \(cached result reused\)/);
+  assert.match(runs, /about \$\{formatDuration\(0, remainingMs\)\} remaining/);
+  assert.match(runs, /#assistant\?route=runs&ingestion_run_id=/);
 });
 
 test("run polling preserves the rendered view and isolates supporting feed failures", async () => {
@@ -877,6 +887,9 @@ test("AI review history is loaded from the shared service projection without red
   assert.match(source, /aria-live/);
   assert.match(source, /Recommended next step/);
   assert.match(source, /The review recovered from/);
+  assert.match(source, /AI review failed/);
+  assert.match(source, /retained activity record and cannot be changed/);
+  assert.match(source, /function reviewPresentation/);
   assert.match(source, /recommended_next_step/);
   assert.match(source, /function traceStep/);
 });

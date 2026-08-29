@@ -88,7 +88,6 @@ class RegisteredSourceTransport:
         allow_forbidden: bool = False,
     ) -> bool:
         self._validate_url(url)
-        total = 0
         with self._client.stream(
             "GET", url, headers={"Accept": "*/*", "User-Agent": "PropertyScope/1.0"}
         ) as response:
@@ -99,10 +98,9 @@ class RegisteredSourceTransport:
             if media_type not in ALLOWED_MEDIA_TYPES:
                 raise RuntimeError("Registered source returned an unexpected media type")
             for chunk in response.iter_bytes():
-                total += len(chunk)
                 write(chunk)
                 if progress is not None:
-                    progress(total)
+                    progress(len(chunk))
         return True
 
     def _range_download(
@@ -149,7 +147,7 @@ class RegisteredSourceTransport:
             write(response.content)
             offset = range_end + 1
             if progress is not None:
-                progress(offset)
+                progress(len(response.content))
 
     @staticmethod
     def _validate_url(url: str) -> None:

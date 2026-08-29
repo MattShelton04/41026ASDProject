@@ -201,3 +201,78 @@ def test_registered_runtime_versions_are_persisted_for_future_runs() -> None:
     assert "ADD COLUMN release_builder_version" in migration
     assert "release_builder_version='2.0.0'" in migration
     assert "release_builder_key='property-sales'" in migration
+
+
+def test_complete_release_operations_are_observable_and_lineage_safe() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE).joinpath("031_complete_release_operations.sql").read_text("utf-8")
+    )
+
+    assert "'abandoned'" in migration
+    assert "terminal_reason_json" in migration
+    assert "progress_phase" in migration
+    assert "progress_rows" in migration
+    assert "DROP CONSTRAINT IF EXISTS artifact_record_content_sha256_artifact_kind_key" in migration
+    assert "artifact_record_run_logical_kind_idx" in migration
+    assert "artifact_record_storage_reference_idx" in migration
+
+
+def test_gnaf_candidate_loads_do_not_maintain_serving_indexes() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("032_isolate_gnaf_candidate_indexes.sql")
+        .read_text("utf-8")
+    )
+
+    assert "ADD COLUMN published BOOLEAN" in migration
+    assert migration.count("WHERE published") >= 6
+    assert "gnaf_address_lookup_idx" in migration
+    assert "gnaf_address_geom_idx" in migration
+
+
+def test_durable_jobs_select_the_complete_streaming_builders() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("033_register_streaming_release_builder_versions.sql")
+        .read_text("utf-8")
+    )
+
+    assert "WHEN 'property-snapshot' THEN '2.0.0'" in migration
+    assert "WHEN 'property-sales' THEN '3.0.0'" in migration
+    assert "WHEN 'crime-series' THEN '2.0.0'" in migration
+    assert "WHEN 'school-points' THEN '2.0.0'" in migration
+
+
+def test_terminal_task_progress_reconciles_to_exact_output() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("034_reconcile_terminal_task_progress.sql")
+        .read_text("utf-8")
+    )
+
+    assert "SET progress_rows = rows_out" in migration
+    assert "progress_total_rows = COALESCE(progress_total_rows, rows_out)" in migration
+    assert "WHERE status = 'succeeded'" in migration
+
+
+def test_terminal_run_summary_uses_completed_acquisition_output() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("035_reconcile_terminal_acquisition_counts.sql")
+        .read_text("utf-8")
+    )
+
+    assert "SET rows_discovered = completed.rows_out" in migration
+    assert "stage = 'acquire' AND status = 'succeeded'" in migration
+    assert "run.status IN ('cancelled', 'failed', 'interrupted')" in migration
+
+
+def test_cached_reprocessing_reconciles_found_to_verified_rows() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("036_reconcile_cached_reprocess_counts.sql")
+        .read_text("utf-8")
+    )
+
+    assert "run_mode = 'reprocess_cached'" in migration
+    assert "SET rows_discovered = rows_staged" in migration

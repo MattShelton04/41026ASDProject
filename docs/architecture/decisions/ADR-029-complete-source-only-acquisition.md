@@ -35,9 +35,10 @@ safety boundaries without making data volume an operator decision.
 - Saved jobs do not persist an editable acquisition scope. The immutable registry supplies it, and
   validation rejects source-specific subset selectors before the service starts.
 - Tests remain deterministic by using a finite fixture source, not by selecting a reduced import.
-- HTTP pagination, property-search candidate bounds, AI/tool budgets, archive path validation,
-  checksums, and downstream consumer-product projections are unchanged. They bound responses or
-  separate published products; they do not reduce the Feature 1 warehouse generation.
+- HTTP pagination, property-search candidate bounds, AI/tool budgets, archive path validation and
+  checksums do not reduce the Feature 1 warehouse generation. ADR-030 supersedes the earlier
+  bounded release-product interpretation: completed releases now carry a complete streaming
+  artifact, while the browser/API record view is explicitly a bounded preview.
 - Stack startup still performs no acquisition. An operator or CLI action is required, and the
   accepted generation changes only after human review and atomic publication.
 

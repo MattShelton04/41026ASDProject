@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import io
 import json
+import time
 import uuid
 from pathlib import Path
 from typing import Any, cast
@@ -11,6 +13,9 @@ import pytest
 
 from propertyscope_data_platform.runner import _fixture_records
 from propertyscope_data_store.import_profiles import (
+    _GNAF_STREAM_COLUMNS,
+    _GNAF_STREAM_INSERT_SQL,
+    _GNAF_STREAM_STAGE_SQL,
     _PROFILE_INSERT_SQL,
     CANONICAL_SCHEMA_VERSION,
     ImportProfileError,
@@ -19,7 +24,11 @@ from propertyscope_data_store.import_profiles import (
     iter_ndjson_import,
     prepare_import,
 )
-from propertyscope_data_store.loader import DatabaseLoader, ImportCancelledError
+from propertyscope_data_store.loader import (
+    DatabaseLoader,
+    ImportCancelledError,
+    _VerifiedLineStream,
+)
 
 
 def _artifact(profile: str, records: list[dict[str, object]]) -> bytes:
@@ -410,6 +419,42 @@ def test_loader_stops_before_reading_a_cancelled_import(tmp_path: Path) -> None:
         )
 
 
+def test_source_scale_stream_hashes_the_same_bytes_and_reports_final_progress() -> None:
+    payload = b'{"row":1}\n{"row":2}\n'
+    progress: list[tuple[int, int]] = []
+    stream = _VerifiedLineStream(
+        io.BytesIO(payload),
+        expected_sha256=hashlib.sha256(payload).hexdigest(),
+        expected_bytes=len(payload),
+        progress=lambda rows, byte_count: progress.append((rows, byte_count)),
+        raise_if_cancelled=lambda: None,
+    )
+
+    assert b"".join(stream) == payload
+    stream.verify_complete()
+    assert progress[-1] == (2, len(payload))
+
+
+def test_source_scale_stream_observes_cancellation_during_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = b'{"row":1}\n{"row":2}\n'
+    moments = iter((0.0, 2.0))
+    monkeypatch.setattr(time, "monotonic", lambda: next(moments))
+    stream = _VerifiedLineStream(
+        io.BytesIO(payload),
+        expected_sha256=hashlib.sha256(payload).hexdigest(),
+        expected_bytes=len(payload),
+        progress=lambda _rows, _bytes: None,
+        raise_if_cancelled=lambda: (_ for _ in ()).throw(
+            ImportCancelledError("cancelled by operator")
+        ),
+    )
+
+    with pytest.raises(ImportCancelledError, match="cancelled by operator"):
+        list(stream)
+
+
 @pytest.mark.parametrize(
     "profile",
     ["property-fixture", "gnaf-nsw", "psi-sales", "bocsar-sparse", "schools-master"],
@@ -453,6 +498,17 @@ def test_source_scale_ndjson_validation_streams_without_a_row_limit() -> None:
     )
 
     assert sum(1 for _ in iter_ndjson_import(lines, profile="psi-sales")) == 100_001
+
+
+def test_source_scale_gnaf_uses_native_typed_staging_instead_of_jsonb() -> None:
+    prepared = prepare_import(
+        _artifact("gnaf-nsw", _contract_records("gnaf-nsw")[:1]), profile="gnaf-nsw"
+    )
+
+    assert set(_GNAF_STREAM_COLUMNS).issubset(prepared.rows[0])
+    assert "JSONB" not in _GNAF_STREAM_STAGE_SQL
+    assert "payload" not in _GNAF_STREAM_INSERT_SQL
+    assert "ST_Transform" in _GNAF_STREAM_INSERT_SQL
 
 
 @pytest.mark.parametrize("area_unit", ["", "   ", None])

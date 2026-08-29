@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-_COMMON_FIELDS = frozenset({"profile", "all_records", "release_scope"})
+_COMMON_FIELDS = frozenset({"profile", "all_records"})
 _PROFILE_FIELDS = {
     "bocsar-sparse": frozenset({"geography_kinds"}),
     "gnaf-nsw": frozenset({"state"}),
@@ -21,9 +21,6 @@ def complete_scope_error(import_profile: str, scope: Mapping[str, Any]) -> str |
     if unexpected:
         fields = ", ".join(sorted(unexpected))
         return f"acquisition scope contains subset selector fields: {fields}"
-    release_scope = scope.get("release_scope")
-    if release_scope is not None and not isinstance(release_scope, Mapping):
-        return "release_scope must be a JSON object"
     if import_profile == "bocsar-sparse" and tuple(scope.get("geography_kinds", ())) != (
         "postcode",
         "suburb",
