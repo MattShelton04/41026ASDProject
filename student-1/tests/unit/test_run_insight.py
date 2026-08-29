@@ -160,3 +160,40 @@ def test_failed_inspection_bounds_errors_and_quality_without_inventing_an_eta() 
     assert "sample_json" not in str(result)
     assert all("ETA" not in item for item in result["insight"]["observations"])
     ToolRegistry((_definition(),)).validate_output(_definition(), result)
+
+
+def test_failed_import_reason_is_available_to_the_ai_explanation_tool() -> None:
+    message = "Import stopped because record 1978 postcode must contain four digits."
+    result = build_run_inspection(
+        {
+            "id": "70000000-0000-4000-8000-000000000003",
+            "status": "failed",
+            "run_mode": "reprocess_cached",
+            "error_json": {
+                "code": "canonical_record_invalid",
+                "category": "data_validation",
+                "message": message,
+                "retryable": False,
+            },
+        },
+        [
+            {
+                "id": "71000000-0000-4000-8000-000000000005",
+                "logical_key": "02/import",
+                "stage": "import",
+                "status": "failed",
+                "error_json": {
+                    "code": "canonical_record_invalid",
+                    "category": "data_validation",
+                    "message": message,
+                    "retryable": False,
+                },
+            }
+        ],
+        [],
+    )
+
+    assert result["run"]["error"]["message"] == message
+    assert result["tasks"][0]["error"]["category"] == "data_validation"
+    assert any(message in item for item in result["insight"]["observations"])
+    ToolRegistry((_definition(),)).validate_output(_definition(), result)

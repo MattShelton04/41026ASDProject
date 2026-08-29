@@ -3,12 +3,31 @@ import { append, button, el, link } from "../core/dom.js";
 import { displayName, durationMilliseconds, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=19";
 import { actionAvailability, createLatestRequestGuard, nextPollDelay, retainRecent } from "../core/polling.js?v=18";
 import { parseRoute, routeQuery } from "../core/router.js";
+import { runFailureSummary } from "../core/run-failure.js?v=1";
 import { filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
 import { cell, makeTable, primaryCell, technicalReference } from "../components/tables.js?v=18";
 
 const RUN_FILTERS = ["", "requested", "queued", "running", "succeeded", "failed", "cancelled", "interrupted"];
+
+function runFailureNotice(run, tasks) {
+  const failure = runFailureSummary(run, tasks);
+  if (!failure) return null;
+  const notice = el("section", "notice negative stack");
+  notice.setAttribute("aria-labelledby", "run-failure-heading");
+  const title = el("h2", "", failure.title);
+  title.id = "run-failure-heading";
+  append(notice,
+    title,
+    el("p", "", failure.message),
+    el("p", "", "No candidate data was published, so the previously accepted release remains unchanged."),
+  );
+  if (failure.cachedReplayRecommended) {
+    append(notice, el("p", "", "The verified canonical file is retained. After correcting import handling, use the downloaded file to retry without repeating acquisition."));
+  }
+  return notice;
+}
 
 function runTimeline(tasks, { available = true } = {}) {
   const list = el("ol", "timeline");
@@ -248,7 +267,8 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       append(view, refreshStatus);
       const releaseWarning = feedWarning("Published-version details", releasesFeed);
       if (releaseWarning) append(view, releaseWarning);
-      if (run.error_json) append(view, el("div", "notice negative", `${run.error_json.message || run.error_json.detail || "The run recorded a classified failure."} The previously accepted release remains unchanged.`));
+      const failureNotice = runFailureNotice(run, tasks);
+      if (failureNotice) append(view, failureNotice);
       const metrics = el("div", "metric-strip");
       for (const [label, value] of [["Found", formatNumber(run.rows_discovered)], ["Prepared", formatNumber(run.rows_staged)], ["Loaded", formatNumber(run.rows_accepted)], ["Rejected", formatNumber(run.rows_rejected)]]) {
         const metric = el("div"); append(metric, el("span", "", label), el("strong", "", value)); append(metrics, metric);

@@ -16,6 +16,7 @@ from typing import Any
 from propertyscope_data_store.configuration import StoreSettings
 from propertyscope_data_store.import_profiles import (
     REGISTERED_PROFILES,
+    ImportProfileError,
     iter_ndjson_import,
     prepare_import,
 )
@@ -97,7 +98,7 @@ class DatabaseLoader:
                 error=(
                     {"code": "operator_cancelled", "message": "Run cancelled by operator"}
                     if cancelled
-                    else {"code": "stage_parse_failed", "message": _safe_loader_message(exc)}
+                    else _safe_loader_error(exc)
                 ),
             )
         return True
@@ -415,7 +416,14 @@ class _VerifiedLineStream:
             raise RuntimeError("artifact checksum does not match registered metadata")
 
 
-def _safe_loader_message(exc: Exception) -> str:
+def _safe_loader_error(exc: Exception) -> dict[str, object]:
+    if isinstance(exc, ImportProfileError):
+        return {
+            "code": "canonical_record_invalid",
+            "category": "data_validation",
+            "message": f"Import stopped because {exc}.",
+            "retryable": False,
+        }
     known = (
         "not registered",
         "size does not match",
@@ -423,9 +431,10 @@ def _safe_loader_message(exc: Exception) -> str:
         "canonical import",
         "unavailable",
     )
-    return (
+    message = (
         str(exc) if any(fragment in str(exc) for fragment in known) else "Registered import failed"
     )
+    return {"code": "stage_parse_failed", "message": message, "retryable": False}
 
 
 def main() -> None:

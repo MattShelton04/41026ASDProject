@@ -472,7 +472,14 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         source_partition_year = int(scoped_date[:4])
     postcode = _optional_text(source, "postcode", index)
     if postcode is not None and not _postcode_value(postcode):
-        raise ImportProfileError(f"record {index} postcode must contain four digits")
+        # Historical PSI archives use values such as ``0`` and truncated numeric
+        # strings when the postcode is unknown. A cached canonical artifact can retain
+        # that publisher fact; the typed warehouse model records it as unknown rather
+        # than guessing a postcode or rejecting the complete source generation.
+        if len(postcode) < 4 and postcode.isdigit():
+            postcode = None
+        else:
+            raise ImportProfileError(f"record {index} postcode must contain four digits")
     source_downloaded_at = _optional_text(source, "source_downloaded_at", index)
     if source_downloaded_at is not None:
         try:

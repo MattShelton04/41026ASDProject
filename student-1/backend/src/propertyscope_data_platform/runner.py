@@ -8,7 +8,7 @@ import os
 import signal
 import time
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -59,6 +59,21 @@ logger = logging.getLogger(__name__)
 
 class TaskCancelledError(RuntimeError):
     """The control plane acknowledged an operator cancellation for active work."""
+
+
+class RegisteredImportError(RuntimeError):
+    """A database import ended with bounded, durable failure evidence."""
+
+    def __init__(self, error: Mapping[str, object]) -> None:
+        message = str(error.get("message") or "Registered import failed")[:500]
+        retryable = error.get("retryable")
+        super().__init__(message)
+        self.error = {
+            "code": str(error.get("code") or "stage_parse_failed")[:120],
+            "category": str(error.get("category") or "import")[:120],
+            "message": message,
+            "retryable": retryable if isinstance(retryable, bool) else False,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,18 +181,13 @@ class AcquisitionRunner:
         *,
         retryable: bool,
     ) -> None:
-        safe_code = (
-            "quality_gate_failed"
-            if str(task.get("stage")) == "quality"
-            else "stage_execution_failed"
-        )
         failure = self.client.post(
             f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/{task['id']}/fail",
             headers=self._headers(),
             json={
                 "worker_id": self.settings.worker_id,
                 "lease_token": lease_token,
-                "error": {"code": safe_code, "message": _safe_message(exc)},
+                "error": _safe_task_error(task, exc, retryable=retryable),
                 "retryable": retryable,
             },
         )
@@ -884,7 +894,15 @@ class AcquisitionRunner:
             response.raise_for_status()
             operation = response.json()["operation"]
         if operation["status"] != "succeeded":
-            raise RuntimeError("Registered import failed; accepted generation remains unchanged")
+            error = operation.get("error_json")
+            if isinstance(error, Mapping):
+                raise RegisteredImportError(error)
+            raise RegisteredImportError(
+                {
+                    "code": "stage_parse_failed",
+                    "message": "Registered import failed; accepted generation remains unchanged",
+                }
+            )
         return int(operation["rows_in"]), int(operation["rows_accepted"])
 
     def _heartbeat(
@@ -928,10 +946,21 @@ class AcquisitionRunner:
         }
 
 
-def _safe_message(exc: Exception) -> str:
+def _safe_task_error(
+    task: Mapping[str, object], exc: Exception, *, retryable: bool = False
+) -> dict[str, object]:
+    if isinstance(exc, RegisteredImportError):
+        return exc.error
+    safe_code = (
+        "quality_gate_failed" if str(task.get("stage")) == "quality" else "stage_execution_failed"
+    )
     if isinstance(exc, RuntimeError) and "Required fixture month" in str(exc):
-        return str(exc)
-    return "Registered stage failed; inspect structured run evidence"
+        return {"code": safe_code, "message": str(exc), "retryable": retryable}
+    return {
+        "code": safe_code,
+        "message": "Registered stage failed; inspect structured run evidence",
+        "retryable": retryable,
+    }
 
 
 def _cancellation_poll_interval(lease_seconds: int) -> float:

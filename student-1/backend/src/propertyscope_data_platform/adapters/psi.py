@@ -259,6 +259,18 @@ def _sale_fingerprint(sale: PsiSale) -> str:
     ).hexdigest()
 
 
+def _source_postcode(value: str) -> str | None:
+    """Treat publisher placeholders and truncated postcodes as unknown, never guessed."""
+    postcode = value.strip()
+    if not postcode:
+        return None
+    if len(postcode) == 4 and postcode.isdigit():
+        return postcode
+    if len(postcode) < 4 and postcode.isdigit():
+        return None
+    raise ValueError("PSI source postcode is malformed")
+
+
 def _source_b_records(
     archive: ZipFile, *, maximum_members: int | None, maximum_uncompressed_bytes: int | None
 ) -> Iterator[tuple[str, ...]]:
@@ -383,7 +395,7 @@ def _parse_source_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiS
             street_name_normalised=_street_parts(padded[7])[0],
             street_type=_street_parts(padded[7])[1],
             locality=padded[8] or None,
-            postcode=padded[9] or None,
+            postcode=_source_postcode(padded[9]),
             land_description=padded[12] or None,
             dimensions=padded[15] or None,
             zoning_code=padded[17] or None,
@@ -423,7 +435,7 @@ def _parse_source_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiS
         street_name_normalised=_street_parts(padded[8])[0],
         street_type=_street_parts(padded[8])[1],
         locality=padded[9] or None,
-        postcode=padded[10] or None,
+        postcode=_source_postcode(padded[10]),
         zoning_code=padded[16] or None,
         nature_code=padded[17] or None,
         primary_purpose=padded[18] or None,
