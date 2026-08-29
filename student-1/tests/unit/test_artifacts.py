@@ -62,3 +62,15 @@ def test_content_reuse_and_retention_cleanup_preserve_durable_references(tmp_pat
     assert removed["removed_bytes"] == len(b"unreferenced")
     assert (tmp_path / referenced.storage_key).is_file()
     assert not (tmp_path / orphan.storage_key).exists()
+
+
+def test_content_reuse_repairs_a_corrupt_existing_object(tmp_path: Path) -> None:
+    store = LocalArtifactStore(tmp_path)
+    payload = b"verified-content" * 100
+    original = store.put((payload,), media_type="application/octet-stream")
+    (tmp_path / original.storage_key).write_bytes(b"truncated")
+
+    retransmission = store.put((payload,), media_type="application/octet-stream")
+
+    assert retransmission.storage_key == original.storage_key
+    assert (tmp_path / original.storage_key).read_bytes() == payload

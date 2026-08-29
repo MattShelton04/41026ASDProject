@@ -212,7 +212,7 @@ def release_export_query(
                 AS property_ref,gnaf_pid AS source_address_id,address_display,flat_type,
                 unit_number,street_number_first,street_number_suffix,street_number_last,
                 street_name,street_type,locality,postcode,source_status,geocode_type,
-                source_crs,ST_AsGeoJSON(geom)::jsonb AS geometry,source_row_sha256,
+                source_crs,ST_Y(geom) AS latitude,ST_X(geom) AS longitude,source_row_sha256,
                 normalisation_version FROM warehouse.gnaf_address
                 WHERE dataset_release_id=%s{predicate}
                 ORDER BY gnaf_pid LIMIT %s""",

@@ -73,6 +73,19 @@ def forward(upstream: httpx.Response) -> Response:
     return response
 
 
+def forward_json_bytes(upstream: httpx.Response) -> Response:
+    """Relay a large private JSON page without parsing and serialising it a second time."""
+    if upstream.status_code >= 400:
+        return forward(upstream)
+    response = Response(
+        upstream.content, status=upstream.status_code, content_type="application/json"
+    )
+    for name in ("X-Request-ID", "traceparent"):
+        if name in upstream.headers:
+            response.headers[name] = upstream.headers[name]
+    return response
+
+
 def problem(status: int, code: str, detail: str) -> Response:
     response = jsonify(
         {

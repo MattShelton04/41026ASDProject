@@ -1,6 +1,6 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, durationMilliseconds, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=18";
+import { displayName, durationMilliseconds, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=19";
 import { actionAvailability, createLatestRequestGuard, nextPollDelay, retainRecent } from "../core/polling.js?v=18";
 import { parseRoute, routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js?v=17";
@@ -40,11 +40,13 @@ function runTimeline(tasks, { available = true } = {}) {
     const elapsedMs = task.started_at ? durationMilliseconds(task.started_at, finished) : null;
     const remainingMs = task.status === "running" && progressRatio > 0 && progressRatio < 1
       && elapsedMs >= 10_000 ? elapsedMs * ((1 - progressRatio) / progressRatio) : null;
-    const timing = task.finished_at
-      ? `took ${elapsed}`
-      : task.started_at
-        ? `${elapsed} elapsed${remainingMs === null ? "" : ` · about ${formatDuration(0, remainingMs)} remaining`}`
-        : elapsed;
+    const timing = task.started_at
+      ? task.finished_at
+        ? `took ${elapsed}`
+        : `${elapsed} elapsed${remainingMs === null ? "" : ` · about ${formatDuration(0, remainingMs)} remaining`}`
+      : task.status === "skipped"
+        ? "not run (cached result reused)"
+        : "not started";
     append(detail,
       el("h3", "", `${humanise(task.stage)} · ${task.logical_key || "Task"}`),
       el("p", "", `${humanise(task.status)}${phase} · attempt ${task.attempt_number ?? 1}`),
@@ -227,7 +229,16 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       if (availability.cancel) runAction("cancel", "Cancel update", "Stop the update. Completed steps will remain in its history.", "danger");
       if (availability.diagnose) {
         const failed = run.status === "failed";
-        actions.push(button(failed ? "Explain this failure" : "Ask AI about run", `button ${failed ? "primary" : "secondary"}`, () => { location.hash = linkedRelease ? `#ai/release:${linkedRelease.id}?goal=${failed ? "quality" : "compare"}` : "#ai"; }));
+        actions.push(button(
+          failed ? "Explain this failure" : "Ask AI about update",
+          `button ${failed ? "primary" : "secondary"}`,
+          () => { location.hash = `#assistant?route=runs&ingestion_run_id=${encodeURIComponent(id)}`; },
+        ));
+        if (linkedRelease) {
+          actions.push(button("Review candidate data", "button secondary", () => {
+            location.hash = `#ai/release:${linkedRelease.id}?goal=${failed ? "quality" : "compare"}`;
+          }));
+        }
       }
       append(view, pageHeading("Data update", displayName(run.job_name || `Update ${String(id).slice(0, 8)}`), `${humanise(run.run_mode)} · started ${formatDate(run.requested_at)}`, actions));
       const refreshStatus = el("p", "run-refresh-status", nextPollDelay(run.status) !== null

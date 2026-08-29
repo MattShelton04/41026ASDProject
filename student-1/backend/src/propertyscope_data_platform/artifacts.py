@@ -51,7 +51,19 @@ class LocalArtifactStore:
             destination = self._resolve(storage_key)
             destination.parent.mkdir(parents=True, exist_ok=True)
             if destination.exists():
-                Path(temporary_name).unlink()
+                existing_digest = hashlib.sha256()
+                with destination.open("rb") as existing:
+                    for chunk in iter(lambda: existing.read(1024 * 1024), b""):
+                        existing_digest.update(chunk)
+                if (
+                    destination.stat().st_size == byte_count
+                    and existing_digest.hexdigest() == checksum
+                ):
+                    Path(temporary_name).unlink()
+                else:
+                    # The new temporary was hashed while written, so it can safely repair a
+                    # corrupt object already occupying the content-addressed destination.
+                    os.replace(temporary_name, destination)
             else:
                 os.replace(temporary_name, destination)
             return ArtifactRef(checksum, storage_key, byte_count, media_type)

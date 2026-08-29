@@ -206,14 +206,10 @@ def test_gnaf_scan_heartbeat_reports_canonical_output_not_scanned_work(
         lambda *_args, **kwargs: observed.append(cast(dict[str, object], kwargs["progress"])),
     )
 
-    progress = runner._heartbeat_observed_rows(
-        {"id": "task-1", "lease_token": "lease-1"}, [321]
-    )
+    progress = runner._heartbeat_observed_rows({"id": "task-1", "lease_token": "lease-1"}, [321])
     progress(10_000)
 
-    assert observed == [
-        {"phase": "canonicalising addresses", "rows_processed": 321}
-    ]
+    assert observed == [{"phase": "canonicalising addresses", "rows_processed": 321}]
 
 
 def test_bocsar_preserves_leading_zero_and_sparse_zero() -> None:

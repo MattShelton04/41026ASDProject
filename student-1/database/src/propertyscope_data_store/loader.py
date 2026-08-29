@@ -241,9 +241,13 @@ class DatabaseLoader:
                     phase_callback=lambda phase, count: self._update_import_progress(
                         operation_id,
                         phase=phase,
+                        # COPY completion does not measure the following set-based SQL insert.
+                        # Retain its durable row checkpoint, but clear the gauge rather than
+                        # displaying 100% for that long phase.
                         rows_processed=count,
-                        bytes_processed=verified.bytes_processed,
-                        total_bytes=total_bytes,
+                        bytes_processed=0,
+                        total_rows=count if phase == "recording import quality" else None,
+                        total_bytes=None,
                     ),
                 )
         elif work["media_type"] == "application/json":

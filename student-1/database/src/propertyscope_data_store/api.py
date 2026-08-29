@@ -292,7 +292,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
 
     @api.get("/internal/data-platform/v1/releases/<uuid:release_id>/product-records")
     def releases_product_records(release_id: uuid.UUID) -> Response:
-        limit = query_integer("limit", minimum=1, maximum=5_000, default=5_000)
+        limit = query_integer("limit", minimum=1, maximum=20_000, default=20_000)
         return jsonify(
             store.release_product_records(
                 release_id, limit=limit, cursor=request.args.get("cursor") or None

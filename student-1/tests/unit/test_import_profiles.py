@@ -13,6 +13,9 @@ import pytest
 
 from propertyscope_data_platform.runner import _fixture_records
 from propertyscope_data_store.import_profiles import (
+    _GNAF_STREAM_COLUMNS,
+    _GNAF_STREAM_INSERT_SQL,
+    _GNAF_STREAM_STAGE_SQL,
     _PROFILE_INSERT_SQL,
     CANONICAL_SCHEMA_VERSION,
     ImportProfileError,
@@ -495,6 +498,17 @@ def test_source_scale_ndjson_validation_streams_without_a_row_limit() -> None:
     )
 
     assert sum(1 for _ in iter_ndjson_import(lines, profile="psi-sales")) == 100_001
+
+
+def test_source_scale_gnaf_uses_native_typed_staging_instead_of_jsonb() -> None:
+    prepared = prepare_import(
+        _artifact("gnaf-nsw", _contract_records("gnaf-nsw")[:1]), profile="gnaf-nsw"
+    )
+
+    assert set(_GNAF_STREAM_COLUMNS).issubset(prepared.rows[0])
+    assert "JSONB" not in _GNAF_STREAM_STAGE_SQL
+    assert "payload" not in _GNAF_STREAM_INSERT_SQL
+    assert "ST_Transform" in _GNAF_STREAM_INSERT_SQL
 
 
 @pytest.mark.parametrize("area_unit", ["", "   ", None])

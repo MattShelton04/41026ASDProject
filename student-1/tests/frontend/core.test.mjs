@@ -786,6 +786,7 @@ test("operator state routes preserve partial evidence and explain lifecycle cont
   const overview = await readFile(new URL("../../frontend/routes/overview.js", import.meta.url), "utf8");
   const entities = await readFile(new URL("../../frontend/routes/entities.js", import.meta.url), "utf8");
   const releases = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
+  const runs = await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8");
   assert.match(overview, /projectOverviewFeeds/);
   assert.match(overview, /allUnavailable/);
   assert.match(overview, /runsAvailable \? active : "Unavailable"/);
@@ -795,6 +796,9 @@ test("operator state routes preserve partial evidence and explain lifecycle cont
   assert.match(entities, /This data update is disabled/);
   assert.match(releases, /releaseLifecycleContext/);
   assert.match(releases, /primaryCell\(releaseLink, release\.release_version/);
+  assert.match(runs, /not run \(cached result reused\)/);
+  assert.match(runs, /about \$\{formatDuration\(0, remainingMs\)\} remaining/);
+  assert.match(runs, /#assistant\?route=runs&ingestion_run_id=/);
 });
 
 test("run polling preserves the rendered view and isolates supporting feed failures", async () => {

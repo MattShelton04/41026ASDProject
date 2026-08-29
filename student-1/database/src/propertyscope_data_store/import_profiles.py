@@ -156,19 +156,33 @@ def execute_stream_import(
     artifact_id = uuid.UUID(str(work["artifact_record_id"]))
     staged = 0
     with connection.cursor() as cursor:
-        cursor.execute(
-            "CREATE TEMP TABLE propertyscope_import_stage "
-            "(ordinal BIGINT PRIMARY KEY, payload JSONB NOT NULL) ON COMMIT DROP"
-        )
-        with cursor.copy("COPY propertyscope_import_stage (ordinal, payload) FROM STDIN") as copy:
-            for staged, row in enumerate(rows, start=1):
-                copy.write_row((staged, Jsonb(row)))
+        if profile == "gnaf-nsw":
+            cursor.execute(_GNAF_STREAM_STAGE_SQL)
+            with cursor.copy(_GNAF_STREAM_COPY_SQL) as copy:
+                for row in rows:
+                    staged += 1
+                    copy.write_row(tuple(row[field] for field in _GNAF_STREAM_COLUMNS))
+        else:
+            cursor.execute(
+                "CREATE TEMP TABLE propertyscope_import_stage "
+                "(ordinal BIGINT PRIMARY KEY, payload JSONB NOT NULL) ON COMMIT DROP"
+            )
+            with cursor.copy(
+                "COPY propertyscope_import_stage (ordinal, payload) FROM STDIN"
+            ) as copy:
+                for staged, row in enumerate(rows, start=1):
+                    copy.write_row((staged, Jsonb(row)))
         if staged == 0:
             raise ImportProfileError("canonical import artifact must not be empty")
         if phase_callback is not None:
             phase_callback("inserting candidate generation", staged)
         accepted = _insert_profile_rows(
-            cursor, profile, release_id=release_id, artifact_id=artifact_id, run_id=run_id
+            cursor,
+            profile,
+            release_id=release_id,
+            artifact_id=artifact_id,
+            run_id=run_id,
+            typed_gnaf_stage=profile == "gnaf-nsw",
         )
         if phase_callback is not None:
             phase_callback("recording import quality", accepted)
@@ -201,8 +215,9 @@ def _insert_profile_rows(
     release_id: uuid.UUID,
     artifact_id: uuid.UUID,
     run_id: uuid.UUID,
+    typed_gnaf_stage: bool = False,
 ) -> int:
-    statement = _PROFILE_INSERT_SQL[profile]
+    statement = _GNAF_STREAM_INSERT_SQL if typed_gnaf_stage else _PROFILE_INSERT_SQL[profile]
     parameters: tuple[object, ...] = (release_id, artifact_id, run_id)
     cursor.execute(statement, parameters)
     accepted = int(cursor.rowcount)
@@ -210,6 +225,75 @@ def _insert_profile_rows(
         cursor.execute(_BOCSAR_COVERAGE_INSERT_SQL, parameters)
         accepted += cursor.rowcount
     return accepted
+
+
+_GNAF_STREAM_COLUMNS = (
+    "gnaf_pid",
+    "property_ref",
+    "address_display",
+    "locality",
+    "postcode",
+    "flat_type",
+    "unit_number",
+    "street_number_first",
+    "street_number_suffix",
+    "street_number_last",
+    "street_name",
+    "street_type",
+    "source_status",
+    "geocode_type",
+    "source_crs",
+    "longitude",
+    "latitude",
+    "source_row_sha256",
+)
+
+_GNAF_STREAM_STAGE_SQL = """
+    CREATE TEMP TABLE propertyscope_gnaf_import_stage (
+        gnaf_pid TEXT NOT NULL,
+        property_ref UUID,
+        address_display TEXT NOT NULL,
+        locality TEXT NOT NULL,
+        postcode TEXT NOT NULL,
+        flat_type TEXT,
+        unit_number TEXT,
+        street_number_first INTEGER,
+        street_number_suffix TEXT,
+        street_number_last INTEGER,
+        street_name TEXT,
+        street_type TEXT,
+        source_status TEXT NOT NULL,
+        geocode_type TEXT NOT NULL,
+        source_crs INTEGER NOT NULL,
+        longitude DOUBLE PRECISION NOT NULL,
+        latitude DOUBLE PRECISION NOT NULL,
+        source_row_sha256 TEXT NOT NULL
+    ) ON COMMIT DROP
+"""
+
+_GNAF_STREAM_COPY_SQL = """
+    COPY propertyscope_gnaf_import_stage (
+        gnaf_pid,property_ref,address_display,locality,postcode,flat_type,unit_number,
+        street_number_first,street_number_suffix,street_number_last,street_name,street_type,
+        source_status,geocode_type,source_crs,longitude,latitude,source_row_sha256
+    ) FROM STDIN WITH (FREEZE TRUE)
+"""
+
+_GNAF_STREAM_INSERT_SQL = """
+    INSERT INTO warehouse.gnaf_address (
+        dataset_release_id,gnaf_pid,property_ref,address_display,locality,postcode,
+        flat_type,unit_number,street_number_first,street_number_suffix,
+        street_number_last,street_name,street_type,source_status,geocode_type,source_crs,
+        geom,source_row_sha256,normalisation_version,artifact_record_id,ingestion_run_id,
+        created_at
+    ) SELECT %s,gnaf_pid,property_ref,address_display,locality,postcode,
+        flat_type,unit_number,street_number_first,street_number_suffix,
+        street_number_last,street_name,street_type,source_status,geocode_type,source_crs,
+        ST_Transform(ST_SetSRID(ST_MakePoint(longitude,latitude),source_crs),4326),
+        source_row_sha256,'1.0.0',%s,%s,now()
+    FROM propertyscope_gnaf_import_stage
+    ON CONFLICT (dataset_release_id,gnaf_pid) DO NOTHING
+"""
 
 
 def _record_quality(

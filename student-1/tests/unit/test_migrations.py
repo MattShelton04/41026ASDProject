@@ -265,3 +265,14 @@ def test_terminal_run_summary_uses_completed_acquisition_output() -> None:
     assert "SET rows_discovered = completed.rows_out" in migration
     assert "stage = 'acquire' AND status = 'succeeded'" in migration
     assert "run.status IN ('cancelled', 'failed', 'interrupted')" in migration
+
+
+def test_cached_reprocessing_reconciles_found_to_verified_rows() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("036_reconcile_cached_reprocess_counts.sql")
+        .read_text("utf-8")
+    )
+
+    assert "run_mode = 'reprocess_cached'" in migration
+    assert "SET rows_discovered = rows_staged" in migration

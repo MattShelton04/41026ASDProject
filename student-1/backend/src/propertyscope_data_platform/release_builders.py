@@ -370,6 +370,8 @@ def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
 
 
 def _point(row: Mapping[str, Any]) -> tuple[float, float]:
+    if row.get("latitude") is not None and row.get("longitude") is not None:
+        return float(row["latitude"]), float(row["longitude"])
     geometry = row.get("geometry")
     if not isinstance(geometry, Mapping) or geometry.get("type") != "Point":
         raise ValueError("release projection must contain a GeoJSON Point")
@@ -885,7 +887,7 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
             "feature-1",
             "application/x-ndjson",
             "gzip",
-            "property_ref, source_address_id",
+            "source_address_id",
             None,
             None,
             frozenset({"committed-synthetic-fixture", "licence-controlled"}),

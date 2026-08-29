@@ -39,6 +39,38 @@ The candidate contains exactly 5,190,134 warehouse rows and zero published rows.
 accepted pointer remained `60000000-0000-0000-0000-000000000001`; completing an ingestion did not
 publish it.
 
+## Optimised source-scale reprocess
+
+Run `4c080d1e-7165-48bd-be60-0bc278b8ceae` reprocessed the same verified canonical artifact after
+the source-scale import and release changes. It completed successfully with candidate release
+`c8f70eb0-6307-45b9-b812-a15e64cc7be2`. The run retained exactly 5,190,134 discovered, staged and
+accepted records, with zero rejected records.
+
+| Phase | Original complete run | Optimised reprocess | Change |
+| --- | ---: | ---: | ---: |
+| Verify, COPY, insert and quality | 22 min 50.199 s | 19 min 51.933 s | 2 min 58.266 s faster (13.0%) |
+| Build complete release | 9 min 38.631 s | 7 min 17.550 s | 2 min 21.081 s faster (24.4%) |
+| Directly timed cached reprocess | not applicable | 27 min 9.898 s | acquisition was intentionally reused |
+| Equivalent complete run | 36 min 30.915 s | 31 min 11.544 s | 5 min 19.371 s faster (14.6%) |
+
+The equivalent complete-run figure combines the original run's unchanged 4 minute 2.025 second
+acquisition and 0.036 second discovery with the directly measured optimised import and release
+durations. It is therefore a controlled projection, not a second network acquisition measurement.
+
+The import improvement comes from copying G-NAF into a typed temporary table instead of first
+materialising every field as JSONB. Release construction uses larger bounded pages, relays those
+private JSON pages without a parse/serialise round trip, and projects latitude/longitude directly
+instead of constructing GeoJSON in PostgreSQL. The remaining 19 minute 52 second import still
+performs a source-scale transaction, spatial transformation, final heap write and generation-key
+index write. Partition attach/detach or a more invasive warehouse redesign remains future work,
+not an unmeasured claim in this change.
+
+Operator progress was checked during this run. Completed timeline steps show their duration;
+active byte/row phases show elapsed time and a throughput-derived approximate remaining time.
+The long set-based database insert is explicitly indeterminate because COPY completion cannot
+measure that SQL operation. Cached discovery/acquisition steps read `not run (cached result reused)`
+instead of implying a zero-duration execution.
+
 ## Release artifact evidence
 
 The complete artifact is gzip NDJSON, not the bounded browser preview:
@@ -94,7 +126,7 @@ deletion candidates.
 ## Verification commands
 
 The implementation passed the canonical `uv run python scripts/check.py` gate, including 384
-shared/AI/script tests, 314 Feature 1 tests, 94 frontend tests, architecture validation, generated
+shared/AI/script tests, 322 Feature 1 tests, 94 frontend tests, architecture validation, generated
 contracts, mypy, Ruff and JavaScript syntax checks. Deterministic tests use finite local sources;
 the source-scale live verification above used the cached official archive without a network-sized
 test dependency.

@@ -124,7 +124,7 @@ def test_existing_build_release_defect_is_closed_by_constructing_the_configured_
                 },
             )
         if request.method == "GET" and request.url.path.endswith("/product-records"):
-            assert request.url.params["limit"] == "5000"
+            assert request.url.params["limit"] == "20000"
             return httpx.Response(
                 200,
                 json={

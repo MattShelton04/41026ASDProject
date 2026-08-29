@@ -280,7 +280,7 @@ class AcquisitionRunner:
             raise RuntimeError("Release target contract does not match the registered builder")
         context = BuildContext.model_validate(payload.get("context"))
         release_id = str(payload["release_id"])
-        page_size = 5_000
+        page_size = 20_000
         expected_total: int | None = None
 
         def product_rows() -> Iterable[dict[str, Any]]:
@@ -578,7 +578,14 @@ class AcquisitionRunner:
             for item in records:
                 counter[0] += 1
                 if counter[0] % 25_000 == 0:
-                    self._heartbeat(str(task["id"]), str(task["lease_token"]))
+                    self._heartbeat(
+                        str(task["id"]),
+                        str(task["lease_token"]),
+                        progress={
+                            "phase": "canonicalising crime records",
+                            "rows_processed": counter[0],
+                        },
+                    )
                 yield (
                     json.dumps(_bocsar_record(item), sort_keys=True, separators=(",", ":")).encode()
                     + b"\n"
@@ -654,7 +661,14 @@ class AcquisitionRunner:
                 for sale in iter_psi_archive_path(path, source_year=source_year):
                     counter[0] += 1
                     if counter[0] % 25_000 == 0:
-                        self._heartbeat(str(task["id"]), str(task["lease_token"]))
+                        self._heartbeat(
+                            str(task["id"]),
+                            str(task["lease_token"]),
+                            progress={
+                                "phase": "canonicalising sales records",
+                                "rows_processed": counter[0],
+                            },
+                        )
                     yield (
                         json.dumps(
                             _psi_record(sale, source_year=source_year),

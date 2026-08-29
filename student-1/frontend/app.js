@@ -18,7 +18,7 @@ import { renderOverview } from "./routes/overview.js?v=21";
 import { createPropertyRoutes } from "./routes/properties.js?v=21";
 import { createReleaseRoutes } from "./routes/releases.js?v=20";
 import { createRunPlanner } from "./routes/run-plan.js?v=20";
-import { createRunRoutes } from "./routes/runs.js?v=19";
+import { createRunRoutes } from "./routes/runs.js?v=20";
 import { createSourceHtmxRoute } from "./routes/sources-htmx.js?v=1";
 
 const view = document.querySelector("#view");

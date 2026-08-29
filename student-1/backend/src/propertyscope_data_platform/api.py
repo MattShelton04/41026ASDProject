@@ -36,6 +36,7 @@ from propertyscope_data_platform.domain import (
 )
 from propertyscope_data_platform.http_support import (
     forward,
+    forward_json_bytes,
     json_body,
     problem,
     proxy_collection,
@@ -650,7 +651,9 @@ def create_blueprint(
         suffix = ".ndjson.gz" if artifact.get("content_encoding") == "gzip" else ".json"
         response = send_file(
             path,
-            mimetype=artifact["media_type"],
+            mimetype="application/gzip"
+            if artifact.get("content_encoding") == "gzip"
+            else artifact["media_type"],
             as_attachment=True,
             download_name=f"{release_id}{suffix}",
             conditional=True,
@@ -663,8 +666,6 @@ def create_blueprint(
             if artifact["release_status"] in {"accepted", "superseded"}
             else "private, no-store"
         )
-        if artifact.get("content_encoding"):
-            response.headers["Content-Encoding"] = artifact["content_encoding"]
         return response
 
     @api.get(f"{BASE}/dataset-releases/<uuid:release_id>/records")
@@ -1296,12 +1297,13 @@ def create_blueprint(
 
     @api.get(f"{INTERNAL}/worker/releases/<uuid:release_id>/product-records")
     def worker_release_product_records(release_id: uuid.UUID) -> Response:
-        return forward(
+        return forward_json_bytes(
             store.request(
                 "GET",
                 f"{INTERNAL}/releases/{release_id}/product-records",
                 headers=request.headers,
                 params=request.args,
+                timeout=120,
             )
         )
 

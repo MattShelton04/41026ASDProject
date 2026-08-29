@@ -2481,8 +2481,15 @@ class PropertyScopeStore:
                 )
                 connection.execute(
                     """UPDATE ops.ingestion_run SET heartbeat_at=%s,
+                    rows_discovered=CASE WHEN run_mode='reprocess_cached'
+                        THEN GREATEST(rows_discovered,%s) ELSE rows_discovered END,
                     rows_staged=GREATEST(rows_staged,%s) WHERE id=%s""",
-                    (now, max(0, rows_processed), row["ingestion_run_id"]),
+                    (
+                        now,
+                        max(0, rows_processed),
+                        max(0, rows_processed),
+                        row["ingestion_run_id"],
+                    ),
                 )
             connection.commit()
 
@@ -2825,14 +2832,19 @@ class PropertyScopeStore:
                 if remaining is not None and int(remaining["count"]) == 0:
                     connection.execute(
                         """UPDATE ops.ingestion_run SET status='succeeded',finished_at=%s,
-                        rows_discovered=(SELECT COALESCE(max(rows_out),0) FROM ops.run_task
-                            WHERE ingestion_run_id=%s AND stage='acquire'),
+                        rows_discovered=COALESCE(
+                            (SELECT max(rows_out) FROM ops.run_task
+                                WHERE ingestion_run_id=%s AND stage='acquire'
+                                  AND status='succeeded'),
+                            (SELECT max(rows_in) FROM ops.run_task
+                                WHERE ingestion_run_id=%s AND stage='import'
+                                  AND status='succeeded'),0),
                         rows_staged=(SELECT COALESCE(max(rows_in),0) FROM ops.run_task
                             WHERE ingestion_run_id=%s AND stage='import'),
                         rows_accepted=(SELECT COALESCE(max(rows_out),0) FROM ops.run_task
                             WHERE ingestion_run_id=%s AND stage='import')
                         WHERE id=%s AND status NOT IN ('failed','cancelled')""",
-                        (now, run_id, run_id, run_id, run_id),
+                        (now, run_id, run_id, run_id, run_id, run_id),
                     )
                 else:
                     stage_status = run_status_for_stage(str(row["stage"]))
