@@ -1,8 +1,8 @@
 /** Public domain-neutral AI chat package for Shared and feature frontends. */
 
-export { createAssistantClient, assistantRequest, AssistantApiError } from "./client.js";
-export { createAiChat } from "./controller.js";
-export { createFeatureAssistant, featureActivityHref } from "./feature-route.js";
+export { createAssistantClient, assistantRequest, AssistantApiError } from "./client.js?v=3";
+export { createAiChat } from "./controller.js?v=3";
+export { createFeatureAssistant, featureActivityHref } from "./feature-route.js?v=3";
 export {
   ACTIVE_ASSISTANT_STATES,
   DEFAULT_ASSISTANT_SCOPES,
@@ -12,7 +12,7 @@ export {
   findAssistantScope,
   normalizeAssistantContexts,
   normalizeAssistantScopes,
-} from "./definitions.js";
+} from "./definitions.js?v=3";
 export {
   answerSections,
   completedTurnHistory,
@@ -21,5 +21,5 @@ export {
   humaniseAssistantValue,
   normalizeTurnDetail,
   shortRunId,
-} from "./formats.js";
-export { mergeAssistantEvents, nextAssistantPollDelay, restoreEventCursor } from "./polling.js";
+} from "./formats.js?v=3";
+export { mergeAssistantEvents, nextAssistantPollDelay, restoreEventCursor } from "./polling.js?v=3";

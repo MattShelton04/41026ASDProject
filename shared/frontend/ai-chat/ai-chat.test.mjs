@@ -145,3 +145,13 @@ test("component source preserves disclosure/focus state and surfaces polling war
   assert.match(components, /turn\.run\?\.error\?\.message/);
   assert.match(components, /ps-ai-chat__typing-dots/);
 });
+
+test("assistant module graph versions every changed local dependency", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const name of ["index.js", "controller.js", "components.js", "feature-route.js"]) {
+    const source = readFileSync(new URL(`./${name}`, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /from "\.\/[^"?]+\.js";/, `${name} has an unversioned local import`);
+  }
+  const sharedRoute = readFileSync(new URL("../routes/assistant.js", import.meta.url), "utf8");
+  assert.match(sharedRoute, /ai-chat\/index\.js\?v=3/);
+});

@@ -1,8 +1,8 @@
 import { append, el } from "../browser/index.js";
-import { assistantStatus } from "./definitions.js";
+import { assistantStatus } from "./definitions.js?v=3";
 import {
   answerSections, evidenceSteps, formatAssistantDate, humaniseAssistantValue, shortRunId,
-} from "./formats.js";
+} from "./formats.js?v=3";
 
 export function assistantBadge(status) {
   const definition = assistantStatus(status);

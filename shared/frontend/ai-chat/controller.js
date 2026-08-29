@@ -2,10 +2,10 @@ import { append, el } from "../browser/index.js";
 import {
   defaultSuggestions, findAssistantScope, normalizeAssistantContexts, normalizeAssistantScopes,
   TERMINAL_ASSISTANT_STATES,
-} from "./definitions.js";
-import { renderAssistantTurn, contextSummary } from "./components.js";
-import { completedTurnHistory, normalizeTurnDetail } from "./formats.js";
-import { mergeAssistantEvents, nextAssistantPollDelay } from "./polling.js";
+} from "./definitions.js?v=3";
+import { renderAssistantTurn, contextSummary } from "./components.js?v=3";
+import { completedTurnHistory, normalizeTurnDetail } from "./formats.js?v=3";
+import { mergeAssistantEvents, nextAssistantPollDelay } from "./polling.js?v=3";
 
 function runFromCreate(payload) {
   return normalizeTurnDetail(payload);

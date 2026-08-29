@@ -1,6 +1,6 @@
 import { append, el, link, notice, parseShellRoute } from "./core.js?v=10";
 import { createEvidenceRoute } from "./routes/evidence.js?v=10";
-import { createAssistantRoute } from "./routes/assistant.js?v=2";
+import { createAssistantRoute } from "./routes/assistant.js?v=3";
 import { createFeaturesRoute } from "./routes/features.js?v=10";
 import { createRoadmapRoute } from "./routes/roadmap.js?v=10";
 import { createStatusRoute } from "./routes/status.js?v=10";
