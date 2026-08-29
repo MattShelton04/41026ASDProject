@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -9,6 +10,17 @@ import { loadFeature1Bridge, validateFeature1Adapter } from "./feature-1-bridge.
 import { resolveResearchAreaContext } from "./operations/ai-mode/contexts.js";
 import { classifyHealth, overallReadiness } from "./routes/status.js";
 import { SHARED_ASSISTANT_SCOPES, sharedAssistantSuggestions } from "./routes/assistant.js";
+
+function attributes(source) {
+  return Object.fromEntries(
+    [...source.matchAll(/([a-z][a-z0-9-]*)="([^"]*)"/g)].map((match) => [match[1], match[2]]),
+  );
+}
+
+function fragmentRows(source) {
+  return [...source.matchAll(/<article\s+(?<attributes>[\s\S]*?)>(?<body>[\s\S]*?)<\/article>/g)]
+    .map((match) => ({ attributes: attributes(match.groups.attributes), body: match.groups.body }));
+}
 
 test("shared hash routes are bounded and unknown fragments return home", () => {
   assert.equal(parseShellRoute("#system-status"), "system-status");
@@ -41,12 +53,84 @@ test("feature registry is the bounded source for shell routes and availability",
 
 test("shared navigation distinguishes global destinations from research-area transitions", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  assert.match(html, /src="app\.js\?v=13"/);
+  assert.match(html, /src="app\.js\?v=14"/);
   assert.match(html, /class="area-launcher"/);
   assert.match(html, /Open research area/);
   assert.match(html, /class="rail-area-link"/);
   assert.match(html, /Address search continues in the <strong>Property data<\/strong> research area/);
   assert.doesNotMatch(html, /<a data-config-link="propertyDiscovery"[^>]*>Property search<\/a>/);
+});
+
+test("shared home loads the pinned local HTMX build with a strict configuration", () => {
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  const asset = readFileSync(new URL("./vendor/htmx-2.0.10.min.js", import.meta.url));
+  const license = readFileSync(new URL("./vendor/HTMX-LICENSE.txt", import.meta.url), "utf8");
+  const provenance = readFileSync(new URL("./vendor/README.md", import.meta.url), "utf8");
+
+  assert.match(html, /src="vendor\/htmx-2\.0\.10\.min\.js"/);
+  assert.ok(html.indexOf("htmx-2.0.10.min.js") < html.indexOf("app.js?v=14"));
+  assert.match(html, /"allowEval":false/);
+  assert.match(html, /"allowScriptTags":false/);
+  assert.doesNotMatch(html, /https?:\/\/[^"']*htmx/i);
+  assert.equal(
+    createHash("sha256").update(asset).digest("hex"),
+    "71ea67185bfa8c98c39d31717c6fce5d852370fcdfd129db4543774d3145c0de",
+  );
+  assert.match(asset.toString(), /version:"2\.0\.10"/);
+  assert.match(license, /^Zero-Clause BSD/);
+  assert.match(provenance, /unpkg\.com\/htmx\.org@2\.0\.10\/dist\/htmx\.min\.js/);
+  assert.match(provenance, /71ea67185bfa8c98c39d31717c6fce5d852370fcdfd129db4543774d3145c0de/);
+  assert.doesNotMatch(app, /homeFeatureRow|renderHomeFeatures/);
+  assert.match(app, /window\.htmx\?\.process\(main\)/);
+  assert.match(app, /htmx:responseError/);
+  assert.match(app, /applyConfigLinks\(region\)/);
+});
+
+test("research-area fragment stays in exact parity with the feature registry", () => {
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  const fragment = readFileSync(
+    new URL("./fragments/research-areas.html", import.meta.url),
+    "utf8",
+  );
+  const rows = fragmentRows(fragment);
+  const features = featureRegistry();
+
+  assert.match(html, /hx-get="\/fragments\/research-areas\.html"/);
+  assert.match(html, /hx-trigger="load"/);
+  assert.match(html, /hx-target="this"/);
+  assert.match(html, /hx-swap="innerHTML"/);
+  assert.match(html, /hx-indicator="#research-areas-loading"/);
+  assert.match(html, /hx-disabled-elt="#research-areas-retry"/);
+  assert.match(html, /id="research-areas-status"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(html, /data-research-area-retry/);
+  assert.match(html, /Property data remains available from the link above/);
+  assert.equal(rows.length, 5);
+  assert.deepEqual(
+    rows.map((row) => row.attributes["data-feature-id"]),
+    features.map((feature) => feature.id),
+  );
+
+  for (const [index, feature] of features.entries()) {
+    const row = rows[index];
+    assert.equal(row.attributes["data-feature-label"], feature.label);
+    assert.equal(row.attributes["data-feature-owner"], feature.owner);
+    assert.equal(
+      row.attributes["data-feature-route"],
+      `${feature.frontendBase}${feature.defaultHash}`,
+    );
+    assert.equal(row.attributes["data-feature-implemented"], String(feature.implemented));
+    assert.equal(row.attributes["data-feature-enabled"], String(feature.enabled));
+    if (feature.implemented && feature.enabled) {
+      assert.equal(row.attributes["data-feature-state"], "available");
+      assert.match(row.body, new RegExp(`href="${feature.frontendBase}${feature.defaultHash}"`));
+    } else {
+      assert.equal(row.attributes["data-feature-state"], "planned");
+      assert.match(row.body, />Planned</);
+      assert.match(row.body, />Not available yet</);
+      assert.doesNotMatch(row.body, /<(?:a|button)\b/);
+    }
+  }
 });
 
 test("capability manifest separates implemented, enabled and planned states", () => {
@@ -139,6 +223,7 @@ test("shared routes use public same-origin projections and safe DOM rendering", 
   assert.match(nginx, /location \/features\/data-platform\//);
   assert.match(nginx, /market-intelligence\|suburb-analytics\|due-diligence\|buyer-workspaces/);
   assert.match(nginx, /location \/operations\/ai-mode\//);
+  assert.match(nginx, /location \/fragments\/\s*\{\s*try_files \$uri =404;/);
   assert.match(nginx, /proxy_pass \$data_platform_frontend_upstream/);
   assert.match(nginx, /resolver 127\.0\.0\.11/);
   assert.match(nginx, /absolute_redirect off/);
