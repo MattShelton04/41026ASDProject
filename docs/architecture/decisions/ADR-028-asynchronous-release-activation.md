@@ -23,12 +23,27 @@ and write-amplification failure.
 
 ## Decision
 
-- Publication validates the bounded consumer artifact and durably records its receipt first.
+- Publication validates the consumer evidence and durably records its receipt first. For Feature
+  1 self-publication, complete release construction has already schema-validated every streamed
+  row and atomically hashed and fsynced the content-addressed artifact. The HTTP request therefore
+  validates only the durable manifest/artifact/release binding; it does not reread, decompress and
+  revalidate millions of records. Any later source-scale preparation remains in the loader before
+  the accepted pointer changes.
 - The database API creates an `ops.release_activation` operation and returns HTTP `202`. It never
   performs source-scale activation work in an HTTP request.
 - The existing serial credential-owning database loader claims activations with a renewable lease.
   Lease loss cancels the PostgreSQL connection; an interrupted or expired operation can be claimed
   again, with a maximum of three attempts.
+- After claiming, the loader (the artifact-volume owner) streams the release export once to verify
+  physical existence, exact bytes and SHA-256 against the durable artifact ledger while its lease
+  heartbeat continues. Missing or corrupt content fails the activation before materialisation and
+  cannot change the accepted pointer.
+- A source-scale warehouse/index transaction never updates the leased activation row. It commits
+  first, then a separate short transaction records `materialized_at`, allowing heartbeats to renew
+  throughout the long statement. A crash between those commits is recovered by the idempotent
+  `published = false` predicate before the marker is retried.
+- Only one nonterminal activation may exist for a release/version. A browser retry with an unknown
+  outcome reuses its request key, while a different key is coalesced onto the already queued work.
 - Candidate address rows remain only in their immutable, release-scoped
   `warehouse.gnaf_address` generation. Activation preparation never copies or updates canonical
   fields in global registry tables.
@@ -47,10 +62,11 @@ and write-amplification failure.
 
 ## Consequences
 
-Publication requests are bounded by artifact verification and queue persistence. Loader restart or
-connection loss cannot expose a half-accepted generation. A successful pointer switch is small and
-idempotent, while the accepted warehouse generation remains the single source of canonical address
-fields.
+Publication requests are bounded by metadata-binding checks and queue persistence. Physical export
+verification and source-scale preparation run asynchronously under the loader lease. Loader restart,
+missing content, corruption or connection loss cannot expose a half-accepted generation. A
+successful pointer switch is small and idempotent, while the accepted warehouse generation remains
+the single source of canonical address fields.
 
 The G-NAF search indexes add durable storage and index-maintenance cost to candidate imports. This
 is bounded and observable, unlike repeated table rewrites, but retention/partitioning should be

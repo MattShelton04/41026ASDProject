@@ -10,13 +10,13 @@ import { formField } from "./components/forms.js?v=17";
 import { hydrateIcons } from "./components/icons.js?v=1";
 import { renderLoading } from "./components/states.js";
 import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=20";
-import { createFeatureAssistantRoute } from "./routes/assistant.js?v=1";
+import { createFeatureAssistantRoute } from "./routes/assistant.js?v=3";
 import { createEntityRoutes } from "./routes/entities.js?v=20";
 import { createDataProductRoutes } from "./routes/data-products.js?v=18";
 import { createEvidenceRoutes } from "./routes/evidence.js?v=17";
 import { renderOverview } from "./routes/overview.js?v=21";
 import { createPropertyRoutes } from "./routes/properties.js?v=21";
-import { createReleaseRoutes } from "./routes/releases.js?v=20";
+import { createReleaseRoutes } from "./routes/releases.js?v=23";
 import { createRunPlanner } from "./routes/run-plan.js?v=20";
 import { createRunRoutes } from "./routes/runs.js?v=20";
 import { createSourceHtmxRoute } from "./routes/sources-htmx.js?v=1";
@@ -185,8 +185,13 @@ function confirmDiscard(message) {
   });
 }
 
-async function mutate(path, { method = "POST", body = {}, success = "Action completed" } = {}) {
-  const result = await request(path, { method, headers: { "Idempotency-Key": body?.idempotency_key || newRequestId() }, body });
+async function mutate(path, { method = "POST", body = {}, success = "Action completed", idempotencyKey = "", timeoutMs = undefined } = {}) {
+  const result = await request(path, {
+    method,
+    headers: { "Idempotency-Key": idempotencyKey || body?.idempotency_key || newRequestId() },
+    body,
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+  });
   showToast(`${success}. Request ID ${result.requestId}`); return result.body;
 }
 

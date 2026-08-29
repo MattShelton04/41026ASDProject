@@ -1,4 +1,4 @@
-import { createAiChat, createAssistantClient } from "../ai-chat/index.js";
+import { createAiChat, createAssistantClient } from "../ai-chat/index.js?v=3";
 import { notice } from "../core.js";
 
 export const SHARED_ASSISTANT_SCOPES = Object.freeze([

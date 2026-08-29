@@ -1,5 +1,5 @@
-import { createAssistantClient } from "./client.js";
-import { createAiChat } from "./controller.js";
+import { createAssistantClient } from "./client.js?v=3";
+import { createAiChat } from "./controller.js?v=3";
 
 function required(value, name) {
   if (typeof value !== "string" || !value.trim()) {
@@ -41,6 +41,7 @@ export function createFeatureAssistant({
   scopes,
   suggestions,
   context = {},
+  contextOptions = [],
   initialScope = "feature",
   fetcher = globalThis.fetch?.bind(globalThis),
   announce = () => {},
@@ -62,6 +63,7 @@ export function createFeatureAssistant({
     client,
     initialScope,
     context,
+    contextOptions,
     activityHref: featureActivityHref({
       featureKey,
       featureLabel,

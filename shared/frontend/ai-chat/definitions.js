@@ -45,3 +45,29 @@ export function findAssistantScope(id, scopes = DEFAULT_ASSISTANT_SCOPES) {
 export function defaultSuggestions() {
   return ["What can this assistant help with?", "Which capabilities are available now?"];
 }
+
+export function normalizeAssistantContexts(contexts = []) {
+  if (!Array.isArray(contexts)) return [];
+  return contexts.flatMap((item) => {
+    if (!item || typeof item.id !== "string" || !item.id
+      || typeof item.label !== "string" || !item.label
+      || !item.context || typeof item.context !== "object" || Array.isArray(item.context)) return [];
+    const parameter = item.parameter;
+    if (parameter !== undefined && (!parameter
+      || typeof parameter.name !== "string" || !parameter.name
+      || typeof parameter.label !== "string" || !parameter.label)) return [];
+    return [Object.freeze({
+      id: item.id,
+      label: item.label,
+      description: typeof item.description === "string" ? item.description : "",
+      context: Object.freeze({ ...item.context }),
+      parameter: parameter ? Object.freeze({
+        name: parameter.name,
+        label: parameter.label,
+        placeholder: typeof parameter.placeholder === "string" ? parameter.placeholder : "",
+        pattern: typeof parameter.pattern === "string" ? parameter.pattern : "",
+        help: typeof parameter.help === "string" ? parameter.help : "",
+      }) : null,
+    })];
+  });
+}

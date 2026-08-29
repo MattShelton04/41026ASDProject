@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import base64
-import gzip
-import json
 import uuid
 from collections.abc import Mapping
 from pathlib import Path
@@ -45,9 +43,7 @@ from propertyscope_data_platform.http_support import (
     tool_envelope,
 )
 from propertyscope_data_platform.release_builders import (
-    MAX_PUBLIC_ARTIFACT_BYTES,
     BuildContext,
-    ProductEnvelope,
     ReleaseDetailContract,
     ReleaseManifestV1,
     data_product_catalogue,
@@ -695,7 +691,7 @@ def create_blueprint(
         key = request.headers.get("Idempotency-Key", "").strip()
         if not key:
             return problem(422, "idempotency_key_required", "Idempotency-Key is required")
-        return publish_release(store, consumers, release_id, body, key, artifact_root=artifact_root)
+        return publish_release(store, consumers, release_id, body, key)
 
     @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/reject")
     def release_reject(release_id: uuid.UUID) -> Response:
@@ -864,7 +860,7 @@ def create_blueprint(
             {
                 "feature_key": ASSISTANT_FEATURE_KEY,
                 "objective": build_assistant_objective(command),
-                "prompt_set": "default.v4",
+                "prompt_set": "default.v5",
                 "tool_allowlist": list(ASSISTANT_TOOL_ALLOWLIST),
                 "limits": {
                     "max_iterations": 6,
@@ -1207,7 +1203,6 @@ def create_blueprint(
             release_id,
             {"comment": f"Approved agent operation {key}"},
             key,
-            artifact_root=artifact_root,
             tool_output=True,
         )
 
@@ -1488,7 +1483,6 @@ def publish_release(
     body: Mapping[str, Any],
     idempotency_key: str,
     *,
-    artifact_root: Path,
     tool_output: bool = False,
 ) -> Response:
     """Record the final consumer receipt before atomically activating a release."""
@@ -1558,7 +1552,7 @@ def publish_release(
         idempotency_key=idempotency_key,
     )
     if release["target_feature"] == "feature-1":
-        result = verify_local_publication(store, release, publication, artifact_root)
+        result = verify_local_publication(store, release, publication)
     else:
         result = consumers.publish(release["target_feature"], publication, request.headers)
     recorded = store.request(
@@ -1625,26 +1619,29 @@ def complete_publication(
     )
     if queued.status_code >= 400:
         return forward(queued)
-    activation = queued.json()["activation"]
+    activation_envelope = queued.json()
+    activation = activation_envelope["activation"]
+    completed = activation_envelope.get("outcome") == "completed"
     if tool_output:
         response = jsonify(
             {
-                "status": "pending",
+                "status": "accepted" if completed else "pending",
                 "receipt_id": receipt["id"],
                 "replayed": replayed,
             }
         )
-        response.status_code = 202
+        response.status_code = 200 if completed else 202
         return response
     response = jsonify(
         {
             "release": release,
             "receipt": public_receipt(receipt),
             "activation": public_activation(activation),
+            "publication_status": "completed" if completed else "pending",
             "replayed": replayed,
         }
     )
-    response.status_code = 202
+    response.status_code = 200 if completed else 202
     return response
 
 
@@ -1652,52 +1649,39 @@ def verify_local_publication(
     store: DataStoreClient,
     release: Mapping[str, Any],
     publication: ConsumerPublicationRequest,
-    artifact_root: Path,
 ) -> PublicationReceiptResult:
-    """Verify Feature 1's own exported bytes before recording consumer acceptance."""
+    """Validate Feature 1's durable export binding without rereading source-scale bytes.
+
+    Release construction schema-validates every projected row while
+    :class:`LocalArtifactStore` hashes and fsyncs the immutable content-addressed object. The
+    publication request therefore checks that durable evidence rather than repeating a complete
+    hash, decompression and schema pass while an HTTP client waits. Source-scale serving-index
+    materialisation remains in the leased database loader before the accepted pointer changes.
+    """
     try:
         manifest = ReleaseManifestV1.model_validate(publication.manifest)
+        resolve_release_builder(manifest.builder_key, manifest.builder_version)
         upstream = store.request(
             "GET", f"{INTERNAL}/releases/{release['id']}/artifact", headers=request.headers
         )
         upstream.raise_for_status()
         artifact = upstream.json()["artifact"]
+        expected_storage_key = (
+            f"sha256/{publication.content_sha256[:2]}/{publication.content_sha256}"
+        )
         if (
             artifact["artifact_kind"] != "release_export"
             or artifact["content_sha256"] != publication.content_sha256
             or int(artifact["bytes"]) != int(publication.manifest["byte_count"])
+            or artifact["storage_key"] != expected_storage_key
+            or str(manifest.release_id) != str(publication.release_id)
+            or manifest.dataset_id != publication.dataset_id
+            or manifest.target_feature != release["target_feature"]
+            or manifest.product_schema_version != publication.schema_version
+            or manifest.content_sha256 != publication.content_sha256
+            or manifest.record_count != publication.record_count
         ):
             raise ArtifactError("artifact registration does not match the release")
-        path = LocalArtifactStore(artifact_root).verified_path(
-            artifact["storage_key"],
-            publication.content_sha256,
-            expected_bytes=int(artifact["bytes"]),
-        )
-        builder = resolve_release_builder(manifest.builder_key, manifest.builder_version)
-        if manifest.content_encoding == "gzip" and manifest.media_type == "application/x-ndjson":
-            count = 0
-            with gzip.open(path, "rt", encoding="utf-8") as stream:
-                for line in stream:
-                    if not line.strip():
-                        continue
-                    builder.spec.record_adapter.validate_python(json.loads(line))
-                    count += 1
-            if count != publication.record_count:
-                raise ArtifactError("product stream count does not match the release")
-        else:
-            content = path.read_bytes()
-            if len(content) > MAX_PUBLIC_ARTIFACT_BYTES:
-                raise ArtifactError("legacy product envelope exceeds its registered bound")
-            envelope = ProductEnvelope.model_validate(json.loads(content))
-            if (
-                envelope.schema_version != publication.schema_version
-                or envelope.release_id != publication.release_id
-                or envelope.dataset_id != publication.dataset_id
-                or len(envelope.records) != publication.record_count
-            ):
-                raise ArtifactError("product envelope does not match the release")
-            for record in envelope.records:
-                builder.spec.record_adapter.validate_python(record)
     except (ArtifactError, KeyError, TypeError, ValueError, ValidationError, httpx.HTTPError):
         return PublicationReceiptResult(
             consumer_operation_id=publication.idempotency_key,
@@ -1708,9 +1692,9 @@ def verify_local_publication(
             rows_accepted=0,
             rows_rejected=publication.record_count,
             error={
-                "code": "local_publication_verification_failed",
-                "message": "Feature 1 could not verify the registered release artifact",
-                "retryable": True,
+                "code": "local_publication_binding_failed",
+                "message": "Feature 1 could not validate the registered release artifact binding",
+                "retryable": False,
             },
         )
     return PublicationReceiptResult(

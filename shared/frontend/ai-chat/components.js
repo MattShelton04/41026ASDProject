@@ -1,8 +1,8 @@
 import { append, el } from "../browser/index.js";
-import { assistantStatus } from "./definitions.js";
+import { assistantStatus } from "./definitions.js?v=3";
 import {
   answerSections, evidenceSteps, formatAssistantDate, humaniseAssistantValue, shortRunId,
-} from "./formats.js";
+} from "./formats.js?v=3";
 
 export function assistantBadge(status) {
   const definition = assistantStatus(status);
@@ -29,7 +29,14 @@ function answerContent(run) {
   const sections = answerSections(run.final_result);
   if (!sections.length) {
     const status = assistantStatus(run.status);
-    append(host, el("p", "ps-ai-chat__progress-copy", status.detail));
+    const progress = el("p", "ps-ai-chat__progress-copy", status.detail);
+    if (!["succeeded", "failed", "cancelled"].includes(String(run.status || "").toLowerCase())) {
+      const dots = el("span", "ps-ai-chat__typing-dots");
+      dots.setAttribute("aria-hidden", "true");
+      append(dots, el("i"), el("i"), el("i"));
+      append(progress, dots);
+    }
+    append(host, progress);
     return host;
   }
   for (const section of sections) {
@@ -69,14 +76,16 @@ function evidenceDisclosure(turn) {
   return details;
 }
 
-export function renderAssistantTurn(turn, { activityHref, onCancel, onRetry } = {}) {
+export function renderAssistantTurn(turn, {
+  activityHref, onCancel, onRetry, assistantLabel = "PropertyScope assistant",
+} = {}) {
   const article = el("article", "ps-ai-chat__turn");
   article.dataset.runId = turn.id || "pending";
   const question = el("section", "ps-ai-chat__message ps-ai-chat__message--user");
   append(question, el("span", "ps-ai-chat__speaker", "You"), el("p", "", turn.message));
   const response = el("section", "ps-ai-chat__message ps-ai-chat__message--assistant");
   const header = el("div", "ps-ai-chat__message-head");
-  append(header, el("span", "ps-ai-chat__speaker", "PropertyScope assistant"));
+  append(header, el("span", "ps-ai-chat__speaker", assistantLabel));
   if (turn.run?.status) append(header, assistantBadge(turn.run.status));
   append(response, header);
 
@@ -92,6 +101,16 @@ export function renderAssistantTurn(turn, { activityHref, onCancel, onRetry } = 
       append(failure, retry);
     }
     append(response, failure);
+  } else if (String(turn.run?.status || "").toLowerCase() === "failed" && turn.run?.error?.message) {
+    const failure = el("div", "ps-ai-chat__turn-error");
+    failure.setAttribute("role", "alert");
+    append(
+      failure,
+      el("strong", "", "The assistant could not complete this turn"),
+      el("p", "", String(turn.run.error.message)),
+    );
+    append(response, failure);
+    if (turn.id) append(response, evidenceDisclosure(turn));
   } else {
     append(response, answerContent(turn.run || { status: "queued" }));
     if (turn.pollWarning) {
@@ -122,7 +141,14 @@ export function renderAssistantTurn(turn, { activityHref, onCancel, onRetry } = 
       cancel.addEventListener("click", () => onCancel(turn));
       append(footer, cancel);
     }
-  } else append(footer, el("span", "", "Creating durable run…"));
+  } else {
+    const creating = el("span", "ps-ai-chat__creating", "Creating durable run");
+    const dots = el("span", "ps-ai-chat__typing-dots");
+    dots.setAttribute("aria-hidden", "true");
+    append(dots, el("i"), el("i"), el("i"));
+    append(creating, dots);
+    append(footer, creating);
+  }
   append(response, footer);
   append(article, question, response);
   return article;

@@ -232,7 +232,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
         actions.push(button(
           failed ? "Explain this failure" : "Ask AI about update",
           `button ${failed ? "primary" : "secondary"}`,
-          () => { location.hash = `#assistant?route=runs&ingestion_run_id=${encodeURIComponent(id)}`; },
+          () => { location.hash = `#assistant?route=runs/detail&ingestion_run_id=${encodeURIComponent(id)}`; },
         ));
         if (linkedRelease) {
           actions.push(button("Review candidate data", "button secondary", () => {

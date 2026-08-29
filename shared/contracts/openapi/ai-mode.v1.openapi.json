@@ -148,7 +148,7 @@
             "type": "string"
           },
           "objective": {
-            "maxLength": 4000,
+            "maxLength": 16000,
             "minLength": 1,
             "title": "Objective",
             "type": "string"
@@ -520,7 +520,7 @@
             "type": "string"
           },
           "objective": {
-            "maxLength": 4000,
+            "maxLength": 16000,
             "minLength": 1,
             "title": "Objective",
             "type": "string"
@@ -531,7 +531,8 @@
               "default.v1",
               "default.v2",
               "default.v3",
-              "default.v4"
+              "default.v4",
+              "default.v5"
             ],
             "title": "Prompt Set",
             "type": "string"

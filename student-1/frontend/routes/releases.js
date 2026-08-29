@@ -1,7 +1,9 @@
-import { collection, entity, queryString } from "../core/api.js";
+import { collection, entity, newRequestId, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=18";
 import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js?v=18";
+import { createPublicationAttemptKeys } from "../core/publication.js?v=2";
+import { publicationSuccessMessage, reconcilePublicationTimeout } from "./release-publication.js?v=2";
 import { runDialogForm } from "../components/dialogs.js?v=18";
 import { formField, filterToolbar } from "../components/forms.js?v=17";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
@@ -67,6 +69,30 @@ function releaseStateTabs(releases, selected, filters) {
 export function createReleaseRoutes({
   view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, rerender,
 }) {
+  const publicationKeys = createPublicationAttemptKeys(newRequestId);
+
+  async function publishReviewedRelease(release, comment) {
+    const key = publicationKeys.acquire(release);
+    try {
+      const { body, requestId } = await request(`dataset-releases/${release.id}/publish`, {
+        method: "POST",
+        body: { approved: true, version: release.version, comment },
+        headers: { "Idempotency-Key": key.value },
+      });
+      showToast(`${publicationSuccessMessage(body)}. Request ID ${requestId}`);
+      publicationKeys.clear(key.identity);
+      return body;
+    } catch (error) {
+      if (error?.status !== 0 || !String(error?.message || "").includes("timed out")) {
+        publicationKeys.clear(key.identity);
+        throw error;
+      }
+      return reconcilePublicationTimeout({
+        release, request, publicationKeys, key, showToast, timeoutError: error,
+      });
+    }
+  }
+
   async function openReleaseDialog(item = null) {
     document.querySelector("#entity-kicker").textContent = "Dataset release";
     document.querySelector("#entity-title").textContent = `${item ? "Edit" : "Create"} draft release`;
@@ -188,7 +214,7 @@ export function createReleaseRoutes({
         extra: comment,
         progressLabel: "Publishing…",
         discardMessage: "Discard your approval note?",
-        onConfirm: () => mutate(`dataset-releases/${id}/publish`, { body: { approved: true, version: release.version, comment: requiredReviewValue(comment, "Approval note") }, success: "Publication requested" }),
+        onConfirm: () => publishReviewedRelease(release, requiredReviewValue(comment, "Approval note")),
       });
       if (ok) rerender();
     }));

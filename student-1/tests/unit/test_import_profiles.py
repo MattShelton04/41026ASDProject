@@ -327,14 +327,25 @@ class _CancelledStore(_Store):
 
 
 class _ActivationStore:
-    def __init__(self) -> None:
+    def __init__(self, artifact: dict[str, Any]) -> None:
         self.operation_id = uuid.uuid4()
+        self.release_id = uuid.uuid4()
+        self.artifact = artifact
         self.heartbeats = 0
         self.materialized = False
         self.finished_status = ""
+        self.finished_error: dict[str, Any] | None = None
 
     def claim_release_activation(self, **_: Any) -> dict[str, Any]:
-        return {"id": self.operation_id, "lease_token": "activation-token"}
+        return {
+            "id": self.operation_id,
+            "dataset_release_id": self.release_id,
+            "lease_token": "activation-token",
+        }
+
+    def release_artifact(self, release_id: uuid.UUID) -> dict[str, Any]:
+        assert release_id == self.release_id
+        return self.artifact
 
     def heartbeat_release_activation(self, *_: Any, **__: Any) -> None:
         self.heartbeats += 1
@@ -346,13 +357,35 @@ class _ActivationStore:
 
     def finish_release_activation(self, *_: Any, **kwargs: Any) -> None:
         self.finished_status = str(kwargs["status"])
+        self.finished_error = kwargs["error"]
 
     def claim_import(self, **_: Any) -> None:
         raise AssertionError("publication activation must be serviced before another import")
 
 
+def _release_export_artifact(
+    root: Path,
+    expected: bytes,
+    *,
+    stored: bytes | None,
+) -> dict[str, Any]:
+    digest = hashlib.sha256(expected).hexdigest()
+    relative = Path("sha256") / digest[:2] / digest
+    if stored is not None:
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(stored)
+    return {
+        "artifact_kind": "release_export",
+        "storage_key": relative.as_posix(),
+        "bytes": len(expected),
+        "content_sha256": digest,
+    }
+
+
 def test_loader_prioritises_and_finishes_background_release_activation(tmp_path: Path) -> None:
-    store = _ActivationStore()
+    payload = b"verified release export"
+    store = _ActivationStore(_release_export_artifact(tmp_path, payload, stored=payload))
     loader = DatabaseLoader(cast(Any, store), tmp_path, worker_id="loader-test")
 
     assert loader.run_once() is True
@@ -362,13 +395,32 @@ def test_loader_prioritises_and_finishes_background_release_activation(tmp_path:
 
 
 def test_loader_shutdown_leaves_activation_explicitly_recoverable(tmp_path: Path) -> None:
-    store = _ActivationStore()
+    payload = b"verified release export"
+    store = _ActivationStore(_release_export_artifact(tmp_path, payload, stored=payload))
     loader = DatabaseLoader(cast(Any, store), tmp_path, worker_id="loader-test")
     loader.stop()
 
     loader._activate({"id": store.operation_id, "lease_token": "activation-token"})
 
     assert store.finished_status == "interrupted"
+
+
+@pytest.mark.parametrize("stored", [None, b"corrupt!"], ids=["missing", "corrupt"])
+def test_loader_fails_activation_when_release_export_is_unavailable_or_corrupt(
+    tmp_path: Path,
+    stored: bytes | None,
+) -> None:
+    expected = b"original"
+    store = _ActivationStore(_release_export_artifact(tmp_path, expected, stored=stored))
+    loader = DatabaseLoader(cast(Any, store), tmp_path, worker_id="loader-test")
+
+    assert loader.run_once() is True
+
+    assert store.materialized is False
+    assert store.finished_status == "failed"
+    assert store.finished_error is not None
+    assert store.finished_error["code"] == "release_artifact_verification_failed"
+    assert "live pointer was not changed" in store.finished_error["message"]
 
 
 def test_loader_verifies_artifact_then_delegates_registered_copy_profile(tmp_path: Path) -> None:

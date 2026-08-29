@@ -69,7 +69,7 @@
           "type": "string"
         },
         "objective": {
-          "maxLength": 4000,
+          "maxLength": 16000,
           "minLength": 1,
           "title": "Objective",
           "type": "string"

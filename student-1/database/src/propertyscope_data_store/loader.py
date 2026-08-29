@@ -24,10 +24,15 @@ from propertyscope_data_store.repository import PropertyScopeStore
 logger = logging.getLogger(__name__)
 ACTIVATION_LEASE_SECONDS = 120
 ACTIVATION_HEARTBEAT_SECONDS = 30
+ARTIFACT_HASH_CHUNK_BYTES = 1024 * 1024
 
 
 class ImportCancelledError(RuntimeError):
     """The owning ingestion run was cancelled while the loader held the operation."""
+
+
+class ReleaseArtifactVerificationError(RuntimeError):
+    """The release export no longer matches its durable artifact-ledger evidence."""
 
 
 class DatabaseLoader:
@@ -132,6 +137,10 @@ class DatabaseLoader:
             )
             heartbeater.start()
             try:
+                artifact = self.store.release_artifact(
+                    uuid.UUID(str(operation["dataset_release_id"]))
+                )
+                self._verify_release_export(artifact, lease_failed_event=heartbeat_failed)
                 self.store.materialize_release_activation(
                     operation_id,
                     worker_id=self.worker_id,
@@ -153,7 +162,7 @@ class DatabaseLoader:
                 status="succeeded",
                 error=None,
             )
-        except Exception:
+        except Exception as exc:
             interrupted = self.stop_event.is_set()
             if interrupted:
                 logger.info(
@@ -171,12 +180,21 @@ class DatabaseLoader:
                         "code": (
                             "loader_shutdown"
                             if interrupted
-                            else "activation_materialization_failed"
+                            else (
+                                "release_artifact_verification_failed"
+                                if isinstance(exc, ReleaseArtifactVerificationError)
+                                else "activation_materialization_failed"
+                            )
                         ),
                         "message": (
                             "Publication will resume after the database loader restarts"
                             if interrupted
-                            else "Publication activation failed before the live pointer changed"
+                            else (
+                                "Release export artifact is missing or does not match its "
+                                "durable metadata; the live pointer was not changed"
+                                if isinstance(exc, ReleaseArtifactVerificationError)
+                                else "Publication activation failed before the live pointer changed"
+                            )
                         ),
                         "retryable": interrupted,
                     },
@@ -285,6 +303,56 @@ class DatabaseLoader:
         reporter = getattr(self.store, "update_import_progress", None)
         if reporter is not None:
             reporter(operation_id, **values)
+
+    def _verify_release_export(
+        self,
+        artifact: dict[str, Any],
+        *,
+        lease_failed_event: Event,
+    ) -> None:
+        """Stream-verify the loader-owned export before any activation materialisation."""
+        if artifact.get("artifact_kind") != "release_export":
+            raise ReleaseArtifactVerificationError("release artifact is not an export")
+        try:
+            expected_bytes = int(artifact["bytes"])
+            expected_sha256 = str(artifact["content_sha256"])
+            try:
+                path = self._artifact_path(str(artifact["storage_key"]))
+            except RuntimeError as exc:
+                raise ReleaseArtifactVerificationError("release artifact is unavailable") from exc
+            if path.stat().st_size != expected_bytes:
+                raise ReleaseArtifactVerificationError(
+                    "release artifact size does not match registered metadata"
+                )
+            digest = hashlib.sha256()
+            bytes_read = 0
+            with path.open("rb") as stream:
+                while True:
+                    if self.stop_event.is_set():
+                        raise InterruptedError(
+                            "database loader stopped during release artifact verification"
+                        )
+                    if lease_failed_event.is_set():
+                        raise RuntimeError("publication activation lease could not be renewed")
+                    chunk = stream.read(ARTIFACT_HASH_CHUNK_BYTES)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+                    bytes_read += len(chunk)
+        except ReleaseArtifactVerificationError:
+            raise
+        except InterruptedError:
+            raise
+        except (KeyError, OSError, TypeError, ValueError) as exc:
+            raise ReleaseArtifactVerificationError("release artifact is unavailable") from exc
+        if bytes_read != expected_bytes:
+            raise ReleaseArtifactVerificationError(
+                "release artifact size does not match registered metadata"
+            )
+        if digest.hexdigest() != expected_sha256:
+            raise ReleaseArtifactVerificationError(
+                "release artifact checksum does not match registered metadata"
+            )
 
     def _artifact_path(self, storage_key: str) -> Path:
         if not storage_key.startswith("sha256/") or ".." in Path(storage_key).parts:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -369,6 +370,90 @@ def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() 
     assert activation_attempts == 2
 
 
+@pytest.mark.parametrize(
+    ("activation_status", "database_status", "expected_http"),
+    [("succeeded", 200, 200), ("failed", 409, 409)],
+)
+def test_publication_replay_preserves_terminal_activation_outcome(
+    activation_status: str,
+    database_status: int,
+    expected_http: int,
+) -> None:
+    release_id = "60000000-0000-0000-0000-000000000015"
+    receipt_id = "71000000-0000-0000-0000-000000000015"
+    digest = "d" * 64
+    release = {
+        "id": release_id,
+        "dataset_id": "fixture-property",
+        "target_feature": "feature-1",
+        "schema_version": "propertyscope.property-snapshot.v1",
+        "content_sha256": digest,
+        "record_count": 1,
+        "manifest_json": {},
+        "status": "awaiting_review",
+        "version": 4,
+    }
+    receipt = {
+        "id": receipt_id,
+        "consumer_operation_id": "terminal-activation-replay",
+        "status": "accepted",
+        "schema_version": release["schema_version"],
+        "content_sha256": digest,
+        "rows_received": 1,
+        "rows_accepted": 1,
+        "rows_rejected": 0,
+    }
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json={"release": release, "receipts": [receipt]})
+        assert request.url.path.endswith("/activations")
+        if activation_status == "failed":
+            return httpx.Response(
+                database_status,
+                json={
+                    "status": database_status,
+                    "code": "release_activation_failed",
+                    "detail": "The publication activation failed before the live version changed; "
+                    "a fresh request can retry it",
+                },
+            )
+        return httpx.Response(
+            database_status,
+            json={
+                "activation": {"id": "activation-winner", "status": activation_status},
+                "created": False,
+                "outcome": "completed",
+            },
+        )
+
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database",
+            "secret",
+            client=httpx.Client(transport=httpx.MockTransport(database)),
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai",
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
+        ),
+    )
+
+    response = app.test_client().post(
+        f"/api/data-platform/v1/dataset-releases/{release_id}/publish",
+        headers={"Idempotency-Key": "terminal-activation-replay"},
+        json={"version": 4, "comment": "Reviewed", "approved": True},
+    )
+
+    assert response.status_code == expected_http
+    if activation_status == "failed":
+        assert response.get_json()["code"] == "release_activation_failed"
+        assert "fresh request" in response.get_json()["detail"]
+    else:
+        assert response.get_json()["publication_status"] == "completed"
+        assert response.get_json()["activation"]["status"] == "succeeded"
+
+
 def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
     release_id = "60000000-0000-0000-0000-000000000012"
     digest = "b" * 64
@@ -468,7 +553,7 @@ def test_typed_consumer_rejection_preserves_receipt_evidence(status_code: int) -
     assert receipt.error.code == "unsupported_period"
 
 
-def test_local_artifact_verification_failure_records_receipt_and_preserves_release(
+def test_source_scale_local_publication_queues_without_rereading_artifact(
     tmp_path: Path,
 ) -> None:
     release_id = "60000000-0000-0000-0000-000000000014"
@@ -481,21 +566,21 @@ def test_local_artifact_verification_failure_records_receipt_and_preserves_relea
         "dataset_id": "fixture-property",
         "target_feature": "feature-1",
         "builder_key": "property-snapshot",
-        "builder_version": "1.0.0",
+        "builder_version": "2.0.0",
         "import_profile": "property-fixture",
         "normalisation_version": "1.0.0",
         "publisher": "PropertyScope test",
-        "source": "Missing local artifact test",
+        "source": "Source-scale asynchronous binding test",
         "source_release": "fixture-v1",
         "source_retrieved_at": "2026-08-16T01:02:03Z",
         "source_effective_at": None,
         "candidate_generation_id": release_id,
-        "record_count": 1,
+        "record_count": 5_190_134,
         "record_count_definition": "property records",
         "content_sha256": digest,
-        "media_type": "application/json",
-        "content_encoding": None,
-        "byte_count": 100,
+        "media_type": "application/x-ndjson",
+        "content_encoding": "gzip",
+        "byte_count": 515_790_493,
         "geography_coverage": ["NSW"],
         "temporal_coverage": None,
         "measures": [],
@@ -514,7 +599,7 @@ def test_local_artifact_verification_failure_records_receipt_and_preserves_relea
         "target_feature": "feature-1",
         "schema_version": "propertyscope.property-snapshot.v1",
         "content_sha256": digest,
-        "record_count": 1,
+        "record_count": 5_190_134,
         "manifest_json": manifest,
         "status": "awaiting_review",
         "version": 1,
@@ -529,18 +614,30 @@ def test_local_artifact_verification_failure_records_receipt_and_preserves_relea
                     "artifact": {
                         "artifact_kind": "release_export",
                         "content_sha256": digest,
-                        "bytes": 100,
+                        "bytes": 515_790_493,
                         "storage_key": f"sha256/{digest[:2]}/{digest}",
                     }
                 },
             )
         if request.method == "GET":
             return httpx.Response(200, json={"release": release, "receipts": receipts})
+        if request.url.path.endswith("/activations"):
+            return httpx.Response(
+                202,
+                json={
+                    "activation": {
+                        "id": "70000000-0000-0000-0000-000000000014",
+                        "status": "queued",
+                        "attempt_number": 1,
+                    },
+                    "created": True,
+                },
+            )
         assert request.url.path.endswith("/receipts")
         body = cast(dict[str, Any], json.loads(request.content))
-        assert body["status"] == "failed"
-        assert body["rows_received"] == body["rows_rejected"] == 1
-        receipt = {"id": "receipt-local-failure", **body}
+        assert body["status"] == "accepted"
+        assert body["rows_received"] == body["rows_accepted"] == 5_190_134
+        receipt = {"id": "receipt-local-binding", **body}
         receipts.append(receipt)
         return httpx.Response(201, json={"receipt": receipt, "created": True})
 
@@ -553,13 +650,17 @@ def test_local_artifact_verification_failure_records_receipt_and_preserves_relea
         artifact_root=tmp_path,
     )
 
+    started = time.perf_counter()
     response = app.test_client().post(
         f"/api/data-platform/v1/dataset-releases/{release_id}/publish",
-        headers={"Idempotency-Key": "publish-local-failure"},
+        headers={"Idempotency-Key": "publish-source-scale"},
         json={"version": 1, "comment": "Reviewed", "approved": True},
     )
+    elapsed = time.perf_counter() - started
 
-    assert response.status_code == 424
+    assert response.status_code == 202
+    assert elapsed < 10
+    assert response.get_json()["activation"]["status"] == "queued"
     assert release["status"] == "awaiting_review"
     assert len(receipts) == 1
 
@@ -762,12 +863,14 @@ def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None
         assert request.url.path == "/api/v1/agent-runs"
         body = json.loads(request.content)
         assert body["feature_key"] == "student-1-propertyscope-data-platform"
-        assert body["prompt_set"] == "default.v4"
+        assert body["prompt_set"] == "default.v5"
         assert body["limits"]["max_tool_calls"] == 10
         assert "data.run_retry.v1" not in body["tool_allowlist"]
         assert "data.release_publish.v1" not in body["tool_allowlist"]
         assert "property.search.v1" in body["tool_allowlist"]
         assert "What can PropertyScope do?" in body["objective"]
+        assert "Earlier answer about releases" in body["objective"]
+        assert "browser-supplied, possibly incomplete or altered" in body["objective"]
         assert "platform.capabilities.v1" in body["objective"]
         assert "Do not propose or call a write tool" in body["objective"]
         return httpx.Response(
@@ -788,7 +891,14 @@ def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None
 
     response = app.test_client().post(
         "/api/data-platform/v1/assistant/turns",
-        json={"message": "What can PropertyScope do?", "scope": "application"},
+        json={
+            "message": "What can PropertyScope do?",
+            "scope": "application",
+            "history": [
+                {"role": "user", "content": "What about releases?"},
+                {"role": "assistant", "content": "Earlier answer about releases"},
+            ],
+        },
     )
 
     assert response.status_code == 202
@@ -854,6 +964,30 @@ def test_assistant_turn_rejects_unknown_context_without_calling_ai_mode() -> Non
     response = app.test_client().post(
         "/api/data-platform/v1/assistant/turns",
         json={"message": "Explain this", "context": {"made_up_id": "unsafe"}},
+    )
+
+    assert response.status_code == 422
+    assert response.get_json()["code"] == "invalid_assistant_turn"
+
+
+def test_assistant_turn_rejects_noncanonical_context_without_calling_ai_mode() -> None:
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=unavailable)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=unavailable)),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/assistant/turns",
+        json={
+            "message": "Explain this",
+            "context": {
+                "route": "releases/detail",
+                "ingestion_run_id": "70000000-0000-0000-0000-000000000004",
+            },
+        },
     )
 
     assert response.status_code == 422
