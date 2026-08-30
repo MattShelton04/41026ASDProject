@@ -1,0 +1,26 @@
+{
+  "source_business_key": "001:P1:1",
+  "source_revision": 1,
+  "source_era": "post-2001",
+  "district_code": "001",
+  "source_property_id": "P1",
+  "dealing_id": null,
+  "contract_date": null,
+  "settlement_date": null,
+  "price_aud": null,
+  "area_original": null,
+  "area_unit": null,
+  "area_square_metres": null,
+  "property_ref": null,
+  "match_tier": "MISS",
+  "match_confidence": "0",
+  "geographic_precision": "unmatched",
+  "postcode": "NSW",
+  "provenance": {
+    "release_id": "60000000-0000-0000-0000-000000000002",
+    "release_version": "fixture-sales-v2",
+    "candidate_generation_id": "60000000-0000-0000-0000-000000000002",
+    "source_record_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "normalisation_version": "1.0.0"
+  }
+}

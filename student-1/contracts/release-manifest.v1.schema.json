@@ -22,16 +22,9 @@
       "type": "string"
     },
     "content_encoding": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Content Encoding"
+      "const": "gzip",
+      "title": "Content Encoding",
+      "type": "string"
     },
     "content_sha256": {
       "pattern": "^[0-9a-f]{64}$",
@@ -93,6 +86,7 @@
       "type": "array"
     },
     "media_type": {
+      "const": "application/x-ndjson",
       "title": "Media Type",
       "type": "string"
     },
@@ -221,6 +215,7 @@
     "record_count_definition",
     "content_sha256",
     "media_type",
+    "content_encoding",
     "byte_count",
     "geography_coverage",
     "measures",

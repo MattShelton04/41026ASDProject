@@ -1,0 +1,31 @@
+{
+  "geography_kind": "postcode",
+  "geography_value": "2000",
+  "state": "NSW",
+  "source_category_key": "fixture-category",
+  "offence_label": "Synthetic offence",
+  "subcategory_label": "Synthetic category",
+  "observed_months": [
+    "2025-01-01",
+    "2025-02-01"
+  ],
+  "first_month": "2025-01-01",
+  "last_month": "2025-02-01",
+  "month_count": 2,
+  "blank_means_observed_zero": true,
+  "completeness_sha256": "18be8027e8d9ed26e197499bad4b4548c9d18b775499ceea256757361d6d2f2c",
+  "observations": [
+    {
+      "month": "2025-02-01",
+      "count": 2,
+      "source_row_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "provenance": {
+    "release_id": "60000000-0000-0000-0000-000000000003",
+    "release_version": "fixture-crime-v1",
+    "candidate_generation_id": "60000000-0000-0000-0000-000000000003",
+    "source_record_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "normalisation_version": "1.0.0"
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "$defs": {
+    "LegacyProductContractEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "compatibility_status": {
+          "const": "accepted-release-read-only",
+          "title": "Compatibility Status",
+          "type": "string"
+        },
+        "schema_path": {
+          "pattern": "^[a-z0-9][a-z0-9.-]+\\.schema\\.json$",
+          "title": "Schema Path",
+          "type": "string"
+        },
+        "schema_version": {
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "schema_path",
+        "compatibility_status"
+      ],
+      "title": "LegacyProductContractEntry",
+      "type": "object"
+    },
+    "ProductContractEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "builder_key": {
+          "title": "Builder Key",
+          "type": "string"
+        },
+        "builder_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Builder Version",
+          "type": "string"
+        },
+        "content_encoding": {
+          "const": "gzip",
+          "title": "Content Encoding",
+          "type": "string"
+        },
+        "media_type": {
+          "const": "application/x-ndjson",
+          "title": "Media Type",
+          "type": "string"
+        },
+        "record_framing": {
+          "pattern": "^one-json-object-per-line$",
+          "title": "Record Framing",
+          "type": "string"
+        },
+        "schema_path": {
+          "pattern": "^[a-z0-9][a-z0-9.-]+\\.schema\\.json$",
+          "title": "Schema Path",
+          "type": "string"
+        },
+        "schema_version": {
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "target_feature": {
+          "pattern": "^feature-[1-5]$",
+          "title": "Target Feature",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "schema_path",
+        "builder_key",
+        "builder_version",
+        "target_feature",
+        "media_type",
+        "content_encoding",
+        "record_framing"
+      ],
+      "title": "ProductContractEntry",
+      "type": "object"
+    }
+  },
+  "$id": "https://propertyscope.local/contracts/product-contract-set.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "compatibility_policy": {
+      "pattern": "^closed-record-schemas-require-new-version-for-shape-changes$",
+      "title": "Compatibility Policy",
+      "type": "string"
+    },
+    "contract_set_version": {
+      "pattern": "^propertyscope\\.product-contract-set\\.v1$",
+      "title": "Contract Set Version",
+      "type": "string"
+    },
+    "contracts": {
+      "items": {
+        "$ref": "#/$defs/ProductContractEntry"
+      },
+      "title": "Contracts",
+      "type": "array"
+    },
+    "legacy_contracts": {
+      "items": {
+        "$ref": "#/$defs/LegacyProductContractEntry"
+      },
+      "title": "Legacy Contracts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "contract_set_version",
+    "compatibility_policy",
+    "contracts",
+    "legacy_contracts"
+  ],
+  "title": "ProductContractSetV1",
+  "type": "object"
+}

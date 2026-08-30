@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
 
@@ -25,7 +25,11 @@ from .configuration import (
     load_source_register,
     validate_job_profile,
 )
-from .domain import ConsumerPublicationRequest, PublicationReceiptResult
+from .domain import (
+    ConsumerImportAcknowledgement,
+    ConsumerPublicationRequest,
+    PublicationReceiptResult,
+)
 
 PUBLIC_REDISTRIBUTION_POLICIES = frozenset(
     {
@@ -176,16 +180,6 @@ class SchoolPointRecord(ProductModel):
     provenance: ProductProvenance
 
 
-class ProductEnvelope(ProductModel):
-    schema_version: str
-    release_id: uuid.UUID
-    release_version: str = Field(min_length=1, max_length=150)
-    dataset_id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]*$")
-    target_feature: str = Field(pattern=r"^feature-[1-5]$")
-    candidate_generation_id: uuid.UUID
-    records: tuple[dict[str, Any], ...]
-
-
 class PropertySnapshotProduct(ProductModel):
     schema_version: str = Field(pattern=r"^propertyscope\.property-snapshot\.v1$")
     release_id: uuid.UUID
@@ -226,6 +220,32 @@ class SchoolPointsProduct(ProductModel):
     records: tuple[SchoolPointRecord, ...]
 
 
+class ProductContractEntry(ProductModel):
+    schema_version: str
+    schema_path: str = Field(pattern=r"^[a-z0-9][a-z0-9.-]+\.schema\.json$")
+    builder_key: str
+    builder_version: str = Field(pattern=r"^\d+\.\d+\.\d+$")
+    target_feature: str = Field(pattern=r"^feature-[1-5]$")
+    media_type: Literal["application/x-ndjson"]
+    content_encoding: Literal["gzip"]
+    record_framing: str = Field(pattern=r"^one-json-object-per-line$")
+
+
+class LegacyProductContractEntry(ProductModel):
+    schema_version: str
+    schema_path: str = Field(pattern=r"^[a-z0-9][a-z0-9.-]+\.schema\.json$")
+    compatibility_status: Literal["accepted-release-read-only"]
+
+
+class ProductContractSetV1(ProductModel):
+    contract_set_version: str = Field(pattern=r"^propertyscope\.product-contract-set\.v1$")
+    compatibility_policy: str = Field(
+        pattern=r"^closed-record-schemas-require-new-version-for-shape-changes$"
+    )
+    contracts: tuple[ProductContractEntry, ...]
+    legacy_contracts: tuple[LegacyProductContractEntry, ...]
+
+
 class ReleaseManifestV1(ProductModel):
     manifest_schema_version: str = Field(pattern=r"^propertyscope\.release-manifest\.v1$")
     product_schema_version: str
@@ -246,8 +266,8 @@ class ReleaseManifestV1(ProductModel):
     record_count: int = Field(ge=0)
     record_count_definition: str
     content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    media_type: str
-    content_encoding: str | None = None
+    media_type: Literal["application/x-ndjson"]
+    content_encoding: Literal["gzip"]
     byte_count: int = Field(ge=1)
     geography_coverage: tuple[str, ...]
     temporal_coverage: dict[str, str] | None = None
@@ -335,8 +355,8 @@ class ReleaseBuilderSpec:
     import_profiles: frozenset[str]
     contract: str
     target_feature: str
-    media_type: str
-    content_encoding: str | None
+    media_type: Literal["application/x-ndjson"]
+    content_encoding: Literal["gzip"]
     ordering_rule: str
     max_rows: int | None
     max_bytes: int | None
@@ -409,16 +429,11 @@ class RegisteredReleaseBuilder:
             raise ValueError("release product must not be empty")
         if self.spec.max_rows is not None and len(records) > self.spec.max_rows:
             raise ValueError("release product exceeds the registered row bound; narrow its scope")
-        envelope = ProductEnvelope(
-            schema_version=self.spec.contract,
-            release_id=context.release_id,
-            release_version=context.release_version,
-            dataset_id=context.dataset_id,
-            target_feature=context.target_feature,
-            candidate_generation_id=context.candidate_generation_id,
-            records=tuple(records),
+        compressor = zlib.compressobj(level=6, method=zlib.DEFLATED, wbits=31)
+        content = (
+            compressor.compress(b"".join(_canonical_bytes(record) + b"\n" for record in records))
+            + compressor.flush()
         )
-        content = _canonical_bytes(envelope.model_dump(mode="json"))
         if self.spec.max_bytes is not None and len(content) > self.spec.max_bytes:
             raise ValueError("release product exceeds the registered byte bound; narrow its scope")
         digest = hashlib.sha256(content).hexdigest()
@@ -446,8 +461,8 @@ class RegisteredReleaseBuilder:
             record_count=len(records),
             record_count_definition=count_definition,
             content_sha256=digest,
-            media_type="application/json",
-            content_encoding=None,
+            media_type=self.spec.media_type,
+            content_encoding=self.spec.content_encoding,
             byte_count=len(content),
             geography_coverage=tuple(sorted(geographies)),
             temporal_coverage=temporal,
@@ -789,6 +804,7 @@ class StreamingProduct:
         self._temporal_to: str | None = None
         self._count_definition = ""
         self._limitations: tuple[str, ...] = ()
+        self._byte_count = 0
 
     def chunks(self) -> Iterable[bytes]:
         if self._consumed:
@@ -800,14 +816,29 @@ class StreamingProduct:
             if len(records) != 1:
                 raise ValueError("streaming release projection must emit exactly one record")
             record = records[0]
+            if (
+                self._builder.spec.max_rows is not None
+                and self._record_count >= self._builder.spec.max_rows
+            ):
+                raise ValueError(
+                    "release product exceeds the registered row bound; narrow its scope"
+                )
             self._observe(record)
             payload = _canonical_bytes(record) + b"\n"
             chunk = compressor.compress(payload)
             if chunk:
+                self._check_byte_bound(len(chunk))
                 yield chunk
         final = compressor.flush()
         if final:
+            self._check_byte_bound(len(final))
             yield final
+
+    def _check_byte_bound(self, emitted: int) -> None:
+        byte_count = self._byte_count + emitted
+        self._byte_count = byte_count
+        if self._builder.spec.max_bytes is not None and byte_count > self._builder.spec.max_bytes:
+            raise ValueError("release product exceeds the registered byte bound; narrow its scope")
 
     def _observe(self, record: dict[str, Any]) -> None:
         geographies, temporal, measures, entities, count_definition, limitations = (
@@ -881,9 +912,9 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
     definitions = (
         ReleaseBuilderSpec(
             "property-snapshot",
-            "2.0.0",
+            "3.0.0",
             frozenset({"property-fixture", "gnaf-nsw"}),
-            "propertyscope.property-snapshot.v1",
+            "propertyscope.property-snapshot.v2",
             "feature-1",
             "application/x-ndjson",
             "gzip",
@@ -895,9 +926,9 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
         ),
         ReleaseBuilderSpec(
             "property-sales",
-            "3.0.0",
+            "4.0.0",
             frozenset({"psi-sales"}),
-            "propertyscope.property-sales.v2",
+            "propertyscope.property-sales.v3",
             "feature-2",
             "application/x-ndjson",
             "gzip",
@@ -909,9 +940,9 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
         ),
         ReleaseBuilderSpec(
             "crime-series",
-            "2.0.0",
+            "3.0.0",
             frozenset({"bocsar-sparse"}),
-            "propertyscope.crime-series.v1",
+            "propertyscope.crime-series.v2",
             "feature-3",
             "application/x-ndjson",
             "gzip",
@@ -923,9 +954,9 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
         ),
         ReleaseBuilderSpec(
             "school-points",
-            "2.0.0",
+            "3.0.0",
             frozenset({"schools-master"}),
-            "propertyscope.school-points.v1",
+            "propertyscope.school-points.v2",
             "feature-3",
             "application/x-ndjson",
             "gzip",
@@ -983,10 +1014,10 @@ def validate_release_job(
 
 def validate_product_record(schema_version: str, payload: Mapping[str, Any]) -> None:
     adapters: dict[str, TypeAdapter[Any]] = {
-        "propertyscope.property-snapshot.v1": TypeAdapter(PropertySnapshotRecord),
-        "propertyscope.property-sales.v2": TypeAdapter(PropertySaleRecord),
-        "propertyscope.crime-series.v1": TypeAdapter(CrimeSeriesRecord),
-        "propertyscope.school-points.v1": TypeAdapter(SchoolPointRecord),
+        "propertyscope.property-snapshot.v2": TypeAdapter(PropertySnapshotRecord),
+        "propertyscope.property-sales.v3": TypeAdapter(PropertySaleRecord),
+        "propertyscope.crime-series.v2": TypeAdapter(CrimeSeriesRecord),
+        "propertyscope.school-points.v2": TypeAdapter(SchoolPointRecord),
     }
     adapter = adapters.get(schema_version)
     if adapter is None:
@@ -1001,12 +1032,18 @@ def product_schema_documents() -> dict[str, dict[str, Any]]:
     """Return the checked-in JSON Schema source documents for drift validation."""
     models: dict[str, type[BaseModel]] = {
         "property-snapshot.v1.schema.json": PropertySnapshotProduct,
+        "property-snapshot.v2.schema.json": PropertySnapshotRecord,
         "property-sales.v2.schema.json": PropertySalesProduct,
+        "property-sales.v3.schema.json": PropertySaleRecord,
         "crime-series.v1.schema.json": CrimeSeriesProduct,
+        "crime-series.v2.schema.json": CrimeSeriesRecord,
         "school-points.v1.schema.json": SchoolPointsProduct,
+        "school-points.v2.schema.json": SchoolPointRecord,
+        "product-contract-set.v1.schema.json": ProductContractSetV1,
         "release-manifest.v1.schema.json": ReleaseManifestV1,
         "data-product-catalogue-entry.v1.schema.json": DataProductCatalogueEntry,
         "release-detail.v1.schema.json": ReleaseDetailContract,
+        "consumer-import-acknowledgement.v1.schema.json": ConsumerImportAcknowledgement,
         "consumer-publication-request.v1.schema.json": ConsumerPublicationRequest,
         "consumer-publication-receipt.v1.schema.json": PublicationReceiptResult,
     }
@@ -1017,10 +1054,86 @@ def product_schema_documents() -> dict[str, dict[str, Any]]:
             schema["properties"]["manifest"] = ReleaseManifestV1.model_json_schema(
                 mode="validation"
             )
+        if filename == "consumer-import-acknowledgement.v1.schema.json":
+            schema["allOf"] = [
+                {
+                    "if": {"properties": {"status": {"enum": ["queued", "running"]}}},
+                    "then": {
+                        "properties": {
+                            "rows_received": {"type": "null"},
+                            "rows_accepted": {"type": "null"},
+                            "rows_rejected": {"type": "null"},
+                            "error": {"type": "null"},
+                        }
+                    },
+                },
+                {
+                    "if": {"properties": {"status": {"enum": ["accepted", "rejected", "failed"]}}},
+                    "then": {"required": ["rows_received", "rows_accepted", "rows_rejected"]},
+                },
+                {
+                    "if": {"properties": {"status": {"const": "accepted"}}},
+                    "then": {"properties": {"error": {"type": "null"}}},
+                },
+                {
+                    "if": {"properties": {"status": {"enum": ["rejected", "failed"]}}},
+                    "then": {"required": ["error"], "properties": {"error": {"type": "object"}}},
+                },
+            ]
         schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
         schema["$id"] = f"https://propertyscope.local/contracts/{filename}"
         documents[filename] = schema
     return documents
+
+
+def product_contract_set_document() -> dict[str, Any]:
+    """Return the supported producer-owned record-schema distribution index."""
+    paths = {
+        "propertyscope.property-snapshot.v2": "property-snapshot.v2.schema.json",
+        "propertyscope.property-sales.v3": "property-sales.v3.schema.json",
+        "propertyscope.crime-series.v2": "crime-series.v2.schema.json",
+        "propertyscope.school-points.v2": "school-points.v2.schema.json",
+    }
+    contracts = tuple(
+        ProductContractEntry(
+            schema_version=builder.spec.contract,
+            schema_path=paths[builder.spec.contract],
+            builder_key=builder.spec.key,
+            builder_version=builder.spec.version,
+            target_feature=builder.spec.target_feature,
+            media_type=builder.spec.media_type,
+            content_encoding=builder.spec.content_encoding,
+            record_framing="one-json-object-per-line",
+        )
+        for builder in default_release_builders().values()
+    )
+    return ProductContractSetV1(
+        contract_set_version="propertyscope.product-contract-set.v1",
+        compatibility_policy=("closed-record-schemas-require-new-version-for-shape-changes"),
+        contracts=contracts,
+        legacy_contracts=(
+            LegacyProductContractEntry(
+                schema_version="propertyscope.property-snapshot.v1",
+                schema_path="property-snapshot.v1.schema.json",
+                compatibility_status="accepted-release-read-only",
+            ),
+            LegacyProductContractEntry(
+                schema_version="propertyscope.property-sales.v2",
+                schema_path="property-sales.v2.schema.json",
+                compatibility_status="accepted-release-read-only",
+            ),
+            LegacyProductContractEntry(
+                schema_version="propertyscope.crime-series.v1",
+                schema_path="crime-series.v1.schema.json",
+                compatibility_status="accepted-release-read-only",
+            ),
+            LegacyProductContractEntry(
+                schema_version="propertyscope.school-points.v1",
+                schema_path="school-points.v1.schema.json",
+                compatibility_status="accepted-release-read-only",
+            ),
+        ),
+    ).model_dump(mode="json")
 
 
 def validate_feature_registration(feature_root: Path) -> None:
@@ -1041,6 +1154,13 @@ def validate_feature_registration(feature_root: Path) -> None:
             raise ConfigurationError(f"release contract schema is invalid: {filename}") from exc
         if actual != expected:
             raise ConfigurationError(f"release contract schema has drifted: {filename}")
+    contract_set_path = contracts_root / "product-contract-set.v1.json"
+    try:
+        contract_set = json.loads(contract_set_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigurationError("product contract set is absent or invalid") from exc
+    if contract_set != product_contract_set_document():
+        raise ConfigurationError("product contract set has drifted")
     schema_names = {builder.spec.contract for builder in default_release_builders().values()}
     for key in jobs:
         job = jobs.get_profile(key)

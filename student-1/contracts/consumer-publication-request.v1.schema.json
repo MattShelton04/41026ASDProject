@@ -1,9 +1,16 @@
 {
+  "$id": "https://propertyscope.local/contracts/consumer-publication-request.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "release_id": {
-      "format": "uuid",
-      "title": "Release Id",
+    "artifact_path": {
+      "pattern": "^/api/data-platform/v1/dataset-releases/[0-9a-f-]+/artifact$",
+      "title": "Artifact Path",
+      "type": "string"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
       "type": "string"
     },
     "dataset_id": {
@@ -12,32 +19,125 @@
       "title": "Dataset Id",
       "type": "string"
     },
-    "schema_version": {
-      "maxLength": 100,
-      "pattern": "^[a-z0-9][a-z0-9._-]*$",
-      "title": "Schema Version",
+    "idempotency_key": {
+      "maxLength": 200,
+      "minLength": 8,
+      "title": "Idempotency Key",
       "type": "string"
-    },
-    "content_sha256": {
-      "pattern": "^[0-9a-f]{64}$",
-      "title": "Content Sha256",
-      "type": "string"
-    },
-    "record_count": {
-      "minimum": 0,
-      "title": "Record Count",
-      "type": "integer"
     },
     "manifest": {
       "additionalProperties": false,
       "properties": {
+        "builder_key": {
+          "title": "Builder Key",
+          "type": "string"
+        },
+        "builder_version": {
+          "title": "Builder Version",
+          "type": "string"
+        },
+        "byte_count": {
+          "minimum": 1,
+          "title": "Byte Count",
+          "type": "integer"
+        },
+        "candidate_generation_id": {
+          "format": "uuid",
+          "title": "Candidate Generation Id",
+          "type": "string"
+        },
+        "content_encoding": {
+          "const": "gzip",
+          "title": "Content Encoding",
+          "type": "string"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "dataset_id": {
+          "title": "Dataset Id",
+          "type": "string"
+        },
+        "download_permitted": {
+          "title": "Download Permitted",
+          "type": "boolean"
+        },
+        "entity_types": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entity Types",
+          "type": "array"
+        },
+        "geography_coverage": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Geography Coverage",
+          "type": "array"
+        },
+        "import_profile": {
+          "title": "Import Profile",
+          "type": "string"
+        },
+        "known_limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Known Limitations",
+          "type": "array"
+        },
+        "licence_url": {
+          "title": "Licence Url",
+          "type": "string"
+        },
         "manifest_schema_version": {
           "pattern": "^propertyscope\\.release-manifest\\.v1$",
           "title": "Manifest Schema Version",
           "type": "string"
         },
+        "measures": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Measures",
+          "type": "array"
+        },
+        "media_type": {
+          "const": "application/x-ndjson",
+          "title": "Media Type",
+          "type": "string"
+        },
+        "normalisation_version": {
+          "title": "Normalisation Version",
+          "type": "string"
+        },
         "product_schema_version": {
           "title": "Product Schema Version",
+          "type": "string"
+        },
+        "publisher": {
+          "title": "Publisher",
+          "type": "string"
+        },
+        "record_count": {
+          "minimum": 0,
+          "title": "Record Count",
+          "type": "integer"
+        },
+        "record_count_definition": {
+          "title": "Record Count Definition",
+          "type": "string"
+        },
+        "redistribution_decision": {
+          "title": "Redistribution Decision",
           "type": "string"
         },
         "release_id": {
@@ -49,37 +149,25 @@
           "title": "Release Version",
           "type": "string"
         },
-        "dataset_id": {
-          "title": "Dataset Id",
-          "type": "string"
-        },
-        "target_feature": {
-          "pattern": "^feature-[1-5]$",
-          "title": "Target Feature",
-          "type": "string"
-        },
-        "builder_key": {
-          "title": "Builder Key",
-          "type": "string"
-        },
-        "builder_version": {
-          "title": "Builder Version",
-          "type": "string"
-        },
-        "import_profile": {
-          "title": "Import Profile",
-          "type": "string"
-        },
-        "normalisation_version": {
-          "title": "Normalisation Version",
-          "type": "string"
-        },
-        "publisher": {
-          "title": "Publisher",
-          "type": "string"
-        },
         "source": {
           "title": "Source",
+          "type": "string"
+        },
+        "source_effective_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Effective At"
+        },
+        "source_licence": {
+          "title": "Source Licence",
           "type": "string"
         },
         "source_release": {
@@ -99,10 +187,10 @@
           "default": null,
           "title": "Source Retrieved At"
         },
-        "source_effective_at": {
+        "supersedes_release_id": {
           "anyOf": [
             {
-              "format": "date-time",
+              "format": "uuid",
               "type": "string"
             },
             {
@@ -110,54 +198,12 @@
             }
           ],
           "default": null,
-          "title": "Source Effective At"
+          "title": "Supersedes Release Id"
         },
-        "candidate_generation_id": {
-          "format": "uuid",
-          "title": "Candidate Generation Id",
+        "target_feature": {
+          "pattern": "^feature-[1-5]$",
+          "title": "Target Feature",
           "type": "string"
-        },
-        "record_count": {
-          "minimum": 0,
-          "title": "Record Count",
-          "type": "integer"
-        },
-        "record_count_definition": {
-          "title": "Record Count Definition",
-          "type": "string"
-        },
-        "content_sha256": {
-          "pattern": "^[0-9a-f]{64}$",
-          "title": "Content Sha256",
-          "type": "string"
-        },
-        "media_type": {
-          "title": "Media Type",
-          "type": "string"
-        },
-        "content_encoding": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Content Encoding"
-        },
-        "byte_count": {
-          "minimum": 1,
-          "title": "Byte Count",
-          "type": "integer"
-        },
-        "geography_coverage": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Geography Coverage",
-          "type": "array"
         },
         "temporal_coverage": {
           "anyOf": [
@@ -173,61 +219,6 @@
           ],
           "default": null,
           "title": "Temporal Coverage"
-        },
-        "measures": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Measures",
-          "type": "array"
-        },
-        "entity_types": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Entity Types",
-          "type": "array"
-        },
-        "source_licence": {
-          "title": "Source Licence",
-          "type": "string"
-        },
-        "licence_url": {
-          "title": "Licence Url",
-          "type": "string"
-        },
-        "redistribution_decision": {
-          "title": "Redistribution Decision",
-          "type": "string"
-        },
-        "download_permitted": {
-          "title": "Download Permitted",
-          "type": "boolean"
-        },
-        "known_limitations": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Known Limitations",
-          "type": "array"
-        },
-        "created_at": {
-          "format": "date-time",
-          "title": "Created At",
-          "type": "string"
-        },
-        "supersedes_release_id": {
-          "anyOf": [
-            {
-              "format": "uuid",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Supersedes Release Id"
         }
       },
       "required": [
@@ -249,6 +240,7 @@
         "record_count_definition",
         "content_sha256",
         "media_type",
+        "content_encoding",
         "byte_count",
         "geography_coverage",
         "measures",
@@ -263,15 +255,20 @@
       "title": "ReleaseManifestV1",
       "type": "object"
     },
-    "artifact_path": {
-      "pattern": "^/api/data-platform/v1/dataset-releases/[0-9a-f-]+/artifact$",
-      "title": "Artifact Path",
+    "record_count": {
+      "minimum": 0,
+      "title": "Record Count",
+      "type": "integer"
+    },
+    "release_id": {
+      "format": "uuid",
+      "title": "Release Id",
       "type": "string"
     },
-    "idempotency_key": {
-      "maxLength": 200,
-      "minLength": 8,
-      "title": "Idempotency Key",
+    "schema_version": {
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Schema Version",
       "type": "string"
     }
   },
@@ -286,7 +283,5 @@
     "idempotency_key"
   ],
   "title": "ConsumerPublicationRequest",
-  "type": "object",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://propertyscope.local/contracts/consumer-publication-request.v1.schema.json"
+  "type": "object"
 }

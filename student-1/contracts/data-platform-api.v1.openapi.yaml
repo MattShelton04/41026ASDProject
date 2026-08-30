@@ -22,6 +22,38 @@ paths:
       operationId: getRuntimeCapabilities
       description: Reports connected official acquisition profiles and locally cached source partitions.
       responses: {'200': {description: Runtime acquisition capabilities}}
+  /product-contracts/v1:
+    get:
+      operationId: discoverProductContractPackage
+      description: Discovers the current immutable, versioned producer contract package without exposing arbitrary producer files.
+      responses:
+        '200':
+          description: Content-addressed product contract package metadata
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ProductContractPackage'}
+        '422': {$ref: '#/components/responses/Problem'}
+  /product-contracts/v1/sha256/{digest}.zip:
+    get:
+      operationId: downloadProductContractPackage
+      description: Downloads the fixed ZIP package whose bytes match the path-bound SHA-256 digest.
+      parameters:
+        - name: digest
+          in: path
+          required: true
+          schema: {type: string, pattern: '^[0-9a-f]{64}$'}
+      responses:
+        '200':
+          description: Immutable versioned product schemas and protocol contracts
+          headers:
+            Digest: {schema: {type: string}}
+            ETag: {schema: {type: string}}
+            Cache-Control: {schema: {type: string}}
+          content:
+            application/zip:
+              schema: {type: string, format: binary}
+        '404': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
   /assistant/capabilities:
     get:
       operationId: getAssistantCapabilities
@@ -245,10 +277,26 @@ paths:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/OperatorPublishRequest'}}}
       responses:
+        '200': {description: Previously completed publication replayed from matching immutable evidence, content: {application/json: {schema: {$ref: '#/components/schemas/PublicationResult'}}}}
         '202': {description: Consumer accepted and background activation queued, content: {application/json: {schema: {$ref: '#/components/schemas/PublicationResult'}}}}
         '409': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/Problem'}
         '424': {$ref: '#/components/responses/Problem'}
+  /dataset-releases/{release_id}/consumer-imports/{operation_id}:
+    get:
+      operationId: getReleaseConsumerImport
+      description: Returns durable consumer delivery and accepted-version activation progress without holding the publication request open.
+      parameters:
+        - {$ref: '#/components/parameters/ReleaseId'}
+        - {name: operation_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Consumer import and activation status
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConsumerImportStatus'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
   /dataset-releases/{release_id}/reject:
     post:
       operationId: rejectDatasetRelease
@@ -430,7 +478,7 @@ components:
             dataset_id: {const: nsw-psi-sales}
             release_version: {type: string, minLength: 1}
             status: {enum: [accepted, superseded]}
-            schema_version: {const: propertyscope.property-sales.v2}
+            schema_version: {const: propertyscope.property-sales.v3}
         source_partition_year: {type: integer, minimum: 1990, maximum: 9999}
         items: {type: array, maxItems: 5000, items: {type: object}}
         count: {type: integer, minimum: 0, maximum: 5000}
@@ -440,7 +488,7 @@ components:
         next_offset: {type: [integer, 'null'], minimum: 0, maximum: 1000000}
     ReleaseInspection:
       type: object
-      required: [release, quality_results, quality_summary, receipts, activations, accepted_predecessor, release_contract]
+      required: [release, quality_results, quality_summary, receipts, activations, consumer_imports, accepted_predecessor, release_contract]
       properties:
         release: {type: object}
         release_contract:
@@ -451,6 +499,7 @@ components:
         quality_summary: {type: object}
         receipts: {type: array, maxItems: 100, items: {$ref: './consumer-publication-receipt.v1.schema.json'}}
         activations: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/ReleaseActivation'}}
+        consumer_imports: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/ConsumerImportOperation'}}
         accepted_predecessor: {type: [object, 'null']}
     OperatorPublishRequest:
       type: object
@@ -460,14 +509,30 @@ components:
         version: {type: integer, minimum: 1}
         comment: {type: string, minLength: 1, maxLength: 2000}
         approved: {const: true}
+    ProductContractPackage:
+      type: object
+      additionalProperties: false
+      required: [contract_set_version, media_type, content_sha256, byte_count, artifact_path]
+      properties:
+        contract_set_version: {const: propertyscope.product-contract-set.v1}
+        media_type: {const: application/zip}
+        content_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+        byte_count: {type: integer, minimum: 1}
+        artifact_path: {type: string, pattern: '^/api/data-platform/v1/product-contracts/v1/sha256/[0-9a-f]{64}\\.zip$'}
     PublicationResult:
       type: object
       additionalProperties: false
-      required: [release, receipt, activation, replayed]
+      required: [release, publication_status, replayed]
+      anyOf:
+        - required: [receipt]
+        - required: [consumer_import, status_path]
       properties:
         release: {type: object}
         receipt: {$ref: './consumer-publication-receipt.v1.schema.json'}
         activation: {$ref: '#/components/schemas/ReleaseActivation'}
+        consumer_import: {$ref: '#/components/schemas/ConsumerImportOperation'}
+        status_path: {type: string, pattern: '^/api/data-platform/v1/dataset-releases/[0-9a-f-]+/consumer-imports/[0-9a-f-]+$'}
+        publication_status: {enum: [pending, completed, failed]}
         replayed: {type: boolean}
     ReleaseActivation:
       type: object
@@ -483,6 +548,49 @@ components:
         finished_at: {type: [string, 'null'], format: date-time}
         error_json: {type: [object, 'null']}
         version: {type: integer, minimum: 1}
+    ConsumerImportOperation:
+      type: object
+      additionalProperties: false
+      required: [id, dataset_release_id, dataset_id, target_feature, schema_version, content_sha256, record_count, status, phase_key, remote_status, consumer_operation_id, publication_receipt_id, release_activation_id, attempt_number, requested_at, started_at, finished_at, error_json, version, budgets]
+      properties:
+        id: {type: string, format: uuid}
+        dataset_release_id: {type: string, format: uuid}
+        dataset_id: {type: string, minLength: 1, maxLength: 150}
+        target_feature: {type: string, minLength: 1, maxLength: 100}
+        schema_version: {type: string, minLength: 1, maxLength: 200}
+        content_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+        record_count: {type: integer, minimum: 0}
+        status: {enum: [queued, claimed, polling, receipt_pending, activation_pending, activation_queued, published, rejected, failed, interrupted]}
+        phase_key: {enum: [connect, poll, record_receipt, queue_activation, wait_activation, complete]}
+        remote_status: {type: [string, 'null']}
+        consumer_operation_id: {type: [string, 'null']}
+        publication_receipt_id: {type: [string, 'null'], format: uuid}
+        release_activation_id: {type: [string, 'null'], format: uuid}
+        attempt_number: {type: integer, minimum: 1, maximum: 5}
+        requested_at: {type: string, format: date-time}
+        started_at: {type: [string, 'null'], format: date-time}
+        finished_at: {type: [string, 'null'], format: date-time}
+        error_json: {type: [object, 'null']}
+        version: {type: integer, minimum: 1}
+        budgets:
+          type: object
+          additionalProperties: false
+          required: [connect_timeout_seconds, status_timeout_seconds, maximum_response_bytes]
+          properties:
+            connect_timeout_seconds: {type: number, exclusiveMinimum: 0}
+            status_timeout_seconds: {type: number, exclusiveMinimum: 0}
+            maximum_response_bytes: {type: integer, minimum: 1}
+    ConsumerImportStatus:
+      type: object
+      additionalProperties: false
+      required: [consumer_import, activation, publication_status]
+      properties:
+        consumer_import: {$ref: '#/components/schemas/ConsumerImportOperation'}
+        activation:
+          anyOf:
+            - {$ref: '#/components/schemas/ReleaseActivation'}
+            - {type: 'null'}
+        publication_status: {enum: [pending, completed, failed]}
     SourceDefinitionFields:
       type: object
       properties:
