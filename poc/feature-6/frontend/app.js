@@ -94,11 +94,11 @@ async function readiness(signal) {
       card("Feature 1", status.feature_1?.ready ? "Ready" : "Unavailable", status.feature_1?.detail || "Public HTTP boundary", status.feature_1?.ready ? "complete" : "unavailable"),
       card("POC database", status.store?.ready ? "Ready" : "Unavailable", "Exclusive SQLite owner", status.store?.ready ? "complete" : "unavailable"),
       card("AI explanations", status.ai_mode?.state === "ready" ? "Ready" : status.ai_mode?.state === "degraded" ? "Degraded" : "Unavailable", status.ai_mode?.detail || "Optional shared AI-mode boundary", status.ai_mode?.state === "ready" ? "complete" : "partial"),
-      card("Imported releases", String(listItems(imports).length), "Accepted immutable products only", listItems(imports).length ? "confirmed" : "partial"),
+      card("Imported releases", String(listItems(imports).length), "Approved immutable publication imports", listItems(imports).length ? "confirmed" : "partial"),
     );
     append(root, grid);
     const rows = listItems(imports).map((item) => [item.dataset_id, item.schema_version, item.target_feature, item.record_count ?? item.rows_accepted, item.provider_release_id || item.release_id]);
-    append(root, el("h2", "", "Release ledger"), rows.length ? table(["Dataset", "Schema", "Original target", "Rows", "Release"], rows) : el("p", "poc-empty", "No accepted products have been imported yet. Publication and reconciliation remain explicit operations."));
+    append(root, el("h2", "", "Release ledger"), rows.length ? table(["Dataset", "Schema", "Original target", "Rows", "Release"], rows) : el("p", "poc-empty", "No approved publication has been imported yet. Publication and reconciliation remain explicit operations."));
     const details = el("details");
     append(details, el("summary", "", "Provider catalogue response"), el("pre", "poc-code", JSON.stringify(status.catalogue || {}, null, 2)));
     append(root, details);
