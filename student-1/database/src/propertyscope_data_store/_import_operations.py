@@ -130,6 +130,7 @@ class _RegisteredImportOperations:
         work: Mapping[str, Any],
         prepared: PreparedImport,
         *,
+        phase_callback: Any | None = None,
         lease_failed_event: Event | None = None,
         stop_event: Event | None = None,
     ) -> ImportResult:
@@ -140,7 +141,12 @@ class _RegisteredImportOperations:
             lease_failed_event=lease_failed_event,
             stop_event=stop_event,
         ) as connection:
-            return execute_import(connection, work, prepared)
+            return execute_import(
+                connection,
+                work,
+                prepared,
+                phase_callback=phase_callback,
+            )
 
     def execute_stream_import_profile(
         self,
@@ -307,7 +313,19 @@ class _RegisteredImportOperations:
             connection.execute(
                 """UPDATE ops.import_operation operation SET status='cancelled',finished_at=%s,
                 error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
-                heartbeat_at=NULL,version=operation.version+1 FROM ops.ingestion_run run
+                heartbeat_at=NULL,space_recovery_status='needed',
+                space_recovery_policy_json=jsonb_build_object(
+                    'policy','measure_then_target_exact_relations',
+                    'trigger','cancelled_import_lease_expired_after_possible_rollback',
+                    'relations',to_jsonb(CASE operation.import_profile_key
+                        WHEN 'psi-sales' THEN ARRAY['warehouse.psi_sale']::text[]
+                        WHEN 'bocsar-sparse' THEN ARRAY[
+                            'warehouse.bocsar_observation','warehouse.bocsar_coverage']::text[]
+                        WHEN 'schools-master' THEN ARRAY['warehouse.school']::text[]
+                        ELSE ARRAY['warehouse.gnaf_address']::text[] END),
+                    'automatic_destructive_maintenance',false,
+                    'next_step','measure dead tuples and allocated bytes before bounded maintenance'
+                ),version=operation.version+1 FROM ops.ingestion_run run
                 WHERE run.id=operation.ingestion_run_id AND run.cancel_requested_at IS NOT NULL
                 AND operation.status IN ('claimed','running')
                 AND operation.lease_expires_at<=%s""",

@@ -1643,6 +1643,12 @@ def test_import_claim_terminalises_expired_work_for_a_cancelled_run() -> None:
     assert "SET status='cancelled'" in cancellation
     assert "finished_at=%s" in cancellation
     assert "run.cancel_requested_at IS NOT NULL" in cancellation
+    assert "space_recovery_status='needed'" in cancellation
+    assert "measure_then_target_exact_relations" in cancellation
+    assert "warehouse.psi_sale" in cancellation
+    assert "warehouse.bocsar_observation" in cancellation
+    assert "warehouse.bocsar_coverage" in cancellation
+    assert "automatic_destructive_maintenance',false" in cancellation
     cancellation_parameters = connection.parameters[0]
     assert cancellation_parameters is not None
     assert "operator_cancelled" in str(cancellation_parameters[1])

@@ -1909,6 +1909,7 @@ class PropertyScopeStore:
         work: Mapping[str, Any],
         prepared: PreparedImport,
         *,
+        phase_callback: Any | None = None,
         lease_failed_event: Event | None = None,
         stop_event: Event | None = None,
     ) -> ImportResult:
@@ -1916,6 +1917,7 @@ class PropertyScopeStore:
         return self._imports().execute_import_profile(
             work,
             prepared,
+            phase_callback=phase_callback,
             lease_failed_event=lease_failed_event,
             stop_event=stop_event,
         )

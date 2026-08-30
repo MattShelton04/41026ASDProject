@@ -17,7 +17,10 @@ from propertyscope_data_store.import_profiles import (
     _GNAF_STREAM_COLUMNS,
     _GNAF_STREAM_INSERT_SQL,
     _GNAF_STREAM_STAGE_SQL,
-    _PROFILE_INSERT_SQL,
+    _PSI_ADDRESS_RESOLUTION_SQL,
+    _PSI_IDENTITY_SQL,
+    _PSI_PHASE_SQL,
+    _PSI_TARGET_INSERT_SQL,
     CANONICAL_SCHEMA_VERSION,
     IMPORT_PHASE_LABELS,
     POSTGRES_INTEGER_MAX,
@@ -509,7 +512,7 @@ def test_loader_exposes_bounded_canonical_validation_evidence() -> None:
 
 
 def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions() -> None:
-    source = _PROFILE_INSERT_SQL["psi-sales"]
+    source = "\n".join(statement for _phase, statement in _PSI_PHASE_SQL)
 
     assert "distinct_source_rows" in source
     assert "source_row_sha256" in source
@@ -517,16 +520,54 @@ def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions(
     assert "source_partition_year" in source
     assert "street_name_normalised" in source
     assert "registry.property" in source
-    assert "count(*)=1" in source
+    assert "count(property.property_ref)=1" in source
     assert "exact_address" in source
     assert "LEFT JOIN LATERAL" not in source
     assert "upper(" not in source
-    assert "HAVING count(*)=1" in source
+    assert "CASE WHEN count(property.property_ref)=1" in source
     assert "property.street_number_last" in source
     assert "property.street_number_suffix" in source
     assert "property.unit_number" in source
-    assert "NULLIF(ranked.payload->>'street_type','') IS NOT NULL" in source
+    assert "NULLIF(payload->>'street_type','') IS NOT NULL" in source
     assert "house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'" in source
+
+
+def test_psi_phase_callbacks_immediately_precede_their_real_sql_boundaries() -> None:
+    events: list[str] = []
+
+    class PhaseCursor(_PersistedCandidateCountCursor):
+        def execute(self, statement: str, parameters: tuple[object, ...]) -> None:
+            phase_by_sql = {
+                _PSI_IDENTITY_SQL: "identity_revision_derivation",
+                _PSI_ADDRESS_RESOLUTION_SQL: "address_resolution",
+                _PSI_TARGET_INSERT_SQL: "target_materialisation",
+            }
+            if statement in phase_by_sql:
+                events.append(f"sql:{phase_by_sql[statement]}")
+            super().execute(statement, parameters)
+
+    cursor = PhaseCursor({"warehouse.psi_sale": 7})
+    release_id, artifact_id, run_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+    accepted = _insert_profile_rows(
+        cursor,
+        "psi-sales",
+        release_id=release_id,
+        artifact_id=artifact_id,
+        run_id=run_id,
+        phase_rows=7,
+        phase_callback=lambda phase, rows: events.append(f"callback:{phase}:{rows}"),
+    )
+
+    assert accepted == 7
+    assert events == [
+        "callback:identity_revision_derivation:7",
+        "sql:identity_revision_derivation",
+        "callback:address_resolution:7",
+        "sql:address_resolution",
+        "callback:target_materialisation:7",
+        "sql:target_materialisation",
+    ]
 
 
 class _Store:
@@ -538,6 +579,7 @@ class _Store:
         work: dict[str, Any],
         prepared: Any,
         *,
+        phase_callback: Any | None = None,
         lease_failed_event: Event | None = None,
         stop_event: Event | None = None,
     ) -> ImportResult:
@@ -545,6 +587,9 @@ class _Store:
         assert stop_event is None or not stop_event.is_set()
         assert prepared.profile == "property-fixture"
         assert work["candidate_release_id"] == "60000000-0000-0000-0000-000000000001"
+        if phase_callback is not None:
+            phase_callback("target_materialisation", 1)
+            phase_callback("verification", 1)
         return ImportResult(1, 1, 1, 0, 2)
 
 
