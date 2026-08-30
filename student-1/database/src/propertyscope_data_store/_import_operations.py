@@ -324,6 +324,9 @@ class _RegisteredImportOperations:
                             'warehouse.bocsar_observation','warehouse.bocsar_coverage']::text[]
                         WHEN 'schools-master' THEN ARRAY['warehouse.school']::text[]
                         ELSE ARRAY['warehouse.gnaf_address']::text[] END),
+                    'destination_may_have_been_touched',COALESCE(
+                        operation.progress_phase_key IN ('target_materialisation','verification'),
+                        false),
                     'automatic_destructive_maintenance',false,
                     'next_step','measure dead tuples and allocated bytes before bounded maintenance'
                 ),version=operation.version+1 FROM ops.ingestion_run run

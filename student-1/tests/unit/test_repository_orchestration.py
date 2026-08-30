@@ -1648,6 +1648,10 @@ def test_import_claim_terminalises_expired_work_for_a_cancelled_run() -> None:
     assert "warehouse.psi_sale" in cancellation
     assert "warehouse.bocsar_observation" in cancellation
     assert "warehouse.bocsar_coverage" in cancellation
+    assert (
+        "operation.progress_phase_key IN ('target_materialisation','verification')" in cancellation
+    )
+    assert "false)" in cancellation
     assert "automatic_destructive_maintenance',false" in cancellation
     cancellation_parameters = connection.parameters[0]
     assert cancellation_parameters is not None
@@ -1655,7 +1659,13 @@ def test_import_claim_terminalises_expired_work_for_a_cancelled_run() -> None:
     assert "WHERE status='queued'" in connection.queries[2]
 
 
-def test_cancelled_import_projects_bounded_relation_scoped_space_recovery() -> None:
+@pytest.mark.parametrize(
+    ("progress_phase_key", "destination_may_have_been_touched"),
+    [("typed_staging", False), ("target_materialisation", True), ("verification", True)],
+)
+def test_cancelled_import_projects_bounded_relation_scoped_space_recovery(
+    progress_phase_key: str, destination_may_have_been_touched: bool
+) -> None:
     operation_id = uuid.uuid4()
     completed = {
         "id": operation_id,
@@ -1664,7 +1674,11 @@ def test_cancelled_import_projects_bounded_relation_scoped_space_recovery() -> N
     }
     connection = ScriptedConnection(
         [
-            {"id": operation_id, "import_profile_key": "bocsar-sparse"},
+            {
+                "id": operation_id,
+                "import_profile_key": "bocsar-sparse",
+                "progress_phase_key": progress_phase_key,
+            },
             completed,
         ]
     )
@@ -1689,6 +1703,8 @@ def test_cancelled_import_projects_bounded_relation_scoped_space_recovery() -> N
     assert "warehouse.bocsar_observation" in policy
     assert "warehouse.bocsar_coverage" in policy
     assert "automatic_destructive_maintenance" in policy
+    expected_flag = str(destination_may_have_been_touched).lower()
+    assert f'"destination_may_have_been_touched":{expected_flag}' in policy
 
 
 def test_interrupted_import_reenqueue_increments_attempt_once_and_replay_is_stable() -> None:
