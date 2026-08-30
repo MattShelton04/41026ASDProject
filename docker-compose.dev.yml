@@ -73,6 +73,10 @@ services:
       - --bind=0.0.0.0:5602
       - --workers=1
       - --threads=4
+      - --timeout=14400
+      - --graceful-timeout=60
+      - --access-logfile=-
+      - --error-logfile=-
       - --reload
       - propertyscope_integration_store.app:create_app()
     volumes:
@@ -84,6 +88,10 @@ services:
       - --bind=0.0.0.0:5601
       - --workers=1
       - --threads=4
+      - --timeout=14400
+      - --graceful-timeout=60
+      - --access-logfile=-
+      - --error-logfile=-
       - --reload
       - propertyscope_integration_poc.app:create_app()
     volumes:
