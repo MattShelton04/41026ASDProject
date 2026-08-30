@@ -133,6 +133,15 @@ owns acquisition. Source checks remain under `uv run python scripts/check.py`. `
 preserves AI-mode run history and PropertyScope data/artifacts, while `stack reset` deletes only
 volumes labelled for the selected Compose project.
 
+Inspect the running data/publication workflow without changing it:
+
+```text
+uv run scripts/dev.py operator report
+```
+
+The report shows registered products, accepted releases, review/publication prerequisites, durable
+consumer imports, activations and optional dependency degradation. It does not approve or publish.
+
 The local stack is named `ps-dev`. Its generated containers group shared services as
 `ps-dev-shared-*` and Feature 1 services as `ps-dev-f1-*`. Compose owns the final replica suffix so
 parallel projects and scaling remain available.

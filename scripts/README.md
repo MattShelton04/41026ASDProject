@@ -7,10 +7,13 @@
 - `dev.py`: grouped stack, UI-fixture, and data-acquisition workflows
 - `devtools/`: focused command parsing and shared workflow configuration
 - `generate_contracts.py`: generate or drift-check public JSON Schema and OpenAPI snapshots
+- `generate_deployment.py`: generate or drift-check explicitly enabled feature projections
 - `validate_architecture.py`: enforce workspace dependency, Python import, PostgreSQL credential,
   and Compose volume ownership boundaries
 - `validate_model_registry.py`: validate supported model metadata, profiles, and budgets
 - `validate_tool_catalogs.py`: fail-fast composition check for every feature tool catalogue
+- `validate_workspace_packaging.py`: keep uv workspace/lock membership and Docker manifest inputs aligned
+- `live_nginx_recreation.py`: live gate that recreates only Feature 1's backend and proves port 5200 recovers
 - `ui_fixture_server.py` and `ui_fixtures.py`: deterministic same-origin Shared/Feature 1 browser
   fixtures used by local UI work, audits, and Playwright tests
 - `ui_smoke.py`: the minimal browser render/console smoke
@@ -20,7 +23,7 @@ Scripts should validate and operate the integrated application rather than
 deploying isolated student features. Empty future `build`, `test`, and `deploy` scaffolds are not
 kept here; add an owned executable only when a release needs it.
 
-Run `uv run scripts/dev.py --help` for the three workflow groups. The common container loop is
+Run `uv run scripts/dev.py --help` for the workflow groups. The common container loop is
 `stack doctor`, `stack up`, edit source with automatic reload, and `stack down`. `stack up`
 performs a cache-backed image reconciliation, while `stack rebuild` remains available for explicit
 targeted rebuilds. `stack up --offline` keeps data workflows available without an OpenAI credential.
@@ -31,6 +34,7 @@ Use `uv run python scripts/check.py` for source quality; `dev.py` does not proxy
 | `dev.py stack` | `up`, `build`, `rebuild`, `restart`, `down`, `reset`, `status`, `config`, `doctor`, `logs` | Compose lifecycle, images, diagnostics, and labelled volumes |
 | `dev.py ui` | `serve`, `smoke`, `audit {quick,full}` | Deterministic same-origin fixtures and browser validation |
 | `dev.py data` | `collect`, `sync-psi` | Registered Feature 1 acquisition and source-cache preparation |
+| `dev.py operator` | `report` | Read-only release, publication, activation, and dependency evidence |
 | `check.py` | `format`, `lint`, `architecture`, `styles`, `typecheck`, `compile`, `test` | Deterministic source-quality stages and the aggregate pre-PR gate |
 
 Run `uv run python scripts/check.py --help` for the composable source-quality stages. JavaScript
@@ -61,6 +65,10 @@ complete registered source, validates the plan, creates an idempotent durable ru
 and prints the retained candidate release. The synthetic fixture remains fast because its source is
 finite. Use `--no-wait` for very long source-scale jobs. The command never publishes a release;
 human review remains an intentional product safety boundary.
+
+`operator report` queries only public read endpoints. It lists registered products, accepted
+releases, outstanding review/publication prerequisites, durable consumer imports, activations and
+optional dependency degradation. It never submits review, publishes, imports, or activates a release.
 
 PropertyScope's official connectors and deterministic finite fixture are available in the default
 stack at <http://localhost:5200>. Starting the stack performs no acquisition. Each browser or CLI
