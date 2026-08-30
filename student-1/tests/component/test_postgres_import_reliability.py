@@ -620,9 +620,7 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
 
     bounded_values = {
         **values,
-        "artifact_path": (
-            f"/api/data-platform/v1/dataset-releases/{second_release_id}/artifact"
-        ),
+        "artifact_path": (f"/api/data-platform/v1/dataset-releases/{second_release_id}/artifact"),
         "idempotency_key": "bounded-retry-delivery",
         "request_id": "bounded-retry-request",
     }
