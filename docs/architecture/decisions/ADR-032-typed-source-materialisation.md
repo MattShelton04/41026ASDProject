@@ -46,8 +46,12 @@ shows target materialisation began, runs bounded non-rewriting
 `VACUUM (ANALYZE, INDEX_CLEANUP ON)`, measures again and records completion. A preflight or staging
 failure records that no target maintenance was required. When the before/after measurement shows
 at least 100,000 dead tuples, dead tuples are at least 25% of live tuples, and retained indexes
-still exceed 64 MiB, exact-table `REINDEX TABLE CONCURRENTLY` runs under the same bound. A timeout
-leaves the operation `needed`; no `VACUUM FULL`, table rewrite
+still exceed 64 MiB, exact-table `REINDEX TABLE` runs under a separate ten-minute bound. The
+non-concurrent form is deliberately atomic on timeout and cannot leave `_ccnew`/`_ccold` artifacts;
+it takes an access-exclusive lock and is reserved for measured rollback recovery rather than routine
+maintenance. The pending exact relations and a safe error code are persisted before/after an
+unsuccessful attempt, so a retry cannot lose the need once VACUUM has reset tuple statistics. A
+timeout leaves the operation `needed`; no `VACUUM FULL`, table rewrite
 or unrelated relation is permitted. The
 conservative disk check measures the loader artifact mount as a proxy for the single-host Docker
 disk pool and therefore remains an operator-tunable safety bound, not a prediction of exact

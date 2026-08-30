@@ -135,7 +135,7 @@ def test_failed_import_vacuums_only_registered_relations_and_records_measurement
 
     policy = result["space_recovery_policy_json"]
     assert result["space_recovery_status"] == "completed"
-    assert policy["operation"] == "vacuum_and_concurrent_reindex"
+    assert policy["operation"] == "vacuum_and_atomic_reindex"
     assert policy["relations_reindexed"] == ["warehouse.psi_sale"]
     assert [item["relation"] for item in policy["measured_before"]] == ["warehouse.psi_sale"]
     assert [item["relation"] for item in policy["measured_after"]] == ["warehouse.psi_sale"]
@@ -211,7 +211,76 @@ def test_failed_import_with_no_dead_tuples_skips_vacuum(
         ({"n_dead_tup": 9_796_443, "n_live_tup": 10}, {"index_bytes": 16_384}, False),
     ],
 )
-def test_concurrent_reindex_requires_measured_source_scale_bloat(
+def test_atomic_reindex_requires_measured_source_scale_bloat(
     before: dict[str, int], after: dict[str, int], expected: bool
 ) -> None:
     assert _requires_concurrent_reindex(cast(Any, before), cast(Any, after)) is expected
+
+
+def test_atomic_reindex_timeout_leaves_original_indexes_and_retries(
+    recovery_database: psycopg.Connection[dict[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection = recovery_database
+    operation_id = uuid.uuid4()
+    connection.execute(
+        """
+        CREATE SCHEMA ops;
+        CREATE SCHEMA warehouse;
+        CREATE TABLE warehouse.psi_sale (id BIGINT PRIMARY KEY,padding TEXT NOT NULL)
+            WITH (autovacuum_enabled=false);
+        CREATE TABLE ops.import_operation (
+            id UUID PRIMARY KEY,import_profile_key TEXT NOT NULL,status TEXT NOT NULL,
+            space_recovery_status TEXT NOT NULL,space_recovery_policy_json JSONB NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1
+        );
+        INSERT INTO warehouse.psi_sale
+            SELECT i,repeat('x',200) FROM generate_series(1,2000) i;
+        """
+    )
+    connection.commit()
+    connection.execute("DELETE FROM warehouse.psi_sale")
+    connection.commit()
+    connection.execute("SELECT pg_stat_force_next_flush()")
+    connection.execute("ANALYZE warehouse.psi_sale")
+    connection.execute(
+        """INSERT INTO ops.import_operation
+        (id,import_profile_key,status,space_recovery_status,space_recovery_policy_json)
+        VALUES (%s,'psi-sales','failed','needed',%s)""",
+        (operation_id, Jsonb({"destination_may_have_been_touched": True})),
+    )
+    connection.commit()
+    monkeypatch.setattr(import_operations, "SPACE_RECOVERY_REINDEX_MIN_DEAD_TUPLES", 1)
+    monkeypatch.setattr(import_operations, "SPACE_RECOVERY_REINDEX_MIN_INDEX_BYTES", 1)
+    monkeypatch.setattr(import_operations, "SPACE_RECOVERY_REINDEX_TIMEOUT_SECONDS", 0.1)
+
+    blocker = psycopg.connect(_database_url(str(connection.info.dbname)), row_factory=dict_row)
+    try:
+        blocker.execute("SELECT 1 FROM warehouse.psi_sale LIMIT 1")
+        with pytest.raises(psycopg.errors.QueryCanceled):
+            _RegisteredImportOperations(cast(Any, _Owner(connection))).recover_import_space(
+                operation_id
+            )
+    finally:
+        blocker.rollback()
+        blocker.close()
+
+    pending = connection.execute(
+        "SELECT space_recovery_status FROM ops.import_operation WHERE id=%s", (operation_id,)
+    ).fetchone()
+    assert pending == {"space_recovery_status": "needed"}
+    indexes = connection.execute(
+        """SELECT index_class.relname,index.indisvalid
+        FROM pg_index index JOIN pg_class index_class ON index_class.oid=index.indexrelid
+        JOIN pg_class table_class ON table_class.oid=index.indrelid
+        JOIN pg_namespace namespace ON namespace.oid=table_class.relnamespace
+        WHERE namespace.nspname='warehouse' AND table_class.relname='psi_sale'"""
+    ).fetchall()
+    assert indexes == [{"relname": "psi_sale_pkey", "indisvalid": True}]
+
+    monkeypatch.setattr(import_operations, "SPACE_RECOVERY_REINDEX_TIMEOUT_SECONDS", 60)
+    retried = _RegisteredImportOperations(cast(Any, _Owner(connection))).recover_import_space(
+        operation_id
+    )
+    assert retried["space_recovery_status"] == "completed"
+    assert retried["space_recovery_policy_json"]["operation"] == "vacuum_and_atomic_reindex"

@@ -40,6 +40,7 @@ _IMPORT_TARGET_RELATIONS: Mapping[str, tuple[str, ...]] = {
     "schools-master": ("warehouse.school",),
 }
 SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS = 10 * 60
+SPACE_RECOVERY_REINDEX_TIMEOUT_SECONDS = 10 * 60
 SPACE_RECOVERY_REINDEX_MIN_DEAD_TUPLES = 100_000
 SPACE_RECOVERY_REINDEX_MIN_INDEX_BYTES = 64 * 1024 * 1024
 
@@ -486,7 +487,7 @@ class _RegisteredImportOperations:
         before_by_relation = {
             str(measurement["relation"]): measurement for measurement in measured_before
         }
-        reindex_relations = tuple(
+        measured_reindex_relations = tuple(
             str(measurement["relation"])
             for measurement in measured_after_vacuum
             if str(measurement["relation"]) in recovery_relations
@@ -494,30 +495,58 @@ class _RegisteredImportOperations:
                 before_by_relation[str(measurement["relation"])], measurement
             )
         )
+        pending_reindex_relations = tuple(
+            relation
+            for relation in policy.get("relations_pending_reindex", [])
+            if isinstance(relation, str) and relation in relations
+        )
+        reindex_relations = tuple(
+            dict.fromkeys((*pending_reindex_relations, *measured_reindex_relations))
+        )
         if reindex_relations:
-            with self._owner.connection() as connection:
-                connection.commit()
-                connection.autocommit = True
-                try:
-                    connection.execute(
-                        "SELECT set_config('statement_timeout',%s,false)",
-                        (f"{SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS}s",),
-                    )
-                    for relation in reindex_relations:
-                        schema_name, table_name = relation.split(".", maxsplit=1)
+            policy.update(
+                {
+                    "relations_pending_reindex": list(reindex_relations),
+                    "reindex_attempted_at": datetime.now(UTC).isoformat(),
+                    "measured_before": measured_before,
+                    "measured_after_vacuum": measured_after_vacuum,
+                }
+            )
+            self._record_recovery_policy(operation_id, policy)
+            try:
+                with self._owner.connection() as connection:
+                    connection.commit()
+                    connection.autocommit = True
+                    try:
                         connection.execute(
-                            sql.SQL("REINDEX TABLE CONCURRENTLY {}").format(
-                                sql.Identifier(schema_name, table_name)
-                            )
+                            "SELECT set_config('statement_timeout',%s,false)",
+                            (f"{SPACE_RECOVERY_REINDEX_TIMEOUT_SECONDS}s",),
                         )
-                finally:
-                    connection.execute("RESET statement_timeout")
-                    connection.autocommit = False
+                        for relation in reindex_relations:
+                            schema_name, table_name = relation.split(".", maxsplit=1)
+                            connection.execute(
+                                sql.SQL("REINDEX TABLE {}").format(
+                                    sql.Identifier(schema_name, table_name)
+                                )
+                            )
+                    finally:
+                        connection.execute("RESET statement_timeout")
+                        connection.autocommit = False
+            except Exception as exc:
+                policy["last_recovery_error"] = {
+                    "code": "atomic_reindex_incomplete",
+                    "sqlstate": getattr(exc, "sqlstate", None),
+                    "message": "bounded atomic reindex did not complete",
+                    "recorded_at": datetime.now(UTC).isoformat(),
+                }
+                self._record_recovery_policy(operation_id, policy)
+                raise
         measured_after = self._measure_relations(relations)
+        policy.pop("last_recovery_error", None)
         policy.update(
             {
                 "operation": (
-                    "vacuum_and_concurrent_reindex"
+                    "vacuum_and_atomic_reindex"
                     if reindex_relations
                     else (
                         "vacuum_analyze_index_cleanup"
@@ -527,7 +556,9 @@ class _RegisteredImportOperations:
                 ),
                 "relations_recovered": list(recovery_relations),
                 "relations_reindexed": list(reindex_relations),
+                "relations_pending_reindex": [],
                 "statement_timeout_seconds": SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS,
+                "reindex_timeout_seconds": SPACE_RECOVERY_REINDEX_TIMEOUT_SECONDS,
                 "measured_before": measured_before,
                 "measured_after_vacuum": measured_after_vacuum,
                 "measured_after": measured_after,
@@ -551,6 +582,16 @@ class _RegisteredImportOperations:
                 return latest
             raise ConflictError("space recovery state changed before completion was recorded")
         return _dict(row)
+
+    def _record_recovery_policy(self, operation_id: uuid.UUID, policy: JsonObject) -> None:
+        with self._owner.connection() as connection:
+            connection.execute(
+                """UPDATE ops.import_operation SET space_recovery_policy_json=%s,
+                version=version+1 WHERE id=%s AND status IN ('failed','cancelled')
+                AND space_recovery_status='needed'""",
+                (_json(policy), operation_id),
+            )
+            connection.commit()
 
     def _measure_relations(self, relations: Sequence[str]) -> list[JsonObject]:
         measurements: list[JsonObject] = []
