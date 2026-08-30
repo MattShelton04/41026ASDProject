@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -192,4 +193,35 @@ def test_enabled_frontend_and_evidence_paths_are_owned_and_exist(tmp_path: Path)
         encoding="utf-8",
     )
     with pytest.raises(OnboardingConfigurationError, match="asset root does not exist"):
+        load_enabled_projection(root)
+
+
+def test_enabled_paths_reject_symbolic_link_ownership_bypass(tmp_path: Path) -> None:
+    root = _repository(tmp_path)
+    owned_catalog = root / "student-1" / "tool-catalog.yaml"
+    outside_catalog = root / "student-2" / "outside-catalog.yaml"
+    outside_catalog.write_text("services: []\n", encoding="utf-8")
+    owned_catalog.unlink()
+    try:
+        os.symlink(outside_catalog, owned_catalog)
+    except OSError as exc:
+        pytest.skip(f"symbolic links are unavailable: {exc}")
+
+    with pytest.raises(OnboardingConfigurationError, match="must not use symbolic links"):
+        load_enabled_projection(root)
+
+
+def test_enabled_paths_fail_closed_when_an_owned_component_is_a_link(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _repository(tmp_path)
+    catalog = root / "student-1" / "tool-catalog.yaml"
+    original = Path.is_symlink
+    monkeypatch.setattr(
+        Path,
+        "is_symlink",
+        lambda path: path == catalog or original(path),
+    )
+
+    with pytest.raises(OnboardingConfigurationError, match="must not use symbolic links"):
         load_enabled_projection(root)

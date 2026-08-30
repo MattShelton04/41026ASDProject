@@ -34,6 +34,7 @@ from scripts.devtools.config import (
     COMPOSE_FILES,
     DEFAULT_PROJECT_NAME,
     DEFAULT_UI_FIXTURE_PORT,
+    DISABLED_FEATURE_SERVICES,
     HOST_PORTS,
     JOB_PROFILE_DIRECTORY,
     OFFLINE_OPENAI_CREDENTIAL,
@@ -77,6 +78,13 @@ def _validate_deployment_inputs() -> None:
     """Refuse stack mutation when explicit enablement and exposed topology have drifted."""
     _run((sys.executable, "scripts/generate_deployment.py", "--check"))
     _run((sys.executable, "scripts/validate_architecture.py"))
+    _run((sys.executable, "scripts/validate_tool_catalogs.py"))
+
+
+def _stop_disabled_feature_services() -> None:
+    """Gracefully stop only generated, feature-labelled services that are now disabled."""
+    if DISABLED_FEATURE_SERVICES:
+        _run(_compose_command("stop", *DISABLED_FEATURE_SERVICES))
 
 
 def _resolved_host_ports(services: Sequence[str]) -> dict[str, tuple[str, int]]:
@@ -410,6 +418,7 @@ def _up(*, offline: bool) -> None:
     _openai_credential(offline=offline)
     _validate_deployment_inputs()
     _ensure_docker()
+    _stop_disabled_feature_services()
     _preflight_compose_host_ports(services=APPLICATION_SERVICES)
     compose_environment = _compose_environment(offline=offline)
     print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
@@ -428,7 +437,8 @@ def _up(*, offline: bool) -> None:
     ports = _resolved_host_ports(APPLICATION_SERVICES)
     print(f"\nAI-mode health:     http://localhost:{ports['shared-ai-mode'][1]}/health/ready")
     print(f"PropertyScope home: http://localhost:{ports['shared-frontend'][1]}")
-    print(f"PropertyScope:      http://localhost:{ports['f1-frontend'][1]}")
+    if "f1-frontend" in ports:
+        print(f"PropertyScope:      http://localhost:{ports['f1-frontend'][1]}")
     print("Official sources:   enabled (small and complete job scopes available)")
     if offline:
         print("AI provider:        offline (data workflows remain available)")
@@ -438,6 +448,7 @@ def _rebuild(services: Sequence[str], *, offline: bool) -> None:
     _openai_credential(offline=offline)
     _validate_deployment_inputs()
     _ensure_docker()
+    _stop_disabled_feature_services()
     selected = tuple(services) or BUILD_SERVICES
     _preflight_compose_host_ports(services=selected)
     compose_environment = _compose_environment(offline=offline)
@@ -687,6 +698,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _openai_credential(offline=arguments.offline)
             _validate_deployment_inputs()
             _ensure_docker()
+            _stop_disabled_feature_services()
             _preflight_compose_host_ports(services=APPLICATION_SERVICES)
             compose_environment = _compose_environment(
                 offline=arguments.offline,
@@ -736,12 +748,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 base_url=arguments.base_url,
             )
         elif command == ("operator", "report"):
+            ports = _resolved_host_ports(APPLICATION_SERVICES)
+            if "f1-frontend" not in ports:
+                raise RuntimeError("Feature 1 is not enabled in the deployment projection")
+            feature_port = ports["f1-frontend"][1]
+            ai_port = ports["shared-ai-mode"][1]
             with httpx.Client(follow_redirects=False) as client:
                 report = collect_operator_report(
                     client,
-                    data_base_url=arguments.base_url,
-                    feature_health_url=arguments.feature_health_url,
-                    ai_health_url=arguments.ai_health_url,
+                    data_base_url=(
+                        arguments.base_url
+                        or f"http://127.0.0.1:{feature_port}/api/data-platform/v1"
+                    ),
+                    feature_health_url=(
+                        arguments.feature_health_url
+                        or f"http://127.0.0.1:{feature_port}/health/ready"
+                    ),
+                    ai_health_url=(
+                        arguments.ai_health_url
+                        or f"http://127.0.0.1:{ai_port}/health/ready"
+                    ),
                 )
             print(render_operator_report(report), flush=True)
         elif command == ("ui", "serve"):

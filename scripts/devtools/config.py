@@ -38,9 +38,10 @@ def _enabled_feature_services(field: str = "build_services") -> tuple[str, ...]:
     return tuple(values)
 
 
-APPLICATION_SERVICES = (*SHARED_APPLICATION_SERVICES, *_enabled_feature_services())
-BUILD_SERVICES = APPLICATION_SERVICES
-PRODUCTION_BUILD_SERVICES = APPLICATION_SERVICES
+APPLICATION_SERVICES = (*SHARED_APPLICATION_SERVICES, *_enabled_feature_services("services"))
+DISABLED_FEATURE_SERVICES = _enabled_feature_services("disabled_services")
+BUILD_SERVICES = (*SHARED_APPLICATION_SERVICES, *_enabled_feature_services("build_services"))
+PRODUCTION_BUILD_SERVICES = BUILD_SERVICES
 DEFAULT_PROJECT_NAME = "ps-dev"
 RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
 OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"

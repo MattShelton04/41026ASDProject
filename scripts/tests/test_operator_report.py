@@ -114,6 +114,7 @@ def test_operator_cli_is_explicit_and_read_only(
     from scripts import dev
 
     observed: dict[str, str] = {}
+    monkeypatch.setenv("PROPERTYSCOPE_PORT", "5420")
     monkeypatch.setattr(
         dev,
         "collect_operator_report",
@@ -131,7 +132,8 @@ def test_operator_cli_is_explicit_and_read_only(
     )
 
     assert dev.main(["operator", "report"]) == 0
-    assert observed["data_base_url"].endswith("/api/data-platform/v1")
+    assert observed["data_base_url"] == "http://127.0.0.1:5420/api/data-platform/v1"
+    assert observed["feature_health_url"] == "http://127.0.0.1:5420/health/ready"
     assert "read-only" in capsys.readouterr().out
 
 
@@ -159,6 +161,51 @@ def test_report_rejects_oversized_responses() -> None:
             ai_health_url="https://ai.test/health/ready",
         )
     assert stream.chunks_read == 2
+
+
+def test_report_requests_identity_encoding_and_rejects_compressed_control_plane() -> None:
+    def service(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Accept-Encoding"] == "identity"
+        class EncodedStream(httpx.SyncByteStream):
+            def __iter__(self) -> Iterator[bytes]:
+                yield b"compressed"
+
+        return httpx.Response(
+            200,
+            headers={"Content-Encoding": "gzip"},
+            stream=EncodedStream(),
+        )
+
+    with (
+        httpx.Client(transport=httpx.MockTransport(service)) as client,
+        pytest.raises(OperatorReportError, match="content encoding"),
+    ):
+        collect_operator_report(
+            client,
+            data_base_url="https://data.test/api/data-platform/v1",
+            feature_health_url="https://feature.test/health/ready",
+            ai_health_url="https://ai.test/health/ready",
+        )
+
+
+@pytest.mark.parametrize("content_length", ["-1", "invalid", str(1_048_577)])
+def test_report_rejects_invalid_or_excessive_content_length(content_length: str) -> None:
+    with (
+        httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(
+                    200, headers={"Content-Length": content_length}, content=b"{}"
+                )
+            )
+        ) as client,
+        pytest.raises(OperatorReportError),
+    ):
+        collect_operator_report(
+            client,
+            data_base_url="https://data.test/api/data-platform/v1",
+            feature_health_url="https://feature.test/health/ready",
+            ai_health_url="https://ai.test/health/ready",
+        )
 
 
 def test_nested_operation_projection_stops_at_global_bound() -> None:

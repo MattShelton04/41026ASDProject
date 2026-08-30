@@ -20,4 +20,12 @@ def test_ai_health_operations_reference_the_typed_health_projection() -> None:
 
     typed = document["components"]["schemas"]["TypedHealthProjection"]
     assert typed["additionalProperties"] is False
-    assert set(typed["required"]) >= {"service", "version", "status", "http_status"}
+    assert set(typed["required"]) == {
+        "checks",
+        "http_status",
+        "media_type",
+        "schema_version",
+        "service",
+        "status",
+        "version",
+    }

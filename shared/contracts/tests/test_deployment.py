@@ -98,6 +98,7 @@ def test_feature_manifest_onboarding_is_optional_and_closed() -> None:
         ("ai", "tool_catalog", "/student-1/tool-catalog.yaml"),
         ("ai", "runtime_path", "workspace/tool-catalog.yaml"),
         ("evidence_adapter", "path", "student-1/../private/evidence.py"),
+        ("evidence_adapter", "path", "student-1/frontend/%2e%2e/evidence.js"),
     ],
 )
 def test_onboarding_paths_cannot_escape_declared_boundaries(
@@ -177,6 +178,20 @@ def test_enabled_projection_rejects_additional_path_outside_owned_namespace() ->
         build_deployment_projection((manifest,), selection)
 
 
+def test_enabled_projection_rejects_same_feature_primary_route_collision() -> None:
+    onboarding = _onboarding()
+    backend = onboarding["backend"]
+    assert isinstance(backend, dict)
+    backend["additional_paths"] = ["/api/student-1/v1"]
+    manifest = _manifest(onboarding=onboarding)
+    selection = DeploymentSelectionV1(
+        features=({"feature_key": manifest.feature_key, "enabled": True},)
+    )
+
+    with pytest.raises(ValueError, match="duplicate route or overlapping route"):
+        build_deployment_projection((manifest,), selection)
+
+
 def test_enabled_projection_rejects_cross_feature_namespace_collision() -> None:
     first_onboarding = _onboarding("student-1")
     second_onboarding = _onboarding("student-2")
@@ -186,8 +201,8 @@ def test_enabled_projection_rejects_cross_feature_namespace_collision() -> None:
     second_backend = second_onboarding["backend"]
     assert isinstance(first_backend, dict)
     assert isinstance(second_backend, dict)
-    first_backend["additional_paths"] = ["/api/common/v1/meta"]
-    second_backend["additional_paths"] = ["/api/common/v2/meta"]
+    first_backend["additional_paths"] = []
+    second_backend["additional_paths"] = []
     first = _manifest(
         "student-1",
         onboarding=first_onboarding,
@@ -376,9 +391,11 @@ def test_required_health_failure_is_unhealthy_with_503() -> None:
 
     with pytest.raises(ValidationError, match="inconsistent"):
         TypedHealthProjection(
+            schema_version=1,
             service="feature-backend",
             version="1.0.0",
             status="healthy",
             http_status=200,
+            media_type="application/json",
             checks={"database": ReadinessCheckProjection(required=True, status="unhealthy")},
         )

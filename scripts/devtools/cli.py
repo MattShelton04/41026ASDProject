@@ -130,9 +130,9 @@ def _operator_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]
     operator = root.add_parser("operator", help="Inspect review and publication readiness")
     commands = operator.add_subparsers(dest="action", required=True)
     report = commands.add_parser("report", help="Print a read-only operational evidence report")
-    report.add_argument("--base-url", default=PROPERTYSCOPE_API_URL)
-    report.add_argument("--feature-health-url", default="http://127.0.0.1:5200/health/ready")
-    report.add_argument("--ai-health-url", default="http://127.0.0.1:5005/health/ready")
+    report.add_argument("--base-url")
+    report.add_argument("--feature-health-url")
+    report.add_argument("--ai-health-url")
 
 
 def build_parser() -> argparse.ArgumentParser:

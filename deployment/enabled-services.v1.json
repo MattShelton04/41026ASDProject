@@ -6,6 +6,7 @@
     "f1-frontend",
     "f1-runner"
   ],
+  "disabled_services": [],
   "schema_version": 1,
   "services": [
     "f1-backend",

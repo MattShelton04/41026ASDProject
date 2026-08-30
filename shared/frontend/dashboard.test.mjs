@@ -10,7 +10,7 @@ import { loadFeature1Bridge, validateFeature1Adapter } from "./feature-1-bridge.
 import { resolveResearchAreaContext } from "./operations/ai-mode/contexts.js";
 import { classifyHealth, overallReadiness } from "./routes/status.js";
 import { SHARED_ASSISTANT_SCOPES, sharedAssistantSuggestions } from "./routes/assistant.js";
-import { loadEvidenceAdapter, validateEvidenceAdapter } from "./routes/evidence.js";
+import { loadEvidenceAdapter, projectEvidenceRows, validateEvidenceAdapter } from "./routes/evidence.js";
 
 function attributes(source) {
   return Object.fromEntries(
@@ -220,6 +220,7 @@ test("the optional shell evidence adapter is domain-neutral, closed, and manifes
   assert.equal(await loadEvidenceAdapter(
     {
       featureKey: "student-2-example",
+      frontendBase: "/features/example/",
       evidenceAdapterPath: "/features/example/integration/evidence.js",
     },
     {
@@ -232,14 +233,26 @@ test("the optional shell evidence adapter is domain-neutral, closed, and manifes
   assert.equal(importedPath, "/features/example/integration/evidence.js");
   await assert.rejects(
     loadEvidenceAdapter(
-      { featureKey: "student-2-example", evidenceAdapterPath: "/features/example/evidence.js" },
+      { featureKey: "student-2-example", frontendBase: "/features/example/", evidenceAdapterPath: "/features/example/evidence.js" },
       { importer: async () => ({}) },
     ),
     /createShellEvidenceAdapter/,
   );
   await assert.rejects(
-    loadEvidenceAdapter({ featureKey: "student-2-example", evidenceAdapterPath: "https://other.example/evidence.js" }),
+    loadEvidenceAdapter({ featureKey: "student-2-example", frontendBase: "/features/example/", evidenceAdapterPath: "https://other.example/evidence.js" }),
     /same-origin path/,
+  );
+  await assert.rejects(
+    loadEvidenceAdapter({ featureKey: "student-2-example", frontendBase: "/features/example/", evidenceAdapterPath: "/features/example/%2e%2e/other/evidence.js" }),
+    /canonical path/,
+  );
+  assert.throws(
+    () => projectEvidenceRows({ project: () => null, href: () => "/safe" }, {}, "https://propertyscope.test/"),
+    /must return an array/,
+  );
+  assert.throws(
+    () => projectEvidenceRows({ project: () => [{ id: "one" }], href: () => "javascript:alert(1)" }, {}, "https://propertyscope.test/"),
+    /same-origin/,
   );
   const source = readFileSync(new URL("./routes/evidence.js", import.meta.url), "utf8");
   assert.doesNotMatch(source, /getFeature1Adapter|Property data|sale|crime|school|planning|buyer/i);
@@ -280,6 +293,8 @@ test("shared routes use public same-origin projections and safe DOM rendering", 
   const statusRoute = readFileSync(new URL("./routes/status.js", import.meta.url), "utf8");
   const evidenceRoute = readFileSync(new URL("./routes/evidence.js", import.meta.url), "utf8");
   assert.match(nginx, /location = \/api\/shared-health\/data-platform/);
+  assert.match(nginx, /location ~ \^\/health\(\?:\/\|\$\)/);
+  assert.match(nginx, /Only \/healthz is supported by the Shared frontend/);
   assert.match(nginx, /location \^~ \/api\/data-platform\/v1\//);
   assert.match(nginx, /location \/api\/ai-mode\//);
   assert.match(nginx, /location \/api\/v1\//);

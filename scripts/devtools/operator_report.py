@@ -28,10 +28,28 @@ def _bounded_get(
         "GET",
         url,
         params=params,
-        headers={"Accept": "application/json"},
+        headers={"Accept": "application/json", "Accept-Encoding": "identity"},
         timeout=timeout,
     ) as response:
-        for chunk in response.iter_bytes():
+        content_encoding = response.headers.get("Content-Encoding", "").strip().lower()
+        if content_encoding not in {"", "identity"}:
+            raise OperatorReportError(f"{label} returned unsupported content encoding")
+        content_length = response.headers.get("Content-Length")
+        if content_length is not None:
+            try:
+                declared_length = int(content_length)
+            except ValueError as exc:
+                raise OperatorReportError(f"{label} returned an invalid Content-Length") from exc
+            if declared_length < 0 or declared_length > MAX_RESPONSE_BYTES:
+                raise OperatorReportError(
+                    f"{label} exceeds the {MAX_RESPONSE_BYTES}-byte response limit"
+                )
+        chunks = (
+            (response.content,)
+            if response.is_stream_consumed
+            else response.iter_raw(chunk_size=65_536)
+        )
+        for chunk in chunks:
             if len(content) + len(chunk) > MAX_RESPONSE_BYTES:
                 raise OperatorReportError(
                     f"{label} exceeds the {MAX_RESPONSE_BYTES}-byte response limit"

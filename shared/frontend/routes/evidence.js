@@ -30,6 +30,21 @@ function requireSameOriginPath(value, path, { allowHash = false } = {}) {
   }
 }
 
+function requireFeatureModulePath(feature) {
+  const value = feature?.evidenceAdapterPath;
+  requireSameOriginPath(value, "feature.evidenceAdapterPath");
+  requireSameOriginPath(feature?.frontendBase, "feature.frontendBase");
+  const target = new URL(value, "https://propertyscope.invalid/");
+  const frontend = new URL(feature.frontendBase, "https://propertyscope.invalid/");
+  if (target.search || target.hash || target.pathname !== value
+      || !target.pathname.startsWith(frontend.pathname)) {
+    throw new EvidenceAdapterError(
+      "Evidence adapter module must use a canonical path inside its feature frontend namespace.",
+    );
+  }
+  return value;
+}
+
 function requireClosed(value, names, path) {
   const unexpected = Object.keys(value).find((name) => !names.includes(name));
   if (unexpected) throw new EvidenceAdapterError(`Evidence adapter ${path} contains unsupported ${unexpected}.`);
@@ -61,8 +76,7 @@ export async function loadEvidenceAdapter(feature, {
   onLateAdapter,
   onError,
 } = {}) {
-  const path = feature?.evidenceAdapterPath;
-  requireSameOriginPath(path, "feature.evidenceAdapterPath");
+  const path = requireFeatureModulePath(feature);
   const reportError = typeof onError === "function"
     ? onError
     : (error) => console.error(`Shell evidence adapter could not be loaded for ${feature?.featureKey || "unknown feature"}.`, error);
@@ -94,6 +108,25 @@ export async function loadEvidenceAdapter(feature, {
   } finally {
     clearTimeout(timer);
   }
+}
+
+export function projectEvidenceRows(section, body, currentHref) {
+  const rows = section.project(body);
+  if (!Array.isArray(rows)) {
+    throw new EvidenceAdapterError("Evidence adapter project() must return an array.");
+  }
+  return rows.map((item) => {
+    if (!item || typeof item !== "object") {
+      throw new EvidenceAdapterError("Evidence adapter projected rows must be objects.");
+    }
+    const href = section.href(item.id, currentHref);
+    requireString(href, "projected href");
+    const target = new URL(href, currentHref);
+    if (!/^https?:$/.test(target.protocol) || target.origin !== new URL(currentHref).origin) {
+      throw new EvidenceAdapterError("Evidence adapter projected href must remain same-origin.");
+    }
+    return { item, href: target.href };
+  });
 }
 
 function statusTone(value) {
@@ -161,35 +194,46 @@ export function createEvidenceRoute({ getEvidenceAdapters, announce, requestJson
     const cancellation = settledResults
       .find((item) => item.status === "rejected" && item.reason?.name === "AbortError");
     if (cancellation) throw cancellation.reason;
-    const failures = settledResults.filter((item) => item.status === "rejected");
-    state.replaceChildren(notice(failures.length ? "warning" : "success", failures.length ? "Some history is unavailable" : "Sources and history loaded", failures.length ? "Available sections are still shown. Try again later for anything missing." : "Current records loaded."));
-    state.dataset.loadState = "settled";
+    let failureCount = settledResults.filter((item) => item.status === "rejected").length;
 
     for (const { evidence, releasePanel, agentPanel, settled } of results) {
       const copy = evidence.copy;
       const [releasesResult, runsResult] = settled;
       if (releasesResult.status === "fulfilled") {
-        const releases = evidence.published.project(releasesResult.value.body);
-        if (releases.length) append(releasePanel.body, table(["Dataset", "Research area", "Published version", "Records", "Coverage", "Published"], releases, (item) => {
-          const tr = el("tr");
-          const dataset = el("div", "table-primary");
-          append(dataset, link(item.dataset, evidence.published.href(item.id, window.location.href)), el("span", "table-secondary area-transition-label", copy.transitionLabel), el("code", "table-secondary mono", item.hash ? `${item.hash.slice(0, 12)}…` : "Hash unknown"));
-          append(tr, cell(dataset), cell(item.area), cell(item.version, "mono"), cell(formatNumber(item.records), "numeric"), cell(badge(humanise(item.coverage), statusTone(item.coverage))), cell(formatDate(item.acceptedAt)));
-          return tr;
-        }, "Published dataset references"));
-        else append(releasePanel.body, notice("info", "No published references", copy.releaseEmpty));
+        try {
+          const releases = projectEvidenceRows(evidence.published, releasesResult.value.body, window.location.href);
+          if (releases.length) append(releasePanel.body, table(["Dataset", "Research area", "Published version", "Records", "Coverage", "Published"], releases, ({ item, href }) => {
+            const tr = el("tr");
+            const dataset = el("div", "table-primary");
+            append(dataset, link(item.dataset, href), el("span", "table-secondary area-transition-label", copy.transitionLabel), el("code", "table-secondary mono", typeof item.hash === "string" && item.hash ? `${item.hash.slice(0, 12)}…` : "Hash unknown"));
+            append(tr, cell(dataset), cell(item.area), cell(item.version, "mono"), cell(formatNumber(item.records), "numeric"), cell(badge(humanise(item.coverage), statusTone(item.coverage))), cell(formatDate(item.acceptedAt)));
+            return tr;
+          }, "Published dataset references"));
+          else append(releasePanel.body, notice("info", "No published references", copy.releaseEmpty));
+        } catch {
+          failureCount += 1;
+          append(releasePanel.body, notice("warning", "Published data projection unavailable", `${copy.releaseError} The feature adapter returned unsupported evidence.`));
+        }
       } else append(releasePanel.body, notice("warning", "Published data index unavailable", `${copy.releaseError} Request ID: ${releasesResult.reason.requestId || "not supplied"}.`));
 
       if (runsResult.status === "fulfilled") {
-        const runs = evidence.agentRuns.project(runsResult.value.body);
-        if (runs.length) append(agentPanel.body, table(["Run", "Area", "Objective", "State", "Updated"], runs, (item) => {
-          const tr = el("tr");
-          append(tr, cell(link(item.id.slice(0, 8), evidence.agentRuns.href(item.id, window.location.href), "mono"), "primary-cell"), cell(item.area), cell(item.objective), cell(badge(humanise(item.status), statusTone(item.status))), cell(formatDate(item.updatedAt)));
-          return tr;
-        }, "AI review references"));
-        else append(agentPanel.body, notice("info", "No assisted activity", copy.agentEmpty));
+        try {
+          const runs = projectEvidenceRows(evidence.agentRuns, runsResult.value.body, window.location.href);
+          if (runs.length) append(agentPanel.body, table(["Run", "Area", "Objective", "State", "Updated"], runs, ({ item, href }) => {
+            const tr = el("tr");
+            const identifier = typeof item.id === "string" ? item.id.slice(0, 8) : "Unknown";
+            append(tr, cell(link(identifier, href, "mono"), "primary-cell"), cell(item.area), cell(item.objective), cell(badge(humanise(item.status), statusTone(item.status))), cell(formatDate(item.updatedAt)));
+            return tr;
+          }, "AI review references"));
+          else append(agentPanel.body, notice("info", "No assisted activity", copy.agentEmpty));
+        } catch {
+          failureCount += 1;
+          append(agentPanel.body, notice("warning", "Activity projection unavailable", `${copy.agentError} The feature adapter returned unsupported evidence.`));
+        }
       } else append(agentPanel.body, notice("warning", "Activity index unavailable", `${copy.agentError} Request ID: ${runsResult.reason.requestId || "not supplied"}.`));
     }
-    announce(failures.length ? "The shared evidence index loaded with unavailable providers." : "The shared evidence index loaded current references.");
+    state.replaceChildren(notice(failureCount ? "warning" : "success", failureCount ? "Some history is unavailable" : "Sources and history loaded", failureCount ? "Available sections are still shown. Try again later for anything missing." : "Current records loaded."));
+    state.dataset.loadState = "settled";
+    announce(failureCount ? "The shared evidence index loaded with unavailable providers." : "The shared evidence index loaded current references.");
   };
 }

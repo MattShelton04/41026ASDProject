@@ -87,7 +87,9 @@ def discover_tool_catalogs(root: Path = REPOSITORY_ROOT) -> tuple[Path, ...]:
     for feature in load_enabled_projection(root).features:
         if feature.ai is None:
             continue
-        relative = _owned_path(feature.owner, feature.ai.tool_catalog, kind="tool catalogue")
+        relative = _owned_existing_path(
+            root, feature.owner, feature.ai.tool_catalog, kind="tool catalogue"
+        )
         path = root / relative
         if not path.is_file():
             raise OnboardingConfigurationError(
@@ -104,7 +106,9 @@ def discover_quality_inputs(root: Path = REPOSITORY_ROOT) -> FeatureQualityInput
         python_paths: list[str] = []
         node_files: list[str] = []
         for raw_path in feature.quality.python_test_paths:
-            relative = _owned_path(feature.owner, raw_path, kind="Python quality path")
+            relative = _owned_existing_path(
+                root, feature.owner, raw_path, kind="Python quality path"
+            )
             if not (root / relative).exists():
                 raise OnboardingConfigurationError(
                     f"enabled feature {feature.feature_key} Python quality path does not exist: "
@@ -112,7 +116,9 @@ def discover_quality_inputs(root: Path = REPOSITORY_ROOT) -> FeatureQualityInput
                 )
             python_paths.append(relative)
         for raw_path in feature.quality.node_test_files:
-            relative = _owned_path(feature.owner, raw_path, kind="Node quality file")
+            relative = _owned_existing_path(
+                root, feature.owner, raw_path, kind="Node quality file"
+            )
             path = root / relative
             if not path.is_file():
                 raise OnboardingConfigurationError(
@@ -157,18 +163,40 @@ def _owned_path(owner: str, value: str, *, kind: str) -> str:
     return relative
 
 
+def _owned_existing_path(root: Path, owner: str, value: str, *, kind: str) -> str:
+    """Reject links/junctions and prove the resolved path stays in its owning slice."""
+    relative = _owned_path(owner, value, kind=kind)
+    candidate = root / relative
+    cursor = root
+    for part in Path(relative).parts:
+        cursor /= part
+        if cursor.is_symlink():
+            raise OnboardingConfigurationError(f"{kind} must not use symbolic links: {value}")
+    owner_root = (root / owner).resolve(strict=False)
+    resolved = candidate.resolve(strict=False)
+    try:
+        resolved.relative_to(owner_root)
+    except ValueError as exc:
+        raise OnboardingConfigurationError(
+            f"{kind} must resolve inside the owning slice {owner}: {value}"
+        ) from exc
+    return relative
+
+
 def _validate_enabled_paths(root: Path, projection: DeploymentProjectionV1) -> None:
     for feature in projection.features:
         if feature.ai is not None:
-            catalog = _owned_path(feature.owner, feature.ai.tool_catalog, kind="AI tool catalogue")
+            catalog = _owned_existing_path(
+                root, feature.owner, feature.ai.tool_catalog, kind="AI tool catalogue"
+            )
             if not (root / catalog).is_file():
                 raise OnboardingConfigurationError(
                     f"enabled feature {feature.feature_key} AI tool catalogue does not exist: "
                     f"{catalog}"
                 )
         if feature.frontend is not None:
-            asset_root = _owned_path(
-                feature.owner, feature.frontend.asset_root, kind="frontend asset root"
+            asset_root = _owned_existing_path(
+                root, feature.owner, feature.frontend.asset_root, kind="frontend asset root"
             )
             if not (root / asset_root).is_dir():
                 raise OnboardingConfigurationError(
@@ -176,7 +204,8 @@ def _validate_enabled_paths(root: Path, projection: DeploymentProjectionV1) -> N
                     f"{asset_root}"
                 )
             if feature.frontend.route_fragment is not None:
-                fragment = _owned_path(
+                fragment = _owned_existing_path(
+                    root,
                     feature.owner,
                     feature.frontend.route_fragment,
                     kind="frontend route fragment",
@@ -187,8 +216,8 @@ def _validate_enabled_paths(root: Path, projection: DeploymentProjectionV1) -> N
                         f"{fragment}"
                     )
         if feature.evidence_adapter is not None:
-            adapter = _owned_path(
-                feature.owner, feature.evidence_adapter.path, kind="evidence adapter"
+            adapter = _owned_existing_path(
+                root, feature.owner, feature.evidence_adapter.path, kind="evidence adapter"
             )
             if not (root / adapter).is_file():
                 raise OnboardingConfigurationError(

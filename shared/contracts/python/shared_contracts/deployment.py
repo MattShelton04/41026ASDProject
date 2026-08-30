@@ -257,13 +257,13 @@ class ReadinessCheckProjection(ContractModel):
 class TypedHealthProjection(ContractModel):
     """Health body and HTTP status with explicit optional-degradation semantics."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1]
     service: str = Field(min_length=1, max_length=100)
     version: str = Field(min_length=1, max_length=50)
     status: HealthStatus
     http_status: Literal[200, 503]
-    media_type: Literal["application/json"] = "application/json"
-    checks: dict[str, ReadinessCheckProjection] = Field(default_factory=dict)
+    media_type: Literal["application/json"]
+    checks: dict[str, ReadinessCheckProjection]
 
     @model_validator(mode="after")
     def validate_projection(self) -> TypedHealthProjection:
@@ -369,10 +369,12 @@ def project_readiness(
     """Derive a truthful response: optional failures degrade but do not return 503."""
     status, http_status = _project_health_state(checks.values())
     return TypedHealthProjection(
+        schema_version=1,
         service=service,
         version=version,
         status=status,
         http_status=http_status,
+        media_type="application/json",
         checks=dict(checks),
     )
 
@@ -440,8 +442,6 @@ def _reject_overlapping_route_claims(claims: Iterable[tuple[str, str]]) -> None:
     for feature_key, path in claims:
         normalized = path.rstrip("/")
         for other_feature, other_path in seen:
-            if feature_key == other_feature:
-                continue
             if (
                 normalized == other_path
                 or normalized.startswith(f"{other_path}/")
@@ -458,8 +458,10 @@ def _validate_repository_path(value: str) -> None:
     path = PurePosixPath(value)
     if value.startswith(("/", "\\")) or "\\" in value:
         raise ValueError("repository paths must be relative POSIX paths")
-    if any(character in value for character in ("?", "#")) or ".." in path.parts:
-        raise ValueError("repository paths cannot traverse or contain query/fragment data")
+    if any(character in value for character in ("?", "#", "%")) or ".." in path.parts:
+        raise ValueError(
+            "repository paths cannot traverse or contain percent-encoded/query/fragment data"
+        )
     if str(path) in {"", "."}:
         raise ValueError("repository paths must identify a file or directory")
 

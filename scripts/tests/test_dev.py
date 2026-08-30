@@ -108,6 +108,8 @@ def test_up_starts_complete_stack(
     assert "shared-frontend" in captured_commands[1]
     assert "shared-ai-mode" in captured_commands[1]
     assert "f1-backend" in captured_commands[1]
+    assert "f1-postgres" in dev.APPLICATION_SERVICES
+    assert "f1-postgres" not in dev.BUILD_SERVICES
     assert "docker-compose.shared-shell.yml" not in dev.COMPOSE_FILES
 
 
@@ -132,6 +134,18 @@ def test_up_preflights_before_materialising_secret_or_starting_compose(
     dev._up(offline=False)
 
     assert calls[:4] == ["docker", "preflight", "secret", "compose"]
+
+
+def test_disabled_feature_reconciliation_stops_only_generated_owned_services(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.setattr(dev, "DISABLED_FEATURE_SERVICES", ("example-api", "example-worker"))
+    monkeypatch.setattr(dev, "_run", lambda command, **_kwargs: commands.append(tuple(command)))
+
+    dev._stop_disabled_feature_services()
+
+    assert commands == [dev._compose_command("stop", "example-api", "example-worker")]
 
 
 def test_rebuild_preflights_only_selected_host_service(

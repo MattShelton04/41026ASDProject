@@ -242,6 +242,8 @@ def _enabled_compose_services(root: Path) -> tuple[str, ...]:
 
 def _services_payload(root: Path) -> str:
     enabled = _enabled_compose_services(root)
+    all_feature_services = tuple(sorted(_compose_service_features(root)))
+    disabled = tuple(service for service in all_feature_services if service not in enabled)
     compose_document = yaml.safe_load((root / "docker-compose.yml").read_text(encoding="utf-8"))
     compose_services = compose_document.get("services", {})
     build_services = [
@@ -253,6 +255,7 @@ def _services_payload(root: Path) -> str:
         json.dumps(
             {
                 "build_services": build_services,
+                "disabled_services": list(disabled),
                 "schema_version": 1,
                 "services": list(enabled),
             },

@@ -63,13 +63,11 @@
     },
     "media_type": {
       "const": "application/json",
-      "default": "application/json",
       "title": "Media Type",
       "type": "string"
     },
     "schema_version": {
       "const": 1,
-      "default": 1,
       "title": "Schema Version",
       "type": "integer"
     },
@@ -90,10 +88,13 @@
     }
   },
   "required": [
+    "schema_version",
     "service",
     "version",
     "status",
-    "http_status"
+    "http_status",
+    "media_type",
+    "checks"
   ],
   "title": "TypedHealthProjection",
   "type": "object"
