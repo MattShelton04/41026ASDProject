@@ -383,32 +383,18 @@ class DatabaseLoader:
             )
             prepared = prepare_import(data, profile=profile)
             raise_if_cancelled(force=True)
-            if profile == "psi-sales":
-                for phase_key in ("identity_revision_derivation", "address_resolution"):
-                    self._update_import_progress(
-                        operation_id,
-                        phase_key=phase_key,
-                        rows_processed=len(prepared.rows),
-                        bytes_processed=0,
-                    )
-            self._update_import_progress(
-                operation_id,
-                phase_key="target_materialisation",
-                rows_processed=len(prepared.rows),
-                bytes_processed=0,
-            )
             imported = self.store.execute_import_profile(
                 work,
                 prepared,
+                phase_callback=lambda phase_key, count: self._update_import_progress(
+                    operation_id,
+                    phase_key=phase_key,
+                    rows_processed=count,
+                    bytes_processed=0,
+                    total_rows=count if phase_key == "verification" else None,
+                ),
                 lease_failed_event=lease_failed_event,
                 stop_event=self.stop_event,
-            )
-            self._update_import_progress(
-                operation_id,
-                phase_key="verification",
-                rows_processed=imported.rows_accepted,
-                bytes_processed=0,
-                total_rows=imported.rows_accepted,
             )
         else:
             raise RuntimeError("registered import requires canonical JSON or NDJSON")
