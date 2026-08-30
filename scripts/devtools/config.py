@@ -42,6 +42,11 @@ APPLICATION_SERVICES = (*SHARED_APPLICATION_SERVICES, *_enabled_feature_services
 DISABLED_FEATURE_SERVICES = _enabled_feature_services("disabled_services")
 BUILD_SERVICES = (*SHARED_APPLICATION_SERVICES, *_enabled_feature_services("build_services"))
 PRODUCTION_BUILD_SERVICES = BUILD_SERVICES
+ENABLED_FEATURE_KEYS = tuple(
+    feature["feature_key"]
+    for feature in _json_object(_ENABLED_FEATURES_PATH).get("features", [])
+    if isinstance(feature, dict) and isinstance(feature.get("feature_key"), str)
+)
 DEFAULT_PROJECT_NAME = "ps-dev"
 RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
 OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"

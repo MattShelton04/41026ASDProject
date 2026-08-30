@@ -35,6 +35,7 @@ from scripts.devtools.config import (
     DEFAULT_PROJECT_NAME,
     DEFAULT_UI_FIXTURE_PORT,
     DISABLED_FEATURE_SERVICES,
+    ENABLED_FEATURE_KEYS,
     HOST_PORTS,
     JOB_PROFILE_DIRECTORY,
     OFFLINE_OPENAI_CREDENTIAL,
@@ -49,6 +50,8 @@ from scripts.devtools.config import (
     TERMINAL_COLLECTION_STATES,
 )
 from scripts.devtools.operator_report import collect_operator_report, render_operator_report
+
+FEATURE_1_KEY = "student-1-propertyscope-data-platform"
 
 
 def _compose_command(*arguments: str) -> tuple[str, ...]:
@@ -85,6 +88,23 @@ def _stop_disabled_feature_services() -> None:
     """Gracefully stop only generated, feature-labelled services that are now disabled."""
     if DISABLED_FEATURE_SERVICES:
         _run(_compose_command("stop", *DISABLED_FEATURE_SERVICES))
+
+
+def _recreate_shared_edge(*, environment: Mapping[str, str]) -> None:
+    """Reparse generated route projections without interrupting feature workers/databases."""
+    _run(
+        _compose_command(
+            "up",
+            "--detach",
+            "--no-deps",
+            "--force-recreate",
+            "--wait",
+            "--wait-timeout",
+            "60",
+            "shared-frontend",
+        ),
+        environment=environment,
+    )
 
 
 def _resolved_host_ports(services: Sequence[str]) -> dict[str, tuple[str, int]]:
@@ -405,12 +425,16 @@ def _compose_environment(*, offline: bool) -> Mapping[str, str]:
     environment["GEMINI_API_KEY_FILE"] = secret_path
     if offline:
         environment["AI_MODE_REQUIRE_PROVIDER_READY"] = "false"
-    years = _psi_cache_years()
-    weeks = _psi_cache_weeks()
-    if years:
-        environment.setdefault("PROPERTYSCOPE_PSI_CACHED_YEARS", ",".join(map(str, years)))
-    if weeks:
-        environment.setdefault("PROPERTYSCOPE_PSI_CACHED_WEEKS", ",".join(weeks))
+    if FEATURE_1_KEY in ENABLED_FEATURE_KEYS:
+        years = _psi_cache_years()
+        weeks = _psi_cache_weeks()
+        if years:
+            environment.setdefault("PROPERTYSCOPE_PSI_CACHED_YEARS", ",".join(map(str, years)))
+        if weeks:
+            environment.setdefault("PROPERTYSCOPE_PSI_CACHED_WEEKS", ",".join(weeks))
+    else:
+        environment.pop("PROPERTYSCOPE_PSI_CACHED_YEARS", None)
+        environment.pop("PROPERTYSCOPE_PSI_CACHED_WEEKS", None)
     return environment
 
 
@@ -421,7 +445,9 @@ def _up(*, offline: bool) -> None:
     _stop_disabled_feature_services()
     _preflight_compose_host_ports(services=APPLICATION_SERVICES)
     compose_environment = _compose_environment(offline=offline)
-    print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
+    feature_1_enabled = FEATURE_1_KEY in ENABLED_FEATURE_KEYS
+    if feature_1_enabled:
+        print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
     _run(
         _compose_command(
             "up",
@@ -434,12 +460,16 @@ def _up(*, offline: bool) -> None:
         ),
         environment=compose_environment,
     )
+    _recreate_shared_edge(environment=compose_environment)
     ports = _resolved_host_ports(APPLICATION_SERVICES)
     print(f"\nAI-mode health:     http://localhost:{ports['shared-ai-mode'][1]}/health/ready")
     print(f"PropertyScope home: http://localhost:{ports['shared-frontend'][1]}")
     if "f1-frontend" in ports:
         print(f"PropertyScope:      http://localhost:{ports['f1-frontend'][1]}")
-    print("Official sources:   enabled (small and complete job scopes available)")
+    if feature_1_enabled:
+        print("Official sources:   enabled (small and complete job scopes available)")
+    else:
+        print("Official sources:   disabled (Feature 1 is not enabled)")
     if offline:
         print("AI provider:        offline (data workflows remain available)")
 
@@ -522,8 +552,11 @@ def _doctor() -> None:
         f"{provider.title()} credential: {credential_state} (--offline remains available)",
         flush=True,
     )
-    print(f"Cached PSI annual archives: {len(_psi_cache_years())}", flush=True)
-    print(f"Cached PSI weekly archives: {len(_psi_cache_weeks())}", flush=True)
+    if FEATURE_1_KEY in ENABLED_FEATURE_KEYS:
+        print(f"Cached PSI annual archives: {len(_psi_cache_years())}", flush=True)
+        print(f"Cached PSI weekly archives: {len(_psi_cache_weeks())}", flush=True)
+    else:
+        print("Official sources: disabled (Feature 1 is not enabled)", flush=True)
 
 
 def _json_response(response: httpx.Response) -> dict[str, Any]:

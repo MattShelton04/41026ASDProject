@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from ai_mode.tool_catalog import ToolCatalog, build_tool_runtime, load_tool_catalog
 from shared_contracts import FeatureManifest, load_feature_manifests
@@ -19,6 +20,27 @@ from scripts.onboarding import (
 )
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _canonical_tool_path(path: str) -> str:
+    """Reject encoded or ambiguous paths before checking their owned route prefix."""
+    if "%" in path or "\\" in path:
+        raise ValueError("tool binding path must be an unencoded canonical absolute path")
+    parsed = urlsplit(path)
+    segments = path.split("/")
+    if (
+        not path.startswith("/")
+        or path.startswith("//")
+        or path.endswith("/")
+        or parsed.scheme
+        or parsed.netloc
+        or parsed.query
+        or parsed.fragment
+        or parsed.path != path
+        or any(segment in {"", ".", ".."} for segment in segments[1:])
+    ):
+        raise ValueError("tool binding path must be an unencoded canonical absolute path")
+    return path
 
 
 def discover_catalogs(root: Path = REPOSITORY_ROOT) -> tuple[Path, ...]:
@@ -67,7 +89,7 @@ def validate_catalog_ownership(catalog: ToolCatalog, manifest: FeatureManifest) 
             raise ValueError(
                 "tool definition feature_key must match its owning feature manifest"
             )
-        path = registration.path.rstrip("/")
+        path = _canonical_tool_path(registration.path)
         if not any(path == root or path.startswith(f"{root}/") for root in owned_roots):
             raise ValueError("tool binding path must stay inside an owned backend route namespace")
 

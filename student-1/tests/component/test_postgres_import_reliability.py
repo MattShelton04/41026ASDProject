@@ -30,6 +30,7 @@ from propertyscope_data_store import sql as migration_sql
 from propertyscope_data_store._consumer_import_operations import _ConsumerImportOperations
 from propertyscope_data_store.errors import ConflictError, NotFoundError
 from propertyscope_data_store.import_profiles import ImportProfileError, iter_ndjson_import
+from propertyscope_data_store.repository import PropertyScopeStore
 from propertyscope_data_store.source_materialisation import (
     BOCSAR_COPY_SQL,
     BOCSAR_STAGE_SQL,
@@ -209,6 +210,25 @@ def _stage_typed_bocsar_rows(
             values = {**row, "ordinal": ordinal}
             copy.write_row(tuple(values.get(field) for field in BOCSAR_STREAM_COLUMNS))
     connection.execute("ANALYZE propertyscope_bocsar_import_stage")
+
+
+class _SingleConnectionStore(PropertyScopeStore):
+    """Expose the real repository probe against the fixture-owned connection."""
+
+    def __init__(self, connection: psycopg.Connection[dict[str, object]]) -> None:
+        self._test_connection = connection
+
+    @contextmanager
+    def connection(self) -> Iterator[psycopg.Connection[dict[str, object]]]:
+        yield self._test_connection
+
+
+def test_postgres_reports_positive_data_and_wal_filesystem_capacity(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    store = _SingleConnectionStore(isolated_postgres)
+
+    assert store.database_filesystem_available_bytes() > 0
 
 
 def test_cancel_intent_update_is_not_blocked_by_import_foreign_key_share(

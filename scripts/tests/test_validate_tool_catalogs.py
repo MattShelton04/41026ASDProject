@@ -58,6 +58,23 @@ def test_catalogue_rejects_unowned_tool_path() -> None:
         validate_catalog_ownership(invalid, MANIFEST)
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/data-platform/v1/%2e%2e/another/tool",
+        "/api/data-platform/v1/../another/tool",
+        "/api/data-platform/v1//tools/sources.list.v1",
+        "/api/data-platform/v1/tools/sources.list.v1?mode=unsafe",
+    ],
+)
+def test_catalogue_rejects_encoded_or_noncanonical_tool_path(path: str) -> None:
+    registration = CATALOG.tools[0].model_copy(update={"path": path})
+    invalid = ToolCatalog(services=CATALOG.services, tools=(registration,))
+
+    with pytest.raises(ValueError, match="unencoded canonical"):
+        validate_catalog_ownership(invalid, MANIFEST)
+
+
 def test_catalogue_rejects_unused_service_endpoint() -> None:
     unused = ServiceEndpoint(service="unused-backend", base_url="http://f1-backend:5201")
     invalid = CATALOG.model_copy(update={"services": (*CATALOG.services, unused)})

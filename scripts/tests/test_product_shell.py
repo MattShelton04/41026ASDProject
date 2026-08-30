@@ -132,6 +132,10 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert complete_nginx.count("proxy_set_header X-Request-ID $correlation_request_id") >= 8
     assert "add_header X-Request-ID $correlation_request_id always" in nginx
     assert '"request_id":"$correlation_request_id"' in nginx
+    health_route = re.search(r"location ~ (\^/health\S*) \{", nginx)
+    assert health_route is not None
+    for invented_path in ("/health/live", "/healthz/ready", "/healthcheck"):
+        assert re.match(health_route.group(1), invented_path)
 
 
 def test_property_data_and_agent_operations_link_back_to_product_home() -> None:

@@ -33,9 +33,12 @@ and unlogged destination tables would weaken the existing atomic release contrac
   observation for its data and WAL paths. The loader requires the lower physical headroom to cover
   configured temporary files, measured source-scale database and WAL floors, artifact-derived
   growth when larger, and an operator reserve. The declared deployment ceiling remains a second
-  independent bound. An unavailable observation fails closed; no other service mounts the database
-  volume. Failures expose bounded resource evidence, preserve the predecessor, and retain the
-  relation-scoped recovery obligation.
+  independent bound. The loader database role must be a PostgreSQL superuser or a member of the
+  predefined `pg_execute_server_program` role so it can run that fixed observation. Missing
+  privilege, malformed output, or command failure makes preflight fail closed before COPY; there is
+  no filesystem-estimate fallback. No other service mounts the database volume. Failures expose
+  bounded resource evidence, preserve the predecessor, and retain the relation-scoped recovery
+  obligation.
 - Performance evidence uses disposable real-shape schemas at 100,000 records, then 1,000,000 only
   after three clean reset runs per variant. Each measured statement has a 30-minute ceiling and
   five-minute progress evidence. Full official artifacts are permitted only when the smaller-run
