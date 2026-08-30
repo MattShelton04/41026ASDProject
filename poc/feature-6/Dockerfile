@@ -1,0 +1,66 @@
+# syntax=docker/dockerfile:1.7
+
+ARG UV_VERSION=0.12.1
+ARG PYTHON_VERSION=3.12.13
+
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
+
+FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+COPY --from=uv /uv /uvx /bin/
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+COPY ai-services/agent-core/pyproject.toml ai-services/agent-core/pyproject.toml
+COPY ai-services/ai-mode/pyproject.toml ai-services/ai-mode/pyproject.toml
+COPY shared/contracts/pyproject.toml shared/contracts/pyproject.toml
+COPY shared/testkit/pyproject.toml shared/testkit/pyproject.toml
+COPY student-1/pyproject.toml student-1/pyproject.toml
+COPY student-2/pyproject.toml student-2/pyproject.toml
+COPY student-3/pyproject.toml student-3/pyproject.toml
+COPY student-4/pyproject.toml student-4/pyproject.toml
+COPY student-5/pyproject.toml student-5/pyproject.toml
+COPY poc/feature-6/pyproject.toml poc/feature-6/pyproject.toml
+
+RUN uv sync --locked --no-dev --package feature-6-poc --no-install-workspace
+
+COPY poc/feature-6/backend/src poc/feature-6/backend/src
+COPY poc/feature-6/database/src poc/feature-6/database/src
+RUN uv sync --locked --no-dev --package feature-6-poc && uv cache clean
+
+FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
+ENV PATH="/app/.venv/bin:${PATH}" \
+    PYTHONPATH="/app/poc/feature-6/backend/src:/app/poc/feature-6/database/src" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    POC_F6_CONTRACT_ROOT=/app/provider-contracts
+WORKDIR /app
+RUN groupadd --gid 10001 propertyscope \
+    && useradd --uid 10001 --gid propertyscope --create-home --shell /usr/sbin/nologin propertyscope \
+    && install -d --owner propertyscope --group propertyscope /var/lib/propertyscope-poc
+COPY --from=builder --chown=propertyscope:propertyscope /app/.venv /app/.venv
+COPY --from=builder --chown=propertyscope:propertyscope /app/poc/feature-6 /app/poc/feature-6
+# Provider-owned machine contracts are copied as data because they are not published from Shared.
+COPY --chown=propertyscope:propertyscope student-1/contracts /app/provider-contracts
+USER propertyscope
+
+FROM runtime AS database-api
+EXPOSE 5602
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=30 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5602/health/ready', timeout=2)"]
+CMD ["gunicorn", "--bind=0.0.0.0:5602", "--workers=1", "--threads=4", "--timeout=14400", "--graceful-timeout=60", "--access-logfile=-", "--error-logfile=-", "propertyscope_integration_store.app:create_app()"]
+
+FROM runtime AS backend
+EXPOSE 5601
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=30 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5601/health/ready', timeout=2)"]
+CMD ["gunicorn", "--bind=0.0.0.0:5601", "--workers=1", "--threads=4", "--timeout=14400", "--graceful-timeout=60", "--access-logfile=-", "--error-logfile=-", "propertyscope_integration_poc.app:create_app()"]
+
+FROM nginxinc/nginx-unprivileged:1.29.1-alpine3.22-slim AS frontend
+COPY poc/feature-6/frontend /usr/share/nginx/html
+COPY shared/frontend/design-system /usr/share/nginx/html/design-system
+COPY shared/frontend/browser /usr/share/nginx/html/browser
+COPY poc/feature-6/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=20 \
+    CMD ["wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/"]

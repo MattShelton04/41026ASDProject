@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-SERVICE_NAME = re.compile(r"^(?:shared|f[1-5])-[a-z0-9]+(?:-[a-z0-9]+)*$")
+SERVICE_NAME = re.compile(r"^(?:shared|f[1-5]|poc-f6)-[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def _compose(filename: str) -> dict[str, Any]:
@@ -50,3 +50,61 @@ def test_source_scale_resource_defaults_fit_two_cpu_hosts() -> None:
     assert services["f1-db-api"]["cpus"] == "${PROPERTYSCOPE_DATABASE_CPU_LIMIT:-2.0}"
     assert services["f1-db-loader"]["cpus"] == "${PROPERTYSCOPE_LOADER_CPU_LIMIT:-2.0}"
     assert services["f1-runner"]["cpus"] == "${PROPERTYSCOPE_RUNNER_CPU_LIMIT:-2.0}"
+
+
+def test_local_integration_poc_is_opt_in_and_keeps_database_ownership_exclusive() -> None:
+    compose = _compose("docker-compose.yml")
+    services = compose["services"]
+    poc_names = {"poc-f6-db-api", "poc-f6-backend", "poc-f6-frontend"}
+
+    assert poc_names <= services.keys()
+    assert all(services[name]["profiles"] == ["feature-6-poc"] for name in poc_names)
+    assert services["poc-f6-db-api"]["volumes"] == ["poc-f6-data:/var/lib/propertyscope-poc"]
+    assert "volumes" not in services["poc-f6-backend"]
+    assert "volumes" not in services["poc-f6-frontend"]
+    assert services["poc-f6-backend"]["environment"]["PROPERTYSCOPE_F1_ORIGIN"] == (
+        "http://f1-backend:5201"
+    )
+    assert services["f1-backend"]["environment"]["PROPERTYSCOPE_FEATURE_2_URL"] == (
+        "http://poc-f6-backend:5601"
+    )
+    assert services["f1-backend"]["environment"]["PROPERTYSCOPE_FEATURE_3_URL"] == (
+        "http://poc-f6-backend:5601"
+    )
+    assert "poc-f6-data" in compose["volumes"]
+    for service in services.values():
+        mounts = service.get("volumes", [])
+        if service is not services["poc-f6-db-api"]:
+            assert not any(str(item).startswith("poc-f6-data:") for item in mounts)
+
+
+def test_local_integration_poc_uses_explicit_build_targets_and_host_port() -> None:
+    services = _compose("docker-compose.yml")["services"]
+
+    for suffix, target in (
+        ("db-api", "database-api"),
+        ("backend", "backend"),
+        ("frontend", "frontend"),
+    ):
+        service = services[f"poc-f6-{suffix}"]
+        assert service["build"] == {
+            "context": ".",
+            "dockerfile": "poc/feature-6/Dockerfile",
+            "target": target,
+        }
+    assert services["poc-f6-frontend"]["ports"] == ["127.0.0.1:${POC_F6_PORT:-5600}:8080"]
+
+
+def test_ai_mode_composes_feature_one_and_poc_tool_catalogues() -> None:
+    services = _compose("docker-compose.yml")["services"]
+    ai_mode = services["shared-ai-mode"]
+
+    assert ai_mode["environment"]["AI_MODE_TOOL_CATALOG_PATHS"] == (
+        "/etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/integration-poc-tools.yaml"
+    )
+    assert (
+        "./poc/feature-6/tool-catalog.yaml:/etc/ai-mode/integration-poc-tools.yaml:ro"
+        in ai_mode["volumes"]
+    )
+    command = _compose("docker-compose.dev.yml")["services"]["shared-ai-mode"]["command"]
+    assert "--reload-extra-file=/etc/ai-mode/integration-poc-tools.yaml" in command

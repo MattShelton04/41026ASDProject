@@ -18,6 +18,7 @@ services:
       - --error-logfile=-
       - --reload
       - --reload-extra-file=/etc/ai-mode/propertyscope-tools.yaml
+      - --reload-extra-file=/etc/ai-mode/integration-poc-tools.yaml
       - ai_mode:create_app()
     volumes:
       - ./ai-services/agent-core/src:/app/ai-services/agent-core/src:ro
@@ -66,3 +67,32 @@ services:
       - ./shared/frontend/mapping:/usr/share/nginx/html/mapping:ro
       - ./shared/frontend/vendor:/usr/share/nginx/html/vendor:ro
       - ./student-1/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  poc-f6-db-api:
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:5602
+      - --workers=1
+      - --threads=4
+      - --reload
+      - propertyscope_integration_store.app:create_app()
+    volumes:
+      - ./poc/feature-6/database/src:/app/poc/feature-6/database/src:ro
+
+  poc-f6-backend:
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:5601
+      - --workers=1
+      - --threads=4
+      - --reload
+      - propertyscope_integration_poc.app:create_app()
+    volumes:
+      - ./poc/feature-6/backend/src:/app/poc/feature-6/backend/src:ro
+
+  poc-f6-frontend:
+    volumes:
+      - ./poc/feature-6/frontend:/usr/share/nginx/html:ro
+      - ./shared/frontend/design-system:/usr/share/nginx/html/design-system:ro
+      - ./shared/frontend/browser:/usr/share/nginx/html/browser:ro
+      - ./poc/feature-6/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro

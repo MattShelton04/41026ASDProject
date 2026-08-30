@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Local PropertyScope integration proof of concept">
+    <title>PropertyScope integration POC</title>
+    <link rel="stylesheet" href="./design-system/tokens.css">
+    <link rel="stylesheet" href="./design-system/base.css">
+    <link rel="stylesheet" href="./design-system/components.css">
+    <link rel="stylesheet" href="./styles.css">
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <a class="ps-skip-link" href="#main">Skip to content</a>
+    <header class="poc-header">
+      <div class="ps-container ps-cluster poc-header__inner">
+        <a class="poc-wordmark" href="/">PropertyScope NSW</a>
+        <span class="ps-badge ps-badge--partial">Local integration POC</span>
+        <a href="/#features">Back to research areas</a>
+      </div>
+    </header>
+    <div class="poc-warning" role="note">
+      Representative workflows only. This is not an allocated sixth feature and does not claim to
+      implement Features 2–5.
+    </div>
+    <nav class="poc-nav ps-container" aria-label="POC sections">
+      <a href="#readiness">Data readiness</a>
+      <a href="#property">Property finder</a>
+      <a href="#market">Sales case</a>
+      <a href="#place">Place context</a>
+      <a href="#site">Site review</a>
+      <a href="#buyer">Buyer workspace</a>
+      <a href="#friction">Friction</a>
+    </nav>
+    <main id="main" class="ps-container ps-stack poc-main" tabindex="-1">
+      <div id="route" aria-live="polite"></div>
+    </main>
+    <div id="toast" class="ps-toast" role="status" aria-live="polite" hidden></div>
+    <noscript>This POC needs JavaScript to exercise the HTTP integration flows.</noscript>
+  </body>
+</html>

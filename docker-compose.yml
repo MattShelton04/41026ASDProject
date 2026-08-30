@@ -38,7 +38,7 @@ services:
       AI_MODE_LOG_LEVEL: ${AI_MODE_LOG_LEVEL:-INFO}
       # Feature 1 consumes the durable, redacted run index for diagnosis history.
       AI_MODE_OPERATIONS_ENABLED: ${AI_MODE_OPERATIONS_ENABLED:-true}
-      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml
+      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/integration-poc-tools.yaml
       AI_MODE_LLM_PROVIDER: ${AI_MODE_LLM_PROVIDER:-openai}
       AI_MODE_REQUIRE_PROVIDER_READY: ${AI_MODE_REQUIRE_PROVIDER_READY:-true}
       AI_MODE_DEFAULT_MODEL_PROFILE: ${AI_MODE_DEFAULT_MODEL_PROFILE:-remote-standard.v1}
@@ -59,6 +59,7 @@ services:
     volumes:
       - shared-ai-mode-state:/var/lib/ai-mode
       - ./student-1/tool-catalog.yaml:/etc/ai-mode/propertyscope-tools.yaml:ro
+      - ./poc/feature-6/tool-catalog.yaml:/etc/ai-mode/integration-poc-tools.yaml:ro
     networks:
       - shared-platform
     mem_limit: ${AI_MODE_MEMORY_LIMIT:-512m}
@@ -174,6 +175,10 @@ services:
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
       PROPERTYSCOPE_PSI_CACHED_YEARS: ${PROPERTYSCOPE_PSI_CACHED_YEARS:-}
       PROPERTYSCOPE_PSI_CACHED_WEEKS: ${PROPERTYSCOPE_PSI_CACHED_WEEKS:-}
+      # The opt-in local integration POC accepts Feature 2/3 publication callbacks. These fixed
+      # service origins carry no database credentials and remain unavailable in the normal stack.
+      PROPERTYSCOPE_FEATURE_2_URL: http://poc-f6-backend:5601
+      PROPERTYSCOPE_FEATURE_3_URL: http://poc-f6-backend:5601
     depends_on:
       f1-db-api:
         condition: service_healthy
@@ -240,6 +245,84 @@ services:
       timeout: 3s
       retries: 20
 
+  poc-f6-db-api:
+    profiles: [feature-6-poc]
+    build:
+      context: .
+      dockerfile: poc/feature-6/Dockerfile
+      target: database-api
+    image: propertyscope/poc-f6-db-api:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      PROPERTYSCOPE_F6_DATABASE_PATH: /var/lib/propertyscope-poc/integration.sqlite3
+      PROPERTYSCOPE_F6_INTERNAL_TOKEN: ${PROPERTYSCOPE_F6_INTERNAL_TOKEN:-poc-f6-local-development-only}
+    volumes:
+      - poc-f6-data:/var/lib/propertyscope-poc
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5602/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    stop_grace_period: 35s
+
+  poc-f6-backend:
+    profiles: [feature-6-poc]
+    build:
+      context: .
+      dockerfile: poc/feature-6/Dockerfile
+      target: backend
+    image: propertyscope/poc-f6-backend:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      PROPERTYSCOPE_F6_DATABASE_API_URL: http://poc-f6-db-api:5602
+      PROPERTYSCOPE_F6_INTERNAL_TOKEN: ${PROPERTYSCOPE_F6_INTERNAL_TOKEN:-poc-f6-local-development-only}
+      PROPERTYSCOPE_F1_ORIGIN: http://f1-backend:5201
+      AI_MODE_BASE_URL: http://shared-ai-mode:5005
+      POC_F6_MAX_ARTIFACT_BYTES: ${POC_F6_MAX_ARTIFACT_BYTES:-250000000}
+      POC_F6_MAX_LEGACY_JSON_BYTES: ${POC_F6_MAX_LEGACY_JSON_BYTES:-50000000}
+      POC_F6_STORE_CONNECT_TIMEOUT_SECONDS: ${POC_F6_STORE_CONNECT_TIMEOUT_SECONDS:-5}
+      POC_F6_STORE_READ_TIMEOUT_SECONDS: ${POC_F6_STORE_READ_TIMEOUT_SECONDS:-14400}
+      POC_F6_STORE_WRITE_TIMEOUT_SECONDS: ${POC_F6_STORE_WRITE_TIMEOUT_SECONDS:-300}
+      POC_F6_STORE_POOL_TIMEOUT_SECONDS: ${POC_F6_STORE_POOL_TIMEOUT_SECONDS:-5}
+    depends_on:
+      poc-f6-db-api:
+        condition: service_healthy
+      f1-backend:
+        condition: service_healthy
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5601/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    stop_grace_period: 35s
+
+  poc-f6-frontend:
+    profiles: [feature-6-poc]
+    build:
+      context: .
+      dockerfile: poc/feature-6/Dockerfile
+      target: frontend
+    image: propertyscope/poc-f6-frontend:dev
+    init: true
+    restart: unless-stopped
+    depends_on:
+      poc-f6-backend:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${POC_F6_PORT:-5600}:8080
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, wget, --quiet, --tries=1, --spider, http://127.0.0.1:8080/]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 networks:
   shared-platform:
 
@@ -253,3 +336,4 @@ volumes:
   shared-ai-mode-state:
   f1-artifacts:
   f1-postgres-data:
+  poc-f6-data:

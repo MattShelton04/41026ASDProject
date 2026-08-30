@@ -20,6 +20,7 @@ COPY student-2/pyproject.toml student-2/pyproject.toml
 COPY student-3/pyproject.toml student-3/pyproject.toml
 COPY student-4/pyproject.toml student-4/pyproject.toml
 COPY student-5/pyproject.toml student-5/pyproject.toml
+COPY poc/feature-6/pyproject.toml poc/feature-6/pyproject.toml
 
 RUN uv sync --locked --no-dev --package student-1-feature --no-install-workspace
 

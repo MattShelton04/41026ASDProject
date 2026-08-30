@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = REPOSITORY_ROOT / "docs" / "ui" / "frontend-style-baseline.json"
 STYLE_ROOTS = (
+    REPOSITORY_ROOT / "poc" / "feature-6" / "frontend",
     REPOSITORY_ROOT / "shared" / "frontend",
     REPOSITORY_ROOT / "student-1" / "frontend",
 )

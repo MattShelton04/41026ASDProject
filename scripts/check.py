@@ -18,6 +18,7 @@ CORE_TEST_PATHS = (
     "scripts/tests",
 )
 FRONTEND_TEST_PATHS = (
+    "poc/feature-6/tests/frontend-model.test.mjs",
     "student-1/tests/frontend/core.test.mjs",
     "shared/frontend/dashboard.test.mjs",
     "shared/frontend/ai-chat/ai-chat.test.mjs",
@@ -25,6 +26,7 @@ FRONTEND_TEST_PATHS = (
     "shared/frontend/operations/ai-mode/polling.test.mjs",
 )
 JAVASCRIPT_SOURCE_ROOTS = (
+    REPOSITORY_ROOT / "poc" / "feature-6" / "frontend",
     REPOSITORY_ROOT / "shared" / "frontend",
     REPOSITORY_ROOT / "student-1" / "frontend",
 )
@@ -54,6 +56,8 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "ai-services/ai-mode/src/ai_mode",
         "student-1/backend/src/propertyscope_data_platform",
         "student-1/database/src/propertyscope_data_store",
+        "poc/feature-6/backend/src/propertyscope_integration_poc",
+        "poc/feature-6/database/src/propertyscope_integration_store",
         "student-1/tests",
         "scripts/ui_audit",
         "scripts/devtools",
@@ -77,6 +81,12 @@ TEST_COMMANDS: tuple[Command, ...] = (
         "--cov=shared_testkit",
         "--cov-report=term-missing",
         *CORE_TEST_PATHS,
+    ),
+    (
+        sys.executable,
+        "-m",
+        "pytest",
+        "poc/feature-6/tests",
     ),
     (
         sys.executable,

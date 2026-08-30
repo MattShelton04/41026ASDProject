@@ -14,6 +14,7 @@ def discover_catalogs(root: Path = REPOSITORY_ROOT) -> tuple[Path, ...]:
     """Find canonical catalogues only in feature-owned and example slices."""
     candidate_roots = (
         root / "examples",
+        root / "poc",
         *(root / f"student-{number}" for number in range(1, 6)),
     )
     return tuple(

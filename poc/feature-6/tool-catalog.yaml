@@ -1,0 +1,55 @@
+schema_version: 1
+services:
+  - service: propertyscope-integration-poc-backend
+    base_url: http://poc-f6-backend:5601
+tools:
+  - definition:
+      name: integration.provider_readiness.v1
+      version: v1
+      feature_key: propertyscope-integration-poc
+      description: Return the bounded Feature 1 catalogue/readiness and independent POC store readiness used by the local integration laboratory.
+      input_schema:
+        type: object
+        properties: {}
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          feature_1: {type: object}
+          store: {type: object}
+          catalogue: {type: object}
+          poc: {type: object}
+        required: [feature_1, store, catalogue, poc]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 5000
+      requires_approval: false
+    service: propertyscope-integration-poc-backend
+    method: POST
+    path: /api/integration-poc/v1/tools/provider.readiness.v1
+  - definition:
+      name: integration.research_compose.v1
+      version: v1
+      feature_key: propertyscope-integration-poc
+      description: Compose bounded property identity, sales, postcode-crime, school-point and due-diligence-gap sections without inventing missing evidence.
+      input_schema:
+        type: object
+        properties:
+          property_ref: {type: string, format: uuid, x-identifier-kind: property_ref}
+        required: [property_ref]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          property_ref: {type: string, format: uuid, x-identifier-kind: property_ref}
+          identity: {type: object}
+          sections: {type: object}
+          limitations: {type: array, maxItems: 20, items: {type: string}}
+        required: [property_ref, identity, sections, limitations]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 5000
+      requires_approval: false
+    service: propertyscope-integration-poc-backend
+    method: POST
+    path: /api/integration-poc/v1/tools/research.compose.v1
