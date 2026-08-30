@@ -194,8 +194,29 @@ class PublicationReceipt:
 
 @dataclass(frozen=True, slots=True)
 class StoredPublication:
-    request: PublicationRequest
+    release_id: uuid.UUID
+    dataset_id: str
+    target_feature: str
+    schema_version: str
+    content_sha256: str
+    record_count: int
+    artifact_path: str
     receipt: PublicationReceipt
+
+    @classmethod
+    def from_request(
+        cls, request: PublicationRequest, receipt: PublicationReceipt
+    ) -> StoredPublication:
+        return cls(
+            release_id=request.release_id,
+            dataset_id=request.dataset_id,
+            target_feature=request.target_feature,
+            schema_version=request.schema_version,
+            content_sha256=request.content_sha256,
+            record_count=request.record_count,
+            artifact_path=request.artifact_path,
+            receipt=receipt,
+        )
 
 
 class PublicationStore(Protocol):
@@ -305,7 +326,7 @@ class PublicationImporter:
             publication.target_feature, publication.idempotency_key
         )
         if existing is not None:
-            if not _same_evidence(existing.request, publication):
+            if not _same_evidence(existing, publication):
                 raise PublicationConflictError(
                     "idempotency key is already bound to different release evidence"
                 )
@@ -473,7 +494,7 @@ def _validate_digest_header(response: Any, expected_sha256: str) -> None:
         raise PublicationImportError("artifact Digest header is missing or mismatched")
 
 
-def _same_evidence(left: PublicationRequest, right: PublicationRequest) -> bool:
+def _same_evidence(left: StoredPublication, right: PublicationRequest) -> bool:
     return (
         left.release_id,
         left.dataset_id,

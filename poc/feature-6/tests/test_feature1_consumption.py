@@ -62,7 +62,7 @@ class AtomicMemoryStore:
         )
         self.records.extend(staged)
         self.publications[(publication.target_feature, publication.idempotency_key)] = (
-            StoredPublication(publication, receipt)
+            StoredPublication.from_request(publication, receipt)
         )
         return receipt.as_dict()
 
@@ -310,3 +310,17 @@ def test_accepted_reconciliation_pulls_once_and_handles_no_release() -> None:
 def test_feature1_origin_must_be_a_plain_http_origin(origin: str) -> None:
     with pytest.raises(ValueError, match="HTTP origin"):
         Feature1Client(origin)
+
+
+def test_transport_failure_is_projected_as_dependency_unavailability() -> None:
+    def unavailable(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("offline", request=request)
+
+    client = Feature1Client(
+        "http://feature-1.local",
+        client=httpx.Client(transport=httpx.MockTransport(unavailable)),
+    )
+
+    with pytest.raises(Feature1HttpError, match="unavailable") as raised:
+        client.catalogue()
+    assert raised.value.status_code == 503

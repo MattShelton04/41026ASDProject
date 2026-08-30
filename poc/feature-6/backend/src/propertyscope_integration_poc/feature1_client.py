@@ -125,12 +125,15 @@ class Feature1Client:
     ) -> AcceptedRelease | None:
         _validate_dataset_target(dataset_id, target_feature)
         path = f"/api/data-platform/v1/data-products/{quote(dataset_id, safe='')}/accepted"
-        response = self._client.get(
-            self.origin + path,
-            params={"target_feature": target_feature},
-            headers=_safe_headers(headers),
-            follow_redirects=False,
-        )
+        try:
+            response = self._client.get(
+                self.origin + path,
+                params={"target_feature": target_feature},
+                headers=_safe_headers(headers),
+                follow_redirects=False,
+            )
+        except httpx.TransportError as exc:
+            raise Feature1HttpError(503, "Feature 1 is unavailable") from exc
         if response.status_code == 404:
             return None
         payload = _checked_json(response)
@@ -155,6 +158,30 @@ class Feature1Client:
             raise Feature1ContractError("property report section is not contract-valid")
         return payload
 
+    def property_search(
+        self,
+        query: str,
+        *,
+        limit: int = 25,
+        headers: Mapping[str, str] | None = None,
+    ) -> Mapping[str, Any]:
+        query = query.strip()
+        if not 2 <= len(query) <= 200 or not 1 <= limit <= 100:
+            raise ValueError("property search query or limit is outside contract bounds")
+        try:
+            response = self._client.get(
+                self.origin + "/api/data-platform/v1/properties/search",
+                params={"q": query, "state": "NSW", "limit": limit},
+                headers=_safe_headers(headers),
+                follow_redirects=False,
+            )
+        except httpx.TransportError as exc:
+            raise Feature1HttpError(503, "Feature 1 is unavailable") from exc
+        payload = _checked_json(response)
+        if not isinstance(payload.get("items"), list):
+            raise Feature1ContractError("property search page is malformed")
+        return payload
+
     def sales_source_records(
         self,
         *,
@@ -172,12 +199,16 @@ class Feature1Client:
             params: dict[str, str | int] = {"year": year, "limit": limit, "offset": offset}
             if pinned is not None:
                 params["release_id"] = str(pinned)
-            response = self._client.get(
-                self.origin + "/api/data-platform/v1/data-products/nsw-psi-sales/source-records",
-                params=params,
-                headers=_safe_headers(headers),
-                follow_redirects=False,
-            )
+            try:
+                response = self._client.get(
+                    self.origin
+                    + "/api/data-platform/v1/data-products/nsw-psi-sales/source-records",
+                    params=params,
+                    headers=_safe_headers(headers),
+                    follow_redirects=False,
+                )
+            except httpx.TransportError as exc:
+                raise Feature1HttpError(503, "Feature 1 is unavailable") from exc
             payload = _checked_json(response)
             release = payload.get("release")
             items = payload.get("items")
@@ -210,24 +241,32 @@ class Feature1Client:
         match = _ARTIFACT_PATH.fullmatch(artifact_path)
         if match is None or uuid.UUID(match.group("release_id")) != release_id:
             raise Feature1ContractError("artifact path is not bound to the published release")
-        with self._client.stream(
-            "GET",
-            self.origin + artifact_path,
-            headers=_safe_headers(headers),
-            follow_redirects=False,
-        ) as response:
-            if 300 <= response.status_code < 400:
-                raise Feature1HttpError(response.status_code, "artifact redirects are forbidden")
-            if response.status_code >= 400:
-                raise Feature1HttpError(response.status_code, _response_detail(response))
-            yield response
+        try:
+            with self._client.stream(
+                "GET",
+                self.origin + artifact_path,
+                headers=_safe_headers(headers),
+                follow_redirects=False,
+            ) as response:
+                if 300 <= response.status_code < 400:
+                    raise Feature1HttpError(
+                        response.status_code, "artifact redirects are forbidden"
+                    )
+                if response.status_code >= 400:
+                    raise Feature1HttpError(response.status_code, _response_detail(response))
+                yield response
+        except httpx.TransportError as exc:
+            raise Feature1HttpError(503, "Feature 1 artifact is unavailable") from exc
 
     def _get_json(self, path: str, *, headers: Mapping[str, str] | None) -> Mapping[str, Any]:
-        response = self._client.get(
-            self.origin + path,
-            headers=_safe_headers(headers),
-            follow_redirects=False,
-        )
+        try:
+            response = self._client.get(
+                self.origin + path,
+                headers=_safe_headers(headers),
+                follow_redirects=False,
+            )
+        except httpx.TransportError as exc:
+            raise Feature1HttpError(503, "Feature 1 is unavailable") from exc
         return _checked_json(response)
 
 
