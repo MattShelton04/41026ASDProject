@@ -7,6 +7,9 @@ from typing import Any
 
 import httpx
 
+MAX_RESPONSE_BYTES = 1_048_576
+MAX_PROJECTED_ITEMS = 100
+
 
 class OperatorReportError(RuntimeError):
     """The running stack did not expose a valid bounded operator projection."""
@@ -14,6 +17,8 @@ class OperatorReportError(RuntimeError):
 
 def _object(response: httpx.Response, *, label: str) -> dict[str, Any]:
     response.raise_for_status()
+    if len(response.content) > MAX_RESPONSE_BYTES:
+        raise OperatorReportError(f"{label} exceeds the {MAX_RESPONSE_BYTES}-byte response limit")
     try:
         payload = response.json()
     except ValueError as exc:
@@ -33,6 +38,10 @@ def _items(payload: Mapping[str, Any], *, label: str) -> list[dict[str, Any]]:
 def _health(client: httpx.Client, url: str, *, label: str) -> dict[str, Any]:
     try:
         response = client.get(url, headers={"Accept": "application/json"}, timeout=5.0)
+        if len(response.content) > MAX_RESPONSE_BYTES:
+            raise OperatorReportError(
+                f"{label} exceeds the {MAX_RESPONSE_BYTES}-byte response limit"
+            )
         payload = _object(response, label=label) if response.status_code < 400 else response.json()
     except (httpx.HTTPError, ValueError, OperatorReportError) as exc:
         return {"service": label, "http_status": None, "status": "unavailable", "detail": str(exc)}
@@ -78,7 +87,7 @@ def collect_operator_report(
         ),
         label="release catalogue",
     )
-    if len(products) > 100 or len(releases) > 100:
+    if len(products) > MAX_PROJECTED_ITEMS or len(releases) > MAX_PROJECTED_ITEMS:
         raise OperatorReportError("operator report collections exceed the supported 100-item bound")
 
     operations: list[dict[str, Any]] = []
@@ -101,10 +110,10 @@ def collect_operator_report(
             label=f"release {release_id}",
         )
         for operation in detail.get("consumer_imports", []):
-            if isinstance(operation, dict):
+            if isinstance(operation, dict) and len(operations) < MAX_PROJECTED_ITEMS:
                 operations.append(dict(operation))
         for activation in detail.get("activations", []):
-            if isinstance(activation, dict):
+            if isinstance(activation, dict) and len(activations) < MAX_PROJECTED_ITEMS:
                 activations.append(dict(activation))
 
     accepted = [
@@ -119,8 +128,8 @@ def collect_operator_report(
         "registered_products": products,
         "accepted_releases": accepted,
         "review_publication_prerequisites": prerequisites,
-        "consumer_import_operations": operations[:100],
-        "activations": activations[:100],
+        "consumer_import_operations": operations,
+        "activations": activations,
         "health": [
             _health(client, feature_health_url, label="feature-1"),
             _health(client, ai_health_url, label="ai-mode"),

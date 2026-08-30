@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from scripts.devtools.operator_report import collect_operator_report, render_operator_report
+from scripts.devtools.operator_report import (
+    MAX_PROJECTED_ITEMS,
+    OperatorReportError,
+    collect_operator_report,
+    render_operator_report,
+)
 
 
 def test_report_projects_products_release_work_and_degraded_dependencies() -> None:
@@ -95,3 +100,44 @@ def test_operator_cli_is_explicit_and_read_only(
     assert dev.main(["operator", "report"]) == 0
     assert observed["data_base_url"].endswith("/api/data-platform/v1")
     assert "read-only" in capsys.readouterr().out
+
+
+def test_report_rejects_oversized_responses() -> None:
+    with (
+        httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(200, content=b"x" * 1_048_577)
+            )
+        ) as client,
+        pytest.raises(OperatorReportError, match="response limit"),
+    ):
+        collect_operator_report(
+            client,
+            data_base_url="https://data.test/api/data-platform/v1",
+            feature_health_url="https://feature.test/health/ready",
+            ai_health_url="https://ai.test/health/ready",
+        )
+
+
+def test_nested_operation_projection_stops_at_global_bound() -> None:
+    nested = [{"id": f"operation-{index}", "status": "running"} for index in range(150)]
+
+    def service(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/data-products"):
+            return httpx.Response(200, json={"items": []})
+        if request.url.path.endswith("/dataset-releases"):
+            return httpx.Response(200, json={"items": [{"id": "release-1", "status": "candidate"}]})
+        if request.url.path.endswith("/dataset-releases/release-1"):
+            return httpx.Response(200, json={"consumer_imports": nested, "activations": nested})
+        return httpx.Response(200, json={"service": "test", "status": "healthy"})
+
+    with httpx.Client(transport=httpx.MockTransport(service)) as client:
+        report = collect_operator_report(
+            client,
+            data_base_url="https://data.test/api/data-platform/v1",
+            feature_health_url="https://feature.test/health/ready",
+            ai_health_url="https://ai.test/health/ready",
+        )
+
+    assert len(report["consumer_import_operations"]) == MAX_PROJECTED_ITEMS
+    assert len(report["activations"]) == MAX_PROJECTED_ITEMS
