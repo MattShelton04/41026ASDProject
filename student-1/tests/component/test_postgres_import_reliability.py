@@ -439,7 +439,9 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
         "041_consumer_import_activation_monitoring.sql",
         "042_consumer_import_delivery_aliases.sql",
     ):
-        connection.execute(files(migration_sql).joinpath(migration_name).read_text("utf-8"))
+        connection.execute(
+            files("propertyscope_data_store.sql").joinpath(migration_name).read_text("utf-8")
+        )
     release_row = (
         release_id,
         "bocsar-crime",
