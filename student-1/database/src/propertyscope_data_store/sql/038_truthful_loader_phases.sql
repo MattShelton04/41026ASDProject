@@ -15,4 +15,3 @@ ALTER TABLE ops.release_activation
     ADD COLUMN progress_phase_key TEXT,
     ADD COLUMN progress_phase TEXT,
     ADD COLUMN progress_updated_at TIMESTAMPTZ;
-

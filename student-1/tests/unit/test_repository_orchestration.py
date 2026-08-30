@@ -2140,7 +2140,7 @@ def test_failed_activation_with_accepted_receipt_requeues_without_consumer_redow
         "record_count": 3,
         "manifest_json": {"target_feature": "feature-3"},
         "status": "awaiting_review",
-        "version": 2,
+        "version": 3,
     }
     failed = {
         "id": operation_id,
@@ -2165,7 +2165,13 @@ def test_failed_activation_with_accepted_receipt_requeues_without_consumer_redow
 
     operation, created = ConnectedStore(connection).create_consumer_import(
         release_id,
-        _consumer_import_values(release_id, idempotency_key="fresh-activation-retry"),
+        _consumer_import_values(
+            release_id,
+            idempotency_key="fresh-activation-retry",
+            expected_release_version=3,
+            comment="Approved after version-conflict reconciliation",
+            request_id="request-version-three",
+        ),
     )
 
     assert created is False
@@ -2174,6 +2180,13 @@ def test_failed_activation_with_accepted_receipt_requeues_without_consumer_redow
     retry_query = connection.queries[4]
     assert "activation_attempt=activation_attempt+1" in retry_query
     assert "release_activation_id=NULL" in retry_query
+    assert "expected_release_version=%s" in retry_query
+    assert "review_comment=%s" in retry_query
+    retry_parameters = connection.parameters[4]
+    assert retry_parameters is not None
+    assert 3 in retry_parameters
+    assert "Approved after version-conflict reconciliation" in retry_parameters
+    assert "request-version-three" in retry_parameters
     assert not any(
         "INSERT INTO ops.consumer_import_operation" in query for query in connection.queries
     )

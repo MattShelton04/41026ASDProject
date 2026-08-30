@@ -192,7 +192,9 @@ replace an accepted artifact in place.
 
 ## Gzip-NDJSON framing, hashing, and downstream product projections
 
-Every downloadable product uses media type `application/x-ndjson` with content encoding `gzip`.
+Every artifact emitted by the current v2/v3 builders uses media type `application/x-ndjson` with
+content encoding `gzip`. Retained accepted legacy releases can remain downloadable as the immutable
+`application/json` evidence described in the compatibility section below.
 After decompression it is UTF-8 NDJSON with no byte-order mark: each non-empty line is exactly one
 record matching the schema selected from `product-contract-set.v1.json`, and the final record has a
 newline. There is no outer product envelope. Within each record, object keys are lexicographically
