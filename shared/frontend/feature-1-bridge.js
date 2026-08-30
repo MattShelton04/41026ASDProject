@@ -21,6 +21,8 @@ export function validateFeature1Adapter(adapter) {
   for (const name of ["propertyDiscovery", "dataOperations", "agentRuns"]) requireString(adapter.links?.[name], `links.${name}`);
   requireFunction(adapter.primarySearchHref, "primarySearchHref");
   requireFunction(adapter.statusDependencies, "statusDependencies");
+  requireString(adapter.evidence?.action?.label, "evidence.action.label");
+  requireString(adapter.evidence?.action?.href, "evidence.action.href");
   for (const name of REQUIRED_COPY) requireString(adapter.evidence?.copy?.[name], `evidence.copy.${name}`);
   for (const section of ["published", "agentRuns"]) {
     requireString(adapter.evidence?.[section]?.path, `evidence.${section}.path`);

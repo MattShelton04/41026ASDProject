@@ -17,7 +17,6 @@ services:
       - --access-logfile=-
       - --error-logfile=-
       - --reload
-      - --reload-extra-file=/etc/ai-mode/propertyscope-tools.yaml
       - ai_mode:create_app()
     volumes:
       - ./ai-services/agent-core/src:/app/ai-services/agent-core/src:ro

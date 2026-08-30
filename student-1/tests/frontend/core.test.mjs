@@ -825,10 +825,23 @@ test("the frontend proxy keeps browser traffic on the public backend boundary", 
   const nginx = await readFile(new URL("../../frontend/nginx.conf", import.meta.url), "utf8");
   assert.match(nginx, /location \/api\/data-platform\//);
   assert.match(nginx, /location \/fragments\/data-platform\//);
-  assert.match(nginx, /proxy_pass http:\/\/f1-backend:5201/);
+  assert.match(nginx, /resolver 127\.0\.0\.11 valid=10s ipv6=off/);
+  assert.match(nginx, /set \$data_platform_upstream http:\/\/f1-backend:5201/);
+  assert.match(nginx, /proxy_pass \$data_platform_upstream/);
   assert.doesNotMatch(nginx, /propertyscope-database/);
   assert.match(nginx, /https:\/\/tiles\.openfreemap\.org/);
   assert.match(nginx, /worker-src blob:/);
+});
+
+test("the frontend exposes only fixed JSON health routes", async () => {
+  const nginx = await readFile(new URL("../../frontend/nginx.conf", import.meta.url), "utf8");
+  assert.match(nginx, /location = \/health\/live/);
+  assert.match(nginx, /location = \/health\/ready/);
+  assert.match(nginx, /location ~ \^\/health/);
+  assert.match(nginx, /Only \/health\/live and \/health\/ready are supported/);
+  assert.match(nginx, /default_type application\/problem\+json/);
+  assert.match(nginx, /return 404 '[^']*"code":"route_not_found"/);
+  assert.doesNotMatch(nginx, /location \/health\//);
 });
 
 test("Source CRUD is exclusively wired through local HTMX fragments", async () => {
@@ -871,6 +884,14 @@ test("Feature 1 owns its Shared-shell response and workflow adapter", () => {
     "https://example.test/custom/#properties?q=1%20Farrer%20Place",
   );
   assert.equal(integration.statusDependencies({ payload: { dependencies: { database: true } } })[0].rawStatus, true);
+  assert.deepEqual(
+    integration.statusDependencies({ payload: { checks: { database: { status: "degraded", detail: "Recovery pending" } } } })[0],
+    {
+      name: "Property data store", kind: "Owned dependency", owner: "Property data service",
+      rawStatus: "degraded", detail: "Recovery pending",
+    },
+  );
+  assert.deepEqual(integration.evidence.action, { label: "Open Property data", href: integration.links.dataOperations });
   assert.equal(integration.evidence.agentRuns.href("run-1", "https://example.test/").includes("feature_key=student-1-propertyscope-data-platform"), true);
   assert.equal(agentRunReferences({ items: [{ id: "run-1", feature_key: "feature-1" }, { id: "other", feature_key: "feature-4" }] }).length, 1);
 });
@@ -970,4 +991,12 @@ test("live acquisition controls always use the complete registered source", asyn
   assert.match(app, /Complete dataset: all available source records/);
   assert.doesNotMatch(app, /scope-profile|Maximum addresses|maximum-records/);
   assert.doesNotMatch(app, /request\("runtime-capabilities"\)/);
+});
+
+test("Feature 1 exports the manifest-declared domain-neutral evidence hook", async () => {
+  const adapter = await readFile(
+    new URL("../../frontend/integration/shell.js", import.meta.url),
+    "utf8",
+  );
+  assert.match(adapter, /export function createShellEvidenceAdapter/);
 });

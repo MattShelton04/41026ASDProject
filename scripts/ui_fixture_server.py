@@ -20,6 +20,7 @@ from urllib.error import URLError
 from urllib.parse import parse_qs, unquote, urlsplit
 from urllib.request import urlopen
 
+from scripts.onboarding import load_enabled_projection
 from scripts.ui_fixtures import (
     REQUEST_ID,
     SCENARIOS,
@@ -28,12 +29,27 @@ from scripts.ui_fixtures import (
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SHARED_FRONTEND = REPOSITORY_ROOT / "shared" / "frontend"
-FEATURE_FRONTEND = REPOSITORY_ROOT / "student-1" / "frontend"
 LOOPBACK_HOST = "127.0.0.1"
 DEFAULT_PORT = 5300
 SCENARIO_COOKIE = "propertyscope_ui_scenario"
 SESSION_COOKIE = "propertyscope_ui_session"
 MAX_SOURCE_SESSIONS = 64
+
+
+def _enabled_frontends() -> tuple[tuple[str, Path], ...]:
+    frontends: list[tuple[str, Path]] = []
+    for feature in load_enabled_projection(REPOSITORY_ROOT).features:
+        if feature.frontend is None:
+            continue
+        route = next((item.path for item in feature.routes if item.kind == "frontend"), None)
+        if route is not None:
+            frontends.append(
+                (route.rstrip("/") + "/", REPOSITORY_ROOT / feature.frontend.asset_root)
+            )
+    return tuple(sorted(frontends))
+
+
+FEATURE_FRONTENDS = _enabled_frontends()
 
 CANARY_PAGES = {
     "/__ui-fixture__/canary/clean": """<!doctype html>
@@ -260,15 +276,14 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
                 or REQUEST_ID,
             )
             return
-        if target.path == "/features/data-platform":
-            self.send_response(HTTPStatus.PERMANENT_REDIRECT)
-            self.send_header(
-                "Location", f"/features/data-platform/{self._query_suffix(target.query)}"
-            )
-            self._send_session_cookie()
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
+        for feature_prefix, _feature_root in FEATURE_FRONTENDS:
+            if target.path == feature_prefix.rstrip("/"):
+                self.send_response(HTTPStatus.PERMANENT_REDIRECT)
+                self.send_header("Location", f"{feature_prefix}{self._query_suffix(target.query)}")
+                self._send_session_cookie()
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
         path = self._static_path(target.path)
         if path is None or not path.is_file():
             self._send_bytes(
@@ -355,7 +370,6 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
 
     def _static_path(self, request_path: str) -> Path | None:
         decoded = unquote(request_path)
-        feature_prefix = "/features/data-platform/"
         operations_assets = "/operations/ai-mode/assets/"
         operations_tokens = "/operations/ai-mode/design-system/"
         if decoded.startswith(operations_assets):
@@ -364,14 +378,18 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
         elif decoded.startswith(operations_tokens):
             relative = decoded.removeprefix(operations_tokens)
             root = SHARED_FRONTEND / "design-system"
-        elif decoded.startswith(feature_prefix):
+        elif matched := next(
+            ((prefix, root) for prefix, root in FEATURE_FRONTENDS if decoded.startswith(prefix)),
+            None,
+        ):
+            feature_prefix, feature_root = matched
             relative = decoded.removeprefix(feature_prefix) or "index.html"
             if relative.startswith(
                 ("ai-chat/", "browser/", "design-system/", "mapping/", "vendor/")
             ):
                 root = SHARED_FRONTEND
             else:
-                root = FEATURE_FRONTEND
+                root = feature_root
         else:
             relative = decoded.lstrip("/") or "index.html"
             root = SHARED_FRONTEND

@@ -118,6 +118,14 @@ interpolation; the loader never mounts the database volume. An unavailable obser
 Artifact free space is never treated as database capacity because materialisation only reads the
 already-complete artifact.
 
+The loader database role must be a PostgreSQL superuser or hold the predefined
+`pg_execute_server_program` role required by `COPY FROM PROGRAM`. Provision that capability only
+through reviewed database-role configuration; it is not granted by the application. If the role
+lacks it, the command fails, preflight reports
+`loader_database_filesystem_capacity_unavailable`, and no source COPY or materialisation begins.
+Operators must correct the role or server observation rather than substituting artifact-filesystem
+free space or a declared-capacity estimate.
+
 The local Compose default declares a conservative 64 GiB Feature 1 PostgreSQL capacity budget,
 16 GiB of transaction-local temporary files and a 4 GiB reserve. PSI additionally reserves 6 GiB
 for relation/index growth and 16 GiB for WAL; BOCSAR reserves 8 GiB and 20 GiB respectively. These

@@ -43,7 +43,7 @@ from shared_contracts import (
     AgentRunDetail,
     AgentRunEventPage,
     AgentRunPage,
-    HealthResponse,
+    TypedHealthProjection,
 )
 from shared_contracts.operations import AgentRunEvidenceDetail
 
@@ -128,7 +128,9 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
         "revision": FIXTURE_REVISION,
     }
     feature_ready, _headers = _json(f"{fixture_origin}/health/ready")
-    assert feature_ready == {"status": "healthy", "dependencies": {"database": True}}
+    projection = TypedHealthProjection.model_validate(feature_ready)
+    assert projection.http_status == 200
+    assert projection.checks["database"].required is True
 
     connection = HTTPConnection(LOOPBACK_HOST, int(fixture_origin.rsplit(":", 1)[1]))
     connection.request("GET", "/api/data-platform/v1/not-registered")
@@ -361,8 +363,10 @@ def test_shared_health_evidence_and_ai_operations_projections_are_contract_valid
         "GET", "/api/data-platform/v1/assistant/capabilities", "", "populated"
     )
 
-    assert health.body["dependencies"] == {"database": True}
-    HealthResponse.model_validate(ai_health.body)
+    feature_projection = TypedHealthProjection.model_validate(health.body)
+    ai_projection = TypedHealthProjection.model_validate(ai_health.body)
+    assert feature_projection.checks["database"].required is True
+    assert ai_projection.checks["llm_provider"].required is False
     assert ai_health.body["checks"]["llm_provider"]["status"] == "healthy"
     assert releases.body["count"] == 1
     assert [item["status"] for item in releases.body["items"]] == ["accepted"]

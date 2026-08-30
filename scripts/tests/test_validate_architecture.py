@@ -46,6 +46,47 @@ members = [
             f'[project]\nname = "{name}"\nversion = "0.1.0"\ndependencies = [{quoted}]\n',
             encoding="utf-8",
         )
+    (root / "student-1" / "feature.yaml").write_text(
+        """
+schema_version: 1
+feature_key: student-1-example
+display_name: Student 1 example
+owner: student-1
+frontend_base_path: /features/student-1/
+backend_base_path: /api/student-1/v1
+health_path: /health/ready
+onboarding:
+  databases:
+    - database_service: f1-postgres
+      volumes: [f1-postgres-data]
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (root / "student-2" / "feature.yaml").write_text(
+        """
+schema_version: 1
+feature_key: student-2-example
+display_name: Student 2 example
+owner: student-2
+frontend_base_path: /features/student-2/
+backend_base_path: /api/student-2/v1
+health_path: /health/ready
+""".lstrip(),
+        encoding="utf-8",
+    )
+    deployment = root / "deployment" / "features.yaml"
+    deployment.parent.mkdir()
+    deployment.write_text(
+        """
+schema_version: 1
+features:
+  - feature_key: student-1-example
+    enabled: true
+  - feature_key: student-2-example
+    enabled: false
+""".lstrip(),
+        encoding="utf-8",
+    )
     return root
 
 
@@ -284,7 +325,9 @@ def test_feature_one_backend_cannot_import_postgres_or_database_package(tmp_path
     violations = validate_repository(root)
 
     assert len(violations) == 2
-    assert "Only Feature 1 database/ may import PostgreSQL client psycopg" in violations[0].message
+    assert "Only an enabled feature's database/ code may import PostgreSQL client psycopg" in (
+        violations[0].message
+    )
     assert "must call its database service over HTTP" in violations[1].message
 
 
@@ -306,7 +349,9 @@ def test_other_student_must_not_import_postgres_client(tmp_path: Path) -> None:
     violations = validate_repository(root)
 
     assert len(violations) == 1
-    assert "Only Feature 1 database/ may import PostgreSQL client psycopg" in violations[0].message
+    assert "Only an enabled feature's database/ code may import PostgreSQL client psycopg" in (
+        violations[0].message
+    )
 
 
 def test_propertyscope_compose_trust_boundary_passes(tmp_path: Path) -> None:
@@ -336,6 +381,69 @@ def test_propertyscope_compose_rejects_credential_and_volume_leaks(tmp_path: Pat
     assert any("runner must not receive PROPERTYSCOPE_DATABASE_URL" in item for item in messages)
     assert any("runner must not mount PostgreSQL volume" in item for item in messages)
     assert any("runner must mount f1-artifacts read/write" in item for item in messages)
+
+
+def test_enabled_database_volume_has_one_compose_owner(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    compose = _valid_propertyscope_compose().replace(
+        "f1-db-api:\n    environment:",
+        "f1-db-api:\n    volumes:\n      - f1-postgres-data:/leaked:ro\n    environment:",
+    )
+    (root / "docker-compose.yml").write_text(compose, encoding="utf-8")
+
+    messages = [violation.message for violation in validate_repository(root)]
+
+    assert any(
+        message
+        == "Compose service f1-db-api must not mount database volume f1-postgres-data owned by "
+        "f1-postgres"
+        for message in messages
+    )
+
+
+def test_enabled_database_owner_and_volume_must_exist_and_mount_rw(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    compose = (
+        _valid_propertyscope_compose()
+        .replace(
+            "f1-postgres:\n    volumes:\n      - f1-postgres-data:/var/lib/postgresql/data",
+            "f1-postgres:\n    volumes: []",
+        )
+        .replace("  f1-postgres-data:\n", "")
+    )
+    (root / "docker-compose.yml").write_text(compose, encoding="utf-8")
+
+    messages = [violation.message for violation in validate_repository(root)]
+
+    assert "Enabled feature student-1-example database volume f1-postgres-data is not declared" in (
+        messages
+    )
+    assert "Database owner service f1-postgres must mount f1-postgres-data read/write" in messages
+
+
+def test_enabled_feature_database_code_may_use_postgres_client(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    selection = root / "deployment" / "features.yaml"
+    selection.write_text(
+        """
+schema_version: 1
+features:
+  - feature_key: student-2-example
+    enabled: true
+""".lstrip(),
+        encoding="utf-8",
+    )
+    manifest = root / "student-2" / "feature.yaml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8") + "onboarding:\n  databases:\n"
+        "    - database_service: f2-postgres\n      volumes: [f2-postgres-data]\n",
+        encoding="utf-8",
+    )
+    source = root / "student-2" / "database" / "repository.py"
+    source.parent.mkdir()
+    source.write_text("import psycopg\n", encoding="utf-8")
+
+    assert validate_repository(root) == ()
 
 
 def _valid_propertyscope_compose() -> str:

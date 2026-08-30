@@ -1,5 +1,6 @@
 import { append, el, link, notice, parseShellRoute, requestJson, requestText } from "./core.js";
-import { createEvidenceRoute } from "./routes/evidence.js";
+import { ENABLED_FEATURES } from "./generated/enabled-features.js";
+import { createEvidenceRoute, loadEvidenceAdapter } from "./routes/evidence.js";
 import { createAssistantRoute } from "./routes/assistant.js";
 import { createFeaturesRoute } from "./routes/features.js";
 import { createRoadmapRoute } from "./routes/roadmap.js";
@@ -10,7 +11,9 @@ import { createToastController } from "./browser/index.js";
 
 const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const config = { ...externalConfig };
+const feature1Enabled = Boolean(findFeature("student-1-propertyscope-data-platform")?.enabled);
 let feature1Adapter = null;
+const evidenceAdapters = new Map();
 const main = document.querySelector("#main-content");
 const homeMarkup = main.innerHTML;
 const homeRail = main.querySelector(".product-rail")?.cloneNode(true);
@@ -96,6 +99,10 @@ document.addEventListener("htmx:responseError", (event) => {
 });
 
 function openPrimarySearch(query = "") {
+  if (!feature1Enabled) {
+    showToast("Property search is unavailable because its feature is not enabled.");
+    return;
+  }
   const target = feature1Adapter?.primarySearchHref(query, window.location.href)
     || new URL(findFeature("property-records").href, window.location.href).href;
   window.location.assign(target);
@@ -141,8 +148,7 @@ const routes = {
     requestText: routeRequestText,
   }),
   evidence: createEvidenceRoute({
-    config,
-    getFeature1Adapter: () => feature1Adapter,
+    getEvidenceAdapters: () => [...evidenceAdapters.values()],
     announce,
     requestJson: routeRequestJson,
   }),
@@ -225,9 +231,20 @@ function installFeature1Adapter(adapter) {
   feature1Adapter = adapter;
   Object.assign(config, adapter.links, { featureHrefs: { "property-records": adapter.links.propertyDiscovery } });
   applyConfigLinks();
-  if (["features", "system-status", "evidence"].includes(parseShellRoute(location.hash))) {
+  if (["features", "system-status"].includes(parseShellRoute(location.hash))) {
     renderRoute();
   }
+}
+
+function installEvidenceAdapter(featureKey, adapter) {
+  if (!adapter) return;
+  evidenceAdapters.set(featureKey, adapter);
+  if (parseShellRoute(location.hash) === "evidence") renderRoute();
+}
+
+function reportEvidenceAdapterError(featureKey, error) {
+  console.error(`Shell evidence adapter could not be loaded for ${featureKey}.`, error);
+  announce("Some research-area evidence is unavailable. Other deterministic workflows remain available.");
 }
 
 function reportFeature1BridgeError(error) {
@@ -235,10 +252,22 @@ function reportFeature1BridgeError(error) {
   announce("Property data integration is unavailable. Built-in navigation remains available.");
 }
 
-loadFeature1Bridge({
-  overrides: externalConfig,
-  onLateAdapter: installFeature1Adapter,
-  onError: reportFeature1BridgeError,
-})
-  .then(installFeature1Adapter)
-  .catch(reportFeature1BridgeError);
+if (feature1Enabled) {
+  loadFeature1Bridge({
+    overrides: externalConfig,
+    onLateAdapter: installFeature1Adapter,
+    onError: reportFeature1BridgeError,
+  })
+    .then(installFeature1Adapter)
+    .catch(reportFeature1BridgeError);
+}
+
+for (const feature of ENABLED_FEATURES.filter((item) => item.evidenceAdapterPath)) {
+  loadEvidenceAdapter(feature, {
+    overrides: externalConfig,
+    onLateAdapter: (adapter) => installEvidenceAdapter(feature.featureKey, adapter),
+    onError: (error) => reportEvidenceAdapterError(feature.featureKey, error),
+  })
+    .then((adapter) => installEvidenceAdapter(feature.featureKey, adapter))
+    .catch((error) => reportEvidenceAdapterError(feature.featureKey, error));
+}

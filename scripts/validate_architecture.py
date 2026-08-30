@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import ast
 import re
+import sys
 import tomllib
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -13,6 +14,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+from shared_contracts.deployment import DeploymentProjectionV1
+
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.onboarding import load_enabled_projection
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
@@ -108,11 +116,15 @@ class _ModuleScriptParser(HTMLParser):
 def validate_repository(root: Path = REPOSITORY_ROOT) -> tuple[ArchitectureViolation, ...]:
     """Return every dependency/import boundary violation in stable order."""
     projects = _load_workspace_projects(root)
+    projection = load_enabled_projection(root)
+    database_owners = frozenset(
+        feature.owner for feature in projection.features if feature.databases
+    )
     violations = [
         *_validate_declared_dependencies(root, projects),
-        *_validate_python_imports(root, projects),
+        *_validate_python_imports(root, projects, database_owners),
         *_validate_frontend_imports(root),
-        *_validate_compose_boundaries(root),
+        *_validate_compose_boundaries(root, projection),
     ]
     return tuple(sorted(violations))
 
@@ -352,6 +364,7 @@ def _validate_declared_dependencies(
 def _validate_python_imports(
     root: Path,
     projects: tuple[WorkspaceProject, ...],
+    database_owners: frozenset[str],
 ) -> Iterable[ArchitectureViolation]:
     student_import_owners = {
         import_name: project.student_owner
@@ -388,32 +401,37 @@ def _validate_python_imports(
                         f"{project.name} production code must not import {module}",
                     )
                 elif not is_test:
-                    yield from _validate_propertyscope_import(root, project, path, module, line)
+                    yield from _validate_database_import(
+                        root, project, path, module, line, database_owners
+                    )
 
 
-def _validate_propertyscope_import(
+def _validate_database_import(
     root: Path,
     project: WorkspaceProject,
     path: Path,
     module: str,
     line: int,
+    database_owners: frozenset[str],
 ) -> Iterable[ArchitectureViolation]:
     if project.student_owner is None:
         return
     relative = path.relative_to(project.path)
-    inside_propertyscope_database = bool(
-        project.student_owner == "student-1" and relative.parts and relative.parts[0] == "database"
+    inside_owned_database = bool(
+        project.student_owner in database_owners
+        and relative.parts
+        and relative.parts[0] == "database"
     )
     top_level = module.partition(".")[0]
-    if not inside_propertyscope_database and top_level in POSTGRES_CLIENT_IMPORTS:
+    if not inside_owned_database and top_level in POSTGRES_CLIENT_IMPORTS:
         yield ArchitectureViolation(
             _relative(root, path),
             line,
-            f"Only Feature 1 database/ may import PostgreSQL client {module}",
+            f"Only an enabled feature's database/ code may import PostgreSQL client {module}",
         )
     if (
         project.student_owner == "student-1"
-        and not inside_propertyscope_database
+        and not inside_owned_database
         and top_level == PROPERTYSCOPE_DATABASE_IMPORT
     ):
         yield ArchitectureViolation(
@@ -423,7 +441,9 @@ def _validate_propertyscope_import(
         )
 
 
-def _validate_compose_boundaries(root: Path) -> Iterable[ArchitectureViolation]:
+def _validate_compose_boundaries(
+    root: Path, projection: DeploymentProjectionV1
+) -> Iterable[ArchitectureViolation]:
     compose_path = root / "docker-compose.yml"
     if not compose_path.is_file():
         return
@@ -443,6 +463,52 @@ def _validate_compose_boundaries(root: Path) -> Iterable[ArchitectureViolation]:
             _relative(root, compose_path), 0, "Compose services must be a map"
         )
         return
+    raw_volumes = document.get("volumes", {})
+    if not isinstance(raw_volumes, dict):
+        yield ArchitectureViolation(
+            _relative(root, compose_path), 0, "Compose volumes must be a map"
+        )
+        return
+
+    service_mounts = {
+        str(service_name): _compose_mounts(raw_service.get("volumes"))
+        for service_name, raw_service in services.items()
+        if isinstance(service_name, str) and isinstance(raw_service, dict)
+    }
+    for feature in projection.features:
+        for database in feature.databases:
+            owner = database.database_service
+            if owner not in services:
+                yield ArchitectureViolation(
+                    _relative(root, compose_path),
+                    0,
+                    f"Enabled feature {feature.feature_key} database owner service "
+                    f"{owner} is missing",
+                )
+                continue
+            owner_mounts = service_mounts.get(owner, {})
+            for volume in database.volumes:
+                if volume not in raw_volumes:
+                    yield ArchitectureViolation(
+                        _relative(root, compose_path),
+                        0,
+                        f"Enabled feature {feature.feature_key} database volume "
+                        f"{volume} is not declared",
+                    )
+                if owner_mounts.get(volume) != "rw":
+                    yield ArchitectureViolation(
+                        _relative(root, compose_path),
+                        0,
+                        f"Database owner service {owner} must mount {volume} read/write",
+                    )
+                for service_name, mounts in service_mounts.items():
+                    if service_name != owner and volume in mounts:
+                        yield ArchitectureViolation(
+                            _relative(root, compose_path),
+                            0,
+                            f"Compose service {service_name} must not mount database volume "
+                            f"{volume} owned by {owner}",
+                        )
     if not PROPERTYSCOPE_DATABASE_SERVICES.issubset(services):
         # Feature 1 has not been integrated in older/minimal fixture repositories.
         return

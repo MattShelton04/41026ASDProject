@@ -960,6 +960,30 @@
         "title": "AgentStepEvidence",
         "type": "object"
       },
+      "AiOnboarding": {
+        "additionalProperties": false,
+        "description": "Feature-owned tool catalogue source and fixed AI-mode runtime mount path.",
+        "properties": {
+          "runtime_path": {
+            "maxLength": 300,
+            "minLength": 2,
+            "title": "Runtime Path",
+            "type": "string"
+          },
+          "tool_catalog": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Tool Catalog",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool_catalog",
+          "runtime_path"
+        ],
+        "title": "AiOnboarding",
+        "type": "object"
+      },
       "ApprovalStatus": {
         "description": "Human approval state for a protected tool call.",
         "enum": [
@@ -970,6 +994,260 @@
         ],
         "title": "ApprovalStatus",
         "type": "string"
+      },
+      "BackendOnboarding": {
+        "additionalProperties": false,
+        "description": "Backend service that owns the feature's declared API route.",
+        "properties": {
+          "additional_paths": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Additional Paths",
+            "type": "array"
+          },
+          "internal_port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "title": "Internal Port",
+            "type": "integer"
+          },
+          "service": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "internal_port"
+        ],
+        "title": "BackendOnboarding",
+        "type": "object"
+      },
+      "DatabaseOnboarding": {
+        "additionalProperties": false,
+        "description": "One database service and the named volumes it exclusively owns.",
+        "properties": {
+          "database_service": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Database Service",
+            "type": "string"
+          },
+          "volumes": {
+            "items": {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Volumes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "database_service",
+          "volumes"
+        ],
+        "title": "DatabaseOnboarding",
+        "type": "object"
+      },
+      "DeploymentProjectionV1": {
+        "additionalProperties": false,
+        "description": "Deterministic projection consumed by deployment and quality tooling.",
+        "properties": {
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/EnabledFeatureProjection"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "features"
+        ],
+        "title": "DeploymentProjectionV1",
+        "type": "object"
+      },
+      "DeploymentRoute": {
+        "additionalProperties": false,
+        "description": "One same-origin edge path bound to a declared service.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "frontend",
+              "backend"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Path",
+            "type": "string"
+          },
+          "service": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "path",
+          "service"
+        ],
+        "title": "DeploymentRoute",
+        "type": "object"
+      },
+      "DeploymentSelectionV1": {
+        "additionalProperties": false,
+        "description": "Closed deployment selection; omitted features are disabled.",
+        "properties": {
+          "features": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FeatureEnablement"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "title": "DeploymentSelectionV1",
+        "type": "object"
+      },
+      "EnabledFeatureProjection": {
+        "additionalProperties": false,
+        "description": "Deployment-safe projection for one explicitly enabled feature.",
+        "properties": {
+          "ai": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiOnboarding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "databases": {
+            "items": {
+              "$ref": "#/components/schemas/DatabaseOnboarding"
+            },
+            "title": "Databases",
+            "type": "array"
+          },
+          "enabled": {
+            "const": true,
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "evidence_adapter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceAdapterOnboarding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "feature_key": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Feature Key",
+            "type": "string"
+          },
+          "frontend": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FrontendOnboarding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "health_path": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Health Path",
+            "type": "string"
+          },
+          "owner": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Owner",
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/QualityOnboarding"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/DeploymentRoute"
+            },
+            "title": "Routes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "feature_key",
+          "owner",
+          "routes",
+          "quality",
+          "databases",
+          "health_path"
+        ],
+        "title": "EnabledFeatureProjection",
+        "type": "object"
+      },
+      "EvidenceAdapterOnboarding": {
+        "additionalProperties": false,
+        "description": "Optional feature-owned executable that returns its own evidence object.",
+        "properties": {
+          "path": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "EvidenceAdapterOnboarding",
+        "type": "object"
       },
       "EvidenceSource": {
         "description": "Origin of evidence displayed by the operations interface.",
@@ -982,6 +1260,29 @@
         ],
         "title": "EvidenceSource",
         "type": "string"
+      },
+      "FeatureEnablement": {
+        "additionalProperties": false,
+        "description": "Explicit operator choice to enable or disable one discovered feature.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "feature_key": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Feature Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "feature_key",
+          "enabled"
+        ],
+        "title": "FeatureEnablement",
+        "type": "object"
       },
       "FeatureManifest": {
         "additionalProperties": false,
@@ -1030,6 +1331,17 @@
             "title": "Health Path",
             "type": "string"
           },
+          "onboarding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeatureOnboarding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "owner": {
             "enum": [
               "student-1",
@@ -1057,6 +1369,76 @@
           "health_path"
         ],
         "title": "FeatureManifest",
+        "type": "object"
+      },
+      "FeatureOnboarding": {
+        "additionalProperties": false,
+        "description": "Optional deployment metadata owned beside a feature manifest.",
+        "properties": {
+          "ai": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiOnboarding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "backend": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackendOnboarding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "databases": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DatabaseOnboarding"
+            },
+            "maxItems": 20,
+            "title": "Databases",
+            "type": "array"
+          },
+          "evidence_adapter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceAdapterOnboarding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "frontend": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FrontendOnboarding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "quality": {
+            "$ref": "#/components/schemas/QualityOnboarding",
+            "default": {
+              "coverage_fail_under": null,
+              "coverage_packages": [],
+              "node_test_files": [],
+              "python_test_paths": []
+            }
+          }
+        },
+        "title": "FeatureOnboarding",
         "type": "object"
       },
       "FieldIssue": {
@@ -1088,6 +1470,66 @@
           "code"
         ],
         "title": "FieldIssue",
+        "type": "object"
+      },
+      "FrontendOnboarding": {
+        "additionalProperties": false,
+        "description": "Feature-owned frontend assets and their edge service projection.",
+        "properties": {
+          "asset_root": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Asset Root",
+            "type": "string"
+          },
+          "host_port_default": {
+            "maximum": 65535,
+            "minimum": 1,
+            "title": "Host Port Default",
+            "type": "integer"
+          },
+          "host_port_variable": {
+            "maxLength": 100,
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "title": "Host Port Variable",
+            "type": "string"
+          },
+          "internal_port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "title": "Internal Port",
+            "type": "integer"
+          },
+          "route_fragment": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Route Fragment"
+          },
+          "service": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_root",
+          "service",
+          "internal_port",
+          "host_port_variable",
+          "host_port_default"
+        ],
+        "title": "FrontendOnboarding",
         "type": "object"
       },
       "HealthCheck": {
@@ -1911,6 +2353,87 @@
         "title": "ProblemDetail",
         "type": "object"
       },
+      "QualityOnboarding": {
+        "additionalProperties": false,
+        "description": "Feature-owned test inputs discovered by the repository quality gate.",
+        "properties": {
+          "coverage_fail_under": {
+            "anyOf": [
+              {
+                "maximum": 100,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Coverage Fail Under"
+          },
+          "coverage_packages": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Coverage Packages",
+            "type": "array"
+          },
+          "node_test_files": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Node Test Files",
+            "type": "array"
+          },
+          "python_test_paths": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Python Test Paths",
+            "type": "array"
+          }
+        },
+        "title": "QualityOnboarding",
+        "type": "object"
+      },
+      "ReadinessCheckProjection": {
+        "additionalProperties": false,
+        "description": "One required or optional process/readiness dependency.",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detail"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthStatus"
+          }
+        },
+        "required": [
+          "required",
+          "status"
+        ],
+        "title": "ReadinessCheckProjection",
+        "type": "object"
+      },
       "ReviewDecision": {
         "description": "Human decision for exactly one pending protected action.",
         "enum": [
@@ -2481,6 +3004,63 @@
         ],
         "title": "TrustedIdentifier",
         "type": "object"
+      },
+      "TypedHealthProjection": {
+        "additionalProperties": false,
+        "description": "Health body and HTTP status with explicit optional-degradation semantics.",
+        "properties": {
+          "checks": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ReadinessCheckProjection"
+            },
+            "title": "Checks",
+            "type": "object"
+          },
+          "http_status": {
+            "enum": [
+              200,
+              503
+            ],
+            "title": "Http Status",
+            "type": "integer"
+          },
+          "media_type": {
+            "const": "application/json",
+            "title": "Media Type",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "service": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Service",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthStatus"
+          },
+          "version": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "service",
+          "version",
+          "status",
+          "http_status",
+          "media_type",
+          "checks"
+        ],
+        "title": "TypedHealthProjection",
+        "type": "object"
       }
     }
   },
@@ -2993,7 +3573,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
+                  "$ref": "#/components/schemas/TypedHealthProjection"
                 }
               }
             },
@@ -3010,7 +3590,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
+                  "$ref": "#/components/schemas/TypedHealthProjection"
                 }
               }
             },
@@ -3020,7 +3600,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
+                  "$ref": "#/components/schemas/TypedHealthProjection"
                 }
               }
             },

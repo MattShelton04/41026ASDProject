@@ -9,6 +9,11 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.onboarding import OnboardingConfigurationError, discover_quality_inputs
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CORE_TEST_PATHS = (
     "shared/contracts/tests",
@@ -19,7 +24,6 @@ CORE_TEST_PATHS = (
     "scripts/tests",
 )
 FRONTEND_TEST_PATHS = (
-    "student-1/tests/frontend/core.test.mjs",
     "shared/frontend/dashboard.test.mjs",
     "shared/frontend/ai-chat/ai-chat.test.mjs",
     "shared/frontend/mapping/mapping.test.mjs",
@@ -39,7 +43,9 @@ FORMAT_WRITE_COMMANDS: tuple[Command, ...] = ((sys.executable, "-m", "ruff", "fo
 LINT_COMMANDS: tuple[Command, ...] = ((sys.executable, "-m", "ruff", "check", "."),)
 ARCHITECTURE_COMMANDS: tuple[Command, ...] = (
     (sys.executable, "scripts/generate_contracts.py", "--check"),
+    (sys.executable, "scripts/generate_deployment.py", "--check"),
     (sys.executable, "scripts/validate_architecture.py"),
+    (sys.executable, "scripts/validate_workspace_packaging.py"),
     (sys.executable, "scripts/validate_model_registry.py"),
     (sys.executable, "scripts/validate_tool_catalogs.py"),
 )
@@ -62,38 +68,60 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "scripts/check.py",
         "scripts/dev.py",
         "scripts/generate_contracts.py",
+        "scripts/generate_deployment.py",
+        "scripts/live_nginx_recreation.py",
+        "scripts/onboarding.py",
         "scripts/validate_architecture.py",
         "scripts/validate_frontend_styles.py",
         "scripts/validate_model_registry.py",
         "scripts/validate_tool_catalogs.py",
+        "scripts/validate_workspace_packaging.py",
     ),
 )
-TEST_COMMANDS: tuple[Command, ...] = (
-    (
-        sys.executable,
-        "-m",
-        "pytest",
-        "--cov=agent_core",
-        "--cov=ai_mode",
-        "--cov=shared_contracts",
-        "--cov=shared_consumer_protocol",
-        "--cov=shared_testkit",
-        "--cov-report=term-missing",
-        *CORE_TEST_PATHS,
-    ),
-    (
-        sys.executable,
-        "-m",
-        "pytest",
-        "--cov=propertyscope_data_platform",
-        "--cov=propertyscope_data_store",
-        "--cov-report=term-missing",
-        "--cov-fail-under=60",
-        "--ignore=student-1/tests/e2e/test_form_behaviour_playwright.py",
-        "student-1/tests",
-    ),
-    ("node", "--test", *FRONTEND_TEST_PATHS),
+SHARED_TEST_COMMAND: Command = (
+    sys.executable,
+    "-m",
+    "pytest",
+    "--cov=agent_core",
+    "--cov=ai_mode",
+    "--cov=shared_contracts",
+    "--cov=shared_consumer_protocol",
+    "--cov=shared_testkit",
+    "--cov-report=term-missing",
+    *CORE_TEST_PATHS,
 )
+
+
+def test_commands() -> tuple[Command, ...]:
+    """Build enabled feature-owned quality commands from validated metadata."""
+    feature_inputs = discover_quality_inputs(REPOSITORY_ROOT)
+    commands: list[Command] = [SHARED_TEST_COMMAND]
+    for feature in feature_inputs.features:
+        if not feature.python_test_paths:
+            continue
+        coverage_arguments = tuple(f"--cov={package}" for package in feature.coverage_packages)
+        coverage_report = ("--cov-report=term-missing",) if coverage_arguments else ()
+        coverage_threshold = (
+            (f"--cov-fail-under={feature.coverage_fail_under}",)
+            if feature.coverage_fail_under is not None
+            else ()
+        )
+        commands.append(
+            (
+                sys.executable,
+                "-m",
+                "pytest",
+                *coverage_arguments,
+                *coverage_report,
+                *coverage_threshold,
+                "--ignore-glob=*/tests/e2e/*",
+                *feature.python_test_paths,
+            )
+        )
+    node_tests = (*FRONTEND_TEST_PATHS, *feature_inputs.node_test_files)
+    if node_tests:
+        commands.append(("node", "--test", *node_tests))
+    return tuple(commands)
 
 
 def javascript_sources() -> tuple[str, ...]:
@@ -115,6 +143,7 @@ def compile_commands() -> tuple[Command, ...]:
 
 def commands_for(stage: str, *, write: bool = False) -> tuple[Command, ...]:
     """Return the commands for one public quality stage."""
+    discovered_tests = test_commands() if stage in {"test", "check"} else ()
     stages: dict[str, tuple[Command, ...]] = {
         "format": FORMAT_WRITE_COMMANDS if write else FORMAT_CHECK_COMMANDS,
         "lint": LINT_COMMANDS,
@@ -122,7 +151,7 @@ def commands_for(stage: str, *, write: bool = False) -> tuple[Command, ...]:
         "styles": STYLE_COMMANDS,
         "typecheck": TYPECHECK_COMMANDS,
         "compile": compile_commands(),
-        "test": TEST_COMMANDS,
+        "test": discovered_tests,
     }
     if stage == "check":
         return tuple(
@@ -167,7 +196,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     stage = arguments.stage or "check"
     write = bool(getattr(arguments, "write", False))
-    for command in commands_for(stage, write=write):
+    try:
+        commands = commands_for(stage, write=write)
+    except OnboardingConfigurationError as exc:
+        print(f"error: feature quality discovery failed: {exc}", file=sys.stderr)
+        return 2
+    for command in commands:
         print(f"\n> {shlex.join(command)}", flush=True)
         try:
             subprocess.run(command, cwd=REPOSITORY_ROOT, check=True)

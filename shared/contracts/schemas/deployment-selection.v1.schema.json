@@ -1,0 +1,47 @@
+{
+  "$defs": {
+    "FeatureEnablement": {
+      "additionalProperties": false,
+      "description": "Explicit operator choice to enable or disable one discovered feature.",
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "feature_key": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Feature Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_key",
+        "enabled"
+      ],
+      "title": "FeatureEnablement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Closed deployment selection; omitted features are disabled.",
+  "properties": {
+    "features": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/FeatureEnablement"
+      },
+      "title": "Features",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "title": "DeploymentSelectionV1",
+  "type": "object"
+}

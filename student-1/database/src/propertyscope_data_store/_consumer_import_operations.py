@@ -97,10 +97,17 @@ class _ConsumerImportOperations:
                         """UPDATE ops.consumer_import_operation SET status='activation_pending',
                         phase_key='queue_activation',activation_attempt=activation_attempt+1,
                         release_activation_id=NULL,attempt_number=1,next_attempt_at=%s,
+                        expected_release_version=%s,review_comment=%s,request_id=%s,
                         error_json=NULL,finished_at=NULL,lease_owner=NULL,lease_token=NULL,
                         lease_expires_at=NULL,heartbeat_at=NULL,version=version+1
                         WHERE id=%s RETURNING *""",
-                        (now, failed_operation["id"]),
+                        (
+                            now,
+                            expected_version,
+                            comment,
+                            str(values["request_id"]),
+                            failed_operation["id"],
+                        ),
                     ).fetchone()
                     if resumed is None:
                         raise ConflictError("consumer activation retry could not be persisted")

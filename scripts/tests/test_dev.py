@@ -16,6 +16,7 @@ from scripts import dev
 @pytest.fixture(autouse=True)
 def skip_real_port_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(dev, "_host_port_is_available", lambda _port: True)
+    monkeypatch.setattr(dev, "_validate_deployment_inputs", lambda: None)
 
 
 @pytest.fixture
@@ -102,11 +103,17 @@ def test_up_starts_complete_stack(
     assert captured_commands[0][:2] == ("docker", "info")
     assert captured_commands[1][-len(dev.APPLICATION_SERVICES) :] == dev.APPLICATION_SERVICES
     assert "--build" in captured_commands[1]
+    assert "--force-recreate" not in captured_commands[1]
     for filename in dev.COMPOSE_FILES:
         assert filename in captured_commands[1]
     assert "shared-frontend" in captured_commands[1]
+    assert captured_commands[2][-1] == "shared-frontend"
+    assert "--force-recreate" in captured_commands[2]
+    assert "--no-deps" in captured_commands[2]
     assert "shared-ai-mode" in captured_commands[1]
     assert "f1-backend" in captured_commands[1]
+    assert "f1-postgres" in dev.APPLICATION_SERVICES
+    assert "f1-postgres" not in dev.BUILD_SERVICES
     assert "docker-compose.shared-shell.yml" not in dev.COMPOSE_FILES
 
 
@@ -131,6 +138,18 @@ def test_up_preflights_before_materialising_secret_or_starting_compose(
     dev._up(offline=False)
 
     assert calls[:4] == ["docker", "preflight", "secret", "compose"]
+
+
+def test_disabled_feature_reconciliation_stops_only_generated_owned_services(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.setattr(dev, "DISABLED_FEATURE_SERVICES", ("example-api", "example-worker"))
+    monkeypatch.setattr(dev, "_run", lambda command, **_kwargs: commands.append(tuple(command)))
+
+    dev._stop_disabled_feature_services()
+
+    assert commands == [dev._compose_command("stop", "example-api", "example-worker")]
 
 
 def test_rebuild_preflights_only_selected_host_service(
@@ -234,21 +253,21 @@ def test_production_build_uses_only_the_release_compose_model(
 ) -> None:
     assert dev.main(["stack", "build", "shared-frontend", "f1-frontend"]) == 0
 
-    assert captured_commands == [
-        ("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"),
-        (
-            "docker",
-            "compose",
-            "--file",
-            "docker-compose.yml",
-            "--profile",
-            "release-0",
-            "build",
-            "shared-frontend",
-            "f1-frontend",
-        ),
-    ]
-    assert all(filename not in captured_commands[-1] for filename in dev.COMPOSE_FILES[1:])
+    assert captured_commands[0] == (
+        "docker",
+        "info",
+        "--format",
+        "Docker Engine {{.ServerVersion}} is ready",
+    )
+    assert captured_commands[1][:2] == ("docker", "compose")
+    for filename in dev.PRODUCTION_COMPOSE_FILES:
+        assert filename in captured_commands[1]
+    assert captured_commands[1][-3:] == (
+        "build",
+        "shared-frontend",
+        "f1-frontend",
+    )
+    assert dev.COMPOSE_FILES[-1] not in captured_commands[-1]
 
 
 def test_cli_groups_stack_ui_and_data_workflows() -> None:
@@ -372,6 +391,41 @@ def test_default_stack_exposes_psi_and_advertises_cached_years(
         and environment["PROPERTYSCOPE_PSI_CACHED_WEEKS"] == "2026-08-03,2026-08-10"
         for environment in environments[1:]
     )
+
+
+def test_disabled_feature_stack_does_not_probe_or_advertise_psi(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    environments: list[object] = []
+
+    def unavailable_cache() -> tuple[object, ...]:
+        raise AssertionError("disabled Feature 1 must not inspect the PSI cache")
+
+    monkeypatch.setattr(dev, "ENABLED_FEATURE_KEYS", ())
+    monkeypatch.setattr(dev, "APPLICATION_SERVICES", ("shared-frontend", "shared-ai-mode"))
+    monkeypatch.setattr(dev, "_psi_cache_years", unavailable_cache)
+    monkeypatch.setattr(dev, "_psi_cache_weeks", unavailable_cache)
+    monkeypatch.setattr(
+        dev,
+        "_run",
+        lambda command, *, environment=None: environments.append(environment),
+    )
+    monkeypatch.setattr(dev, "_write_openai_secret", lambda _value: dev.Path("secret"))
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("PROPERTYSCOPE_PSI_CACHED_YEARS", "2025")
+    monkeypatch.setenv("PROPERTYSCOPE_PSI_CACHED_WEEKS", "2026-08-10")
+
+    assert dev.main(["stack", "up"]) == 0
+
+    output = capsys.readouterr().out
+    assert "Official sources:   disabled (Feature 1 is not enabled)" in output
+    assert "Official sources:   enabled" not in output
+    assert "Official PSI cache" not in output
+    environment = environments[-1]
+    assert isinstance(environment, dict)
+    assert "PROPERTYSCOPE_PSI_CACHED_YEARS" not in environment
+    assert "PROPERTYSCOPE_PSI_CACHED_WEEKS" not in environment
 
 
 def test_offline_up_needs_no_credential_and_disables_provider_readiness(

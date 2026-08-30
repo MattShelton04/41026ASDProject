@@ -38,7 +38,6 @@ services:
       AI_MODE_LOG_LEVEL: ${AI_MODE_LOG_LEVEL:-INFO}
       # Feature 1 consumes the durable, redacted run index for diagnosis history.
       AI_MODE_OPERATIONS_ENABLED: ${AI_MODE_OPERATIONS_ENABLED:-true}
-      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml
       AI_MODE_LLM_PROVIDER: ${AI_MODE_LLM_PROVIDER:-openai}
       AI_MODE_REQUIRE_PROVIDER_READY: ${AI_MODE_REQUIRE_PROVIDER_READY:-true}
       AI_MODE_DEFAULT_MODEL_PROFILE: ${AI_MODE_DEFAULT_MODEL_PROFILE:-remote-standard.v1}
@@ -58,7 +57,6 @@ services:
       - openai_api_key
     volumes:
       - shared-ai-mode-state:/var/lib/ai-mode
-      - ./student-1/tool-catalog.yaml:/etc/ai-mode/propertyscope-tools.yaml:ro
     networks:
       - shared-platform
     mem_limit: ${AI_MODE_MEMORY_LIMIT:-512m}
@@ -247,8 +245,6 @@ services:
     depends_on:
       f1-backend:
         condition: service_healthy
-    ports:
-      - 127.0.0.1:${PROPERTYSCOPE_PORT:-5200}:8080
     networks: [shared-platform]
     healthcheck:
       test: [CMD, wget, --quiet, --tries=1, --spider, http://127.0.0.1:8080/]

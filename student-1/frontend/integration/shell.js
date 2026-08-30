@@ -55,17 +55,24 @@ export function createFeature1ShellAdapter(overrides = {}) {
       return target.href;
     },
     statusDependencies(component) {
+      const databaseCheck = component.payload?.checks?.database;
+      const legacyReady = component.payload?.dependencies?.database;
+      const rawStatus = databaseCheck?.status ?? legacyReady;
       return [{
         name: "Property data store",
         kind: "Owned dependency",
         owner: "Property data service",
-        rawStatus: component.payload?.dependencies?.database,
-        detail: component.payload?.dependencies?.database === true
+        rawStatus,
+        detail: databaseCheck?.detail || (legacyReady === true
           ? "The Property data service reports its data store ready."
-          : "The owned data-store readiness check did not pass.",
+          : "The owned data-store readiness check did not pass."),
       }];
     },
     evidence: Object.freeze({
+      action: Object.freeze({
+        label: "Open Property data",
+        href: links.dataOperations,
+      }),
       copy: Object.freeze({
         headerDescription: "See the published datasets and AI reviews behind PropertyScope results.",
         releasePanelDescription: "The versions currently available to property research.",
@@ -92,6 +99,11 @@ export function createFeature1ShellAdapter(overrides = {}) {
       }),
     }),
   });
+}
+
+/** Domain-neutral Shared-shell evidence entrypoint declared by Feature 1 onboarding metadata. */
+export function createShellEvidenceAdapter(overrides = {}) {
+  return createFeature1ShellAdapter(overrides).evidence;
 }
 
 export { acceptedReleaseReferences, agentRunReferences };

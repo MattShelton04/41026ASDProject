@@ -92,6 +92,16 @@ Consumers discover the deterministic contract ZIP through
 the package includes current record schemas and the unchanged legacy schemas needed to interpret
 accepted releases. ADR-033 records the contract distribution, trust boundary and replay rules.
 
+The onboarding and operations increment makes `deployment/features.yaml` the explicit enablement
+selection and projects it through validated feature-owned onboarding metadata. Enabled routes,
+frontend assets, AI catalogue bindings, feature quality inputs, database/volume owners and optional
+shell evidence adapters now share one domain-neutral projection; disabled features contribute none of
+those runtime surfaces. Generated JSON/browser artifacts and Compose/architecture/workspace validators
+make drift fail the canonical gate. Typed health responses distinguish required failure from optional
+provider degradation, Feature 1's edge re-resolves a recreated backend through Docker DNS, and the
+read-only operator report exposes release/publication readiness without crossing the human-review
+boundary. ADR-034 records these decisions.
+
 Feature 1's maintenance pass separates HTTP mechanics, correlation, approval verification,
 run-scope policy and registered source transport from the backend API composition surface. The
 database repository retains atomic PostgreSQL operations but delegates immutable preview/builder
@@ -467,12 +477,20 @@ frontend_base_path: /features/data-platform/
 backend_base_path: /api/data-platform/v1
 health_path: /health/ready
 ai_capabilities: []
+onboarding:
+  frontend: {asset_root: student-1/frontend, service: f1-frontend}
+  backend: {service: f1-backend}
+  ai: {tool_catalog: student-1/tool-catalog.yaml, runtime_path: /etc/ai-mode/tools.yaml}
+  quality: {python_test_paths: [student-1/tests], node_test_files: []}
+  databases: [{database_service: f1-postgres, volumes: [f1-postgres-data]}]
 ```
 
-The shared home page's deployable browser registry projects these manifests together with
-product-facing labels and reserved placeholders. Integration tests cross-check each implemented
-entry against its manifest. Compose service definitions remain explicit; manifests do not generate
-hidden runtime topology.
+The closed root deployment selection explicitly enables feature keys. Shared joins that selection to
+the owner manifests and projects only enabled routes, assets, tool catalogues, quality inputs,
+database/volume owners and optional evidence adapters. Generated artifacts and integration tests
+cross-check the browser registry and Compose wiring. Product-facing labels and reserved placeholders
+may remain visible as planned work, but only selected complete manifests expose runnable routes or
+tools. Compose service definitions remain explicit; manifests do not generate hidden runtime topology.
 
 ### 7.3 Agent contract model
 

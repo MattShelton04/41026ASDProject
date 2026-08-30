@@ -34,10 +34,13 @@ from scripts.devtools.config import (
     COMPOSE_FILES,
     DEFAULT_PROJECT_NAME,
     DEFAULT_UI_FIXTURE_PORT,
+    DISABLED_FEATURE_SERVICES,
+    ENABLED_FEATURE_KEYS,
     HOST_PORTS,
     JOB_PROFILE_DIRECTORY,
     OFFLINE_OPENAI_CREDENTIAL,
     PRODUCTION_BUILD_SERVICES,
+    PRODUCTION_COMPOSE_FILES,
     PROFILES,
     PSI_WEEKLY_URL,
     PSI_YEARLY_URL,
@@ -46,6 +49,9 @@ from scripts.devtools.config import (
     SUPPORTED_LLM_PROVIDERS,
     TERMINAL_COLLECTION_STATES,
 )
+from scripts.devtools.operator_report import collect_operator_report, render_operator_report
+
+FEATURE_1_KEY = "student-1-propertyscope-data-platform"
 
 
 def _compose_command(*arguments: str) -> tuple[str, ...]:
@@ -69,6 +75,36 @@ def _repeated_options(option: str, values: Sequence[str]) -> tuple[str, ...]:
 
 def _ensure_docker() -> None:
     _run(("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"))
+
+
+def _validate_deployment_inputs() -> None:
+    """Refuse stack mutation when explicit enablement and exposed topology have drifted."""
+    _run((sys.executable, "scripts/generate_deployment.py", "--check"))
+    _run((sys.executable, "scripts/validate_architecture.py"))
+    _run((sys.executable, "scripts/validate_tool_catalogs.py"))
+
+
+def _stop_disabled_feature_services() -> None:
+    """Gracefully stop only generated, feature-labelled services that are now disabled."""
+    if DISABLED_FEATURE_SERVICES:
+        _run(_compose_command("stop", *DISABLED_FEATURE_SERVICES))
+
+
+def _recreate_shared_edge(*, environment: Mapping[str, str]) -> None:
+    """Reparse generated route projections without interrupting feature workers/databases."""
+    _run(
+        _compose_command(
+            "up",
+            "--detach",
+            "--no-deps",
+            "--force-recreate",
+            "--wait",
+            "--wait-timeout",
+            "60",
+            "shared-frontend",
+        ),
+        environment=environment,
+    )
 
 
 def _resolved_host_ports(services: Sequence[str]) -> dict[str, tuple[str, int]]:
@@ -389,21 +425,29 @@ def _compose_environment(*, offline: bool) -> Mapping[str, str]:
     environment["GEMINI_API_KEY_FILE"] = secret_path
     if offline:
         environment["AI_MODE_REQUIRE_PROVIDER_READY"] = "false"
-    years = _psi_cache_years()
-    weeks = _psi_cache_weeks()
-    if years:
-        environment.setdefault("PROPERTYSCOPE_PSI_CACHED_YEARS", ",".join(map(str, years)))
-    if weeks:
-        environment.setdefault("PROPERTYSCOPE_PSI_CACHED_WEEKS", ",".join(weeks))
+    if FEATURE_1_KEY in ENABLED_FEATURE_KEYS:
+        years = _psi_cache_years()
+        weeks = _psi_cache_weeks()
+        if years:
+            environment.setdefault("PROPERTYSCOPE_PSI_CACHED_YEARS", ",".join(map(str, years)))
+        if weeks:
+            environment.setdefault("PROPERTYSCOPE_PSI_CACHED_WEEKS", ",".join(weeks))
+    else:
+        environment.pop("PROPERTYSCOPE_PSI_CACHED_YEARS", None)
+        environment.pop("PROPERTYSCOPE_PSI_CACHED_WEEKS", None)
     return environment
 
 
 def _up(*, offline: bool) -> None:
     _openai_credential(offline=offline)
+    _validate_deployment_inputs()
     _ensure_docker()
+    _stop_disabled_feature_services()
     _preflight_compose_host_ports(services=APPLICATION_SERVICES)
     compose_environment = _compose_environment(offline=offline)
-    print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
+    feature_1_enabled = FEATURE_1_KEY in ENABLED_FEATURE_KEYS
+    if feature_1_enabled:
+        print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
     _run(
         _compose_command(
             "up",
@@ -416,18 +460,25 @@ def _up(*, offline: bool) -> None:
         ),
         environment=compose_environment,
     )
+    _recreate_shared_edge(environment=compose_environment)
     ports = _resolved_host_ports(APPLICATION_SERVICES)
     print(f"\nAI-mode health:     http://localhost:{ports['shared-ai-mode'][1]}/health/ready")
     print(f"PropertyScope home: http://localhost:{ports['shared-frontend'][1]}")
-    print(f"PropertyScope:      http://localhost:{ports['f1-frontend'][1]}")
-    print("Official sources:   enabled (small and complete job scopes available)")
+    if "f1-frontend" in ports:
+        print(f"PropertyScope:      http://localhost:{ports['f1-frontend'][1]}")
+    if feature_1_enabled:
+        print("Official sources:   enabled (small and complete job scopes available)")
+    else:
+        print("Official sources:   disabled (Feature 1 is not enabled)")
     if offline:
         print("AI provider:        offline (data workflows remain available)")
 
 
 def _rebuild(services: Sequence[str], *, offline: bool) -> None:
     _openai_credential(offline=offline)
+    _validate_deployment_inputs()
     _ensure_docker()
+    _stop_disabled_feature_services()
     selected = tuple(services) or BUILD_SERVICES
     _preflight_compose_host_ports(services=selected)
     compose_environment = _compose_environment(offline=offline)
@@ -451,20 +502,14 @@ def _rebuild(services: Sequence[str], *, offline: bool) -> None:
 
 def _production_build(services: Sequence[str]) -> None:
     """Build immutable Release 0 images without starting or changing a runtime."""
+    _validate_deployment_inputs()
     _ensure_docker()
     selected = tuple(services) or PRODUCTION_BUILD_SERVICES
-    _run(
-        (
-            "docker",
-            "compose",
-            "--file",
-            "docker-compose.yml",
-            "--profile",
-            "release-0",
-            "build",
-            *selected,
-        )
-    )
+    command = ["docker", "compose"]
+    for filename in PRODUCTION_COMPOSE_FILES:
+        command.extend(("--file", filename))
+    command.extend(("--profile", "release-0", "build", *selected))
+    _run(tuple(command))
 
 
 def _down(*, remove_volumes: bool = False) -> None:
@@ -496,6 +541,7 @@ def _reset() -> None:
 
 def _doctor() -> None:
     """Validate local prerequisites and the selected merged Compose model."""
+    _validate_deployment_inputs()
     _ensure_docker()
     _run(("docker", "compose", "version"))
     _run(_compose_command("config", "--quiet"))
@@ -506,8 +552,11 @@ def _doctor() -> None:
         f"{provider.title()} credential: {credential_state} (--offline remains available)",
         flush=True,
     )
-    print(f"Cached PSI annual archives: {len(_psi_cache_years())}", flush=True)
-    print(f"Cached PSI weekly archives: {len(_psi_cache_weeks())}", flush=True)
+    if FEATURE_1_KEY in ENABLED_FEATURE_KEYS:
+        print(f"Cached PSI annual archives: {len(_psi_cache_years())}", flush=True)
+        print(f"Cached PSI weekly archives: {len(_psi_cache_weeks())}", flush=True)
+    else:
+        print("Official sources: disabled (Feature 1 is not enabled)", flush=True)
 
 
 def _json_response(response: httpx.Response) -> dict[str, Any]:
@@ -680,7 +729,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif command == ("stack", "restart"):
             _openai_credential(offline=arguments.offline)
+            _validate_deployment_inputs()
             _ensure_docker()
+            _stop_disabled_feature_services()
             _preflight_compose_host_ports(services=APPLICATION_SERVICES)
             compose_environment = _compose_environment(
                 offline=arguments.offline,
@@ -707,6 +758,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _ensure_docker()
             _run(_compose_command("ps"))
         elif command == ("stack", "config"):
+            _validate_deployment_inputs()
             _ensure_docker()
             _run(_compose_command("config", "--quiet"))
         elif command == ("stack", "logs"):
@@ -728,6 +780,28 @@ def main(argv: Sequence[str] | None = None) -> int:
                 timeout_seconds=arguments.timeout,
                 base_url=arguments.base_url,
             )
+        elif command == ("operator", "report"):
+            ports = _resolved_host_ports(APPLICATION_SERVICES)
+            if "f1-frontend" not in ports:
+                raise RuntimeError("Feature 1 is not enabled in the deployment projection")
+            feature_port = ports["f1-frontend"][1]
+            ai_port = ports["shared-ai-mode"][1]
+            with httpx.Client(follow_redirects=False) as client:
+                report = collect_operator_report(
+                    client,
+                    data_base_url=(
+                        arguments.base_url
+                        or f"http://127.0.0.1:{feature_port}/api/data-platform/v1"
+                    ),
+                    feature_health_url=(
+                        arguments.feature_health_url
+                        or f"http://127.0.0.1:{feature_port}/health/ready"
+                    ),
+                    ai_health_url=(
+                        arguments.ai_health_url or f"http://127.0.0.1:{ai_port}/health/ready"
+                    ),
+                )
+            print(render_operator_report(report), flush=True)
         elif command == ("ui", "serve"):
             _run(
                 (

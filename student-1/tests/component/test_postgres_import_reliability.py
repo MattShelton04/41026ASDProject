@@ -26,10 +26,10 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from propertyscope_data_store import import_profiles
-from propertyscope_data_store import sql as migration_sql
 from propertyscope_data_store._consumer_import_operations import _ConsumerImportOperations
 from propertyscope_data_store.errors import ConflictError, NotFoundError
 from propertyscope_data_store.import_profiles import ImportProfileError, iter_ndjson_import
+from propertyscope_data_store.repository import PropertyScopeStore
 from propertyscope_data_store.source_materialisation import (
     BOCSAR_COPY_SQL,
     BOCSAR_STAGE_SQL,
@@ -211,6 +211,25 @@ def _stage_typed_bocsar_rows(
     connection.execute("ANALYZE propertyscope_bocsar_import_stage")
 
 
+class _SingleConnectionStore(PropertyScopeStore):
+    """Expose the real repository probe against the fixture-owned connection."""
+
+    def __init__(self, connection: psycopg.Connection[dict[str, object]]) -> None:
+        self._test_connection = connection
+
+    @contextmanager
+    def connection(self) -> Iterator[psycopg.Connection[dict[str, object]]]:
+        yield self._test_connection
+
+
+def test_postgres_reports_positive_data_and_wal_filesystem_capacity(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    store = _SingleConnectionStore(isolated_postgres)
+
+    assert store.database_filesystem_available_bytes() > 0
+
+
 def test_cancel_intent_update_is_not_blocked_by_import_foreign_key_share(
     isolated_postgres: psycopg.Connection[dict[str, object]],
 ) -> None:
@@ -263,10 +282,12 @@ def test_concurrent_consumer_import_creation_coalesces_one_release_identity(
         """
     )
     initial = (
-        files(migration_sql).joinpath("040_async_consumer_import_operations.sql").read_text("utf-8")
+        files("propertyscope_data_store.sql")
+        .joinpath("040_async_consumer_import_operations.sql")
+        .read_text("utf-8")
     )
     extension = (
-        files(migration_sql)
+        files("propertyscope_data_store.sql")
         .joinpath("041_consumer_import_activation_monitoring.sql")
         .read_text("utf-8")
     )
@@ -331,10 +352,12 @@ def test_consumer_operation_identity_cannot_cross_release_boundaries(
         """
     )
     initial = (
-        files(migration_sql).joinpath("040_async_consumer_import_operations.sql").read_text("utf-8")
+        files("propertyscope_data_store.sql")
+        .joinpath("040_async_consumer_import_operations.sql")
+        .read_text("utf-8")
     )
     extension = (
-        files(migration_sql)
+        files("propertyscope_data_store.sql")
         .joinpath("041_consumer_import_activation_monitoring.sql")
         .read_text("utf-8")
     )
@@ -416,7 +439,9 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
         "041_consumer_import_activation_monitoring.sql",
         "042_consumer_import_delivery_aliases.sql",
     ):
-        connection.execute(files(migration_sql).joinpath(migration_name).read_text("utf-8"))
+        connection.execute(
+            files("propertyscope_data_store.sql").joinpath(migration_name).read_text("utf-8")
+        )
     release_row = (
         release_id,
         "bocsar-crime",
@@ -542,14 +567,33 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
     )
     assert failed["status"] == "failed"
 
+    connection.execute("UPDATE ops.dataset_release SET version=3 WHERE id=%s", (release_id,))
+    connection.commit()
+    retry_values = {
+        **values,
+        "expected_release_version": 3,
+        "comment": "Approved after version-conflict reconciliation",
+        "idempotency_key": "delivery-two",
+        "request_id": "request-two-version-three",
+    }
     retried, created = operations.create(
         release_id,
-        {**values, "idempotency_key": "delivery-two", "request_id": "request-two"},
+        retry_values,
     )
     assert created is False
     assert retried["id"] == operation["id"]
     assert retried["phase_key"] == "queue_activation"
     assert retried["activation_attempt"] == 2
+    durable_retry = connection.execute(
+        """SELECT expected_release_version,review_comment,request_id
+        FROM ops.consumer_import_operation WHERE id=%s""",
+        (operation_id,),
+    ).fetchone()
+    assert durable_retry == {
+        "expected_release_version": 3,
+        "review_comment": "Approved after version-conflict reconciliation",
+        "request_id": "request-two-version-three",
+    }
     alias_count = connection.execute(
         "SELECT count(*) AS count FROM ops.consumer_import_delivery_alias"
     ).fetchone()
@@ -558,7 +602,7 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
     claimed = operations.claim(worker_id="runner-five", lease_seconds=30)
     assert claimed is not None
     connection.execute(
-        "INSERT INTO ops.release_activation VALUES (%s,%s,%s,2,'interrupted',NULL)",
+        "INSERT INTO ops.release_activation VALUES (%s,%s,%s,3,'interrupted',NULL)",
         (second_activation_id, release_id, receipt_id),
     )
     connection.commit()

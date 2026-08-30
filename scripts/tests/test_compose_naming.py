@@ -60,3 +60,16 @@ def test_fixture_stack_uses_an_explicit_small_import_budget() -> None:
 
     assert environment["PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB"] == "65536"
     assert environment["PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES"] == "1073741824"
+    commands = "\n".join(
+        str(step.get("run", "")) for step in workflow["jobs"]["containers"]["steps"]
+    )
+    assert commands.count("--file deployment/enabled-features.compose.yml") == 5
+
+
+def test_canonical_ci_validates_the_enabled_feature_projection() -> None:
+    workflow = yaml.safe_load(
+        (REPOSITORY_ROOT / ".github/workflows/integration-ci.yml").read_text(encoding="utf-8")
+    )
+    commands = "\n".join(str(step.get("run", "")) for step in workflow["jobs"]["quality"]["steps"])
+
+    assert commands.count("--file deployment/enabled-features.compose.yml") == 2

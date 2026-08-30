@@ -1,4 +1,291 @@
 {
+  "$defs": {
+    "AiOnboarding": {
+      "additionalProperties": false,
+      "description": "Feature-owned tool catalogue source and fixed AI-mode runtime mount path.",
+      "properties": {
+        "runtime_path": {
+          "maxLength": 300,
+          "minLength": 2,
+          "title": "Runtime Path",
+          "type": "string"
+        },
+        "tool_catalog": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Tool Catalog",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_catalog",
+        "runtime_path"
+      ],
+      "title": "AiOnboarding",
+      "type": "object"
+    },
+    "BackendOnboarding": {
+      "additionalProperties": false,
+      "description": "Backend service that owns the feature's declared API route.",
+      "properties": {
+        "additional_paths": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Additional Paths",
+          "type": "array"
+        },
+        "internal_port": {
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Internal Port",
+          "type": "integer"
+        },
+        "service": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Service",
+          "type": "string"
+        }
+      },
+      "required": [
+        "service",
+        "internal_port"
+      ],
+      "title": "BackendOnboarding",
+      "type": "object"
+    },
+    "DatabaseOnboarding": {
+      "additionalProperties": false,
+      "description": "One database service and the named volumes it exclusively owns.",
+      "properties": {
+        "database_service": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Database Service",
+          "type": "string"
+        },
+        "volumes": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Volumes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "database_service",
+        "volumes"
+      ],
+      "title": "DatabaseOnboarding",
+      "type": "object"
+    },
+    "EvidenceAdapterOnboarding": {
+      "additionalProperties": false,
+      "description": "Optional feature-owned executable that returns its own evidence object.",
+      "properties": {
+        "path": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "EvidenceAdapterOnboarding",
+      "type": "object"
+    },
+    "FeatureOnboarding": {
+      "additionalProperties": false,
+      "description": "Optional deployment metadata owned beside a feature manifest.",
+      "properties": {
+        "ai": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AiOnboarding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "backend": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BackendOnboarding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "databases": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DatabaseOnboarding"
+          },
+          "maxItems": 20,
+          "title": "Databases",
+          "type": "array"
+        },
+        "evidence_adapter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceAdapterOnboarding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "frontend": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FrontendOnboarding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "quality": {
+          "$ref": "#/$defs/QualityOnboarding",
+          "default": {
+            "coverage_fail_under": null,
+            "coverage_packages": [],
+            "node_test_files": [],
+            "python_test_paths": []
+          }
+        }
+      },
+      "title": "FeatureOnboarding",
+      "type": "object"
+    },
+    "FrontendOnboarding": {
+      "additionalProperties": false,
+      "description": "Feature-owned frontend assets and their edge service projection.",
+      "properties": {
+        "asset_root": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Asset Root",
+          "type": "string"
+        },
+        "host_port_default": {
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Host Port Default",
+          "type": "integer"
+        },
+        "host_port_variable": {
+          "maxLength": 100,
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Host Port Variable",
+          "type": "string"
+        },
+        "internal_port": {
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Internal Port",
+          "type": "integer"
+        },
+        "route_fragment": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Route Fragment"
+        },
+        "service": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Service",
+          "type": "string"
+        }
+      },
+      "required": [
+        "asset_root",
+        "service",
+        "internal_port",
+        "host_port_variable",
+        "host_port_default"
+      ],
+      "title": "FrontendOnboarding",
+      "type": "object"
+    },
+    "QualityOnboarding": {
+      "additionalProperties": false,
+      "description": "Feature-owned test inputs discovered by the repository quality gate.",
+      "properties": {
+        "coverage_fail_under": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage Fail Under"
+        },
+        "coverage_packages": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Coverage Packages",
+          "type": "array"
+        },
+        "node_test_files": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Node Test Files",
+          "type": "array"
+        },
+        "python_test_paths": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Python Test Paths",
+          "type": "array"
+        }
+      },
+      "title": "QualityOnboarding",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
   "description": "Domain-neutral metadata owned by one student feature slice.",
   "properties": {
@@ -44,6 +331,17 @@
       "minLength": 2,
       "title": "Health Path",
       "type": "string"
+    },
+    "onboarding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FeatureOnboarding"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "owner": {
       "enum": [

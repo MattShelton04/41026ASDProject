@@ -23,11 +23,11 @@ from shared_contracts import (
     AGENT_RUN_ID_HEADER,
     REQUEST_ID_HEADER,
     TRACEPARENT_HEADER,
-    HealthCheck,
-    HealthResponse,
     HealthStatus,
+    ReadinessCheckProjection,
     is_valid_request_id,
     is_valid_traceparent,
+    project_readiness,
     trace_id_from_traceparent,
 )
 
@@ -117,50 +117,48 @@ def create_app(
 
     @app.get("/health/live")
     def liveness() -> tuple[Response, int]:
-        response = HealthResponse(
+        response = project_readiness(
             service=PACKAGE_NAME,
-            status=HealthStatus.HEALTHY,
             version=service_version,
+            checks={
+                "process": ReadinessCheckProjection(
+                    required=True,
+                    status=HealthStatus.HEALTHY,
+                    detail="AI-mode process is accepting HTTP requests",
+                )
+            },
         )
-        return jsonify(response.model_dump(mode="json")), 200
+        return jsonify(response.model_dump(mode="json")), response.http_status
 
     @app.get("/health/ready")
     def readiness() -> tuple[Response, int]:
         store_health = app_services.store.health()
         provider_health = app_services.provider.health()
         store_ready = store_health.ready
-        overall = (
-            HealthStatus.UNHEALTHY
-            if not store_ready
-            else HealthStatus.HEALTHY
-            if provider_health.reachable
-            else HealthStatus.DEGRADED
-        )
-        response = HealthResponse(
+        provider_required = runtime_settings.require_provider_ready
+        response = project_readiness(
             service=PACKAGE_NAME,
-            status=overall,
             version=service_version,
             checks={
-                "application": HealthCheck(
-                    status=HealthStatus.HEALTHY,
-                    detail="Application factory initialised",
-                ),
-                "state_store": HealthCheck(
+                "state_store": ReadinessCheckProjection(
+                    required=True,
                     status=HealthStatus.HEALTHY if store_ready else HealthStatus.UNHEALTHY,
                     detail=store_health.detail,
                 ),
-                "llm_provider": HealthCheck(
+                "llm_provider": ReadinessCheckProjection(
+                    required=provider_required,
                     status=(
-                        HealthStatus.HEALTHY if provider_health.reachable else HealthStatus.DEGRADED
+                        HealthStatus.HEALTHY
+                        if provider_health.reachable
+                        else HealthStatus.UNHEALTHY
+                        if provider_required
+                        else HealthStatus.DEGRADED
                     ),
                     detail=provider_health.detail,
                 ),
             },
         )
-        dependencies_ready = store_ready and (
-            provider_health.reachable or not runtime_settings.require_provider_ready
-        )
-        return jsonify(response.model_dump(mode="json")), 200 if dependencies_ready else 503
+        return jsonify(response.model_dump(mode="json")), response.http_status
 
     @app.errorhandler(RequestEntityTooLarge)
     def request_too_large(_: RequestEntityTooLarge) -> tuple[Response, int]:

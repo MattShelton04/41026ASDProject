@@ -1,0 +1,26 @@
+services:
+  f1-backend:
+    profiles:
+    - release-0
+  f1-db-api:
+    profiles:
+    - release-0
+  f1-db-loader:
+    profiles:
+    - release-0
+  f1-frontend:
+    ports:
+    - 127.0.0.1:${PROPERTYSCOPE_PORT:-5200}:8080
+    profiles:
+    - release-0
+  f1-postgres:
+    profiles:
+    - release-0
+  f1-runner:
+    profiles:
+    - release-0
+  shared-ai-mode:
+    environment:
+      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml
+    volumes:
+    - ./student-1/tool-catalog.yaml:/etc/ai-mode/propertyscope-tools.yaml:ro
