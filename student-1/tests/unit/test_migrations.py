@@ -6,6 +6,7 @@ from typing import Any, cast
 
 import pytest
 
+from propertyscope_data_platform.release_builders import default_release_builders
 from propertyscope_data_store.migrations import (
     MIGRATION_PACKAGE,
     SCHEMA_FINGERPRINT_POLICY_VERSION,
@@ -58,6 +59,25 @@ def test_changed_applied_migration_is_rejected() -> None:
 
     with pytest.raises(RuntimeError, match="migration checksum changed"):
         migrate(cast(Any, connection))
+
+
+def test_supported_contract_migration_aligns_every_registered_builder() -> None:
+    sql = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("043_align_supported_builder_contracts.sql")
+        .read_text(encoding="utf-8")
+    )
+
+    expected_versions = {
+        builder.spec.key: builder.spec.version for builder in default_release_builders().values()
+    }
+    for builder_key, version in expected_versions.items():
+        assert f"WHEN '{builder_key}' THEN '{version}'" in sql
+        assert (
+            f"release_builder_key = '{builder_key}' AND release_builder_version <> '{version}'"
+            in sql
+        )
+    assert "ops.ingestion_run" not in sql
 
 
 class SchemaConnection:
