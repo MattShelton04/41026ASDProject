@@ -1,21 +1,22 @@
 from __future__ import annotations
 
-import base64
 import gzip
 import hashlib
+import io
 import json
 import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zipfile import ZipFile
 
 import httpx
 import jsonschema
 import pytest
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 from werkzeug.serving import BaseWSGIServer, make_server
 
 from propertyscope_data_platform.app import create_app
@@ -26,20 +27,118 @@ from propertyscope_data_platform.clients import (
     ConsumerImportClient,
     DataStoreClient,
 )
+from propertyscope_data_platform.domain import ConsumerPublicationRequest
 from propertyscope_data_platform.release_builders import (
     BuildContext,
     default_release_builders,
     resolve_release_builder,
 )
 from propertyscope_data_platform.runner import AcquisitionRunner, RunnerSettings
+from shared_consumer_protocol import (
+    ArtifactAccessPolicy,
+    CorrelationContext,
+    ImportEvidence,
+    ImportReceipt,
+    PublicationRequest,
+    ReleaseIdentity,
+    consume_publication,
+)
 
 ROOT = Path(__file__).parents[2]
 FIXED_TIME = datetime(2026, 8, 16, 1, 2, 3, tzinfo=UTC)
 
 
+class _AtomicMemorySink:
+    """Test consumer staging area that exposes records only at verified commit."""
+
+    def __init__(self) -> None:
+        self.identity: ReleaseIdentity | None = None
+        self.consumer_operation_id: str | None = None
+        self.staged: list[tuple[int, Mapping[str, Any]]] = []
+        self.committed: tuple[Mapping[str, Any], ...] = ()
+        self.evidence: ImportEvidence | None = None
+        self.rolled_back = False
+
+    def begin(self, identity: ReleaseIdentity, *, consumer_operation_id: str) -> None:
+        self.identity = identity
+        self.consumer_operation_id = consumer_operation_id
+
+    def stage(self, record: Mapping[str, Any], *, ordinal: int) -> None:
+        self.staged.append((ordinal, record))
+
+    def commit(self, evidence: ImportEvidence) -> None:
+        self.evidence = evidence
+        self.committed = tuple(record for _, record in self.staged)
+
+    def rollback(self) -> None:
+        self.staged.clear()
+        self.committed = ()
+        self.rolled_back = True
+
+
+def _consume_with_shared_protocol(
+    publication: Mapping[str, Any],
+    *,
+    provider_origin: str,
+    target: str,
+    consumer_operation_id: str,
+    record_schema: Mapping[str, Any],
+) -> tuple[ImportReceipt, _AtomicMemorySink]:
+    parsed = PublicationRequest.model_validate(publication)
+    sink = _AtomicMemorySink()
+
+    def validate_record(record: Mapping[str, Any], ordinal: int) -> None:
+        assert ordinal >= 1
+        jsonschema.validate(record, record_schema)
+
+    with httpx.Client() as client:
+        receipt = consume_publication(
+            parsed,
+            target=target,
+            consumer_operation_id=consumer_operation_id,
+            correlation=CorrelationContext(request_id=f"reference-{parsed.dataset_id}"),
+            policy=ArtifactAccessPolicy(
+                origin=provider_origin,
+                artifact_path_template=(
+                    "/api/data-platform/v1/dataset-releases/{release_id}/artifact"
+                ),
+                max_compressed_bytes=50_000_000,
+                max_uncompressed_bytes=200_000_000,
+                max_records=10_000_000,
+                timeout_seconds=5,
+            ),
+            client=client,
+            sink=sink,
+            record_validator=validate_record,
+        )
+    return receipt, sink
+
+
 def _builder(key: str) -> Any:
     registered = default_release_builders()[key]
     return resolve_release_builder(key, registered.spec.version)
+
+
+def _download_contract_package(provider_origin: str) -> dict[str, Mapping[str, Any]]:
+    metadata_response = httpx.get(
+        f"{provider_origin}/api/data-platform/v1/product-contracts/v1", timeout=5
+    )
+    metadata_response.raise_for_status()
+    metadata = metadata_response.json()
+    artifact_path = metadata["artifact_path"]
+    assert artifact_path.startswith(
+        "/api/data-platform/v1/product-contracts/v1/sha256/"
+    )
+    artifact_response = httpx.get(f"{provider_origin}{artifact_path}", timeout=5)
+    artifact_response.raise_for_status()
+    content = artifact_response.content
+    assert len(content) == metadata["byte_count"]
+    assert hashlib.sha256(content).hexdigest() == metadata["content_sha256"]
+    with ZipFile(io.BytesIO(content)) as archive:
+        return {
+            filename: json.loads(archive.read(filename))
+            for filename in archive.namelist()
+        }
 
 
 @contextmanager
@@ -319,9 +418,62 @@ def test_runner_constructs_every_registered_export_over_real_http(
     assert artifact["artifact_kind"] == "release_export"
     assert artifact["schema_version"] == _builder(builder_key).spec.contract
     assert hashlib.sha256(content).hexdigest() == binding["content_sha256"]
+    contract_set = json.loads(
+        (ROOT / "contracts" / "product-contract-set.v1.json").read_text("utf-8")
+    )
+    registration = next(
+        item
+        for item in contract_set["contracts"]
+        if item["schema_version"] == artifact["schema_version"]
+    )
+    assert binding["manifest"]["media_type"] == registration["media_type"]
+    assert binding["manifest"]["content_encoding"] == registration["content_encoding"]
+    schema = json.loads((ROOT / "contracts" / registration["schema_path"]).read_text("utf-8"))
     records = [json.loads(line) for line in gzip.decompress(content).splitlines()]
     assert len(records) == len(export_rows)
+    for record in records:
+        jsonschema.validate(record, schema)
     assert all(record["provenance"]["release_id"] == release_id for record in records)
+
+    if context.redistribution_policy == "licence-controlled":
+        assert dataset_id == "gnaf-nsw"
+        return
+
+    artifact_path = f"/api/data-platform/v1/dataset-releases/{release_id}/artifact"
+    provider = Flask(f"runner-artifact-{dataset_id}")
+
+    @provider.get(artifact_path)
+    def runner_artifact() -> Response:
+        return Response(content, status=200, content_type="application/gzip")
+
+    delivery_key = f"runner-delivery-{dataset_id}"
+    operation_id = f"runner-consumer-operation-{dataset_id}"
+    publication = {
+        "release_id": release_id,
+        "dataset_id": dataset_id,
+        "schema_version": artifact["schema_version"],
+        "content_sha256": binding["content_sha256"],
+        "record_count": binding["record_count"],
+        "manifest": binding["manifest"],
+        "artifact_path": artifact_path,
+        "idempotency_key": delivery_key,
+    }
+    with _serve(provider) as provider_url:
+        receipt, sink = _consume_with_shared_protocol(
+            publication,
+            provider_origin=provider_url,
+            target=context.target_feature,
+            consumer_operation_id=operation_id,
+            record_schema=schema,
+        )
+
+    assert receipt.consumer_operation_id == operation_id
+    assert receipt.consumer_operation_id != delivery_key
+    assert receipt.status == "accepted"
+    assert sink.rolled_back is False
+    assert sink.evidence is not None
+    assert sink.evidence.content_sha256 == binding["content_sha256"]
+    assert list(sink.committed) == records
 
 
 @pytest.mark.parametrize(
@@ -341,8 +493,12 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
     builder = _builder(builder_key)
     product = builder.build(context, rows, created_at=FIXED_TIME)
     artifact = LocalArtifactStore(tmp_path).put(
-        [product.content], max_bytes=50_000_000, media_type="application/json"
+        [product.content], max_bytes=50_000_000, media_type=builder.spec.media_type
     )
+    assert product.manifest.media_type == builder.spec.media_type
+    assert product.manifest.content_encoding == builder.spec.content_encoding
+    assert product.manifest.content_sha256 == artifact.sha256
+    assert product.manifest.byte_count == artifact.bytes
     release = {
         "id": str(context.release_id),
         "dataset_id": dataset_id,
@@ -358,12 +514,20 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
     }
     receipts: list[dict[str, Any]] = []
     activations: list[dict[str, Any]] = []
+    consumer_imports: list[dict[str, Any]] = []
     database = Flask(f"database-{dataset_id}")
 
     @database.get("/internal/data-platform/v1/releases/<release_id>")
     def get_release(release_id: str) -> Any:
         assert release_id == release["id"]
-        return jsonify({"release": release, "receipts": receipts, "activations": activations})
+        return jsonify(
+            {
+                "release": release,
+                "receipts": receipts,
+                "activations": activations,
+                "consumer_imports": consumer_imports,
+            }
+        )
 
     @database.get("/internal/data-platform/v1/releases/<release_id>/artifact")
     def get_artifact(release_id: str) -> Any:
@@ -378,7 +542,7 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
                     "storage_key": artifact.storage_key,
                     "content_sha256": artifact.sha256,
                     "media_type": artifact.media_type,
-                    "content_encoding": None,
+                    "content_encoding": builder.spec.content_encoding,
                 }
             }
         )
@@ -389,6 +553,45 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
         receipt = {"id": f"receipt-{dataset_id}", **body}
         receipts.append(receipt)
         return jsonify({"receipt": receipt, "created": True}), 201
+
+    @database.post("/internal/data-platform/v1/releases/<release_id>/consumer-imports")
+    def create_consumer_import(release_id: str) -> Any:
+        assert release_id == release["id"]
+        body = request.get_json()
+        existing = next(
+            (
+                item
+                for item in consumer_imports
+                if item["idempotency_key"] == body["idempotency_key"]
+            ),
+            None,
+        )
+        if existing is not None:
+            return jsonify({"operation": existing, "created": False}), 200
+        operation = {
+            "id": "72000000-0000-0000-0000-000000000099",
+            "dataset_release_id": release_id,
+            "dataset_id": body["dataset_id"],
+            "target_feature": body["target_feature"],
+            "schema_version": body["schema_version"],
+            "content_sha256": body["content_sha256"],
+            "record_count": body["record_count"],
+            "idempotency_key": body["idempotency_key"],
+            "status": "queued",
+            "phase_key": "connect",
+            "remote_status": None,
+            "consumer_operation_id": None,
+            "publication_receipt_id": None,
+            "release_activation_id": None,
+            "attempt_number": 0,
+            "requested_at": FIXED_TIME.isoformat(),
+            "started_at": None,
+            "finished_at": None,
+            "error_json": None,
+            "version": 1,
+        }
+        consumer_imports.append(operation)
+        return jsonify({"operation": operation, "created": True}), 202
 
     @database.post("/internal/data-platform/v1/releases/<release_id>/activations")
     def queue_activation(release_id: str) -> Any:
@@ -430,45 +633,45 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
     @consumer.post("/api/data-import/v1/propertyscope-releases")
     def import_release() -> Any:
         publication = request.get_json()
-        publication_schema = json.loads(
-            (ROOT / "contracts" / "consumer-publication-request.v1.schema.json").read_text("utf-8")
-        )
+        contracts = _download_contract_package(provider_origin["url"])
+        publication_schema = contracts["consumer-publication-request.v1.schema.json"]
         jsonschema.validate(publication, publication_schema)
-        response = httpx.get(
-            provider_origin["url"] + publication["artifact_path"],
-            follow_redirects=False,
-            timeout=5,
+        contract_set = contracts["product-contract-set.v1.json"]
+        registration = next(
+            item
+            for item in contract_set["contracts"]
+            if item["schema_version"] == publication["schema_version"]
         )
-        assert response.status_code == 200
-        assert hashlib.sha256(response.content).hexdigest() == publication["content_sha256"]
-        expected_digest = base64.b64encode(bytes.fromhex(publication["content_sha256"])).decode()
-        assert response.headers["Digest"] == f"sha-256=:{expected_digest}:"
-        payload = response.json()
-        schema_name = builder.spec.contract.removeprefix("propertyscope.") + ".schema.json"
-        schema = json.loads((ROOT / "contracts" / schema_name).read_text("utf-8"))
-        jsonschema.validate(payload, schema)
+        assert publication["manifest"]["media_type"] == registration["media_type"]
+        assert publication["manifest"]["content_encoding"] == registration["content_encoding"]
+        schema = contracts[registration["schema_path"]]
+        consumer_operation_id = f"consumer-operation-{dataset_id}"
+        receipt, sink = _consume_with_shared_protocol(
+            publication,
+            provider_origin=provider_origin["url"],
+            target=context.target_feature,
+            consumer_operation_id=consumer_operation_id,
+            record_schema=schema,
+        )
+        assert consumer_operation_id != publication["idempotency_key"]
+        assert sink.evidence is not None
+        assert sink.evidence.rows_received == publication["record_count"]
+        records = list(sink.committed)
+        assert len(records) == publication["record_count"]
         if dataset_id == "nsw-psi-sales":
-            assert payload["records"][0]["price_aud"] is None
-            assert payload["records"][0]["area_original"] == "1.50"
+            assert records[0]["price_aud"] is None
+            assert records[0]["area_original"] == "1.50"
         if dataset_id == "bocsar-crime":
-            series = payload["records"][0]
+            series = records[0]
             observed = {item["month"]: item["count"] for item in series["observations"]}
             assert observed.get("2025-02-01", 0) == 0
             assert "2025-03-01" not in series["observed_months"]
         if dataset_id == "nsw-government-schools":
-            assert payload["records"][0]["operational_status"] == "Closed"
-        return jsonify(
-            {
-                "consumer_operation_id": publication["idempotency_key"],
-                "status": "accepted",
-                "schema_version": publication["schema_version"],
-                "content_sha256": publication["content_sha256"],
-                "rows_received": publication["record_count"],
-                "rows_accepted": publication["record_count"],
-                "rows_rejected": 0,
-                "error": None,
-            }
-        )
+            assert records[0]["operational_status"] == "Closed"
+        receipt_payload = receipt.model_dump(mode="json")
+        acknowledgement_schema = contracts["consumer-import-acknowledgement.v1.schema.json"]
+        jsonschema.validate(receipt_payload, acknowledgement_schema)
+        return jsonify(receipt_payload)
 
     with _serve(database) as database_url, _serve(consumer) as consumer_url:
         endpoints = {
@@ -476,10 +679,11 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
                 consumer_url, "/api/data-import/v1/propertyscope-releases"
             )
         }
+        consumer_client = ConsumerImportClient(endpoints)
         backend = create_app(
             store_client=DataStoreClient(database_url, "secret"),
             ai_mode_client=AiModeClient("http://127.0.0.1:1"),
-            consumer_client=ConsumerImportClient(endpoints),
+            consumer_client=consumer_client,
             artifact_root=tmp_path,
         )
         with _serve(backend) as backend_url:
@@ -494,16 +698,43 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
             else:
                 assert before.status_code == 200
                 assert before.headers["Cache-Control"] == "private, no-store"
+            if context.target_feature != "feature-1":
+                delivery_key = f"reference-delivery-{dataset_id}"
+                outcome = consumer_client.connect(
+                    context.target_feature,
+                    ConsumerPublicationRequest(
+                        release_id=release["id"],
+                        dataset_id=dataset_id,
+                        schema_version=release["schema_version"],
+                        content_sha256=release["content_sha256"],
+                        record_count=release["record_count"],
+                        manifest=release["manifest_json"],
+                        artifact_path=(
+                            f"/api/data-platform/v1/dataset-releases/{release['id']}/artifact"
+                        ),
+                        idempotency_key=delivery_key,
+                    ),
+                    {"X-Request-ID": f"reference-connect-{dataset_id}"},
+                )
+                assert outcome.status == "accepted"
+                assert outcome.receipt is not None
+                assert outcome.consumer_operation_id == f"consumer-operation-{dataset_id}"
+                assert outcome.consumer_operation_id != delivery_key
             publish = httpx.post(
                 f"{backend_url}/api/data-platform/v1/dataset-releases/{release['id']}/publish",
                 headers={"Idempotency-Key": f"publish-{dataset_id}"},
                 json={"version": 2, "comment": "HTTP contract verified", "approved": True},
             )
             assert publish.status_code == 202
-            assert publish.json()["activation"]["status"] == "queued"
             assert release["status"] == "awaiting_review"
             if context.target_feature != "feature-1":
-                assert receipts[-1]["rows_accepted"] == len(json.loads(product.content)["records"])
+                operation = publish.json()["consumer_import"]
+                assert operation["status"] == "queued"
+                assert operation["phase_key"] == "connect"
+                assert receipts == []
+                assert activations == []
+            else:
+                assert publish.json()["activation"]["status"] == "queued"
             pending_replay = httpx.post(
                 f"{backend_url}/api/data-platform/v1/dataset-releases/{release['id']}/publish",
                 headers={"Idempotency-Key": f"publish-{dataset_id}"},
@@ -511,7 +742,16 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
             )
             assert pending_replay.status_code == 202
             assert pending_replay.json()["replayed"] is True
-            assert pending_replay.json()["activation"]["id"] == publish.json()["activation"]["id"]
+            if context.target_feature != "feature-1":
+                assert (
+                    pending_replay.json()["consumer_import"]["id"]
+                    == (publish.json()["consumer_import"]["id"])
+                )
+                assert len(consumer_imports) == 1
+                assert receipts == []
+                assert activations == []
+                return
+            assert pending_replay.json()["activation"]["id"] == (publish.json()["activation"]["id"])
             assert len(receipts) == 1
             assert len(activations) == 1
 

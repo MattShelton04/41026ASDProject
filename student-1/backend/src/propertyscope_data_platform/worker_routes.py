@@ -8,7 +8,7 @@ from typing import Any
 
 from flask import Blueprint, Response, jsonify, request
 
-from propertyscope_data_platform.clients import DataStoreClient
+from propertyscope_data_platform.clients import ConsumerImportClient, DataStoreClient
 from propertyscope_data_platform.http_support import (
     forward,
     forward_json_bytes,
@@ -16,6 +16,7 @@ from propertyscope_data_platform.http_support import (
     problem,
 )
 from propertyscope_data_platform.release_builders import BuildContext, resolve_release_builder
+from propertyscope_data_platform.release_publication import process_consumer_import
 
 WorkerOperation = Callable[[DataStoreClient, uuid.UUID, Mapping[str, Any]], Response]
 
@@ -23,12 +24,51 @@ WorkerOperation = Callable[[DataStoreClient, uuid.UUID, Mapping[str, Any]], Resp
 def register_worker_routes(
     api: Blueprint,
     store: DataStoreClient,
+    consumers: ConsumerImportClient,
     *,
     internal: str,
     ensure_import_operation: WorkerOperation,
     finalize_candidate_release: WorkerOperation,
 ) -> None:
     """Register the private runner boundary on ``api``."""
+
+    @api.post(f"{internal}/worker/consumer-imports/claim")
+    def worker_consumer_import_claim() -> Response:
+        return forward(
+            store.request(
+                "POST",
+                f"{internal}/consumer-imports/claim",
+                headers=request.headers,
+                json=json_body(),
+            )
+        )
+
+    @api.post(f"{internal}/worker/consumer-imports/<uuid:operation_id>/step")
+    def worker_consumer_import_step(operation_id: uuid.UUID) -> Response:
+        body = json_body()
+        operation_response = store.request(
+            "GET", f"{internal}/consumer-imports/{operation_id}", headers=request.headers
+        )
+        if operation_response.status_code >= 400:
+            return forward(operation_response)
+        operation = operation_response.json()["operation"]
+        worker_id = str(body.get("worker_id", ""))
+        lease_token = str(body.get("lease_token", ""))
+        if (
+            not worker_id
+            or not lease_token
+            or operation.get("status") != "claimed"
+            or operation.get("lease_owner") != worker_id
+            or operation.get("lease_token") != lease_token
+        ):
+            return problem(409, "consumer_import_lease_conflict", "Consumer import lease is stale")
+        return process_consumer_import(
+            store,
+            consumers,
+            operation,
+            worker_id=worker_id,
+            lease_token=lease_token,
+        )
 
     @api.post(f"{internal}/worker/tasks/claim")
     def worker_claim() -> Response:

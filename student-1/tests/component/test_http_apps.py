@@ -258,7 +258,7 @@ def test_backend_exposes_complete_sales_source_pages_from_accepted_generation() 
                     "items": [
                         {
                             "id": release_id,
-                            "schema_version": "propertyscope.property-sales.v2",
+                                "schema_version": "propertyscope.property-sales.v3",
                         }
                     ]
                 },
@@ -278,7 +278,7 @@ def test_backend_exposes_complete_sales_source_pages_from_accepted_generation() 
                     "dataset_id": "nsw-psi-sales",
                     "release_version": "2026-08",
                     "status": "accepted",
-                    "schema_version": "propertyscope.property-sales.v2",
+                        "schema_version": "propertyscope.property-sales.v3",
                 },
                 "source_partition_year": 1999,
                 "items": [{"source_business_key": "001:P1:1"}],
@@ -333,7 +333,7 @@ def test_backend_protects_runner_and_publication() -> None:
     assert response.content_type == "application/problem+json"
 
 
-def test_publication_records_receipt_before_queueing_pointer_activation() -> None:
+def test_publication_queues_durable_consumer_import_without_calling_consumer() -> None:
     release_id = "60000000-0000-0000-0000-000000000011"
     digest = "a" * 64
     events: list[str] = []
@@ -344,28 +344,29 @@ def test_publication_records_receipt_before_queueing_pointer_activation() -> Non
         "schema_version": "crime-series.v1",
         "content_sha256": digest,
         "record_count": 3,
-        "manifest_json": {"schema_version": "crime-series.v1"},
+        "manifest_json": {"target_feature": "feature-3"},
         "status": "awaiting_review",
         "version": 2,
     }
 
     def database(request: httpx.Request) -> httpx.Response:
         if request.method == "GET":
-            return httpx.Response(200, json={"release": release, "receipts": []})
-        if request.url.path.endswith("/receipts"):
-            events.append("receipt")
-            body = cast(dict[str, Any], json.loads(request.content))
             return httpx.Response(
-                201,
-                json={"receipt": {"id": "receipt-1", **body}, "created": True},
+                200, json={"release": release, "receipts": [], "consumer_imports": []}
             )
-        events.append("activation")
+        assert request.url.path.endswith("/consumer-imports")
+        events.append("queue")
+        body = cast(dict[str, Any], json.loads(request.content))
+        assert body["dataset_id"] == release["dataset_id"]
+        assert body["content_sha256"] == digest
         return httpx.Response(
             202,
             json={
-                "activation": {
+                "operation": {
                     "id": "70000000-0000-0000-0000-000000000001",
+                    "dataset_release_id": release_id,
                     "status": "queued",
+                    "phase_key": "connect",
                     "attempt_number": 1,
                     "requested_at": "2026-08-26T10:00:00Z",
                     "version": 1,
@@ -376,20 +377,7 @@ def test_publication_records_receipt_before_queueing_pointer_activation() -> Non
         )
 
     def consumer(_: httpx.Request) -> httpx.Response:
-        events.append("consumer")
-        return httpx.Response(
-            200,
-            json={
-                "consumer_operation_id": "publish-release-11",
-                "status": "accepted",
-                "schema_version": "crime-series.v1",
-                "content_sha256": digest,
-                "rows_received": 3,
-                "rows_accepted": 3,
-                "rows_rejected": 0,
-                "error": None,
-            },
-        )
+        raise AssertionError("browser publication must not call the consumer")
 
     transport = httpx.MockTransport(database)
     app = create_backend_app(
@@ -411,15 +399,14 @@ def test_publication_records_receipt_before_queueing_pointer_activation() -> Non
         json={"version": 2, "comment": "Reviewed", "approved": True},
     )
     assert response.status_code == 202
-    assert events == ["consumer", "receipt", "activation"]
+    assert events == ["queue"]
     assert response.get_json()["release"]["status"] == "awaiting_review"
-    assert response.get_json()["activation"]["status"] == "queued"
-    assert "lease_token" not in response.get_json()["activation"]
-    assert response.get_json()["receipt"]["consumer_operation_id"] == "publish-release-11"
-    assert "id" not in response.get_json()["receipt"]
+    assert response.get_json()["consumer_import"]["status"] == "queued"
+    assert response.get_json()["consumer_import"]["budgets"]["connect_timeout_seconds"] == 5
+    assert "lease_token" not in response.get_json()["consumer_import"]
 
 
-def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() -> None:
+def test_publication_retry_replays_durable_delivery_without_calling_consumer() -> None:
     release_id = "60000000-0000-0000-0000-000000000013"
     digest = "c" * 64
     release = {
@@ -433,28 +420,33 @@ def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() 
         "status": "awaiting_review",
         "version": 2,
     }
-    receipts: list[dict[str, Any]] = []
-    activation_attempts = 0
+    operation: dict[str, Any] | None = None
     consumer_calls = 0
 
     def database(request: httpx.Request) -> httpx.Response:
-        nonlocal activation_attempts
+        nonlocal operation
         if request.method == "GET":
-            return httpx.Response(200, json={"release": release, "receipts": receipts})
-        if request.url.path.endswith("/receipts"):
-            body = cast(dict[str, Any], json.loads(request.content))
-            receipt = {"id": "receipt-recovery", **body}
-            receipts.append(receipt)
-            return httpx.Response(201, json={"receipt": receipt, "created": True})
-        activation_attempts += 1
-        if activation_attempts == 1:
-            return httpx.Response(503, json={"code": "temporary_database_failure"})
+            return httpx.Response(
+                200,
+                json={
+                    "release": release,
+                    "receipts": [],
+                    "consumer_imports": [operation] if operation else [],
+                },
+            )
+        created = operation is None
+        operation = {
+            "id": "72000000-0000-0000-0000-000000000013",
+            "dataset_release_id": release_id,
+            "idempotency_key": "publish-recovery",
+            "status": "queued",
+            "phase_key": "connect",
+            "attempt_number": 1,
+            "version": 1,
+        }
         return httpx.Response(
-            202,
-            json={
-                "activation": {"id": "activation-recovery", "status": "queued"},
-                "created": True,
-            },
+            202 if created else 200,
+            json={"operation": operation, "created": created},
         )
 
     def consumer(_: httpx.Request) -> httpx.Response:
@@ -498,11 +490,10 @@ def test_publication_retry_after_durable_receipt_does_not_call_consumer_twice() 
     first = client.post(f"/api/data-platform/v1/dataset-releases/{release_id}/publish", **kwargs)
     second = client.post(f"/api/data-platform/v1/dataset-releases/{release_id}/publish", **kwargs)
 
-    assert first.status_code == 503
+    assert first.status_code == 202
     assert second.status_code == 202
     assert second.get_json()["replayed"] is True
-    assert consumer_calls == 1
-    assert activation_attempts == 2
+    assert consumer_calls == 0
 
 
 @pytest.mark.parametrize(
@@ -589,10 +580,9 @@ def test_publication_replay_preserves_terminal_activation_outcome(
         assert response.get_json()["activation"]["status"] == "succeeded"
 
 
-def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
+def test_browser_publish_does_not_wait_for_consumer_rejection() -> None:
     release_id = "60000000-0000-0000-0000-000000000012"
     digest = "b" * 64
-    events: list[str] = []
     release = {
         "id": release_id,
         "dataset_id": "bocsar-crime",
@@ -607,12 +597,23 @@ def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
 
     def database(request: httpx.Request) -> httpx.Response:
         if request.method == "GET":
-            return httpx.Response(200, json={"release": release, "receipts": []})
-        assert request.url.path.endswith("/receipts")
-        events.append("receipt")
-        body = cast(dict[str, Any], json.loads(request.content))
-        assert body["status"] == "rejected"
-        return httpx.Response(201, json={"receipt": {"id": "receipt-2", **body}, "created": True})
+            return httpx.Response(
+                200, json={"release": release, "receipts": [], "consumer_imports": []}
+            )
+        return httpx.Response(
+            202,
+            json={
+                "operation": {
+                    "id": "72000000-0000-0000-0000-000000000012",
+                    "dataset_release_id": release_id,
+                    "status": "queued",
+                    "phase_key": "connect",
+                    "attempt_number": 1,
+                    "version": 1,
+                },
+                "created": True,
+            },
+        )
 
     consumer = httpx.MockTransport(
         lambda _: httpx.Response(422, json={"code": "consumer_rejected"})
@@ -637,9 +638,8 @@ def test_consumer_rejection_records_receipt_without_advancing_release() -> None:
         headers={"Idempotency-Key": "publish-release-12"},
         json={"version": 1, "comment": "Reviewed", "approved": True},
     )
-    assert response.status_code == 424
-    assert events == ["receipt"]
-    assert response.get_json()["code"] == "consumer_publication_failed"
+    assert response.status_code == 202
+    assert response.get_json()["publication_status"] == "pending"
 
 
 @pytest.mark.parametrize("status_code", [200, 422])
@@ -695,13 +695,13 @@ def test_source_scale_local_publication_queues_without_rereading_artifact(
     digest = "a" * 64
     manifest = {
         "manifest_schema_version": "propertyscope.release-manifest.v1",
-        "product_schema_version": "propertyscope.property-snapshot.v1",
+        "product_schema_version": "propertyscope.property-snapshot.v2",
         "release_id": release_id,
         "release_version": "fixture-local-failure-v1",
         "dataset_id": "fixture-property",
         "target_feature": "feature-1",
         "builder_key": "property-snapshot",
-        "builder_version": "2.0.0",
+        "builder_version": "3.0.0",
         "import_profile": "property-fixture",
         "normalisation_version": "1.0.0",
         "publisher": "PropertyScope test",
@@ -732,7 +732,7 @@ def test_source_scale_local_publication_queues_without_rereading_artifact(
         "id": release_id,
         "dataset_id": "fixture-property",
         "target_feature": "feature-1",
-        "schema_version": "propertyscope.property-snapshot.v1",
+        "schema_version": "propertyscope.property-snapshot.v2",
         "content_sha256": digest,
         "record_count": 5_190_134,
         "manifest_json": manifest,
@@ -798,6 +798,8 @@ def test_source_scale_local_publication_queues_without_rereading_artifact(
     assert response.get_json()["activation"]["status"] == "queued"
     assert release["status"] == "awaiting_review"
     assert len(receipts) == 1
+    assert receipts[0]["consumer_operation_id"] != "publish-source-scale"
+    assert receipts[0]["consumer_operation_id"].startswith("feature-1-local:")
 
 
 @pytest.mark.parametrize(
@@ -810,22 +812,6 @@ def test_source_scale_local_publication_queues_without_rereading_artifact(
                     "consumer_operation_id": "publish-release",
                     "status": "accepted",
                     "schema_version": "propertyscope.wrong.v1",
-                    "content_sha256": "a" * 64,
-                    "rows_received": 1,
-                    "rows_accepted": 1,
-                    "rows_rejected": 0,
-                    "error": None,
-                },
-            ),
-            "consumer_evidence_mismatch",
-        ),
-        (
-            httpx.Response(
-                200,
-                json={
-                    "consumer_operation_id": "another-operation",
-                    "status": "accepted",
-                    "schema_version": "propertyscope.property-sales.v2",
                     "content_sha256": "a" * 64,
                     "rows_received": 1,
                     "rows_accepted": 1,
@@ -857,7 +843,7 @@ def test_source_scale_local_publication_queues_without_rereading_artifact(
         ),
         (
             httpx.Response(302, headers={"Location": "http://untrusted.invalid/import"}),
-            "consumer_response_invalid",
+            "consumer_redirect_rejected",
         ),
     ],
 )
@@ -881,10 +867,10 @@ def test_consumer_receipt_mismatch_and_redirects_fail_closed(
         client=httpx.Client(transport=httpx.MockTransport(lambda _: response)),
     )
 
-    receipt = client.publish("feature-2", publication, {})
+    outcome = client.connect("feature-2", publication, {})
 
-    assert receipt.status == "failed"
-    assert receipt.error is not None and receipt.error.code == expected_code
+    assert outcome.consumer_operation_id is None
+    assert outcome.error is not None and outcome.error.code == expected_code
 
 
 def test_consumer_unavailability_returns_retryable_safe_receipt() -> None:
@@ -908,18 +894,34 @@ def test_consumer_unavailability_returns_retryable_safe_receipt() -> None:
         client=httpx.Client(transport=httpx.MockTransport(unavailable)),
     )
 
-    receipt = client.publish("feature-2", publication, {})
+    outcome = client.connect("feature-2", publication, {})
 
-    assert receipt.status == "failed"
-    assert receipt.error is not None
-    assert receipt.error.code == "consumer_unavailable"
-    assert receipt.error.retryable is True
+    assert outcome.consumer_operation_id is None
+    assert outcome.error is not None
+    assert outcome.error.code == "consumer_unavailable"
+    assert outcome.error.retryable is True
 
 
 @pytest.mark.parametrize("path", ["/api/../admin", "/api/imports?next=evil", "//evil"])
 def test_consumer_endpoint_rejects_unfixed_paths(path: str) -> None:
     with pytest.raises(ValueError, match="fixed API path"):
         ConsumerEndpoint("http://feature-2", path)
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "ftp://feature-2",
+        "http://user:secret@feature-2",
+        "http://feature-2/base",
+        "http://feature-2?next=evil",
+        "http://feature-2#fragment",
+        "http://feature-2:invalid",
+    ],
+)
+def test_consumer_endpoint_rejects_non_origin_base_urls(origin: str) -> None:
+    with pytest.raises(ValueError, match=r"HTTP\(S\) origin"):
+        ConsumerEndpoint(origin, "/api/imports")
 
 
 def test_ai_unavailable_does_not_break_readiness() -> None:

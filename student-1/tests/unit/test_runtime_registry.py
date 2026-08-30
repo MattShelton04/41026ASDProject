@@ -44,11 +44,11 @@ def test_checked_in_profiles_form_one_stable_runtime_registry() -> None:
     )
     fixture = registry.profile("fixture-property-full")
     assert fixture.adapter.version == "1.0.0"
-    assert fixture.release_builder.version == "2.0.0"
+    assert fixture.release_builder.version == "3.0.0"
     assert fixture.import_profile.version == "1.0.0"
     assert fixture.quality_policy.key == "property-fixture.v1"
     assert fixture.quality_policy.version == "1.0.0"
-    assert registry.component_version("release_builder", "property-sales") == "3.0.0"
+    assert registry.component_version("release_builder", "property-sales") == "4.0.0"
 
 
 def test_backend_and_datastore_project_the_same_declarative_runtime_boundary() -> None:

@@ -78,6 +78,20 @@ PostgreSQL temporary-file limit and a pre-COPY disk-capacity check bound failure
 changes the database globally. Disposable real-shape benchmarks, not production artifacts, gate
 100,000 then 1,000,000-row evidence and enforce the 30-minute statement ceiling.
 
+The supported consumer-platform increment aligns the public contract with that runner output:
+portable products are gzip-compressed NDJSON, and a versioned producer-owned contract set binds
+runtime registry entries, record schemas, manifest evidence, guide examples and drift tests. Shared
+provides only the domain-neutral transport and validation protocol; product schemas and import rules
+remain in their owning features. External delivery is a durable consumer-import operation, separate
+from immutable release identity and from any genuine consumer-issued operation identity. A bounded
+connect request queues or discovers consumer work, leased reconciliation retains progress and a final
+receipt, and activation is queued only after acceptance evidence is durable. Browser requests do not
+wait for source-scale imports, and accepted pointers retain the ADR-028 atomic activation boundary.
+Consumers discover the deterministic contract ZIP through
+`GET /api/data-platform/v1/product-contracts/v1` and download only its digest-bound immutable path;
+the package includes current record schemas and the unchanged legacy schemas needed to interpret
+accepted releases. ADR-033 records the contract distribution, trust boundary and replay rules.
+
 Feature 1's maintenance pass separates HTTP mechanics, correlation, approval verification,
 run-scope policy and registered source transport from the backend API composition surface. The
 database repository retains atomic PostgreSQL operations but delegates immutable preview/builder

@@ -16,6 +16,7 @@ from psycopg import Connection, errors, sql
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
+from propertyscope_data_store._consumer_import_operations import _ConsumerImportOperations
 from propertyscope_data_store._import_operations import _RegisteredImportOperations
 from propertyscope_data_store._property_reads import (
     PROPERTY_SEARCH_CANDIDATE_LIMIT as PROPERTY_SEARCH_CANDIDATE_LIMIT,
@@ -1149,6 +1150,46 @@ class PropertyScopeStore:
 
     def release_receipts(self, release_id: uuid.UUID) -> list[JsonObject]:
         return self._releases().release_receipts(release_id)
+
+    def _consumer_imports(self) -> _ConsumerImportOperations:
+        operations = getattr(self, "_consumer_import_operations", None)
+        if operations is None:
+            operations = _ConsumerImportOperations(self)
+            self._consumer_import_operations = operations
+        return operations
+
+    def create_consumer_import(
+        self, release_id: uuid.UUID, values: Mapping[str, Any]
+    ) -> tuple[JsonObject, bool]:
+        return self._consumer_imports().create(release_id, values)
+
+    def get_consumer_import(self, operation_id: uuid.UUID) -> JsonObject:
+        return self._consumer_imports().get(operation_id)
+
+    def release_consumer_imports(self, release_id: uuid.UUID) -> list[JsonObject]:
+        return self._consumer_imports().list_for_release(release_id)
+
+    def claim_consumer_import(self, *, worker_id: str, lease_seconds: int) -> JsonObject | None:
+        return self._consumer_imports().claim(worker_id=worker_id, lease_seconds=lease_seconds)
+
+    def acknowledge_consumer_import(self, operation_id: uuid.UUID, **values: Any) -> JsonObject:
+        return self._consumer_imports().acknowledge(operation_id, **values)
+
+    def retry_consumer_import(self, operation_id: uuid.UUID, **values: Any) -> JsonObject:
+        return self._consumer_imports().retry(operation_id, **values)
+
+    def attach_consumer_import_receipt(self, operation_id: uuid.UUID, **values: Any) -> JsonObject:
+        return self._consumer_imports().attach_receipt(operation_id, **values)
+
+    def attach_consumer_import_activation(
+        self, operation_id: uuid.UUID, **values: Any
+    ) -> JsonObject:
+        return self._consumer_imports().attach_activation(operation_id, **values)
+
+    def record_consumer_import_activation_outcome(
+        self, operation_id: uuid.UUID, **values: Any
+    ) -> JsonObject:
+        return self._consumer_imports().record_activation_outcome(operation_id, **values)
 
     def preview_release_records(
         self, release_id: uuid.UUID, *, limit: int, offset: int

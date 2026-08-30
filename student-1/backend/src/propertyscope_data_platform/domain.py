@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import (
+    AliasChoices,
     AnyHttpUrl,
     BaseModel,
     ConfigDict,
@@ -284,6 +285,69 @@ class PublicationReceiptResult(DomainModel):
         if self.status != "accepted" and self.error is None:
             raise ValueError("non-accepted receipt requires a safe error")
         return self
+
+
+class ConsumerImportAcknowledgement(DomainModel):
+    """Consumer-owned operation identity and immutable release evidence."""
+
+    consumer_operation_id: str = Field(
+        min_length=1, max_length=200, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    )
+    status: Literal["queued", "running", "accepted", "rejected", "failed"]
+    release_id: UUID
+    dataset_id: Identifier
+    target_feature: Identifier = Field(
+        validation_alias=AliasChoices("target", "target_feature"), serialization_alias="target"
+    )
+    schema_version: Identifier
+    content_sha256: Sha256
+    record_count: int = Field(ge=0)
+    rows_received: int | None = Field(default=None, ge=0)
+    rows_accepted: int | None = Field(default=None, ge=0)
+    rows_rejected: int | None = Field(default=None, ge=0)
+    error: SafeError | None = None
+
+    @model_validator(mode="after")
+    def terminal_status_has_a_closed_receipt(self) -> ConsumerImportAcknowledgement:
+        if self.status in {"queued", "running"}:
+            if any(
+                value is not None
+                for value in (
+                    self.rows_received,
+                    self.rows_accepted,
+                    self.rows_rejected,
+                    self.error,
+                )
+            ):
+                raise ValueError("nonterminal consumer operation cannot include receipt evidence")
+            return self
+        if None in (self.rows_received, self.rows_accepted, self.rows_rejected):
+            raise ValueError("terminal consumer operation requires complete receipt counts")
+        PublicationReceiptResult(
+            consumer_operation_id=self.consumer_operation_id,
+            status=self.status,
+            schema_version=self.schema_version,
+            content_sha256=self.content_sha256,
+            rows_received=self.rows_received,
+            rows_accepted=self.rows_accepted,
+            rows_rejected=self.rows_rejected,
+            error=self.error,
+        )
+        return self
+
+    def receipt(self) -> PublicationReceiptResult | None:
+        if self.status in {"queued", "running"}:
+            return None
+        return PublicationReceiptResult(
+            consumer_operation_id=self.consumer_operation_id,
+            status=self.status,
+            schema_version=self.schema_version,
+            content_sha256=self.content_sha256,
+            rows_received=self.rows_received,
+            rows_accepted=self.rows_accepted,
+            rows_rejected=self.rows_rejected,
+            error=self.error,
+        )
 
 
 class WorkerClaimRequest(DomainModel):

@@ -546,3 +546,42 @@ def test_psi_exact_address_index_matches_null_equivalent_predicates() -> None:
     assert "COALESCE(street_number_suffix,'')" in migration
     assert "COALESCE(unit_number,'')" in migration
     assert "INCLUDE (property_ref)" in migration
+
+
+def test_consumer_import_identity_and_delivery_are_separately_constrained() -> None:
+    initial = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("040_async_consumer_import_operations.sql")
+        .read_text("utf-8")
+    )
+    extension = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("041_consumer_import_activation_monitoring.sql")
+        .read_text("utf-8")
+    )
+
+    assert hashlib.sha256(initial.encode()).hexdigest() == (
+        "a7e244d039addacc3c2f1a8fd268f449a6b632b1fa48b5eaf524ea6eb933ab93"
+    )
+    assert hashlib.sha256(extension.encode()).hexdigest() == (
+        "ecf5a145576376aa1a7ffda068207a2c97da11e2a85895dd7e96d491dfc28302"
+    )
+    assert "CREATE TABLE ops.consumer_import_operation" in initial
+    assert "UNIQUE (target_feature, idempotency_key)" in initial
+    assert "consumer_import_remote_operation_uq" in initial
+    assert "consumer_import_active_release_identity_uq" in extension
+    assert "dataset_release_id,dataset_id,target_feature,schema_version" in extension
+    assert "WHERE status NOT IN ('failed','rejected')" in extension
+
+    aliases = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("042_consumer_import_delivery_aliases.sql")
+        .read_text("utf-8")
+    )
+    assert hashlib.sha256(aliases.encode()).hexdigest() == (
+        "484640580d777f956b3036da1d51776043e6159ccb4c86c4683216ec2d8e4323"
+    )
+    assert "CREATE TABLE ops.consumer_import_delivery_alias" in aliases
+    assert "PRIMARY KEY (target_feature, idempotency_key)" in aliases
+    assert "ADD COLUMN activation_attempt" in aliases
+    assert "consumer_import_operation_id, target_feature" in aliases

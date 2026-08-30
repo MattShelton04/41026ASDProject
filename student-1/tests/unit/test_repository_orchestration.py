@@ -78,6 +78,23 @@ class CancellableConnection(ScriptedConnection):
         self.cancelled.set()
 
 
+def _consumer_import_values(release_id: uuid.UUID, **overrides: Any) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "dataset_id": "bocsar-crime",
+        "target_feature": "feature-3",
+        "schema_version": "crime-series.v1",
+        "content_sha256": "a" * 64,
+        "record_count": 3,
+        "artifact_path": f"/api/data-platform/v1/dataset-releases/{release_id}/artifact",
+        "expected_release_version": 2,
+        "comment": "Reviewed",
+        "idempotency_key": "delivery-key-one",
+        "request_id": "request-one",
+    }
+    values.update(overrides)
+    return values
+
+
 class SequencedConnectionStore(PropertyScopeStore):
     def __init__(self, connections: Sequence[ScriptedConnection]) -> None:
         self.connections = list(connections)
@@ -314,7 +331,7 @@ def test_job_creation_derives_registered_runtime_versions() -> None:
     assert parameters is not None
     assert parameters[4] == "1.0.0"
     assert parameters[6] == "1.0.0"
-    assert parameters[8] == "3.0.0"
+    assert parameters[8] == "4.0.0"
     assert parameters[10] == "1.0.0"
     assert parameters[16] == "1.0.0"
 
@@ -1964,3 +1981,312 @@ def test_property_coverage_derives_only_from_an_accepted_identity_generation() -
     assert "JOIN serving.accepted_generation accepted" in store.query
     assert "accepted.dataset_release_id=address.dataset_release_id" in store.query
     assert "NOT EXISTS" in store.query
+
+
+def test_consumer_import_identity_replays_across_delivery_keys_without_insert() -> None:
+    release_id = uuid.uuid4()
+    existing = {
+        "id": uuid.uuid4(),
+        "dataset_release_id": release_id,
+        "dataset_id": "bocsar-crime",
+        "target_feature": "feature-3",
+        "schema_version": "crime-series.v1",
+        "content_sha256": "a" * 64,
+        "record_count": 3,
+        "expected_release_version": 2,
+        "review_comment": "Original review",
+        "artifact_path": f"/api/data-platform/v1/dataset-releases/{release_id}/artifact",
+        "status": "polling",
+        "consumer_operation_id": "consumer-owned-42",
+    }
+    connection = ScriptedConnection(
+        [
+            None,
+            {
+                "id": release_id,
+                "dataset_id": "bocsar-crime",
+                "target_feature": "feature-3",
+                "schema_version": "crime-series.v1",
+                "content_sha256": "a" * 64,
+                "record_count": 3,
+                "status": "awaiting_review",
+                "version": 2,
+            },
+            existing,
+            {"consumer_import_operation_id": existing["id"]},
+        ]
+    )
+
+    operation, created = ConnectedStore(connection).create_consumer_import(
+        release_id,
+        _consumer_import_values(
+            release_id,
+            idempotency_key="different-delivery-key",
+            comment="Different retry comment",
+        ),
+    )
+
+    assert created is False
+    assert operation["id"] == str(existing["id"])
+    assert not any(
+        "INSERT INTO ops.consumer_import_operation" in query for query in connection.queries
+    )
+    assert "status NOT IN ('failed','rejected')" in connection.queries[2]
+
+
+def test_consumer_import_resumes_accepted_receipt_without_consumer_callback() -> None:
+    release_id = uuid.uuid4()
+    receipt_id = uuid.uuid4()
+    release = {
+        "id": release_id,
+        "dataset_id": "bocsar-crime",
+        "target_feature": "feature-3",
+        "schema_version": "crime-series.v1",
+        "content_sha256": "a" * 64,
+        "record_count": 3,
+        "manifest_json": {"target_feature": "feature-3"},
+        "status": "awaiting_review",
+        "version": 2,
+    }
+    inserted = {
+        "id": uuid.uuid4(),
+        "dataset_release_id": release_id,
+        "status": "activation_pending",
+        "phase_key": "queue_activation",
+        "consumer_operation_id": "consumer-owned-42",
+        "publication_receipt_id": receipt_id,
+    }
+    connection = ScriptedConnection(
+        [
+            None,
+            release,
+            None,
+            None,
+            {
+                "id": receipt_id,
+                "consumer_operation_id": "consumer-owned-42",
+                "status": "accepted",
+            },
+            inserted,
+            {"consumer_import_operation_id": inserted["id"]},
+        ]
+    )
+
+    operation, created = ConnectedStore(connection).create_consumer_import(
+        release_id, _consumer_import_values(release_id)
+    )
+
+    assert created is True
+    assert operation["phase_key"] == "queue_activation"
+    insert_parameters = connection.parameters[5]
+    assert insert_parameters is not None
+    assert "consumer-owned-42" in insert_parameters
+    assert receipt_id in insert_parameters
+    assert "activation_pending" in insert_parameters
+
+
+def test_failed_consumer_import_with_genuine_remote_id_resumes_without_redownload() -> None:
+    release_id = uuid.uuid4()
+    operation_id = uuid.uuid4()
+    release = {
+        "id": release_id,
+        "dataset_id": "bocsar-crime",
+        "target_feature": "feature-3",
+        "schema_version": "crime-series.v1",
+        "content_sha256": "a" * 64,
+        "record_count": 3,
+        "manifest_json": {"target_feature": "feature-3"},
+        "status": "awaiting_review",
+        "version": 2,
+    }
+    failed = {
+        "id": operation_id,
+        "consumer_operation_id": "consumer-owned-42",
+        "publication_receipt_id": None,
+        "attached_receipt_status": None,
+        "result_json": None,
+        "status": "failed",
+        "phase_key": "complete",
+    }
+    resumed = {**failed, "status": "polling", "phase_key": "poll", "error_json": None}
+    connection = ScriptedConnection(
+        [None, release, None, failed, resumed, {"consumer_import_operation_id": operation_id}]
+    )
+
+    operation, created = ConnectedStore(connection).create_consumer_import(
+        release_id,
+        _consumer_import_values(release_id, idempotency_key="operator-retry"),
+    )
+
+    assert created is False
+    assert operation["id"] == str(operation_id)
+    assert operation["phase_key"] == "poll"
+    assert "attempt_number=1" in connection.queries[4]
+    assert not any(
+        "INSERT INTO ops.consumer_import_operation" in query for query in connection.queries
+    )
+
+
+def test_failed_activation_with_accepted_receipt_requeues_without_consumer_redownload() -> None:
+    release_id = uuid.uuid4()
+    operation_id = uuid.uuid4()
+    receipt_id = uuid.uuid4()
+    release = {
+        "id": release_id,
+        "dataset_id": "bocsar-crime",
+        "target_feature": "feature-3",
+        "schema_version": "crime-series.v1",
+        "content_sha256": "a" * 64,
+        "record_count": 3,
+        "manifest_json": {"target_feature": "feature-3"},
+        "status": "awaiting_review",
+        "version": 2,
+    }
+    failed = {
+        "id": operation_id,
+        "consumer_operation_id": "consumer-owned-42",
+        "publication_receipt_id": receipt_id,
+        "release_activation_id": uuid.uuid4(),
+        "attached_receipt_status": "accepted",
+        "status": "failed",
+        "phase_key": "complete",
+        "activation_attempt": 1,
+    }
+    resumed = {
+        **failed,
+        "status": "activation_pending",
+        "phase_key": "queue_activation",
+        "release_activation_id": None,
+        "activation_attempt": 2,
+    }
+    connection = ScriptedConnection(
+        [None, release, None, failed, resumed, {"consumer_import_operation_id": operation_id}]
+    )
+
+    operation, created = ConnectedStore(connection).create_consumer_import(
+        release_id,
+        _consumer_import_values(release_id, idempotency_key="fresh-activation-retry"),
+    )
+
+    assert created is False
+    assert operation["phase_key"] == "queue_activation"
+    assert operation["activation_attempt"] == 2
+    retry_query = connection.queries[4]
+    assert "activation_attempt=activation_attempt+1" in retry_query
+    assert "release_activation_id=NULL" in retry_query
+    assert not any(
+        "INSERT INTO ops.consumer_import_operation" in query for query in connection.queries
+    )
+
+
+@pytest.mark.parametrize("terminal_status", ["rejected", "failed"])
+def test_nonaccepted_attached_receipt_remains_terminal_on_fresh_delivery_key(
+    terminal_status: str,
+) -> None:
+    release_id = uuid.uuid4()
+    operation_id = uuid.uuid4()
+    release = {
+        "id": release_id,
+        "dataset_id": "bocsar-crime",
+        "target_feature": "feature-3",
+        "schema_version": "crime-series.v1",
+        "content_sha256": "a" * 64,
+        "record_count": 3,
+        "manifest_json": {"target_feature": "feature-3"},
+        "status": "awaiting_review",
+        "version": 2,
+    }
+    terminal = {
+        "id": operation_id,
+        "consumer_operation_id": "consumer-owned-42",
+        "publication_receipt_id": uuid.uuid4(),
+        "attached_receipt_status": terminal_status,
+        "status": terminal_status,
+        "phase_key": "complete",
+    }
+    connection = ScriptedConnection(
+        [None, release, None, terminal, {"consumer_import_operation_id": operation_id}]
+    )
+
+    operation, created = ConnectedStore(connection).create_consumer_import(
+        release_id,
+        _consumer_import_values(release_id, idempotency_key="fresh-terminal-replay"),
+    )
+
+    assert created is False
+    assert operation["status"] == terminal_status
+    assert not any(
+        query.startswith("UPDATE ops.consumer_import_operation SET") for query in connection.queries
+    )
+
+
+def test_delivery_alias_reuse_with_different_release_evidence_conflicts() -> None:
+    first_release_id = uuid.uuid4()
+    second_release_id = uuid.uuid4()
+    existing = {
+        "id": uuid.uuid4(),
+        "dataset_release_id": first_release_id,
+        "dataset_id": "bocsar-crime",
+        "target_feature": "feature-3",
+        "schema_version": "crime-series.v1",
+        "content_sha256": "a" * 64,
+        "record_count": 3,
+        "expected_release_version": 2,
+        "review_comment": "Reviewed",
+        "artifact_path": f"/api/data-platform/v1/dataset-releases/{first_release_id}/artifact",
+        "alias_expected_release_version": 2,
+        "alias_review_comment": "Reviewed",
+        "alias_artifact_path": (
+            f"/api/data-platform/v1/dataset-releases/{first_release_id}/artifact"
+        ),
+    }
+    connection = ScriptedConnection([existing])
+
+    with pytest.raises(ConflictError, match="idempotency key arguments do not match"):
+        ConnectedStore(connection).create_consumer_import(
+            second_release_id,
+            _consumer_import_values(
+                second_release_id,
+                idempotency_key="already-bound-delivery-key",
+            ),
+        )
+
+
+def test_consumer_import_receipt_attachment_requires_exact_operation_evidence() -> None:
+    operation_id = uuid.uuid4()
+    receipt_id = uuid.uuid4()
+    connection = ScriptedConnection([{"id": operation_id, "status": "activation_pending"}])
+
+    ConnectedStore(connection).attach_consumer_import_receipt(
+        operation_id,
+        worker_id="runner-1",
+        lease_token="lease-one",
+        receipt_id=receipt_id,
+        receipt_status="accepted",
+    )
+
+    query = connection.queries[0]
+    assert "receipt.dataset_release_id=operation.dataset_release_id" in query
+    assert "receipt.target_feature=operation.target_feature" in query
+    assert "receipt.consumer_operation_id=operation.consumer_operation_id" in query
+    assert "receipt.schema_version=operation.schema_version" in query
+    assert "receipt.content_sha256=operation.content_sha256" in query
+    assert "receipt.rows_received=operation.record_count" in query
+
+
+def test_consumer_import_activation_attachment_requires_release_and_receipt_match() -> None:
+    operation_id = uuid.uuid4()
+    activation_id = uuid.uuid4()
+    connection = ScriptedConnection([{"id": operation_id, "status": "activation_queued"}])
+
+    ConnectedStore(connection).attach_consumer_import_activation(
+        operation_id,
+        worker_id="runner-1",
+        lease_token="lease-one",
+        activation_id=activation_id,
+    )
+
+    query = connection.queries[0]
+    assert "activation.dataset_release_id=operation.dataset_release_id" in query
+    assert "activation.publication_receipt_id=operation.publication_receipt_id" in query
+    assert "activation.expected_release_version=operation.expected_release_version" in query
