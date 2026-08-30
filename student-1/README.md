@@ -214,6 +214,14 @@ release preview/builder projections live in `query_specs.py`, retry/task sequenc
 This keeps PostgreSQL atomicity visible at one facade without burying every persistence aggregate,
 pure policy, and public projection contract in the same repository module.
 
+Runtime versions are not duplicated in repository constants. At database API startup,
+`runtime_registry.py` loads an immutable persistence projection from the reviewed
+`config/job-profiles/*.yaml` documents and injects it into the store. The credential-free backend
+independently validates the same declarative boundary against its executable adapter and release
+builder registries; neither service imports the other's package. Job creation derives every
+persisted profile, adapter, builder, import-profile and quality-policy version from that registry,
+rejecting unknown profiles, contradictory component versions and stale caller snapshots.
+
 At the shared proxy and every Feature 1 HTTP hop, `X-Request-ID`, `X-Agent-Run-ID`, `traceparent`
 and `Idempotency-Key` are forwarded case-insensitively under canonical names. Invalid request/span
 identifiers are replaced or dropped at ingress rather than becoming misleading correlation data.

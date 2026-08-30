@@ -7,6 +7,7 @@ from flask import Flask
 from propertyscope_data_store.api import create_blueprint, register_error_handlers
 from propertyscope_data_store.configuration import StoreSettings
 from propertyscope_data_store.repository import PropertyScopeStore
+from propertyscope_data_store.runtime_registry import load_runtime_registry
 
 
 def create_app(
@@ -16,7 +17,10 @@ def create_app(
 ) -> Flask:
     """Create the sole PostgreSQL credential-owning API process."""
     resolved = settings or StoreSettings.from_environment()
-    repository = store or PropertyScopeStore(resolved.database_url)
+    repository = store or PropertyScopeStore(
+        resolved.database_url,
+        runtime_registry=load_runtime_registry(resolved.runtime_profile_root),
+    )
     if resolved.auto_migrate:
         repository.initialize()
     app = Flask("f1-db-api")

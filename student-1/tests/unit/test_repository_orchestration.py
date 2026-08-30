@@ -4,6 +4,7 @@ import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from threading import Event, Lock, Thread
 from typing import Any, cast
 
@@ -21,6 +22,10 @@ from propertyscope_data_store.repository import (
     PropertySearchResults,
     _normalise_property_query,
 )
+from propertyscope_data_store.runtime_registry import RuntimeRegistry, load_runtime_registry
+
+FEATURE_ROOT = Path(__file__).resolve().parents[2]
+RUNTIME_REGISTRY = load_runtime_registry(FEATURE_ROOT / "config" / "job-profiles")
 
 
 class ScriptedConnection:
@@ -50,8 +55,14 @@ class ScriptedConnection:
 
 
 class ConnectedStore(PropertyScopeStore):
-    def __init__(self, connection: ScriptedConnection) -> None:
+    def __init__(
+        self,
+        connection: ScriptedConnection,
+        *,
+        runtime_registry: RuntimeRegistry | None = None,
+    ) -> None:
         self.test_connection = connection
+        self._runtime_registry = runtime_registry
 
     @contextmanager
     def connection(self) -> Iterator[Any]:
@@ -237,36 +248,65 @@ def test_job_creation_derives_registered_runtime_versions() -> None:
         "source_definition_id": source_id,
         "name": "PSI sales",
         "profile_key": "nsw-psi-sales-year",
-        "profile_version": "1.0.0",
         "adapter_key": "psi-bulk",
-        "adapter_version": "caller-must-not-control-this",
         "release_builder_key": "property-sales",
-        "release_builder_version": "caller-must-not-control-this",
         "import_profile_key": "psi-sales",
-        "import_profile_version": "1.0.0",
         "target_feature": "feature-2",
         "dataset_id": "nsw-psi-sales",
         "refresh_strategy": "full_refresh",
         "default_run_mode": "full_refresh",
-        "quality_policy_key": "psi-sales",
-        "quality_policy_version": "1.0.0",
+        "quality_policy_key": "psi-sales.v1",
         "status": "active",
         "schedule_text": "manual",
     }
 
-    ConnectedStore(connection).create_job(values)
+    ConnectedStore(connection, runtime_registry=RUNTIME_REGISTRY).create_job(values)
 
     parameters = connection.parameters[0]
     assert parameters is not None
+    assert parameters[4] == "1.0.0"
     assert parameters[6] == "1.0.0"
     assert parameters[8] == "3.0.0"
+    assert parameters[10] == "1.0.0"
+    assert parameters[16] == "1.0.0"
 
 
 def test_job_creation_rejects_unregistered_runtime_components() -> None:
-    with pytest.raises(ConflictError, match="unregistered runtime component"):
-        ConnectedStore(ScriptedConnection([])).create_job(
-            {"adapter_key": "unknown", "release_builder_key": "property-sales"}
+    with pytest.raises(ConflictError, match="unknown runtime profile"):
+        ConnectedStore(ScriptedConnection([]), runtime_registry=RUNTIME_REGISTRY).create_job(
+            {"profile_key": "unknown"}
         )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("profile_version", "9.9.9"),
+        ("adapter_key", "fixture-snapshot"),
+        ("adapter_version", "9.9.9"),
+        ("release_builder_key", "property-snapshot"),
+        ("release_builder_version", "9.9.9"),
+        ("import_profile_key", "property-fixture"),
+        ("import_profile_version", "9.9.9"),
+        ("quality_policy_key", "property-fixture.v1"),
+        ("quality_policy_version", "9.9.9"),
+    ),
+)
+def test_job_creation_rejects_runtime_values_that_conflict_with_profile(
+    field: str, value: str
+) -> None:
+    with pytest.raises(ConflictError, match=rf"{field} conflicts with profile"):
+        ConnectedStore(ScriptedConnection([]), runtime_registry=RUNTIME_REGISTRY).create_job(
+            {
+                "profile_key": "nsw-psi-sales-year",
+                field: value,
+            }
+        )
+
+
+def test_job_creation_fails_closed_without_injected_runtime_registry() -> None:
+    with pytest.raises(ConflictError, match="runtime registry was not configured"):
+        ConnectedStore(ScriptedConnection([])).create_job({"profile_key": "nsw-psi-sales-year"})
 
 
 def test_claim_reconciles_expiry_and_only_claims_the_first_eligible_stage() -> None:

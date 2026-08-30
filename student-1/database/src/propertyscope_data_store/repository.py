@@ -56,6 +56,11 @@ from propertyscope_data_store.query_specs import (
     release_export_query,
     release_product_query,
 )
+from propertyscope_data_store.runtime_registry import (
+    RuntimeProfile,
+    RuntimeRegistry,
+    RuntimeRegistryError,
+)
 
 JsonObject = dict[str, Any]
 PROPERTY_SEARCH_CANDIDATE_LIMIT = 500
@@ -85,19 +90,6 @@ PROPERTY_SEARCH_UNDERSPECIFIED_TERMS = frozenset(
 )
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_ACTIVATION_STATES = frozenset({"succeeded", "failed"})
-REGISTERED_ADAPTER_VERSIONS = {
-    "fixture-snapshot": "1.0.0",
-    "gnaf-bulk": "1.0.0",
-    "psi-bulk": "1.0.0",
-    "bocsar-bulk": "1.0.0",
-    "schools-csv": "1.0.0",
-}
-REGISTERED_RELEASE_BUILDER_VERSIONS = {
-    "property-snapshot": "2.0.0",
-    "property-sales": "3.0.0",
-    "crime-series": "2.0.0",
-    "school-points": "2.0.0",
-}
 
 
 @dataclass(frozen=True)
@@ -138,10 +130,44 @@ def _activation_receipt_matches(evidence: Mapping[str, Any]) -> bool:
     )
 
 
+def _validate_runtime_profile_values(values: Mapping[str, Any], profile: RuntimeProfile) -> None:
+    """Reject a request that contradicts its selected registered profile.
+
+    Runtime fields may be omitted because the registry supplies them.  Keeping the
+    compatibility fields on the HTTP contract lets existing clients send their
+    snapshot, but a stale or manipulated value can no longer be silently ignored.
+    """
+    expected = {
+        "profile_version": profile.version,
+        "adapter_key": profile.adapter.key,
+        "adapter_version": profile.adapter.version,
+        "release_builder_key": profile.release_builder.key,
+        "release_builder_version": profile.release_builder.version,
+        "import_profile_key": profile.import_profile.key,
+        "import_profile_version": profile.import_profile.version,
+        "quality_policy_key": profile.quality_policy.key,
+        "quality_policy_version": profile.quality_policy.version,
+    }
+    for field, registered in expected.items():
+        supplied = values.get(field)
+        if supplied is not None and str(supplied) != registered:
+            raise RuntimeRegistryError(
+                f"{field} conflicts with profile {profile.key}: "
+                f"expected {registered}, received {supplied}"
+            )
+
+
 class PropertyScopeStore:
     """Exclusive persistence facade for Feature 1 PostgreSQL/PostGIS."""
 
-    def __init__(self, database_url: str, *, open_pool: bool = True) -> None:
+    def __init__(
+        self,
+        database_url: str,
+        *,
+        runtime_registry: RuntimeRegistry,
+        open_pool: bool = True,
+    ) -> None:
+        self._runtime_registry = runtime_registry
         self._pool = ConnectionPool(
             database_url,
             min_size=1,
@@ -394,13 +420,14 @@ class PropertyScopeStore:
     def create_job(self, values: Mapping[str, Any]) -> JsonObject:
         job_id = uuid.UUID(str(values.get("id", uuid.uuid4())))
         now = datetime.now(UTC)
-        adapter_key = str(values["adapter_key"])
-        builder_key = str(values["release_builder_key"])
         try:
-            adapter_version = REGISTERED_ADAPTER_VERSIONS[adapter_key]
-            builder_version = REGISTERED_RELEASE_BUILDER_VERSIONS[builder_key]
-        except KeyError as exc:
-            raise ConflictError("job references an unregistered runtime component") from exc
+            registry = self._runtime_registry
+            if registry is None:
+                raise RuntimeRegistryError("runtime registry was not configured")
+            runtime = registry.profile(str(values["profile_key"]))
+            _validate_runtime_profile_values(values, runtime)
+        except (KeyError, RuntimeRegistryError) as exc:
+            raise ConflictError(f"job runtime configuration is invalid: {exc}") from exc
         columns = (
             "source_definition_id",
             "name",
@@ -422,8 +449,15 @@ class PropertyScopeStore:
             "schedule_text",
         )
         runtime_versions = {
-            "adapter_version": adapter_version,
-            "release_builder_version": builder_version,
+            "profile_version": runtime.version,
+            "adapter_key": runtime.adapter.key,
+            "adapter_version": runtime.adapter.version,
+            "release_builder_key": runtime.release_builder.key,
+            "release_builder_version": runtime.release_builder.version,
+            "import_profile_key": runtime.import_profile.key,
+            "import_profile_version": runtime.import_profile.version,
+            "quality_policy_key": runtime.quality_policy.key,
+            "quality_policy_version": runtime.quality_policy.version,
         }
         parameters = [
             runtime_versions[name] if name in runtime_versions else values[name] for name in columns
