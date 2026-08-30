@@ -26,7 +26,12 @@ from propertyscope_data_platform.http_support import (
 from propertyscope_data_platform.ingestion_routes import register_ingestion_routes
 from propertyscope_data_platform.property_routes import register_property_routes
 from propertyscope_data_platform.release_builders import data_product_catalogue
-from propertyscope_data_platform.release_projection import public_receipt as public_receipt
+from propertyscope_data_platform.release_projection import (
+    public_receipt as public_receipt,
+)
+from propertyscope_data_platform.release_projection import (
+    release_detail_contract as release_detail_contract,
+)
 from propertyscope_data_platform.release_routes import (
     ensure_import_operation,
     finalize_candidate_release,
