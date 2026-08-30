@@ -26,7 +26,6 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from propertyscope_data_store import import_profiles
-from propertyscope_data_store import sql as migration_sql
 from propertyscope_data_store._consumer_import_operations import _ConsumerImportOperations
 from propertyscope_data_store.errors import ConflictError, NotFoundError
 from propertyscope_data_store.import_profiles import ImportProfileError, iter_ndjson_import
@@ -283,10 +282,12 @@ def test_concurrent_consumer_import_creation_coalesces_one_release_identity(
         """
     )
     initial = (
-        files(migration_sql).joinpath("040_async_consumer_import_operations.sql").read_text("utf-8")
+        files("propertyscope_data_store.sql")
+        .joinpath("040_async_consumer_import_operations.sql")
+        .read_text("utf-8")
     )
     extension = (
-        files(migration_sql)
+        files("propertyscope_data_store.sql")
         .joinpath("041_consumer_import_activation_monitoring.sql")
         .read_text("utf-8")
     )
@@ -351,10 +352,12 @@ def test_consumer_operation_identity_cannot_cross_release_boundaries(
         """
     )
     initial = (
-        files(migration_sql).joinpath("040_async_consumer_import_operations.sql").read_text("utf-8")
+        files("propertyscope_data_store.sql")
+        .joinpath("040_async_consumer_import_operations.sql")
+        .read_text("utf-8")
     )
     extension = (
-        files(migration_sql)
+        files("propertyscope_data_store.sql")
         .joinpath("041_consumer_import_activation_monitoring.sql")
         .read_text("utf-8")
     )
