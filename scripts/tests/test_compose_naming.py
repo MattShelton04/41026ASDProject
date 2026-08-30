@@ -60,3 +60,7 @@ def test_fixture_stack_uses_an_explicit_small_import_budget() -> None:
 
     assert environment["PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB"] == "65536"
     assert environment["PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES"] == "1073741824"
+    commands = "\n".join(
+        str(step.get("run", "")) for step in workflow["jobs"]["containers"]["steps"]
+    )
+    assert commands.count("--file deployment/enabled-features.compose.yml") == 5
