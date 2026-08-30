@@ -150,6 +150,21 @@ def _accepted_pointer(connection: psycopg.Connection[dict[str, object]]) -> uuid
     return uuid.UUID(str(row["dataset_release_id"]))
 
 
+def _stage_typed_psi_rows(
+    connection: psycopg.Connection[dict[str, object]], rows: list[dict[str, object]]
+) -> None:
+    connection.execute(import_profiles.PSI_STAGE_SQL)
+    with connection.cursor().copy(import_profiles.PSI_COPY_SQL) as copy:
+        for ordinal, row in enumerate(rows, start=1):
+            copy.write_row(
+                (
+                    ordinal,
+                    *(row[field] for field in import_profiles.PSI_STREAM_COLUMNS[1:]),
+                )
+            )
+    connection.execute("ANALYZE propertyscope_psi_import_stage")
+
+
 def test_invalid_final_row_rolls_back_stage_and_preserves_predecessor(
     isolated_postgres: psycopg.Connection[dict[str, object]],
 ) -> None:
@@ -197,16 +212,9 @@ def test_address_resolution_does_not_leak_from_eligible_to_ineligible_row(
         "VALUES (%s,'2000','SYDNEY','EXAMPLE','ST',10,NULL,NULL,NULL)",
         (property_ref,),
     )
-    connection.execute(
-        "CREATE TEMP TABLE propertyscope_import_stage "
-        "(ordinal BIGINT PRIMARY KEY,payload JSONB NOT NULL) ON COMMIT DROP"
-    )
-    connection.execute(
-        "INSERT INTO propertyscope_import_stage VALUES (1,%s),(2,%s)",
-        (
-            Jsonb(_psi_row(key="eligible")),
-            Jsonb(_psi_row(key="ineligible", house_number="LOT 10")),
-        ),
+    _stage_typed_psi_rows(
+        connection,
+        [_psi_row(key="eligible"), _psi_row(key="ineligible", house_number="LOT 10")],
     )
 
     accepted = import_profiles._insert_psi_rows(
@@ -242,13 +250,7 @@ def test_each_real_psi_phase_cancels_its_exact_connection_and_rolls_back(
     predecessor = uuid.uuid4()
     connection.execute("INSERT INTO serving.accepted_generation VALUES ('psi',%s)", (predecessor,))
     connection.commit()
-    connection.execute(
-        "CREATE TEMP TABLE propertyscope_import_stage "
-        "(ordinal BIGINT PRIMARY KEY,payload JSONB NOT NULL) ON COMMIT DROP"
-    )
-    connection.execute(
-        "INSERT INTO propertyscope_import_stage VALUES (1,%s)", (Jsonb(_psi_row(key="one")),)
-    )
+    _stage_typed_psi_rows(connection, [_psi_row(key="one")])
     replacement: list[tuple[str, str]] = []
     for phase, statement in import_profiles._PSI_PHASE_SQL:
         if phase == cancelled_phase:

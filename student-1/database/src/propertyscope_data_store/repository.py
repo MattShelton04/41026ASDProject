@@ -117,8 +117,14 @@ class PropertyScopeStore:
         *,
         runtime_registry: RuntimeRegistry,
         open_pool: bool = True,
+        loader_temp_file_limit_kib: int | None = None,
     ) -> None:
+        if loader_temp_file_limit_kib is not None and not (
+            64 * 1024 <= loader_temp_file_limit_kib <= 64 * 1024 * 1024
+        ):
+            raise ValueError("loader temp-file limit is outside the supported bound")
         self._runtime_registry = runtime_registry
+        self._loader_temp_file_limit_kib = loader_temp_file_limit_kib
         self._pool = ConnectionPool(
             database_url,
             min_size=1,
@@ -136,7 +142,15 @@ class PropertyScopeStore:
     @contextmanager
     def connection(self) -> Iterator[Connection[Any]]:
         with self._pool.connection() as connection:
+            self._apply_loader_transaction_limits(connection)
             yield connection
+
+    def _apply_loader_transaction_limits(self, connection: Connection[Any]) -> None:
+        """Apply loader-only limits to the current transaction, never globally."""
+        if self._loader_temp_file_limit_kib is not None:
+            connection.execute(
+                f"SET LOCAL temp_file_limit = '{self._loader_temp_file_limit_kib}kB'"
+            )
 
     def initialize(self) -> str:
         """Migrate from empty, including the idempotent Release 0 showcase baseline."""

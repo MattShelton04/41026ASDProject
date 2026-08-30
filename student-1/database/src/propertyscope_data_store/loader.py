@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import shutil
 import signal
 import time
 import uuid
@@ -45,13 +46,46 @@ class ReleaseArtifactVerificationError(RuntimeError):
     """The release export no longer matches its durable artifact-ledger evidence."""
 
 
+class LoaderResourceLimitError(RuntimeError):
+    """A bounded loader resource preflight failed before destination materialisation."""
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        retryable: bool,
+        details: dict[str, int],
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.retryable = retryable
+        self.details = details
+
+
 class DatabaseLoader:
     """Claims durable operations and executes only registered import implementations."""
 
-    def __init__(self, store: PropertyScopeStore, artifact_root: Path, *, worker_id: str) -> None:
+    def __init__(
+        self,
+        store: PropertyScopeStore,
+        artifact_root: Path,
+        *,
+        worker_id: str,
+        disk_reserve_bytes: int = 4 * 1024 * 1024 * 1024,
+        artifact_expansion_factor: int = 3,
+        disk_free_bytes: Callable[[Path], int] | None = None,
+    ) -> None:
+        if disk_reserve_bytes < 0:
+            raise ValueError("loader disk reserve must not be negative")
+        if not 1 <= artifact_expansion_factor <= 16:
+            raise ValueError("loader artifact expansion factor must be between 1 and 16")
         self.store = store
         self.artifact_root = artifact_root.resolve()
         self.worker_id = worker_id
+        self.disk_reserve_bytes = disk_reserve_bytes
+        self.artifact_expansion_factor = artifact_expansion_factor
+        self._disk_free_bytes = disk_free_bytes or (lambda path: shutil.disk_usage(path).free)
         self.stop_event = Event()
 
     def run_forever(self) -> None:
@@ -296,6 +330,7 @@ class DatabaseLoader:
         path = self._artifact_path(str(work["storage_key"]))
         if path.stat().st_size != int(work["artifact_bytes"]):
             raise RuntimeError("artifact size does not match registered metadata")
+        self._preflight_materialisation_disk(int(work["artifact_bytes"]))
         last_cancel_check = 0.0
 
         def raise_if_cancelled(*, force: bool = False) -> None:
@@ -412,6 +447,39 @@ class DatabaseLoader:
             "quality_checks": imported.quality_checks,
             "accepted_generation_unchanged": True,
         }
+
+    def _preflight_materialisation_disk(self, artifact_bytes: int) -> None:
+        """Fail before COPY when the loader filesystem has no configured safety budget."""
+        required_free_bytes = (
+            artifact_bytes * self.artifact_expansion_factor + self.disk_reserve_bytes
+        )
+        try:
+            available_free_bytes = self._disk_free_bytes(self.artifact_root)
+        except OSError as exc:
+            raise LoaderResourceLimitError(
+                "loader_disk_preflight_unavailable",
+                "Loader disk capacity could not be verified before materialisation",
+                retryable=True,
+                details={
+                    "artifact_bytes": artifact_bytes,
+                    "required_free_bytes": required_free_bytes,
+                    "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "reserve_bytes": self.disk_reserve_bytes,
+                },
+            ) from exc
+        if available_free_bytes < required_free_bytes:
+            raise LoaderResourceLimitError(
+                "insufficient_loader_disk_space",
+                "Insufficient loader disk capacity for safe materialisation",
+                retryable=True,
+                details={
+                    "artifact_bytes": artifact_bytes,
+                    "available_free_bytes": max(0, available_free_bytes),
+                    "required_free_bytes": required_free_bytes,
+                    "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "reserve_bytes": self.disk_reserve_bytes,
+                },
+            )
 
     def _update_import_progress(self, operation_id: uuid.UUID, **values: Any) -> None:
         reporter = getattr(self.store, "update_import_progress", None)
@@ -536,6 +604,21 @@ class _VerifiedLineStream:
 
 
 def _safe_loader_error(exc: Exception) -> dict[str, object]:
+    if isinstance(exc, LoaderResourceLimitError):
+        return {
+            "code": exc.code,
+            "category": "resource_limit",
+            "message": str(exc),
+            "retryable": exc.retryable,
+            "details": exc.details,
+        }
+    if getattr(exc, "sqlstate", None) == "53400" and "temp_file_limit" in str(exc):
+        return {
+            "code": "loader_temp_file_limit_exceeded",
+            "category": "resource_limit",
+            "message": "Import exceeded the loader transaction temporary-file limit",
+            "retryable": False,
+        }
     if isinstance(exc, ImportProfileError):
         return {
             "code": "canonical_record_invalid",
@@ -561,11 +644,14 @@ def main() -> None:
     store = PropertyScopeStore(
         settings.database_url,
         runtime_registry=load_runtime_registry(settings.runtime_profile_root),
+        loader_temp_file_limit_kib=settings.loader_temp_file_limit_kib,
     )
     loader = DatabaseLoader(
         store,
         settings.artifact_root,
         worker_id=os.environ.get("PROPERTYSCOPE_LOADER_ID", f"loader-{uuid.uuid4().hex[:8]}"),
+        disk_reserve_bytes=settings.loader_disk_reserve_bytes,
+        artifact_expansion_factor=settings.loader_artifact_expansion_factor,
     )
     signal.signal(signal.SIGTERM, lambda *_: loader.stop())
     signal.signal(signal.SIGINT, lambda *_: loader.stop())
