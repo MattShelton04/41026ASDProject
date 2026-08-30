@@ -15,6 +15,7 @@ def _workspace(tmp_path: Path) -> Path:
 [tool.uv.workspace]
 members = [
     "shared/contracts",
+    "shared/consumer-protocol",
     "shared/testkit",
     "ai-services/agent-core",
     "ai-services/ai-mode",
@@ -27,10 +28,14 @@ members = [
     )
     projects = {
         "shared/contracts": ("shared-contracts", []),
+        "shared/consumer-protocol": ("shared-consumer-protocol", ["shared-contracts"]),
         "shared/testkit": ("shared-testkit", ["agent-core", "shared-contracts"]),
         "ai-services/agent-core": ("agent-core", ["shared-contracts"]),
         "ai-services/ai-mode": ("ai-mode", ["agent-core", "shared-contracts"]),
-        "student-1": ("student-1-feature", ["shared-contracts"]),
+        "student-1": (
+            "student-1-feature",
+            ["shared-contracts", "shared-consumer-protocol"],
+        ),
         "student-2": ("student-2-feature", ["shared-contracts"]),
     }
     for member, (name, dependencies) in projects.items():

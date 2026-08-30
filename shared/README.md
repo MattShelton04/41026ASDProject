@@ -10,3 +10,8 @@ and integrate through shared contracts and independently running services.
 
 Production services may depend on `shared-contracts`. `shared-testkit` is for test code
 only. Neither package may contain a student's feature entities or business rules.
+
+Consumers of immutable feature publications may also depend on `shared-consumer-protocol`.
+It verifies domain-neutral manifest, artifact, streaming, digest, receipt and idempotency rules while
+requiring producer- or consumer-owned hooks for every record schema and atomic import. Product
+schemas and business validation do not belong in that package.

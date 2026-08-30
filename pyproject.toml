@@ -29,6 +29,7 @@ package = false
 [tool.uv.workspace]
 members = [
     "shared/contracts",
+    "shared/consumer-protocol",
     "shared/testkit",
     "student-1",
     "student-2",
@@ -42,12 +43,14 @@ members = [
 [tool.uv.sources]
 agent-core = { workspace = true }
 shared-contracts = { workspace = true }
+shared-consumer-protocol = { workspace = true }
 shared-testkit = { workspace = true }
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers", "-ra"]
 testpaths = [
     "shared/contracts/tests",
+    "shared/consumer-protocol/tests",
     "shared/testkit/tests",
     "ai-services/agent-core/tests",
     "ai-services/ai-mode/tests",
@@ -57,7 +60,7 @@ testpaths = [
 
 [tool.coverage.run]
 branch = true
-source = ["agent_core", "ai_mode", "shared_contracts", "shared_testkit"]
+source = ["agent_core", "ai_mode", "shared_consumer_protocol", "shared_contracts", "shared_testkit"]
 
 [tool.coverage.report]
 exclude_also = [
@@ -74,6 +77,7 @@ line-length = 100
 target-version = "py312"
 src = [
     "shared/contracts/python",
+    "shared/consumer-protocol/python",
     "shared/testkit/python",
     "ai-services/agent-core/src",
     "ai-services/ai-mode/src",
@@ -90,6 +94,7 @@ known-first-party = [
     "ai_mode",
     "propertyscope_data_platform",
     "propertyscope_data_store",
+    "shared_consumer_protocol",
     "shared_contracts",
     "shared_testkit",
 ]

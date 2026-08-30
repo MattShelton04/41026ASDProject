@@ -17,6 +17,7 @@ import yaml
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 SHARED_CONTRACTS = "shared-contracts"
+SHARED_CONSUMER_PROTOCOL = "shared-consumer-protocol"
 SHARED_TESTKIT = "shared-testkit"
 AGENT_CORE = "agent-core"
 AI_MODE = "ai-mode"
@@ -49,6 +50,7 @@ FEATURE_1_ADAPTER = "student-1/frontend/integration/shell.js"
 
 ALLOWED_WORKSPACE_DEPENDENCIES: Mapping[str, frozenset[str]] = {
     SHARED_CONTRACTS: frozenset(),
+    SHARED_CONSUMER_PROTOCOL: frozenset({SHARED_CONTRACTS}),
     SHARED_TESTKIT: frozenset({SHARED_CONTRACTS, AGENT_CORE}),
     AGENT_CORE: frozenset({SHARED_CONTRACTS}),
     AI_MODE: frozenset({SHARED_CONTRACTS, AGENT_CORE}),
@@ -56,6 +58,7 @@ ALLOWED_WORKSPACE_DEPENDENCIES: Mapping[str, frozenset[str]] = {
 
 PRODUCTION_IMPORT_DENYLISTS: Mapping[str, frozenset[str]] = {
     SHARED_CONTRACTS: frozenset({"shared_testkit", "agent_core", "ai_mode"}),
+    SHARED_CONSUMER_PROTOCOL: frozenset({"shared_testkit", "agent_core", "ai_mode"}),
     SHARED_TESTKIT: frozenset({"ai_mode"}),
     AGENT_CORE: frozenset({"shared_testkit", "ai_mode"}),
     AI_MODE: frozenset({"shared_testkit"}),
@@ -523,7 +526,7 @@ def _allowed_workspace_dependencies(
     projects: tuple[WorkspaceProject, ...],
 ) -> frozenset[str]:
     if project.student_owner is not None:
-        return frozenset({SHARED_CONTRACTS})
+        return frozenset({SHARED_CONTRACTS, SHARED_CONSUMER_PROTOCOL})
     return ALLOWED_WORKSPACE_DEPENDENCIES.get(project.name, frozenset())
 
 
