@@ -96,6 +96,16 @@ On PowerShell, set `$env:AI_MODE_OPERATIONS_ENABLED='true'` before the Flask com
 dashboard and its list/evidence endpoints are not registered when the flag is false. Remote
 deployment remains disabled until the team defines authenticated operator and feature scopes.
 
+Identifier provenance is stored separately from objective prose. New callers supply validated
+values through `trusted_identifiers`, and feature tool schemas annotate ambiguous outputs with
+`x-identifier-kind`. Existing persisted snapshots remain readable with an empty ledger, but an
+active pre-ledger run cannot regain trust by parsing its objective. Drain active runs before a
+rolling deployment of this boundary change, or allow those runs to fail safely and start a new
+run with explicit identifier context. Changing the omitted prompt default from v4 to v6 also
+changes its request hash: an exact retry of a pre-deployment idempotency key that omitted
+`prompt_set` returns a conflict. To retrieve that retained run, repeat it with explicit
+`prompt_set: default.v4`; new callers should use the secure v6 default.
+
 The run index refreshes every two seconds while active work is loaded and every ten seconds
 when the page is terminal; hidden tabs back off further. Selected active runs keep the measured
 800 ms durable-event cadence. All client requests time out after eight seconds, obsolete work
@@ -164,12 +174,13 @@ For a containerised custom registry, mount the file read-only and set
 `AI_MODE_MODEL_REGISTRY_PATH` to its path inside the container; a host path is not
 implicitly visible in Docker.
 
-The default `default.v4` prompt set keeps explicit generic output skeletons, maps every
-objective requirement to observable success criteria, carries the original objective into
-adaptation, and gives replanning a bounded history of prior tool attempts. Its final result is
-an evidence-backed brief with findings, a safe next step, a safety boundary, and exact evidence
-references. Immutable `default.v1` through `default.v3` remain accepted for replaying runs
-created with earlier prompt assets.
+The default `default.v6` prompt set keeps explicit generic output skeletons, maps every
+objective requirement to observable success criteria, and keeps untrusted objective prose
+separate from the persisted typed identifier ledger. Replanning receives a bounded history of
+prior tool attempts whose identifier types come from the persisted tool output schemas. Its
+final result is an evidence-backed brief with findings, a safe next step, a safety boundary, and
+exact evidence references. Immutable `default.v1` through `default.v5` remain accepted for
+replaying runs created with earlier prompt assets; callers must select them explicitly.
 
 Planner and adapter are roles in one persisted orchestrator, not separate long-lived
 agents. Each role is a separate stateless OpenAI request with its own versioned system

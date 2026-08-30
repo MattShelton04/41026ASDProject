@@ -18,6 +18,7 @@ from agent_core import (
     PromptBuilder,
     StructuredModelRequest,
 )
+from agent_core.identifier_schema import IdentifierSchemaResolver, normalize_uuid_identifier
 from shared_contracts import (
     SUPPORTED_PROMPT_SETS,
     AgentRun,
@@ -130,6 +131,10 @@ class RegistryPromptBuilder(PromptBuilder):
             ModelRole.PLANNER: ("planner", "v5"),
             ModelRole.ADAPTER: ("adapter", "v5"),
         },
+        "default.v6": {
+            ModelRole.PLANNER: ("planner", "v6"),
+            ModelRole.ADAPTER: ("adapter", "v6"),
+        },
     }
 
     def __init__(self, registry: PromptRegistry) -> None:
@@ -155,9 +160,12 @@ class RegistryPromptBuilder(PromptBuilder):
         dynamic = {
             "objective": run.objective,
             "feature_key": run.feature_key,
+            "trusted_identifiers": [
+                identifier.model_dump(mode="json") for identifier in run.trusted_identifiers
+            ],
             "limits": run.limits.model_dump(mode="json"),
             "tools": [definition.model_dump(mode="json") for definition in definitions],
-            "prior_tool_attempts": _prior_tool_attempts(prior_steps),
+            "prior_tool_attempts": _prior_tool_attempts(prior_steps, definitions),
         }
         return self._request(run, prompt, dynamic)
 
@@ -180,6 +188,9 @@ class RegistryPromptBuilder(PromptBuilder):
         dynamic = {
             "objective": run.objective,
             "feature_key": run.feature_key,
+            "trusted_identifiers": [
+                identifier.model_dump(mode="json") for identifier in run.trusted_identifiers
+            ],
             "plan": plan.model_dump(mode="json"),
             "tool_result": _project_tool_result(tool_result),
             "completed_actions": completed_actions,
@@ -232,9 +243,12 @@ def _safe_component(value: str) -> bool:
     return bool(value) and all(character.isalnum() or character in "._-" for character in value)
 
 
-def _prior_tool_attempts(steps: tuple[AgentStep, ...]) -> list[dict[str, object]]:
+def _prior_tool_attempts(
+    steps: tuple[AgentStep, ...], definitions: tuple[ToolDefinition, ...]
+) -> list[dict[str, object]]:
     """Project bounded call outcomes so replanning can avoid repeating failed work."""
     attempts: list[dict[str, object]] = []
+    definitions_by_name = {definition.name: definition for definition in definitions}
     for step in steps:
         if step.phase.value != "act" or "tool_call" not in step.input:
             continue
@@ -243,14 +257,19 @@ def _prior_tool_attempts(steps: tuple[AgentStep, ...]) -> list[dict[str, object]
         if not isinstance(call, dict) or not isinstance(result, dict):
             continue
         error = result.get("error")
+        tool_name = call.get("tool_name")
+        definition = definitions_by_name.get(tool_name) if isinstance(tool_name, str) else None
         attempts.append(
             {
-                "tool_name": call.get("tool_name"),
+                "tool_name": tool_name,
                 "arguments": call.get("arguments", {}),
                 "outcome": result.get("outcome"),
                 "error": error if isinstance(error, dict) else None,
                 "evidence_references": result.get("evidence_references", []),
-                "discovered_identifiers": _identifier_ledger(result.get("content")),
+                "discovered_identifiers": _identifier_ledger(
+                    result.get("content"),
+                    schema=definition.output_schema if definition is not None else None,
+                ),
                 "result_evidence": _bounded_json_value(
                     result.get("content", {}), MAX_TOOL_RESULT_CHARS
                 ),
@@ -266,27 +285,87 @@ def _project_tool_result(result: ToolResult) -> dict[str, object]:
     return projected
 
 
-def _identifier_ledger(value: object) -> list[dict[str, str]]:
+def _identifier_ledger(
+    value: object, *, schema: Mapping[str, object] | None = None
+) -> list[dict[str, str]]:
     """Extract exact typed identifiers without forwarding an unbounded result body."""
     identifiers: list[dict[str, str]] = []
+    resolver = IdentifierSchemaResolver(schema) if schema is not None else None
 
-    def visit(candidate: object, path: str = "result") -> None:
+    def visit(
+        candidate: object,
+        path: str = "result",
+        current_schema: Mapping[str, object] | None = schema,
+        key: str = "",
+    ) -> None:
         if len(identifiers) >= MAX_LEDGER_IDENTIFIERS:
             return
         if isinstance(candidate, dict):
-            for key, nested in candidate.items():
-                child_path = f"{path}.{key}"
+            for child_key, nested in candidate.items():
+                child_path = f"{path}.{child_key}"
+                if resolver is not None and current_schema is not None:
+                    name_schema = resolver.property_name(current_schema, candidate)
+                    name_kind = resolver.kind(child_key, name_schema, child_key)
+                    normalized_name = normalize_uuid_identifier(child_key)
+                    if name_kind is not None and normalized_name is not None:
+                        identifiers.append(
+                            {
+                                "type": name_kind,
+                                "value": normalized_name,
+                                "path": child_path,
+                            }
+                        )
+                child_schema = (
+                    resolver.child(current_schema, child_key, candidate)
+                    if resolver is not None and current_schema is not None
+                    else None
+                )
+                identifier_kind = (
+                    resolver.kind(child_key, child_schema, nested)
+                    if resolver is not None and child_schema is not None
+                    else child_key
+                    if child_key == "id" or child_key.endswith(("_id", "_ref"))
+                    else None
+                )
                 if (
                     isinstance(nested, str)
-                    and key != "idempotency_key"
-                    and (key == "id" or key.endswith(("_id", "_ref")))
+                    and child_key != "idempotency_key"
+                    and identifier_kind is not None
                 ):
-                    identifiers.append({"type": key, "value": nested, "path": child_path})
+                    normalized_value = normalize_uuid_identifier(nested)
+                    if normalized_value is None:
+                        continue
+                    identifiers.append(
+                        {
+                            "type": identifier_kind,
+                            "value": normalized_value,
+                            "path": child_path,
+                        }
+                    )
                 else:
-                    visit(nested, child_path)
+                    visit(nested, child_path, child_schema, child_key)
         elif isinstance(candidate, list):
             for index, nested in enumerate(candidate[:50]):
-                visit(nested, f"{path}[{index}]")
+                item_schema = (
+                    resolver.item(current_schema, index, candidate)
+                    if resolver is not None and current_schema is not None
+                    else None
+                )
+                visit(nested, f"{path}[{index}]", item_schema, key)
+        elif isinstance(candidate, str) and key != "idempotency_key":
+            identifier_kind = (
+                resolver.kind(key, current_schema, candidate)
+                if resolver is not None and current_schema is not None
+                else key
+                if key == "id" or key.endswith(("_id", "_ref"))
+                else None
+            )
+            if identifier_kind is None:
+                return
+            normalized_value = normalize_uuid_identifier(candidate)
+            if normalized_value is None:
+                return
+            identifiers.append({"type": identifier_kind, "value": normalized_value, "path": path})
 
     visit(value)
     deduplicated: dict[tuple[str, str], dict[str, str]] = {}

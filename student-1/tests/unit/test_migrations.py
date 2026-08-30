@@ -56,18 +56,43 @@ def test_changed_applied_migration_is_rejected() -> None:
 
 
 class SchemaConnection:
-    def __init__(self) -> None:
-        self.rows: list[tuple[str, ...]] = []
+    def __init__(
+        self,
+        *,
+        column_name: str = "id",
+        index_name: str = "run_task_pkey",
+        dict_rows: bool = False,
+    ) -> None:
+        self.column_name = column_name
+        self.index_name = index_name
+        self.dict_rows = dict_rows
+        self.rows: list[dict[str, str] | tuple[str, ...]] = []
 
     def execute(self, query: str) -> SchemaConnection:
-        self.rows = (
-            [("ops", "run_task", "id", "uuid", "NO", "")]
-            if "information_schema.columns" in query
-            else [("ops", "run_task", "run_task_pkey", "CREATE UNIQUE INDEX ...")]
-        )
+        values: tuple[str, ...]
+        fields: tuple[str, ...]
+        if "information_schema.columns" in query:
+            values = ("ops", "run_task", self.column_name, "uuid", "NO", "")
+            fields = (
+                "table_schema",
+                "table_name",
+                "column_name",
+                "data_type",
+                "is_nullable",
+                "column_default",
+            )
+        else:
+            values = (
+                "ops",
+                "run_task",
+                self.index_name,
+                f"CREATE UNIQUE INDEX {self.index_name} ...",
+            )
+            fields = ("schemaname", "tablename", "indexname", "indexdef")
+        self.rows = [dict(zip(fields, values, strict=True))] if self.dict_rows else [values]
         return self
 
-    def fetchall(self) -> list[tuple[str, ...]]:
+    def fetchall(self) -> list[dict[str, str] | tuple[str, ...]]:
         return self.rows
 
 
@@ -76,6 +101,24 @@ def test_schema_fingerprint_covers_columns_and_indexes() -> None:
 
     assert len(value) == 64
     assert value == schema_fingerprint(cast(Any, SchemaConnection()))
+
+
+def test_schema_fingerprint_canonicalises_real_dict_rows() -> None:
+    tuple_value = schema_fingerprint(cast(Any, SchemaConnection()))
+
+    assert tuple_value == schema_fingerprint(cast(Any, SchemaConnection(dict_rows=True)))
+
+
+def test_schema_fingerprint_changes_with_schema_values() -> None:
+    baseline = schema_fingerprint(cast(Any, SchemaConnection(dict_rows=True)))
+    changed_column = schema_fingerprint(
+        cast(Any, SchemaConnection(column_name="ingestion_run_id", dict_rows=True))
+    )
+    changed_index = schema_fingerprint(
+        cast(Any, SchemaConnection(index_name="run_task_run_id_idx", dict_rows=True))
+    )
+
+    assert len({baseline, changed_column, changed_index}) == 3
 
 
 def test_accepted_release_manifest_migration_removes_candidate_only_wording() -> None:

@@ -197,13 +197,13 @@ async function mutate(path, { method = "POST", body = {}, success = "Action comp
 
 const openPlanDialog = createRunPlanner({ request, mutate, confirmAction });
 const retryRoute = () => renderRoute({ focus: true });
-const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, rerender: retryRoute });
+const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, generationGuard, rerender: retryRoute });
 const { renderSources, requestSourceDialogClose } = createSourceHtmxRoute({ view, entityDialog, actionDialog, confirmDiscard, announce, showToast });
 const { renderRuns, renderRunDetail } = createRunRoutes({ view, request, mutate, confirmAction, announce, state, generationGuard, rerender: retryRoute });
-const { renderProperties } = createPropertyRoutes({ view, request, announce, rerender: retryRoute });
-const { renderDataProducts } = createDataProductRoutes({ view, request, loading, rerender: retryRoute });
-const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, rerender: retryRoute });
-const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request, loading, rerender: retryRoute });
+const { renderProperties } = createPropertyRoutes({ view, request, announce, generationGuard, rerender: retryRoute });
+const { renderDataProducts } = createDataProductRoutes({ view, request, loading, generationGuard, rerender: retryRoute });
+const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender: retryRoute });
+const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request, loading, generationGuard, rerender: retryRoute });
 const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender: retryRoute });
 const featureAssistant = createFeatureAssistantRoute({ view, announce });
 
@@ -214,12 +214,14 @@ async function checkHealth() {
 
 async function renderRoute({ focus = false } = {}) {
   featureAssistant.destroy();
-  generationGuard.next(); clearTimeout(state.pollTimer); state.lastRunStatus = ""; state.lastAgentStatus = "";
+  const routeEpoch = generationGuard.begin();
+  clearTimeout(state.pollTimer); state.lastRunStatus = ""; state.lastAgentStatus = "";
   liveRegion.textContent = "";
-  const { route, id } = parseRoute(location.hash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
+  const requestedHash = location.hash;
+  const { route, id } = parseRoute(requestedHash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
   view.dataset.density = route === "properties" ? "comfortable" : "compact";
   try {
-    if (route === "overview") await renderOverview({ view, request, rerender: retryRoute });
+    if (route === "overview") await renderOverview({ view, request, generationGuard, rerender: retryRoute });
     else if (route === "data-products") await renderDataProducts(id);
     else if (route === "sources") renderSources(id);
     else if (route === "jobs") id ? await renderEntityDetail(id) : await renderEntityList();
@@ -230,9 +232,12 @@ async function renderRoute({ focus = false } = {}) {
     else if (route === "properties") await renderProperties(id);
     else if (route === "assistant") featureAssistant.render();
     else if (route === "ai") await renderAi(id);
-  } catch (error) { view.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`)); }
-  finally {
-    lastRenderedHash = location.hash;
+  } catch (error) {
+    if (!routeEpoch.isCurrent()) return;
+    view.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`));
+  } finally {
+    if (!routeEpoch.isCurrent()) return;
+    lastRenderedHash = requestedHash;
     view.setAttribute("aria-busy", "false");
     const heading = view.querySelector("h1, h2");
     if (heading) document.title = `PropertyScope | ${heading.textContent}`;

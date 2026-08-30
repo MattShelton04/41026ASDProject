@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from typing import NoReturn
@@ -22,6 +21,7 @@ from agent_core.errors import (
     UnknownToolError,
 )
 from agent_core.generation import ValidatedModelOutput, generate_validated
+from agent_core.identifier_schema import IdentifierSchemaResolver, normalize_uuid_identifier
 from agent_core.limits import ensure_time_remaining, ensure_within_limits, remaining_time_ms
 from agent_core.ports import (
     Clock,
@@ -56,15 +56,6 @@ from shared_contracts import (
 )
 
 BLOCKED_STATUSES = TERMINAL_STATUSES | {RunStatus.REVIEW_REQUIRED}
-UUID_IDENTIFIER_PATTERN = re.compile(
-    r"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"
-)
-TYPED_OBJECTIVE_IDENTIFIER_PATTERN = re.compile(
-    r"(?i)\b(?P<label>release under investigation|accepted predecessor release|"
-    r"candidate_release_id|predecessor_release_id|release_id|ingestion_run_id|run_id|"
-    r"property_ref|record_ref)\s*[:=]\s*(?P<value>[0-9a-f]{8}-[0-9a-f]{4}-"
-    r"[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b"
-)
 
 
 class AgentRunner:
@@ -588,7 +579,7 @@ class AgentRunner:
             for action in plan.actions:
                 definition = self._resolve_tool(run, action.tool_name)
                 self._tools.validate_input(definition, action.arguments)
-                self._validate_exact_identifiers(run, action.arguments, prior_steps)
+                self._validate_exact_identifiers(run, definition, action.arguments, prior_steps)
                 signature = (
                     action.tool_name,
                     json.dumps(action.arguments, sort_keys=True, separators=(",", ":")),
@@ -641,74 +632,57 @@ class AgentRunner:
             )
         return signatures
 
-    @staticmethod
     def _validate_exact_identifiers(
+        self,
         run: AgentRun,
+        definition: ToolDefinition,
         arguments: Mapping[str, JsonValue],
         prior_steps: tuple[AgentStep, ...],
     ) -> None:
         """Reject UUIDs guessed by the model instead of supplied or discovered in-run."""
-        typed_supplied: dict[str, set[str]] = {}
-        typed_values: set[str] = set()
+        trusted: dict[str, set[str]] = {}
         discovered: dict[str, set[str]] = {}
 
-        def identifier_kind(key: str, tool_name: str = "", path: tuple[str, ...] = ()) -> str:
-            normalized = key.lower()
-            if normalized in {"release_under_investigation", "accepted_predecessor_release"}:
-                return "release_id"
-            if normalized == "property_ref":
-                return "property_ref"
-            if normalized == "record_ref":
-                return "record_ref"
-            if normalized.endswith("release_id"):
-                return "release_id"
-            if normalized.endswith("run_id"):
-                return "run_id"
-            if normalized == "id":
-                parent = path[-2].lower() if len(path) >= 2 else ""
-                if parent in {"release", "candidate", "predecessor", "accepted_predecessor"}:
-                    return "release_id"
-                if parent in {"run", "ingestion_run"}:
-                    return "run_id"
-                if path[-2:] == ("items", "id"):
-                    if tool_name == "data.releases.v1":
-                        return "release_id"
-                    if tool_name == "data.runs.v1":
-                        return "run_id"
-            return normalized
-
-        for match in TYPED_OBJECTIVE_IDENTIFIER_PATTERN.finditer(run.objective):
-            kind = identifier_kind(match.group("label").replace(" ", "_"))
-            value = match.group("value")
-            typed_supplied.setdefault(kind, set()).add(value)
-            typed_values.add(value)
-        untyped_supplied = set(UUID_IDENTIFIER_PATTERN.findall(run.objective)).difference(
-            typed_values
-        )
+        for identifier in run.trusted_identifiers:
+            trusted.setdefault(identifier.kind, set()).add(str(identifier.value))
 
         def collect(
             value: object,
             *,
-            tool_name: str,
+            schema: Mapping[str, object],
+            resolver: IdentifierSchemaResolver,
             key: str = "",
-            path: tuple[str, ...] = (),
         ) -> None:
             if isinstance(value, dict):
                 for nested_key, nested in value.items():
                     nested_name = str(nested_key)
+                    normalized_name = normalize_uuid_identifier(nested_name)
+                    if normalized_name is not None:
+                        name_schema = resolver.property_name(schema, value)
+                        name_kind = resolver.kind(nested_name, name_schema, nested_name)
+                        if name_kind is not None:
+                            discovered.setdefault(name_kind, set()).add(normalized_name)
                     collect(
                         nested,
-                        tool_name=tool_name,
+                        schema=resolver.child(schema, nested_name, value),
+                        resolver=resolver,
                         key=nested_name,
-                        path=(*path, nested_name),
                     )
                 return
             if isinstance(value, list):
-                for nested in value:
-                    collect(nested, tool_name=tool_name, key=key, path=path)
+                for index, nested in enumerate(value):
+                    collect(
+                        nested,
+                        schema=resolver.item(schema, index, value),
+                        resolver=resolver,
+                        key=key,
+                    )
                 return
-            if isinstance(value, str) and UUID_IDENTIFIER_PATTERN.fullmatch(value):
-                discovered.setdefault(identifier_kind(key, tool_name, path), set()).add(value)
+            normalized_value = normalize_uuid_identifier(value)
+            if normalized_value is not None:
+                kind = resolver.kind(key, schema, value)
+                if kind is not None:
+                    discovered.setdefault(kind, set()).add(normalized_value)
 
         for step in prior_steps:
             if step.phase is not StepPhase.ACT:
@@ -719,32 +693,78 @@ class AgentRunner:
             content = result.get("content")
             call = step.input.get("tool_call")
             tool_name = str(call.get("tool_name", "")) if isinstance(call, dict) else ""
-            collect(content, tool_name=tool_name)
+            if not tool_name:
+                raise ModelOutputValidationError(
+                    "persisted tool evidence is missing its immutable tool name"
+                )
+            try:
+                output_schema = self._resolve_tool(run, tool_name).output_schema
+            except UnknownToolError as exc:
+                raise ModelOutputValidationError(
+                    f"persisted tool evidence references an unavailable definition: {tool_name}"
+                ) from exc
+            collect(
+                content,
+                schema=output_schema,
+                resolver=IdentifierSchemaResolver(output_schema),
+            )
 
-        def visit(value: object, key: str = "") -> None:
+        def visit(
+            value: object,
+            *,
+            schema: Mapping[str, object],
+            resolver: IdentifierSchemaResolver,
+            key: str = "",
+        ) -> None:
             if isinstance(value, dict):
                 for nested_key, nested in value.items():
-                    visit(nested, str(nested_key))
+                    nested_name = str(nested_key)
+                    normalized_name = normalize_uuid_identifier(nested_name)
+                    if normalized_name is not None:
+                        name_schema = resolver.property_name(schema, value)
+                        name_kind = resolver.kind(nested_name, name_schema, nested_name)
+                        if name_kind is None or (
+                            normalized_name not in trusted.get(name_kind, set())
+                            and normalized_name not in discovered.get(name_kind, set())
+                        ):
+                            raise ModelOutputValidationError(
+                                "identifier-valued object key must copy an identifier supplied "
+                                "by the user or discovered by a prior tool"
+                            )
+                    visit(
+                        nested,
+                        schema=resolver.child(schema, nested_name, value),
+                        resolver=resolver,
+                        key=nested_name,
+                    )
                 return
             if isinstance(value, list):
-                for nested in value:
-                    visit(nested, key)
+                for index, nested in enumerate(value):
+                    visit(
+                        nested,
+                        schema=resolver.item(schema, index, value),
+                        resolver=resolver,
+                        key=key,
+                    )
                 return
+            kind = resolver.kind(key, schema, value)
+            normalized_value = normalize_uuid_identifier(value)
             if (
                 key != "idempotency_key"
-                and (key == "id" or key.endswith(("_id", "_ref")))
-                and isinstance(value, str)
-                and UUID_IDENTIFIER_PATTERN.fullmatch(value)
-                and value not in untyped_supplied
-                and value not in typed_supplied.get(identifier_kind(key), set())
-                and value not in discovered.get(identifier_kind(key), set())
+                and normalized_value is not None
+                and (kind is None or normalized_value not in trusted.get(kind, set()))
+                and (kind is None or normalized_value not in discovered.get(kind, set()))
             ):
                 raise ModelOutputValidationError(
                     f"{key} must copy an identifier supplied by the user "
                     "or discovered by a prior tool"
                 )
 
-        visit(arguments)
+        visit(
+            arguments,
+            schema=definition.input_schema,
+            resolver=IdentifierSchemaResolver(definition.input_schema),
+        )
 
     @staticmethod
     def _repeats_failed_read(

@@ -34,6 +34,11 @@ CONTEXT_ROUTE_PARAMETERS: dict[str, str] = {
     "runs/detail": "ingestion_run_id",
     "properties/detail": "property_ref",
 }
+CONTEXT_IDENTIFIER_KINDS: dict[str, str] = {
+    "release_id": "release_id",
+    "ingestion_run_id": "run_id",
+    "property_ref": "property_ref",
+}
 
 
 class AssistantHistoryMessage(BaseModel):
@@ -75,6 +80,14 @@ class AssistantContext(BaseModel):
         if supplied != {required}:
             raise ValueError(f"{self.route} context requires only {required}")
         return self
+
+    def trusted_identifiers(self) -> list[dict[str, str]]:
+        """Project validated page context into AI-mode's explicit trust boundary."""
+        return [
+            {"kind": CONTEXT_IDENTIFIER_KINDS[name], "value": str(value)}
+            for name in CONTEXT_IDENTIFIER_KINDS
+            if (value := getattr(self, name)) is not None
+        ]
 
 
 class AssistantTurnRequest(BaseModel):

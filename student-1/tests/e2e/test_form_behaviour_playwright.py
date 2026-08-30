@@ -1038,6 +1038,59 @@ def test_jobs_list_error_retry_restores_route_heading_focus(
     assert reads == 2
 
 
+@pytest.mark.parametrize("late_status", [200, 503])
+def test_late_jobs_route_cannot_replace_a_newer_release_route(
+    page: Page,
+    fixture_origin: str,
+    late_status: int,
+) -> None:
+    held: list[Route] = []
+
+    def hold_jobs(route: Route) -> None:
+        held.append(route)
+
+    page.route("**/api/data-platform/v1/jobs?*", hold_jobs)
+    page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=populated&test={time.time_ns()}#jobs")
+    deadline = time.monotonic() + 5
+    while not held and time.monotonic() < deadline:
+        page.wait_for_timeout(10)
+    assert held, "the delayed Jobs request was not observed"
+
+    page.evaluate("location.hash = '#releases'")
+    heading = page.get_by_role("heading", name="Published data")
+    expect(heading).to_be_visible()
+    expect(heading).to_be_focused()
+
+    with page.expect_response(
+        lambda response: "/api/data-platform/v1/jobs?" in response.url
+    ) as response_info:
+        if late_status == 200:
+            held[0].continue_()
+        else:
+            held[0].fulfill(
+                status=503,
+                content_type="application/problem+json",
+                headers={"X-Request-ID": "late-jobs-request"},
+                body=json.dumps(
+                    {
+                        "title": "Delayed jobs failure",
+                        "status": 503,
+                        "detail": "This response belongs to the previous route.",
+                    }
+                ),
+            )
+    response_info.value.finished()
+    page.evaluate(
+        "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+
+    expect(heading).to_be_visible()
+    expect(heading).to_be_focused()
+    assert page.title() == "PropertyScope | Published data"
+    assert page.evaluate("location.hash") == "#releases"
+    expect(page.get_by_text("This response belongs to the previous route.")).to_have_count(0)
+
+
 def test_jobs_list_secondary_actions_use_keyboard_accessible_overflow(
     page: Page, fixture_origin: str
 ) -> None:

@@ -23,6 +23,7 @@ from agent_core import (
     request_cancellation,
     transition_run,
 )
+from agent_core.identifier_schema import IdentifierSchemaResolver
 from shared_contracts import (
     AgentRun,
     AgentRunDetail,
@@ -44,10 +45,30 @@ from shared_contracts import (
     ToolError,
     ToolOutcome,
     ToolResult,
+    TrustedIdentifier,
 )
 from shared_testkit import ScriptedLLMProvider
 
 NOW = datetime(2026, 8, 1, 0, 0, tzinfo=UTC)
+
+
+def test_identifier_schema_rejects_ambiguous_and_malformed_metadata() -> None:
+    conflicting = {
+        "allOf": [
+            {"x-identifier-kind": "release_id"},
+            {"x-identifier-kind": "run_id"},
+        ]
+    }
+    with pytest.raises(ModelOutputValidationError, match="conflicting kinds"):
+        IdentifierSchemaResolver(conflicting).kind("subject", conflicting, "value")
+
+    invalid_pattern = {"patternProperties": {"[": {"type": "string"}}}
+    with pytest.raises(ModelOutputValidationError, match="invalid property pattern"):
+        IdentifierSchemaResolver(invalid_pattern).child(invalid_pattern, "subject", {})
+
+    cyclic = {"$defs": {"cycle": {"$ref": "#/$defs/cycle"}}}
+    with pytest.raises(ModelOutputValidationError, match="cyclic"):
+        IdentifierSchemaResolver(cyclic).kind("subject", {"$ref": "#/$defs/cycle"}, "value")
 
 
 class FixedClock:
@@ -304,6 +325,7 @@ def _runner(
     outcomes: list[StructuredModelResult | Exception],
     *,
     tool: ToolDefinition | None = None,
+    tools: tuple[ToolDefinition, ...] | None = None,
     tool_outcome: ToolOutcome = ToolOutcome.SUCCEEDED,
     tool_outcomes: tuple[ToolOutcome, ...] = (),
     limits: RunLimits | None = None,
@@ -312,6 +334,7 @@ def _runner(
     clock: FixedClock | None = None,
     prompt_builder: TestPromptBuilder | None = None,
     tool_allowlist: tuple[str, ...] | None = None,
+    trusted_identifiers: tuple[TrustedIdentifier, ...] = (),
 ) -> tuple[AgentRunner, MemoryStore, RecordingToolExecutor]:
     run = create_run(
         AgentRunRequest(
@@ -319,6 +342,7 @@ def _runner(
             objective="Find verified records",
             limits=limits or RunLimits(),
             tool_allowlist=tool_allowlist,
+            trusted_identifiers=trusted_identifiers,
         ),
         run_id=uuid4(),
         request_id="request-1",
@@ -336,7 +360,7 @@ def _runner(
         store=store,
         provider=ScriptedLLMProvider(outcomes),
         prompt_builder=prompt_builder or TestPromptBuilder(),
-        tools=ToolRegistry([tool or _tool()]),
+        tools=ToolRegistry(tools or (tool or _tool(),)),
         tool_executor=executor,
         clock=clock or FixedClock(),
         ids=RandomIds(),
@@ -423,13 +447,23 @@ def test_plan_accepts_exact_tool_discovered_non_rfc_fixture_identifier() -> None
         output_schema={"type": "object"},
         side_effect=SideEffectClass.READ_ONLY,
     )
-    runner, store, _ = _runner([], tool=inspect_tool)
+    discovery_tool = ToolDefinition(
+        name="student_1.records.list.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="List exact record references",
+        input_schema={"type": "object"},
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tools=(inspect_tool, discovery_tool))
     discovered = AgentStep(
         id=uuid4(),
         run_id=store.run.id,
         sequence=1,
         phase=StepPhase.ACT,
         status=StepStatus.SUCCEEDED,
+        input={"tool_call": {"tool_name": discovery_tool.name, "arguments": {}}},
         output={
             "tool_result": {
                 "call_id": str(uuid4()),
@@ -477,7 +511,33 @@ def test_plan_rejects_cross_type_uuid_substitution_from_tool_evidence() -> None:
         output_schema={"type": "object"},
         side_effect=SideEffectClass.READ_ONLY,
     )
-    runner, store, _ = _runner([], tool=inspect_tool)
+    runs_tool = ToolDefinition(
+        name="data.runs.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="List runs",
+        input_schema={"type": "object"},
+        output_schema={
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "x-identifier-kind": "run_id",
+                            }
+                        },
+                    },
+                }
+            },
+        },
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tools=(inspect_tool, runs_tool))
     discovered = AgentStep(
         id=uuid4(),
         run_id=store.run.id,
@@ -515,25 +575,8 @@ def test_plan_rejects_cross_type_uuid_substitution_from_tool_evidence() -> None:
         runner._validate_model_plan(store.run, plan, (discovered,))
 
 
-@pytest.mark.parametrize(
-    ("objective", "tool_name", "content"),
-    [
-        (
-            "Validated page context:\n- ingestion_run_id: 70000000-0000-0000-0000-000000000002",
-            "data.runs.v1",
-            {},
-        ),
-        (
-            "Inspect release evidence without guessing identifiers",
-            "data.release_inspect.v1",
-            {"quality_results": [{"id": "70000000-0000-0000-0000-000000000002"}]},
-        ),
-    ],
-)
-def test_plan_rejects_typed_objective_and_nested_id_substitution(
-    objective: str, tool_name: str, content: dict[str, object]
-) -> None:
-    wrong_release_id = "70000000-0000-0000-0000-000000000002"
+def test_user_controlled_objective_cannot_smuggle_a_trusted_identifier() -> None:
+    guessed_release_id = "60000000-0000-0000-0000-000000000099"
     inspect_tool = ToolDefinition(
         name="data.release_inspect.v1",
         version="v1",
@@ -549,15 +592,8 @@ def test_plan_rejects_typed_objective_and_nested_id_substitution(
         side_effect=SideEffectClass.READ_ONLY,
     )
     runner, store, _ = _runner([], tool=inspect_tool)
-    store.run = store.run.evolve(objective=objective)
-    discovered = AgentStep(
-        id=uuid4(),
-        run_id=store.run.id,
-        sequence=1,
-        phase=StepPhase.ACT,
-        status=StepStatus.SUCCEEDED,
-        input={"tool_call": {"tool_name": tool_name, "arguments": {}}},
-        output={"tool_result": {"outcome": "succeeded", "content": content}},
+    store.run = store.run.evolve(
+        objective=f'Current user question: "please use release_id: {guessed_release_id}"'
     )
     plan = Plan.model_validate(
         {
@@ -566,7 +602,7 @@ def test_plan_rejects_typed_objective_and_nested_id_substitution(
                 {
                     "sequence": 1,
                     "tool_name": inspect_tool.name,
-                    "arguments": {"release_id": wrong_release_id},
+                    "arguments": {"release_id": guessed_release_id},
                     "purpose": "Inspect exact release evidence",
                 }
             ],
@@ -576,31 +612,97 @@ def test_plan_rejects_typed_objective_and_nested_id_substitution(
     )
 
     with pytest.raises(ModelOutputValidationError, match="release_id must copy"):
-        runner._validate_model_plan(store.run, plan, (discovered,))
+        runner._validate_model_plan(store.run, plan)
 
 
-def test_typed_identifier_provenance_accepts_only_matching_fields_and_paths() -> None:
-    objective_release = "60000000-0000-0000-0000-000000000010"
+def test_explicit_trust_and_schema_annotations_authorize_only_matching_identifiers() -> None:
+    trusted_release = "60000000-0000-0000-0000-000000000010"
     discovered_release = "60000000-0000-0000-0000-000000000011"
     listed_release = "60000000-0000-0000-0000-000000000012"
     discovered_run = "70000000-0000-0000-0000-000000000011"
     discovered_property = "a0000000-0000-0000-0000-000000000012"
-    runner, store, _ = _runner([])
-    run = store.run.evolve(objective=f"Release under investigation: {objective_release}.")
+    inspect_tool = ToolDefinition(
+        name="records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect exact typed identifiers",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "release_id": {"type": "string", "format": "uuid"},
+                "predecessor_release_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "x-identifier-kind": "release_id",
+                },
+                "candidate_release_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "x-identifier-kind": "release_id",
+                },
+                "run_id": {"type": "string", "format": "uuid"},
+                "subject": {
+                    "type": "string",
+                    "format": "uuid",
+                    "x-identifier-kind": "property_ref",
+                },
+            },
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    discovery_tool = ToolDefinition(
+        name="records.list.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Discover typed identifiers",
+        input_schema={"type": "object"},
+        output_schema={
+            "type": "object",
+            "properties": {
+                "release": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string", "x-identifier-kind": "release_id"}},
+                },
+                "run": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string", "x-identifier-kind": "run_id"}},
+                },
+                "subject": {
+                    "type": "string",
+                    "x-identifier-kind": "property_ref",
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {"id": {"type": "string", "x-identifier-kind": "release_id"}},
+                    },
+                },
+            },
+        },
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner(
+        [],
+        tools=(inspect_tool, discovery_tool),
+        trusted_identifiers=(TrustedIdentifier(kind="release_id", value=UUID(trusted_release)),),
+    )
+    run = store.run
     evidence = AgentStep(
         id=uuid4(),
         run_id=run.id,
         sequence=1,
         phase=StepPhase.ACT,
         status=StepStatus.SUCCEEDED,
-        input={"tool_call": {"tool_name": "data.releases.v1", "arguments": {}}},
+        input={"tool_call": {"tool_name": discovery_tool.name, "arguments": {}}},
         output={
             "tool_result": {
                 "outcome": "succeeded",
                 "content": {
                     "release": {"id": discovered_release},
                     "run": {"id": discovered_run},
-                    "property": {"property_ref": discovered_property},
+                    "subject": discovered_property,
                     "items": [{"id": listed_release}],
                 },
             }
@@ -609,13 +711,401 @@ def test_typed_identifier_provenance_accepts_only_matching_fields_and_paths() ->
 
     runner._validate_exact_identifiers(
         run,
+        inspect_tool,
         {
-            "release_id": objective_release,
+            "release_id": trusted_release,
             "predecessor_release_id": discovered_release,
             "candidate_release_id": listed_release,
             "run_id": discovered_run,
-            "related": [{"property_ref": discovered_property}],
+            "subject": discovered_property,
         },
+        (evidence,),
+    )
+
+
+def test_identifier_provenance_resolves_local_refs_and_ignores_unannotated_bare_ids() -> None:
+    release_id = "60000000-0000-0000-0000-000000000015"
+    inspect_tool = ToolDefinition(
+        name="records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one release",
+        input_schema={
+            "type": "object",
+            "properties": {"release_id": {"type": "string", "format": "uuid"}},
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    annotated_tool = ToolDefinition(
+        name="records.annotated.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Return an annotated identifier through local refs",
+        input_schema={"type": "object"},
+        output_schema={
+            "type": "object",
+            "properties": {"record": {"$ref": "#/$defs/record"}},
+            "$defs": {
+                "uuid": {"type": "string", "format": "uuid"},
+                "record": {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/uuid",
+                            "x-identifier-kind": "release_id",
+                        }
+                    },
+                },
+            },
+        },
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    unannotated_tool = ToolDefinition(
+        name="records.unannotated.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Return an ambiguous bare identifier",
+        input_schema={"type": "object"},
+        output_schema={"type": "object", "properties": {"id": {"type": "string"}}},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tools=(inspect_tool, annotated_tool, unannotated_tool))
+
+    def evidence(tool_name: str, content: dict[str, object]) -> AgentStep:
+        return AgentStep(
+            id=uuid4(),
+            run_id=store.run.id,
+            sequence=1,
+            phase=StepPhase.ACT,
+            status=StepStatus.SUCCEEDED,
+            input={"tool_call": {"tool_name": tool_name, "arguments": {}}},
+            output={"tool_result": {"outcome": "succeeded", "content": content}},
+        )
+
+    runner._validate_exact_identifiers(
+        store.run,
+        inspect_tool,
+        {"release_id": release_id},
+        (evidence(annotated_tool.name, {"record": {"id": release_id}}),),
+    )
+    with pytest.raises(ModelOutputValidationError, match="release_id must copy"):
+        runner._validate_exact_identifiers(
+            store.run,
+            inspect_tool,
+            {"release_id": release_id},
+            (evidence(unannotated_tool.name, {"id": release_id}),),
+        )
+
+
+@pytest.mark.parametrize(
+    "composed_schema",
+    [
+        {"allOf": [{"type": "string", "x-identifier-kind": "property_ref"}]},
+        {"anyOf": [{"type": "string", "x-identifier-kind": "property_ref"}]},
+        {"oneOf": [{"type": "string", "x-identifier-kind": "property_ref"}]},
+        {"if": {}, "then": {"type": "string", "x-identifier-kind": "property_ref"}},
+    ],
+)
+def test_identifier_provenance_fails_closed_for_composed_schema_annotations(
+    composed_schema: dict[str, object],
+) -> None:
+    guessed_ref = "a0000000-0000-0000-0000-000000000090"
+    inspect_tool = ToolDefinition(
+        name="records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one typed subject",
+        input_schema={"type": "object", "properties": {"subject": composed_schema}},
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tool=inspect_tool)
+
+    with pytest.raises(ModelOutputValidationError, match="subject must copy"):
+        runner._validate_exact_identifiers(
+            store.run,
+            inspect_tool,
+            {"subject": guessed_ref},
+            (),
+        )
+
+
+def test_identifier_provenance_supports_pattern_properties_and_rejects_unknown_uuid_paths() -> None:
+    trusted_ref = "a0000000-0000-0000-0000-000000000091"
+    inspect_tool = ToolDefinition(
+        name="records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one typed subject",
+        input_schema={
+            "type": "object",
+            "patternProperties": {
+                "^subject$": {"type": "string", "x-identifier-kind": "property_ref"}
+            },
+            "properties": {"opaque": {"type": "string"}},
+            "additionalProperties": False,
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner(
+        [],
+        tool=inspect_tool,
+        trusted_identifiers=(TrustedIdentifier(kind="property_ref", value=UUID(trusted_ref)),),
+    )
+
+    runner._validate_exact_identifiers(
+        store.run,
+        inspect_tool,
+        {"subject": trusted_ref},
+        (),
+    )
+    with pytest.raises(ModelOutputValidationError, match="opaque must copy"):
+        runner._validate_exact_identifiers(
+            store.run,
+            inspect_tool,
+            {"opaque": trusted_ref},
+            (),
+        )
+
+
+@pytest.mark.parametrize(
+    ("input_schema", "arguments", "field"),
+    [
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "subject": {
+                        "oneOf": [
+                            {
+                                "type": "string",
+                                "pattern": "^6",
+                                "x-identifier-kind": "release_id",
+                            },
+                            {"type": "string", "pattern": "^7"},
+                        ]
+                    }
+                },
+            },
+            {"subject": "70000000-0000-0000-0000-000000000099"},
+            "subject",
+        ),
+        (
+            {
+                "type": "object",
+                "properties": {"subject": {"type": "string"}},
+                "additionalProperties": {
+                    "type": "string",
+                    "x-identifier-kind": "release_id",
+                },
+            },
+            {"subject": "70000000-0000-0000-0000-000000000099"},
+            "subject",
+        ),
+        (
+            {
+                "type": "object",
+                "properties": {"subject": True},
+                "additionalProperties": {
+                    "type": "string",
+                    "x-identifier-kind": "release_id",
+                },
+            },
+            {"subject": "70000000-0000-0000-0000-000000000099"},
+            "subject",
+        ),
+        (
+            {
+                "type": "object",
+                "patternProperties": {"^subject$": True},
+                "additionalProperties": {
+                    "type": "string",
+                    "x-identifier-kind": "release_id",
+                },
+            },
+            {"subject": "70000000-0000-0000-0000-000000000099"},
+            "subject",
+        ),
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "values": {
+                        "type": "array",
+                        "prefixItems": [{"type": "string"}],
+                        "items": {
+                            "type": "string",
+                            "x-identifier-kind": "release_id",
+                        },
+                    }
+                },
+            },
+            {"values": ["70000000-0000-0000-0000-000000000099"]},
+            "values",
+        ),
+    ],
+)
+def test_identifier_provenance_does_not_authorize_non_applicable_schema_paths(
+    input_schema: dict[str, object],
+    arguments: dict[str, object],
+    field: str,
+) -> None:
+    trusted = UUID("70000000-0000-0000-0000-000000000099")
+    inspect_tool = ToolDefinition(
+        name="records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one typed subject",
+        input_schema=input_schema,
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner(
+        [],
+        tool=inspect_tool,
+        trusted_identifiers=(TrustedIdentifier(kind="release_id", value=trusted),),
+    )
+
+    with pytest.raises(ModelOutputValidationError, match=rf"{field} must copy"):
+        runner._validate_exact_identifiers(
+            store.run,
+            inspect_tool,
+            arguments,
+            (),
+        )
+
+
+def test_identifier_provenance_rejects_untrusted_uuid_object_keys() -> None:
+    guessed_ref = "a0000000-0000-0000-0000-000000000092"
+    inspect_tool = ToolDefinition(
+        name="records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect a keyed record map",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "records": {
+                    "type": "object",
+                    "propertyNames": {
+                        "format": "uuid",
+                        "x-identifier-kind": "record_ref",
+                    },
+                    "additionalProperties": {"type": "boolean"},
+                }
+            },
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tool=inspect_tool)
+
+    with pytest.raises(ModelOutputValidationError, match="identifier-valued object key"):
+        runner._validate_exact_identifiers(
+            store.run,
+            inspect_tool,
+            {"records": {guessed_ref: True}},
+            (),
+        )
+
+
+def test_identifier_provenance_normalizes_compact_uuid_representations() -> None:
+    canonical = "60000000-0000-0000-0000-000000000099"
+    compact = canonical.replace("-", "")
+    inspect_tool = ToolDefinition(
+        name="records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one release",
+        input_schema={
+            "type": "object",
+            "properties": {"release_id": {"type": "string"}},
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tool=inspect_tool)
+
+    with pytest.raises(ModelOutputValidationError, match="release_id must copy"):
+        runner._validate_exact_identifiers(
+            store.run,
+            inspect_tool,
+            {"release_id": compact},
+            (),
+        )
+
+    trusted_runner, trusted_store, _ = _runner(
+        [],
+        tool=inspect_tool,
+        trusted_identifiers=(TrustedIdentifier(kind="release_id", value=UUID(canonical)),),
+    )
+    trusted_runner._validate_exact_identifiers(
+        trusted_store.run,
+        inspect_tool,
+        {"release_id": compact},
+        (),
+    )
+
+
+def test_identifier_provenance_preserves_ref_sibling_properties() -> None:
+    release_id = "60000000-0000-0000-0000-000000000016"
+    inspect_tool = ToolDefinition(
+        name="records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect one release",
+        input_schema={
+            "type": "object",
+            "properties": {"release_id": {"type": "string", "format": "uuid"}},
+        },
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    discovery_tool = ToolDefinition(
+        name="records.list.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Return a release with additional sibling fields",
+        input_schema={"type": "object"},
+        output_schema={
+            "type": "object",
+            "properties": {
+                "record": {
+                    "$ref": "#/$defs/record",
+                    "properties": {"label": {"type": "string"}},
+                }
+            },
+            "$defs": {
+                "record": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string", "x-identifier-kind": "release_id"}},
+                }
+            },
+        },
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    runner, store, _ = _runner([], tools=(inspect_tool, discovery_tool))
+    evidence = AgentStep(
+        id=uuid4(),
+        run_id=store.run.id,
+        sequence=1,
+        phase=StepPhase.ACT,
+        status=StepStatus.SUCCEEDED,
+        input={"tool_call": {"tool_name": discovery_tool.name, "arguments": {}}},
+        output={
+            "tool_result": {
+                "outcome": "succeeded",
+                "content": {"record": {"id": release_id, "label": "candidate"}},
+            }
+        },
+    )
+
+    runner._validate_exact_identifiers(
+        store.run,
+        inspect_tool,
+        {"release_id": release_id},
         (evidence,),
     )
 

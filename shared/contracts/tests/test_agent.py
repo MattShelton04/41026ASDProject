@@ -1,7 +1,7 @@
 """Contract tests for domain-neutral agent harness payloads."""
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -24,6 +24,7 @@ from shared_contracts import (
     ToolError,
     ToolOutcome,
     ToolResult,
+    TrustedIdentifier,
 )
 
 NOW = datetime(2026, 8, 9, tzinfo=UTC)
@@ -79,6 +80,30 @@ def test_agent_request_rejects_unknown_and_unbounded_values() -> None:
             objective="Find matching records",
             tool_allowlist=("records.read.v1", "records.read.v1"),
         )
+
+    trusted = TrustedIdentifier(kind="record_ref", value=uuid4())
+    with pytest.raises(ValidationError, match="trusted_identifiers entries must be unique"):
+        AgentRunRequest(
+            feature_key="student-1-feature",
+            objective="Inspect a record",
+            trusted_identifiers=(trusted, trusted),
+        )
+    with pytest.raises(ValidationError, match="at most 100 items"):
+        AgentRunRequest(
+            feature_key="student-1-feature",
+            objective="Inspect bounded records",
+            trusted_identifiers=tuple(
+                TrustedIdentifier(kind="record_ref", value=UUID(int=index + 1))
+                for index in range(101)
+            ),
+        )
+
+
+def test_legacy_run_snapshot_loads_with_an_empty_trust_ledger() -> None:
+    payload = _run().model_dump(mode="json")
+    payload.pop("trusted_identifiers")
+
+    assert AgentRun.model_validate(payload).trusted_identifiers == ()
 
 
 def test_plan_requires_unambiguous_contiguous_action_order() -> None:

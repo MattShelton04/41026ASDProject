@@ -160,11 +160,13 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
   let pollFailures = 0;
 
   async function renderRuns() {
+    const routeEpoch = generationGuard.capture();
     const params = routeQuery(location.hash);
     const filters = { q: params.get("q") || "", status: params.get("status") || "", job: params.get("job") || "" };
     renderLoading(view, "Loading run history");
     try {
       const { body } = await request(`ingestion-runs${queryString({ status: filters.status, limit: 100 })}`);
+      if (!routeEpoch.isCurrent()) return;
       const allRuns = collection(body);
       const search = filters.q.toLowerCase();
       const runs = allRuns.filter((run) => (!filters.job || run.job_definition_id === filters.job)
@@ -187,14 +189,17 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
         return row;
       }, "Data update history", { responsive: true });
       append(view, panel(`${runs.length} ${runs.length === 1 ? "update" : "updates"}`, "Newest first", table));
-    } catch (error) { view.replaceChildren(errorState(error, rerender)); }
+    } catch (error) {
+      if (!routeEpoch.isCurrent()) return;
+      view.replaceChildren(errorState(error, rerender));
+    }
   }
 
   async function renderRunDetail(id, { polling = false } = {}) {
     const refresh = refreshGuard.next();
-    const routeGeneration = generationGuard.current();
+    const routeEpoch = generationGuard.capture();
     const isCurrent = () => refreshGuard.isCurrent(refresh)
-      && generationGuard.isCurrent(routeGeneration)
+      && routeEpoch.isCurrent()
       && parseRoute(location.hash).route === "runs"
       && parseRoute(location.hash).id === id;
     clearTimeout(state.pollTimer);
@@ -326,10 +331,10 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
     clearTimeout(state.pollTimer);
     const delay = nextPollDelay(status, failures, document.hidden);
     if (delay === null) return;
-    const generation = generationGuard.current();
+    const routeEpoch = generationGuard.capture();
     state.pollTimer = setTimeout(() => {
       const current = parseRoute(location.hash);
-      if (generationGuard.isCurrent(generation) && current.route === "runs" && current.id === id) renderRunDetail(id, { polling: true });
+      if (routeEpoch.isCurrent() && current.route === "runs" && current.id === id) renderRunDetail(id, { polling: true });
     }, delay);
   }
 

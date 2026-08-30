@@ -10,13 +10,12 @@ import { createMap, createOpenFreeMapProvider, featureCollection, pointFeature }
 
 const PROPERTY_SEARCH_PAGE_SIZE = 25;
 
-export function createPropertyRoutes({ view, request, announce, rerender }) {
-  let routeGeneration = 0;
+export function createPropertyRoutes({ view, request, announce, generationGuard, rerender }) {
   let pendingSearchOrigin = null;
 
   async function renderProperties(propertyRef = "") {
-    const generation = ++routeGeneration;
-    if (propertyRef) return renderPropertyDetail(propertyRef, generation);
+    const routeEpoch = generationGuard.capture();
+    if (propertyRef) return renderPropertyDetail(propertyRef, routeEpoch);
     view.replaceChildren();
     const hero = el("section", "discovery-hero");
     append(hero, el("p", "eyebrow", "Property search"), el("h1", "", "Find a NSW property"), el("p", "", "Search the current published address register by street, suburb, postcode or any combination you know."));
@@ -55,7 +54,7 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
       resultHost.replaceChildren(el("section", "loading-state", "Searching NSW property records…"));
       try {
         const result = await request(`properties/search${queryString({ q: query, state: "NSW", limit: PROPERTY_SEARCH_PAGE_SIZE, offset: 0 })}`);
-        if (searchGeneration !== queryGeneration || !canHydrate(generation, routeGeneration, resultHost, "") || input.value.trim() !== query) return;
+        if (searchGeneration !== queryGeneration || !canHydrate(routeEpoch, resultHost, "") || input.value.trim() !== query) return;
         let items = collection(result.body);
         let total = Number(result.body.total ?? items.length);
         let totalIsLowerBound = Boolean(result.body.total_is_lower_bound);
@@ -67,13 +66,14 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
             total,
             totalIsLowerBound,
             hasMore: nextOffset !== null,
+            routeEpoch,
             onLoadMore: async (control, errorHost) => {
               control.disabled = true;
               control.textContent = "Loading…";
               errorHost.textContent = "";
               try {
                 const page = await request(`properties/search${queryString({ q: query, state: "NSW", limit: PROPERTY_SEARCH_PAGE_SIZE, offset: nextOffset })}`);
-                if (searchGeneration !== queryGeneration || !canHydrate(generation, routeGeneration, resultHost, "") || input.value.trim() !== query) return;
+                if (searchGeneration !== queryGeneration || !canHydrate(routeEpoch, resultHost, "") || input.value.trim() !== query) return;
                 const known = new Set(items.map((item) => item.property_ref));
                 items = [...items, ...collection(page.body).filter((item) => !known.has(item.property_ref))];
                 total = Number(page.body.total ?? total);
@@ -92,7 +92,7 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
           announce(`${totalIsLowerBound ? "At least " : ""}${total} property ${total === 1 ? "match" : "matches"} found.`);
         }
       } catch (error) {
-        if (searchGeneration !== queryGeneration || !canHydrate(generation, routeGeneration, resultHost, "") || input.value.trim() !== query) return;
+        if (searchGeneration !== queryGeneration || !canHydrate(routeEpoch, resultHost, "") || input.value.trim() !== query) return;
         resultHost.replaceChildren(errorState(error, () => form.requestSubmit()));
       }
     }, (pending) => {
@@ -146,7 +146,9 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
     });
   }
 
-  function renderPropertyResults(host, items, query, { total, totalIsLowerBound, hasMore, onLoadMore }) {
+  function renderPropertyResults(host, items, query, {
+    total, totalIsLowerBound, hasMore, routeEpoch, onLoadMore,
+  }) {
     const layout = el("section", "property-results");
     const summary = el("header", "property-results-heading");
     append(summary, el("p", "eyebrow", "Search results"), el("h2", "", `${totalIsLowerBound ? "At least " : ""}${formatNumber(total)} ${total === 1 ? "property" : "properties"} found`), el("p", "", `Best matches for \u201c${query}\u201d. Search covers the current published NSW address records.`));
@@ -185,10 +187,10 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
     }
     append(layout, disclosurePanel("Match details", "Property references and recorded coordinates", coordinateRows));
     host.replaceChildren(layout);
-    restoreSearchReturn(listBody, query, routeGeneration);
+    restoreSearchReturn(listBody, query, routeEpoch);
   }
 
-  async function renderPropertyDetail(propertyRef, generation) {
+  async function renderPropertyDetail(propertyRef, routeEpoch) {
     const query = routeQuery(location.hash).get("q") || "";
     const searchOrigin = matchingSearchOrigin(historyState().propertyDiscoveryOrigin || pendingSearchOrigin, { query, propertyRef });
     pendingSearchOrigin = null;
@@ -202,7 +204,7 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
     const reportResult = settled(request(`properties/${encodedRef}/report-section`));
     try {
       const detailResult = await request(`properties/${encodedRef}`);
-      if (!isCurrentRoute(generation, routeGeneration, propertyRef)) return;
+      if (!isCurrentRoute(routeEpoch, propertyRef)) return;
       const detailPayload = detailResult.body;
       const property = entity(detailPayload, "property");
       const initialCoverage = detailPayload.coverage || [];
@@ -240,20 +242,20 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
       append(view, detailGrid);
 
       void mapResult.then((result) => {
-        if (!canHydrate(generation, routeGeneration, mapHost, propertyRef)) return;
+        if (!canHydrate(routeEpoch, mapHost, propertyRef)) return;
         const map = result.status === "fulfilled" ? entity(result.value.body) : {};
         const latitude = map.latitude ?? map.coordinates?.latitude ?? property.latitude ?? property.coordinates?.latitude;
         const longitude = map.longitude ?? map.coordinates?.longitude ?? property.longitude ?? property.coordinates?.longitude;
         resolvePendingSection(mapHost);
         resolvePendingSection(coordinateHost);
-        mapHost.replaceChildren(propertyMap({ property, latitude, longitude, announce }));
+        mapHost.replaceChildren(propertyMap({ property, latitude, longitude, announce, routeEpoch }));
         coordinateHost.replaceChildren(coordinateTable({ map, property, latitude, longitude }));
         if (result.status === "rejected") {
           append(mapHost, el("div", "notice warning", `Spatial context is temporarily unavailable; canonical identity remains usable.${problemSuffix(result.reason)}`));
         }
       });
       void coverageResult.then((result) => {
-        if (!canHydrate(generation, routeGeneration, coverageHost, propertyRef)) return;
+        if (!canHydrate(routeEpoch, coverageHost, propertyRef)) return;
         const responseCoverage = result.status === "fulfilled" ? coverageRows(result.value.body) : [];
         const coverage = responseCoverage.length ? responseCoverage : initialCoverage;
         coverageCount.textContent = `${coverage.length} research datasets available`;
@@ -261,12 +263,12 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
         coverageHost.replaceChildren(coverageSection(coverage, result));
       });
       void reportResult.then((result) => {
-        if (!canHydrate(generation, routeGeneration, reportHost, propertyRef)) return;
+        if (!canHydrate(routeEpoch, reportHost, propertyRef)) return;
         resolvePendingSection(reportHost);
         reportHost.replaceChildren(renderPropertyReportSection(result.status === "fulfilled" ? result.value : { error: result.reason }));
       });
     } catch (error) {
-      if (!isCurrentRoute(generation, routeGeneration, propertyRef)) return;
+      if (!isCurrentRoute(routeEpoch, propertyRef)) return;
       const failure = errorState(error, () => rerender({ focus: true }));
       const actions = el("div", "property-error-actions");
       const retry = failure.querySelector(".button");
@@ -277,14 +279,14 @@ export function createPropertyRoutes({ view, request, announce, rerender }) {
     }
   }
 
-  function restoreSearchReturn(listBody, query, generation) {
+  function restoreSearchReturn(listBody, query, routeEpoch) {
     const context = historyState().propertyDiscoveryReturn;
     if (!context || context.query !== query || typeof context.propertyRef !== "string") return;
     const target = [...listBody.querySelectorAll("[data-property-ref]")]
       .find((item) => item.dataset.propertyRef === context.propertyRef);
     if (!target) return;
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (!canHydrate(generation, routeGeneration, listBody, "") || routeQuery(location.hash).get("q") !== query) return;
+      if (!canHydrate(routeEpoch, listBody, "") || routeQuery(location.hash).get("q") !== query) return;
       target.focus({ preventScroll: true });
       const maximum = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
       const top = Math.min(maximum, Math.max(0, Number(context.scrollY) || 0));
@@ -375,13 +377,13 @@ function historyState() {
   return history.state && typeof history.state === "object" ? history.state : {};
 }
 
-function isCurrentRoute(generation, currentGeneration, propertyRef) {
+function isCurrentRoute(routeEpoch, propertyRef) {
   const route = parseRoute(location.hash);
-  return generation === currentGeneration && route.route === "properties" && route.id === propertyRef;
+  return routeEpoch.isCurrent() && route.route === "properties" && route.id === propertyRef;
 }
 
-function canHydrate(generation, currentGeneration, host, propertyRef) {
-  return host.isConnected && isCurrentRoute(generation, currentGeneration, propertyRef);
+function canHydrate(routeEpoch, host, propertyRef) {
+  return host.isConnected && isCurrentRoute(routeEpoch, propertyRef);
 }
 
 function settled(promise) {
@@ -438,7 +440,7 @@ function coverageSection(coverage, result) {
   return section;
 }
 
-function propertyMap({ property, latitude, longitude, announce }) {
+function propertyMap({ property, latitude, longitude, announce, routeEpoch }) {
   const host = el("div", "map-context ps-map");
   const canvas = el("div", "ps-map__canvas");
   const status = el("div", "ps-map__status", "Loading interactive map…");
@@ -458,7 +460,7 @@ function propertyMap({ property, latitude, longitude, announce }) {
     return host;
   }
   queueMicrotask(async () => {
-    if (!host.isConnected) return;
+    if (!host.isConnected || !routeEpoch.isCurrent()) return;
     try {
       await createMap({
         container: canvas,
@@ -483,13 +485,14 @@ function propertyMap({ property, latitude, longitude, announce }) {
         }],
         view: { center: [numericLongitude, numericLatitude], zoom: 16 },
         onStatus(event) {
+          if (!routeEpoch.isCurrent()) return;
           status.dataset.state = event.state;
           status.textContent = event.message;
           if (event.state === "fallback") announce("The basemap is unavailable; the verified property point remains visible.");
         },
       });
     } catch (error) {
-      if (error?.name === "AbortError") return;
+      if (error?.name === "AbortError" || !routeEpoch.isCurrent()) return;
       status.dataset.state = "error";
       status.textContent = "The interactive map could not start; coordinates remain available below.";
       console.error("property map failed", error);

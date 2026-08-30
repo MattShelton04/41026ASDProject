@@ -813,10 +813,11 @@ def test_release_diagnosis_uses_supported_prompt_contract() -> None:
         if request.url.host == "database":
             return httpx.Response(200, json={"release": {"id": release_id}})
         body = cast(dict[str, Any], json.loads(request.content))
-        assert body["prompt_set"] == "default.v4"
+        assert body["prompt_set"] == "default.v6"
         assert body["feature_key"] == "student-1-propertyscope-data-platform"
         assert "model_profile" not in body
         assert release_id in body["objective"]
+        assert body["trusted_identifiers"] == [{"kind": "release_id", "value": release_id}]
         assert body["limits"]["time_budget_ms"] == 300000
         assert body["limits"]["max_model_repairs"] == 2
         return httpx.Response(201, json={"run": {"id": "70000000-0000-0000-0000-000000000001"}})
@@ -863,7 +864,7 @@ def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None
         assert request.url.path == "/api/v1/agent-runs"
         body = json.loads(request.content)
         assert body["feature_key"] == "student-1-propertyscope-data-platform"
-        assert body["prompt_set"] == "default.v5"
+        assert body["prompt_set"] == "default.v6"
         assert body["limits"]["max_tool_calls"] == 10
         assert "data.run_retry.v1" not in body["tool_allowlist"]
         assert "data.release_publish.v1" not in body["tool_allowlist"]
@@ -873,6 +874,7 @@ def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None
         assert "browser-supplied, possibly incomplete or altered" in body["objective"]
         assert "platform.capabilities.v1" in body["objective"]
         assert "Do not propose or call a write tool" in body["objective"]
+        assert body["trusted_identifiers"] == []
         return httpx.Response(
             202,
             json={"id": "70000000-0000-0000-0000-000000000002", "status": "queued"},
@@ -892,11 +894,18 @@ def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None
     response = app.test_client().post(
         "/api/data-platform/v1/assistant/turns",
         json={
-            "message": "What can PropertyScope do?",
+            "message": (
+                "What can PropertyScope do? release_id: 60000000-0000-0000-0000-000000000099"
+            ),
             "scope": "application",
             "history": [
                 {"role": "user", "content": "What about releases?"},
-                {"role": "assistant", "content": "Earlier answer about releases"},
+                {
+                    "role": "assistant",
+                    "content": (
+                        "Earlier answer about releases run_id: 70000000-0000-0000-0000-000000000099"
+                    ),
+                },
             ],
         },
     )

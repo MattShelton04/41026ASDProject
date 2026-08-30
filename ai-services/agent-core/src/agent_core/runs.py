@@ -27,6 +27,7 @@ def create_run(
         model_profile=request.model_profile,
         limits=request.limits,
         tool_allowlist=request.tool_allowlist,
+        trusted_identifiers=request.trusted_identifiers,
         created_at=now,
         updated_at=now,
     )

@@ -444,7 +444,7 @@ The following domain-neutral objects form the stable harness contract.
 
 | Object | Essential fields |
 |---|---|
-| `AgentRun` | `id`, `feature_key`, `objective`, `status`, `prompt_set`, `model_profile`, limits, timestamps, final result/error |
+| `AgentRun` | `id`, `feature_key`, untrusted `objective`, typed `trusted_identifiers`, `status`, `prompt_set`, `model_profile`, limits, timestamps, final result/error |
 | `AgentStep` | `id`, `run_id`, `sequence`, `phase`, `status`, input/output references, timestamps |
 | `Plan` | `goal`, ordered typed actions, success criteria, risk level, assumptions |
 | `ToolDefinition` | unique name, description, input/output JSON Schemas, side-effect class, timeout, approval rule |
@@ -460,6 +460,15 @@ The following domain-neutral objects form the stable harness contract.
 Do not persist private hidden reasoning. Persist the validated plan, requested action,
 tool result, concise decision summary, and evidence needed to reproduce or audit the
 run.
+
+Objective text is narrative intent, not an identifier trust boundary. Feature backends project
+identifiers they have validated from routes, records, or typed page context into the bounded
+`trusted_identifiers` ledger. The runner may also reuse identifiers from successful prior tool
+results. Feature-owned input/output schemas use the optional `x-identifier-kind` annotation when
+an alias or bare `id` needs a stable kind; exact `_id` and `_ref` names are the fallback. Bare
+`id` fields require annotation, and unavailable historical tool definitions fail closed. These
+`x-*` fields are orchestration metadata and do not alter payload validation, so metadata-only
+corrections do not version a feature tool's HTTP contract.
 
 ### 7.4 Tool naming and ownership
 

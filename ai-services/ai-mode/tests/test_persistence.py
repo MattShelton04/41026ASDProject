@@ -13,11 +13,16 @@ from ai_mode.operations import RunListQuery
 from ai_mode.persistence import IdempotencyConflictError, SQLiteRunStore
 from ai_mode.persistence.sqlite import MIGRATION_1, MIGRATION_2, PersistenceError
 from shared_contracts import (
+    AgentRun,
     AgentRunRequest,
     AgentStep,
+    ApprovalStatus,
+    HumanReview,
+    ReviewDecision,
     RunStatus,
     StepPhase,
     StepStatus,
+    ToolCall,
     ToolError,
 )
 
@@ -30,13 +35,67 @@ def _store(tmp_path: Path) -> SQLiteRunStore:
     return store
 
 
-def _run():  # type: ignore[no-untyped-def]
+def _run() -> AgentRun:
     return create_run(
         AgentRunRequest(feature_key="student-1-feature", objective="Find records"),
         run_id=uuid4(),
         request_id="request-1",
         now=NOW,
     )
+
+
+def _review_for_step(
+    run: AgentRun,
+    step: AgentStep,
+    *,
+    reviewed_at: datetime,
+) -> HumanReview:
+    call = ToolCall(
+        id=uuid4(),
+        run_id=run.id,
+        step_id=step.id,
+        tool_name="records.update.v1",
+        tool_version="v1",
+        approval_status=ApprovalStatus.APPROVED,
+    )
+    return HumanReview(
+        id=uuid4(),
+        run_id=run.id,
+        step_id=step.id,
+        tool_call=call,
+        decision=ReviewDecision.APPROVE,
+        reviewer="persistence-test",
+        reviewed_at=reviewed_at,
+    )
+
+
+def _save_reviewed_step(
+    store: SQLiteRunStore,
+    run: AgentRun,
+    *,
+    sequence: int,
+    reviewed_at: datetime,
+) -> tuple[AgentRun, AgentStep, HumanReview]:
+    step = AgentStep(
+        id=uuid4(),
+        run_id=run.id,
+        sequence=sequence,
+        phase=StepPhase.ACT,
+        status=StepStatus.SUCCEEDED,
+    )
+    review = _review_for_step(run, step, reviewed_at=reviewed_at)
+    updated = run.evolve(
+        status=RunStatus.READY,
+        version=run.version + 1,
+        updated_at=max(run.updated_at, reviewed_at),
+    )
+    store.save(
+        updated,
+        expected_version=run.version,
+        step=step,
+        review=review,
+    )
+    return updated, step, review
 
 
 def test_initialize_and_round_trip_run(tmp_path: Path) -> None:
@@ -139,25 +198,156 @@ def test_cancellation_is_immediate_for_queued_run_and_idempotent(tmp_path: Path)
     assert again == cancelled
 
 
-def test_list_resumable_excludes_terminal_and_review_blocked_runs(tmp_path: Path) -> None:
+def test_list_resumable_handles_empty_and_single_active_store(tmp_path: Path) -> None:
     store = _store(tmp_path)
+
+    assert store.list_resumable() == ()
+
     queued = _run()
-    terminal = _run()
     store.create(queued)
-    store.create(terminal)
-    planning = transition_run(terminal, RunStatus.PLANNING, now=NOW)
-    store.save(planning, expected_version=terminal.version)
-    failed = transition_run(
-        planning,
-        RunStatus.FAILED,
-        now=NOW,
-        error=ToolError(code="test_failure", message="Expected test failure"),
-    )
-    store.save(failed, expected_version=planning.version)
 
     resumable = store.list_resumable()
 
     assert [detail.run.id for detail in resumable] == [queued.id]
+
+
+def test_list_resumable_orders_multiple_active_runs_stably(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    later = create_run(
+        AgentRunRequest(feature_key="student-1-feature", objective="Later"),
+        run_id=UUID(int=1),
+        request_id="later",
+        now=NOW + timedelta(seconds=1),
+    )
+    same_time_second = create_run(
+        AgentRunRequest(feature_key="student-1-feature", objective="Second"),
+        run_id=UUID(int=3),
+        request_id="same-time-second",
+        now=NOW,
+    )
+    same_time_first = create_run(
+        AgentRunRequest(feature_key="student-1-feature", objective="First"),
+        run_id=UUID(int=2),
+        request_id="same-time-first",
+        now=NOW,
+    )
+    for run in (later, same_time_second, same_time_first):
+        store.create(run)
+
+    resumable = store.list_resumable()
+
+    assert [detail.run.id for detail in resumable] == [
+        same_time_first.id,
+        same_time_second.id,
+        later.id,
+    ]
+
+
+def test_list_resumable_excludes_terminal_and_review_blocked_runs(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    queued = _run()
+    excluded = (
+        _run().evolve(status=RunStatus.REVIEW_REQUIRED),
+        _run().evolve(status=RunStatus.SUCCEEDED, final_result={"summary": "done"}),
+        _run().evolve(
+            status=RunStatus.FAILED,
+            error=ToolError(code="test_failure", message="Expected test failure"),
+        ),
+        _run().evolve(status=RunStatus.CANCELLED),
+    )
+    for run in (queued, *excluded):
+        store.create(run)
+
+    resumable = store.list_resumable()
+
+    assert [detail.run.id for detail in resumable] == [queued.id]
+
+
+def test_list_resumable_preserves_step_and_review_order(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    run = _run()
+    store.create(run)
+    run, later_step, later_review = _save_reviewed_step(
+        store,
+        run,
+        sequence=2,
+        reviewed_at=NOW + timedelta(seconds=2),
+    )
+    _, earlier_step, earlier_review = _save_reviewed_step(
+        store,
+        run,
+        sequence=1,
+        reviewed_at=NOW + timedelta(seconds=1),
+    )
+
+    detail = store.list_resumable()[0]
+
+    assert detail.steps == (earlier_step, later_step)
+    assert detail.reviews == (earlier_review, later_review)
+
+
+@pytest.mark.parametrize("corrupted_table", ["agent_runs", "agent_steps", "human_reviews"])
+def test_list_resumable_fails_closed_for_malformed_aggregate_rows(
+    tmp_path: Path,
+    corrupted_table: str,
+) -> None:
+    store = _store(tmp_path)
+    run = _run()
+    store.create(run)
+    run, _, _ = _save_reviewed_step(
+        store,
+        run,
+        sequence=1,
+        reviewed_at=NOW + timedelta(seconds=1),
+    )
+    statements = {
+        "agent_runs": "UPDATE agent_runs SET payload_json = '{}' WHERE id = ?",
+        "agent_steps": "UPDATE agent_steps SET payload_json = '{}' WHERE run_id = ?",
+        "human_reviews": "UPDATE human_reviews SET payload_json = '{}' WHERE run_id = ?",
+    }
+    with sqlite3.connect(tmp_path / "agent-state.sqlite3") as connection:
+        connection.execute(statements[corrupted_table], (str(run.id),))
+
+    with pytest.raises(PersistenceError, match=f"stored agent run is invalid: {run.id}"):
+        store.list_resumable()
+
+
+@pytest.mark.parametrize("run_count", [0, 1, 4])
+def test_list_resumable_uses_one_connection_and_three_selects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    run_count: int,
+) -> None:
+    store = _store(tmp_path)
+    for index in range(run_count):
+        store.create(
+            create_run(
+                AgentRunRequest(feature_key="student-1-feature", objective=f"Run {index}"),
+                run_id=UUID(int=index + 1),
+                request_id=f"run-{index}",
+                now=NOW,
+            )
+        )
+    statements: list[str] = []
+    connection_count = 0
+    original_connect = store._connect
+
+    def traced_connect() -> sqlite3.Connection:
+        nonlocal connection_count
+        connection_count += 1
+        connection = original_connect()
+        connection.set_trace_callback(statements.append)
+        return connection
+
+    monkeypatch.setattr(store, "_connect", traced_connect)
+
+    store.list_resumable()
+
+    selects = [
+        statement for statement in statements if statement.lstrip().upper().startswith("SELECT")
+    ]
+    assert connection_count == 1
+    assert len(selects) == 3
 
 
 def test_create_idempotency_returns_original_and_rejects_argument_mismatch(

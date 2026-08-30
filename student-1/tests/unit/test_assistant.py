@@ -144,6 +144,18 @@ def test_assistant_context_rejects_noncanonical_route_parameter_combinations(
         AssistantTurnRequest.model_validate({"message": "Explain this", "context": context})
 
 
+def test_assistant_context_projects_only_validated_page_identifiers_into_trust() -> None:
+    run_id = "70000000-0000-0000-0000-000000000012"
+    command = AssistantTurnRequest.model_validate(
+        {
+            "message": "Explain release_id: 60000000-0000-0000-0000-000000000099",
+            "context": {"route": "runs/detail", "ingestion_run_id": run_id},
+        }
+    )
+
+    assert command.context.trusted_identifiers() == [{"kind": "run_id", "value": run_id}]
+
+
 @pytest.mark.parametrize(
     "payload",
     [

@@ -65,12 +65,14 @@ function restoreTraceRefreshState(host, snapshot) {
 export function createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender }) {
   const refreshGuard = createLatestRequestGuard();
   async function renderAi(context = "") {
+    const routeEpoch = generationGuard.capture();
     loading("Loading AI review");
     try {
       const [releasesResult, historyResult] = await Promise.all([
         request("dataset-releases?limit=100"),
         request("agent-runs?limit=10").catch((error) => ({ error, body: { items: [] } })),
       ]);
+      if (!routeEpoch.isCurrent()) return;
       const releases = collection(releasesResult.body);
       const actionable = releases.filter((release) => !["accepted", "superseded", "draft"].includes(release.status));
       const selectedReleaseId = context.startsWith("release:") ? context.slice("release:".length) : "";
@@ -89,12 +91,16 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
         traceHost.setAttribute("aria-live", "polite");
         append(view, traceHost);
         await renderAgentTrace(selectedAgentRun, traceHost);
+        if (!routeEpoch.isCurrent()) return;
       }
       if (!selectedAgentRun) append(view, await diagnosisForm(candidates, context));
       if (historyResult.error) append(view, el("div", "notice warning", `AI review history is temporarily unavailable.${problemSuffix(historyResult.error)}`));
       else if (!history.length) append(view, emptyState("No AI reviews yet", "Start a review above. Its result will remain available in activity history."));
       else append(view, diagnosisHistory(history, selectedAgentRun));
-    } catch (error) { view.replaceChildren(errorState(error, rerender)); }
+    } catch (error) {
+      if (!routeEpoch.isCurrent()) return;
+      view.replaceChildren(errorState(error, rerender));
+    }
   }
 
   function diagnosisHistory(history, selectedAgentRun) {
@@ -151,9 +157,9 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
 
   async function renderAgentTrace(id, host, failures = 0) {
     const refresh = refreshGuard.next();
-    const generation = generationGuard.current();
+    const routeEpoch = generationGuard.capture();
     const isCurrent = () => refreshGuard.isCurrent(refresh)
-      && generationGuard.isCurrent(generation)
+      && routeEpoch.isCurrent()
       && parseRoute(location.hash).route === "ai"
       && parseRoute(location.hash).id === id;
     annotateTraceRefreshState(host);
@@ -217,10 +223,10 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     clearTimeout(state.pollTimer);
     const delay = nextAgentPollDelay(status, failures, document.hidden);
     if (delay === null) return;
-    const generation = generationGuard.current();
+    const routeEpoch = generationGuard.capture();
     state.pollTimer = setTimeout(() => {
       const current = parseRoute(location.hash);
-      if (generationGuard.isCurrent(generation) && current.route === "ai" && current.id === id) renderAgentTrace(id, host, failures);
+      if (routeEpoch.isCurrent() && current.route === "ai" && current.id === id) renderAgentTrace(id, host, failures);
     }, delay);
   }
 

@@ -18,6 +18,7 @@ from psycopg import Connection, errors, sql
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
+from propertyscope_data_store._import_operations import _RegisteredImportOperations
 from propertyscope_data_store.errors import (
     ConflictError,
     LeaseConflictError,
@@ -27,8 +28,6 @@ from propertyscope_data_store.errors import (
 from propertyscope_data_store.import_profiles import (
     ImportResult,
     PreparedImport,
-    execute_import,
-    execute_stream_import,
 )
 from propertyscope_data_store.migrations import migrate, schema_fingerprint
 from propertyscope_data_store.orchestration_policy import (
@@ -38,9 +37,6 @@ from propertyscope_data_store.orchestration_policy import (
     validate_retry_parent,
 )
 from propertyscope_data_store.persistence_support import cancellation_error as _cancellation_error
-from propertyscope_data_store.persistence_support import (
-    import_lease_expired_error as _import_lease_expired_error,
-)
 from propertyscope_data_store.persistence_support import json_document as _json
 from propertyscope_data_store.persistence_support import lease_expired_error as _lease_expired_error
 from propertyscope_data_store.persistence_support import normalise_row as _dict
@@ -88,7 +84,6 @@ PROPERTY_SEARCH_UNDERSPECIFIED_TERMS = frozenset(
     }
 )
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
-TERMINAL_IMPORT_STATES = frozenset({"succeeded", "failed", "cancelled"})
 TERMINAL_ACTIVATION_STATES = frozenset({"succeeded", "failed"})
 REGISTERED_ADAPTER_VERSIONS = {
     "fixture-snapshot": "1.0.0",
@@ -2379,67 +2374,22 @@ class PropertyScopeStore:
         }
 
     # Registered asynchronous imports; callers provide IDs and registry keys, never SQL or paths.
+    def _imports(self) -> _RegisteredImportOperations:
+        operations = getattr(self, "_import_operations", None)
+        if operations is None:
+            operations = _RegisteredImportOperations(self)
+            self._import_operations = operations
+        return operations
+
     def create_import(self, values: Mapping[str, Any]) -> tuple[JsonObject, bool]:
-        existing = self._fetch_one(
-            "SELECT * FROM ops.import_operation WHERE idempotency_key=%s",
-            (str(values["idempotency_key"]),),
-        )
-        if existing:
-            expected = (
-                str(values["run_task_id"]),
-                str(values["candidate_release_id"]),
-                str(values["artifact_record_id"]),
-                str(values["import_profile_key"]),
-            )
-            actual = (
-                str(existing["run_task_id"]),
-                str(existing["candidate_release_id"]),
-                str(existing["artifact_record_id"]),
-                str(existing["import_profile_key"]),
-            )
-            if expected != actual:
-                raise ConflictError("idempotency key arguments do not match")
-            return existing, False
-        now = datetime.now(UTC)
-        with self.connection() as connection:
-            try:
-                row = connection.execute(
-                    """INSERT INTO ops.import_operation (
-                        id,ingestion_run_id,run_task_id,candidate_release_id,import_profile_key,
-                        import_profile_version,artifact_record_id,status,attempt_number,idempotency_key,
-                        requested_at,rows_in,rows_staged,rows_accepted,rows_rejected,version
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,'planned',1,%s,%s,0,0,0,0,1) RETURNING *""",
-                    (
-                        uuid.uuid4(),
-                        uuid.UUID(str(values["ingestion_run_id"])),
-                        uuid.UUID(str(values["run_task_id"])),
-                        uuid.UUID(str(values["candidate_release_id"])),
-                        values["import_profile_key"],
-                        values["import_profile_version"],
-                        uuid.UUID(str(values["artifact_record_id"])),
-                        values["idempotency_key"],
-                        now,
-                    ),
-                ).fetchone()
-                connection.commit()
-            except errors.UniqueViolation as exc:
-                raise ConflictError("run task already has an import operation") from exc
-            except errors.ForeignKeyViolation as exc:
-                raise NotFoundError("run, task, release, or artifact does not exist") from exc
-        return _dict(row), True
+        return self._imports().create_import(values)
 
     def get_import(self, operation_id: uuid.UUID) -> JsonObject:
-        return self._required("SELECT * FROM ops.import_operation WHERE id=%s", (operation_id,))
+        return self._imports().get_import(operation_id)
 
     def import_work(self, operation_id: uuid.UUID) -> JsonObject:
         """Return the fixed registered operation plus verified artifact metadata for the loader."""
-        return self._required(
-            """SELECT operation.*,artifact.storage_key,artifact.content_sha256,
-            artifact.bytes AS artifact_bytes,artifact.media_type,artifact.schema_version
-            FROM ops.import_operation operation JOIN ops.artifact_record artifact
-            ON artifact.id=operation.artifact_record_id WHERE operation.id=%s""",
-            (operation_id,),
-        )
+        return self._imports().import_work(operation_id)
 
     def execute_import_profile(
         self,
@@ -2450,13 +2400,12 @@ class PropertyScopeStore:
         stop_event: Event | None = None,
     ) -> ImportResult:
         """Execute one registered COPY/import profile inside the credential boundary."""
-        operation_id = uuid.UUID(str(work["id"]))
-        with self._cancellable_import_connection(
-            operation_id,
+        return self._imports().execute_import_profile(
+            work,
+            prepared,
             lease_failed_event=lease_failed_event,
             stop_event=stop_event,
-        ) as connection:
-            return execute_import(connection, work, prepared)
+        )
 
     def execute_stream_import_profile(
         self,
@@ -2470,18 +2419,15 @@ class PropertyScopeStore:
         stop_event: Event | None = None,
     ) -> ImportResult:
         """Execute a source-scale streaming COPY inside the credential boundary."""
-        operation_id = uuid.UUID(str(work["id"]))
-        with self._cancellable_import_connection(
-            operation_id,
+        return self._imports().execute_stream_import_profile(
+            work,
+            profile=profile,
+            rows=rows,
+            verify_complete=verify_complete,
+            phase_callback=phase_callback,
             lease_failed_event=lease_failed_event,
             stop_event=stop_event,
-        ) as connection:
-            result = execute_stream_import(
-                connection, work, profile=profile, rows=rows, phase_callback=phase_callback
-            )
-            if verify_complete is not None:
-                verify_complete()
-            return result
+        )
 
     def update_import_progress(
         self,
@@ -2494,53 +2440,14 @@ class PropertyScopeStore:
         total_bytes: int | None = None,
     ) -> None:
         """Persist throttled loader progress and make it effective run activity."""
-        now = datetime.now(UTC)
-        with self.connection() as connection:
-            row = connection.execute(
-                """UPDATE ops.import_operation SET progress_phase=%s,progress_rows=%s,
-                progress_bytes=%s,progress_total_rows=%s,progress_total_bytes=%s,
-                progress_updated_at=%s,heartbeat_at=%s,version=version+1
-                WHERE id=%s AND status IN ('claimed','running') RETURNING ingestion_run_id,run_task_id""",
-                (
-                    phase[:100],
-                    max(0, rows_processed),
-                    max(0, bytes_processed),
-                    total_rows,
-                    total_bytes,
-                    now,
-                    now,
-                    operation_id,
-                ),
-            ).fetchone()
-            if row is not None:
-                connection.execute(
-                    """UPDATE ops.run_task SET progress_phase=%s,progress_rows=%s,
-                    progress_bytes=%s,progress_total_rows=%s,progress_total_bytes=%s,
-                    progress_updated_at=%s,heartbeat_at=%s WHERE id=%s""",
-                    (
-                        phase[:100],
-                        max(0, rows_processed),
-                        max(0, bytes_processed),
-                        total_rows,
-                        total_bytes,
-                        now,
-                        now,
-                        row["run_task_id"],
-                    ),
-                )
-                connection.execute(
-                    """UPDATE ops.ingestion_run SET heartbeat_at=%s,
-                    rows_discovered=CASE WHEN run_mode='reprocess_cached'
-                        THEN GREATEST(rows_discovered,%s) ELSE rows_discovered END,
-                    rows_staged=GREATEST(rows_staged,%s) WHERE id=%s""",
-                    (
-                        now,
-                        max(0, rows_processed),
-                        max(0, rows_processed),
-                        row["ingestion_run_id"],
-                    ),
-                )
-            connection.commit()
+        self._imports().update_import_progress(
+            operation_id,
+            phase=phase,
+            rows_processed=rows_processed,
+            bytes_processed=bytes_processed,
+            total_rows=total_rows,
+            total_bytes=total_bytes,
+        )
 
     @contextmanager
     def _cancellable_import_connection(
@@ -2551,125 +2458,34 @@ class PropertyScopeStore:
         stop_event: Event | None = None,
     ) -> Iterator[Connection[Any]]:
         """Cancel an in-flight PostgreSQL statement when its owning run is cancelled."""
-        with self.connection() as connection:
-            stopped = Event()
-
-            def monitor() -> None:
-                while not stopped.wait(0.5):
-                    if (
-                        (lease_failed_event is not None and lease_failed_event.is_set())
-                        or (stop_event is not None and stop_event.is_set())
-                        or self.import_cancel_requested(operation_id)
-                    ):
-                        connection.cancel()
-                        return
-
-            watcher = Thread(target=monitor, name=f"import-cancel-{operation_id}", daemon=True)
-            watcher.start()
-            try:
-                yield connection
-            finally:
-                stopped.set()
-                watcher.join(timeout=2)
+        with self._imports().cancellable_connection(
+            operation_id,
+            lease_failed_event=lease_failed_event,
+            stop_event=stop_event,
+        ) as connection:
+            yield connection
 
     def import_cancel_requested(self, operation_id: uuid.UUID) -> bool:
-        row = self._fetch_one(
-            """SELECT run.cancel_requested_at FROM ops.import_operation operation
-            JOIN ops.ingestion_run run ON run.id=operation.ingestion_run_id
-            WHERE operation.id=%s""",
-            (operation_id,),
-        )
-        return row is not None and row["cancel_requested_at"] is not None
+        return self._imports().import_cancel_requested(operation_id)
 
     def enqueue_import(self, operation_id: uuid.UUID) -> JsonObject:
-        with self.connection() as connection:
-            row = connection.execute(
-                """UPDATE ops.import_operation SET status='queued',
-                attempt_number=CASE WHEN status='interrupted'
-                    THEN attempt_number+1 ELSE attempt_number END,version=version+1
-                WHERE id=%s AND status IN ('planned','interrupted') RETURNING *""",
-                (operation_id,),
-            ).fetchone()
-            connection.commit()
-        if row is None:
-            current = self.get_import(operation_id)
-            if current["status"] == "queued":
-                return current
-            raise ConflictError("import cannot be enqueued from its current state")
-        return _dict(row)
+        return self._imports().enqueue_import(operation_id)
 
     def cancel_import(self, operation_id: uuid.UUID) -> JsonObject:
-        with self.connection() as connection:
-            row = connection.execute(
-                """UPDATE ops.import_operation SET status='cancelled',finished_at=%s,
-                lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
-                version=version+1 WHERE id=%s AND status IN ('planned','queued','interrupted') RETURNING *""",
-                (datetime.now(UTC), operation_id),
-            ).fetchone()
-            connection.commit()
-        if row is None:
-            raise ConflictError("running or terminal import cannot be cancelled immediately")
-        return _dict(row)
+        return self._imports().cancel_import(operation_id)
 
     def claim_import(self, *, worker_id: str, lease_seconds: int) -> JsonObject | None:
-        now = datetime.now(UTC)
-        token = uuid.uuid4().hex
-        with self.connection() as connection:
-            connection.execute(
-                """UPDATE ops.import_operation operation SET status='cancelled',finished_at=%s,
-                error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
-                heartbeat_at=NULL,version=operation.version+1 FROM ops.ingestion_run run
-                WHERE run.id=operation.ingestion_run_id AND run.cancel_requested_at IS NOT NULL
-                AND operation.status IN ('claimed','running')
-                AND operation.lease_expires_at<=%s""",
-                (now, _json(_cancellation_error()), now),
-            )
-            # Import work follows the same explicit-resume policy as acquisition tasks.
-            # A replacement loader records the expired boundary but never steals work.
-            connection.execute(
-                """UPDATE ops.import_operation operation SET status='interrupted',error_json=%s,
-                lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
-                version=operation.version+1 FROM ops.ingestion_run run
-                WHERE run.id=operation.ingestion_run_id AND run.cancel_requested_at IS NULL
-                AND operation.status IN ('claimed','running')
-                AND operation.lease_expires_at<=%s""",
-                (_json(_import_lease_expired_error()), now),
-            )
-            row = connection.execute(
-                """WITH candidate AS (
-                    SELECT id FROM ops.import_operation WHERE status='queued'
-                    ORDER BY requested_at FOR UPDATE SKIP LOCKED LIMIT 1
-                ) UPDATE ops.import_operation operation SET status='claimed',lease_owner=%s,
-                    lease_token=%s,lease_expires_at=%s,heartbeat_at=%s,
-                    started_at=COALESCE(started_at,%s),version=version+1 FROM candidate
-                WHERE operation.id=candidate.id RETURNING operation.*""",
-                (worker_id, token, now + timedelta(seconds=lease_seconds), now, now),
-            ).fetchone()
-            connection.commit()
-        return _dict(row) if row else None
+        return self._imports().claim_import(worker_id=worker_id, lease_seconds=lease_seconds)
 
     def heartbeat_import(
         self, operation_id: uuid.UUID, *, worker_id: str, lease_token: str, lease_seconds: int
     ) -> JsonObject:
-        now = datetime.now(UTC)
-        with self.connection() as connection:
-            row = connection.execute(
-                """UPDATE ops.import_operation SET status='running',heartbeat_at=%s,
-                lease_expires_at=%s,version=version+1 WHERE id=%s AND lease_owner=%s
-                AND lease_token=%s AND lease_expires_at>%s AND status IN ('claimed','running') RETURNING *""",
-                (
-                    now,
-                    now + timedelta(seconds=lease_seconds),
-                    operation_id,
-                    worker_id,
-                    lease_token,
-                    now,
-                ),
-            ).fetchone()
-            connection.commit()
-        if row is None:
-            raise LeaseConflictError("import lease is stale or owned by another loader")
-        return _dict(row)
+        return self._imports().heartbeat_import(
+            operation_id,
+            worker_id=worker_id,
+            lease_token=lease_token,
+            lease_seconds=lease_seconds,
+        )
 
     def finish_import(
         self,
@@ -2682,35 +2498,15 @@ class PropertyScopeStore:
         result: Mapping[str, Any] | None,
         error: Mapping[str, Any] | None,
     ) -> JsonObject:
-        if status not in {"succeeded", "failed", "cancelled"}:
-            raise ConflictError("loader may finish only as succeeded, failed, or cancelled")
-        now = datetime.now(UTC)
-        with self.connection() as connection:
-            row = connection.execute(
-                """UPDATE ops.import_operation SET status=%s,finished_at=%s,rows_in=%s,
-                rows_staged=%s,rows_accepted=%s,rows_rejected=%s,result_json=%s,error_json=%s,
-                lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
-                version=version+1 WHERE id=%s AND lease_owner=%s AND lease_token=%s
-                AND lease_expires_at>%s AND status IN ('claimed','running') RETURNING *""",
-                (
-                    status,
-                    now,
-                    counts.get("rows_in", 0),
-                    counts.get("rows_staged", 0),
-                    counts.get("rows_accepted", 0),
-                    counts.get("rows_rejected", 0),
-                    _json(result) if result else None,
-                    _json(error) if error else None,
-                    operation_id,
-                    worker_id,
-                    lease_token,
-                    now,
-                ),
-            ).fetchone()
-            connection.commit()
-        if row is None:
-            raise LeaseConflictError("import lease is stale or owned by another loader")
-        return _dict(row)
+        return self._imports().finish_import(
+            operation_id,
+            worker_id=worker_id,
+            lease_token=lease_token,
+            status=status,
+            counts=counts,
+            result=result,
+            error=error,
+        )
 
     def register_artifact(self, values: Mapping[str, Any]) -> tuple[JsonObject, bool]:
         lineage_query = """SELECT * FROM ops.artifact_record WHERE ingestion_run_id=%s

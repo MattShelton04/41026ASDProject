@@ -1,0 +1,5 @@
+prompt_id: planner
+version: v6
+role: planner
+template: v6.system.j2
+description: Planner with an explicit typed identifier-provenance ledger.

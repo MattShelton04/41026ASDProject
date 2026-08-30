@@ -13,15 +13,23 @@ from shared_contracts.http import IdempotencyKey, RequestId, Traceparent
 
 Identifier = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-z0-9][a-z0-9_.-]*$")]
 JsonObject = dict[str, JsonValue]
-PromptSet = Literal["default.v1", "default.v2", "default.v3", "default.v4", "default.v5"]
+PromptSet = Literal[
+    "default.v1",
+    "default.v2",
+    "default.v3",
+    "default.v4",
+    "default.v5",
+    "default.v6",
+]
 SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = (
     "default.v1",
     "default.v2",
     "default.v3",
     "default.v4",
     "default.v5",
+    "default.v6",
 )
-DEFAULT_PROMPT_SET: PromptSet = "default.v4"
+DEFAULT_PROMPT_SET: PromptSet = "default.v6"
 DEFAULT_EVENT_PAGE_SIZE = 100
 MAX_EVENT_PAGE_SIZE = 200
 MAX_EVENT_CURSOR = 2**63 - 1
@@ -113,6 +121,13 @@ class RunLimits(ContractModel):
     max_model_repairs: int = Field(default=1, ge=0, le=2)
 
 
+class TrustedIdentifier(ContractModel):
+    """One feature-supplied identifier that orchestration may copy into a tool call."""
+
+    kind: Identifier
+    value: UUID
+
+
 class AgentRunRequest(ContractModel):
     """Request accepted from a feature backend to start one agent run."""
 
@@ -122,6 +137,7 @@ class AgentRunRequest(ContractModel):
     model_profile: Identifier = "remote-standard.v1"
     limits: RunLimits = Field(default_factory=RunLimits)
     tool_allowlist: tuple[Identifier, ...] | None = Field(default=None, max_length=50)
+    trusted_identifiers: tuple[TrustedIdentifier, ...] = Field(default=(), max_length=100)
 
     @field_validator("tool_allowlist")
     @classmethod
@@ -129,6 +145,17 @@ class AgentRunRequest(ContractModel):
         """Reject ambiguous per-run capability boundaries."""
         if value is not None and len(value) != len(set(value)):
             raise ValueError("tool_allowlist entries must be unique")
+        return value
+
+    @field_validator("trusted_identifiers")
+    @classmethod
+    def trusted_identifiers_are_unique(
+        cls, value: tuple[TrustedIdentifier, ...]
+    ) -> tuple[TrustedIdentifier, ...]:
+        """Reject duplicate trust claims so the persisted boundary stays canonical."""
+        identities = tuple((item.kind, item.value) for item in value)
+        if len(identities) != len(set(identities)):
+            raise ValueError("trusted_identifiers entries must be unique")
         return value
 
 
@@ -304,6 +331,7 @@ class AgentRun(ContractModel):
     model_profile: Identifier
     limits: RunLimits
     tool_allowlist: tuple[Identifier, ...] | None = Field(default=None, max_length=50)
+    trusted_identifiers: tuple[TrustedIdentifier, ...] = Field(default=(), max_length=100)
     iteration_count: int = Field(default=0, ge=0)
     tool_call_count: int = Field(default=0, ge=0)
     version: int = Field(default=0, ge=0)
