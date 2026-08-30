@@ -1,0 +1,18 @@
+[project]
+name = "feature-6-poc"
+version = "0.1.0"
+description = "Local-only PropertyScope Features 2-5 integration proof of concept"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "flask>=3.1,<4",
+    "gunicorn>=23,<24",
+    "httpx>=0.28,<1",
+    "jsonschema>=4.25,<5",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["backend/src", "database/src"]

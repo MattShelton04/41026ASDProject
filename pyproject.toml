@@ -35,6 +35,7 @@ members = [
     "student-3",
     "student-4",
     "student-5",
+    "poc/feature-6",
     "ai-services/agent-core",
     "ai-services/ai-mode",
 ]
