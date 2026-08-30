@@ -107,8 +107,9 @@ canonical values once before COPY, ANALYZEs planner-sensitive staging and narrow
 address tables, and enforces a loader-only `temp_file_limit`. Before COPY it also requires free
 artifact-volume capacity for the compressed-artifact expansion allowance plus an operator reserve.
 The Compose defaults are 16 GiB of PostgreSQL temporary files, a 4 GiB reserve and a 3x artifact
-allowance. Override the corresponding `PROPERTYSCOPE_LOADER_*` variables only from measured
-evidence. The disposable benchmark sequence and evidence fields are specified in
+database-growth allowance. Preflight requires all three allowances, rather than treating the temp
+limit as free capacity. Override the corresponding `PROPERTYSCOPE_LOADER_*` variables only from
+measured evidence. The disposable benchmark sequence and evidence fields are specified in
 [`source-scale-benchmark-methodology.md`](source-scale-benchmark-methodology.md).
 
 With complete source generations retained, verify the public path rather than counting entire
@@ -164,9 +165,12 @@ marked `space_recovery_status=needed` with an exact, profile-derived relation li
 `measure_then_target_exact_relations` policy. This is an operator-visible recovery obligation, not
 an automatic `VACUUM FULL` or broad reindex. Measure dead tuples and allocated bytes first; PR2's
 source-scale benchmark evidence determines whether an exact relation needs bounded vacuum/reindex.
-Typed temporary PSI/BOCSAR work drops automatically at transaction end; destination rollback space
-uses the existing exact-relation, measure-first policy. The marker is evidence for the operator;
-no endpoint claims recovery is complete until that targeted work is measured and performed.
+Typed temporary PSI/BOCSAR work drops automatically at transaction end. After the failure outcome
+is durable, the serial loader measures only the import profile's registered destination relations,
+runs `VACUUM (ANALYZE, INDEX_CLEANUP ON)` outside a transaction with a ten-minute per-statement
+ceiling, measures again, and records `completed`. This makes aborted pages reusable without a
+blocking `VACUUM FULL`, table rewrite or broad-schema maintenance. Timeout or unavailable relation
+leaves the durable marker at `needed` for a later safe retry.
 
 The PR1 disposable PostgreSQL cancellation test proves transaction rollback and transaction-local
 table cleanup at every PSI materialisation boundary. Executor spill-file size and `pgsql_tmp`

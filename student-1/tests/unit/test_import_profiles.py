@@ -19,6 +19,7 @@ from propertyscope_data_store.import_profiles import (
     _GNAF_STREAM_STAGE_SQL,
     CANONICAL_SCHEMA_VERSION,
     IMPORT_PHASE_LABELS,
+    POSTGRES_BIGINT_MAX,
     POSTGRES_INTEGER_MAX,
     ImportProfileError,
     ImportResult,
@@ -410,6 +411,40 @@ def test_psi_rejects_address_numbers_outside_postgresql_integer_range(field: str
     ] == (POSTGRES_INTEGER_MAX)
 
 
+@pytest.mark.parametrize(
+    ("field", "maximum"),
+    [
+        ("source_revision", POSTGRES_INTEGER_MAX),
+        ("source_partition_year", POSTGRES_INTEGER_MAX),
+        ("price_aud", POSTGRES_BIGINT_MAX),
+    ],
+)
+def test_psi_rejects_every_typed_integer_above_postgresql_range(field: str, maximum: int) -> None:
+    record = {**_contract_records("psi-sales")[0], field: maximum + 1}
+
+    with pytest.raises(ImportProfileError, match=rf"record 1 {field} is above its maximum"):
+        prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
+
+    boundary = {**record, field: maximum}
+    validated = next(iter(iter_ndjson_import([json.dumps(boundary).encode()], profile="psi-sales")))
+    assert validated[field] == maximum
+
+
+def test_bocsar_rejects_count_above_postgresql_integer_range() -> None:
+    record = {**_contract_records("bocsar-sparse")[0], "count": POSTGRES_INTEGER_MAX + 1}
+
+    with pytest.raises(ImportProfileError, match="record 1 count is above its maximum"):
+        prepare_import(_artifact("bocsar-sparse", [record]), profile="bocsar-sparse")
+
+    boundary = {**record, "count": POSTGRES_INTEGER_MAX}
+    assert (
+        prepare_import(_artifact("bocsar-sparse", [boundary]), profile="bocsar-sparse").rows[0][
+            "count"
+        ]
+        == POSTGRES_INTEGER_MAX
+    )
+
+
 class _CopySink:
     def __init__(self, rows: list[tuple[object, ...]]) -> None:
         self.rows = rows
@@ -629,6 +664,10 @@ def test_bocsar_typed_normal_path_uses_rowcount_without_destination_scans() -> N
     assert "FREEZE TRUE" in BOCSAR_COPY_SQL
     assert "ORDER BY ordinal" not in BOCSAR_OBSERVATION_INSERT_SQL
     assert "ORDER BY ordinal" not in BOCSAR_COVERAGE_INSERT_SQL
+    assert "min(ordinal) AS ordinal" in BOCSAR_OBSERVATION_INSERT_SQL
+    assert "min(ordinal) AS ordinal" in BOCSAR_COVERAGE_INSERT_SQL
+    assert "JOIN propertyscope_bocsar_import_stage source" in BOCSAR_OBSERVATION_INSERT_SQL
+    assert "JOIN propertyscope_bocsar_import_stage source" in BOCSAR_COVERAGE_INSERT_SQL
     assert "observed_months" in BOCSAR_COVERAGE_INSERT_SQL
     assert "blank_means_observed_zero" in BOCSAR_COVERAGE_INSERT_SQL
 

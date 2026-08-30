@@ -1980,6 +1980,10 @@ class PropertyScopeStore:
             total_bytes=total_bytes,
         )
 
+    def recover_import_space(self, operation_id: uuid.UUID) -> JsonObject:
+        """Reclaim reusable space on the exact relations owned by a failed import profile."""
+        return self._imports().recover_import_space(operation_id)
+
     @contextmanager
     def _cancellable_import_connection(
         self,

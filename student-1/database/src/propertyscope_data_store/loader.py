@@ -74,17 +74,21 @@ class DatabaseLoader:
         worker_id: str,
         disk_reserve_bytes: int = 4 * 1024 * 1024 * 1024,
         artifact_expansion_factor: int = 3,
+        temp_file_limit_kib: int = 16 * 1024 * 1024,
         disk_free_bytes: Callable[[Path], int] | None = None,
     ) -> None:
         if disk_reserve_bytes < 0:
             raise ValueError("loader disk reserve must not be negative")
         if not 1 <= artifact_expansion_factor <= 16:
             raise ValueError("loader artifact expansion factor must be between 1 and 16")
+        if not 64 * 1024 <= temp_file_limit_kib <= 64 * 1024 * 1024:
+            raise ValueError("loader temp-file limit is outside the supported bound")
         self.store = store
         self.artifact_root = artifact_root.resolve()
         self.worker_id = worker_id
         self.disk_reserve_bytes = disk_reserve_bytes
         self.artifact_expansion_factor = artifact_expansion_factor
+        self.temp_file_limit_kib = temp_file_limit_kib
         self._disk_free_bytes = disk_free_bytes or (lambda path: shutil.disk_usage(path).free)
         self.stop_event = Event()
 
@@ -186,6 +190,14 @@ class DatabaseLoader:
                     else _safe_loader_error(exc)
                 ),
             )
+            recover = getattr(self.store, "recover_import_space", None)
+            if recover is not None:
+                try:
+                    recover(operation_id)
+                except Exception:
+                    logger.exception(
+                        "Bounded space recovery for import %s remains needed", operation_id
+                    )
         finally:
             heartbeat_stop.set()
             if heartbeater is not None:
@@ -450,8 +462,12 @@ class DatabaseLoader:
 
     def _preflight_materialisation_disk(self, artifact_bytes: int) -> None:
         """Fail before COPY when the loader filesystem has no configured safety budget."""
+        temporary_file_allowance_bytes = self.temp_file_limit_kib * 1024
+        database_growth_allowance_bytes = artifact_bytes * self.artifact_expansion_factor
         required_free_bytes = (
-            artifact_bytes * self.artifact_expansion_factor + self.disk_reserve_bytes
+            database_growth_allowance_bytes
+            + temporary_file_allowance_bytes
+            + self.disk_reserve_bytes
         )
         try:
             available_free_bytes = self._disk_free_bytes(self.artifact_root)
@@ -464,6 +480,8 @@ class DatabaseLoader:
                     "artifact_bytes": artifact_bytes,
                     "required_free_bytes": required_free_bytes,
                     "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "database_growth_allowance_bytes": database_growth_allowance_bytes,
+                    "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
                     "reserve_bytes": self.disk_reserve_bytes,
                 },
             ) from exc
@@ -477,6 +495,8 @@ class DatabaseLoader:
                     "available_free_bytes": max(0, available_free_bytes),
                     "required_free_bytes": required_free_bytes,
                     "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "database_growth_allowance_bytes": database_growth_allowance_bytes,
+                    "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
                     "reserve_bytes": self.disk_reserve_bytes,
                 },
             )
@@ -652,6 +672,7 @@ def main() -> None:
         worker_id=os.environ.get("PROPERTYSCOPE_LOADER_ID", f"loader-{uuid.uuid4().hex[:8]}"),
         disk_reserve_bytes=settings.loader_disk_reserve_bytes,
         artifact_expansion_factor=settings.loader_artifact_expansion_factor,
+        temp_file_limit_kib=settings.loader_temp_file_limit_kib,
     )
     signal.signal(signal.SIGTERM, lambda *_: loader.stop())
     signal.signal(signal.SIGINT, lambda *_: loader.stop())

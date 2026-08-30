@@ -28,8 +28,9 @@ atomic release contract.
   is still one transaction, and pointer activation remains a later reviewed transaction.
 - An expression/covering property index matches the exact `COALESCE` predicates used by PSI.
 - PostgreSQL temporary files are bounded with `SET LOCAL temp_file_limit` only on loader-owned
-  connections. A conservative free-space check runs before COPY. Failures expose bounded resource
-  evidence, preserve the predecessor, and retain the relation-scoped recovery obligation.
+  connections. A conservative free-space check runs before COPY and includes configured temporary
+  files, artifact-derived database/index growth and reserve allowances. Failures expose bounded
+  resource evidence, preserve the predecessor, and retain the relation-scoped recovery obligation.
 - Performance evidence uses disposable real-shape schemas at 100,000 records, then 1,000,000 only
   after three clean reset runs per variant. Each measured statement has a 30-minute ceiling and
   five-minute progress evidence. Full official artifacts are permitted only when the smaller-run
@@ -39,10 +40,13 @@ atomic release contract.
 
 Typed staging removes repeated JSON conversion and narrows the operations that can spill. Explicit
 phases make cancellation and timings attributable without exposing partial candidates. Temporary
-tables disappear at transaction end; destination pages touched before rollback may still require
-the existing measured, exact-relation vacuum/reindex workflow. The conservative disk check measures
-the loader artifact mount as a proxy for the shared Docker disk pool and therefore remains an
-operator-tunable safety bound, not a prediction of exact PostgreSQL growth.
+tables disappear at transaction end. After a failed/cancelled outcome is durable, the loader
+measures the profile's exact allowlisted destination relations, runs bounded non-rewriting
+`VACUUM (ANALYZE, INDEX_CLEANUP ON)`, measures again and records completion. A timeout leaves the
+operation `needed`; no `VACUUM FULL`, table rewrite or unrelated relation is permitted. The
+conservative disk check measures the loader artifact mount as a proxy for the single-host Docker
+disk pool and therefore remains an operator-tunable safety bound, not a prediction of exact
+PostgreSQL growth on independently provisioned storage.
 
 The benchmark harness is evidence tooling, not a production data generator. Its synthetic rows
 preserve relevant shapes and duplicate/address cardinalities but do not establish official-source

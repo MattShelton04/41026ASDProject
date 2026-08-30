@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
 from typing import Any, Protocol
 
-from psycopg import Connection, errors
+from psycopg import Connection, errors, sql
 
 from propertyscope_data_store.errors import ConflictError, LeaseConflictError, NotFoundError
 from propertyscope_data_store.import_profiles import (
@@ -39,6 +39,7 @@ _IMPORT_TARGET_RELATIONS: Mapping[str, tuple[str, ...]] = {
     ),
     "schools-master": ("warehouse.school",),
 }
+SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS = 10 * 60
 
 
 class _ImportOperationOwner(Protocol):
@@ -433,3 +434,83 @@ class _RegisteredImportOperations:
         if row is None:
             raise LeaseConflictError("import lease is stale or owned by another loader")
         return _dict(row)
+
+    def recover_import_space(self, operation_id: uuid.UUID) -> JsonObject:
+        """Run bounded reusable-space maintenance on the import profile's exact relations."""
+        current = self._owner.get_import(operation_id)
+        if current["status"] not in {"failed", "cancelled"}:
+            raise ConflictError("space recovery requires a failed or cancelled import")
+        if current["space_recovery_status"] == "completed":
+            return current
+        if current["space_recovery_status"] != "needed":
+            raise ConflictError("space recovery is not required for this import")
+        relations = _IMPORT_TARGET_RELATIONS.get(str(current["import_profile_key"]), ())
+        if not relations:
+            raise ConflictError("import profile has no registered recovery relations")
+        measured_before = self._measure_relations(relations)
+        with self._owner.connection() as connection:
+            # Loader connections begin with transaction-local safety settings. VACUUM must run
+            # outside a transaction, so end that empty transaction and use bounded autocommit.
+            connection.commit()
+            connection.autocommit = True
+            try:
+                connection.execute(
+                    "SELECT set_config('statement_timeout',%s,false)",
+                    (f"{SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS}s",),
+                )
+                for relation in relations:
+                    schema_name, table_name = relation.split(".", maxsplit=1)
+                    connection.execute(
+                        sql.SQL("VACUUM (ANALYZE, INDEX_CLEANUP ON) {}").format(
+                            sql.Identifier(schema_name, table_name)
+                        )
+                    )
+            finally:
+                connection.execute("RESET statement_timeout")
+                connection.autocommit = False
+        measured_after = self._measure_relations(relations)
+        policy = dict(current.get("space_recovery_policy_json") or {})
+        policy.update(
+            {
+                "operation": "vacuum_analyze_index_cleanup",
+                "statement_timeout_seconds": SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS,
+                "measured_before": measured_before,
+                "measured_after": measured_after,
+                "completed_at": datetime.now(UTC).isoformat(),
+                "automatic_destructive_maintenance": False,
+                "next_step": "none",
+            }
+        )
+        with self._owner.connection() as connection:
+            row = connection.execute(
+                """UPDATE ops.import_operation SET space_recovery_status='completed',
+                space_recovery_policy_json=%s,version=version+1 WHERE id=%s
+                AND status IN ('failed','cancelled') AND space_recovery_status='needed'
+                RETURNING *""",
+                (_json(policy), operation_id),
+            ).fetchone()
+            connection.commit()
+        if row is None:
+            latest = self._owner.get_import(operation_id)
+            if latest["space_recovery_status"] == "completed":
+                return latest
+            raise ConflictError("space recovery state changed before completion was recorded")
+        return _dict(row)
+
+    def _measure_relations(self, relations: Sequence[str]) -> list[JsonObject]:
+        measurements: list[JsonObject] = []
+        with self._owner.connection() as connection:
+            for relation in relations:
+                schema_name, table_name = relation.split(".", maxsplit=1)
+                row = connection.execute(
+                    """SELECT %s AS relation,n_live_tup::bigint,n_dead_tup::bigint,
+                    pg_relation_size(relid)::bigint AS heap_bytes,
+                    pg_indexes_size(relid)::bigint AS index_bytes
+                    FROM pg_stat_user_tables WHERE schemaname=%s AND relname=%s""",
+                    (relation, schema_name, table_name),
+                ).fetchone()
+                if row is None:
+                    raise ConflictError(f"registered recovery relation is unavailable: {relation}")
+                measurements.append(_dict(row))
+            connection.commit()
+        return measurements

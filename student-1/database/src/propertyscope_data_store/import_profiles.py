@@ -31,6 +31,7 @@ _PSI_PHASE_SQL = PSI_PHASE_SQL
 
 CANONICAL_SCHEMA_VERSION = "propertyscope.canonical-import.v1"
 POSTGRES_INTEGER_MAX = 2_147_483_647
+POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807
 IMPORT_PHASE_LABELS: Mapping[str, str] = {
     "artifact_verification": "Verifying canonical artifact",
     "typed_staging": "Validating and copying typed canonical rows",
@@ -151,17 +152,24 @@ def execute_stream_import(
             with cursor.copy(_GNAF_STREAM_COPY_SQL) as copy:
                 for row in rows:
                     staged += 1
+                    _require_copy_ordinal(staged)
                     copy.write_row(tuple(row[field] for field in _GNAF_STREAM_COLUMNS))
         elif profile == "psi-sales":
             cursor.execute(PSI_STAGE_SQL)
             with cursor.copy(PSI_COPY_SQL) as copy:
                 for staged, row in enumerate(rows, start=1):
+                    _require_copy_ordinal(staged)
                     copy.write_row((staged, *(row[field] for field in PSI_STREAM_COLUMNS[1:])))
+            if staged > POSTGRES_INTEGER_MAX:
+                raise ImportProfileError(
+                    "PSI record count exceeds PostgreSQL INTEGER revision range"
+                )
             cursor.execute("ANALYZE propertyscope_psi_import_stage")
         elif profile == "bocsar-sparse":
             cursor.execute(BOCSAR_STAGE_SQL)
             with cursor.copy(BOCSAR_COPY_SQL) as copy:
                 for staged, row in enumerate(rows, start=1):
+                    _require_copy_ordinal(staged)
                     values = {
                         **row,
                         "ordinal": staged,
@@ -178,6 +186,7 @@ def execute_stream_import(
                 "COPY propertyscope_import_stage (ordinal, payload) FROM STDIN"
             ) as copy:
                 for staged, row in enumerate(rows, start=1):
+                    _require_copy_ordinal(staged)
                     copy.write_row((staged, Jsonb(row)))
         if staged == 0:
             raise ImportProfileError("canonical import artifact must not be empty")
@@ -495,9 +504,13 @@ def _fixture(row: object, index: int) -> dict[str, Any]:
         "address_display": _text(source, "address_display", index),
         "flat_type": _optional_text(source, "flat_type", index),
         "unit_number": _optional_upper_text(source, "unit_number", index),
-        "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
+        "street_number_first": _optional_integer(
+            source, "street_number_first", index, minimum=0, maximum=POSTGRES_INTEGER_MAX
+        ),
         "street_number_suffix": _optional_upper_text(source, "street_number_suffix", index),
-        "street_number_last": _optional_integer(source, "street_number_last", index, minimum=0),
+        "street_number_last": _optional_integer(
+            source, "street_number_last", index, minimum=0, maximum=POSTGRES_INTEGER_MAX
+        ),
         "street_name": _optional_upper_text(source, "street_name", index),
         "street_type": _optional_upper_text(source, "street_type", index),
         "locality": _text(source, "locality", index).upper(),
@@ -538,9 +551,13 @@ def _gnaf(row: object, index: int) -> dict[str, Any]:
         "address_display": _text(source, "address_display", index),
         "flat_type": _optional_text(source, "flat_type", index),
         "unit_number": _optional_upper_text(source, "unit_number", index),
-        "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
+        "street_number_first": _optional_integer(
+            source, "street_number_first", index, minimum=0, maximum=POSTGRES_INTEGER_MAX
+        ),
         "street_number_suffix": _optional_upper_text(source, "street_number_suffix", index),
-        "street_number_last": _optional_integer(source, "street_number_last", index, minimum=0),
+        "street_number_last": _optional_integer(
+            source, "street_number_last", index, minimum=0, maximum=POSTGRES_INTEGER_MAX
+        ),
         "street_name": _optional_upper_text(source, "street_name", index),
         "street_type": _optional_upper_text(source, "street_type", index),
         "locality": _text(source, "locality", index).upper(),
@@ -561,7 +578,13 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         raise ImportProfileError(f"record {index} match_confidence is outside 0..1")
     contract_date = _optional_date(source, "contract_date", index)
     settlement_date = _optional_date(source, "settlement_date", index)
-    source_partition_year = _optional_integer(source, "source_partition_year", index, minimum=1990)
+    source_partition_year = _optional_integer(
+        source,
+        "source_partition_year",
+        index,
+        minimum=1990,
+        maximum=POSTGRES_INTEGER_MAX,
+    )
     if source_partition_year is None:
         scoped_date = contract_date or settlement_date
         if scoped_date is None:
@@ -589,7 +612,9 @@ def _psi(row: object, index: int) -> dict[str, Any]:
             ) from exc
     result = {
         "source_business_key": _text(source, "source_business_key", index),
-        "source_revision": _integer(source, "source_revision", index, minimum=1),
+        "source_revision": _integer(
+            source, "source_revision", index, minimum=1, maximum=POSTGRES_INTEGER_MAX
+        ),
         "source_era": _text(source, "source_era", index),
         "source_partition_year": source_partition_year,
         "district_code": _optional_text(source, "district_code", index),
@@ -634,7 +659,9 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         "interest_of_sale": _optional_text(source, "interest_of_sale", index),
         "contract_date": contract_date,
         "settlement_date": settlement_date,
-        "price_aud": _optional_integer(source, "price_aud", index, minimum=0),
+        "price_aud": _optional_integer(
+            source, "price_aud", index, minimum=0, maximum=POSTGRES_BIGINT_MAX
+        ),
         "area_original": _optional_decimal(source, "area_original", index),
         "area_unit": _optional_text(source, "area_unit", index),
         "area_square_metres": _optional_decimal(source, "area_square_metres", index),
@@ -670,7 +697,7 @@ def _bocsar(row: object, index: int) -> dict[str, Any]:
                 "offence_label": _text(source, "offence_label", index),
                 "subcategory_label": _text(source, "subcategory_label", index),
                 "month": _date(source, "month", index),
-                "count": _integer(source, "count", index, minimum=1),
+                "count": _integer(source, "count", index, minimum=1, maximum=POSTGRES_INTEGER_MAX),
             }
         )
         common["month_or_coverage"] = common["month"]
@@ -679,6 +706,8 @@ def _bocsar(row: object, index: int) -> dict[str, Any]:
         if not isinstance(months, list) or not months:
             raise ImportProfileError(f"record {index} observed_months must be non-empty")
         parsed = tuple(_iso_date(value, "observed_months", index) for value in months)
+        if len(parsed) > POSTGRES_INTEGER_MAX:
+            raise ImportProfileError(f"record {index} observed_months exceeds its maximum")
         if parsed != tuple(sorted(set(parsed))):
             raise ImportProfileError(f"record {index} observed_months must be sorted and unique")
         common.update(
@@ -701,6 +730,11 @@ def _object(row: object, index: int) -> dict[str, Any]:
     if not isinstance(row, dict):
         raise ImportProfileError(f"record {index} must be an object")
     return row
+
+
+def _require_copy_ordinal(ordinal: int) -> None:
+    if ordinal > POSTGRES_BIGINT_MAX:
+        raise ImportProfileError("canonical record ordinal exceeds PostgreSQL BIGINT range")
 
 
 def _text(row: Mapping[str, Any], field: str, index: int) -> str:

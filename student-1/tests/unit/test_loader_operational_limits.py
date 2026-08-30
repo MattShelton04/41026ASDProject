@@ -83,6 +83,7 @@ class _PreflightStore:
         self.work = work
         self.destination_started = False
         self.finished: dict[str, Any] | None = None
+        self.recovery_requested: uuid.UUID | None = None
         self.accepted_predecessor = "50000000-0000-0000-0000-000000000001"
 
     def claim_release_activation(self, **_: Any) -> None:
@@ -113,6 +114,9 @@ class _PreflightStore:
     def finish_import(self, *_: Any, **values: Any) -> None:
         self.finished = values
 
+    def recover_import_space(self, operation_id: uuid.UUID) -> None:
+        self.recovery_requested = operation_id
+
 
 def test_insufficient_disk_fails_safely_before_destination_and_preserves_predecessor(
     tmp_path: Path,
@@ -140,12 +144,14 @@ def test_insufficient_disk_fails_safely_before_destination_and_preserves_predece
         worker_id="loader-limits",
         disk_reserve_bytes=100,
         artifact_expansion_factor=2,
+        temp_file_limit_kib=64 * 1024,
         disk_free_bytes=lambda _: 99,
     )
 
     assert loader.run_once() is True
 
     assert store.destination_started is False
+    assert store.recovery_requested == store.operation_id
     assert store.accepted_predecessor == predecessor
     assert artifact.read_bytes() == payload
     assert store.finished is not None
@@ -163,8 +169,10 @@ def test_insufficient_disk_fails_safely_before_destination_and_preserves_predece
     assert error["details"] == {
         "artifact_bytes": len(payload),
         "available_free_bytes": 99,
-        "required_free_bytes": len(payload) * 2 + 100,
+        "required_free_bytes": len(payload) * 2 + 100 + 64 * 1024 * 1024,
         "artifact_expansion_factor": 2,
+        "database_growth_allowance_bytes": len(payload) * 2,
+        "temporary_file_allowance_bytes": 64 * 1024 * 1024,
         "reserve_bytes": 100,
     }
     assert str(tmp_path) not in str(error)
