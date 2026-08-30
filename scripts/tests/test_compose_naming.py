@@ -50,3 +50,13 @@ def test_source_scale_resource_defaults_fit_two_cpu_hosts() -> None:
     assert services["f1-db-api"]["cpus"] == "${PROPERTYSCOPE_DATABASE_CPU_LIMIT:-2.0}"
     assert services["f1-db-loader"]["cpus"] == "${PROPERTYSCOPE_LOADER_CPU_LIMIT:-2.0}"
     assert services["f1-runner"]["cpus"] == "${PROPERTYSCOPE_RUNNER_CPU_LIMIT:-2.0}"
+
+
+def test_fixture_stack_uses_an_explicit_small_import_budget() -> None:
+    workflow = yaml.safe_load(
+        (REPOSITORY_ROOT / ".github/workflows/student-1.yml").read_text(encoding="utf-8")
+    )
+    environment = workflow["jobs"]["containers"]["env"]
+
+    assert environment["PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB"] == "65536"
+    assert environment["PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES"] == "1073741824"

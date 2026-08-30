@@ -88,6 +88,10 @@ jobs:
     env:
       OPENAI_API_KEY_FILE: /dev/null
       AI_MODE_REQUIRE_PROVIDER_READY: "false"
+      # The fixture import has ten rows; keep its explicit CI budget bounded without
+      # weakening the source-scale Compose defaults used by real PSI/BOCSAR runs.
+      PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB: "65536"
+      PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES: "1073741824"
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
