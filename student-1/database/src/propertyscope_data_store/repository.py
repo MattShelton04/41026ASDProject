@@ -1050,9 +1050,7 @@ class PropertyScopeStore:
     def preview_release_records(
         self, release_id: uuid.UUID, *, limit: int, offset: int
     ) -> JsonObject:
-        return self._releases().preview_release_records(
-            release_id, limit=limit, offset=offset
-        )
+        return self._releases().preview_release_records(release_id, limit=limit, offset=offset)
 
     def release_build_context(self, run_id: uuid.UUID) -> JsonObject:
         return self._releases().release_build_context(run_id)
@@ -1060,9 +1058,7 @@ class PropertyScopeStore:
     def release_product_records(
         self, release_id: uuid.UUID, *, limit: int, cursor: str | None
     ) -> JsonObject:
-        return self._releases().release_product_records(
-            release_id, limit=limit, cursor=cursor
-        )
+        return self._releases().release_product_records(release_id, limit=limit, cursor=cursor)
 
     def release_sales_source_records(
         self, release_id: uuid.UUID, *, year: int, limit: int, offset: int
@@ -1818,9 +1814,7 @@ class PropertyScopeStore:
     def search_properties(
         self, query: str, *, state: str, limit: int, offset: int = 0
     ) -> PropertySearchResults:
-        return self._properties().search_properties(
-            query, state=state, limit=limit, offset=offset
-        )
+        return self._properties().search_properties(query, state=state, limit=limit, offset=offset)
 
     def property_snapshot(self, property_ref: uuid.UUID) -> JsonObject:
         return self._properties().property_snapshot(property_ref)
