@@ -129,7 +129,15 @@ def test_quality_and_catalog_paths_must_stay_in_owning_slice(tmp_path: Path) -> 
         encoding="utf-8",
     )
     with pytest.raises(OnboardingConfigurationError, match="must be owned by student-1"):
-        discover_tool_catalogs(root)
+        load_enabled_projection(root)
+
+
+def test_enabled_ai_catalogue_must_exist_during_projection_load(tmp_path: Path) -> None:
+    root = _repository(tmp_path)
+    (root / "student-1" / "tool-catalog.yaml").unlink()
+
+    with pytest.raises(OnboardingConfigurationError, match="AI tool catalogue does not exist"):
+        load_enabled_projection(root)
 
 
 def test_enabled_quality_path_must_exist(tmp_path: Path) -> None:

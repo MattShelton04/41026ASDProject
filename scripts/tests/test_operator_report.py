@@ -9,6 +9,7 @@ import pytest
 from scripts.devtools.operator_report import (
     MAX_PROJECTED_ITEMS,
     OperatorReportError,
+    _prerequisite,
     collect_operator_report,
     render_operator_report,
 )
@@ -72,8 +73,38 @@ def test_report_projects_products_release_work_and_degraded_dependencies() -> No
     assert report["activations"] == [{"id": "activation-1", "status": "queued"}]
     assert report["health"][1]["status"] == "degraded"
     output = render_operator_report(report)
-    assert "explicit approval and consumer acceptance are required" in output
+    assert "consumer accepted; activation is queued" in output
+    assert "explicit approval and consumer acceptance are required" not in output
     assert "No review, publication, import, or activation action was performed." in output
+
+
+@pytest.mark.parametrize(
+    ("operation_status", "expected"),
+    [
+        ("queued", "explicit approval recorded; consumer import is queued"),
+        ("claimed", "explicit approval recorded; consumer import is claimed"),
+        ("polling", "explicit approval recorded; consumer import is polling"),
+        ("receipt_pending", "consumer finished; receipt validation and persistence are pending"),
+        (
+            "activation_pending",
+            "consumer accepted; activation queueing or reconciliation is pending",
+        ),
+        ("activation_queued", "consumer accepted; activation is queued"),
+        ("published", "activation succeeded; release-status reconciliation is pending"),
+        ("rejected", "consumer import is rejected; inspect it before a reviewed retry"),
+        ("failed", "consumer import is failed; inspect it before a reviewed retry"),
+    ],
+)
+def test_awaiting_review_prerequisite_uses_durable_publication_state(
+    operation_status: str, expected: str
+) -> None:
+    assert (
+        _prerequisite(
+            "awaiting_review",
+            consumer_imports=[{"status": operation_status}],
+        )
+        == expected
+    )
 
 
 def test_operator_cli_is_explicit_and_read_only(
@@ -152,3 +183,43 @@ def test_nested_operation_projection_stops_at_global_bound() -> None:
 
     assert len(report["consumer_import_operations"]) == MAX_PROJECTED_ITEMS
     assert len(report["activations"]) == MAX_PROJECTED_ITEMS
+    assert {item["collection"] for item in report["bounded_evidence"]} == {
+        "consumer-import operations",
+        "activations",
+    }
+    output = render_operator_report(report)
+    assert "Bounded evidence warning: consumer-import operations may be partial" in output
+    assert "Bounded evidence warning: activations may be partial" in output
+
+
+def test_release_page_at_the_bound_is_explicitly_possibly_partial() -> None:
+    releases = [
+        {"id": f"release-{index}", "status": "candidate"} for index in range(MAX_PROJECTED_ITEMS)
+    ]
+
+    def service(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/data-products"):
+            return httpx.Response(200, json={"items": []})
+        if request.url.path.endswith("/dataset-releases"):
+            return httpx.Response(200, json={"items": releases})
+        if "/dataset-releases/" in request.url.path:
+            return httpx.Response(200, json={"consumer_imports": [], "activations": []})
+        return httpx.Response(200, json={"service": "test", "status": "healthy"})
+
+    with httpx.Client(transport=httpx.MockTransport(service)) as client:
+        report = collect_operator_report(
+            client,
+            data_base_url="https://data.test/api/data-platform/v1",
+            feature_health_url="https://feature.test/health/ready",
+            ai_health_url="https://ai.test/health/ready",
+        )
+
+    assert report["bounded_evidence"] == [
+        {
+            "collection": "release catalogue",
+            "returned": MAX_PROJECTED_ITEMS,
+            "limit": MAX_PROJECTED_ITEMS,
+            "possibly_truncated": True,
+        }
+    ]
+    assert "release catalogue may be partial" in render_operator_report(report)

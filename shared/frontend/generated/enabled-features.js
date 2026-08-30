@@ -3,6 +3,7 @@ const VALUES = [
   {
     "backendBase": "/api/data-platform/v1",
     "displayName": "PropertyScope Data Platform and Property Discovery",
+    "evidenceAdapterPath": "/features/data-platform/integration/shell.js",
     "featureKey": "student-1-propertyscope-data-platform",
     "frontendBase": "/features/data-platform/",
     "healthPath": "/health/ready",

@@ -81,11 +81,47 @@ def _health(client: httpx.Client, url: str, *, label: str) -> dict[str, Any]:
     }
 
 
-def _prerequisite(status: str) -> str:
+def _operation_statuses(items: object) -> tuple[str, ...]:
+    if not isinstance(items, list):
+        return ()
+    return tuple(str(item.get("status", "unknown")) for item in items if isinstance(item, dict))
+
+
+def _prerequisite(
+    status: str,
+    *,
+    consumer_imports: object = (),
+    activations: object = (),
+) -> str:
+    if status == "awaiting_review":
+        activation_states = _operation_statuses(activations)
+        if "succeeded" in activation_states:
+            return "activation succeeded; release-status reconciliation is pending"
+        for state in ("running", "claimed", "queued", "interrupted"):
+            if state in activation_states:
+                return f"consumer accepted; activation is {state}"
+        if "failed" in activation_states:
+            return "activation failed; inspect the durable operation before a reviewed retry"
+
+        import_states = _operation_statuses(consumer_imports)
+        if "published" in import_states:
+            return "activation succeeded; release-status reconciliation is pending"
+        if "activation_queued" in import_states:
+            return "consumer accepted; activation is queued"
+        if "activation_pending" in import_states:
+            return "consumer accepted; activation queueing or reconciliation is pending"
+        if "receipt_pending" in import_states:
+            return "consumer finished; receipt validation and persistence are pending"
+        for state in ("running", "polling", "claimed", "queued", "interrupted"):
+            if state in import_states:
+                return f"explicit approval recorded; consumer import is {state}"
+        for state in ("rejected", "failed"):
+            if state in import_states:
+                return f"consumer import is {state}; inspect it before a reviewed retry"
+        return "explicit approval and consumer acceptance are required"
     return {
         "draft": "candidate construction must complete",
         "candidate": "submit for explicit human review",
-        "awaiting_review": "explicit approval and consumer acceptance are required",
         "accepted": "complete",
         "superseded": "complete; a newer accepted release is live",
         "rejected": "terminal; create a corrected candidate",
@@ -133,17 +169,38 @@ def collect_operator_report(
     operations: list[dict[str, Any]] = []
     activations: list[dict[str, Any]] = []
     prerequisites: list[dict[str, str]] = []
+    bounded_evidence: list[dict[str, Any]] = []
+    if len(products) == MAX_PROJECTED_ITEMS:
+        bounded_evidence.append(
+            {
+                "collection": "registered products",
+                "returned": len(products),
+                "limit": MAX_PROJECTED_ITEMS,
+                "possibly_truncated": True,
+            }
+        )
+    if len(releases) == MAX_PROJECTED_ITEMS:
+        bounded_evidence.append(
+            {
+                "collection": "release catalogue",
+                "returned": len(releases),
+                "limit": MAX_PROJECTED_ITEMS,
+                "possibly_truncated": True,
+            }
+        )
+    operations_truncated = False
+    activations_truncated = False
     for release in releases:
         release_id = release.get("id")
         status = str(release.get("status", "unknown"))
-        prerequisites.append(
-            {
-                "release_id": str(release_id or "unknown"),
-                "status": status,
-                "next_required": _prerequisite(status),
-            }
-        )
         if not isinstance(release_id, str) or not release_id:
+            prerequisites.append(
+                {
+                    "release_id": "unknown",
+                    "status": status,
+                    "next_required": _prerequisite(status),
+                }
+            )
             continue
         detail = _object(
             _bounded_get(
@@ -154,12 +211,43 @@ def collect_operator_report(
             ),
             label=f"release {release_id}",
         )
-        for operation in detail.get("consumer_imports", []):
+        consumer_imports = detail.get("consumer_imports", [])
+        release_activations = detail.get("activations", [])
+        prerequisites.append(
+            {
+                "release_id": release_id,
+                "status": status,
+                "next_required": _prerequisite(
+                    status,
+                    consumer_imports=consumer_imports,
+                    activations=release_activations,
+                ),
+            }
+        )
+        for operation in consumer_imports if isinstance(consumer_imports, list) else ():
             if isinstance(operation, dict) and len(operations) < MAX_PROJECTED_ITEMS:
                 operations.append(dict(operation))
-        for activation in detail.get("activations", []):
+            elif isinstance(operation, dict):
+                operations_truncated = True
+        for activation in release_activations if isinstance(release_activations, list) else ():
             if isinstance(activation, dict) and len(activations) < MAX_PROJECTED_ITEMS:
                 activations.append(dict(activation))
+            elif isinstance(activation, dict):
+                activations_truncated = True
+
+    for collection, values, truncated in (
+        ("consumer-import operations", operations, operations_truncated),
+        ("activations", activations, activations_truncated),
+    ):
+        if truncated:
+            bounded_evidence.append(
+                {
+                    "collection": collection,
+                    "returned": len(values),
+                    "limit": MAX_PROJECTED_ITEMS,
+                    "possibly_truncated": True,
+                }
+            )
 
     accepted = [
         {
@@ -175,6 +263,7 @@ def collect_operator_report(
         "review_publication_prerequisites": prerequisites,
         "consumer_import_operations": operations,
         "activations": activations,
+        "bounded_evidence": bounded_evidence,
         "health": [
             _health(client, feature_health_url, label="feature-1"),
             _health(client, ai_health_url, label="ai-mode"),
@@ -190,6 +279,15 @@ def _identifier(value: object) -> str:
 def render_operator_report(report: Mapping[str, Any]) -> str:
     """Render concise evidence and make the read-only boundary explicit."""
     lines = ["PropertyScope operator report (read-only)"]
+    bounded = report.get("bounded_evidence", [])
+    for item in bounded if isinstance(bounded, Sequence) else ():
+        if isinstance(item, Mapping) and item.get("possibly_truncated") is True:
+            lines.append(
+                "Bounded evidence warning: "
+                f"{_identifier(item.get('collection'))} may be partial; "
+                f"showing {_identifier(item.get('returned'))} of an unknown total "
+                f"at the {_identifier(item.get('limit'))}-item limit."
+            )
     products = report.get("registered_products", [])
     lines.append(f"Registered products: {len(products) if isinstance(products, Sequence) else 0}")
     for item in products if isinstance(products, Sequence) else ():

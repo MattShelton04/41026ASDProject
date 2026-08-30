@@ -1,5 +1,6 @@
 import { append, el, link, notice, parseShellRoute, requestJson, requestText } from "./core.js";
-import { createEvidenceRoute } from "./routes/evidence.js";
+import { ENABLED_FEATURES } from "./generated/enabled-features.js";
+import { createEvidenceRoute, loadEvidenceAdapter } from "./routes/evidence.js";
 import { createAssistantRoute } from "./routes/assistant.js";
 import { createFeaturesRoute } from "./routes/features.js";
 import { createRoadmapRoute } from "./routes/roadmap.js";
@@ -12,6 +13,7 @@ const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) })
 const config = { ...externalConfig };
 const feature1Enabled = Boolean(findFeature("student-1-propertyscope-data-platform")?.enabled);
 let feature1Adapter = null;
+const evidenceAdapters = new Map();
 const main = document.querySelector("#main-content");
 const homeMarkup = main.innerHTML;
 const homeRail = main.querySelector(".product-rail")?.cloneNode(true);
@@ -146,7 +148,7 @@ const routes = {
     requestText: routeRequestText,
   }),
   evidence: createEvidenceRoute({
-    getEvidenceAdapter: () => feature1Adapter?.evidence ?? null,
+    getEvidenceAdapters: () => [...evidenceAdapters.values()],
     announce,
     requestJson: routeRequestJson,
   }),
@@ -229,9 +231,20 @@ function installFeature1Adapter(adapter) {
   feature1Adapter = adapter;
   Object.assign(config, adapter.links, { featureHrefs: { "property-records": adapter.links.propertyDiscovery } });
   applyConfigLinks();
-  if (["features", "system-status", "evidence"].includes(parseShellRoute(location.hash))) {
+  if (["features", "system-status"].includes(parseShellRoute(location.hash))) {
     renderRoute();
   }
+}
+
+function installEvidenceAdapter(featureKey, adapter) {
+  if (!adapter) return;
+  evidenceAdapters.set(featureKey, adapter);
+  if (parseShellRoute(location.hash) === "evidence") renderRoute();
+}
+
+function reportEvidenceAdapterError(featureKey, error) {
+  console.error(`Shell evidence adapter could not be loaded for ${featureKey}.`, error);
+  announce("Some research-area evidence is unavailable. Other deterministic workflows remain available.");
 }
 
 function reportFeature1BridgeError(error) {
@@ -247,4 +260,14 @@ if (feature1Enabled) {
   })
     .then(installFeature1Adapter)
     .catch(reportFeature1BridgeError);
+}
+
+for (const feature of ENABLED_FEATURES.filter((item) => item.evidenceAdapterPath)) {
+  loadEvidenceAdapter(feature, {
+    overrides: externalConfig,
+    onLateAdapter: (adapter) => installEvidenceAdapter(feature.featureKey, adapter),
+    onError: (error) => reportEvidenceAdapterError(feature.featureKey, error),
+  })
+    .then((adapter) => installEvidenceAdapter(feature.featureKey, adapter))
+    .catch((error) => reportEvidenceAdapterError(feature.featureKey, error));
 }

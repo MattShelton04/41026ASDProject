@@ -10,7 +10,7 @@ import { loadFeature1Bridge, validateFeature1Adapter } from "./feature-1-bridge.
 import { resolveResearchAreaContext } from "./operations/ai-mode/contexts.js";
 import { classifyHealth, overallReadiness } from "./routes/status.js";
 import { SHARED_ASSISTANT_SCOPES, sharedAssistantSuggestions } from "./routes/assistant.js";
-import { validateEvidenceAdapter } from "./routes/evidence.js";
+import { loadEvidenceAdapter, validateEvidenceAdapter } from "./routes/evidence.js";
 
 function attributes(source) {
   return Object.fromEntries(
@@ -204,7 +204,7 @@ test("the Feature 1 bridge validates its complete nested contract", async () => 
   assert.match((await lateError).message, /createFeature1ShellAdapter/);
 });
 
-test("the optional shell evidence adapter is domain-neutral and closed", () => {
+test("the optional shell evidence adapter is domain-neutral, closed, and manifest-loaded", async () => {
   const adapter = {
     action: { label: "Open source workspace", href: "/source" },
     copy: Object.fromEntries(["headerDescription", "releasePanelDescription", "agentPanelDescription", "releaseEmpty", "releaseError", "agentEmpty", "agentError", "transitionLabel"].map((key) => [key, key])),
@@ -216,8 +216,35 @@ test("the optional shell evidence adapter is domain-neutral and closed", () => {
   assert.throws(() => validateEvidenceAdapter({ ...adapter, published: { ...adapter.published, path: "" } }), /published\.path/);
   assert.throws(() => validateEvidenceAdapter({ ...adapter, published: { ...adapter.published, path: "https://other.example/releases" } }), /same-origin path/);
   assert.throws(() => validateEvidenceAdapter({ ...adapter, inventedFeatureEvidence: {} }), /unsupported inventedFeatureEvidence/);
+  let importedPath = null;
+  assert.equal(await loadEvidenceAdapter(
+    {
+      featureKey: "student-2-example",
+      evidenceAdapterPath: "/features/example/integration/evidence.js",
+    },
+    {
+      importer: async (path) => {
+        importedPath = path;
+        return { createShellEvidenceAdapter: () => adapter };
+      },
+    },
+  ), adapter);
+  assert.equal(importedPath, "/features/example/integration/evidence.js");
+  await assert.rejects(
+    loadEvidenceAdapter(
+      { featureKey: "student-2-example", evidenceAdapterPath: "/features/example/evidence.js" },
+      { importer: async () => ({}) },
+    ),
+    /createShellEvidenceAdapter/,
+  );
+  await assert.rejects(
+    loadEvidenceAdapter({ featureKey: "student-2-example", evidenceAdapterPath: "https://other.example/evidence.js" }),
+    /same-origin path/,
+  );
   const source = readFileSync(new URL("./routes/evidence.js", import.meta.url), "utf8");
   assert.doesNotMatch(source, /getFeature1Adapter|Property data|sale|crime|school|planning|buyer/i);
+  const featureAdapter = readFileSync(new URL("../../student-1/frontend/integration/shell.js", import.meta.url), "utf8");
+  assert.match(featureAdapter, /export function createShellEvidenceAdapter/);
 });
 
 test("the shell renders before its optional Feature 1 projection loads", () => {
@@ -225,7 +252,9 @@ test("the shell renders before its optional Feature 1 projection loads", () => {
   assert.ok(app.indexOf("renderRoute();") < app.indexOf("loadFeature1Bridge({"));
   assert.doesNotMatch(app, /await\s+loadFeature1Bridge/);
   assert.match(app, /if \(feature1Enabled\) \{\s*loadFeature1Bridge\(/);
-  assert.match(app, /\["features", "system-status", "evidence"\]\.includes\(parseShellRoute\(location\.hash\)\)/);
+  assert.match(app, /ENABLED_FEATURES\.filter\(\(item\) => item\.evidenceAdapterPath\)/);
+  assert.match(app, /loadEvidenceAdapter\(feature/);
+  assert.match(app, /\["features", "system-status"\]\.includes\(parseShellRoute\(location\.hash\)\)/);
   assert.doesNotMatch(app, /parseShellRoute\(location\.hash\) !== "home"/);
 });
 

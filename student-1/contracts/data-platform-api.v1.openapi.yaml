@@ -6,6 +6,25 @@ info:
 servers:
   - url: /api/data-platform/v1
 paths:
+  /health/live:
+    servers: [{url: /}]
+    get:
+      operationId: getFeatureHealthLive
+      responses:
+        '200':
+          description: Feature process is live
+          content: {application/json: {schema: {$ref: '#/components/schemas/TypedHealthProjection'}}}
+  /health/ready:
+    servers: [{url: /}]
+    get:
+      operationId: getFeatureHealthReady
+      responses:
+        '200':
+          description: Required Feature 1 dependencies are ready
+          content: {application/json: {schema: {$ref: '#/components/schemas/TypedHealthProjection'}}}
+        '503':
+          description: A required Feature 1 dependency is unavailable
+          content: {application/json: {schema: {$ref: '#/components/schemas/TypedHealthProjection'}}}
   /overview:
     get: {operationId: getOverview, responses: {'200': {description: Platform overview}}}
   /artifact-retention:
@@ -391,6 +410,28 @@ components:
     AgentRunId: {name: agent_run_id, in: path, required: true, schema: {type: string, format: uuid}}
     PropertyRef: {name: property_ref, in: path, required: true, schema: {type: string, format: uuid}}
   schemas:
+    ReadinessCheckProjection:
+      type: object
+      additionalProperties: false
+      required: [required, status]
+      properties:
+        required: {type: boolean}
+        status: {enum: [healthy, degraded, unhealthy]}
+        detail: {type: [string, 'null'], maxLength: 500}
+    TypedHealthProjection:
+      type: object
+      additionalProperties: false
+      required: [schema_version, service, version, status, http_status, media_type, checks]
+      properties:
+        schema_version: {const: 1}
+        service: {type: string, minLength: 1, maxLength: 100}
+        version: {type: string, minLength: 1, maxLength: 50}
+        status: {enum: [healthy, degraded, unhealthy]}
+        http_status: {enum: [200, 503]}
+        media_type: {const: application/json}
+        checks:
+          type: object
+          additionalProperties: {$ref: '#/components/schemas/ReadinessCheckProjection'}
     AssistantHistoryMessage:
       type: object
       additionalProperties: false

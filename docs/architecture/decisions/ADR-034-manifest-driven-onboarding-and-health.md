@@ -27,7 +27,10 @@ pointing at a stale container address.
 - A domain-neutral onboarding section declares frontend assets and service, backend service, AI tool
   catalogue source and fixed runtime path, owned quality inputs and coverage policy, database service
   and volume ownership, and an optional shell evidence-adapter path. Shared validates and projects
-  these mechanics but does not interpret feature records or business rules.
+  these mechanics but does not interpret feature records or business rules. The browser projection
+  resolves an adapter only inside its owning frontend asset root; the module exports the uniform
+  `createShellEvidenceAdapter()` hook and returns the closed Shared evidence shape. Shared can load all
+  enabled adapters without naming a feature or interpreting its records.
 - Generated JSON and browser projections are checked in and drift-checked. The canonical gate
   discovers enabled feature-owned Python/Node checks and coverage declarations from the projection.
   Architecture validation checks enabled routes, catalogue mounts, assets, database/volume ownership,
@@ -43,7 +46,9 @@ pointing at a stale container address.
   recovers.
 - `scripts/dev.py operator report` is read-only. It reports registered products, accepted releases,
   review/publication prerequisites, durable consumer imports, activation state, and degraded optional
-  dependencies. It performs no review, publication, import, or activation transition.
+  dependencies. Durable import/activation evidence supersedes a generic "approval required" message,
+  and bounded collections are labelled possibly partial at their ceiling. It performs no review,
+  publication, import, or activation transition.
 
 ## Consequences
 

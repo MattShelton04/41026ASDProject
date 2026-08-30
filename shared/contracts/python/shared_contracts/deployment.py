@@ -17,6 +17,17 @@ if TYPE_CHECKING:
     from shared_contracts.feature import FeatureManifest
 
 
+_ROUTE_SEGMENT = r"[a-z0-9][a-z0-9._~-]{0,99}"
+_SAFE_ABSOLUTE_PATH = re.compile(rf"^/{_ROUTE_SEGMENT}(?:/{_ROUTE_SEGMENT})*/?$")
+_FEATURE_NAMESPACE = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_FRONTEND_ROUTE = re.compile(rf"^/features/(?P<namespace>{_FEATURE_NAMESPACE})/?$")
+_BACKEND_ROUTE = re.compile(rf"^/api/(?P<namespace>{_FEATURE_NAMESPACE})/v[1-9][0-9]*$")
+_AI_CATALOG_RUNTIME_PATH = re.compile(
+    r"^/etc/ai-mode/[a-z0-9](?:[a-z0-9._-]{0,98}[a-z0-9])?\.yaml$"
+)
+_RESERVED_BACKEND_NAMESPACES = frozenset({"ai-mode", "shared-health", "v1"})
+
+
 class FrontendOnboarding(ContractModel):
     """Feature-owned frontend assets and their edge service projection."""
 
@@ -62,12 +73,18 @@ class AiOnboarding(ContractModel):
     @classmethod
     def validate_catalog_path(cls, value: str) -> str:
         _validate_repository_path(value)
+        if not value.endswith(".yaml"):
+            raise ValueError("tool_catalog must be a YAML catalogue")
         return value
 
     @field_validator("runtime_path")
     @classmethod
     def validate_runtime_path(cls, value: str) -> str:
         _validate_absolute_path("runtime_path", value)
+        if _AI_CATALOG_RUNTIME_PATH.fullmatch(value) is None:
+            raise ValueError(
+                "runtime_path must be one flat YAML catalogue under /etc/ai-mode"
+            )
         return value
 
 
@@ -182,6 +199,21 @@ class DeploymentRoute(ContractModel):
         _validate_absolute_path("path", value)
         return value
 
+    @model_validator(mode="after")
+    def validate_owned_namespace(self) -> DeploymentRoute:
+        pattern = _FRONTEND_ROUTE if self.kind == "frontend" else _BACKEND_ROUTE
+        match = pattern.fullmatch(self.path)
+        if match is None:
+            expected = (
+                "/features/{namespace}/"
+                if self.kind == "frontend"
+                else "/api/{namespace}/vN"
+            )
+            raise ValueError(f"{self.kind} route must use the owned {expected} namespace")
+        if self.kind == "backend" and match.group("namespace") in _RESERVED_BACKEND_NAMESPACES:
+            raise ValueError("backend route uses a Shared-reserved API namespace")
+        return self
+
 
 class EnabledFeatureProjection(ContractModel):
     """Deployment-safe projection for one explicitly enabled feature."""
@@ -256,6 +288,7 @@ def build_deployment_projection(
         manifest_by_key[manifest.feature_key] = manifest
 
     enabled: list[EnabledFeatureProjection] = []
+    route_claims: list[tuple[str, str]] = []
     for selected in selection.features:
         selected_manifest = manifest_by_key.get(selected.feature_key)
         if selected_manifest is None:
@@ -286,6 +319,30 @@ def build_deployment_projection(
                     service=onboarding.backend.service,
                 )
             )
+        namespaces = {
+            match.group("namespace")
+            for route in routes
+            if (match := (
+                _FRONTEND_ROUTE.fullmatch(route.path)
+                if route.kind == "frontend"
+                else _BACKEND_ROUTE.fullmatch(route.path)
+            ))
+            is not None
+        }
+        if len(namespaces) > 1:
+            raise ValueError(
+                f"enabled feature routes must share one owned namespace: {selected.feature_key}"
+            )
+        namespace = next(iter(namespaces), None)
+        if onboarding.backend is not None:
+            if namespace is None:
+                raise ValueError(
+                    f"enabled backend has no owned route namespace: {selected.feature_key}"
+                )
+            for path in onboarding.backend.additional_paths:
+                _validate_additional_route_namespace(path, namespace=namespace)
+                route_claims.append((selected.feature_key, path))
+        route_claims.extend((selected.feature_key, route.path) for route in routes)
         enabled.append(
             EnabledFeatureProjection(
                 feature_key=selected_manifest.feature_key,
@@ -299,6 +356,7 @@ def build_deployment_projection(
                 health_path=selected_manifest.health_path,
             )
         )
+    _reject_overlapping_route_claims(route_claims)
     return DeploymentProjectionV1(
         features=tuple(sorted(enabled, key=lambda item: item.feature_key))
     )
@@ -334,6 +392,7 @@ def _project_health_state(
 
 def _reject_projection_duplicates(features: Iterable[EnabledFeatureProjection]) -> None:
     seen: dict[tuple[str, str], str] = {}
+    namespace_owners: dict[str, str] = {}
     for feature in features:
         values: list[tuple[str, str]] = [("route", route.path) for route in feature.routes]
         if feature.ai is not None:
@@ -348,6 +407,55 @@ def _reject_projection_duplicates(features: Iterable[EnabledFeatureProjection]) 
                     f"duplicate {kind} {value!r} in {seen[key]} and {feature.feature_key}"
                 )
             seen[key] = feature.feature_key
+        for route in feature.routes:
+            match = (
+                _FRONTEND_ROUTE.fullmatch(route.path)
+                if route.kind == "frontend"
+                else _BACKEND_ROUTE.fullmatch(route.path)
+            )
+            if match is None:
+                continue
+            namespace = match.group("namespace")
+            owner = namespace_owners.setdefault(namespace, feature.feature_key)
+            if owner != feature.feature_key:
+                raise ValueError(
+                    f"route namespace {namespace!r} is owned by both "
+                    f"{owner} and {feature.feature_key}"
+                )
+
+    _reject_overlapping_route_claims(
+        (feature.feature_key, route.path)
+        for feature in features
+        for route in feature.routes
+    )
+
+
+def _validate_additional_route_namespace(value: str, *, namespace: str) -> None:
+    normalized = value.rstrip("/")
+    allowed_roots = (f"/api/{namespace}", f"/fragments/{namespace}")
+    if not any(normalized == root or normalized.startswith(f"{root}/") for root in allowed_roots):
+        raise ValueError(
+            "additional backend paths must stay within the feature API or fragment namespace"
+        )
+
+
+def _reject_overlapping_route_claims(claims: Iterable[tuple[str, str]]) -> None:
+    seen: list[tuple[str, str]] = []
+    for feature_key, path in claims:
+        normalized = path.rstrip("/")
+        for other_feature, other_path in seen:
+            if feature_key == other_feature:
+                continue
+            if (
+                normalized == other_path
+                or normalized.startswith(f"{other_path}/")
+                or other_path.startswith(f"{normalized}/")
+            ):
+                raise ValueError(
+                    f"duplicate route or overlapping route {path!r} in "
+                    f"{other_feature} and {feature_key}"
+                )
+        seen.append((feature_key, normalized))
 
 
 def _validate_repository_path(value: str) -> None:
@@ -367,3 +475,5 @@ def _validate_absolute_path(field_name: str, value: str) -> None:
         raise ValueError(f"{field_name} cannot contain a query, fragment, or backslash")
     if ".." in PurePosixPath(value).parts:
         raise ValueError(f"{field_name} cannot traverse parent paths")
+    if _SAFE_ABSOLUTE_PATH.fullmatch(value) is None:
+        raise ValueError(f"{field_name} must contain only safe unreserved URI path segments")

@@ -60,7 +60,7 @@ def _onboarding(owner: str = "student-1", *, volume: str | None = None) -> dict[
         },
         "ai": {
             "tool_catalog": f"{owner}/tool-catalog.yaml",
-            "runtime_path": f"/workspace/{owner}/tool-catalog.yaml",
+            "runtime_path": f"/etc/ai-mode/{owner}-tools.yaml",
         },
         "quality": {
             "python_test_paths": [f"{owner}/tests"],
@@ -83,7 +83,7 @@ def test_feature_manifest_onboarding_is_optional_and_closed() -> None:
     manifest = _manifest(onboarding=_onboarding())
     assert manifest.onboarding is not None
     assert manifest.onboarding.ai is not None
-    assert manifest.onboarding.ai.runtime_path == "/workspace/student-1/tool-catalog.yaml"
+    assert manifest.onboarding.ai.runtime_path == "/etc/ai-mode/student-1-tools.yaml"
 
     invalid = _onboarding()
     invalid["unexpected"] = True
@@ -109,6 +109,106 @@ def test_onboarding_paths_cannot_escape_declared_boundaries(
     target[field] = value
     with pytest.raises(ValidationError):
         _manifest(onboarding=onboarding)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("tool_catalog", "student-1/tool-catalog.json", "YAML catalogue"),
+        ("runtime_path", "/app/ai_mode/app.py", "under /etc/ai-mode"),
+        ("runtime_path", "/etc/ai-mode/nested/tools.yaml", "under /etc/ai-mode"),
+    ],
+)
+def test_ai_catalogue_mount_is_confined_to_the_dedicated_runtime_directory(
+    field: str, value: str, message: str
+) -> None:
+    onboarding = _onboarding()
+    ai = onboarding["ai"]
+    assert isinstance(ai, dict)
+    ai[field] = value
+
+    with pytest.raises(ValidationError, match=message):
+        _manifest(onboarding=onboarding)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("frontend_base_path", "/features/x { return 200; } location /escape"),
+        ("backend_base_path", "/api/x;return/v1"),
+    ],
+)
+def test_enabled_projection_rejects_nginx_configuration_injection(
+    field: str, value: str
+) -> None:
+    paths = {field: value}
+    manifest = _manifest(onboarding=_onboarding(), **paths)
+    selection = DeploymentSelectionV1(
+        features=({"feature_key": manifest.feature_key, "enabled": True},)
+    )
+
+    with pytest.raises(ValidationError, match="safe unreserved URI path segments"):
+        build_deployment_projection((manifest,), selection)
+
+
+def test_enabled_projection_rejects_shared_reserved_api_namespace() -> None:
+    manifest = _manifest(
+        onboarding=_onboarding(),
+        frontend_base_path="/features/ai-mode/",
+        backend_base_path="/api/ai-mode/v1",
+    )
+    selection = DeploymentSelectionV1(
+        features=({"feature_key": manifest.feature_key, "enabled": True},)
+    )
+
+    with pytest.raises(ValidationError, match="Shared-reserved"):
+        build_deployment_projection((manifest,), selection)
+
+
+def test_enabled_projection_rejects_additional_path_outside_owned_namespace() -> None:
+    onboarding = _onboarding()
+    backend = onboarding["backend"]
+    assert isinstance(backend, dict)
+    backend["additional_paths"] = ["/fragments/another-feature/"]
+    manifest = _manifest(onboarding=onboarding)
+    selection = DeploymentSelectionV1(
+        features=({"feature_key": manifest.feature_key, "enabled": True},)
+    )
+
+    with pytest.raises(ValueError, match="feature API or fragment namespace"):
+        build_deployment_projection((manifest,), selection)
+
+
+def test_enabled_projection_rejects_cross_feature_namespace_collision() -> None:
+    first_onboarding = _onboarding("student-1")
+    second_onboarding = _onboarding("student-2")
+    first_onboarding.pop("frontend")
+    second_onboarding.pop("frontend")
+    first_backend = first_onboarding["backend"]
+    second_backend = second_onboarding["backend"]
+    assert isinstance(first_backend, dict)
+    assert isinstance(second_backend, dict)
+    first_backend["additional_paths"] = ["/api/common/v1/meta"]
+    second_backend["additional_paths"] = ["/api/common/v2/meta"]
+    first = _manifest(
+        "student-1",
+        onboarding=first_onboarding,
+        backend_base_path="/api/common/v1",
+    )
+    second = _manifest(
+        "student-2",
+        onboarding=second_onboarding,
+        backend_base_path="/api/common/v2",
+    )
+    selection = DeploymentSelectionV1(
+        features=(
+            {"feature_key": first.feature_key, "enabled": True},
+            {"feature_key": second.feature_key, "enabled": True},
+        )
+    )
+
+    with pytest.raises(ValidationError, match="route namespace"):
+        build_deployment_projection((first, second), selection)
 
 
 def test_projection_includes_only_explicitly_enabled_features_in_stable_order() -> None:
@@ -203,10 +303,15 @@ def test_projection_rejects_duplicate_routes_ai_mounts_and_database_owners(
     first_onboarding = _onboarding("student-1")
     second_onboarding = _onboarding("student-2")
     second_frontend_path: str | None = None
+    second_backend_path: str | None = None
     if duplicate_kind == "route":
         second_frontend_path = "/features/student-1/"
+        second_backend_path = "/api/student-1/v1"
+        second_backend = second_onboarding["backend"]
+        assert isinstance(second_backend, dict)
+        second_backend["additional_paths"] = ["/fragments/student-1/"]
     elif duplicate_kind == "ai":
-        second_onboarding["ai"]["runtime_path"] = "/workspace/student-1/tool-catalog.yaml"
+        second_onboarding["ai"]["runtime_path"] = "/etc/ai-mode/student-1-tools.yaml"
     elif duplicate_kind == "database":
         second_onboarding["databases"][0]["database_service"] = "student-1-database"
     else:
@@ -216,6 +321,7 @@ def test_projection_rejects_duplicate_routes_ai_mounts_and_database_owners(
         "student-2",
         onboarding=second_onboarding,
         frontend_base_path=second_frontend_path,
+        backend_base_path=second_backend_path,
     )
     selection = DeploymentSelectionV1.model_validate(
         {
@@ -226,7 +332,7 @@ def test_projection_rejects_duplicate_routes_ai_mounts_and_database_owners(
         }
     )
 
-    with pytest.raises(ValidationError, match=message):
+    with pytest.raises(ValueError, match=message):
         build_deployment_projection((first, second), selection)
 
 

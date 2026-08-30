@@ -101,7 +101,7 @@ def _openapi() -> dict[str, Any]:
                             "description": "Process is live",
                             "content": {
                                 "application/json": {
-                                    "schema": {"$ref": "#/components/schemas/HealthResponse"}
+                                    "schema": {"$ref": "#/components/schemas/TypedHealthProjection"}
                                 }
                             },
                         }
@@ -116,7 +116,7 @@ def _openapi() -> dict[str, Any]:
                             "description": "Service is ready or AI provider is degraded",
                             "content": {
                                 "application/json": {
-                                    "schema": {"$ref": "#/components/schemas/HealthResponse"}
+                                    "schema": {"$ref": "#/components/schemas/TypedHealthProjection"}
                                 }
                             },
                         },
@@ -124,7 +124,7 @@ def _openapi() -> dict[str, Any]:
                             "description": "A required readiness dependency is unavailable",
                             "content": {
                                 "application/json": {
-                                    "schema": {"$ref": "#/components/schemas/HealthResponse"}
+                                    "schema": {"$ref": "#/components/schemas/TypedHealthProjection"}
                                 }
                             },
                         },

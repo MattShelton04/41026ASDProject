@@ -43,6 +43,8 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
     assert document["openapi"] == "3.1.0"
     expected_paths = {
         "/overview",
+        "/health/live",
+        "/health/ready",
         "/artifact-retention",
         "/runtime-capabilities",
         "/assistant/capabilities",
@@ -131,7 +133,7 @@ def test_openapi_operations_exactly_match_public_runtime_routes() -> None:
     runtime = {
         (contract_path(rule.rule), method.lower())
         for rule in app.url_map.iter_rules()
-        if rule.rule.startswith(base)
+        if rule.rule.startswith(base) or rule.rule in {"/health/live", "/health/ready"}
         for method in rule.methods or set()
         if method not in {"HEAD", "OPTIONS"}
     }
@@ -143,6 +145,13 @@ def test_openapi_operations_exactly_match_public_runtime_routes() -> None:
         if method in {"get", "post", "put", "delete", "patch"}
     }
     assert described == runtime
+
+    for health_path in ("/health/live", "/health/ready"):
+        operation = document["paths"][health_path]
+        assert operation["servers"] == [{"url": "/"}]
+        for response in operation["get"]["responses"].values():
+            schema = response["content"]["application/json"]["schema"]
+            assert schema == {"$ref": "#/components/schemas/TypedHealthProjection"}
 
 
 def test_cancel_contract_preserves_conflict_and_documents_unconfirmed_reconciliation() -> None:
@@ -478,7 +487,9 @@ def test_consumer_guide_catalogue_and_transport_match_runtime_registry() -> None
             f"`{item.product_schema_version}` |"
         )
         assert row_prefix in guide
-    assert "media type `application/x-ndjson` with content encoding `gzip`" in guide
+    assert "current v2/v3 builders uses media type `application/x-ndjson`" in guide
+    assert "content encoding `gzip`" in guide
+    assert "legacy releases" in guide
     assert "There is no outer product envelope." in guide
     assert "product-contract-set.v1.json" in guide
 

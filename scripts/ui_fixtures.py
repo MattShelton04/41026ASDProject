@@ -8,6 +8,12 @@ from typing import Any
 from urllib.parse import parse_qs
 from uuid import NAMESPACE_URL, uuid5
 
+from shared_contracts import (
+    HealthStatus,
+    ReadinessCheckProjection,
+    project_readiness,
+)
+
 SCENARIOS = (
     "populated",
     "empty",
@@ -56,6 +62,47 @@ LONG_TEXT = (
     + "Evidence remains bounded and reviewable. "
     * 8
 )
+
+
+def _health_projection(
+    *, service: str, checks: dict[str, ReadinessCheckProjection]
+) -> dict[str, Any]:
+    return project_readiness(
+        service=service,
+        version="0+ui-fixture",
+        checks=checks,
+    ).model_dump(mode="json")
+
+
+def _database_health() -> dict[str, Any]:
+    return _health_projection(
+        service="propertyscope-data-platform",
+        checks={
+            "database": ReadinessCheckProjection(
+                required=True,
+                status=HealthStatus.HEALTHY,
+                detail="Deterministic fixture database is ready.",
+            )
+        },
+    )
+
+
+def _ai_health() -> dict[str, Any]:
+    return _health_projection(
+        service="ai-mode",
+        checks={
+            "state_store": ReadinessCheckProjection(
+                required=True,
+                status=HealthStatus.HEALTHY,
+                detail="Deterministic in-memory fixture records are available.",
+            ),
+            "llm_provider": ReadinessCheckProjection(
+                required=False,
+                status=HealthStatus.HEALTHY,
+                detail="Deterministic fixture provider; no credentials or network used.",
+            ),
+        },
+    )
 
 
 def _problem(status: int, title: str, detail: str, code: str) -> FixtureResponse:
@@ -339,7 +386,7 @@ def fixture_response(
         return _problem(400, "Unknown UI fixture scenario", scenario, "unknown_fixture_scenario")
     delay = 1.25 if scenario == "slow" and path.startswith("/api/") else 0.0
     if path == "/health/ready":
-        return FixtureResponse(200, {"status": "healthy", "dependencies": {"database": True}})
+        return FixtureResponse(200, _database_health())
     if path in {"/healthz", "/__ui-fixture__/ready"}:
         return FixtureResponse(
             200,
@@ -396,39 +443,9 @@ def fixture_response(
     params = parse_qs(query)
 
     if path == "/api/shared-health/data-platform":
-        return FixtureResponse(
-            200,
-            {
-                "status": "healthy",
-                "service": "data-platform",
-                "dependencies": {"database": True},
-            },
-            delay_seconds=delay,
-        )
+        return FixtureResponse(200, _database_health(), delay_seconds=delay)
     if path == "/api/shared-health/ai-mode":
-        return FixtureResponse(
-            200,
-            {
-                "status": "healthy",
-                "service": "ai-mode",
-                "version": "0+ui-fixture",
-                "checks": {
-                    "application": {
-                        "status": "healthy",
-                        "detail": "Fixture application factory initialised.",
-                    },
-                    "state_store": {
-                        "status": "healthy",
-                        "detail": "Deterministic in-memory fixture records are available.",
-                    },
-                    "llm_provider": {
-                        "status": "healthy",
-                        "detail": "Deterministic fixture provider; no credentials or network used.",
-                    },
-                },
-            },
-            delay_seconds=delay,
-        )
+        return FixtureResponse(200, _ai_health(), delay_seconds=delay)
     if path in {
         "/api/ai-mode/agent-runs",
         "/api/data-platform/v1/agent-runs",

@@ -6,7 +6,7 @@ import argparse
 import json
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import yaml
 
@@ -24,6 +24,7 @@ JSON_OUTPUT = Path("deployment/enabled-features.v1.json")
 JAVASCRIPT_OUTPUT = Path("shared/frontend/generated/enabled-features.js")
 NGINX_OUTPUT = Path("shared/frontend/generated/enabled-feature-routes.conf")
 COMPOSE_OUTPUT = Path("deployment/enabled-features.compose.yml")
+SERVICES_OUTPUT = Path("deployment/enabled-services.v1.json")
 FRAGMENT_OUTPUT = Path("shared/frontend/fragments/research-areas.html")
 PLANNED_FRAGMENT = Path("shared/frontend/fragments/planned-research-areas.html")
 
@@ -39,6 +40,25 @@ def _javascript_payload(root: Path) -> str:
     for feature in projection.features:
         frontend_route = next((route for route in feature.routes if route.kind == "frontend"), None)
         backend_route = next((route for route in feature.routes if route.kind == "backend"), None)
+        evidence_adapter_path = None
+        if feature.evidence_adapter is not None:
+            if feature.frontend is None or frontend_route is None:
+                raise ValueError(
+                    f"enabled feature {feature.feature_key} declares a shell evidence adapter "
+                    "without a frontend asset root"
+                )
+            try:
+                relative_adapter = PurePosixPath(feature.evidence_adapter.path).relative_to(
+                    PurePosixPath(feature.frontend.asset_root)
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    f"enabled feature {feature.feature_key} shell evidence adapter must be served "
+                    "from its frontend asset root"
+                ) from exc
+            evidence_adapter_path = (
+                f"{frontend_route.path.rstrip('/')}/{relative_adapter.as_posix()}"
+            )
         values.append(
             {
                 "featureKey": feature.feature_key,
@@ -50,6 +70,7 @@ def _javascript_payload(root: Path) -> str:
                 "owner": feature.owner,
                 "frontendBase": frontend_route.path if frontend_route else None,
                 "backendBase": backend_route.path if backend_route else None,
+                "evidenceAdapterPath": evidence_adapter_path,
                 "healthPath": feature.health_path,
                 "publicHealthPath": (
                     f"/api/shared-health/{frontend_route.path.rstrip('/').rsplit('/', 1)[-1]}"
@@ -148,6 +169,8 @@ def _nginx_payload(root: Path) -> str:
 def _compose_payload(root: Path) -> str:
     projection = load_enabled_projection(root)
     services: dict[str, object] = {}
+    for service in _enabled_compose_services(root):
+        services[service] = {"profiles": ["release-0"]}
     catalog_paths = [feature.ai for feature in projection.features if feature.ai is not None]
     if catalog_paths:
         services["shared-ai-mode"] = {
@@ -160,15 +183,86 @@ def _compose_payload(root: Path) -> str:
         if feature.frontend is None:
             continue
         frontend = feature.frontend
-        services[frontend.service] = {
-            "ports": [
-                "127.0.0.1:"
-                f"${{{frontend.host_port_variable}:-{frontend.host_port_default}}}:"
-                f"{frontend.internal_port}"
-            ]
-        }
+        frontend_projection = services.setdefault(frontend.service, {})
+        assert isinstance(frontend_projection, dict)
+        frontend_projection["ports"] = [
+            "127.0.0.1:"
+            f"${{{frontend.host_port_variable}:-{frontend.host_port_default}}}:"
+            f"{frontend.internal_port}"
+        ]
     return yaml.safe_dump(
         {"services": services}, sort_keys=True, default_flow_style=False, width=1000
+    )
+
+
+def _compose_service_features(root: Path) -> dict[str, str]:
+    compose_path = root / "docker-compose.yml"
+    if not compose_path.is_file():
+        return {}
+    document = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
+    services = document.get("services", {}) if isinstance(document, dict) else {}
+    if not isinstance(services, dict):
+        raise ValueError("docker-compose.yml services must be an object")
+    known_features = {manifest.feature_key for manifest in _manifests(root)}
+    owned: dict[str, str] = {}
+    for service, settings in services.items():
+        if not isinstance(service, str) or not isinstance(settings, dict):
+            continue
+        labels = settings.get("labels", {})
+        if not isinstance(labels, dict):
+            continue
+        feature_key = labels.get("propertyscope.feature-key")
+        if feature_key is None:
+            continue
+        if not isinstance(feature_key, str) or feature_key not in known_features:
+            raise ValueError(f"Compose service {service} declares an unknown feature key")
+        owned[service] = feature_key
+    return owned
+
+
+def _enabled_compose_services(root: Path) -> tuple[str, ...]:
+    projection = load_enabled_projection(root)
+    enabled = {feature.feature_key for feature in projection.features}
+    service_features = _compose_service_features(root)
+    for feature in projection.features:
+        declared_services = {route.service for route in feature.routes}
+        declared_services.update(database.database_service for database in feature.databases)
+        for service in declared_services:
+            if service_features.get(service) != feature.feature_key:
+                raise ValueError(
+                    f"Compose service {service} must declare feature ownership "
+                    f"{feature.feature_key}"
+                )
+    return tuple(
+        sorted(
+            service
+            for service, feature_key in service_features.items()
+            if feature_key in enabled
+        )
+    )
+
+
+def _services_payload(root: Path) -> str:
+    enabled = _enabled_compose_services(root)
+    compose_document = yaml.safe_load((root / "docker-compose.yml").read_text(encoding="utf-8"))
+    compose_services = compose_document.get("services", {})
+    build_services = [
+        service
+        for service in enabled
+        if isinstance(compose_services.get(service), dict)
+        and "build" in compose_services[service]
+    ]
+    return (
+        json.dumps(
+            {
+                "build_services": build_services,
+                "schema_version": 1,
+                "services": list(enabled),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
     )
 
 
@@ -191,6 +285,7 @@ def generated_outputs(root: Path = REPOSITORY_ROOT) -> dict[Path, str]:
         JAVASCRIPT_OUTPUT: _javascript_payload(root),
         NGINX_OUTPUT: _nginx_payload(root),
         COMPOSE_OUTPUT: _compose_payload(root),
+        SERVICES_OUTPUT: _services_payload(root),
         FRAGMENT_OUTPUT: _fragment_payload(root),
     }
 

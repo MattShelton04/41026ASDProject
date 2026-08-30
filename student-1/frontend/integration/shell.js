@@ -101,4 +101,9 @@ export function createFeature1ShellAdapter(overrides = {}) {
   });
 }
 
+/** Domain-neutral Shared-shell evidence entrypoint declared by Feature 1 onboarding metadata. */
+export function createShellEvidenceAdapter(overrides = {}) {
+  return createFeature1ShellAdapter(overrides).evidence;
+}
+
 export { acceptedReleaseReferences, agentRunReferences };

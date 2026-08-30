@@ -40,8 +40,9 @@ Use `uv run python scripts/check.py` for source quality; `dev.py` does not proxy
 Run `uv run python scripts/check.py --help` for the composable source-quality stages. JavaScript
 `compile` uses Node directly against every first-party Shared and Feature 1 browser module; the
 checked-in MapLibre vendor module is excluded and behavior tests cover its integration boundary.
-`uv run scripts/dev.py stack build` uses only `docker-compose.yml` to build the production-like Release 0
-application images and never starts or recreates a container. `stack rebuild` remains the development
+`uv run scripts/dev.py stack build` uses the reviewed base Compose model plus the generated enabled-
+feature overlay to build the production-like Release 0 application images; it excludes the development
+bind-mount overlay and never starts or recreates a container. `stack rebuild` remains the development
 build-and-recreate command.
 
 The frontend-only audit loop is `uv run scripts/dev.py ui serve`. It serves Shared and Feature 1 on one
@@ -68,7 +69,9 @@ human review remains an intentional product safety boundary.
 
 `operator report` queries only public read endpoints. It lists registered products, accepted
 releases, outstanding review/publication prerequisites, durable consumer imports, activations and
-optional dependency degradation. It never submits review, publishes, imports, or activates a release.
+optional dependency degradation. When a collection reaches its bounded item ceiling, the report marks
+the evidence as possibly partial rather than presenting a truncated count as complete. It never submits
+review, publishes, imports, or activates a release.
 
 PropertyScope's official connectors and deterministic finite fixture are available in the default
 stack at <http://localhost:5200>. Starting the stack performs no acquisition. Each browser or CLI

@@ -1,0 +1,18 @@
+{
+  "build_services": [
+    "f1-backend",
+    "f1-db-api",
+    "f1-db-loader",
+    "f1-frontend",
+    "f1-runner"
+  ],
+  "schema_version": 1,
+  "services": [
+    "f1-backend",
+    "f1-db-api",
+    "f1-db-loader",
+    "f1-frontend",
+    "f1-postgres",
+    "f1-runner"
+  ]
+}

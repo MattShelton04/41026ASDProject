@@ -3572,7 +3572,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
+                  "$ref": "#/components/schemas/TypedHealthProjection"
                 }
               }
             },
@@ -3589,7 +3589,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
+                  "$ref": "#/components/schemas/TypedHealthProjection"
                 }
               }
             },
@@ -3599,7 +3599,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
+                  "$ref": "#/components/schemas/TypedHealthProjection"
                 }
               }
             },
