@@ -155,8 +155,8 @@ marked `space_recovery_status=needed` with an exact, profile-derived relation li
 `measure_then_target_exact_relations` policy. This is an operator-visible recovery obligation, not
 an automatic `VACUUM FULL` or broad reindex. Measure dead tuples and allocated bytes first; PR2's
 source-scale benchmark evidence determines whether an exact relation needs bounded vacuum/reindex
-or whether disposable release storage removes that need. Mark recovery complete only after the
-targeted evidence is retained.
+or whether disposable release storage removes that need. The current marker is evidence for the
+operator and the PR2 remediation workflow; no endpoint claims recovery is complete yet.
 
 `GET /api/data-platform/v1/artifact-retention` reports each referenced physical object, retained
 bytes, reference count, run states and retention reason. Cleanup is explicit and dry-run by
