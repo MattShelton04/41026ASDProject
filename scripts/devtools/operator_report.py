@@ -15,6 +15,36 @@ class OperatorReportError(RuntimeError):
     """The running stack did not expose a valid bounded operator projection."""
 
 
+def _bounded_get(
+    client: httpx.Client,
+    url: str,
+    *,
+    label: str,
+    timeout: float,
+    params: Mapping[str, str | int | float | bool | None] | None = None,
+) -> httpx.Response:
+    content = bytearray()
+    with client.stream(
+        "GET",
+        url,
+        params=params,
+        headers={"Accept": "application/json"},
+        timeout=timeout,
+    ) as response:
+        for chunk in response.iter_bytes():
+            if len(content) + len(chunk) > MAX_RESPONSE_BYTES:
+                raise OperatorReportError(
+                    f"{label} exceeds the {MAX_RESPONSE_BYTES}-byte response limit"
+                )
+            content.extend(chunk)
+        return httpx.Response(
+            response.status_code,
+            headers=response.headers,
+            content=bytes(content),
+            request=response.request,
+        )
+
+
 def _object(response: httpx.Response, *, label: str) -> dict[str, Any]:
     response.raise_for_status()
     if len(response.content) > MAX_RESPONSE_BYTES:
@@ -37,11 +67,7 @@ def _items(payload: Mapping[str, Any], *, label: str) -> list[dict[str, Any]]:
 
 def _health(client: httpx.Client, url: str, *, label: str) -> dict[str, Any]:
     try:
-        response = client.get(url, headers={"Accept": "application/json"}, timeout=5.0)
-        if len(response.content) > MAX_RESPONSE_BYTES:
-            raise OperatorReportError(
-                f"{label} exceeds the {MAX_RESPONSE_BYTES}-byte response limit"
-            )
+        response = _bounded_get(client, url, label=label, timeout=5.0)
         payload = _object(response, label=label) if response.status_code < 400 else response.json()
     except (httpx.HTTPError, ValueError, OperatorReportError) as exc:
         return {"service": label, "http_status": None, "status": "unavailable", "detail": str(exc)}
@@ -77,12 +103,26 @@ def collect_operator_report(
     """Collect bounded public evidence without reviewing, publishing, or mutating state."""
     base = data_base_url.rstrip("/") + "/"
     products = _items(
-        _object(client.get(f"{base}data-products", timeout=10.0), label="product catalogue"),
+        _object(
+            _bounded_get(
+                client,
+                f"{base}data-products",
+                label="product catalogue",
+                timeout=10.0,
+            ),
+            label="product catalogue",
+        ),
         label="product catalogue",
     )
     releases = _items(
         _object(
-            client.get(f"{base}dataset-releases", params={"limit": 100, "offset": 0}, timeout=10.0),
+            _bounded_get(
+                client,
+                f"{base}dataset-releases",
+                params={"limit": 100, "offset": 0},
+                label="release catalogue",
+                timeout=10.0,
+            ),
             label="release catalogue",
         ),
         label="release catalogue",
@@ -106,7 +146,12 @@ def collect_operator_report(
         if not isinstance(release_id, str) or not release_id:
             continue
         detail = _object(
-            client.get(f"{base}dataset-releases/{release_id}", timeout=10.0),
+            _bounded_get(
+                client,
+                f"{base}dataset-releases/{release_id}",
+                label=f"release {release_id}",
+                timeout=10.0,
+            ),
             label=f"release {release_id}",
         )
         for operation in detail.get("consumer_imports", []):

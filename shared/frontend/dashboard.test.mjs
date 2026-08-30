@@ -224,6 +224,7 @@ test("the shell renders before its optional Feature 1 projection loads", () => {
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
   assert.ok(app.indexOf("renderRoute();") < app.indexOf("loadFeature1Bridge({"));
   assert.doesNotMatch(app, /await\s+loadFeature1Bridge/);
+  assert.match(app, /if \(feature1Enabled\) \{\s*loadFeature1Bridge\(/);
   assert.match(app, /\["features", "system-status", "evidence"\]\.includes\(parseShellRoute\(location\.hash\)\)/);
   assert.doesNotMatch(app, /parseShellRoute\(location\.hash\) !== "home"/);
 });

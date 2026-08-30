@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import httpx
 import pytest
 from scripts.devtools.operator_report import (
@@ -103,11 +105,19 @@ def test_operator_cli_is_explicit_and_read_only(
 
 
 def test_report_rejects_oversized_responses() -> None:
+    class OversizedStream(httpx.SyncByteStream):
+        chunks_read = 0
+
+        def __iter__(self) -> Iterator[bytes]:
+            for _ in range(2):
+                self.chunks_read += 1
+                yield b"x" * 600_000
+            raise AssertionError("bounded reader consumed beyond the limit")
+
+    stream = OversizedStream()
     with (
         httpx.Client(
-            transport=httpx.MockTransport(
-                lambda _request: httpx.Response(200, content=b"x" * 1_048_577)
-            )
+            transport=httpx.MockTransport(lambda _request: httpx.Response(200, stream=stream))
         ) as client,
         pytest.raises(OperatorReportError, match="response limit"),
     ):
@@ -117,6 +127,7 @@ def test_report_rejects_oversized_responses() -> None:
             feature_health_url="https://feature.test/health/ready",
             ai_health_url="https://ai.test/health/ready",
         )
+    assert stream.chunks_read == 2
 
 
 def test_nested_operation_projection_stops_at_global_bound() -> None:

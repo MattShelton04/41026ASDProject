@@ -10,6 +10,7 @@ import { createToastController } from "./browser/index.js";
 
 const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const config = { ...externalConfig };
+const feature1Enabled = Boolean(findFeature("student-1-propertyscope-data-platform")?.enabled);
 let feature1Adapter = null;
 const main = document.querySelector("#main-content");
 const homeMarkup = main.innerHTML;
@@ -96,6 +97,10 @@ document.addEventListener("htmx:responseError", (event) => {
 });
 
 function openPrimarySearch(query = "") {
+  if (!feature1Enabled) {
+    showToast("Property search is unavailable because its feature is not enabled.");
+    return;
+  }
   const target = feature1Adapter?.primarySearchHref(query, window.location.href)
     || new URL(findFeature("property-records").href, window.location.href).href;
   window.location.assign(target);
@@ -234,10 +239,12 @@ function reportFeature1BridgeError(error) {
   announce("Property data integration is unavailable. Built-in navigation remains available.");
 }
 
-loadFeature1Bridge({
-  overrides: externalConfig,
-  onLateAdapter: installFeature1Adapter,
-  onError: reportFeature1BridgeError,
-})
-  .then(installFeature1Adapter)
-  .catch(reportFeature1BridgeError);
+if (feature1Enabled) {
+  loadFeature1Bridge({
+    overrides: externalConfig,
+    onLateAdapter: installFeature1Adapter,
+    onError: reportFeature1BridgeError,
+  })
+    .then(installFeature1Adapter)
+    .catch(reportFeature1BridgeError);
+}
