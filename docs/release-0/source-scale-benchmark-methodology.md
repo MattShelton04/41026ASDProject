@@ -147,3 +147,11 @@ This does not establish source-scale online-build behaviour. Before `registry.pr
 to grow to source scale, the migration runner needs a concurrent index-build/swap policy and a
 capacity/read-availability benchmark. That P2 follow-up is tracked here rather than overstated as
 current 5.19m-row evidence.
+
+Two proposed alternatives are deliberately deferred rather than implied by these results. A PSI
+prepared-order index would add write amplification solely to reproduce a final order that the
+destination contract does not require; it needs a consumer query demonstrating that order before a
+benchmark variant is warranted. BOCSAR bulk index construction would require disposable
+release-scoped destination tables or partitions, which the current one-transaction shared tables do
+not provide. Benchmark that alternative only together with an approved release-storage design; do
+not disable or defer maintenance of current production indexes to manufacture a favourable result.

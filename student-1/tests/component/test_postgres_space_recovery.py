@@ -144,3 +144,49 @@ def test_failed_import_vacuums_only_registered_relations_and_records_measurement
         operation_id
     )
     assert replay["space_recovery_status"] == "completed"
+
+
+def test_failed_import_with_no_dead_tuples_skips_vacuum(
+    recovery_database: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = recovery_database
+    operation_id = uuid.uuid4()
+    connection.execute(
+        """
+        CREATE SCHEMA ops;
+        CREATE SCHEMA warehouse;
+        CREATE TABLE warehouse.psi_sale (id BIGINT PRIMARY KEY);
+        CREATE TABLE ops.import_operation (
+            id UUID PRIMARY KEY,import_profile_key TEXT NOT NULL,status TEXT NOT NULL,
+            space_recovery_status TEXT NOT NULL,space_recovery_policy_json JSONB NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1
+        );
+        INSERT INTO ops.import_operation
+        (id,import_profile_key,status,space_recovery_status,space_recovery_policy_json)
+        VALUES ('00000000-0000-0000-0000-000000000000','psi-sales','failed','needed','{}');
+        """
+    )
+    connection.execute(
+        "UPDATE ops.import_operation SET id=%s WHERE id='00000000-0000-0000-0000-000000000000'",
+        (operation_id,),
+    )
+    connection.execute(
+        "UPDATE ops.import_operation SET space_recovery_policy_json="
+        "'{\"destination_may_have_been_touched\":false}' WHERE id=%s",
+        (operation_id,),
+    )
+    connection.commit()
+
+    result = _RegisteredImportOperations(cast(Any, _Owner(connection))).recover_import_space(
+        operation_id
+    )
+
+    policy = result["space_recovery_policy_json"]
+    assert result["space_recovery_status"] == "completed"
+    assert policy["operation"] == "not_required_before_target_materialisation"
+    assert policy["relations_recovered"] == []
+    last_vacuum = connection.execute(
+        "SELECT last_vacuum FROM pg_stat_user_tables "
+        "WHERE schemaname='warehouse' AND relname='psi_sale'"
+    ).fetchone()
+    assert last_vacuum == {"last_vacuum": None}

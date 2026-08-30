@@ -41,9 +41,11 @@ atomic release contract.
 Typed staging removes repeated JSON conversion and narrows the operations that can spill. Explicit
 phases make cancellation and timings attributable without exposing partial candidates. Temporary
 tables disappear at transaction end. After a failed/cancelled outcome is durable, the loader
-measures the profile's exact allowlisted destination relations, runs bounded non-rewriting
-`VACUUM (ANALYZE, INDEX_CLEANUP ON)`, measures again and records completion. A timeout leaves the
-operation `needed`; no `VACUUM FULL`, table rewrite or unrelated relation is permitted. The
+measures the profile's exact allowlisted destination relations and, when durable phase evidence
+shows target materialisation began, runs bounded non-rewriting
+`VACUUM (ANALYZE, INDEX_CLEANUP ON)`, measures again and records completion. A preflight or staging
+failure records that no target maintenance was required. A timeout leaves the operation `needed`; no `VACUUM FULL`, table rewrite
+or unrelated relation is permitted. The
 conservative disk check measures the loader artifact mount as a proxy for the single-host Docker
 disk pool and therefore remains an operator-tunable safety bound, not a prediction of exact
 PostgreSQL growth on independently provisioned storage.

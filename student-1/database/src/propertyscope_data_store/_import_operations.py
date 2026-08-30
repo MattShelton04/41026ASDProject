@@ -398,10 +398,15 @@ class _RegisteredImportOperations:
         if recovery_status == "needed":
             current = self._owner.get_import(operation_id)
             profile = str(current["import_profile_key"])
+            destination_may_have_been_touched = str(current.get("progress_phase_key")) in {
+                "target_materialisation",
+                "verification",
+            }
             recovery_policy = {
                 "policy": "measure_then_target_exact_relations",
                 "trigger": f"import_{status}_after_transaction_rollback",
                 "relations": list(_IMPORT_TARGET_RELATIONS.get(profile, ())),
+                "destination_may_have_been_touched": destination_may_have_been_touched,
                 "automatic_destructive_maintenance": False,
                 "next_step": "measure dead tuples and allocated bytes before bounded maintenance",
             }
@@ -448,31 +453,39 @@ class _RegisteredImportOperations:
         if not relations:
             raise ConflictError("import profile has no registered recovery relations")
         measured_before = self._measure_relations(relations)
-        with self._owner.connection() as connection:
-            # Loader connections begin with transaction-local safety settings. VACUUM must run
-            # outside a transaction, so end that empty transaction and use bounded autocommit.
-            connection.commit()
-            connection.autocommit = True
-            try:
-                connection.execute(
-                    "SELECT set_config('statement_timeout',%s,false)",
-                    (f"{SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS}s",),
-                )
-                for relation in relations:
-                    schema_name, table_name = relation.split(".", maxsplit=1)
-                    connection.execute(
-                        sql.SQL("VACUUM (ANALYZE, INDEX_CLEANUP ON) {}").format(
-                            sql.Identifier(schema_name, table_name)
-                        )
-                    )
-            finally:
-                connection.execute("RESET statement_timeout")
-                connection.autocommit = False
-        measured_after = self._measure_relations(relations)
         policy = dict(current.get("space_recovery_policy_json") or {})
+        destination_may_have_been_touched = policy.get("destination_may_have_been_touched", True)
+        recovery_relations = relations if destination_may_have_been_touched is not False else ()
+        if recovery_relations:
+            with self._owner.connection() as connection:
+                # Loader connections begin with transaction-local safety settings. VACUUM must run
+                # outside a transaction, so end that empty transaction and use bounded autocommit.
+                connection.commit()
+                connection.autocommit = True
+                try:
+                    connection.execute(
+                        "SELECT set_config('statement_timeout',%s,false)",
+                        (f"{SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS}s",),
+                    )
+                    for relation in recovery_relations:
+                        schema_name, table_name = relation.split(".", maxsplit=1)
+                        connection.execute(
+                            sql.SQL("VACUUM (ANALYZE, INDEX_CLEANUP ON) {}").format(
+                                sql.Identifier(schema_name, table_name)
+                            )
+                        )
+                finally:
+                    connection.execute("RESET statement_timeout")
+                    connection.autocommit = False
+        measured_after = self._measure_relations(relations)
         policy.update(
             {
-                "operation": "vacuum_analyze_index_cleanup",
+                "operation": (
+                    "vacuum_analyze_index_cleanup"
+                    if recovery_relations
+                    else "not_required_before_target_materialisation"
+                ),
+                "relations_recovered": list(recovery_relations),
                 "statement_timeout_seconds": SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS,
                 "measured_before": measured_before,
                 "measured_after": measured_after,

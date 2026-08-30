@@ -168,7 +168,8 @@ source-scale benchmark evidence determines whether an exact relation needs bound
 Typed temporary PSI/BOCSAR work drops automatically at transaction end. After the failure outcome
 is durable, the serial loader measures only the import profile's registered destination relations,
 runs `VACUUM (ANALYZE, INDEX_CLEANUP ON)` outside a transaction with a ten-minute per-statement
-ceiling, measures again, and records `completed`. This makes aborted pages reusable without a
+ceiling only when durable phase evidence shows target materialisation or verification began,
+measures again, and records `completed`. A preflight or typed-stage failure skips VACUUM. This makes aborted pages reusable without a
 blocking `VACUUM FULL`, table rewrite or broad-schema maintenance. Timeout or unavailable relation
 leaves the durable marker at `needed` for a later safe retry.
 
