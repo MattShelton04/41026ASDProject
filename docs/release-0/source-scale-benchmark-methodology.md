@@ -42,6 +42,15 @@ Execution example for a deliberately disposable database:
 uv run python scripts/source_scale_benchmark.py run --dataset psi --scale 100000 --repetitions 3 --database-url postgresql://USER:PASSWORD@HOST/propertyscope_benchmark --confirm-disposable --confirm-database propertyscope_benchmark
 ```
 
+Before accepting cancellation evidence, run the explicit 100k cleanup drill. This substitutes a
+bounded `pg_sleep` for target DML after building the selected real-shape preparation, cancels the
+exact worker connection at the requested deadline, and succeeds only when every run is cancelled,
+rolled back, and its schema is removed:
+
+```text
+uv run python scripts/source_scale_benchmark.py run --dataset psi --scale 100000 --variant typed-phases --repetitions 3 --force-cancel-after-seconds 2 --database-url postgresql://USER:PASSWORD@HOST/propertyscope_benchmark --confirm-disposable --confirm-database propertyscope_benchmark
+```
+
 After the 100k suite succeeds and is reviewed:
 
 ```text
@@ -57,11 +66,17 @@ PSI compares `jsonb-wide` with `typed-phases`. The generated shape includes exac
 deterministic corrections, first-ordinal revision ordering, supplied property references, exact
 eight-component address predicates and deliberately ambiguous registry addresses. The typed variant
 separates staging, narrow identity, revisions and one-per-address resolution before the final fact
-join.
+join. Its measured interval starts before identity derivation and ends after target insertion; the
+wide JSONB interval performs those same identity, revision, address, and target responsibilities in
+one statement. Setup-only staging is excluded from both elapsed figures.
 
-BOCSAR compares `jsonb-ordered` with `typed-unordered`. The shape retains explicit zero counts,
-coverage presence, geography/category/month keys and a wide payload. The comparison isolates typed
-staging and removal of ordinal ordering; it does not claim semantic equivalence with official data.
+BOCSAR compares `jsonb-ordered` with `typed-unordered`. Five percent of generated rows are distinct
+coverage records with sorted observed-month arrays, first/last/count, explicit
+`blank_means_observed_zero`, and completeness hashes. The remaining rows are sparse positive
+observations with a distinct geography/category/month key. Missing observation rows therefore remain
+different from observed zero coverage, and target cardinality grows with input scale. Both variants
+insert the same observation and coverage targets; the comparison isolates typed staging and removal
+of unproven ordinal ordering. It does not claim semantic equivalence with official data.
 
 ## Evidence captured
 
@@ -73,10 +88,12 @@ and a bounded flattened node list with per-node temp read/write blocks. Run summ
 - PostgreSQL database temp-byte/file, block and transaction counter deltas;
 - WAL record/byte/FPI/buffer-full deltas;
 - checkpoint counter and timing deltas;
-- before/after `pg_stat_io` snapshots;
+- before/after `pg_stat_io` snapshots plus bounded counter deltas grouped by backend type, object,
+  and context;
 - backend state, wait event and an explicit `active with no wait` CPU/running inference at start and
   each five-minute interval;
-- relation/index bytes before and after materialisation;
+- per-relation heap, index and total bytes before and after the complete measured interval, with
+  separate growth deltas;
 - result row count and deterministic identity fingerprint;
 - cancellation, rollback, temporary-file observations, schema drop and remaining-schema evidence.
 
@@ -86,35 +103,47 @@ is not CPU utilisation; it only records an active backend with no reported wait 
 
 ## Disposable validation result — 30 August 2026
 
-These medians are from three reset runs per variant in the isolated
-`postgis/postgis:16-3.4` container `propertyscope_benchmark`; no retained Feature 1 database or
-official artifact was used. `Temp bytes` is the database counter delta for the complete run,
-including setup and materialisation. WAL and other counters are cluster-wide, but the disposable
-database was otherwise idle. Raw bounded plans and summaries remain in the ignored local
-`.propertyscope-runtime/source-scale-benchmarks/` evidence directory.
+The corrected suite ran in an otherwise idle `postgis/postgis:16-3.4` disposable database. Every
+variant used three fresh schemas at each scale; all 24 successful-run schemas were dropped. Both
+100k forced-cancellation suites also completed three exact-backend cancellations, observed rollback
+and removed every schema. The raw summaries and plans remain in the ignored local evidence folders:
 
-| Dataset | Scale | Variant | Reset runs | Median elapsed | Rows/s | Temp bytes | WAL bytes | Relation growth | Result fingerprint | Cleanup | Verdict |
-| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
-| PSI | 100k | jsonb-wide | 3 | 1.59 s | 62,735 | 232,081,325 | 99,712,023 | 23,986,176 | `6dca21a3...` | 3/3 schemas dropped | Baseline |
-| PSI | 100k | typed-phases | 3 | 0.52 s | 193,798 | 3,218,624 | 53,559,217 | 25,485,312 | `6dca21a3...` | 3/3 schemas dropped | Accept |
-| BOCSAR | 100k | jsonb-ordered | 3 | 0.61 s | 164,204 | 1,400,000 | 50,818,844 | 1,548,288 | `5099acee...` | 3/3 schemas dropped | Baseline |
-| BOCSAR | 100k | typed-unordered | 3 | 0.48 s | 206,186 | 1,400,000 | 32,005,316 | 1,548,288 | `5099acee...` | 3/3 schemas dropped | Accept |
-| PSI | 1m | jsonb-wide | 3 | 18.17 s | 55,030 | 2,329,852,851 | 995,888,894 | 239,632,384 | `66b76e83...` | 3/3 schemas dropped | Baseline |
-| PSI | 1m | typed-phases | 3 | 6.09 s | 164,123 | 560,647,656 | 970,741,313 | 245,784,576 | `66b76e83...` | 3/3 schemas dropped | Accept |
-| BOCSAR | 1m | jsonb-ordered | 3 | 6.11 s | 163,693 | 14,000,000 | 488,720,595 | 1,548,288 | `5099acee...` | 3/3 schemas dropped | Baseline |
-| BOCSAR | 1m | typed-unordered | 3 | 4.72 s | 211,909 | 14,000,000 | 300,445,982 | 1,548,288 | `5099acee...` | 3/3 schemas dropped | Accept |
+- `psi-100000-20260830T094159Z` and `bocsar-100000-20260830T094305Z` (cancellation);
+- `psi-100000-20260830T094349Z` and `bocsar-100000-20260830T094421Z` (100k);
+- `psi-1000000-20260830T094455Z` and `bocsar-1000000-20260830T094758Z` (1m).
 
-At one million inputs the PSI typed variant retained the same 666,667-row identity fingerprint,
-reduced median materialisation from 18.17 to 6.09 seconds and reduced complete-run database temp
-bytes by about 76%. Its measured flattened plan wrote 145,415 temporary blocks versus 2,893,319
-for the baseline; flattened node totals may double-count parent and child reporting, so the database
-counter is the capacity measure. BOCSAR retained the same 5,400-key result at both scales because
-the generator intentionally repeats a bounded geography/category/month key space; it still scans
-all inputs but does not model growth in distinct destination keys. Its typed variant reduced the 1m
-median from 6.11 to 4.72 seconds and WAL from about 489 MB to 300 MB.
+Elapsed time is the complete measured identity/address/target interval described above, not only
+the final insert. Temp and WAL values are database/cluster counter deltas and should be treated as
+capacity evidence from the isolated host. Heap and index growth are reported separately.
 
-Linear extrapolation from the accepted 1m variants predicts about 45 seconds for 7.4m PSI inputs
-and 48 seconds for 10.1m BOCSAR inputs on this disposable host. This clears the 30-minute
-materialisation budget for a separately observed pinned-source run, but it is not an end-to-end
-official-source duration claim. A faster plan with changed semantics, incomplete cleanup or a
-timeout remains rejected.
+| Dataset | Scale | Variant | Median elapsed | Temp bytes | WAL bytes | Heap growth | Index growth | Result rows | Verdict |
+| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| PSI | 100k | jsonb-wide | 2.156 s | 240,774,701 | 102,092,098 | 21,848,064 | 2,113,536 | 66,667 | Baseline |
+| PSI | 100k | typed-phases | 1.250 s | 8,027,328 | 80,475,018 | 28,663,808 | 3,612,672 | 66,667 | Accept |
+| PSI | 1m | jsonb-wide | 22.968 s | 2,417,381,779 | 1,019,876,561 | 218,439,680 | 21,118,976 | 666,667 | Baseline |
+| PSI | 1m | typed-phases | 12.157 s | 434,842,343 | 804,974,872 | 285,040,640 | 27,254,784 | 666,667 | Accept |
+| BOCSAR | 100k | jsonb-ordered | 1.578 s | 23,119,888 | 113,021,262 | 22,986,752 | 8,347,648 | 100,000 | Baseline |
+| BOCSAR | 100k | typed-unordered | 1.579 s | 6,424,592 | 77,669,023 | 22,986,752 | 8,347,648 | 100,000 | Accept |
+| BOCSAR | 1m | jsonb-ordered | 17.719 s | 244,355,232 | 1,140,327,606 | 229,834,752 | 76,619,776 | 1,000,000 | Baseline |
+| BOCSAR | 1m | typed-unordered | 18.563 s | 145,076,384 | 773,393,528 | 229,834,752 | 76,619,776 | 1,000,000 | Accept with trade-off |
+
+All repetitions at a dataset/scale produced identical target fingerprints across variants. PSI
+retained the required retransmission, revision and address-resolution shape. BOCSAR retained
+950,000 sparse observations plus 50,000 coverage rows at 1m, including missing-versus-zero evidence.
+The typed BOCSAR plan is about 4.8% slower at 1m, but removes plan-dependent duplicate retention and
+reduces median temp bytes by about 40.6% and WAL by about 32.2%; it is accepted for those bounded
+resource and determinism gains, not as an elapsed-time improvement.
+
+The 100k-to-1m scaling factor is about 9.7 for typed PSI and 11.8 for typed BOCSAR. Applying the 1m
+median to the official input count and then a 2.5 safety factor gives a conservative materialisation
+gate of 4 minutes for 7.4m PSI and 10 minutes for 10.1m BOCSAR. The same conservative calculation
+keeps projected temp use below 8 GiB for PSI and 4 GiB for BOCSAR. These are watchdog budgets for a
+separately observed official run, not end-to-end duration or official semantic-equivalence claims;
+the absolute 30-minute ceiling still applies.
+
+Migration 039 currently builds the exact-address expression index over 30 retained registry rows;
+the measured index is 16 KiB and migrations 038/039 completed within the same one-second timestamp.
+This does not establish source-scale online-build behaviour. Before `registry.property` is allowed
+to grow to source scale, the migration runner needs a concurrent index-build/swap policy and a
+capacity/read-availability benchmark. That P2 follow-up is tracked here rather than overstated as
+current 5.19m-row evidence.

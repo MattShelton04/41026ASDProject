@@ -154,30 +154,47 @@ def test_real_shape_sql_keeps_comparison_hypotheses_and_semantics() -> None:
     bocsar_baseline = benchmark.RunSpec("bocsar", 100_000, "jsonb-ordered", 1)
     bocsar_typed = benchmark.RunSpec("bocsar", 100_000, "typed-unordered", 1)
 
-    baseline_setup, baseline_insert = benchmark.benchmark_sql(psi_baseline, schema)
-    typed_setup, typed_insert = benchmark.benchmark_sql(psi_typed, schema)
-    bocsar_setup, bocsar_insert = benchmark.benchmark_sql(bocsar_baseline, schema)
-    bocsar_typed_setup, bocsar_typed_insert = benchmark.benchmark_sql(bocsar_typed, schema)
+    baseline_setup, baseline_measured, baseline_insert = benchmark.benchmark_sql(
+        psi_baseline, schema
+    )
+    typed_setup, typed_measured, typed_insert = benchmark.benchmark_sql(psi_typed, schema)
+    bocsar_setup, bocsar_measured, bocsar_insert = benchmark.benchmark_sql(bocsar_baseline, schema)
+    bocsar_typed_setup, bocsar_typed_measured, bocsar_typed_insert = benchmark.benchmark_sql(
+        bocsar_typed, schema
+    )
 
     assert "payload jsonb" in " ".join(sql for _phase, sql in baseline_setup).lower()
     assert "distinct on" in baseline_insert.lower()
     assert "row_number()" in baseline_insert.lower()
     assert "having count(*)=1" in baseline_insert.lower()
     assert "order by" in baseline_insert.lower()
+    assert baseline_measured == ()
     assert [phase for phase, _sql in typed_setup] == [
         "create_registry",
         "typed_staging",
-        "identity",
-        "revisions",
-        "address_resolution",
         "create_target",
     ]
+    assert [phase for phase, _sql in typed_measured] == [
+        "identity_revision_derivation",
+        "address_resolution",
+    ]
+    assert "group by source_business_key,source_row_sha256" in typed_measured[0][1].lower()
+    assert "row_number()" in typed_measured[0][1].lower()
+    assert "match_count" in typed_measured[1][1].lower()
+    assert "house_number ~" in typed_measured[1][1].lower()
     assert "coalesce(source.property_ref" in typed_insert.lower()
+    assert "resolution.postcode=source.postcode" in typed_insert.lower()
     assert "payload jsonb" in " ".join(sql for _phase, sql in bocsar_setup).lower()
-    assert "case when i%17=0 then 0" in " ".join(sql for _phase, sql in bocsar_setup).lower()
+    assert "record_kind" in " ".join(sql for _phase, sql in bocsar_setup).lower()
+    assert "observed_months" in " ".join(sql for _phase, sql in bocsar_setup).lower()
+    assert "1+(record_key%41)" in " ".join(sql for _phase, sql in bocsar_setup).lower()
+    assert "bocsar_observation_target" in bocsar_insert
+    assert "bocsar_coverage_target" in bocsar_insert
     assert "order by ordinal" in bocsar_insert.lower()
     assert "bocsar_stage_typed" in " ".join(sql for _phase, sql in bocsar_typed_setup)
+    assert "min(ordinal)" in bocsar_typed_insert.lower()
     assert "order by ordinal" not in bocsar_typed_insert.lower()
+    assert bocsar_measured == bocsar_typed_measured == ()
 
 
 def test_metric_deltas_report_temp_wal_and_checkpoint_counters() -> None:
@@ -196,6 +213,71 @@ def test_metric_deltas_report_temp_wal_and_checkpoint_counters() -> None:
         "database": {"temp_bytes": 40.0, "temp_files": 2.0, "blks_read": 6.0},
         "wal": {"wal_bytes": 60.0, "wal_records": 6.0},
         "checkpoints": {"checkpoints_req": 1.0, "buffers_checkpoint": 12.0},
+        "io": {
+            "totals": {},
+            "by_scope": [],
+            "scope_count": 0,
+            "truncated": False,
+            "stats_reset_changed": False,
+        },
+    }
+
+
+def test_pg_stat_io_deltas_are_bounded_and_grouped_by_scope() -> None:
+    before = [
+        {
+            "backend_type": "client backend",
+            "object": "relation",
+            "context": "normal",
+            "reads": 2,
+            "writes": 3,
+            "stats_reset": "2026-08-30T00:00:00Z",
+        }
+    ]
+    after = [
+        {
+            "backend_type": "client backend",
+            "object": "relation",
+            "context": "normal",
+            "reads": 7,
+            "writes": 11,
+            "stats_reset": "2026-08-30T00:00:00Z",
+        }
+    ]
+
+    assert benchmark.io_metric_deltas(before, after) == {
+        "totals": {"reads": 5.0, "writes": 8.0},
+        "by_scope": [
+            {
+                "backend_type": "client backend",
+                "object": "relation",
+                "context": "normal",
+                "counters": {"reads": 5.0, "writes": 8.0},
+            }
+        ],
+        "scope_count": 1,
+        "truncated": False,
+        "stats_reset_changed": False,
+    }
+
+
+def test_relation_growth_separates_heap_and_indexes_per_relation() -> None:
+    before = {
+        "relations": [{"relation": "stage", "heap_bytes": 10, "index_bytes": 4, "total_bytes": 16}]
+    }
+    after = {
+        "relations": [
+            {"relation": "stage", "heap_bytes": 25, "index_bytes": 9, "total_bytes": 38},
+            {"relation": "target", "heap_bytes": 30, "index_bytes": 12, "total_bytes": 48},
+        ]
+    }
+
+    assert benchmark.relation_size_deltas(before, after) == {
+        "aggregate": {"heap_bytes": 45, "index_bytes": 17, "total_bytes": 70},
+        "relations": [
+            {"relation": "stage", "heap_bytes": 15, "index_bytes": 5, "total_bytes": 22},
+            {"relation": "target", "heap_bytes": 30, "index_bytes": 12, "total_bytes": 48},
+        ],
     }
 
 
@@ -208,6 +290,7 @@ def test_summary_schema_is_bounded_and_never_infers_claims() -> None:
         "materialisation_deadline_seconds": 1800,
         "progress_interval_seconds": 300,
         "maximum_plan_nodes": 256,
+        "maximum_forced_cancel_seconds": 300,
     }
 
     run = {
@@ -240,6 +323,16 @@ def test_cli_dry_run_needs_no_database_and_one_million_requires_gate(
         == 2
     )
     assert "require --gate-evidence" in capsys.readouterr().out
+
+
+def test_forced_cancellation_cleanup_drill_is_explicitly_gated() -> None:
+    benchmark.validate_forced_cancellation(2, mode="run", scale=100_000)
+    with pytest.raises(ValueError, match="only in run mode"):
+        benchmark.validate_forced_cancellation(2, mode="plan", scale=100_000)
+    with pytest.raises(ValueError, match="restricted to the 100k"):
+        benchmark.validate_forced_cancellation(2, mode="run", scale=1_000_000)
+    with pytest.raises(ValueError, match="between 1 and 300"):
+        benchmark.validate_forced_cancellation(301, mode="run", scale=100_000)
 
 
 def test_generated_schema_is_fixed_and_traversal_safe() -> None:

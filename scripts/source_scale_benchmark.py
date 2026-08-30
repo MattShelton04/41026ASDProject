@@ -27,8 +27,10 @@ MIN_REPETITIONS = 3
 MAX_REPETITIONS = 10
 MATERIALISATION_DEADLINE_SECONDS = 30 * 60
 PROGRESS_INTERVAL_SECONDS = 5 * 60
+MAX_FORCED_CANCEL_SECONDS = 5 * 60
 MAX_PLAN_NODES = 256
 MAX_PROGRESS_SNAPSHOTS = 8
+MAX_IO_SCOPES = 64
 MAX_SUMMARY_BYTES = 2 * 1024 * 1024
 SCHEMA_PREFIX = "propertyscope_bench_"
 SCHEMA_PATTERN = re.compile(r"^propertyscope_bench_[a-z0-9_]{1,48}$")
@@ -77,6 +79,20 @@ def benchmark_plan(
     )
 
 
+def validate_forced_cancellation(value: int | None, *, mode: str, scale: int) -> None:
+    """Gate the destructive cancellation drill behind explicit, bounded run-mode intent."""
+    if value is None:
+        return
+    if mode != "run":
+        raise ValueError("--force-cancel-after-seconds is available only in run mode")
+    if scale != 100_000:
+        raise ValueError("forced cancellation cleanup drills are restricted to the 100k gate")
+    if not 1 <= value <= MAX_FORCED_CANCEL_SECONDS:
+        raise ValueError(
+            f"forced cancellation must be between 1 and {MAX_FORCED_CANCEL_SECONDS} seconds"
+        )
+
+
 def planned_suite(specs: Sequence[RunSpec]) -> dict[str, Any]:
     """Project a bounded dry-run document without claiming executed evidence."""
     if not specs:
@@ -94,6 +110,7 @@ def planned_suite(specs: Sequence[RunSpec]) -> dict[str, Any]:
             "materialisation_deadline_seconds": MATERIALISATION_DEADLINE_SECONDS,
             "progress_interval_seconds": PROGRESS_INTERVAL_SECONDS,
             "maximum_plan_nodes": MAX_PLAN_NODES,
+            "maximum_forced_cancel_seconds": MAX_FORCED_CANCEL_SECONDS,
         },
         "reset_policy": "fresh disposable schema per repetition; drop attempted in finally",
         "runs": [
@@ -228,7 +245,74 @@ def _numeric_delta(after: object, before: object, keys: Sequence[str]) -> dict[s
     return deltas
 
 
-def metric_deltas(before: object, after: object) -> dict[str, dict[str, float]]:
+IO_COUNTER_FIELDS = (
+    "reads",
+    "read_time",
+    "writes",
+    "write_time",
+    "writebacks",
+    "writeback_time",
+    "extends",
+    "extend_time",
+    "hits",
+    "evictions",
+    "reuses",
+    "fsyncs",
+    "fsync_time",
+)
+
+
+def io_metric_deltas(before: object, after: object) -> dict[str, Any]:
+    """Summarise bounded pg_stat_io deltas by its stable backend/object/context key."""
+
+    def indexed(rows: object) -> dict[tuple[str, str, str], dict[str, Any]]:
+        if not isinstance(rows, list):
+            return {}
+        result: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            key = (
+                str(row.get("backend_type", "")),
+                str(row.get("object", "")),
+                str(row.get("context", "")),
+            )
+            if all(key):
+                result[key] = row
+        return result
+
+    before_rows = indexed(before)
+    after_rows = indexed(after)
+    scopes: list[dict[str, Any]] = []
+    totals: dict[str, float] = {}
+    reset_changed = False
+    for key in sorted(before_rows.keys() & after_rows.keys()):
+        old = before_rows[key]
+        new = after_rows[key]
+        reset_changed = reset_changed or old.get("stats_reset") != new.get("stats_reset")
+        counters = _numeric_delta(new, old, IO_COUNTER_FIELDS)
+        if not counters:
+            continue
+        scopes.append(
+            {
+                "backend_type": key[0],
+                "object": key[1],
+                "context": key[2],
+                "counters": counters,
+            }
+        )
+        for field, value in counters.items():
+            totals[field] = totals.get(field, 0.0) + value
+    return {
+        "totals": totals,
+        "by_scope": scopes[:MAX_IO_SCOPES],
+        "scope_count": len(scopes),
+        "truncated": len(scopes) > MAX_IO_SCOPES,
+        "stats_reset_changed": reset_changed,
+    }
+
+
+def metric_deltas(before: object, after: object) -> dict[str, Any]:
     """Calculate explicit database, WAL, checkpoint and temp-byte counter deltas."""
     before_map = before if isinstance(before, dict) else {}
     after_map = after if isinstance(after, dict) else {}
@@ -254,6 +338,7 @@ def metric_deltas(before: object, after: object) -> dict[str, dict[str, float]]:
                 "checkpoint_sync_time",
             ),
         ),
+        "io": io_metric_deltas(before_map.get("io"), after_map.get("io")),
     }
 
 
@@ -332,6 +417,7 @@ def _psi_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str, st
                 'postcode',lpad((2000 + ({address_key}) % 900)::text,4,'0'),
                 'locality','LOCALITY '||(({address_key}) % 300),
                 'street_name','STREET '||(({address_key}) % 500), 'street_type','ST',
+                'house_number',(({address_key}) % 5000 + 1)::text,
                 'street_number_first',(({address_key}) % 5000 + 1),
                 'street_number_last','', 'street_number_suffix','', 'unit_number','',
                 'price_aud',500000 + (i % 2000000),
@@ -346,7 +432,8 @@ def _psi_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str, st
             ordinal bigint PRIMARY KEY, source_business_key text NOT NULL,
             source_row_sha256 text NOT NULL, property_ref uuid, address_key bigint NOT NULL,
             postcode text NOT NULL, locality text NOT NULL, street_name text NOT NULL,
-            street_type text NOT NULL, street_number_first integer NOT NULL,
+            street_type text NOT NULL, house_number text NOT NULL,
+            street_number_first integer NOT NULL,
             street_number_last integer, street_number_suffix text, unit_number text,
             price_aud bigint NOT NULL, contract_date date NOT NULL, payload_padding text NOT NULL
         );
@@ -356,51 +443,52 @@ def _psi_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str, st
                CASE WHEN i%29=0 THEN {_uuid_sql("'supplied-'||((i-1)/3)")} ELSE NULL END,
                {address_key}, lpad((2000 + ({address_key}) % 900)::text,4,'0'),
                'LOCALITY '||(({address_key}) % 300), 'STREET '||(({address_key}) % 500),
-               'ST', (({address_key}) % 5000 + 1)::integer, NULL, NULL, NULL,
+               'ST', (({address_key}) % 5000 + 1)::text,
+               (({address_key}) % 5000 + 1)::integer, NULL, NULL, NULL,
                500000 + (i % 2000000), date '1990-01-01' + (i % 13000)::integer, repeat('x',160)
         FROM generate_series(1,{scale}) i;
         ANALYZE {q}.psi_stage_typed
     """
     identity = f"""
         CREATE TABLE {q}.psi_identity AS
-        SELECT source_business_key,source_row_sha256,min(ordinal) AS first_ordinal
-        FROM {q}.psi_stage_typed GROUP BY source_business_key,source_row_sha256;
-        CREATE UNIQUE INDEX psi_identity_key_idx ON {q}.psi_identity
-            (source_business_key,source_row_sha256);
-        ANALYZE {q}.psi_identity
-    """
-    revisions = f"""
-        CREATE TABLE {q}.psi_revisions AS
+        WITH first_transmissions AS (
+            SELECT source_business_key,source_row_sha256,min(ordinal) AS first_ordinal
+            FROM {q}.psi_stage_typed GROUP BY source_business_key,source_row_sha256
+        )
         SELECT source_business_key,source_row_sha256,first_ordinal,
                row_number() OVER (PARTITION BY source_business_key ORDER BY first_ordinal)::integer
                    AS source_revision
-        FROM {q}.psi_identity;
-        CREATE UNIQUE INDEX psi_revisions_idx ON {q}.psi_revisions
-            (source_business_key,source_revision) INCLUDE (source_row_sha256,first_ordinal);
-        ANALYZE {q}.psi_revisions
+        FROM first_transmissions
     """
     addresses = f"""
         CREATE TABLE {q}.psi_address_resolution AS
-        SELECT source.address_key,min(registry.property_ref::text)::uuid AS exact_property_ref
-        FROM (SELECT DISTINCT address_key,postcode,locality,street_name,street_type,
+        WITH eligible_addresses AS (
+            SELECT DISTINCT postcode,locality,street_name,street_type,
                      street_number_first,street_number_last,street_number_suffix,unit_number
-              FROM {q}.psi_stage_typed WHERE property_ref IS NULL) source
-        JOIN {q}.address_registry registry
+            FROM {q}.psi_stage_typed
+            WHERE house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
+        )
+        SELECT source.postcode,source.locality,source.street_name,source.street_type,
+               source.street_number_first,source.street_number_last,
+               source.street_number_suffix,source.unit_number,
+               count(registry.property_ref)::integer AS match_count,
+               CASE WHEN count(registry.property_ref)=1
+                    THEN min(registry.property_ref::text)::uuid END AS exact_property_ref
+        FROM eligible_addresses source LEFT JOIN {q}.address_registry registry
           ON registry.postcode=source.postcode AND registry.locality=source.locality
          AND registry.street_name=source.street_name AND registry.street_type=source.street_type
          AND registry.street_number_first=source.street_number_first
          AND coalesce(registry.street_number_last,-1)=coalesce(source.street_number_last,-1)
          AND coalesce(registry.street_number_suffix,'')=coalesce(source.street_number_suffix,'')
          AND coalesce(registry.unit_number,'')=coalesce(source.unit_number,'')
-        GROUP BY source.address_key HAVING count(*)=1;
-        CREATE UNIQUE INDEX psi_address_resolution_idx ON {q}.psi_address_resolution(address_key);
-        ANALYZE {q}.psi_address_resolution
+        GROUP BY source.postcode,source.locality,source.street_name,source.street_type,
+                 source.street_number_first,source.street_number_last,
+                 source.street_number_suffix,source.unit_number
     """
     return (
         ("create_registry", registry),
         ("typed_staging", stage),
-        ("identity", identity),
-        ("revisions", revisions),
+        ("identity_revision_derivation", identity),
         ("address_resolution", addresses),
         ("create_target", target),
     )
@@ -433,6 +521,7 @@ def _psi_materialisation_sql(schema: str, variant: str) -> str:
                      ranked.payload->>'street_number_suffix','')
                  AND coalesce(registry.unit_number,'')=coalesce(ranked.payload->>'unit_number','')
                 WHERE nullif(ranked.payload->>'property_ref','') IS NULL
+                  AND ranked.payload->>'house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
                 GROUP BY ranked.payload->>'source_business_key',ranked.revision HAVING count(*)=1
             )
             INSERT INTO {q}.psi_target
@@ -457,53 +546,110 @@ def _psi_materialisation_sql(schema: str, variant: str) -> str:
                source.postcode,source.locality,source.street_name,source.street_type,
                source.street_number_first,source.price_aud,source.contract_date,
                source.payload_padding
-        FROM {q}.psi_revisions revision
+        FROM {q}.psi_identity revision
         JOIN {q}.psi_stage_typed source
           ON source.ordinal=revision.first_ordinal
-        LEFT JOIN {q}.psi_address_resolution resolution ON resolution.address_key=source.address_key
+        LEFT JOIN {q}.psi_address_resolution resolution
+          ON resolution.postcode=source.postcode AND resolution.locality=source.locality
+         AND resolution.street_name=source.street_name
+         AND resolution.street_type=source.street_type
+         AND resolution.street_number_first=source.street_number_first
+         AND coalesce(resolution.street_number_last,-1)=coalesce(source.street_number_last,-1)
+         AND coalesce(resolution.street_number_suffix,'')=coalesce(source.street_number_suffix,'')
+         AND coalesce(resolution.unit_number,'')=coalesce(source.unit_number,'')
+         AND source.house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
     """
 
 
 def _bocsar_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str, str], ...]:
     q = _quoted_schema(schema)
     target = f"""
-        CREATE TABLE {q}.bocsar_target (
+        CREATE TABLE {q}.bocsar_observation_target (
             geography_kind text NOT NULL,geography_value text NOT NULL,
-            source_category_key text NOT NULL,month date NOT NULL,count_value integer,
-            source_row_sha256 text NOT NULL,coverage_present boolean NOT NULL,
+            source_category_key text NOT NULL,offence_label text NOT NULL,
+            subcategory_label text NOT NULL,month date NOT NULL,count_value integer NOT NULL,
+            source_row_sha256 text NOT NULL,
             payload_padding text NOT NULL,
             PRIMARY KEY (geography_kind,geography_value,source_category_key,month)
+        );
+        CREATE TABLE {q}.bocsar_coverage_target (
+            geography_kind text NOT NULL,geography_value text NOT NULL,
+            source_category_key text NOT NULL,observed_months date[] NOT NULL,
+            first_month date NOT NULL,last_month date NOT NULL,month_count integer NOT NULL,
+            blank_means_observed_zero boolean NOT NULL,completeness_sha256 text NOT NULL,
+            source_row_sha256 text NOT NULL,payload_padding text NOT NULL,
+            PRIMARY KEY (geography_kind,geography_value,source_category_key)
+        )
+    """
+    common_cte = f"""
+        WITH generated AS (
+            SELECT i,(i % 20 = 0) AS is_coverage,
+                   CASE WHEN i % 20 = 0 THEN i / 20 ELSE i - i / 20 END AS record_key
+            FROM generate_series(1,{scale}) i
+        ), shaped AS (
+            SELECT i,is_coverage,record_key,
+                   CASE WHEN record_key % 2=0 THEN 'postcode' ELSE 'suburb' END geography_kind,
+                   CASE WHEN record_key % 2=0
+                        THEN lpad((1000 + record_key % 9000)::text,4,'0')
+                        ELSE 'SUBURB '||record_key END geography_value,
+                   'category-'||(record_key / 9000) source_category_key,
+                   date '1995-01-01' + ((record_key % 360) * interval '1 month') observed_month
+            FROM generated
         )
     """
     if variant == "jsonb-ordered":
         stage = f"""
             CREATE TABLE {q}.bocsar_stage (ordinal bigint PRIMARY KEY,payload jsonb NOT NULL);
+            {common_cte}
             INSERT INTO {q}.bocsar_stage
             SELECT i,jsonb_build_object(
-                'geography_kind',CASE WHEN i%2=0 THEN 'postcode' ELSE 'suburb' END,
-                'geography_value',CASE WHEN i%2=0 THEN lpad((2000+i%800)::text,4,'0')
-                                             ELSE 'SUBURB '||(i%1200) END,
-                'source_category_key','category-'||(i%180),
-                'month',(date '1995-01-01'+((i%360)*interval '1 month'))::date::text,
-                'count_value',CASE WHEN i%17=0 THEN 0 ELSE i%41 END,
-                'source_row_sha256',md5(i::text), 'coverage_present',true,
-                'payload_padding',repeat('c',96)) FROM generate_series(1,{scale}) i;
+                'record_kind',CASE WHEN is_coverage THEN 'coverage' ELSE 'observation' END,
+                'geography_kind',geography_kind,'geography_value',geography_value,
+                'source_category_key',source_category_key,
+                'offence_label','OFFENCE '||(record_key%32),
+                'subcategory_label','SUBCATEGORY '||(record_key%96),
+                'month',CASE WHEN is_coverage THEN NULL ELSE observed_month::date::text END,
+                'count',CASE WHEN is_coverage THEN NULL ELSE 1+(record_key%41) END,
+                'observed_months',CASE WHEN is_coverage THEN to_jsonb(ARRAY[
+                    date '2024-01-01',date '2024-02-01',date '2024-03-01',date '2024-04-01'])
+                    ELSE NULL END,
+                'first_month',CASE WHEN is_coverage THEN '2024-01-01' ELSE NULL END,
+                'last_month',CASE WHEN is_coverage THEN '2024-04-01' ELSE NULL END,
+                'month_count',CASE WHEN is_coverage THEN 4 ELSE NULL END,
+                'blank_means_observed_zero',CASE WHEN is_coverage THEN true ELSE NULL END,
+                'completeness_sha256',CASE WHEN is_coverage THEN md5('coverage-'||record_key)
+                    ELSE NULL END,
+                'source_row_sha256',md5(i::text),'payload_padding',repeat('c',96))
+            FROM shaped;
             ANALYZE {q}.bocsar_stage
         """
         return (("jsonb_staging", stage), ("create_target", target))
     stage = f"""
         CREATE TABLE {q}.bocsar_stage_typed (
-            ordinal bigint PRIMARY KEY,geography_kind text NOT NULL,geography_value text NOT NULL,
-            source_category_key text NOT NULL,month date NOT NULL,count_value integer,
-            source_row_sha256 text NOT NULL,coverage_present boolean NOT NULL,
-            payload_padding text NOT NULL
+            ordinal bigint PRIMARY KEY,record_kind text NOT NULL,
+            geography_kind text NOT NULL,geography_value text NOT NULL,
+            source_category_key text NOT NULL,offence_label text,subcategory_label text,
+            month date,count_value integer,observed_months date[],first_month date,last_month date,
+            month_count integer,blank_means_observed_zero boolean,completeness_sha256 text,
+            source_row_sha256 text NOT NULL,payload_padding text NOT NULL
         );
+        {common_cte}
         INSERT INTO {q}.bocsar_stage_typed
-        SELECT i,CASE WHEN i%2=0 THEN 'postcode' ELSE 'suburb' END,
-               CASE WHEN i%2=0 THEN lpad((2000+i%800)::text,4,'0') ELSE 'SUBURB '||(i%1200) END,
-               'category-'||(i%180),(date '1995-01-01'+((i%360)*interval '1 month'))::date,
-               CASE WHEN i%17=0 THEN 0 ELSE i%41 END,md5(i::text),true,repeat('c',96)
-        FROM generate_series(1,{scale}) i;
+        SELECT i,CASE WHEN is_coverage THEN 'coverage' ELSE 'observation' END,
+               geography_kind,geography_value,source_category_key,
+               CASE WHEN is_coverage THEN NULL ELSE 'OFFENCE '||(record_key%32) END,
+               CASE WHEN is_coverage THEN NULL ELSE 'SUBCATEGORY '||(record_key%96) END,
+               CASE WHEN is_coverage THEN NULL ELSE observed_month::date END,
+               CASE WHEN is_coverage THEN NULL ELSE 1+(record_key%41) END,
+               CASE WHEN is_coverage THEN ARRAY[date '2024-01-01',date '2024-02-01',
+                    date '2024-03-01',date '2024-04-01'] ELSE NULL END,
+               CASE WHEN is_coverage THEN date '2024-01-01' ELSE NULL END,
+               CASE WHEN is_coverage THEN date '2024-04-01' ELSE NULL END,
+               CASE WHEN is_coverage THEN 4 ELSE NULL END,
+               CASE WHEN is_coverage THEN true ELSE NULL END,
+               CASE WHEN is_coverage THEN md5('coverage-'||record_key) ELSE NULL END,
+               md5(i::text),repeat('c',96)
+        FROM shaped;
         ANALYZE {q}.bocsar_stage_typed
     """
     return (("typed_staging", stage), ("create_target", target))
@@ -513,31 +659,86 @@ def _bocsar_materialisation_sql(schema: str, variant: str) -> str:
     q = _quoted_schema(schema)
     if variant == "jsonb-ordered":
         return f"""
-            INSERT INTO {q}.bocsar_target
-            SELECT payload->>'geography_kind',payload->>'geography_value',
-                   payload->>'source_category_key',(payload->>'month')::date,
-                   (payload->>'count_value')::integer,payload->>'source_row_sha256',
-                   (payload->>'coverage_present')::boolean,payload->>'payload_padding'
-            FROM {q}.bocsar_stage ORDER BY ordinal
-            ON CONFLICT (geography_kind,geography_value,source_category_key,month) DO NOTHING
+            WITH observations AS (
+                INSERT INTO {q}.bocsar_observation_target
+                SELECT payload->>'geography_kind',payload->>'geography_value',
+                       payload->>'source_category_key',payload->>'offence_label',
+                       payload->>'subcategory_label',(payload->>'month')::date,
+                       (payload->>'count')::integer,payload->>'source_row_sha256',
+                       payload->>'payload_padding'
+                FROM {q}.bocsar_stage WHERE payload->>'record_kind'='observation'
+                ORDER BY ordinal
+                ON CONFLICT (geography_kind,geography_value,source_category_key,month) DO NOTHING
+                RETURNING 1
+            ), coverages AS (
+                INSERT INTO {q}.bocsar_coverage_target
+                SELECT payload->>'geography_kind',payload->>'geography_value',
+                       payload->>'source_category_key',ARRAY(SELECT value::date
+                           FROM jsonb_array_elements_text(payload->'observed_months') value),
+                       (payload->>'first_month')::date,(payload->>'last_month')::date,
+                       (payload->>'month_count')::integer,
+                       (payload->>'blank_means_observed_zero')::boolean,
+                       payload->>'completeness_sha256',payload->>'source_row_sha256',
+                       payload->>'payload_padding'
+                FROM {q}.bocsar_stage WHERE payload->>'record_kind'='coverage'
+                ORDER BY ordinal
+                ON CONFLICT (geography_kind,geography_value,source_category_key) DO NOTHING
+                RETURNING 1
+            )
+            SELECT (SELECT count(*) FROM observations)+(SELECT count(*) FROM coverages)
         """
     return f"""
-        INSERT INTO {q}.bocsar_target
-        SELECT geography_kind,geography_value,source_category_key,month,count_value,
-               source_row_sha256,coverage_present,payload_padding
-        FROM {q}.bocsar_stage_typed
-        ON CONFLICT (geography_kind,geography_value,source_category_key,month) DO NOTHING
+        WITH first_observations AS (
+            SELECT geography_kind,geography_value,source_category_key,month,min(ordinal) ordinal
+            FROM {q}.bocsar_stage_typed WHERE record_kind='observation'
+            GROUP BY geography_kind,geography_value,source_category_key,month
+        ), observations AS (
+            INSERT INTO {q}.bocsar_observation_target
+            SELECT source.geography_kind,source.geography_value,source.source_category_key,
+                   source.offence_label,source.subcategory_label,source.month,source.count_value,
+                   source.source_row_sha256,source.payload_padding
+            FROM first_observations first JOIN {q}.bocsar_stage_typed source
+            USING (geography_kind,geography_value,source_category_key,month,ordinal)
+            ON CONFLICT (geography_kind,geography_value,source_category_key,month) DO NOTHING
+            RETURNING 1
+        ), first_coverages AS (
+            SELECT geography_kind,geography_value,source_category_key,min(ordinal) ordinal
+            FROM {q}.bocsar_stage_typed WHERE record_kind='coverage'
+            GROUP BY geography_kind,geography_value,source_category_key
+        ), coverages AS (
+            INSERT INTO {q}.bocsar_coverage_target
+            SELECT source.geography_kind,source.geography_value,source.source_category_key,
+                   source.observed_months,source.first_month,source.last_month,source.month_count,
+                   source.blank_means_observed_zero,source.completeness_sha256,
+                   source.source_row_sha256,source.payload_padding
+            FROM first_coverages first JOIN {q}.bocsar_stage_typed source
+            USING (geography_kind,geography_value,source_category_key,ordinal)
+            ON CONFLICT (geography_kind,geography_value,source_category_key) DO NOTHING
+            RETURNING 1
+        )
+        SELECT (SELECT count(*) FROM observations)+(SELECT count(*) FROM coverages)
     """
 
 
-def benchmark_sql(spec: RunSpec, schema: str) -> tuple[tuple[tuple[str, str], ...], str]:
-    """Return setup phases and the one measured materialisation statement."""
+def benchmark_sql(
+    spec: RunSpec, schema: str
+) -> tuple[tuple[tuple[str, str], ...], tuple[tuple[str, str], ...], str]:
+    """Return unmeasured setup, measured preparation, and final materialisation SQL.
+
+    Typed PSI deliberately prepares its narrow identity, deterministic revisions, and distinct
+    address resolution inside the measured interval. This keeps elapsed/throughput comparisons
+    like-for-like with the wide JSONB statement, which performs the same work in its CTEs.
+    """
     if spec.dataset == "psi":
-        return _psi_setup_sql(schema, spec.scale, spec.variant), _psi_materialisation_sql(
-            schema, spec.variant
-        )
-    return _bocsar_setup_sql(schema, spec.scale, spec.variant), _bocsar_materialisation_sql(
-        schema, spec.variant
+        phases = _psi_setup_sql(schema, spec.scale, spec.variant)
+        measured_names = {"identity_revision_derivation", "address_resolution"}
+        setup = tuple(item for item in phases if item[0] not in measured_names)
+        measured = tuple(item for item in phases if item[0] in measured_names)
+        return setup, measured, _psi_materialisation_sql(schema, spec.variant)
+    return (
+        _bocsar_setup_sql(schema, spec.scale, spec.variant),
+        (),
+        _bocsar_materialisation_sql(schema, spec.variant),
     )
 
 
@@ -576,32 +777,108 @@ def _snapshot(connection: Any, backend_pid: int | None = None) -> dict[str, Any]
     return snapshot
 
 
-def _relation_bytes(connection: Any, schema: str) -> int:
+def _relation_sizes(connection: Any, schema: str) -> dict[str, Any]:
+    """Capture separate heap/index/total bytes for every disposable benchmark table."""
     with connection.cursor() as cursor:
         cursor.execute(
-            """SELECT coalesce(sum(pg_total_relation_size(
-                   format('%%I.%%I',schemaname,tablename))),0)
-               FROM pg_tables WHERE schemaname=%s""",
+            """SELECT tablename,
+                      pg_relation_size(
+                          format('%%I.%%I',schemaname,tablename)::regclass) AS heap_bytes,
+                      pg_indexes_size(
+                          format('%%I.%%I',schemaname,tablename)::regclass) AS index_bytes,
+                      pg_total_relation_size(format('%%I.%%I',schemaname,tablename)::regclass)
+                          AS total_bytes
+               FROM pg_tables WHERE schemaname=%s ORDER BY tablename""",
             (schema,),
         )
-        return int(cursor.fetchone()[0])
+        rows = cursor.fetchall()
+    relations: list[dict[str, Any]] = [
+        {
+            "relation": str(row[0]),
+            "heap_bytes": int(row[1]),
+            "index_bytes": int(row[2]),
+            "total_bytes": int(row[3]),
+        }
+        for row in rows
+    ]
+    return {
+        "aggregate": {
+            field: sum(int(item[field]) for item in relations)
+            for field in ("heap_bytes", "index_bytes", "total_bytes")
+        },
+        "relations": relations,
+    }
+
+
+def relation_size_deltas(before: object, after: object) -> dict[str, Any]:
+    """Calculate per-relation and aggregate heap/index/total growth."""
+
+    def indexed(value: object) -> dict[str, dict[str, Any]]:
+        if not isinstance(value, dict) or not isinstance(value.get("relations"), list):
+            return {}
+        return {
+            str(item["relation"]): item
+            for item in value["relations"]
+            if isinstance(item, dict) and "relation" in item
+        }
+
+    old = indexed(before)
+    new = indexed(after)
+    relations: list[dict[str, Any]] = []
+    for name in sorted(old.keys() | new.keys()):
+        item: dict[str, Any] = {"relation": name}
+        for field in ("heap_bytes", "index_bytes", "total_bytes"):
+            item[field] = int(new.get(name, {}).get(field, 0)) - int(
+                old.get(name, {}).get(field, 0)
+            )
+        relations.append(item)
+    return {
+        "aggregate": {
+            field: sum(int(item[field]) for item in relations)
+            for field in ("heap_bytes", "index_bytes", "total_bytes")
+        },
+        "relations": relations,
+    }
 
 
 def _target_evidence(connection: Any, schema: str, dataset: str) -> dict[str, Any]:
     q = _quoted_schema(schema)
-    table = "psi_target" if dataset == "psi" else "bocsar_target"
-    identity = (
-        "source_business_key||':'||source_revision"
-        if dataset == "psi"
-        else "geography_kind||':'||geography_value||':'||source_category_key||':'||month::text"
-    )
     with connection.cursor() as cursor:
+        if dataset == "psi":
+            cursor.execute(
+                f"""SELECT count(*),md5(count(*)::text||':'||coalesce(sum(hashtextextended(
+                    source_business_key||':'||source_revision||':'||source_row_sha256||':'||
+                    source_ordinal||':'||coalesce(property_ref::text,'unmatched'),0))::text,'0'))
+                    FROM {q}.psi_target"""
+            )
+            count, fingerprint = cursor.fetchone()
+            return {"row_count": int(count), "identity_fingerprint": str(fingerprint)}
         cursor.execute(
-            f"""SELECT count(*),md5(count(*)::text||':'||
-                coalesce(sum(hashtextextended({identity},0))::text,'0')) FROM {q}.{table}"""
+            f"""SELECT count(*),md5(count(*)::text||':'||coalesce(sum(hashtextextended(
+                geography_kind||':'||geography_value||':'||source_category_key||':'||month::text||
+                ':'||count_value||':'||source_row_sha256,
+                0))::text,'0')) FROM {q}.bocsar_observation_target"""
         )
-        count, fingerprint = cursor.fetchone()
-    return {"row_count": int(count), "identity_fingerprint": str(fingerprint)}
+        observation_count, observation_fingerprint = cursor.fetchone()
+        cursor.execute(
+            f"""SELECT count(*),md5(count(*)::text||':'||coalesce(sum(hashtextextended(
+                geography_kind||':'||geography_value||':'||source_category_key||':'||
+                observed_months::text||':'||blank_means_observed_zero||':'||
+                completeness_sha256||':'||source_row_sha256,0))::text,'0'))
+                FROM {q}.bocsar_coverage_target"""
+        )
+        coverage_count, coverage_fingerprint = cursor.fetchone()
+    return {
+        "row_count": int(observation_count) + int(coverage_count),
+        "observation_count": int(observation_count),
+        "coverage_count": int(coverage_count),
+        "identity_fingerprint": str(
+            uuid.uuid5(
+                uuid.NAMESPACE_OID,
+                f"{observation_fingerprint}:{coverage_fingerprint}",
+            )
+        ),
+    }
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -619,10 +896,11 @@ def execute_run(
     *,
     connector: Callable[[str], Any],
     clock: Callable[[], float] = time.monotonic,
+    force_cancel_after_seconds: int | None = None,
 ) -> dict[str, Any]:
     """Execute one reset run with server/client deadlines and best-effort cleanup evidence."""
     schema = _schema_name(spec)
-    setup_phases, materialisation = benchmark_sql(spec, schema)
+    setup_phases, measured_phases, materialisation = benchmark_sql(spec, schema)
     summary: dict[str, Any] = {
         "schema_version": 1,
         "run_id": spec.run_id,
@@ -639,6 +917,11 @@ def execute_run(
             "rollback_completed": False,
             "schema_dropped": False,
         },
+        "execution_mode": (
+            "forced_cancellation_cleanup"
+            if force_cancel_after_seconds is not None
+            else "measurement"
+        ),
     }
     control = connector(database_url)
     worker = connector(database_url)
@@ -656,31 +939,60 @@ def execute_run(
                 cursor.execute(sql)
             worker.commit()
             summary["phase_timings_seconds"][phase] = round(clock() - started, 6)
-        summary["relation_bytes_before_materialisation"] = _relation_bytes(control, schema)
+        sizes_before = _relation_sizes(control, schema)
+        summary["relation_sizes_before_measured_work"] = sizes_before
         backend_pid = int(worker.info.backend_pid)
         result: dict[str, Any] = {}
         failure: list[BaseException] = []
 
         def materialise() -> None:
             try:
+                plans: list[tuple[str, object]] = []
+                for phase, sql in measured_phases:
+                    phase_started = clock()
+                    with worker.cursor() as cursor:
+                        cursor.execute(
+                            f"SET LOCAL statement_timeout='{MATERIALISATION_DEADLINE_SECONDS}s'"
+                        )
+                        cursor.execute(
+                            "EXPLAIN (ANALYZE, BUFFERS, WAL, SETTINGS, SUMMARY, FORMAT JSON) " + sql
+                        )
+                        plans.append((phase, cursor.fetchone()[0]))
+                        if phase == "identity_revision_derivation":
+                            cursor.execute(f"ANALYZE {q}.psi_identity")
+                        elif phase == "address_resolution":
+                            cursor.execute(f"ANALYZE {q}.psi_address_resolution")
+                    worker.commit()
+                    summary["phase_timings_seconds"][phase] = round(clock() - phase_started, 6)
+                result["final_started"] = clock()
                 with worker.cursor() as cursor:
                     cursor.execute(
                         f"SET LOCAL statement_timeout='{MATERIALISATION_DEADLINE_SECONDS}s'"
                     )
-                    cursor.execute(
-                        "EXPLAIN (ANALYZE, BUFFERS, WAL, SETTINGS, SUMMARY, FORMAT JSON) "
-                        + materialisation
-                    )
-                    result["plan"] = cursor.fetchone()[0]
+                    if force_cancel_after_seconds is None:
+                        cursor.execute(
+                            "EXPLAIN (ANALYZE, BUFFERS, WAL, SETTINGS, SUMMARY, FORMAT JSON) "
+                            + materialisation
+                        )
+                    else:
+                        cursor.execute(f"SELECT pg_sleep({force_cancel_after_seconds + 60})")
+                    plans.append(("target_materialisation", cursor.fetchone()[0]))
                 worker.commit()
+                result["plans"] = plans
+                result["final_finished"] = clock()
             except BaseException as exc:  # retained for the coordinating thread
                 failure.append(exc)
 
-        started = clock()
+        measured_started = clock()
+        started = measured_started
         thread = threading.Thread(target=materialise, name=spec.run_id, daemon=True)
         thread.start()
         summary["progress_snapshots"].append(_snapshot(control, backend_pid))
-        deadline = started + MATERIALISATION_DEADLINE_SECONDS
+        deadline = started + (
+            force_cancel_after_seconds
+            if force_cancel_after_seconds is not None
+            else MATERIALISATION_DEADLINE_SECONDS
+        )
         next_report = started + PROGRESS_INTERVAL_SECONDS
         while thread.is_alive():
             remaining = max(0.0, min(next_report, deadline) - clock())
@@ -707,8 +1019,14 @@ def execute_run(
                     flush=True,
                 )
                 next_report += PROGRESS_INTERVAL_SECONDS
-        elapsed = clock() - started
-        summary["phase_timings_seconds"]["materialisation"] = round(elapsed, 6)
+        elapsed = clock() - measured_started
+        final_started = result.get("final_started")
+        final_finished = result.get("final_finished", clock())
+        if isinstance(final_started, (float, int)):
+            summary["phase_timings_seconds"]["materialisation"] = round(
+                float(final_finished) - float(final_started), 6
+            )
+        summary["phase_timings_seconds"]["measured_total"] = round(elapsed, 6)
         if failure:
             worker.rollback()
             summary["cleanup"]["rollback_completed"] = True
@@ -722,9 +1040,15 @@ def execute_run(
             summary["cleanup"]["rollback_completed"] = True
             summary["status"] = "cancelled"
         else:
-            plan = result["plan"]
-            _write_json(output / "plans" / f"{spec.run_id}.explain.json", plan)
-            summary["plan_nodes"] = extract_plan_nodes(plan)
+            plans = result["plans"]
+            plan_nodes: list[dict[str, Any]] = []
+            for phase, plan in plans:
+                _write_json(output / "plans" / f"{spec.run_id}.{phase}.explain.json", plan)
+                for node in extract_plan_nodes(plan):
+                    if len(plan_nodes) >= MAX_PLAN_NODES:
+                        break
+                    plan_nodes.append({"phase": phase, **node})
+            summary["plan_nodes"] = plan_nodes
             summary["plan_temp_blocks"] = {
                 "read": sum(node["temp_read_blocks"] for node in summary["plan_nodes"]),
                 "written": sum(node["temp_written_blocks"] for node in summary["plan_nodes"]),
@@ -732,7 +1056,7 @@ def execute_run(
             summary["elapsed_seconds"] = round(elapsed, 6)
             summary["rows_per_second"] = round(spec.scale / elapsed, 3) if elapsed > 0 else None
             summary["target"] = _target_evidence(control, schema, spec.dataset)
-            summary["relation_bytes_after_materialisation"] = _relation_bytes(control, schema)
+            summary["relation_sizes_after_measured_work"] = _relation_sizes(control, schema)
             summary["status"] = "succeeded"
     except BaseException as exc:
         try:
@@ -749,10 +1073,10 @@ def execute_run(
             after = _snapshot(control)
             summary["after"] = after
             summary["metric_deltas"] = metric_deltas(summary.get("before"), after)
-            relation_after = _relation_bytes(control, schema)
-            summary["relation_bytes_after_materialisation"] = relation_after
-            summary["relation_growth_bytes"] = relation_after - int(
-                summary.get("relation_bytes_before_materialisation", 0)
+            relation_after = _relation_sizes(control, schema)
+            summary["relation_sizes_after_measured_work"] = relation_after
+            summary["relation_size_deltas"] = relation_size_deltas(
+                summary.get("relation_sizes_before_measured_work"), relation_after
             )
             before_snapshot = summary.get("before")
             before_temp = (
@@ -805,6 +1129,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--confirm-database")
     parser.add_argument("--confirm-disposable", action="store_true")
+    parser.add_argument(
+        "--force-cancel-after-seconds",
+        type=int,
+        help=(
+            "run a 100k forced-cancellation cleanup drill instead of completing target DML; "
+            "requires the normal disposable database confirmations"
+        ),
+    )
     return parser
 
 
@@ -813,6 +1145,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         specs = benchmark_plan(
             arguments.dataset, arguments.scale, arguments.repetitions, arguments.variant
+        )
+        validate_forced_cancellation(
+            arguments.force_cancel_after_seconds,
+            mode=arguments.mode,
+            scale=arguments.scale,
         )
         variants = tuple(dict.fromkeys(spec.variant for spec in specs))
         if arguments.scale == 1_000_000:
@@ -845,6 +1182,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 spec,
                 output,
                 connector=psycopg.connect,
+                force_cancel_after_seconds=arguments.force_cancel_after_seconds,
             )
             for spec in specs
         ]
@@ -854,12 +1192,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             "executed": True,
             "database": actual_database,
             "generated_at": datetime.now(UTC).isoformat(),
+            "execution_mode": (
+                "forced_cancellation_cleanup"
+                if arguments.force_cancel_after_seconds is not None
+                else "measurement"
+            ),
             "runs": summaries,
             "claims": [],
         }
         validate_suite_summary(suite)
         _write_json(output / "suite-summary.json", suite)
         print(f"Wrote benchmark evidence to {output}")
+        if arguments.force_cancel_after_seconds is not None:
+            clean_cancel = all(
+                item["status"] == "cancelled"
+                and item["cleanup"]["cancel_requested"] is True
+                and item["cleanup"]["rollback_completed"] is True
+                and item["cleanup"]["schema_dropped"] is True
+                for item in summaries
+            )
+            return 0 if clean_cancel else 1
         return 0 if all(item["status"] == "succeeded" for item in summaries) else 1
     except ValueError as exc:
         print(f"Benchmark configuration rejected: {exc}")
