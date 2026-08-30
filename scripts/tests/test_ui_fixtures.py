@@ -427,8 +427,14 @@ def test_release_update_and_publish_use_production_envelopes() -> None:
     assert set(update.body) == {"release"}
     assert update.body["release"]["id"] == RELEASE_ID
     assert publication.status == 200
-    assert set(publication.body) == {"release", "receipt", "replayed"}
+    assert set(publication.body) == {
+        "release",
+        "receipt",
+        "publication_status",
+        "replayed",
+    }
     assert publication.body["release"]["status"] == "accepted"
+    assert publication.body["publication_status"] == "completed"
     assert publication.body["replayed"] is False
     PublicationReceiptResult.model_validate(publication.body["receipt"])
     release_detail_contract(publication.body["release"])

@@ -32,7 +32,7 @@ class FixtureResponse:
 
 REQUEST_ID = "ui-fixture-request-0001"
 FIXTURE_IDENTITY = "propertyscope-ui-fixture"
-FIXTURE_REVISION = 2
+FIXTURE_REVISION = 3
 TIMESTAMP = "2026-08-23T00:00:00Z"
 SOURCE_ID = "10000000-0000-0000-0000-000000000001"
 JOB_ID = "20000000-0000-0000-0000-000000000001"
@@ -48,7 +48,7 @@ DATASET_ID = "property-identities"
 FEATURE_KEY = "feature-1"
 AGENT_FEATURE_KEY = "student-1-propertyscope-data-platform"
 REPORT_SCHEMA = "propertyscope.report-section.v1"
-PRODUCT_SCHEMA = "propertyscope.property-snapshot.v1"
+PRODUCT_SCHEMA = "propertyscope.property-snapshot.v2"
 LONG_TEXT = (
     "Long deterministic fixture content — Greater Sydney property evidence and operational "
     "status remain traceable even when a publisher supplies an unusually verbose name. "
@@ -221,7 +221,7 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
             "target_feature": FEATURE_KEY,
             "product_schema_version": PRODUCT_SCHEMA,
             "builder_key": "property-snapshot",
-            "builder_version": "1.0.0",
+            "builder_version": "3.0.0",
             "supported_scope_profiles": ["full-data"],
             "redistribution_decision": "committed-synthetic-fixture",
             "download_permitted": True,
@@ -264,7 +264,7 @@ def _release_manifest(release: dict[str, Any]) -> dict[str, Any]:
         "dataset_id": release["dataset_id"],
         "target_feature": release["target_feature"],
         "builder_key": "property-snapshot",
-        "builder_version": "1.0.0",
+        "builder_version": "3.0.0",
         "import_profile": "property-fixture",
         "normalisation_version": "1.0.0",
         "publisher": "PropertyScope project",
@@ -276,8 +276,8 @@ def _release_manifest(release: dict[str, Any]) -> dict[str, Any]:
         "record_count": release["record_count"],
         "record_count_definition": "number of property identity records",
         "content_sha256": release["content_sha256"],
-        "media_type": "application/json",
-        "content_encoding": None,
+        "media_type": "application/x-ndjson",
+        "content_encoding": "gzip",
         "byte_count": 2048,
         "geography_coverage": ["NSW:PARRAMATTA", "NSW:MOSMAN", "NSW:WOLLONGONG"],
         "temporal_coverage": None,
@@ -912,6 +912,7 @@ def _publication_result(release: dict[str, Any]) -> dict[str, Any]:
             "rows_rejected": 0,
             "error": None,
         },
+        "publication_status": "completed",
         "replayed": False,
     }
 
