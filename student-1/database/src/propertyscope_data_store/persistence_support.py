@@ -101,6 +101,14 @@ def lease_expired_error() -> JsonObject:
     }
 
 
+def import_lease_expired_error() -> JsonObject:
+    return {
+        "code": "import_lease_expired",
+        "message": "Import loader heartbeat expired; explicit resume is required",
+        "retryable": True,
+    }
+
+
 def normalise_row(row: Mapping[str, Any] | None) -> JsonObject:
     if row is None:
         raise RuntimeError("expected database row")

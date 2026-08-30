@@ -54,6 +54,7 @@ PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{date}.zip"
 GNAF_CKAN_URL = (
     "https://data.gov.au/data/api/3/action/package_show?id=19432f89-dc3a-4ef3-b943-5326ef1dbecc"
 )
+IMPORT_TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled", "interrupted"})
 logger = logging.getLogger(__name__)
 
 
@@ -165,6 +166,14 @@ class AcquisitionRunner:
             result.raise_for_status()
         except TaskCancelledError:
             logger.info("Run task %s (%s) cancelled by operator", task_id, task.get("stage"))
+        except RegisteredImportError as exc:
+            logger.warning("Run task %s import requires recovery", task_id)
+            self._report_failure(
+                task,
+                lease_token,
+                exc,
+                retryable=bool(exc.error["retryable"]),
+            )
         except httpx.TransportError as exc:
             logger.exception("Run task %s (%s) lost a dependency", task_id, task.get("stage"))
             self._report_failure(task, lease_token, exc, retryable=True)
@@ -882,7 +891,7 @@ class AcquisitionRunner:
         )
         response.raise_for_status()
         operation = response.json()["operation"]
-        while operation["status"] not in {"succeeded", "failed", "cancelled"}:
+        while operation["status"] not in IMPORT_TERMINAL_STATUSES:
             self.stop_event.wait(min(self.settings.poll_seconds, 1.0))
             self._heartbeat(str(task["id"]), str(task["lease_token"]))
             response = self._control_request(

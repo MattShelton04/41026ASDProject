@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterable
+from math import isfinite
 from queue import Empty, Full, Queue
 from threading import Event, Thread
 from time import monotonic
@@ -35,8 +36,8 @@ class SerialRunQueue:
     ) -> None:
         if capacity < 1:
             raise ValueError("queue capacity must be positive")
-        if reconcile_interval_seconds <= 0:
-            raise ValueError("reconcile interval must be positive")
+        if not isfinite(reconcile_interval_seconds) or reconcile_interval_seconds <= 0:
+            raise ValueError("reconcile interval must be finite and positive")
         self._handler = handler
         self._discover = discover
         self._reconcile_interval_seconds = reconcile_interval_seconds

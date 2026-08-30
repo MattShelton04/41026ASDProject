@@ -7,6 +7,7 @@ import json
 import time
 import uuid
 from pathlib import Path
+from threading import Event
 from typing import Any, cast
 
 import pytest
@@ -20,6 +21,7 @@ from propertyscope_data_store.import_profiles import (
     CANONICAL_SCHEMA_VERSION,
     ImportProfileError,
     ImportResult,
+    _insert_profile_rows,
     execute_import,
     iter_ndjson_import,
     prepare_import,
@@ -235,6 +237,71 @@ def test_profile_mismatch_and_duplicate_natural_keys_fail_before_copy() -> None:
         prepare_import(_artifact("property-fixture", [record, record]), profile="property-fixture")
 
 
+class _PersistedCandidateCountCursor:
+    rowcount = 0
+
+    def __init__(self, counts_by_table: dict[str, int]) -> None:
+        self._counts_by_table = counts_by_table
+        self._current: dict[str, int] | None = None
+        self.executions: list[tuple[str, tuple[object, ...]]] = []
+
+    def execute(self, statement: str, parameters: tuple[object, ...]) -> None:
+        normalised = " ".join(statement.split())
+        self.executions.append((normalised, parameters))
+        self._current = None
+        for table, count in self._counts_by_table.items():
+            if f"FROM {table}" in normalised:
+                self._current = {"count": count}
+                break
+
+    def fetchone(self) -> dict[str, int] | None:
+        return self._current
+
+
+def test_conflict_safe_import_replay_counts_persisted_candidate_generation() -> None:
+    cursor = _PersistedCandidateCountCursor({"warehouse.school": 10})
+    release_id, artifact_id, run_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+    accepted = _insert_profile_rows(
+        cursor,
+        "schools-master",
+        release_id=release_id,
+        artifact_id=artifact_id,
+        run_id=run_id,
+    )
+
+    assert accepted == 10
+    count_statement, count_parameters = cursor.executions[-1]
+    assert "dataset_release_id=%s AND artifact_record_id=%s AND ingestion_run_id=%s" in (
+        count_statement
+    )
+    assert count_parameters == (release_id, artifact_id, run_id)
+
+
+def test_bocsar_replay_counts_both_persisted_candidate_tables() -> None:
+    cursor = _PersistedCandidateCountCursor(
+        {"warehouse.bocsar_observation": 7, "warehouse.bocsar_coverage": 3}
+    )
+    release_id, artifact_id, run_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+    accepted = _insert_profile_rows(
+        cursor,
+        "bocsar-sparse",
+        release_id=release_id,
+        artifact_id=artifact_id,
+        run_id=run_id,
+    )
+
+    assert accepted == 10
+    count_executions = [
+        execution for execution in cursor.executions if execution[0].startswith("SELECT count(*)")
+    ]
+    assert len(count_executions) == 2
+    assert all(
+        parameters == (release_id, artifact_id, run_id) for _, parameters in count_executions
+    )
+
+
 def test_schools_import_accepts_nsw_lord_howe_island() -> None:
     record: dict[str, object] = {
         "school_code": "1921",
@@ -345,7 +412,16 @@ class _Store:
     def import_cancel_requested(self, _operation_id: uuid.UUID) -> bool:
         return False
 
-    def execute_import_profile(self, work: dict[str, Any], prepared: Any) -> ImportResult:
+    def execute_import_profile(
+        self,
+        work: dict[str, Any],
+        prepared: Any,
+        *,
+        lease_failed_event: Event | None = None,
+        stop_event: Event | None = None,
+    ) -> ImportResult:
+        assert lease_failed_event is None or not lease_failed_event.is_set()
+        assert stop_event is None or not stop_event.is_set()
         assert prepared.profile == "property-fixture"
         assert work["candidate_release_id"] == "60000000-0000-0000-0000-000000000001"
         return ImportResult(1, 1, 1, 0, 2)
@@ -393,6 +469,43 @@ class _ActivationStore:
         raise AssertionError("publication activation must be serviced before another import")
 
 
+class _ImportLeaseStore:
+    def __init__(self, *, fail_renewal: bool = False) -> None:
+        self.operation_id = uuid.uuid4()
+        self.heartbeats = 0
+        self.heartbeat_seen = Event()
+        self.heartbeat_attempted = Event()
+        self.lease_seconds: list[int] = []
+        self.finished_status = ""
+        self.fail_renewal = fail_renewal
+
+    def claim_release_activation(self, **_: Any) -> None:
+        return None
+
+    def claim_import(self, **kwargs: Any) -> dict[str, Any]:
+        self.lease_seconds.append(int(kwargs["lease_seconds"]))
+        return {"id": self.operation_id, "lease_token": "import-token"}
+
+    def heartbeat_import(self, *_: Any, **kwargs: Any) -> None:
+        self.heartbeats += 1
+        self.lease_seconds.append(int(kwargs["lease_seconds"]))
+        if self.heartbeats >= 2:
+            self.heartbeat_attempted.set()
+            if self.fail_renewal:
+                raise RuntimeError("database unavailable")
+            self.heartbeat_seen.set()
+
+    def import_work(self, operation_id: uuid.UUID) -> dict[str, Any]:
+        assert operation_id == self.operation_id
+        return {"id": operation_id}
+
+    def finish_import(self, *_: Any, **kwargs: Any) -> None:
+        self.finished_status = str(kwargs["status"])
+
+    def import_cancel_requested(self, _operation_id: uuid.UUID) -> bool:
+        return False
+
+
 def _release_export_artifact(
     root: Path,
     expected: bytes,
@@ -422,6 +535,84 @@ def test_loader_prioritises_and_finishes_background_release_activation(tmp_path:
     assert store.heartbeats == 1
     assert store.materialized is True
     assert store.finished_status == "succeeded"
+
+
+def test_loader_renews_import_lease_until_work_finishes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _ImportLeaseStore()
+    loader = DatabaseLoader(cast(Any, store), tmp_path, worker_id="loader-test")
+    monkeypatch.setattr("propertyscope_data_store.loader.IMPORT_HEARTBEAT_SECONDS", 0.01)
+
+    def execute(
+        _work: dict[str, Any],
+        *,
+        lease_failed_event: Event,
+    ) -> tuple[dict[str, int], dict[str, Any]]:
+        assert store.heartbeat_seen.wait(1)
+        assert not lease_failed_event.is_set()
+        return {
+            "rows_in": 1,
+            "rows_staged": 1,
+            "rows_accepted": 1,
+            "rows_rejected": 0,
+        }, {"verified": True}
+
+    monkeypatch.setattr(loader, "_execute", execute)
+
+    assert loader.run_once() is True
+    assert store.heartbeats >= 2
+    assert set(store.lease_seconds) == {120}
+    assert store.finished_status == "succeeded"
+
+
+def test_loader_leaves_import_recoverable_when_heartbeat_renewal_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _ImportLeaseStore(fail_renewal=True)
+    loader = DatabaseLoader(cast(Any, store), tmp_path, worker_id="loader-test")
+    monkeypatch.setattr("propertyscope_data_store.loader.IMPORT_HEARTBEAT_SECONDS", 0.01)
+
+    def execute(
+        _work: dict[str, Any],
+        *,
+        lease_failed_event: Event,
+    ) -> tuple[dict[str, int], dict[str, Any]]:
+        assert store.heartbeat_attempted.wait(1)
+        assert lease_failed_event.wait(1)
+        raise RuntimeError("import lease could not be renewed")
+
+    monkeypatch.setattr(loader, "_execute", execute)
+
+    assert loader.run_once() is True
+    assert store.heartbeats == 2
+    assert store.finished_status == ""
+    time.sleep(0.03)
+    assert store.heartbeats == 2
+
+
+def test_loader_shutdown_leaves_active_import_recoverable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _ImportLeaseStore()
+    loader = DatabaseLoader(cast(Any, store), tmp_path, worker_id="loader-test")
+
+    def execute(
+        _work: dict[str, Any],
+        *,
+        lease_failed_event: Event,
+    ) -> tuple[dict[str, int], dict[str, Any]]:
+        assert not lease_failed_event.is_set()
+        loader.stop()
+        raise InterruptedError("database loader stopped during import")
+
+    monkeypatch.setattr(loader, "_execute", execute)
+
+    assert loader.run_once() is True
+    assert store.finished_status == ""
 
 
 def test_loader_shutdown_leaves_activation_explicitly_recoverable(tmp_path: Path) -> None:
@@ -491,6 +682,30 @@ def test_loader_stops_before_reading_a_cancelled_import(tmp_path: Path) -> None:
         loader._execute(
             {
                 "id": "70000000-0000-0000-0000-000000000002",
+                "import_profile_key": "property-fixture",
+                "storage_key": relative.as_posix(),
+                "artifact_bytes": len(data),
+                "content_sha256": digest,
+                "media_type": "application/json",
+                "candidate_release_id": "60000000-0000-0000-0000-000000000001",
+            }
+        )
+
+
+def test_loader_stops_before_reading_an_import_during_shutdown(tmp_path: Path) -> None:
+    data = _artifact("property-fixture", [_fixture_records()[0]])
+    digest = hashlib.sha256(data).hexdigest()
+    relative = Path("sha256") / digest[:2] / digest
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True)
+    path.write_bytes(data)
+    loader = DatabaseLoader(cast(Any, _Store()), tmp_path, worker_id="loader-test")
+    loader.stop()
+
+    with pytest.raises(InterruptedError, match="loader stopped"):
+        loader._execute(
+            {
+                "id": "70000000-0000-0000-0000-000000000003",
                 "import_profile_key": "property-fixture",
                 "storage_key": relative.as_posix(),
                 "artifact_bytes": len(data),

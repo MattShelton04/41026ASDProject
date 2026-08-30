@@ -30,6 +30,15 @@ def test_defaults_have_one_typed_runtime_source() -> None:
     assert settings.openai_health_cache_seconds == 60
 
 
+def test_direct_settings_construction_preserves_finite_timing_invariants() -> None:
+    with pytest.raises(ConfigurationError, match="OpenAI timeout must be finite"):
+        Settings(openai_timeout_seconds=float("inf"))
+    with pytest.raises(ConfigurationError, match="OpenAI health timeout must be finite"):
+        Settings(openai_health_timeout_seconds=float("nan"))
+    with pytest.raises(ConfigurationError, match="queue reconcile interval must be finite"):
+        Settings(queue_reconcile_interval_seconds=float("inf"))
+
+
 def test_openai_configuration_accepts_a_loopback_compatible_api() -> None:
     settings = Settings.from_env(
         {
@@ -89,9 +98,14 @@ def test_non_loopback_http_requires_an_explicit_local_development_opt_in() -> No
         ({"OPENAI_BASE_URL": "file:///tmp/model"}, "absolute http or https"),
         ({"OPENAI_BASE_URL": "http://api.example.com/v1"}, "must use https"),
         ({"OPENAI_BASE_URL": "https://user:password@example.com/v1"}, "credentials"),
+        ({"GEMINI_BASE_URL": "file:///tmp/model"}, "GEMINI_BASE_URL must be an absolute"),
         ({"OPENAI_TIMEOUT_SECONDS": "0"}, "greater than zero"),
+        ({"OPENAI_TIMEOUT_SECONDS": "nan"}, "finite and greater than zero"),
+        ({"OPENAI_TIMEOUT_SECONDS": "inf"}, "finite and greater than zero"),
         ({"OPENAI_TIMEOUT_SECONDS": "slow"}, "must be numeric"),
         ({"OPENAI_HEALTH_TIMEOUT_SECONDS": "0"}, "greater than zero"),
+        ({"OPENAI_HEALTH_TIMEOUT_SECONDS": "nan"}, "finite and greater than zero"),
+        ({"OPENAI_HEALTH_TIMEOUT_SECONDS": "inf"}, "finite and greater than zero"),
         ({"OPENAI_HEALTH_CACHE_SECONDS": "0"}, "must be between"),
         ({"OPENAI_PROMPT_CACHE_ENABLED": "sometimes"}, "must be true or false"),
         ({"OPENAI_ALLOW_INSECURE_HTTP": "sometimes"}, "must be true or false"),
@@ -117,6 +131,14 @@ def test_non_loopback_http_requires_an_explicit_local_development_opt_in() -> No
         ({"AI_MODE_REQUIRE_PROVIDER_READY": "sometimes"}, "must be true or false"),
         ({"AI_MODE_QUEUE_CAPACITY": "0"}, "queue capacity must be between"),
         ({"AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS": "0"}, "greater than zero"),
+        (
+            {"AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS": "nan"},
+            "finite and greater than zero",
+        ),
+        (
+            {"AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS": "inf"},
+            "finite and greater than zero",
+        ),
         ({"AI_MODE_ENVIRONMENT": "Not Valid"}, "AI_MODE_ENVIRONMENT is invalid"),
         ({"AI_MODE_ENVIRONMENT": ""}, "AI_MODE_ENVIRONMENT is invalid"),
         ({"AI_MODE_LOG_LEVEL": "verbose"}, "AI_MODE_LOG_LEVEL must be"),

@@ -38,6 +38,9 @@ from propertyscope_data_store.orchestration_policy import (
     validate_retry_parent,
 )
 from propertyscope_data_store.persistence_support import cancellation_error as _cancellation_error
+from propertyscope_data_store.persistence_support import (
+    import_lease_expired_error as _import_lease_expired_error,
+)
 from propertyscope_data_store.persistence_support import json_document as _json
 from propertyscope_data_store.persistence_support import lease_expired_error as _lease_expired_error
 from propertyscope_data_store.persistence_support import normalise_row as _dict
@@ -2439,11 +2442,20 @@ class PropertyScopeStore:
         )
 
     def execute_import_profile(
-        self, work: Mapping[str, Any], prepared: PreparedImport
+        self,
+        work: Mapping[str, Any],
+        prepared: PreparedImport,
+        *,
+        lease_failed_event: Event | None = None,
+        stop_event: Event | None = None,
     ) -> ImportResult:
         """Execute one registered COPY/import profile inside the credential boundary."""
         operation_id = uuid.UUID(str(work["id"]))
-        with self._cancellable_import_connection(operation_id) as connection:
+        with self._cancellable_import_connection(
+            operation_id,
+            lease_failed_event=lease_failed_event,
+            stop_event=stop_event,
+        ) as connection:
             return execute_import(connection, work, prepared)
 
     def execute_stream_import_profile(
@@ -2454,10 +2466,16 @@ class PropertyScopeStore:
         rows: Any,
         verify_complete: Any | None = None,
         phase_callback: Any | None = None,
+        lease_failed_event: Event | None = None,
+        stop_event: Event | None = None,
     ) -> ImportResult:
         """Execute a source-scale streaming COPY inside the credential boundary."""
         operation_id = uuid.UUID(str(work["id"]))
-        with self._cancellable_import_connection(operation_id) as connection:
+        with self._cancellable_import_connection(
+            operation_id,
+            lease_failed_event=lease_failed_event,
+            stop_event=stop_event,
+        ) as connection:
             result = execute_stream_import(
                 connection, work, profile=profile, rows=rows, phase_callback=phase_callback
             )
@@ -2525,14 +2543,24 @@ class PropertyScopeStore:
             connection.commit()
 
     @contextmanager
-    def _cancellable_import_connection(self, operation_id: uuid.UUID) -> Iterator[Connection[Any]]:
+    def _cancellable_import_connection(
+        self,
+        operation_id: uuid.UUID,
+        *,
+        lease_failed_event: Event | None = None,
+        stop_event: Event | None = None,
+    ) -> Iterator[Connection[Any]]:
         """Cancel an in-flight PostgreSQL statement when its owning run is cancelled."""
         with self.connection() as connection:
             stopped = Event()
 
             def monitor() -> None:
                 while not stopped.wait(0.5):
-                    if self.import_cancel_requested(operation_id):
+                    if (
+                        (lease_failed_event is not None and lease_failed_event.is_set())
+                        or (stop_event is not None and stop_event.is_set())
+                        or self.import_cancel_requested(operation_id)
+                    ):
                         connection.cancel()
                         return
 
@@ -2556,7 +2584,9 @@ class PropertyScopeStore:
     def enqueue_import(self, operation_id: uuid.UUID) -> JsonObject:
         with self.connection() as connection:
             row = connection.execute(
-                """UPDATE ops.import_operation SET status='queued',version=version+1
+                """UPDATE ops.import_operation SET status='queued',
+                attempt_number=CASE WHEN status='interrupted'
+                    THEN attempt_number+1 ELSE attempt_number END,version=version+1
                 WHERE id=%s AND status IN ('planned','interrupted') RETURNING *""",
                 (operation_id,),
             ).fetchone()
@@ -2585,6 +2615,26 @@ class PropertyScopeStore:
         now = datetime.now(UTC)
         token = uuid.uuid4().hex
         with self.connection() as connection:
+            connection.execute(
+                """UPDATE ops.import_operation operation SET status='cancelled',finished_at=%s,
+                error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
+                heartbeat_at=NULL,version=operation.version+1 FROM ops.ingestion_run run
+                WHERE run.id=operation.ingestion_run_id AND run.cancel_requested_at IS NOT NULL
+                AND operation.status IN ('claimed','running')
+                AND operation.lease_expires_at<=%s""",
+                (now, _json(_cancellation_error()), now),
+            )
+            # Import work follows the same explicit-resume policy as acquisition tasks.
+            # A replacement loader records the expired boundary but never steals work.
+            connection.execute(
+                """UPDATE ops.import_operation operation SET status='interrupted',error_json=%s,
+                lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
+                version=operation.version+1 FROM ops.ingestion_run run
+                WHERE run.id=operation.ingestion_run_id AND run.cancel_requested_at IS NULL
+                AND operation.status IN ('claimed','running')
+                AND operation.lease_expires_at<=%s""",
+                (_json(_import_lease_expired_error()), now),
+            )
             row = connection.execute(
                 """WITH candidate AS (
                     SELECT id FROM ops.import_operation WHERE status='queued'

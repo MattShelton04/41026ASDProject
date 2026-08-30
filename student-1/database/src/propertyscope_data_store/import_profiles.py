@@ -220,11 +220,20 @@ def _insert_profile_rows(
     statement = _GNAF_STREAM_INSERT_SQL if typed_gnaf_stage else _PROFILE_INSERT_SQL[profile]
     parameters: tuple[object, ...] = (release_id, artifact_id, run_id)
     cursor.execute(statement, parameters)
-    accepted = int(cursor.rowcount)
     if profile == "bocsar-sparse":
         cursor.execute(_BOCSAR_COVERAGE_INSERT_SQL, parameters)
-        accepted += cursor.rowcount
-    return accepted
+        cursor.execute(_BOCSAR_OBSERVATION_COUNT_SQL, parameters)
+        observations = cursor.fetchone()
+        cursor.execute(_BOCSAR_COVERAGE_COUNT_SQL, parameters)
+        coverage = cursor.fetchone()
+        if observations is None or coverage is None:
+            raise ImportProfileError("candidate generation row count is unavailable")
+        return int(observations["count"]) + int(coverage["count"])
+    cursor.execute(_PROFILE_COUNT_SQL[profile], parameters)
+    persisted = cursor.fetchone()
+    if persisted is None:
+        raise ImportProfileError("candidate generation row count is unavailable")
+    return int(persisted["count"])
 
 
 _GNAF_STREAM_COLUMNS = (
@@ -894,6 +903,35 @@ _PROFILE_INSERT_SQL = {
         DO NOTHING
     """,
 }
+
+_PROFILE_COUNT_SQL = {
+    "property-fixture": """
+        SELECT count(*) AS count FROM warehouse.gnaf_address
+        WHERE dataset_release_id=%s AND artifact_record_id=%s AND ingestion_run_id=%s
+    """,
+    "gnaf-nsw": """
+        SELECT count(*) AS count FROM warehouse.gnaf_address
+        WHERE dataset_release_id=%s AND artifact_record_id=%s AND ingestion_run_id=%s
+    """,
+    "psi-sales": """
+        SELECT count(*) AS count FROM warehouse.psi_sale
+        WHERE dataset_release_id=%s AND artifact_record_id=%s AND ingestion_run_id=%s
+    """,
+    "schools-master": """
+        SELECT count(*) AS count FROM warehouse.school
+        WHERE dataset_release_id=%s AND artifact_record_id=%s AND ingestion_run_id=%s
+    """,
+}
+
+_BOCSAR_OBSERVATION_COUNT_SQL = """
+    SELECT count(*) AS count FROM warehouse.bocsar_observation
+    WHERE dataset_release_id=%s AND artifact_record_id=%s AND ingestion_run_id=%s
+"""
+
+_BOCSAR_COVERAGE_COUNT_SQL = """
+    SELECT count(*) AS count FROM warehouse.bocsar_coverage
+    WHERE dataset_release_id=%s AND artifact_record_id=%s AND ingestion_run_id=%s
+"""
 
 _BOCSAR_COVERAGE_INSERT_SQL = """
     INSERT INTO warehouse.bocsar_coverage (

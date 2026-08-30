@@ -25,6 +25,8 @@ from propertyscope_data_store.repository import PropertyScopeStore
 logger = logging.getLogger(__name__)
 ACTIVATION_LEASE_SECONDS = 120
 ACTIVATION_HEARTBEAT_SECONDS = 30
+IMPORT_LEASE_SECONDS = 120
+IMPORT_HEARTBEAT_SECONDS = 30
 ARTIFACT_HASH_CHUNK_BYTES = 1024 * 1024
 
 
@@ -62,17 +64,53 @@ class DatabaseLoader:
         if activation is not None:
             self._activate(activation)
             return True
-        operation = self.store.claim_import(worker_id=self.worker_id, lease_seconds=86_400)
+        operation = self.store.claim_import(
+            worker_id=self.worker_id,
+            lease_seconds=IMPORT_LEASE_SECONDS,
+        )
         if operation is None:
             return False
         operation_id = uuid.UUID(str(operation["id"]))
         token = str(operation["lease_token"])
+        heartbeat_stop = Event()
+        heartbeat_failed = Event()
+        heartbeater: Thread | None = None
+
+        def heartbeat() -> None:
+            while not heartbeat_stop.wait(IMPORT_HEARTBEAT_SECONDS):
+                if self.stop_event.is_set():
+                    return
+                try:
+                    self.store.heartbeat_import(
+                        operation_id,
+                        worker_id=self.worker_id,
+                        lease_token=token,
+                        lease_seconds=IMPORT_LEASE_SECONDS,
+                    )
+                except Exception:
+                    logger.exception("Import lease heartbeat failed")
+                    heartbeat_failed.set()
+                    return
+
         try:
+            if self.stop_event.is_set():
+                return True
             self.store.heartbeat_import(
-                operation_id, worker_id=self.worker_id, lease_token=token, lease_seconds=86_400
+                operation_id,
+                worker_id=self.worker_id,
+                lease_token=token,
+                lease_seconds=IMPORT_LEASE_SECONDS,
             )
+            heartbeater = Thread(
+                target=heartbeat,
+                name=f"import-heartbeat-{operation_id}",
+                daemon=True,
+            )
+            heartbeater.start()
             work = self.store.import_work(operation_id)
-            counts, result = self._execute(work)
+            counts, result = self._execute(work, lease_failed_event=heartbeat_failed)
+            if heartbeat_failed.is_set():
+                raise RuntimeError("import lease could not be renewed")
             self.store.finish_import(
                 operation_id,
                 worker_id=self.worker_id,
@@ -83,6 +121,12 @@ class DatabaseLoader:
                 error=None,
             )
         except Exception as exc:
+            if self.stop_event.is_set() or heartbeat_failed.is_set():
+                logger.error(
+                    "Registered import %s stopped before completion; expiry recovery will resume",
+                    operation_id,
+                )
+                return True
             cancelled = self.store.import_cancel_requested(operation_id)
             if cancelled:
                 logger.info("Registered import %s cancelled by operator", operation_id)
@@ -101,6 +145,10 @@ class DatabaseLoader:
                     else _safe_loader_error(exc)
                 ),
             )
+        finally:
+            heartbeat_stop.set()
+            if heartbeater is not None:
+                heartbeater.join(timeout=2)
         return True
 
     def _activate(self, operation: dict[str, Any]) -> None:
@@ -207,7 +255,12 @@ class DatabaseLoader:
     def stop(self) -> None:
         self.stop_event.set()
 
-    def _execute(self, work: dict[str, Any]) -> tuple[dict[str, int], dict[str, Any]]:
+    def _execute(
+        self,
+        work: dict[str, Any],
+        *,
+        lease_failed_event: Event | None = None,
+    ) -> tuple[dict[str, int], dict[str, Any]]:
         profile = str(work["import_profile_key"])
         if profile not in REGISTERED_PROFILES:
             raise RuntimeError("import profile is not registered")
@@ -218,6 +271,10 @@ class DatabaseLoader:
 
         def raise_if_cancelled(*, force: bool = False) -> None:
             nonlocal last_cancel_check
+            if self.stop_event.is_set():
+                raise InterruptedError("database loader stopped during import")
+            if lease_failed_event is not None and lease_failed_event.is_set():
+                raise RuntimeError("import lease could not be renewed")
             now = time.monotonic()
             if not force and now - last_cancel_check < 0.5:
                 return
@@ -268,6 +325,8 @@ class DatabaseLoader:
                         total_rows=count if phase == "recording import quality" else None,
                         total_bytes=None,
                     ),
+                    lease_failed_event=lease_failed_event,
+                    stop_event=self.stop_event,
                 )
         elif work["media_type"] == "application/json":
             data = path.read_bytes()
@@ -282,7 +341,12 @@ class DatabaseLoader:
             )
             prepared = prepare_import(data, profile=profile)
             raise_if_cancelled(force=True)
-            imported = self.store.execute_import_profile(work, prepared)
+            imported = self.store.execute_import_profile(
+                work,
+                prepared,
+                lease_failed_event=lease_failed_event,
+                stop_event=self.stop_event,
+            )
         else:
             raise RuntimeError("registered import requires canonical JSON or NDJSON")
         counts = {

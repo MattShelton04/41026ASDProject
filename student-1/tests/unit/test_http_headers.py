@@ -98,3 +98,21 @@ def test_real_flask_headers_survive_datastore_and_ai_mode_clients() -> None:
         assert outbound.headers["X-Agent-Run-ID"] == "run-123"
         assert outbound.headers["traceparent"] == TRACEPARENT
         assert outbound.headers["Idempotency-Key"] == "operation-123"
+
+
+def test_datastore_requests_inherit_client_timeouts_unless_explicitly_overridden() -> None:
+    observed: list[dict[str, float]] = []
+
+    def handler(outbound: httpx.Request) -> httpx.Response:
+        observed.append(outbound.extensions["timeout"])
+        return httpx.Response(200, json={})
+
+    with httpx.Client(transport=httpx.MockTransport(handler), timeout=7) as client:
+        store = DataStoreClient("http://database", "internal", client=client)
+        store.request("GET", "/internal/default-timeout")
+        store.request("GET", "/internal/override-timeout", timeout=13)
+
+    assert observed == [
+        {"connect": 7, "read": 7, "write": 7, "pool": 7},
+        {"connect": 13, "read": 13, "write": 13, "pool": 13},
+    ]

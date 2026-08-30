@@ -49,14 +49,18 @@ class DataStoreClient:
         request_headers = {"X-PropertyScope-Internal-Token": self._token}
         if headers:
             request_headers.update(forwarded_headers(headers))
+        request_options: dict[str, Any] = {
+            "headers": request_headers,
+            "params": params,
+            "json": json,
+        }
+        if timeout is not None:
+            request_options["timeout"] = timeout
         try:
             return self._client.request(
                 method,
                 f"{self._origin}{path}",
-                headers=request_headers,
-                params=params,
-                json=json,
-                timeout=timeout,
+                **request_options,
             )
         except httpx.TransportError as exc:
             raise DependencyUnavailableError("Property data store is unavailable") from exc
