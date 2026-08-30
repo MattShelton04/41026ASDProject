@@ -1,0 +1,15 @@
+services:
+  shared-ai-mode:
+    environment:
+      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/integration-poc-tools.yaml
+    volumes:
+      - ./poc/feature-6/tool-catalog.yaml:/etc/ai-mode/integration-poc-tools.yaml:ro
+
+  shared-frontend:
+    volumes:
+      - ./poc/feature-6/nginx-edge.conf:/etc/nginx/conf.d/poc/integration-poc.conf:ro
+
+  f1-backend:
+    environment:
+      PROPERTYSCOPE_FEATURE_2_URL: http://poc-f6-backend:5601
+      PROPERTYSCOPE_FEATURE_3_URL: http://poc-f6-backend:5601

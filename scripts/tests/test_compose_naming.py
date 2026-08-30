@@ -37,7 +37,7 @@ def test_services_use_ownership_prefixes_and_compose_generated_container_names()
 def test_overlays_and_resources_reuse_the_same_ownership_vocabulary() -> None:
     base = _compose("docker-compose.yml")
     base_services = set(base["services"])
-    for filename in ("docker-compose.dev.yml",):
+    for filename in ("docker-compose.dev.yml", "poc/feature-6/docker-compose.yml"):
         assert set(_compose(filename)["services"]) <= base_services
 
     assert set(base["networks"]) == {"shared-platform"}
@@ -54,6 +54,7 @@ def test_source_scale_resource_defaults_fit_two_cpu_hosts() -> None:
 
 def test_local_integration_poc_is_opt_in_and_keeps_database_ownership_exclusive() -> None:
     compose = _compose("docker-compose.yml")
+    overlay = _compose("poc/feature-6/docker-compose.yml")
     services = compose["services"]
     poc_names = {"poc-f6-db-api", "poc-f6-backend", "poc-f6-frontend"}
 
@@ -65,10 +66,12 @@ def test_local_integration_poc_is_opt_in_and_keeps_database_ownership_exclusive(
     assert services["poc-f6-backend"]["environment"]["PROPERTYSCOPE_F1_ORIGIN"] == (
         "http://f1-backend:5201"
     )
-    assert services["f1-backend"]["environment"]["PROPERTYSCOPE_FEATURE_2_URL"] == (
+    assert "PROPERTYSCOPE_FEATURE_2_URL" not in services["f1-backend"]["environment"]
+    assert "PROPERTYSCOPE_FEATURE_3_URL" not in services["f1-backend"]["environment"]
+    assert overlay["services"]["f1-backend"]["environment"]["PROPERTYSCOPE_FEATURE_2_URL"] == (
         "http://poc-f6-backend:5601"
     )
-    assert services["f1-backend"]["environment"]["PROPERTYSCOPE_FEATURE_3_URL"] == (
+    assert overlay["services"]["f1-backend"]["environment"]["PROPERTYSCOPE_FEATURE_3_URL"] == (
         "http://poc-f6-backend:5601"
     )
     assert "poc-f6-data" in compose["volumes"]
@@ -95,16 +98,26 @@ def test_local_integration_poc_uses_explicit_build_targets_and_host_port() -> No
     assert services["poc-f6-frontend"]["ports"] == ["127.0.0.1:${POC_F6_PORT:-5600}:8080"]
 
 
-def test_ai_mode_composes_feature_one_and_poc_tool_catalogues() -> None:
+def test_ai_mode_composes_poc_tool_catalogue_only_in_explicit_overlay() -> None:
     services = _compose("docker-compose.yml")["services"]
+    overlay_services = _compose("poc/feature-6/docker-compose.yml")["services"]
     ai_mode = services["shared-ai-mode"]
+    overlay = overlay_services["shared-ai-mode"]
 
     assert ai_mode["environment"]["AI_MODE_TOOL_CATALOG_PATHS"] == (
+        "/etc/ai-mode/propertyscope-tools.yaml"
+    )
+    assert overlay["environment"]["AI_MODE_TOOL_CATALOG_PATHS"] == (
         "/etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/integration-poc-tools.yaml"
     )
     assert (
         "./poc/feature-6/tool-catalog.yaml:/etc/ai-mode/integration-poc-tools.yaml:ro"
-        in ai_mode["volumes"]
+        in overlay["volumes"]
     )
-    command = _compose("docker-compose.dev.yml")["services"]["shared-ai-mode"]["command"]
-    assert "--reload-extra-file=/etc/ai-mode/integration-poc-tools.yaml" in command
+    assert all("integration-poc-tools.yaml" not in volume for volume in ai_mode["volumes"])
+
+    edge_mounts = overlay_services["shared-frontend"]["volumes"]
+    assert (
+        "./poc/feature-6/nginx-edge.conf:/etc/nginx/conf.d/poc/integration-poc.conf:ro"
+        in edge_mounts
+    )

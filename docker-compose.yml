@@ -38,7 +38,7 @@ services:
       AI_MODE_LOG_LEVEL: ${AI_MODE_LOG_LEVEL:-INFO}
       # Feature 1 consumes the durable, redacted run index for diagnosis history.
       AI_MODE_OPERATIONS_ENABLED: ${AI_MODE_OPERATIONS_ENABLED:-true}
-      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/integration-poc-tools.yaml
+      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml
       AI_MODE_LLM_PROVIDER: ${AI_MODE_LLM_PROVIDER:-openai}
       AI_MODE_REQUIRE_PROVIDER_READY: ${AI_MODE_REQUIRE_PROVIDER_READY:-true}
       AI_MODE_DEFAULT_MODEL_PROFILE: ${AI_MODE_DEFAULT_MODEL_PROFILE:-remote-standard.v1}
@@ -59,7 +59,6 @@ services:
     volumes:
       - shared-ai-mode-state:/var/lib/ai-mode
       - ./student-1/tool-catalog.yaml:/etc/ai-mode/propertyscope-tools.yaml:ro
-      - ./poc/feature-6/tool-catalog.yaml:/etc/ai-mode/integration-poc-tools.yaml:ro
     networks:
       - shared-platform
     mem_limit: ${AI_MODE_MEMORY_LIMIT:-512m}
@@ -175,10 +174,6 @@ services:
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
       PROPERTYSCOPE_PSI_CACHED_YEARS: ${PROPERTYSCOPE_PSI_CACHED_YEARS:-}
       PROPERTYSCOPE_PSI_CACHED_WEEKS: ${PROPERTYSCOPE_PSI_CACHED_WEEKS:-}
-      # The opt-in local integration POC accepts Feature 2/3 publication callbacks. These fixed
-      # service origins carry no database credentials and remain unavailable in the normal stack.
-      PROPERTYSCOPE_FEATURE_2_URL: http://poc-f6-backend:5601
-      PROPERTYSCOPE_FEATURE_3_URL: http://poc-f6-backend:5601
     depends_on:
       f1-db-api:
         condition: service_healthy

@@ -103,6 +103,7 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     roadmap = _read("shared/frontend/routes/roadmap.js")
     features = _read("shared/frontend/routes/features.js")
     nginx = _read("shared/frontend/nginx.conf")
+    poc_nginx = _read("poc/feature-6/nginx-edge.conf")
 
     for route in ("features", "system-status", "evidence", "release-roadmap"):
         assert f'href="#{route}"' in page
@@ -114,16 +115,17 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "PropertyScope research areas" in features
     assert "resolver 127.0.0.11" in nginx
     assert "proxy_pass $data_platform_upstream" in nginx
-    assert "proxy_pass $integration_poc_upstream" in nginx
-    assert "proxy_pass $integration_poc_frontend_upstream" in nginx
+    assert "include /etc/nginx/conf.d/poc/*.conf" in nginx
+    assert "proxy_pass $integration_poc_upstream" in poc_nginx
+    assert "proxy_pass $integration_poc_frontend_upstream" in poc_nginx
     assert "proxy_pass $ai_mode_upstream" in nginx
     assert "location /api/" in nginx
     assert "application/problem+json" in nginx
     assert "location /operations/ai-mode/" in nginx
     assert "location /fragments/data-platform/" in nginx
-    assert "location /features/integration-poc/" in nginx
-    assert "location /api/integration-poc/" in nginx
-    assert "location = /api/shared-health/integration-poc" in nginx
+    assert "location /features/integration-poc/" in poc_nginx
+    assert "location /api/integration-poc/" in poc_nginx
+    assert "location = /api/shared-health/integration-poc" in poc_nginx
     assert "database" not in evidence.lower()
     assert "dependencies?.database" not in status
     assert 'target_feature === "feature-1"' not in evidence
@@ -131,7 +133,11 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "map $http_x_request_id $correlation_request_id" in nginx
     assert '"~^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"' in nginx
     assert "proxy_hide_header X-Request-ID" in nginx
-    assert nginx.count("proxy_set_header X-Request-ID $correlation_request_id") == 11
+    assert (
+        nginx.count("proxy_set_header X-Request-ID $correlation_request_id")
+        + poc_nginx.count("proxy_set_header X-Request-ID $correlation_request_id")
+        == 11
+    )
     assert "add_header X-Request-ID $correlation_request_id always" in nginx
     assert '"request_id":"$correlation_request_id"' in nginx
 
