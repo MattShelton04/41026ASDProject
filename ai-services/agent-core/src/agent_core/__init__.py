@@ -14,6 +14,7 @@ from agent_core.errors import (
     UnknownToolError,
 )
 from agent_core.generation import ValidatedModelOutput, generate_validated
+from agent_core.identifier_schema import IdentifierCandidate, identifier_candidates
 from agent_core.limits import (
     LimitKind,
     ensure_time_remaining,
@@ -61,6 +62,7 @@ __all__ = [
     "Clock",
     "ConcurrentRunUpdateError",
     "IdGenerator",
+    "IdentifierCandidate",
     "InvalidStateTransitionError",
     "LLMProvider",
     "LimitKind",
@@ -96,6 +98,7 @@ __all__ = [
     "ensure_time_remaining",
     "ensure_within_limits",
     "generate_validated",
+    "identifier_candidates",
     "plan_recovery",
     "remaining_time_ms",
     "request_cancellation",

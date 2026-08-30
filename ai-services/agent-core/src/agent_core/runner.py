@@ -21,7 +21,7 @@ from agent_core.errors import (
     UnknownToolError,
 )
 from agent_core.generation import ValidatedModelOutput, generate_validated
-from agent_core.identifier_schema import IdentifierSchemaResolver, normalize_uuid_identifier
+from agent_core.identifier_schema import identifier_candidates
 from agent_core.limits import ensure_time_remaining, ensure_within_limits, remaining_time_ms
 from agent_core.ports import (
     Clock,
@@ -646,44 +646,6 @@ class AgentRunner:
         for identifier in run.trusted_identifiers:
             trusted.setdefault(identifier.kind, set()).add(str(identifier.value))
 
-        def collect(
-            value: object,
-            *,
-            schema: Mapping[str, object],
-            resolver: IdentifierSchemaResolver,
-            key: str = "",
-        ) -> None:
-            if isinstance(value, dict):
-                for nested_key, nested in value.items():
-                    nested_name = str(nested_key)
-                    normalized_name = normalize_uuid_identifier(nested_name)
-                    if normalized_name is not None:
-                        name_schema = resolver.property_name(schema, value)
-                        name_kind = resolver.kind(nested_name, name_schema, nested_name)
-                        if name_kind is not None:
-                            discovered.setdefault(name_kind, set()).add(normalized_name)
-                    collect(
-                        nested,
-                        schema=resolver.child(schema, nested_name, value),
-                        resolver=resolver,
-                        key=nested_name,
-                    )
-                return
-            if isinstance(value, list):
-                for index, nested in enumerate(value):
-                    collect(
-                        nested,
-                        schema=resolver.item(schema, index, value),
-                        resolver=resolver,
-                        key=key,
-                    )
-                return
-            normalized_value = normalize_uuid_identifier(value)
-            if normalized_value is not None:
-                kind = resolver.kind(key, schema, value)
-                if kind is not None:
-                    discovered.setdefault(kind, set()).add(normalized_value)
-
         for step in prior_steps:
             if step.phase is not StepPhase.ACT:
                 continue
@@ -703,68 +665,26 @@ class AgentRunner:
                 raise ModelOutputValidationError(
                     f"persisted tool evidence references an unavailable definition: {tool_name}"
                 ) from exc
-            collect(
-                content,
-                schema=output_schema,
-                resolver=IdentifierSchemaResolver(output_schema),
-            )
+            for candidate in identifier_candidates(content, schema=output_schema):
+                if candidate.kind is not None:
+                    discovered.setdefault(candidate.kind, set()).add(candidate.value)
 
-        def visit(
-            value: object,
-            *,
-            schema: Mapping[str, object],
-            resolver: IdentifierSchemaResolver,
-            key: str = "",
-        ) -> None:
-            if isinstance(value, dict):
-                for nested_key, nested in value.items():
-                    nested_name = str(nested_key)
-                    normalized_name = normalize_uuid_identifier(nested_name)
-                    if normalized_name is not None:
-                        name_schema = resolver.property_name(schema, value)
-                        name_kind = resolver.kind(nested_name, name_schema, nested_name)
-                        if name_kind is None or (
-                            normalized_name not in trusted.get(name_kind, set())
-                            and normalized_name not in discovered.get(name_kind, set())
-                        ):
-                            raise ModelOutputValidationError(
-                                "identifier-valued object key must copy an identifier supplied "
-                                "by the user or discovered by a prior tool"
-                            )
-                    visit(
-                        nested,
-                        schema=resolver.child(schema, nested_name, value),
-                        resolver=resolver,
-                        key=nested_name,
-                    )
-                return
-            if isinstance(value, list):
-                for index, nested in enumerate(value):
-                    visit(
-                        nested,
-                        schema=resolver.item(schema, index, value),
-                        resolver=resolver,
-                        key=key,
-                    )
-                return
-            kind = resolver.kind(key, schema, value)
-            normalized_value = normalize_uuid_identifier(value)
-            if (
-                key != "idempotency_key"
-                and normalized_value is not None
-                and (kind is None or normalized_value not in trusted.get(kind, set()))
-                and (kind is None or normalized_value not in discovered.get(kind, set()))
+        for candidate in identifier_candidates(arguments, schema=definition.input_schema):
+            kind = candidate.kind
+            if kind is None or (
+                candidate.value not in trusted.get(kind, set())
+                and candidate.value not in discovered.get(kind, set())
             ):
+                if candidate.object_key:
+                    raise ModelOutputValidationError(
+                        "identifier-valued object key must copy an identifier supplied "
+                        "by the user or discovered by a prior tool"
+                    )
+                field = candidate.path.rsplit(".", maxsplit=1)[-1].split("[", maxsplit=1)[0]
                 raise ModelOutputValidationError(
-                    f"{key} must copy an identifier supplied by the user "
+                    f"{field} must copy an identifier supplied by the user "
                     "or discovered by a prior tool"
                 )
-
-        visit(
-            arguments,
-            schema=definition.input_schema,
-            resolver=IdentifierSchemaResolver(definition.input_schema),
-        )
 
     @staticmethod
     def _repeats_failed_read(

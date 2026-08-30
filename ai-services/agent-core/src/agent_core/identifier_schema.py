@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from dataclasses import dataclass
 from uuid import UUID
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -11,6 +12,16 @@ from jsonschema import Draft202012Validator, FormatChecker
 from agent_core.errors import ModelOutputValidationError
 
 IDENTIFIER_KIND_SCHEMA_KEY = "x-identifier-kind"
+
+
+@dataclass(frozen=True, slots=True)
+class IdentifierCandidate:
+    """One UUID-shaped value and its schema-resolved, domain-neutral provenance kind."""
+
+    kind: str | None
+    value: str
+    path: str
+    object_key: bool = False
 
 
 def normalize_uuid_identifier(value: object) -> str | None:
@@ -163,3 +174,118 @@ class IdentifierSchemaResolver:
             if isinstance(selected, Mapping):
                 nodes.extend(self._nodes(selected, instance))
         return tuple(nodes)
+
+
+def identifier_candidates(
+    value: object,
+    *,
+    schema: Mapping[str, object] | None,
+    root_path: str = "result",
+    max_candidates: int | None = None,
+    max_array_items: int | None = None,
+    include_ambiguous: bool = True,
+) -> tuple[IdentifierCandidate, ...]:
+    """Find UUID-shaped values once using the same schema walk for policy and prompts.
+
+    A candidate with ``kind=None`` is deliberately retained so enforcement can reject an
+    ambiguous UUID rather than silently treating it as ordinary text. Callers projecting a
+    discovery ledger should expose only typed candidates. Bare ``id`` fields therefore require
+    a feature-owned ``x-identifier-kind`` annotation; conventional ``*_id`` and ``*_ref`` names
+    remain domain-neutral fallbacks.
+    """
+    candidates: list[IdentifierCandidate] = []
+    resolver = IdentifierSchemaResolver(schema) if schema is not None else None
+
+    def at_limit() -> bool:
+        return max_candidates is not None and len(candidates) >= max_candidates
+
+    def kind_for(
+        key: str,
+        current_schema: Mapping[str, object] | None,
+        candidate: object,
+    ) -> str | None:
+        if resolver is not None and current_schema is not None:
+            return resolver.kind(key, current_schema, candidate)
+        normalized = key.lower()
+        return normalized if normalized.endswith(("_id", "_ref")) else None
+
+    def add(candidate: IdentifierCandidate) -> None:
+        if candidate.kind is not None or include_ambiguous:
+            candidates.append(candidate)
+
+    def visit(
+        candidate: object,
+        *,
+        path: str,
+        current_schema: Mapping[str, object] | None,
+        key: str = "",
+    ) -> None:
+        if at_limit():
+            return
+        if isinstance(candidate, dict):
+            for child_key, nested in candidate.items():
+                if at_limit():
+                    return
+                child_name = str(child_key)
+                child_path = f"{path}.{child_name}"
+                normalized_name = normalize_uuid_identifier(child_name)
+                if normalized_name is not None:
+                    name_schema = (
+                        resolver.property_name(current_schema, candidate)
+                        if resolver is not None and current_schema is not None
+                        else None
+                    )
+                    add(
+                        IdentifierCandidate(
+                            kind=kind_for(child_name, name_schema, child_name),
+                            value=normalized_name,
+                            path=child_path,
+                            object_key=True,
+                        )
+                    )
+                    if at_limit():
+                        return
+                child_schema = (
+                    resolver.child(current_schema, child_name, candidate)
+                    if resolver is not None and current_schema is not None
+                    else None
+                )
+                visit(
+                    nested,
+                    path=child_path,
+                    current_schema=child_schema,
+                    key=child_name,
+                )
+            return
+        if isinstance(candidate, list):
+            retained = candidate if max_array_items is None else candidate[:max_array_items]
+            for index, nested in enumerate(retained):
+                if at_limit():
+                    return
+                item_schema = (
+                    resolver.item(current_schema, index, candidate)
+                    if resolver is not None and current_schema is not None
+                    else None
+                )
+                visit(
+                    nested,
+                    path=f"{path}[{index}]",
+                    current_schema=item_schema,
+                    key=key,
+                )
+            return
+        if key == "idempotency_key":
+            return
+        normalized_value = normalize_uuid_identifier(candidate)
+        if normalized_value is None:
+            return
+        add(
+            IdentifierCandidate(
+                kind=kind_for(key, current_schema, candidate),
+                value=normalized_value,
+                path=path,
+            )
+        )
+
+    visit(value, path=root_path, current_schema=schema)
+    return tuple(candidates)

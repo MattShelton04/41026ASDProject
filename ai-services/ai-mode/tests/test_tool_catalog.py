@@ -49,6 +49,14 @@ def test_product_catalog_composes_scoped_tools() -> None:
     assert release_items["items"]["properties"]["id"]["x-identifier-kind"] == "release_id"
     run_schema = definitions["data.run_explain.v1"].output_schema
     assert run_schema["$defs"]["run"]["properties"]["id"]["x-identifier-kind"] == "run_id"
+    publish_release = definitions["data.release_publish.v1"].input_schema["properties"][
+        "release_id"
+    ]
+    assert publish_release == {
+        "type": "string",
+        "format": "uuid",
+        "x-identifier-kind": "release_id",
+    }
     executor.close()
 
 

@@ -17,8 +17,8 @@ from agent_core import (
     ModelRole,
     PromptBuilder,
     StructuredModelRequest,
+    identifier_candidates,
 )
-from agent_core.identifier_schema import IdentifierSchemaResolver, normalize_uuid_identifier
 from shared_contracts import (
     SUPPORTED_PROMPT_SETS,
     AgentRun,
@@ -289,88 +289,19 @@ def _identifier_ledger(
     value: object, *, schema: Mapping[str, object] | None = None
 ) -> list[dict[str, str]]:
     """Extract exact typed identifiers without forwarding an unbounded result body."""
-    identifiers: list[dict[str, str]] = []
-    resolver = IdentifierSchemaResolver(schema) if schema is not None else None
-
-    def visit(
-        candidate: object,
-        path: str = "result",
-        current_schema: Mapping[str, object] | None = schema,
-        key: str = "",
-    ) -> None:
-        if len(identifiers) >= MAX_LEDGER_IDENTIFIERS:
-            return
-        if isinstance(candidate, dict):
-            for child_key, nested in candidate.items():
-                child_path = f"{path}.{child_key}"
-                if resolver is not None and current_schema is not None:
-                    name_schema = resolver.property_name(current_schema, candidate)
-                    name_kind = resolver.kind(child_key, name_schema, child_key)
-                    normalized_name = normalize_uuid_identifier(child_key)
-                    if name_kind is not None and normalized_name is not None:
-                        identifiers.append(
-                            {
-                                "type": name_kind,
-                                "value": normalized_name,
-                                "path": child_path,
-                            }
-                        )
-                child_schema = (
-                    resolver.child(current_schema, child_key, candidate)
-                    if resolver is not None and current_schema is not None
-                    else None
-                )
-                identifier_kind = (
-                    resolver.kind(child_key, child_schema, nested)
-                    if resolver is not None and child_schema is not None
-                    else child_key
-                    if child_key == "id" or child_key.endswith(("_id", "_ref"))
-                    else None
-                )
-                if (
-                    isinstance(nested, str)
-                    and child_key != "idempotency_key"
-                    and identifier_kind is not None
-                ):
-                    normalized_value = normalize_uuid_identifier(nested)
-                    if normalized_value is None:
-                        continue
-                    identifiers.append(
-                        {
-                            "type": identifier_kind,
-                            "value": normalized_value,
-                            "path": child_path,
-                        }
-                    )
-                else:
-                    visit(nested, child_path, child_schema, child_key)
-        elif isinstance(candidate, list):
-            for index, nested in enumerate(candidate[:50]):
-                item_schema = (
-                    resolver.item(current_schema, index, candidate)
-                    if resolver is not None and current_schema is not None
-                    else None
-                )
-                visit(nested, f"{path}[{index}]", item_schema, key)
-        elif isinstance(candidate, str) and key != "idempotency_key":
-            identifier_kind = (
-                resolver.kind(key, current_schema, candidate)
-                if resolver is not None and current_schema is not None
-                else key
-                if key == "id" or key.endswith(("_id", "_ref"))
-                else None
-            )
-            if identifier_kind is None:
-                return
-            normalized_value = normalize_uuid_identifier(candidate)
-            if normalized_value is None:
-                return
-            identifiers.append({"type": identifier_kind, "value": normalized_value, "path": path})
-
-    visit(value)
+    identifiers = identifier_candidates(
+        value,
+        schema=schema,
+        max_candidates=MAX_LEDGER_IDENTIFIERS,
+        max_array_items=50,
+        include_ambiguous=False,
+    )
     deduplicated: dict[tuple[str, str], dict[str, str]] = {}
     for item in identifiers:
-        deduplicated.setdefault((item["type"], item["value"]), item)
+        if item.kind is None:
+            continue
+        projected = {"type": item.kind, "value": item.value, "path": item.path}
+        deduplicated.setdefault((item.kind, item.value), projected)
     return list(deduplicated.values())[:MAX_LEDGER_IDENTIFIERS]
 
 
