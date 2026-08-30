@@ -2290,3 +2290,61 @@ def test_consumer_import_activation_attachment_requires_release_and_receipt_matc
     assert "activation.dataset_release_id=operation.dataset_release_id" in query
     assert "activation.publication_receipt_id=operation.publication_receipt_id" in query
     assert "activation.expected_release_version=operation.expected_release_version" in query
+    assert "activation.status IN ('queued','claimed','running','interrupted','succeeded')" in query
+
+
+def test_consumer_import_activation_interruption_requeues_without_burning_attempt() -> None:
+    operation_id = uuid.uuid4()
+    operation = {
+        "id": operation_id,
+        "status": "activation_queued",
+        "phase_key": "wait_activation",
+        "attempt_number": 3,
+        "lease_owner": None,
+        "lease_token": None,
+        "lease_expires_at": None,
+    }
+    connection = ScriptedConnection([operation])
+
+    result = ConnectedStore(connection).record_consumer_import_activation_outcome(
+        operation_id,
+        worker_id="runner-1",
+        lease_token="lease-one",
+        activation_status="interrupted",
+        error={"code": "activation_interrupted", "retryable": True},
+        poll_seconds=2,
+    )
+
+    assert result["status"] == "activation_queued"
+    assert result["attempt_number"] == 3
+    assert result["lease_owner"] is None
+    query = connection.queries[0]
+    assert "ELSE 'activation_queued' END" in query
+    assert "attempt_number" not in query
+
+
+def test_consumer_import_terminal_retry_keeps_bounded_attempt_number() -> None:
+    operation_id = uuid.uuid4()
+    terminal = {
+        "id": operation_id,
+        "status": "failed",
+        "phase_key": "complete",
+        "attempt_number": 5,
+    }
+    connection = ScriptedConnection([terminal])
+
+    result = ConnectedStore(connection).retry_consumer_import(
+        operation_id,
+        worker_id="runner-1",
+        lease_token="lease-one",
+        error={"code": "still_unavailable", "retryable": True},
+        retry_seconds=2,
+    )
+
+    assert result["status"] == "failed"
+    assert result["attempt_number"] == 5
+    query = connection.queries[0]
+    assert (
+        "attempt_number=CASE WHEN %s AND attempt_number<%s THEN attempt_number+1 "
+        "ELSE attempt_number END"
+    ) in query

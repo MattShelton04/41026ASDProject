@@ -558,7 +558,7 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
     claimed = operations.claim(worker_id="runner-five", lease_seconds=30)
     assert claimed is not None
     connection.execute(
-        "INSERT INTO ops.release_activation VALUES (%s,%s,%s,2,'succeeded',NULL)",
+        "INSERT INTO ops.release_activation VALUES (%s,%s,%s,2,'interrupted',NULL)",
         (second_activation_id, release_id, receipt_id),
     )
     connection.commit()
@@ -575,9 +575,31 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
     connection.commit()
     claimed = operations.claim(worker_id="runner-six", lease_seconds=30)
     assert claimed is not None
-    published = operations.record_activation_outcome(
+    interrupted = operations.record_activation_outcome(
         operation_id,
         worker_id="runner-six",
+        lease_token=str(claimed["lease_token"]),
+        activation_status="interrupted",
+        error={"code": "activation_interrupted", "retryable": True},
+        poll_seconds=0,
+    )
+    assert interrupted["status"] == "activation_queued"
+    assert interrupted["phase_key"] == "wait_activation"
+    assert interrupted["activation_attempt"] == 2
+    assert interrupted["attempt_number"] == 1
+    assert interrupted["lease_owner"] is None
+    assert interrupted["lease_token"] is None
+
+    connection.execute(
+        "UPDATE ops.release_activation SET status='succeeded' WHERE id=%s",
+        (second_activation_id,),
+    )
+    connection.commit()
+    claimed = operations.claim(worker_id="runner-seven", lease_seconds=30)
+    assert claimed is not None
+    published = operations.record_activation_outcome(
+        operation_id,
+        worker_id="runner-seven",
         lease_token=str(claimed["lease_token"]),
         activation_status="succeeded",
         error=None,
@@ -595,6 +617,47 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
                 ),
             },
         )
+
+    bounded_values = {
+        **values,
+        "artifact_path": (
+            f"/api/data-platform/v1/dataset-releases/{second_release_id}/artifact"
+        ),
+        "idempotency_key": "bounded-retry-delivery",
+        "request_id": "bounded-retry-request",
+    }
+    bounded, created = operations.create(second_release_id, bounded_values)
+    assert created is True
+    bounded_id = uuid.UUID(str(bounded["id"]))
+    claimed = operations.claim(worker_id="retry-runner-four", lease_seconds=30)
+    assert claimed is not None and claimed["id"] == bounded["id"]
+    connection.execute(
+        "UPDATE ops.consumer_import_operation SET attempt_number=4 WHERE id=%s",
+        (bounded_id,),
+    )
+    connection.commit()
+    scheduled = operations.retry(
+        bounded_id,
+        worker_id="retry-runner-four",
+        lease_token=str(claimed["lease_token"]),
+        error={"code": "consumer_unavailable", "retryable": True},
+        retry_seconds=0,
+    )
+    assert scheduled["status"] == "interrupted"
+    assert scheduled["attempt_number"] == 5
+
+    claimed = operations.claim(worker_id="retry-runner-five", lease_seconds=30)
+    assert claimed is not None and claimed["id"] == bounded["id"]
+    terminal = operations.retry(
+        bounded_id,
+        worker_id="retry-runner-five",
+        lease_token=str(claimed["lease_token"]),
+        error={"code": "consumer_still_unavailable", "retryable": True},
+        retry_seconds=0,
+    )
+    assert terminal["status"] == "failed"
+    assert terminal["phase_key"] == "complete"
+    assert terminal["attempt_number"] == 5
 
 
 def test_invalid_final_row_rolls_back_stage_and_preserves_predecessor(

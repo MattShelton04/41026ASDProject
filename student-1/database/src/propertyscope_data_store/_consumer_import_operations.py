@@ -341,7 +341,8 @@ class _ConsumerImportOperations:
                 status=CASE WHEN %s AND attempt_number<%s THEN 'interrupted' ELSE 'failed' END,
                 phase_key=CASE WHEN %s AND attempt_number<%s THEN phase_key ELSE 'complete' END,
                 next_attempt_at=%s,error_json=%s,
-                attempt_number=attempt_number+1,
+                attempt_number=CASE WHEN %s AND attempt_number<%s
+                    THEN attempt_number+1 ELSE attempt_number END,
                 finished_at=CASE WHEN %s AND attempt_number<%s THEN NULL ELSE %s END,
                 lease_owner=NULL,lease_token=NULL,
                 lease_expires_at=NULL,heartbeat_at=NULL,version=version+1
@@ -354,6 +355,8 @@ class _ConsumerImportOperations:
                     MAX_DELIVERY_ATTEMPTS,
                     now + timedelta(seconds=retry_seconds),
                     _json(error),
+                    retryable,
+                    MAX_DELIVERY_ATTEMPTS,
                     retryable,
                     MAX_DELIVERY_ATTEMPTS,
                     now,
@@ -441,7 +444,7 @@ class _ConsumerImportOperations:
                 AND activation.dataset_release_id=operation.dataset_release_id
                 AND activation.publication_receipt_id=operation.publication_receipt_id
                 AND activation.expected_release_version=operation.expected_release_version
-                AND activation.status IN ('queued','claimed','running','succeeded')
+                AND activation.status IN ('queued','claimed','running','interrupted','succeeded')
                 RETURNING operation.*""",
                 (
                     activation_id,
@@ -468,7 +471,14 @@ class _ConsumerImportOperations:
         error: Mapping[str, Any] | None,
         poll_seconds: int,
     ) -> JsonObject:
-        if activation_status not in {"queued", "claimed", "running", "succeeded", "failed"}:
+        if activation_status not in {
+            "queued",
+            "claimed",
+            "running",
+            "interrupted",
+            "succeeded",
+            "failed",
+        }:
             raise ConflictError("release activation status is invalid")
         now = datetime.now(UTC)
         terminal = activation_status in {"succeeded", "failed"}
