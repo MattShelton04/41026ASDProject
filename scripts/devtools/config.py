@@ -3,7 +3,12 @@
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-COMPOSE_FILES = ("docker-compose.yml", "docker-compose.dev.yml")
+COMPOSE_FILES = (
+    "docker-compose.yml",
+    "deployment/enabled-features.compose.yml",
+    "docker-compose.dev.yml",
+)
+PRODUCTION_COMPOSE_FILES = COMPOSE_FILES[:-1]
 PROFILES = ("release-0",)
 APPLICATION_SERVICES = (
     "shared-frontend",

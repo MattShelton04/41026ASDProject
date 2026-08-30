@@ -2,33 +2,46 @@
 
 from __future__ import annotations
 
+import argparse
+import sys
 from pathlib import Path
 
 from ai_mode.tool_catalog import build_tool_runtime, load_tool_catalog
 
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.onboarding import OnboardingConfigurationError, discover_tool_catalogs
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-CATALOG_NAME = "tool-catalog.yaml"
 
 
 def discover_catalogs(root: Path = REPOSITORY_ROOT) -> tuple[Path, ...]:
-    """Find canonical catalogues only in feature-owned and example slices."""
-    candidate_roots = (
-        root / "examples",
-        *(root / f"student-{number}" for number in range(1, 6)),
+    """Find only catalogues declared by explicitly enabled features."""
+    return discover_tool_catalogs(root)
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Validate tool catalogues declared by enabled feature onboarding metadata."
     )
-    return tuple(
-        sorted(
-            path
-            for candidate_root in candidate_roots
-            if candidate_root.exists()
-            for path in candidate_root.rglob(CATALOG_NAME)
-        )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=REPOSITORY_ROOT,
+        help="Repository root to inspect (defaults to the current project).",
     )
+    return parser
 
 
 def main() -> int:
     """Load and compose each catalogue so unsafe transport metadata fails CI."""
-    catalogs = discover_catalogs()
+    arguments = _parser().parse_args()
+    try:
+        catalogs = discover_catalogs(arguments.root.resolve())
+    except OnboardingConfigurationError as exc:
+        print(f"Tool catalogue discovery failed: {exc}")
+        return 1
     for path in catalogs:
         catalog = load_tool_catalog(path)
         _, executor = build_tool_runtime(

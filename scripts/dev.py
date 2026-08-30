@@ -38,6 +38,7 @@ from scripts.devtools.config import (
     JOB_PROFILE_DIRECTORY,
     OFFLINE_OPENAI_CREDENTIAL,
     PRODUCTION_BUILD_SERVICES,
+    PRODUCTION_COMPOSE_FILES,
     PROFILES,
     PSI_WEEKLY_URL,
     PSI_YEARLY_URL,
@@ -70,6 +71,12 @@ def _repeated_options(option: str, values: Sequence[str]) -> tuple[str, ...]:
 
 def _ensure_docker() -> None:
     _run(("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"))
+
+
+def _validate_deployment_inputs() -> None:
+    """Refuse stack mutation when explicit enablement and exposed topology have drifted."""
+    _run((sys.executable, "scripts/generate_deployment.py", "--check"))
+    _run((sys.executable, "scripts/validate_architecture.py"))
 
 
 def _resolved_host_ports(services: Sequence[str]) -> dict[str, tuple[str, int]]:
@@ -401,6 +408,7 @@ def _compose_environment(*, offline: bool) -> Mapping[str, str]:
 
 def _up(*, offline: bool) -> None:
     _openai_credential(offline=offline)
+    _validate_deployment_inputs()
     _ensure_docker()
     _preflight_compose_host_ports(services=APPLICATION_SERVICES)
     compose_environment = _compose_environment(offline=offline)
@@ -428,6 +436,7 @@ def _up(*, offline: bool) -> None:
 
 def _rebuild(services: Sequence[str], *, offline: bool) -> None:
     _openai_credential(offline=offline)
+    _validate_deployment_inputs()
     _ensure_docker()
     selected = tuple(services) or BUILD_SERVICES
     _preflight_compose_host_ports(services=selected)
@@ -452,20 +461,14 @@ def _rebuild(services: Sequence[str], *, offline: bool) -> None:
 
 def _production_build(services: Sequence[str]) -> None:
     """Build immutable Release 0 images without starting or changing a runtime."""
+    _validate_deployment_inputs()
     _ensure_docker()
     selected = tuple(services) or PRODUCTION_BUILD_SERVICES
-    _run(
-        (
-            "docker",
-            "compose",
-            "--file",
-            "docker-compose.yml",
-            "--profile",
-            "release-0",
-            "build",
-            *selected,
-        )
-    )
+    command = ["docker", "compose"]
+    for filename in PRODUCTION_COMPOSE_FILES:
+        command.extend(("--file", filename))
+    command.extend(("--profile", "release-0", "build", *selected))
+    _run(tuple(command))
 
 
 def _down(*, remove_volumes: bool = False) -> None:
@@ -497,6 +500,7 @@ def _reset() -> None:
 
 def _doctor() -> None:
     """Validate local prerequisites and the selected merged Compose model."""
+    _validate_deployment_inputs()
     _ensure_docker()
     _run(("docker", "compose", "version"))
     _run(_compose_command("config", "--quiet"))
@@ -681,6 +685,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif command == ("stack", "restart"):
             _openai_credential(offline=arguments.offline)
+            _validate_deployment_inputs()
             _ensure_docker()
             _preflight_compose_host_ports(services=APPLICATION_SERVICES)
             compose_environment = _compose_environment(
@@ -708,6 +713,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _ensure_docker()
             _run(_compose_command("ps"))
         elif command == ("stack", "config"):
+            _validate_deployment_inputs()
             _ensure_docker()
             _run(_compose_command("config", "--quiet"))
         elif command == ("stack", "logs"):

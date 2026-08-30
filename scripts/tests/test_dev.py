@@ -16,6 +16,7 @@ from scripts import dev
 @pytest.fixture(autouse=True)
 def skip_real_port_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(dev, "_host_port_is_available", lambda _port: True)
+    monkeypatch.setattr(dev, "_validate_deployment_inputs", lambda: None)
 
 
 @pytest.fixture
@@ -234,21 +235,21 @@ def test_production_build_uses_only_the_release_compose_model(
 ) -> None:
     assert dev.main(["stack", "build", "shared-frontend", "f1-frontend"]) == 0
 
-    assert captured_commands == [
-        ("docker", "info", "--format", "Docker Engine {{.ServerVersion}} is ready"),
-        (
-            "docker",
-            "compose",
-            "--file",
-            "docker-compose.yml",
-            "--profile",
-            "release-0",
-            "build",
-            "shared-frontend",
-            "f1-frontend",
-        ),
-    ]
-    assert all(filename not in captured_commands[-1] for filename in dev.COMPOSE_FILES[1:])
+    assert captured_commands[0] == (
+        "docker",
+        "info",
+        "--format",
+        "Docker Engine {{.ServerVersion}} is ready",
+    )
+    assert captured_commands[1][:2] == ("docker", "compose")
+    for filename in dev.PRODUCTION_COMPOSE_FILES:
+        assert filename in captured_commands[1]
+    assert captured_commands[1][-3:] == (
+        "build",
+        "shared-frontend",
+        "f1-frontend",
+    )
+    assert dev.COMPOSE_FILES[-1] not in captured_commands[-1]
 
 
 def test_cli_groups_stack_ui_and_data_workflows() -> None:
