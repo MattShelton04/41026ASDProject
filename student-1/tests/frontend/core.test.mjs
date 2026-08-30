@@ -56,10 +56,14 @@ import {
   assistantContextFromHash, FEATURE_ASSISTANT_CONTEXTS, FEATURE_ASSISTANT_SCOPES,
 } from "../../frontend/integration/assistant.js";
 import {
+  activePublicationOperation,
   createPublicationAttemptKeys,
+  nextPublicationPollDelay,
+  PUBLICATION_POLL_LIMIT,
   reconcilePublication,
 } from "../../frontend/core/publication.js";
 import {
+  consumerImportStatusPath,
   publicationSuccessMessage,
   reconcilePublicationTimeout,
 } from "../../frontend/routes/release-publication.js";
@@ -102,6 +106,59 @@ test("publication timeout reconciliation distinguishes durable progress from fai
   assert.equal(reconcilePublication({ release: { status: "awaiting_review" }, activations: [] }), "unknown");
 });
 
+test("consumer import delivery states reconcile without claiming activation completed", () => {
+  for (const status of [
+    "queued", "claimed", "polling", "receipt_pending", "activation_pending", "interrupted",
+    "activation_queued",
+  ]) {
+    assert.equal(reconcilePublication({ consumer_import: { status } }), "pending");
+  }
+  for (const status of ["failed", "rejected"]) {
+    assert.equal(reconcilePublication({
+      publication_status: "pending",
+      consumer_imports: [{ status }],
+    }), "failed");
+  }
+  assert.equal(reconcilePublication({
+    consumer_import: { status: "activation_queued" },
+    activation: { status: "running" },
+  }), "pending");
+  assert.equal(reconcilePublication({
+    consumer_import: { status: "activation_queued" },
+    activation: { status: "succeeded" },
+  }), "completed");
+  assert.equal(reconcilePublication({ publication_status: "completed" }), "completed");
+  assert.equal(reconcilePublication({
+    consumer_imports: [{ status: "failed" }, { status: "polling" }],
+  }), "pending");
+});
+
+test("publication polling is finite, backs off, and pauses while hidden", () => {
+  assert.equal(nextPublicationPollDelay(0, "pending"), 1500);
+  assert.equal(nextPublicationPollDelay(6, "pending"), 3000);
+  assert.equal(nextPublicationPollDelay(18, "pending"), 10000);
+  assert.equal(nextPublicationPollDelay(0, "completed"), null);
+  assert.equal(nextPublicationPollDelay(0, "failed"), null);
+  assert.equal(nextPublicationPollDelay(1, "pending", { visible: false }), null);
+  assert.equal(nextPublicationPollDelay(PUBLICATION_POLL_LIMIT, "pending"), null);
+});
+
+test("publication operation selection and status paths use the durable fixed resource", () => {
+  const selected = activePublicationOperation({
+    consumer_imports: [{ id: "old", status: "failed" }, { id: "new", status: "polling" }],
+  });
+  assert.equal(selected.id, "new");
+  assert.equal(activePublicationOperation({
+    consumer_imports: [{ id: "old", status: "polling" }, { id: "new", status: "failed" }],
+  }), null);
+  const fixed = "/api/data-platform/v1/dataset-releases/release-1/consumer-imports/operation-1";
+  assert.equal(consumerImportStatusPath("release-1", "operation-1", fixed), fixed);
+  assert.equal(
+    consumerImportStatusPath("release-1", "operation-1", "https://untrusted.test/status"),
+    fixed,
+  );
+});
+
 test("publication response messaging distinguishes completed from queued work", () => {
   assert.equal(
     publicationSuccessMessage({
@@ -115,7 +172,7 @@ test("publication response messaging distinguishes completed from queued work", 
       publication_status: "pending",
       activation: { status: "queued" },
     }),
-    "Publication requested",
+    "Publication queued",
   );
   assert.throws(
     () => publicationSuccessMessage({ activation: { status: "failed" } }),
@@ -145,11 +202,36 @@ test("failed publication timeout reconciliation permits a fresh retry", async ()
       timeoutError,
     }),
     (error) => error === timeoutError
-      && /Background publication failed/.test(error.message)
+      && /Publication delivery or activation failed/.test(error.message)
       && /fresh retry is safe/.test(error.message)
       && !/outcome is not known/.test(error.message),
   );
   assert.deepEqual(cleared, ["release-1:v4"]);
+});
+
+test("publication timeout reconciliation recognizes durable consumer delivery", async () => {
+  const cleared = [];
+  const toasts = [];
+  const timeoutError = Object.assign(new Error("The request timed out after 10 seconds."), {
+    status: 0,
+  });
+  const body = await reconcilePublicationTimeout({
+    release: { id: "release-1", version: 4 },
+    request: async () => ({
+      body: {
+        release: { status: "awaiting_review" },
+        consumer_imports: [{ id: "operation-1", status: "polling" }],
+      },
+      requestId: "reconcile-request",
+    }),
+    publicationKeys: { clear: (identity) => cleared.push(identity) },
+    key: { identity: "release-1:v4", value: "publish-release-1:v4-request-1" },
+    showToast: (message) => toasts.push(message),
+    timeoutError,
+  });
+  assert.equal(body.consumer_imports[0].status, "polling");
+  assert.deepEqual(cleared, ["release-1:v4"]);
+  assert.match(toasts[0], /durable consumer delivery and accepted-version activation/);
 });
 
 test("requestJson adds correlation and idempotency-compatible JSON headers", async () => {
@@ -844,6 +926,20 @@ test("release details render bounded paginated dataset records", async () => {
   assert.match(releases, /function releasePreviewPanel/);
   assert.match(releases, /No other version is included/);
   assert.match(releases, /Next page/);
+});
+
+test("release publication renders durable delivery evidence and polls only pending work", async () => {
+  const releases = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
+  assert.match(releases, /body\.consumer_imports \|\| \[\]/);
+  assert.match(releases, /Consumer import operations/);
+  assert.match(releases, /publicationInProgress/);
+  assert.match(releases, /consumerImportStatusPath\(/);
+  assert.match(releases, /request\(statusPath\)/);
+  assert.match(releases, /nextPublicationPollDelay\(/);
+  assert.match(releases, /visibilitychange/);
+  assert.match(releases, /PUBLICATION_POLL_LIMIT/);
+  assert.match(releases, /currently published version remains live/);
+  assert.doesNotMatch(releases, /continues in the database loader/);
 });
 
 test("production frontend imports focused core and component modules", async () => {
