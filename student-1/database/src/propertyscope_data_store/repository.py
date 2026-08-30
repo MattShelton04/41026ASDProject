@@ -710,7 +710,7 @@ class PropertyScopeStore:
             else:
                 requested = connection.execute(
                     """UPDATE ops.ingestion_run SET
-                    cancel_requested_at=COALESCE(cancel_requested_at,%s),version=version+1
+                    cancel_requested_at=COALESCE(cancel_requested_at,%s)
                     WHERE id=%s AND status NOT IN ('succeeded','failed','cancelled') RETURNING *""",
                     (now, run_id),
                 ).fetchone()

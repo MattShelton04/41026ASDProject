@@ -215,15 +215,14 @@ def test_cancel_intent_update_is_not_blocked_by_import_foreign_key_share(
         """
         CREATE SCHEMA ops;
         CREATE TABLE ops.ingestion_run (
-            id UUID PRIMARY KEY,status TEXT NOT NULL,cancel_requested_at TIMESTAMPTZ,
-            version INT NOT NULL
+            id UUID PRIMARY KEY,status TEXT NOT NULL,cancel_requested_at TIMESTAMPTZ
         );
         CREATE TABLE warehouse.cancel_probe (
             id UUID PRIMARY KEY,ingestion_run_id UUID NOT NULL REFERENCES ops.ingestion_run(id)
         );
         """
     )
-    connection.execute("INSERT INTO ops.ingestion_run VALUES (%s,'staging',NULL,1)", (run_id,))
+    connection.execute("INSERT INTO ops.ingestion_run VALUES (%s,'staging',NULL)", (run_id,))
     connection.commit()
     blocker = psycopg.connect(_database_url(str(connection.info.dbname)), row_factory=dict_row)
     canceller = psycopg.connect(_database_url(str(connection.info.dbname)), row_factory=dict_row)
@@ -232,7 +231,7 @@ def test_cancel_intent_update_is_not_blocked_by_import_foreign_key_share(
         canceller.execute("SET LOCAL statement_timeout='1s'")
         started = time.monotonic()
         row = canceller.execute(
-            """UPDATE ops.ingestion_run SET cancel_requested_at=clock_timestamp(),version=version+1
+            """UPDATE ops.ingestion_run SET cancel_requested_at=clock_timestamp()
             WHERE id=%s AND status NOT IN ('succeeded','failed','cancelled') RETURNING *""",
             (run_id,),
         ).fetchone()

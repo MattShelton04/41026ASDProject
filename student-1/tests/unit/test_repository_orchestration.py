@@ -425,6 +425,7 @@ def test_queued_cancellation_is_immediately_terminal_and_cancels_pending_tasks()
     assert run["execution_semantics"] == "new_pipeline_run"
     assert "FOR UPDATE" not in connection.queries[0]
     assert "cancel_requested_at=COALESCE" in connection.queries[1]
+    assert "version=" not in connection.queries[1]
     task_update = connection.queries[2]
     assert "status IN ('pending','retry_wait')" in task_update
     assert "SET status='cancelled'" in task_update
