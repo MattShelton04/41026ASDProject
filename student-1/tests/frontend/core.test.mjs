@@ -837,7 +837,8 @@ test("the frontend exposes only fixed JSON health routes", async () => {
   const nginx = await readFile(new URL("../../frontend/nginx.conf", import.meta.url), "utf8");
   assert.match(nginx, /location = \/health\/live/);
   assert.match(nginx, /location = \/health\/ready/);
-  assert.match(nginx, /location ~ \^\/health\(\?:\/\|\$\)/);
+  assert.match(nginx, /location ~ \^\/health/);
+  assert.match(nginx, /Only \/health\/live and \/health\/ready are supported/);
   assert.match(nginx, /default_type application\/problem\+json/);
   assert.match(nginx, /return 404 '[^']*"code":"route_not_found"/);
   assert.doesNotMatch(nginx, /location \/health\//);
