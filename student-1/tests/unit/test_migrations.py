@@ -533,3 +533,16 @@ def test_truthful_loader_phases_and_bounded_recovery_are_durable() -> None:
     assert "space_recovery_policy_json" in migration
     assert "\nVACUUM" not in migration
     assert "\nREINDEX" not in migration
+
+
+def test_psi_exact_address_index_matches_null_equivalent_predicates() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("039_match_psi_exact_address_predicate.sql")
+        .read_text("utf-8")
+    )
+
+    assert "COALESCE(street_number_last,-1)" in migration
+    assert "COALESCE(street_number_suffix,'')" in migration
+    assert "COALESCE(unit_number,'')" in migration
+    assert "INCLUDE (property_ref)" in migration

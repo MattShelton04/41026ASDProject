@@ -406,6 +406,7 @@ def test_queued_cancellation_is_immediately_terminal_and_cancels_pending_tasks()
     connection = ScriptedConnection(
         [
             {"id": run_id, "status": "queued"},
+            {"id": run_id, "status": "queued"},
             None,
             None,
             {"count": 0},
@@ -422,10 +423,13 @@ def test_queued_cancellation_is_immediately_terminal_and_cancels_pending_tasks()
 
     assert run["status"] == "cancelled"
     assert run["execution_semantics"] == "new_pipeline_run"
-    task_update = connection.queries[1]
+    assert "FOR UPDATE" not in connection.queries[0]
+    assert "cancel_requested_at=COALESCE" in connection.queries[1]
+    assert "version=" not in connection.queries[1]
+    task_update = connection.queries[2]
     assert "status IN ('pending','retry_wait')" in task_update
     assert "SET status='cancelled'" in task_update
-    run_update_parameters = connection.parameters[4]
+    run_update_parameters = connection.parameters[5]
     assert run_update_parameters is not None
     assert run_update_parameters[4] is True
 
@@ -441,7 +445,17 @@ def test_cancel_retry_replays_the_durable_cancelled_outcome() -> None:
                 "cancel_requested_at": cancelled_at,
                 "run_mode": "full_refresh",
                 "parent_run_id": None,
-            }
+            },
+            None,
+            None,
+            {"count": 0},
+            {
+                "id": run_id,
+                "status": "cancelled",
+                "cancel_requested_at": cancelled_at,
+                "run_mode": "full_refresh",
+                "parent_run_id": None,
+            },
         ]
     )
 
@@ -449,13 +463,60 @@ def test_cancel_retry_replays_the_durable_cancelled_outcome() -> None:
 
     assert run["status"] == "cancelled"
     assert run["cancel_requested_at"] == cancelled_at.isoformat()
-    assert len(connection.queries) == 1
+    assert len(connection.queries) == 5
+    release_cleanup = connection.queries[4]
+    assert "UPDATE ops.dataset_release SET status='abandoned'" in release_cleanup
+    assert "status IN ('draft','candidate')" in release_cleanup
+
+
+def test_cancel_retry_reconciles_cleanup_failure_after_intent_commit() -> None:
+    class CleanupFailureConnection(ScriptedConnection):
+        def execute(
+            self, query: str, parameters: Sequence[object] | None = None
+        ) -> ScriptedConnection:
+            if "UPDATE ops.run_task SET status='cancelled'" in query:
+                raise RuntimeError("simulated cleanup crash")
+            return super().execute(query, parameters)
+
+    run_id = uuid.uuid4()
+    cancelled_at = datetime.now(UTC)
+    first = CleanupFailureConnection(
+        [
+            {"id": run_id, "status": "staging", "cancel_requested_at": None},
+            {"id": run_id, "status": "staging", "cancel_requested_at": cancelled_at},
+        ]
+    )
+    with pytest.raises(RuntimeError, match="simulated cleanup crash"):
+        ConnectedStore(first).request_cancel(run_id)
+    assert first.commit_count == 1
+    assert "cancel_requested_at=COALESCE" in first.queries[1]
+
+    retry = ScriptedConnection(
+        [
+            {"id": run_id, "status": "staging", "cancel_requested_at": cancelled_at},
+            {"id": run_id, "status": "staging", "cancel_requested_at": cancelled_at},
+            None,
+            None,
+            {"count": 0},
+            {
+                "id": run_id,
+                "status": "cancelled",
+                "cancel_requested_at": cancelled_at,
+                "run_mode": "full_refresh",
+                "parent_run_id": None,
+            },
+        ]
+    )
+    reconciled = ConnectedStore(retry).request_cancel(run_id)
+    assert reconciled["status"] == "cancelled"
+    assert "UPDATE ops.dataset_release SET status='abandoned'" in retry.queries[5]
 
 
 def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> None:
     run_id = uuid.uuid4()
     connection = ScriptedConnection(
         [
+            {"id": run_id, "status": "acquiring"},
             {"id": run_id, "status": "acquiring"},
             None,
             None,
@@ -472,7 +533,9 @@ def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> N
     run = ConnectedStore(connection).request_cancel(run_id)
 
     assert run["status"] == "acquiring"
-    run_update_parameters = connection.parameters[4]
+    assert "FOR UPDATE" not in connection.queries[0]
+    assert connection.commit_count == 2
+    run_update_parameters = connection.parameters[5]
     assert run_update_parameters is not None
     assert run_update_parameters[4] is False
 
@@ -487,6 +550,7 @@ def test_active_cancellation_is_acknowledged_by_the_next_task_heartbeat() -> Non
                 "ingestion_run_id": run_id,
                 "status": "cancelled",
             },
+            None,
             None,
             None,
         ]
@@ -504,8 +568,43 @@ def test_active_cancellation_is_acknowledged_by_the_next_task_heartbeat() -> Non
     assert "run.cancel_requested_at IS NOT NULL" in heartbeat
     assert "RETURNING task.*" in heartbeat
     assert "status IN ('pending','retry_wait')" in connection.queries[1]
-    assert "UPDATE ops.ingestion_run SET status='cancelled'" in connection.queries[2]
+    assert "UPDATE ops.dataset_release SET status='abandoned'" in connection.queries[2]
+    assert "status IN ('draft','candidate')" in connection.queries[2]
+    assert "UPDATE ops.ingestion_run SET status='cancelled'" in connection.queries[3]
     assert connection.committed is True
+
+
+def test_task_finish_after_persisted_cancel_abandons_only_the_candidate() -> None:
+    run_id = uuid.uuid4()
+    task_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            {
+                "id": task_id,
+                "ingestion_run_id": run_id,
+                "stage": "import",
+                "status": "succeeded",
+            },
+            {"cancel_requested_at": datetime.now(UTC)},
+            None,
+            None,
+            None,
+        ]
+    )
+
+    ConnectedStore(connection).complete_task(
+        task_id,
+        worker_id="runner-1",
+        lease_token="lease-1",
+        rows_in=10,
+        rows_out=10,
+    )
+
+    release_cleanup = connection.queries[3]
+    assert "UPDATE ops.dataset_release SET status='abandoned'" in release_cleanup
+    assert "status IN ('draft','candidate')" in release_cleanup
+    assert "accepted" not in release_cleanup
+    assert "UPDATE ops.ingestion_run SET status='cancelled'" in connection.queries[4]
 
 
 def test_resume_requeues_cancelled_unfinished_task_from_interrupted_run() -> None:
@@ -1648,6 +1747,10 @@ def test_import_claim_terminalises_expired_work_for_a_cancelled_run() -> None:
     assert "warehouse.psi_sale" in cancellation
     assert "warehouse.bocsar_observation" in cancellation
     assert "warehouse.bocsar_coverage" in cancellation
+    assert (
+        "operation.progress_phase_key IN ('target_materialisation','verification')" in cancellation
+    )
+    assert "false)" in cancellation
     assert "automatic_destructive_maintenance',false" in cancellation
     cancellation_parameters = connection.parameters[0]
     assert cancellation_parameters is not None
@@ -1655,7 +1758,13 @@ def test_import_claim_terminalises_expired_work_for_a_cancelled_run() -> None:
     assert "WHERE status='queued'" in connection.queries[2]
 
 
-def test_cancelled_import_projects_bounded_relation_scoped_space_recovery() -> None:
+@pytest.mark.parametrize(
+    ("progress_phase_key", "destination_may_have_been_touched"),
+    [("typed_staging", False), ("target_materialisation", True), ("verification", True)],
+)
+def test_cancelled_import_projects_bounded_relation_scoped_space_recovery(
+    progress_phase_key: str, destination_may_have_been_touched: bool
+) -> None:
     operation_id = uuid.uuid4()
     completed = {
         "id": operation_id,
@@ -1664,7 +1773,11 @@ def test_cancelled_import_projects_bounded_relation_scoped_space_recovery() -> N
     }
     connection = ScriptedConnection(
         [
-            {"id": operation_id, "import_profile_key": "bocsar-sparse"},
+            {
+                "id": operation_id,
+                "import_profile_key": "bocsar-sparse",
+                "progress_phase_key": progress_phase_key,
+            },
             completed,
         ]
     )
@@ -1689,6 +1802,8 @@ def test_cancelled_import_projects_bounded_relation_scoped_space_recovery() -> N
     assert "warehouse.bocsar_observation" in policy
     assert "warehouse.bocsar_coverage" in policy
     assert "automatic_destructive_maintenance" in policy
+    expected_flag = str(destination_may_have_been_touched).lower()
+    assert f'"destination_may_have_been_touched":{expected_flag}' in policy
 
 
 def test_interrupted_import_reenqueue_increments_attempt_once_and_replay_is_stable() -> None:

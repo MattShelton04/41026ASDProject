@@ -68,6 +68,11 @@ from propertyscope_data_store.runtime_registry import (
 JsonObject = dict[str, Any]
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_ACTIVATION_STATES = frozenset({"succeeded", "failed"})
+_POSTGRES_FILESYSTEM_CAPACITY_PROGRAM = (
+    'set -eu; test -n "$PGDATA"; '
+    'LC_ALL=C df -PB1 -- "$PGDATA" "$PGDATA/pg_wal" '
+    "| awk 'NR > 1 {print $4}'"
+)
 
 
 def _activation_receipt_matches(evidence: Mapping[str, Any]) -> bool:
@@ -117,8 +122,14 @@ class PropertyScopeStore:
         *,
         runtime_registry: RuntimeRegistry,
         open_pool: bool = True,
+        loader_temp_file_limit_kib: int | None = None,
     ) -> None:
+        if loader_temp_file_limit_kib is not None and not (
+            64 * 1024 <= loader_temp_file_limit_kib <= 64 * 1024 * 1024
+        ):
+            raise ValueError("loader temp-file limit is outside the supported bound")
         self._runtime_registry = runtime_registry
+        self._loader_temp_file_limit_kib = loader_temp_file_limit_kib
         self._pool = ConnectionPool(
             database_url,
             min_size=1,
@@ -136,7 +147,15 @@ class PropertyScopeStore:
     @contextmanager
     def connection(self) -> Iterator[Connection[Any]]:
         with self._pool.connection() as connection:
+            self._apply_loader_transaction_limits(connection)
             yield connection
+
+    def _apply_loader_transaction_limits(self, connection: Connection[Any]) -> None:
+        """Apply loader-only limits to the current transaction, never globally."""
+        if self._loader_temp_file_limit_kib is not None:
+            connection.execute(
+                f"SET LOCAL temp_file_limit = '{self._loader_temp_file_limit_kib}kB'"
+            )
 
     def initialize(self) -> str:
         """Migrate from empty, including the idempotent Release 0 showcase baseline."""
@@ -166,6 +185,50 @@ class PropertyScopeStore:
             )
         except Exception:
             return False
+
+    def database_size_bytes(self) -> int:
+        """Return the owning PostgreSQL database's current allocated size."""
+        with self.connection() as connection:
+            row = connection.execute(
+                "SELECT pg_database_size(current_database())::bigint AS database_size_bytes"
+            ).fetchone()
+        if row is None or int(row["database_size_bytes"]) < 0:
+            raise RuntimeError("PostgreSQL database size is unavailable")
+        return int(row["database_size_bytes"])
+
+    def database_filesystem_available_bytes(self) -> int:
+        """Observe physical data/WAL headroom from the PostgreSQL server filesystem.
+
+        The command is a fixed application constant executed by PostgreSQL itself. No path,
+        request value or connection setting is interpolated into shell text: the official server
+        process supplies ``PGDATA`` and the shell quotes it as one argument. Deployments that do
+        not permit the fixed server observation fail closed in the loader preflight.
+        """
+        with self.connection() as connection:
+            connection.execute(
+                """CREATE TEMP TABLE propertyscope_loader_filesystem_capacity (
+                available_bytes BIGINT NOT NULL CHECK (available_bytes >= 0)
+                ) ON COMMIT DROP"""
+            )
+            connection.execute(
+                sql.SQL(
+                    """COPY pg_temp.propertyscope_loader_filesystem_capacity (available_bytes)
+                    FROM PROGRAM {}"""
+                ).format(sql.Literal(_POSTGRES_FILESYSTEM_CAPACITY_PROGRAM))
+            )
+            row = connection.execute(
+                """SELECT min(available_bytes)::bigint AS available_bytes,
+                count(*)::integer AS observation_count
+                FROM pg_temp.propertyscope_loader_filesystem_capacity"""
+            ).fetchone()
+        if (
+            row is None
+            or int(row["observation_count"]) not in {1, 2}
+            or row["available_bytes"] is None
+            or int(row["available_bytes"]) < 0
+        ):
+            raise RuntimeError("PostgreSQL data/WAL filesystem capacity is unavailable")
+        return int(row["available_bytes"])
 
     def counts(self) -> JsonObject:
         tables = (
@@ -682,16 +745,34 @@ class PropertyScopeStore:
         now = datetime.now(UTC)
         with self.connection() as connection:
             run = connection.execute(
-                "SELECT * FROM ops.ingestion_run WHERE id=%s FOR UPDATE", (run_id,)
+                "SELECT * FROM ops.ingestion_run WHERE id=%s", (run_id,)
             ).fetchone()
             if run is None:
                 raise NotFoundError("record does not exist")
-            if run["status"] == "cancelled" and run["cancel_requested_at"] is not None:
-                # A client may lose the first response after this database committed. Returning
-                # the same durable outcome makes retry/reconciliation truthful and idempotent.
-                return _run_projection(_dict(run))
-            if run["status"] in TERMINAL_RUN_STATES:
+            replaying_cancel = (
+                run["status"] == "cancelled" and run["cancel_requested_at"] is not None
+            )
+            if run["status"] in TERMINAL_RUN_STATES and not replaying_cancel:
                 raise ConflictError("terminal run cannot be cancelled")
+            if replaying_cancel:
+                requested = run
+            else:
+                requested = connection.execute(
+                    """UPDATE ops.ingestion_run SET
+                    cancel_requested_at=COALESCE(cancel_requested_at,%s)
+                    WHERE id=%s AND status NOT IN ('succeeded','failed','cancelled') RETURNING *""",
+                    (now, run_id),
+                ).fetchone()
+                connection.commit()
+        if requested is None:
+            current = self.get_run(run_id)
+            if current["status"] == "cancelled" and current["cancel_requested_at"] is not None:
+                return current
+            raise ConflictError("terminal run cannot be cancelled")
+        # Commit cancellation intent before touching child rows. Source-scale imports hold
+        # foreign-key key-share locks on the run for their whole candidate transaction; a
+        # SELECT FOR UPDATE here would make supported cancellation wait behind materialisation.
+        with self.connection() as connection:
             connection.execute(
                 """UPDATE ops.run_task SET status='cancelled',finished_at=%s,updated_at=%s,
                 lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
@@ -919,6 +1000,24 @@ class PropertyScopeStore:
                     error_json=COALESCE(error_json,%s),version=version+1
                     WHERE ingestion_run_id=%s AND status IN ('pending','retry_wait')""",
                     (now, now, _json(_cancellation_error()), run_id),
+                )
+                connection.execute(
+                    """UPDATE ops.dataset_release SET status='abandoned',terminal_reason_json=%s,
+                    review_comment='System-terminalized cancelled ingestion candidate; retained for audit.',
+                    updated_at=%s,version=version+1 WHERE ingestion_run_id=%s
+                    AND status IN ('draft','candidate')""",
+                    (
+                        _json(
+                            {
+                                "code": "ingestion_cancelled",
+                                "message": "Candidate release abandoned after operator cancellation",
+                                "ingestion_run_id": str(run_id),
+                                "bounded_error": _cancellation_error(),
+                            }
+                        ),
+                        now,
+                        run_id,
+                    ),
                 )
                 connection.execute(
                     """UPDATE ops.ingestion_run SET status='cancelled',finished_at=%s,
@@ -1966,6 +2065,10 @@ class PropertyScopeStore:
             total_bytes=total_bytes,
         )
 
+    def recover_import_space(self, operation_id: uuid.UUID) -> JsonObject:
+        """Reclaim reusable space on the exact relations owned by a failed import profile."""
+        return self._imports().recover_import_space(operation_id)
+
     @contextmanager
     def _cancellable_import_connection(
         self,
@@ -2160,6 +2263,24 @@ class PropertyScopeStore:
                     error_json=COALESCE(error_json,%s),version=version+1
                     WHERE ingestion_run_id=%s AND status IN ('pending','retry_wait')""",
                     (now, now, _json(_cancellation_error()), run_id),
+                )
+                connection.execute(
+                    """UPDATE ops.dataset_release SET status='abandoned',terminal_reason_json=%s,
+                    review_comment='System-terminalized cancelled ingestion candidate; retained for audit.',
+                    updated_at=%s,version=version+1 WHERE ingestion_run_id=%s
+                    AND status IN ('draft','candidate')""",
+                    (
+                        _json(
+                            {
+                                "code": "ingestion_cancelled",
+                                "message": "Candidate release abandoned after operator cancellation",
+                                "ingestion_run_id": str(run_id),
+                                "bounded_error": _cancellation_error(),
+                            }
+                        ),
+                        now,
+                        run_id,
+                    ),
                 )
                 connection.execute(
                     """UPDATE ops.ingestion_run SET status='cancelled',finished_at=%s,error_json=%s,

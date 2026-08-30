@@ -14,8 +14,24 @@ from typing import Any
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from propertyscope_data_store.source_materialisation import (
+    BOCSAR_COPY_SQL,
+    BOCSAR_COVERAGE_INSERT_SQL,
+    BOCSAR_OBSERVATION_INSERT_SQL,
+    BOCSAR_STAGE_SQL,
+    BOCSAR_STREAM_COLUMNS,
+    PSI_COPY_SQL,
+    PSI_PHASE_SQL,
+    PSI_STAGE_SQL,
+    PSI_STREAM_COLUMNS,
+)
+
+# Compatibility seam for focused cancellation tests that replace a phase statement.
+_PSI_PHASE_SQL = PSI_PHASE_SQL
+
 CANONICAL_SCHEMA_VERSION = "propertyscope.canonical-import.v1"
 POSTGRES_INTEGER_MAX = 2_147_483_647
+POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807
 IMPORT_PHASE_LABELS: Mapping[str, str] = {
     "artifact_verification": "Verifying canonical artifact",
     "typed_staging": "Validating and copying typed canonical rows",
@@ -87,55 +103,15 @@ def execute_import(
     phase_callback: Callable[[str, int], None] | None = None,
 ) -> ImportResult:
     """COPY validated rows and insert one isolated candidate generation atomically."""
-    run_id = uuid.UUID(str(work["ingestion_run_id"]))
-    release_id = uuid.UUID(str(work["candidate_release_id"]))
-    artifact_id = uuid.UUID(str(work["artifact_record_id"]))
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "CREATE TEMP TABLE propertyscope_import_stage "
-            "(ordinal BIGINT PRIMARY KEY, payload JSONB NOT NULL) ON COMMIT DROP"
-        )
-        with cursor.copy("COPY propertyscope_import_stage (ordinal, payload) FROM STDIN") as copy:
-            for ordinal, row in enumerate(prepared.rows, start=1):
-                copy.write_row((ordinal, Jsonb(row)))
-        accepted = _insert_profile_rows(
-            cursor,
-            prepared.profile,
-            release_id=release_id,
-            artifact_id=artifact_id,
-            run_id=run_id,
-            phase_rows=len(prepared.rows),
-            phase_callback=phase_callback,
-        )
-        if phase_callback is not None:
-            phase_callback("verification", accepted)
-        quality_checks = _record_quality(
-            cursor,
-            profile=prepared.profile,
-            run_id=run_id,
-            release_id=release_id,
-            expected=len(prepared.rows),
-            accepted=accepted,
-        )
-        cursor.execute(
-            """UPDATE ops.dataset_release SET record_count=%s,
-            manifest_json=jsonb_set(manifest_json,'{record_count}',to_jsonb(%s::bigint),true),
-            coverage_json=jsonb_set(coverage_json,'{source_record_count}',
-                to_jsonb(%s::bigint),true),
-            updated_at=now(),version=version+1
-            WHERE id=%s AND ingestion_run_id=%s AND status IN ('draft','candidate')""",
-            (accepted, accepted, accepted, release_id, run_id),
-        )
-        if cursor.rowcount != 1:
-            raise ImportProfileError("candidate release is not mutable for this import")
-    connection.commit()
-    return ImportResult(
-        rows_in=len(prepared.rows),
-        rows_staged=len(prepared.rows),
-        rows_accepted=accepted,
-        rows_rejected=len(prepared.rows) - accepted,
-        quality_checks=quality_checks,
+    result = execute_stream_import(
+        connection,
+        work,
+        profile=prepared.profile,
+        rows=prepared.rows,
+        phase_callback=phase_callback,
     )
+    connection.commit()
+    return result
 
 
 def iter_ndjson_import(lines: Iterable[bytes], *, profile: str) -> Iterable[dict[str, Any]]:
@@ -176,7 +152,31 @@ def execute_stream_import(
             with cursor.copy(_GNAF_STREAM_COPY_SQL) as copy:
                 for row in rows:
                     staged += 1
+                    _require_copy_ordinal(staged)
                     copy.write_row(tuple(row[field] for field in _GNAF_STREAM_COLUMNS))
+        elif profile == "psi-sales":
+            cursor.execute(PSI_STAGE_SQL)
+            with cursor.copy(PSI_COPY_SQL) as copy:
+                for staged, row in enumerate(rows, start=1):
+                    _require_copy_ordinal(staged)
+                    copy.write_row((staged, *(row[field] for field in PSI_STREAM_COLUMNS[1:])))
+            if staged > POSTGRES_INTEGER_MAX:
+                raise ImportProfileError(
+                    "PSI record count exceeds PostgreSQL INTEGER revision range"
+                )
+            cursor.execute("ANALYZE propertyscope_psi_import_stage")
+        elif profile == "bocsar-sparse":
+            cursor.execute(BOCSAR_STAGE_SQL)
+            with cursor.copy(BOCSAR_COPY_SQL) as copy:
+                for staged, row in enumerate(rows, start=1):
+                    _require_copy_ordinal(staged)
+                    values = {
+                        **row,
+                        "ordinal": staged,
+                        "observed_months": list(row.get("observed_months", ())) or None,
+                    }
+                    copy.write_row(tuple(values.get(field) for field in BOCSAR_STREAM_COLUMNS))
+            cursor.execute("ANALYZE propertyscope_bocsar_import_stage")
         else:
             cursor.execute(
                 "CREATE TEMP TABLE propertyscope_import_stage "
@@ -186,6 +186,7 @@ def execute_stream_import(
                 "COPY propertyscope_import_stage (ordinal, payload) FROM STDIN"
             ) as copy:
                 for staged, row in enumerate(rows, start=1):
+                    _require_copy_ordinal(staged)
                     copy.write_row((staged, Jsonb(row)))
         if staged == 0:
             raise ImportProfileError("canonical import artifact must not be empty")
@@ -196,6 +197,7 @@ def execute_stream_import(
             artifact_id=artifact_id,
             run_id=run_id,
             typed_gnaf_stage=profile == "gnaf-nsw",
+            typed_source_stage=profile in {"psi-sales", "bocsar-sparse"},
             phase_rows=staged,
             phase_callback=phase_callback,
         )
@@ -231,11 +233,21 @@ def _insert_profile_rows(
     artifact_id: uuid.UUID,
     run_id: uuid.UUID,
     typed_gnaf_stage: bool = False,
+    typed_source_stage: bool = False,
     phase_rows: int = 0,
     phase_callback: Callable[[str, int], None] | None = None,
 ) -> int:
-    if profile == "psi-sales":
+    if profile == "psi-sales" and typed_source_stage:
         return _insert_psi_rows(
+            cursor,
+            release_id=release_id,
+            artifact_id=artifact_id,
+            run_id=run_id,
+            phase_rows=phase_rows,
+            phase_callback=phase_callback,
+        )
+    if profile == "bocsar-sparse" and typed_source_stage:
+        return _insert_bocsar_rows(
             cursor,
             release_id=release_id,
             artifact_id=artifact_id,
@@ -275,15 +287,52 @@ def _insert_psi_rows(
 ) -> int:
     """Run PSI identity, address, and target work as truthful transaction-local phases."""
     parameters: tuple[object, ...] = (release_id, artifact_id, run_id)
+    inserted = 0
     for phase_key, statement in _PSI_PHASE_SQL:
         if phase_callback is not None:
             phase_callback(phase_key, phase_rows)
         cursor.execute(statement, parameters if phase_key == "target_materialisation" else ())
+        if phase_key == "identity_revision_derivation":
+            cursor.execute("ANALYZE propertyscope_psi_identity_stage")
+        elif phase_key == "address_resolution":
+            cursor.execute("ANALYZE propertyscope_psi_address_resolution")
+        else:
+            inserted = max(0, int(cursor.rowcount))
+    if inserted:
+        return inserted
     cursor.execute(_PROFILE_COUNT_SQL["psi-sales"], parameters)
     persisted = cursor.fetchone()
     if persisted is None:
         raise ImportProfileError("candidate generation row count is unavailable")
     return int(persisted["count"])
+
+
+def _insert_bocsar_rows(
+    cursor: Any,
+    *,
+    release_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    run_id: uuid.UUID,
+    phase_rows: int,
+    phase_callback: Callable[[str, int], None] | None,
+) -> int:
+    """Materialise typed sparse facts and use scans only for conflict-only replay."""
+    parameters: tuple[object, ...] = (release_id, artifact_id, run_id)
+    if phase_callback is not None:
+        phase_callback("target_materialisation", phase_rows)
+    cursor.execute(BOCSAR_OBSERVATION_INSERT_SQL, parameters)
+    inserted = max(0, int(cursor.rowcount))
+    cursor.execute(BOCSAR_COVERAGE_INSERT_SQL, parameters)
+    inserted += max(0, int(cursor.rowcount))
+    if inserted:
+        return inserted
+    cursor.execute(_BOCSAR_OBSERVATION_COUNT_SQL, parameters)
+    observations = cursor.fetchone()
+    cursor.execute(_BOCSAR_COVERAGE_COUNT_SQL, parameters)
+    coverage = cursor.fetchone()
+    if observations is None or coverage is None:
+        raise ImportProfileError("candidate generation row count is unavailable")
+    return int(observations["count"]) + int(coverage["count"])
 
 
 _GNAF_STREAM_COLUMNS = (
@@ -455,9 +504,13 @@ def _fixture(row: object, index: int) -> dict[str, Any]:
         "address_display": _text(source, "address_display", index),
         "flat_type": _optional_text(source, "flat_type", index),
         "unit_number": _optional_upper_text(source, "unit_number", index),
-        "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
+        "street_number_first": _optional_integer(
+            source, "street_number_first", index, minimum=0, maximum=POSTGRES_INTEGER_MAX
+        ),
         "street_number_suffix": _optional_upper_text(source, "street_number_suffix", index),
-        "street_number_last": _optional_integer(source, "street_number_last", index, minimum=0),
+        "street_number_last": _optional_integer(
+            source, "street_number_last", index, minimum=0, maximum=POSTGRES_INTEGER_MAX
+        ),
         "street_name": _optional_upper_text(source, "street_name", index),
         "street_type": _optional_upper_text(source, "street_type", index),
         "locality": _text(source, "locality", index).upper(),
@@ -498,9 +551,13 @@ def _gnaf(row: object, index: int) -> dict[str, Any]:
         "address_display": _text(source, "address_display", index),
         "flat_type": _optional_text(source, "flat_type", index),
         "unit_number": _optional_upper_text(source, "unit_number", index),
-        "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
+        "street_number_first": _optional_integer(
+            source, "street_number_first", index, minimum=0, maximum=POSTGRES_INTEGER_MAX
+        ),
         "street_number_suffix": _optional_upper_text(source, "street_number_suffix", index),
-        "street_number_last": _optional_integer(source, "street_number_last", index, minimum=0),
+        "street_number_last": _optional_integer(
+            source, "street_number_last", index, minimum=0, maximum=POSTGRES_INTEGER_MAX
+        ),
         "street_name": _optional_upper_text(source, "street_name", index),
         "street_type": _optional_upper_text(source, "street_type", index),
         "locality": _text(source, "locality", index).upper(),
@@ -521,7 +578,13 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         raise ImportProfileError(f"record {index} match_confidence is outside 0..1")
     contract_date = _optional_date(source, "contract_date", index)
     settlement_date = _optional_date(source, "settlement_date", index)
-    source_partition_year = _optional_integer(source, "source_partition_year", index, minimum=1990)
+    source_partition_year = _optional_integer(
+        source,
+        "source_partition_year",
+        index,
+        minimum=1990,
+        maximum=POSTGRES_INTEGER_MAX,
+    )
     if source_partition_year is None:
         scoped_date = contract_date or settlement_date
         if scoped_date is None:
@@ -549,7 +612,9 @@ def _psi(row: object, index: int) -> dict[str, Any]:
             ) from exc
     result = {
         "source_business_key": _text(source, "source_business_key", index),
-        "source_revision": _integer(source, "source_revision", index, minimum=1),
+        "source_revision": _integer(
+            source, "source_revision", index, minimum=1, maximum=POSTGRES_INTEGER_MAX
+        ),
         "source_era": _text(source, "source_era", index),
         "source_partition_year": source_partition_year,
         "district_code": _optional_text(source, "district_code", index),
@@ -594,7 +659,9 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         "interest_of_sale": _optional_text(source, "interest_of_sale", index),
         "contract_date": contract_date,
         "settlement_date": settlement_date,
-        "price_aud": _optional_integer(source, "price_aud", index, minimum=0),
+        "price_aud": _optional_integer(
+            source, "price_aud", index, minimum=0, maximum=POSTGRES_BIGINT_MAX
+        ),
         "area_original": _optional_decimal(source, "area_original", index),
         "area_unit": _optional_text(source, "area_unit", index),
         "area_square_metres": _optional_decimal(source, "area_square_metres", index),
@@ -630,7 +697,7 @@ def _bocsar(row: object, index: int) -> dict[str, Any]:
                 "offence_label": _text(source, "offence_label", index),
                 "subcategory_label": _text(source, "subcategory_label", index),
                 "month": _date(source, "month", index),
-                "count": _integer(source, "count", index, minimum=1),
+                "count": _integer(source, "count", index, minimum=1, maximum=POSTGRES_INTEGER_MAX),
             }
         )
         common["month_or_coverage"] = common["month"]
@@ -639,6 +706,8 @@ def _bocsar(row: object, index: int) -> dict[str, Any]:
         if not isinstance(months, list) or not months:
             raise ImportProfileError(f"record {index} observed_months must be non-empty")
         parsed = tuple(_iso_date(value, "observed_months", index) for value in months)
+        if len(parsed) > POSTGRES_INTEGER_MAX:
+            raise ImportProfileError(f"record {index} observed_months exceeds its maximum")
         if parsed != tuple(sorted(set(parsed))):
             raise ImportProfileError(f"record {index} observed_months must be sorted and unique")
         common.update(
@@ -661,6 +730,11 @@ def _object(row: object, index: int) -> dict[str, Any]:
     if not isinstance(row, dict):
         raise ImportProfileError(f"record {index} must be an object")
     return row
+
+
+def _require_copy_ordinal(ordinal: int) -> None:
+    if ordinal > POSTGRES_BIGINT_MAX:
+        raise ImportProfileError("canonical record ordinal exceeds PostgreSQL BIGINT range")
 
 
 def _text(row: Mapping[str, Any], field: str, index: int) -> str:
@@ -889,7 +963,7 @@ _PROFILE_INSERT_SQL = {
     """,
 }
 
-_PSI_IDENTITY_SQL = """
+_LEGACY_PSI_IDENTITY_SQL = """
     CREATE TEMP TABLE propertyscope_psi_identity_stage ON COMMIT DROP AS
     WITH distinct_source_rows AS (
         SELECT DISTINCT ON (
@@ -906,7 +980,7 @@ _PSI_IDENTITY_SQL = """
     FROM distinct_source_rows
 """
 
-_PSI_ADDRESS_RESOLUTION_SQL = """
+_LEGACY_PSI_ADDRESS_RESOLUTION_SQL = """
     CREATE TEMP TABLE propertyscope_psi_address_resolution ON COMMIT DROP AS
     WITH eligible_addresses AS (
         SELECT DISTINCT payload->>'postcode' AS postcode,
@@ -945,7 +1019,7 @@ _PSI_ADDRESS_RESOLUTION_SQL = """
         eligible.street_number_suffix,eligible.unit_number
 """
 
-_PSI_TARGET_INSERT_SQL = """
+_LEGACY_PSI_TARGET_INSERT_SQL = """
     INSERT INTO warehouse.psi_sale (
         dataset_release_id,source_business_key,source_revision,source_era,
         source_partition_year,district_code,
@@ -1006,10 +1080,10 @@ _PSI_TARGET_INSERT_SQL = """
     ON CONFLICT (dataset_release_id,source_business_key,source_revision) DO NOTHING
 """
 
-_PSI_PHASE_SQL = (
-    ("identity_revision_derivation", _PSI_IDENTITY_SQL),
-    ("address_resolution", _PSI_ADDRESS_RESOLUTION_SQL),
-    ("target_materialisation", _PSI_TARGET_INSERT_SQL),
+_LEGACY_PSI_PHASE_SQL = (
+    ("identity_revision_derivation", _LEGACY_PSI_IDENTITY_SQL),
+    ("address_resolution", _LEGACY_PSI_ADDRESS_RESOLUTION_SQL),
+    ("target_materialisation", _LEGACY_PSI_TARGET_INSERT_SQL),
 )
 
 _PROFILE_COUNT_SQL = {

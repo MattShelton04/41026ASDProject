@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
 from typing import Any, Protocol
 
-from psycopg import Connection, errors
+from psycopg import Connection, errors, sql
 
 from propertyscope_data_store.errors import ConflictError, LeaseConflictError, NotFoundError
 from propertyscope_data_store.import_profiles import (
@@ -39,6 +39,10 @@ _IMPORT_TARGET_RELATIONS: Mapping[str, tuple[str, ...]] = {
     ),
     "schools-master": ("warehouse.school",),
 }
+SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS = 10 * 60
+SPACE_RECOVERY_REINDEX_TIMEOUT_SECONDS = 10 * 60
+SPACE_RECOVERY_REINDEX_MIN_DEAD_TUPLES = 100_000
+SPACE_RECOVERY_REINDEX_MIN_INDEX_BYTES = 64 * 1024 * 1024
 
 
 class _ImportOperationOwner(Protocol):
@@ -323,6 +327,9 @@ class _RegisteredImportOperations:
                             'warehouse.bocsar_observation','warehouse.bocsar_coverage']::text[]
                         WHEN 'schools-master' THEN ARRAY['warehouse.school']::text[]
                         ELSE ARRAY['warehouse.gnaf_address']::text[] END),
+                    'destination_may_have_been_touched',COALESCE(
+                        operation.progress_phase_key IN ('target_materialisation','verification'),
+                        false),
                     'automatic_destructive_maintenance',false,
                     'next_step','measure dead tuples and allocated bytes before bounded maintenance'
                 ),version=operation.version+1 FROM ops.ingestion_run run
@@ -397,10 +404,15 @@ class _RegisteredImportOperations:
         if recovery_status == "needed":
             current = self._owner.get_import(operation_id)
             profile = str(current["import_profile_key"])
+            destination_may_have_been_touched = str(current.get("progress_phase_key")) in {
+                "target_materialisation",
+                "verification",
+            }
             recovery_policy = {
                 "policy": "measure_then_target_exact_relations",
                 "trigger": f"import_{status}_after_transaction_rollback",
                 "relations": list(_IMPORT_TARGET_RELATIONS.get(profile, ())),
+                "destination_may_have_been_touched": destination_may_have_been_touched,
                 "automatic_destructive_maintenance": False,
                 "next_step": "measure dead tuples and allocated bytes before bounded maintenance",
             }
@@ -433,3 +445,194 @@ class _RegisteredImportOperations:
         if row is None:
             raise LeaseConflictError("import lease is stale or owned by another loader")
         return _dict(row)
+
+    def recover_import_space(self, operation_id: uuid.UUID) -> JsonObject:
+        """Run bounded reusable-space maintenance on the import profile's exact relations."""
+        current = self._owner.get_import(operation_id)
+        if current["status"] not in {"failed", "cancelled"}:
+            raise ConflictError("space recovery requires a failed or cancelled import")
+        if current["space_recovery_status"] == "completed":
+            return current
+        if current["space_recovery_status"] != "needed":
+            raise ConflictError("space recovery is not required for this import")
+        relations = _IMPORT_TARGET_RELATIONS.get(str(current["import_profile_key"]), ())
+        if not relations:
+            raise ConflictError("import profile has no registered recovery relations")
+        measured_before = self._measure_relations(relations)
+        policy = dict(current.get("space_recovery_policy_json") or {})
+        destination_may_have_been_touched = policy.get("destination_may_have_been_touched", True)
+        recovery_relations = relations if destination_may_have_been_touched is not False else ()
+        pre_vacuum_reindex_relations = tuple(
+            str(measurement["relation"])
+            for measurement in measured_before
+            if str(measurement["relation"]) in recovery_relations
+            and _requires_atomic_reindex(measurement, measurement)
+        )
+        if pre_vacuum_reindex_relations:
+            policy.update(
+                {
+                    "relations_pending_reindex": list(pre_vacuum_reindex_relations),
+                    "reindex_evidence_phase": "before_vacuum",
+                    "measured_before": measured_before,
+                }
+            )
+            self._record_recovery_policy(operation_id, policy)
+        if recovery_relations:
+            with self._owner.connection() as connection:
+                # Loader connections begin with transaction-local safety settings. VACUUM must run
+                # outside a transaction, so end that empty transaction and use bounded autocommit.
+                connection.commit()
+                connection.autocommit = True
+                try:
+                    connection.execute(
+                        "SELECT set_config('statement_timeout',%s,false)",
+                        (f"{SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS}s",),
+                    )
+                    for relation in recovery_relations:
+                        schema_name, table_name = relation.split(".", maxsplit=1)
+                        connection.execute(
+                            sql.SQL("VACUUM (ANALYZE, INDEX_CLEANUP ON) {}").format(
+                                sql.Identifier(schema_name, table_name)
+                            )
+                        )
+                finally:
+                    connection.execute("RESET statement_timeout")
+                    connection.autocommit = False
+        measured_after_vacuum = self._measure_relations(relations)
+        before_by_relation = {
+            str(measurement["relation"]): measurement for measurement in measured_before
+        }
+        measured_reindex_relations = tuple(
+            str(measurement["relation"])
+            for measurement in measured_after_vacuum
+            if str(measurement["relation"]) in recovery_relations
+            and _requires_atomic_reindex(
+                before_by_relation[str(measurement["relation"])], measurement
+            )
+        )
+        pending_reindex_relations = tuple(
+            relation
+            for relation in policy.get("relations_pending_reindex", [])
+            if isinstance(relation, str) and relation in relations
+        )
+        reindex_relations = tuple(
+            dict.fromkeys((*pending_reindex_relations, *measured_reindex_relations))
+        )
+        if reindex_relations:
+            policy.update(
+                {
+                    "relations_pending_reindex": list(reindex_relations),
+                    "reindex_attempted_at": datetime.now(UTC).isoformat(),
+                    "measured_before": measured_before,
+                    "measured_after_vacuum": measured_after_vacuum,
+                }
+            )
+            self._record_recovery_policy(operation_id, policy)
+            try:
+                with self._owner.connection() as connection:
+                    connection.commit()
+                    connection.autocommit = True
+                    try:
+                        connection.execute(
+                            "SELECT set_config('statement_timeout',%s,false)",
+                            (f"{SPACE_RECOVERY_REINDEX_TIMEOUT_SECONDS}s",),
+                        )
+                        for relation in reindex_relations:
+                            schema_name, table_name = relation.split(".", maxsplit=1)
+                            connection.execute(
+                                sql.SQL("REINDEX TABLE {}").format(
+                                    sql.Identifier(schema_name, table_name)
+                                )
+                            )
+                    finally:
+                        connection.execute("RESET statement_timeout")
+                        connection.autocommit = False
+            except Exception as exc:
+                policy["last_recovery_error"] = {
+                    "code": "atomic_reindex_incomplete",
+                    "sqlstate": getattr(exc, "sqlstate", None),
+                    "message": "bounded atomic reindex did not complete",
+                    "recorded_at": datetime.now(UTC).isoformat(),
+                }
+                self._record_recovery_policy(operation_id, policy)
+                raise
+        measured_after = self._measure_relations(relations)
+        policy.pop("last_recovery_error", None)
+        policy.update(
+            {
+                "operation": (
+                    "vacuum_and_atomic_reindex"
+                    if reindex_relations
+                    else (
+                        "vacuum_analyze_index_cleanup"
+                        if recovery_relations
+                        else "not_required_before_target_materialisation"
+                    )
+                ),
+                "relations_recovered": list(recovery_relations),
+                "relations_reindexed": list(reindex_relations),
+                "relations_pending_reindex": [],
+                "statement_timeout_seconds": SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS,
+                "reindex_timeout_seconds": SPACE_RECOVERY_REINDEX_TIMEOUT_SECONDS,
+                "measured_before": measured_before,
+                "measured_after_vacuum": measured_after_vacuum,
+                "measured_after": measured_after,
+                "completed_at": datetime.now(UTC).isoformat(),
+                "automatic_destructive_maintenance": False,
+                "next_step": "none",
+            }
+        )
+        with self._owner.connection() as connection:
+            row = connection.execute(
+                """UPDATE ops.import_operation SET space_recovery_status='completed',
+                space_recovery_policy_json=%s,version=version+1 WHERE id=%s
+                AND status IN ('failed','cancelled') AND space_recovery_status='needed'
+                RETURNING *""",
+                (_json(policy), operation_id),
+            ).fetchone()
+            connection.commit()
+        if row is None:
+            latest = self._owner.get_import(operation_id)
+            if latest["space_recovery_status"] == "completed":
+                return latest
+            raise ConflictError("space recovery state changed before completion was recorded")
+        return _dict(row)
+
+    def _record_recovery_policy(self, operation_id: uuid.UUID, policy: JsonObject) -> None:
+        with self._owner.connection() as connection:
+            connection.execute(
+                """UPDATE ops.import_operation SET space_recovery_policy_json=%s,
+                version=version+1 WHERE id=%s AND status IN ('failed','cancelled')
+                AND space_recovery_status='needed'""",
+                (_json(policy), operation_id),
+            )
+            connection.commit()
+
+    def _measure_relations(self, relations: Sequence[str]) -> list[JsonObject]:
+        measurements: list[JsonObject] = []
+        with self._owner.connection() as connection:
+            for relation in relations:
+                schema_name, table_name = relation.split(".", maxsplit=1)
+                row = connection.execute(
+                    """SELECT %s AS relation,n_live_tup::bigint,n_dead_tup::bigint,
+                    pg_relation_size(relid)::bigint AS heap_bytes,
+                    pg_indexes_size(relid)::bigint AS index_bytes
+                    FROM pg_stat_user_tables WHERE schemaname=%s AND relname=%s""",
+                    (relation, schema_name, table_name),
+                ).fetchone()
+                if row is None:
+                    raise ConflictError(f"registered recovery relation is unavailable: {relation}")
+                measurements.append(_dict(row))
+            connection.commit()
+        return measurements
+
+
+def _requires_atomic_reindex(before: JsonObject, after_vacuum: JsonObject) -> bool:
+    dead_tuples = int(before["n_dead_tup"])
+    live_tuples = int(before["n_live_tup"])
+    index_bytes = int(after_vacuum["index_bytes"])
+    return (
+        dead_tuples >= SPACE_RECOVERY_REINDEX_MIN_DEAD_TUPLES
+        and dead_tuples * 4 >= max(1, live_tuples)
+        and index_bytes >= SPACE_RECOVERY_REINDEX_MIN_INDEX_BYTES
+    )

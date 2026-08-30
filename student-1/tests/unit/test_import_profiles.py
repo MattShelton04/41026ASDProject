@@ -17,17 +17,13 @@ from propertyscope_data_store.import_profiles import (
     _GNAF_STREAM_COLUMNS,
     _GNAF_STREAM_INSERT_SQL,
     _GNAF_STREAM_STAGE_SQL,
-    _PSI_ADDRESS_RESOLUTION_SQL,
-    _PSI_IDENTITY_SQL,
-    _PSI_PHASE_SQL,
-    _PSI_TARGET_INSERT_SQL,
     CANONICAL_SCHEMA_VERSION,
     IMPORT_PHASE_LABELS,
+    POSTGRES_BIGINT_MAX,
     POSTGRES_INTEGER_MAX,
     ImportProfileError,
     ImportResult,
     _insert_profile_rows,
-    execute_import,
     execute_stream_import,
     iter_ndjson_import,
     prepare_import,
@@ -37,6 +33,18 @@ from propertyscope_data_store.loader import (
     ImportCancelledError,
     _safe_loader_error,
     _VerifiedLineStream,
+)
+from propertyscope_data_store.source_materialisation import (
+    BOCSAR_COPY_SQL,
+    BOCSAR_COVERAGE_INSERT_SQL,
+    BOCSAR_OBSERVATION_INSERT_SQL,
+    BOCSAR_STAGE_SQL,
+    PSI_ADDRESS_RESOLUTION_SQL,
+    PSI_COPY_SQL,
+    PSI_IDENTITY_SQL,
+    PSI_PHASE_SQL,
+    PSI_STAGE_SQL,
+    PSI_TARGET_INSERT_SQL,
 )
 
 
@@ -296,6 +304,7 @@ def test_bocsar_replay_counts_both_persisted_candidate_tables() -> None:
         release_id=release_id,
         artifact_id=artifact_id,
         run_id=run_id,
+        typed_source_stage=True,
     )
 
     assert accepted == 10
@@ -400,6 +409,40 @@ def test_psi_rejects_address_numbers_outside_postgresql_integer_range(field: str
     assert prepare_import(_artifact("psi-sales", [boundary]), profile="psi-sales").rows[0][
         field
     ] == (POSTGRES_INTEGER_MAX)
+
+
+@pytest.mark.parametrize(
+    ("field", "maximum"),
+    [
+        ("source_revision", POSTGRES_INTEGER_MAX),
+        ("source_partition_year", POSTGRES_INTEGER_MAX),
+        ("price_aud", POSTGRES_BIGINT_MAX),
+    ],
+)
+def test_psi_rejects_every_typed_integer_above_postgresql_range(field: str, maximum: int) -> None:
+    record = {**_contract_records("psi-sales")[0], field: maximum + 1}
+
+    with pytest.raises(ImportProfileError, match=rf"record 1 {field} is above its maximum"):
+        prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
+
+    boundary = {**record, field: maximum}
+    validated = next(iter(iter_ndjson_import([json.dumps(boundary).encode()], profile="psi-sales")))
+    assert validated[field] == maximum
+
+
+def test_bocsar_rejects_count_above_postgresql_integer_range() -> None:
+    record = {**_contract_records("bocsar-sparse")[0], "count": POSTGRES_INTEGER_MAX + 1}
+
+    with pytest.raises(ImportProfileError, match="record 1 count is above its maximum"):
+        prepare_import(_artifact("bocsar-sparse", [record]), profile="bocsar-sparse")
+
+    boundary = {**record, "count": POSTGRES_INTEGER_MAX}
+    assert (
+        prepare_import(_artifact("bocsar-sparse", [boundary]), profile="bocsar-sparse").rows[0][
+            "count"
+        ]
+        == POSTGRES_INTEGER_MAX
+    )
 
 
 class _CopySink:
@@ -512,9 +555,10 @@ def test_loader_exposes_bounded_canonical_validation_evidence() -> None:
 
 
 def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions() -> None:
-    source = "\n".join(statement for _phase, statement in _PSI_PHASE_SQL)
+    source = "\n".join(statement for _phase, statement in PSI_PHASE_SQL)
 
-    assert "distinct_source_rows" in source
+    assert "first_transmissions" in source
+    assert "min(ordinal) AS first_ordinal" in source
     assert "source_row_sha256" in source
     assert "derived_revision" in source
     assert "source_partition_year" in source
@@ -528,20 +572,19 @@ def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions(
     assert "property.street_number_last" in source
     assert "property.street_number_suffix" in source
     assert "property.unit_number" in source
-    assert "NULLIF(payload->>'street_type','') IS NOT NULL" in source
-    assert "house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'" in source
-    assert "identity.payload->>'house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'" in source
+    assert "source.street_type IS NOT NULL" in source
+    assert "source.house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'" in source
 
 
 def test_psi_phase_callbacks_immediately_precede_their_real_sql_boundaries() -> None:
     events: list[str] = []
 
     class PhaseCursor(_PersistedCandidateCountCursor):
-        def execute(self, statement: str, parameters: tuple[object, ...]) -> None:
+        def execute(self, statement: str, parameters: tuple[object, ...] = ()) -> None:
             phase_by_sql = {
-                _PSI_IDENTITY_SQL: "identity_revision_derivation",
-                _PSI_ADDRESS_RESOLUTION_SQL: "address_resolution",
-                _PSI_TARGET_INSERT_SQL: "target_materialisation",
+                PSI_IDENTITY_SQL: "identity_revision_derivation",
+                PSI_ADDRESS_RESOLUTION_SQL: "address_resolution",
+                PSI_TARGET_INSERT_SQL: "target_materialisation",
             }
             if statement in phase_by_sql:
                 events.append(f"sql:{phase_by_sql[statement]}")
@@ -556,6 +599,7 @@ def test_psi_phase_callbacks_immediately_precede_their_real_sql_boundaries() -> 
         release_id=release_id,
         artifact_id=artifact_id,
         run_id=run_id,
+        typed_source_stage=True,
         phase_rows=7,
         phase_callback=lambda phase, rows: events.append(f"callback:{phase}:{rows}"),
     )
@@ -571,7 +615,70 @@ def test_psi_phase_callbacks_immediately_precede_their_real_sql_boundaries() -> 
     ]
 
 
+def test_psi_source_scale_path_casts_once_and_avoids_a_final_wide_sort() -> None:
+    source = "\n".join(statement for _phase, statement in PSI_PHASE_SQL)
+
+    assert "JSONB" not in PSI_STAGE_SQL
+    assert "FREEZE TRUE" in PSI_COPY_SQL
+    assert "GROUP BY source_business_key,source_row_sha256" in PSI_IDENTITY_SQL
+    assert "min(ordinal) AS first_ordinal" in PSI_IDENTITY_SQL
+    assert "ORDER BY first_ordinal" in PSI_IDENTITY_SQL
+    assert "SELECT DISTINCT source.postcode" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "LEFT JOIN registry.property" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "match_count" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "COALESCE(source.property_ref,resolution.exact_property_ref)" in source
+    assert "JOIN propertyscope_psi_import_stage source" in PSI_TARGET_INSERT_SQL
+    assert PSI_TARGET_INSERT_SQL.count("source.house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'") == 1
+    assert "payload" not in source
+    assert "ORDER BY identity.source_business_key" not in PSI_TARGET_INSERT_SQL
+
+
+def test_bocsar_typed_normal_path_uses_rowcount_without_destination_scans() -> None:
+    class RowcountCursor:
+        def __init__(self) -> None:
+            self.rowcount = 0
+            self.statements: list[str] = []
+
+        def execute(self, statement: str, _parameters: object = None) -> None:
+            self.statements.append(" ".join(statement.split()))
+            if statement == BOCSAR_OBSERVATION_INSERT_SQL:
+                self.rowcount = 7
+            elif statement == BOCSAR_COVERAGE_INSERT_SQL:
+                self.rowcount = 3
+            elif statement.lstrip().startswith("SELECT count(*)"):
+                raise AssertionError("normal path must not rescan destination tables")
+
+    cursor = RowcountCursor()
+    accepted = _insert_profile_rows(
+        cursor,
+        "bocsar-sparse",
+        release_id=uuid.uuid4(),
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        typed_source_stage=True,
+        phase_rows=10,
+    )
+
+    assert accepted == 10
+    assert "JSONB" not in BOCSAR_STAGE_SQL
+    assert "FREEZE TRUE" in BOCSAR_COPY_SQL
+    assert "ORDER BY ordinal" not in BOCSAR_OBSERVATION_INSERT_SQL
+    assert "ORDER BY ordinal" not in BOCSAR_COVERAGE_INSERT_SQL
+    assert "min(ordinal) AS ordinal" in BOCSAR_OBSERVATION_INSERT_SQL
+    assert "min(ordinal) AS ordinal" in BOCSAR_COVERAGE_INSERT_SQL
+    assert "JOIN propertyscope_bocsar_import_stage source" in BOCSAR_OBSERVATION_INSERT_SQL
+    assert "JOIN propertyscope_bocsar_import_stage source" in BOCSAR_COVERAGE_INSERT_SQL
+    assert "observed_months" in BOCSAR_COVERAGE_INSERT_SQL
+    assert "blank_means_observed_zero" in BOCSAR_COVERAGE_INSERT_SQL
+
+
 class _Store:
+    def database_size_bytes(self) -> int:
+        return 1024
+
+    def database_filesystem_available_bytes(self) -> int:
+        return 1024 * 1024 * 1024 * 1024
+
     def import_cancel_requested(self, _operation_id: uuid.UUID) -> bool:
         return False
 
@@ -829,7 +936,12 @@ def test_loader_verifies_artifact_then_delegates_registered_copy_profile(tmp_pat
     path = tmp_path / relative
     path.parent.mkdir(parents=True)
     path.write_bytes(data)
-    loader = DatabaseLoader(cast(Any, _Store()), tmp_path, worker_id="loader-test")
+    loader = DatabaseLoader(
+        cast(Any, _Store()),
+        tmp_path,
+        worker_id="loader-test",
+        database_capacity_bytes=128 * 1024 * 1024 * 1024,
+    )
     work = {
         "id": "70000000-0000-0000-0000-000000000001",
         "import_profile_key": "property-fixture",
@@ -854,7 +966,12 @@ def test_loader_stops_before_reading_a_cancelled_import(tmp_path: Path) -> None:
     path = tmp_path / relative
     path.parent.mkdir(parents=True)
     path.write_bytes(data)
-    loader = DatabaseLoader(cast(Any, _CancelledStore()), tmp_path, worker_id="loader-test")
+    loader = DatabaseLoader(
+        cast(Any, _CancelledStore()),
+        tmp_path,
+        worker_id="loader-test",
+        database_capacity_bytes=128 * 1024 * 1024 * 1024,
+    )
 
     with pytest.raises(ImportCancelledError, match="cancelled by operator"):
         loader._execute(
@@ -877,7 +994,12 @@ def test_loader_stops_before_reading_an_import_during_shutdown(tmp_path: Path) -
     path = tmp_path / relative
     path.parent.mkdir(parents=True)
     path.write_bytes(data)
-    loader = DatabaseLoader(cast(Any, _Store()), tmp_path, worker_id="loader-test")
+    loader = DatabaseLoader(
+        cast(Any, _Store()),
+        tmp_path,
+        worker_id="loader-test",
+        database_capacity_bytes=128 * 1024 * 1024 * 1024,
+    )
     loader.stop()
 
     with pytest.raises(InterruptedError, match="loader stopped"):
@@ -943,7 +1065,7 @@ def test_deterministic_canonical_samples_use_the_database_contract(profile: str)
 
 
 def test_import_updates_manifest_and_release_row_counts_together() -> None:
-    source = inspect.getsource(execute_import)
+    source = inspect.getsource(execute_stream_import)
     assert "manifest_json=jsonb_set" in source
     assert "'{record_count}'" in source
 

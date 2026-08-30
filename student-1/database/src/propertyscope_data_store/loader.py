@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import shutil
 import signal
 import time
 import uuid
@@ -35,6 +36,17 @@ ACTIVATION_PHASE_LABELS = {
     "materialisation": "Materialising reviewed release",
     "commit_pointer": "Committing accepted-generation pointer",
 }
+GIBIBYTE = 1024 * 1024 * 1024
+# Floors conservatively project the largest measured 1m relation and WAL growth to the
+# official-source record counts with the documented 2.5 safety factor, rounded upward.
+SOURCE_SCALE_DATABASE_GROWTH_FLOORS_BYTES = {
+    "psi-sales": 6 * GIBIBYTE,
+    "bocsar-sparse": 8 * GIBIBYTE,
+}
+SOURCE_SCALE_WAL_FLOORS_BYTES = {
+    "psi-sales": 16 * GIBIBYTE,
+    "bocsar-sparse": 20 * GIBIBYTE,
+}
 
 
 class ImportCancelledError(RuntimeError):
@@ -45,13 +57,54 @@ class ReleaseArtifactVerificationError(RuntimeError):
     """The release export no longer matches its durable artifact-ledger evidence."""
 
 
+class LoaderResourceLimitError(RuntimeError):
+    """A bounded loader resource preflight failed before destination materialisation."""
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        retryable: bool,
+        details: dict[str, int],
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.retryable = retryable
+        self.details = details
+
+
 class DatabaseLoader:
     """Claims durable operations and executes only registered import implementations."""
 
-    def __init__(self, store: PropertyScopeStore, artifact_root: Path, *, worker_id: str) -> None:
+    def __init__(
+        self,
+        store: PropertyScopeStore,
+        artifact_root: Path,
+        *,
+        worker_id: str,
+        disk_reserve_bytes: int = 4 * 1024 * 1024 * 1024,
+        artifact_expansion_factor: int = 3,
+        temp_file_limit_kib: int = 16 * 1024 * 1024,
+        database_capacity_bytes: int | None = None,
+        disk_free_bytes: Callable[[Path], int] | None = None,
+    ) -> None:
+        if disk_reserve_bytes < 0:
+            raise ValueError("loader disk reserve must not be negative")
+        if not 1 <= artifact_expansion_factor <= 16:
+            raise ValueError("loader artifact expansion factor must be between 1 and 16")
+        if not 64 * 1024 <= temp_file_limit_kib <= 64 * 1024 * 1024:
+            raise ValueError("loader temp-file limit is outside the supported bound")
+        if database_capacity_bytes is not None and database_capacity_bytes <= 0:
+            raise ValueError("loader database capacity must be positive when configured")
         self.store = store
         self.artifact_root = artifact_root.resolve()
         self.worker_id = worker_id
+        self.disk_reserve_bytes = disk_reserve_bytes
+        self.artifact_expansion_factor = artifact_expansion_factor
+        self.temp_file_limit_kib = temp_file_limit_kib
+        self.database_capacity_bytes = database_capacity_bytes
+        self._disk_free_bytes = disk_free_bytes or (lambda path: shutil.disk_usage(path).free)
         self.stop_event = Event()
 
     def run_forever(self) -> None:
@@ -152,6 +205,14 @@ class DatabaseLoader:
                     else _safe_loader_error(exc)
                 ),
             )
+            recover = getattr(self.store, "recover_import_space", None)
+            if recover is not None:
+                try:
+                    recover(operation_id)
+                except Exception:
+                    logger.exception(
+                        "Bounded space recovery for import %s remains needed", operation_id
+                    )
         finally:
             heartbeat_stop.set()
             if heartbeater is not None:
@@ -296,6 +357,7 @@ class DatabaseLoader:
         path = self._artifact_path(str(work["storage_key"]))
         if path.stat().st_size != int(work["artifact_bytes"]):
             raise RuntimeError("artifact size does not match registered metadata")
+        self._preflight_materialisation_capacity(int(work["artifact_bytes"]), profile=profile)
         last_cancel_check = 0.0
 
         def raise_if_cancelled(*, force: bool = False) -> None:
@@ -412,6 +474,156 @@ class DatabaseLoader:
             "quality_checks": imported.quality_checks,
             "accepted_generation_unchanged": True,
         }
+
+    def _preflight_materialisation_capacity(
+        self, artifact_bytes: int, *, profile: str = ""
+    ) -> None:
+        """Fail before COPY unless declared and physical database headroom are sufficient."""
+        temporary_file_allowance_bytes = self.temp_file_limit_kib * 1024
+        artifact_growth_allowance_bytes = artifact_bytes * self.artifact_expansion_factor
+        database_growth_floor_bytes = SOURCE_SCALE_DATABASE_GROWTH_FLOORS_BYTES.get(profile, 0)
+        database_growth_allowance_bytes = max(
+            artifact_growth_allowance_bytes, database_growth_floor_bytes
+        )
+        wal_allowance_bytes = SOURCE_SCALE_WAL_FLOORS_BYTES.get(profile, 0)
+        required_database_headroom_bytes = (
+            database_growth_allowance_bytes
+            + temporary_file_allowance_bytes
+            + wal_allowance_bytes
+            + self.disk_reserve_bytes
+        )
+        try:
+            artifact_available_free_bytes = self._disk_free_bytes(self.artifact_root)
+        except OSError as exc:
+            raise LoaderResourceLimitError(
+                "loader_artifact_capacity_unavailable",
+                "Artifact filesystem capacity could not be observed before materialisation",
+                retryable=True,
+                details={
+                    "artifact_bytes": artifact_bytes,
+                    "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
+                    "database_growth_allowance_bytes": database_growth_allowance_bytes,
+                    "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
+                    "reserve_bytes": self.disk_reserve_bytes,
+                },
+            ) from exc
+        if self.database_capacity_bytes is None:
+            raise LoaderResourceLimitError(
+                "loader_database_capacity_unconfigured",
+                "PostgreSQL deployment capacity is not configured for safe materialisation",
+                retryable=True,
+                details={
+                    "artifact_bytes": artifact_bytes,
+                    "artifact_available_free_bytes": max(0, artifact_available_free_bytes),
+                    "required_database_headroom_bytes": required_database_headroom_bytes,
+                    "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
+                    "database_growth_allowance_bytes": database_growth_allowance_bytes,
+                    "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
+                    "reserve_bytes": self.disk_reserve_bytes,
+                },
+            )
+        try:
+            database_size_bytes = self.store.database_size_bytes()
+        except Exception as exc:
+            raise LoaderResourceLimitError(
+                "loader_database_capacity_unavailable",
+                "PostgreSQL database capacity could not be verified before materialisation",
+                retryable=True,
+                details={
+                    "artifact_bytes": artifact_bytes,
+                    "artifact_available_free_bytes": max(0, artifact_available_free_bytes),
+                    "database_capacity_bytes": self.database_capacity_bytes,
+                    "required_database_headroom_bytes": required_database_headroom_bytes,
+                    "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
+                    "database_growth_allowance_bytes": database_growth_allowance_bytes,
+                    "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
+                    "reserve_bytes": self.disk_reserve_bytes,
+                },
+            ) from exc
+        try:
+            database_filesystem_available_bytes = self.store.database_filesystem_available_bytes()
+        except Exception as exc:
+            raise LoaderResourceLimitError(
+                "loader_database_filesystem_capacity_unavailable",
+                "PostgreSQL data/WAL filesystem capacity could not be observed "
+                "before materialisation",
+                retryable=True,
+                details={
+                    "artifact_bytes": artifact_bytes,
+                    "artifact_available_free_bytes": max(0, artifact_available_free_bytes),
+                    "database_size_bytes": database_size_bytes,
+                    "database_capacity_bytes": self.database_capacity_bytes,
+                    "required_database_headroom_bytes": required_database_headroom_bytes,
+                    "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
+                    "database_growth_allowance_bytes": database_growth_allowance_bytes,
+                    "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
+                    "reserve_bytes": self.disk_reserve_bytes,
+                },
+            ) from exc
+        if database_filesystem_available_bytes < required_database_headroom_bytes:
+            raise LoaderResourceLimitError(
+                "insufficient_loader_database_filesystem_space",
+                "Insufficient physical PostgreSQL data/WAL filesystem space for safe "
+                "materialisation",
+                retryable=True,
+                details={
+                    "artifact_bytes": artifact_bytes,
+                    "artifact_available_free_bytes": max(0, artifact_available_free_bytes),
+                    "database_size_bytes": database_size_bytes,
+                    "database_capacity_bytes": self.database_capacity_bytes,
+                    "database_filesystem_available_bytes": max(
+                        0, database_filesystem_available_bytes
+                    ),
+                    "required_database_headroom_bytes": required_database_headroom_bytes,
+                    "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
+                    "database_growth_allowance_bytes": database_growth_allowance_bytes,
+                    "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
+                    "reserve_bytes": self.disk_reserve_bytes,
+                },
+            )
+        projected_database_bytes = database_size_bytes + required_database_headroom_bytes
+        if projected_database_bytes > self.database_capacity_bytes:
+            raise LoaderResourceLimitError(
+                "insufficient_loader_database_capacity",
+                "Insufficient PostgreSQL deployment capacity for safe materialisation",
+                retryable=True,
+                details={
+                    "artifact_bytes": artifact_bytes,
+                    "artifact_available_free_bytes": max(0, artifact_available_free_bytes),
+                    "database_size_bytes": database_size_bytes,
+                    "database_capacity_bytes": self.database_capacity_bytes,
+                    "database_filesystem_available_bytes": max(
+                        0, database_filesystem_available_bytes
+                    ),
+                    "database_available_headroom_bytes": max(
+                        0, self.database_capacity_bytes - database_size_bytes
+                    ),
+                    "required_database_headroom_bytes": required_database_headroom_bytes,
+                    "projected_database_bytes": projected_database_bytes,
+                    "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
+                    "database_growth_allowance_bytes": database_growth_allowance_bytes,
+                    "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
+                    "reserve_bytes": self.disk_reserve_bytes,
+                },
+            )
 
     def _update_import_progress(self, operation_id: uuid.UUID, **values: Any) -> None:
         reporter = getattr(self.store, "update_import_progress", None)
@@ -536,6 +748,21 @@ class _VerifiedLineStream:
 
 
 def _safe_loader_error(exc: Exception) -> dict[str, object]:
+    if isinstance(exc, LoaderResourceLimitError):
+        return {
+            "code": exc.code,
+            "category": "resource_limit",
+            "message": str(exc),
+            "retryable": exc.retryable,
+            "details": exc.details,
+        }
+    if getattr(exc, "sqlstate", None) == "53400" and "temp_file_limit" in str(exc):
+        return {
+            "code": "loader_temp_file_limit_exceeded",
+            "category": "resource_limit",
+            "message": "Import exceeded the loader transaction temporary-file limit",
+            "retryable": False,
+        }
     if isinstance(exc, ImportProfileError):
         return {
             "code": "canonical_record_invalid",
@@ -561,11 +788,16 @@ def main() -> None:
     store = PropertyScopeStore(
         settings.database_url,
         runtime_registry=load_runtime_registry(settings.runtime_profile_root),
+        loader_temp_file_limit_kib=settings.loader_temp_file_limit_kib,
     )
     loader = DatabaseLoader(
         store,
         settings.artifact_root,
         worker_id=os.environ.get("PROPERTYSCOPE_LOADER_ID", f"loader-{uuid.uuid4().hex[:8]}"),
+        disk_reserve_bytes=settings.loader_disk_reserve_bytes,
+        artifact_expansion_factor=settings.loader_artifact_expansion_factor,
+        temp_file_limit_kib=settings.loader_temp_file_limit_kib,
+        database_capacity_bytes=settings.loader_database_capacity_bytes,
     )
     signal.signal(signal.SIGTERM, lambda *_: loader.stop())
     signal.signal(signal.SIGINT, lambda *_: loader.stop())

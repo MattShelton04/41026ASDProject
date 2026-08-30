@@ -444,6 +444,10 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     def imports_cancel(operation_id: uuid.UUID) -> Response:
         return jsonify({"operation": store.cancel_import(operation_id)})
 
+    @api.post("/internal/data-platform/v1/imports/<uuid:operation_id>/space-recovery")
+    def imports_space_recovery(operation_id: uuid.UUID) -> Response:
+        return jsonify({"operation": store.recover_import_space(operation_id)})
+
     @api.post("/internal/data-platform/v1/loader/imports/claim")
     def imports_claim() -> Response:
         body = payload()

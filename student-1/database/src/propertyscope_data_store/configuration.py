@@ -6,6 +6,11 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+DEFAULT_LOADER_TEMP_FILE_LIMIT_KIB = 16 * 1024 * 1024
+DEFAULT_LOADER_DISK_RESERVE_BYTES = 4 * 1024 * 1024 * 1024
+DEFAULT_LOADER_ARTIFACT_EXPANSION_FACTOR = 3
+DEFAULT_LOADER_DATABASE_CAPACITY_BYTES: int | None = None
+
 
 def _default_runtime_profile_root() -> Path:
     return Path(__file__).resolve().parents[3] / "config" / "job-profiles"
@@ -20,6 +25,10 @@ class StoreSettings:
     internal_token: str
     auto_migrate: bool = True
     runtime_profile_root: Path = field(default_factory=_default_runtime_profile_root)
+    loader_temp_file_limit_kib: int = DEFAULT_LOADER_TEMP_FILE_LIMIT_KIB
+    loader_disk_reserve_bytes: int = DEFAULT_LOADER_DISK_RESERVE_BYTES
+    loader_artifact_expansion_factor: int = DEFAULT_LOADER_ARTIFACT_EXPANSION_FACTOR
+    loader_database_capacity_bytes: int | None = DEFAULT_LOADER_DATABASE_CAPACITY_BYTES
 
     @classmethod
     def from_environment(cls) -> StoreSettings:
@@ -43,6 +52,29 @@ class StoreSettings:
                     str(_default_runtime_profile_root()),
                 )
             ).resolve(),
+            loader_temp_file_limit_kib=_bounded_integer(
+                "PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB",
+                default=DEFAULT_LOADER_TEMP_FILE_LIMIT_KIB,
+                minimum=64 * 1024,
+                maximum=64 * 1024 * 1024,
+            ),
+            loader_disk_reserve_bytes=_bounded_integer(
+                "PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES",
+                default=DEFAULT_LOADER_DISK_RESERVE_BYTES,
+                minimum=0,
+                maximum=1024 * 1024 * 1024 * 1024,
+            ),
+            loader_artifact_expansion_factor=_bounded_integer(
+                "PROPERTYSCOPE_LOADER_ARTIFACT_EXPANSION_FACTOR",
+                default=DEFAULT_LOADER_ARTIFACT_EXPANSION_FACTOR,
+                minimum=1,
+                maximum=16,
+            ),
+            loader_database_capacity_bytes=_optional_bounded_integer(
+                "PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES",
+                minimum=8 * 1024 * 1024 * 1024,
+                maximum=16 * 1024 * 1024 * 1024 * 1024,
+            ),
         )
 
 
@@ -51,3 +83,29 @@ def _boolean(name: str, *, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _bounded_integer(name: str, *, default: int, minimum: int, maximum: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw.strip())
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer") from exc
+    if value < minimum or value > maximum:
+        raise RuntimeError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
+def _optional_bounded_integer(name: str, *, minimum: int, maximum: int) -> int | None:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        value = int(raw.strip())
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer") from exc
+    if value < minimum or value > maximum:
+        raise RuntimeError(f"{name} must be between {minimum} and {maximum}")
+    return value

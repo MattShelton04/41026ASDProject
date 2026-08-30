@@ -69,6 +69,12 @@ Supported cancellation is idempotent. The first request durably sets `cancel_req
 retry after a lost or dependency-failure response reads that durable run and returns the same
 cancelled/requested outcome. The database loader watches that exact operation and calls PostgreSQL
 cancellation on its own connection, so an operator must not find and cancel an unrelated backend.
+Cancellation intent commits before child-task cleanup and does not take `FOR UPDATE` on the run:
+source-scale inserts hold a foreign-key key-share lock on that row for their transaction, and a
+strong parent-row lock would make cancellation wait behind the statement it must interrupt.
+Worker acknowledgement abandons only draft/candidate releases in the same terminal transaction,
+and a repeated cancellation request reruns that bounded cleanup even when the run is already
+cancelled. A crash after the intent commit therefore cannot strand a manually actionable candidate.
 If neither the cancellation response nor a reconciliation read proves persistence, the public API
 returns `cancellation_unconfirmed` and the same request may be retried safely.
 
@@ -101,6 +107,28 @@ is recovered up to three total attempts. Lease-heartbeat failure cancels the mat
 connection before another worker may recover it.
 
 ## Performance checks
+
+PSI and BOCSAR use typed temporary staging and transaction-local source phases. The loader casts
+canonical values once before COPY, ANALYZEs planner-sensitive staging and narrow PSI identity and
+address tables, and enforces a loader-only `temp_file_limit`. Before COPY it observes the immutable
+artifact filesystem separately, then asks PostgreSQL for both
+`pg_database_size(current_database())` and physical free bytes on its data and WAL filesystems. The
+physical observation is one fixed server-side command containing no request or configured path
+interpolation; the loader never mounts the database volume. An unavailable observation fails closed.
+Artifact free space is never treated as database capacity because materialisation only reads the
+already-complete artifact.
+
+The local Compose default declares a conservative 64 GiB Feature 1 PostgreSQL capacity budget,
+16 GiB of transaction-local temporary files and a 4 GiB reserve. PSI additionally reserves 6 GiB
+for relation/index growth and 16 GiB for WAL; BOCSAR reserves 8 GiB and 20 GiB respectively. These
+floors project the largest observed one-million-row counters to the known source counts with a 2.5
+safety factor and round upward. The 3x artifact growth allowance remains for other profiles and wins
+for PSI/BOCSAR only when it is larger than the measured floor. Preflight requires both the physical
+server observation and current database size against the declared ceiling to cover every applicable
+allowance. Override the corresponding `PROPERTYSCOPE_LOADER_*` or
+`PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES` variables only from measured evidence. The disposable
+benchmark sequence and evidence fields are specified in
+[`source-scale-benchmark-methodology.md`](source-scale-benchmark-methodology.md).
 
 With complete source generations retained, verify the public path rather than counting entire
 tables manually:
@@ -154,9 +182,21 @@ When a database import fails or is cancelled after opening its transaction, its 
 marked `space_recovery_status=needed` with an exact, profile-derived relation list and the
 `measure_then_target_exact_relations` policy. This is an operator-visible recovery obligation, not
 an automatic `VACUUM FULL` or broad reindex. Measure dead tuples and allocated bytes first; PR2's
-source-scale benchmark evidence determines whether an exact relation needs bounded vacuum/reindex
-or whether disposable release storage removes that need. The current marker is evidence for the
-operator and the PR2 remediation workflow; no endpoint claims recovery is complete yet.
+source-scale benchmark evidence determines whether an exact relation needs bounded vacuum/reindex.
+Typed temporary PSI/BOCSAR work drops automatically at transaction end. After the failure outcome
+is durable, the serial loader measures only the import profile's registered destination relations,
+runs `VACUUM (ANALYZE, INDEX_CLEANUP ON)` outside a transaction with a ten-minute per-statement
+ceiling only when durable phase evidence shows target materialisation or verification began,
+measures again, and records `completed`. A preflight or typed-stage failure skips VACUUM. Measured
+source-scale rollback bloat (at least 100,000 dead tuples, at least 25% as many dead as live tuples,
+and at least 64 MiB of retained indexes) additionally triggers bounded exact-table
+`REINDEX TABLE`. This atomic form may briefly block queries but cannot strand invalid concurrent
+reindex artifacts on timeout; it is restricted to measured rollback bloat. The pre-VACUUM
+measurement durably records pending exact relations before VACUUM changes tuple statistics, and
+bounded failure evidence remains durable so the operator endpoint can safely retry after the
+lock/space condition is resolved. This makes aborted pages reusable without a
+blocking `VACUUM FULL`, table rewrite or broad-schema maintenance. Timeout or unavailable relation
+leaves the durable marker at `needed` for a later safe retry.
 
 The PR1 disposable PostgreSQL cancellation test proves transaction rollback and transaction-local
 table cleanup at every PSI materialisation boundary. Executor spill-file size and `pgsql_tmp`

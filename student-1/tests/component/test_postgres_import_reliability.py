@@ -13,6 +13,7 @@ import threading
 import time
 import uuid
 from collections.abc import Iterator
+from datetime import date
 from typing import Any, cast
 
 import psycopg
@@ -24,6 +25,14 @@ from psycopg.types.json import Jsonb
 
 from propertyscope_data_store import import_profiles
 from propertyscope_data_store.import_profiles import ImportProfileError, iter_ndjson_import
+from propertyscope_data_store.source_materialisation import (
+    BOCSAR_COPY_SQL,
+    BOCSAR_STAGE_SQL,
+    BOCSAR_STREAM_COLUMNS,
+    PSI_COPY_SQL,
+    PSI_STAGE_SQL,
+    PSI_STREAM_COLUMNS,
+)
 
 ADMIN_URL = os.getenv("PROPERTYSCOPE_TEST_POSTGRES_URL", "").strip()
 pytestmark = pytest.mark.skipif(
@@ -85,6 +94,27 @@ def _create_minimal_import_schema(connection: psycopg.Connection[Any]) -> None:
             normalisation_version TEXT NOT NULL, artifact_record_id UUID NOT NULL,
             ingestion_run_id UUID NOT NULL, created_at TIMESTAMPTZ NOT NULL,
             PRIMARY KEY (dataset_release_id, source_business_key, source_revision)
+        );
+        CREATE TABLE warehouse.bocsar_observation (
+            dataset_release_id UUID NOT NULL, geography_kind TEXT NOT NULL,
+            geography_value TEXT NOT NULL, source_category_key TEXT NOT NULL,
+            offence_label TEXT NOT NULL, subcategory_label TEXT NOT NULL, month DATE NOT NULL,
+            count INTEGER NOT NULL, source_row_sha256 TEXT NOT NULL,
+            normalisation_version TEXT NOT NULL, artifact_record_id UUID NOT NULL,
+            ingestion_run_id UUID NOT NULL, created_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (
+                dataset_release_id,geography_kind,geography_value,source_category_key,month
+            )
+        );
+        CREATE TABLE warehouse.bocsar_coverage (
+            dataset_release_id UUID NOT NULL, geography_kind TEXT NOT NULL,
+            geography_value TEXT NOT NULL, source_category_key TEXT NOT NULL,
+            observed_months DATE[] NOT NULL, first_month DATE NOT NULL, last_month DATE NOT NULL,
+            month_count INTEGER NOT NULL, blank_means_observed_zero BOOLEAN NOT NULL,
+            completeness_sha256 TEXT NOT NULL, source_row_sha256 TEXT NOT NULL,
+            normalisation_version TEXT NOT NULL, artifact_record_id UUID NOT NULL,
+            ingestion_run_id UUID NOT NULL, created_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (dataset_release_id,geography_kind,geography_value,source_category_key)
         );
         CREATE TABLE serving.accepted_generation (
             dataset_id TEXT PRIMARY KEY, dataset_release_id UUID NOT NULL
@@ -150,6 +180,70 @@ def _accepted_pointer(connection: psycopg.Connection[dict[str, object]]) -> uuid
     return uuid.UUID(str(row["dataset_release_id"]))
 
 
+def _stage_typed_psi_rows(
+    connection: psycopg.Connection[dict[str, object]], rows: list[dict[str, object]]
+) -> None:
+    connection.execute(PSI_STAGE_SQL)
+    with connection.cursor().copy(PSI_COPY_SQL) as copy:
+        for ordinal, row in enumerate(rows, start=1):
+            copy.write_row(
+                (
+                    ordinal,
+                    *(row[field] for field in PSI_STREAM_COLUMNS[1:]),
+                )
+            )
+    connection.execute("ANALYZE propertyscope_psi_import_stage")
+
+
+def _stage_typed_bocsar_rows(
+    connection: psycopg.Connection[dict[str, object]], rows: list[dict[str, object]]
+) -> None:
+    connection.execute(BOCSAR_STAGE_SQL)
+    with connection.cursor().copy(BOCSAR_COPY_SQL) as copy:
+        for ordinal, row in enumerate(rows, start=1):
+            values = {**row, "ordinal": ordinal}
+            copy.write_row(tuple(values.get(field) for field in BOCSAR_STREAM_COLUMNS))
+    connection.execute("ANALYZE propertyscope_bocsar_import_stage")
+
+
+def test_cancel_intent_update_is_not_blocked_by_import_foreign_key_share(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    run_id = uuid.uuid4()
+    connection.execute(
+        """
+        CREATE SCHEMA ops;
+        CREATE TABLE ops.ingestion_run (
+            id UUID PRIMARY KEY,status TEXT NOT NULL,cancel_requested_at TIMESTAMPTZ
+        );
+        CREATE TABLE warehouse.cancel_probe (
+            id UUID PRIMARY KEY,ingestion_run_id UUID NOT NULL REFERENCES ops.ingestion_run(id)
+        );
+        """
+    )
+    connection.execute("INSERT INTO ops.ingestion_run VALUES (%s,'staging',NULL)", (run_id,))
+    connection.commit()
+    blocker = psycopg.connect(_database_url(str(connection.info.dbname)), row_factory=dict_row)
+    canceller = psycopg.connect(_database_url(str(connection.info.dbname)), row_factory=dict_row)
+    try:
+        blocker.execute("INSERT INTO warehouse.cancel_probe VALUES (%s,%s)", (uuid.uuid4(), run_id))
+        canceller.execute("SET LOCAL statement_timeout='1s'")
+        started = time.monotonic()
+        row = canceller.execute(
+            """UPDATE ops.ingestion_run SET cancel_requested_at=clock_timestamp()
+            WHERE id=%s AND status NOT IN ('succeeded','failed','cancelled') RETURNING *""",
+            (run_id,),
+        ).fetchone()
+        canceller.commit()
+        assert row is not None and row["cancel_requested_at"] is not None
+        assert time.monotonic() - started < 1
+    finally:
+        blocker.rollback()
+        blocker.close()
+        canceller.close()
+
+
 def test_invalid_final_row_rolls_back_stage_and_preserves_predecessor(
     isolated_postgres: psycopg.Connection[dict[str, object]],
 ) -> None:
@@ -197,16 +291,9 @@ def test_address_resolution_does_not_leak_from_eligible_to_ineligible_row(
         "VALUES (%s,'2000','SYDNEY','EXAMPLE','ST',10,NULL,NULL,NULL)",
         (property_ref,),
     )
-    connection.execute(
-        "CREATE TEMP TABLE propertyscope_import_stage "
-        "(ordinal BIGINT PRIMARY KEY,payload JSONB NOT NULL) ON COMMIT DROP"
-    )
-    connection.execute(
-        "INSERT INTO propertyscope_import_stage VALUES (1,%s),(2,%s)",
-        (
-            Jsonb(_psi_row(key="eligible")),
-            Jsonb(_psi_row(key="ineligible", house_number="LOT 10")),
-        ),
+    _stage_typed_psi_rows(
+        connection,
+        [_psi_row(key="eligible"), _psi_row(key="ineligible", house_number="LOT 10")],
     )
 
     accepted = import_profiles._insert_psi_rows(
@@ -229,6 +316,188 @@ def test_address_resolution_does_not_leak_from_eligible_to_ineligible_row(
     ]
 
 
+def test_psi_retransmissions_revisions_and_exact_address_cardinality(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    single_ref, ambiguous_a, ambiguous_b, supplied_ref = (
+        uuid.uuid4(),
+        uuid.uuid4(),
+        uuid.uuid4(),
+        uuid.uuid4(),
+    )
+    with connection.cursor() as cursor:
+        cursor.executemany(
+            "INSERT INTO registry.property VALUES (%s,%s,%s,%s,%s,%s,NULL,NULL,NULL)",
+            [
+                (single_ref, "2000", "SYDNEY", "EXAMPLE", "ST", 10),
+                (ambiguous_a, "2000", "SYDNEY", "MULTI", "ST", 20),
+                (ambiguous_b, "2000", "SYDNEY", "MULTI", "ST", 20),
+            ],
+        )
+    first = {**_psi_row(key="revision"), "price_aud": 100, "source_row_sha256": "1" * 64}
+    retransmission = {**first, "price_aud": 999}
+    changed = {**first, "price_aud": 200, "source_row_sha256": "2" * 64}
+    unmatched = {
+        **_psi_row(key="unmatched"),
+        "postcode": "2001",
+        "source_row_sha256": "3" * 64,
+    }
+    unique = {**_psi_row(key="unique"), "source_row_sha256": "4" * 64}
+    ambiguous = {
+        **_psi_row(key="ambiguous", street_number_first=20, house_number="20"),
+        "street_name": "Multi",
+        "street_name_normalised": "MULTI",
+        "source_row_sha256": "5" * 64,
+    }
+    supplied = {
+        **_psi_row(key="supplied"),
+        "property_ref": supplied_ref,
+        "source_row_sha256": "6" * 64,
+    }
+    _stage_typed_psi_rows(
+        connection,
+        [first, retransmission, changed, unmatched, unique, ambiguous, supplied],
+    )
+    release_id = uuid.uuid4()
+
+    accepted = import_profiles._insert_psi_rows(
+        connection.cursor(),
+        release_id=release_id,
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        phase_rows=7,
+        phase_callback=None,
+    )
+
+    rows = connection.execute(
+        "SELECT source_business_key,source_revision,price_aud,property_ref "
+        "FROM warehouse.psi_sale WHERE dataset_release_id=%s "
+        "ORDER BY source_business_key,source_revision",
+        (release_id,),
+    ).fetchall()
+    assert accepted == 6
+    assert [row for row in rows if row["source_business_key"] == "revision"] == [
+        {
+            "source_business_key": "revision",
+            "source_revision": 1,
+            "price_aud": 100,
+            "property_ref": single_ref,
+        },
+        {
+            "source_business_key": "revision",
+            "source_revision": 2,
+            "price_aud": 200,
+            "property_ref": single_ref,
+        },
+    ]
+    refs = {str(row["source_business_key"]): row["property_ref"] for row in rows}
+    assert refs["unmatched"] is None
+    assert refs["unique"] == single_ref
+    assert refs["ambiguous"] is None
+    assert refs["supplied"] == supplied_ref
+
+
+def test_bocsar_earliest_duplicate_zero_missing_coverage_and_replay_semantics(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    observation = {
+        "record_kind": "observation",
+        "geography_kind": "postcode",
+        "geography_value": "2000",
+        "source_category_key": "assault",
+        "offence_label": "Assault",
+        "subcategory_label": "Total",
+        "month": "2026-01-01",
+        "count": 5,
+        "source_row_sha256": "a" * 64,
+    }
+    later_duplicate = {**observation, "count": 9, "source_row_sha256": "b" * 64}
+    coverage = {
+        "record_kind": "coverage",
+        "geography_kind": "postcode",
+        "geography_value": "2000",
+        "source_category_key": "assault",
+        "observed_months": ["2026-01-01", "2026-02-01"],
+        "first_month": "2026-01-01",
+        "last_month": "2026-02-01",
+        "month_count": 2,
+        "blank_means_observed_zero": True,
+        "completeness_sha256": "c" * 64,
+        "source_row_sha256": "d" * 64,
+    }
+    later_coverage = {
+        **coverage,
+        "observed_months": ["2026-01-01"],
+        "last_month": "2026-01-01",
+        "month_count": 1,
+        "blank_means_observed_zero": False,
+        "source_row_sha256": "e" * 64,
+    }
+    _stage_typed_bocsar_rows(connection, [observation, later_duplicate, coverage, later_coverage])
+    release_id, artifact_id, run_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+    accepted = import_profiles._insert_bocsar_rows(
+        connection.cursor(),
+        release_id=release_id,
+        artifact_id=artifact_id,
+        run_id=run_id,
+        phase_rows=4,
+        phase_callback=None,
+    )
+
+    fact = connection.execute(
+        "SELECT count,source_row_sha256 FROM warehouse.bocsar_observation "
+        "WHERE dataset_release_id=%s",
+        (release_id,),
+    ).fetchone()
+    retained_coverage = connection.execute(
+        "SELECT observed_months,month_count,blank_means_observed_zero,source_row_sha256 "
+        "FROM warehouse.bocsar_coverage WHERE dataset_release_id=%s",
+        (release_id,),
+    ).fetchone()
+    assert accepted == 2
+    assert fact == {"count": 5, "source_row_sha256": "a" * 64}
+    assert retained_coverage is not None
+    observed_months = cast(list[date], retained_coverage["observed_months"])
+    assert [value.isoformat() for value in observed_months] == [
+        "2026-01-01",
+        "2026-02-01",
+    ]
+    assert retained_coverage["month_count"] == 2
+    assert retained_coverage["blank_means_observed_zero"] is True
+    assert retained_coverage["source_row_sha256"] == "d" * 64
+    # February is an observed blank and therefore zero; March is outside coverage and missing.
+    semantic = connection.execute(
+        "SELECT "
+        "('2026-02-01'::date=ANY(observed_months) AND NOT EXISTS ("
+        " SELECT 1 FROM warehouse.bocsar_observation o"
+        " WHERE o.dataset_release_id=c.dataset_release_id"
+        " AND o.geography_kind=c.geography_kind AND o.geography_value=c.geography_value"
+        " AND o.source_category_key=c.source_category_key AND o.month='2026-02-01')) AS zero,"
+        "('2026-03-01'::date<>ALL(observed_months)) AS missing "
+        "FROM warehouse.bocsar_coverage c WHERE dataset_release_id=%s",
+        (release_id,),
+    ).fetchone()
+    assert semantic == {"zero": True, "missing": True}
+
+    replayed = import_profiles._insert_bocsar_rows(
+        connection.cursor(),
+        release_id=release_id,
+        artifact_id=artifact_id,
+        run_id=run_id,
+        phase_rows=4,
+        phase_callback=None,
+    )
+    assert replayed == 2
+    counts = connection.execute(
+        "SELECT (SELECT count(*) FROM warehouse.bocsar_observation) AS observations,"
+        "(SELECT count(*) FROM warehouse.bocsar_coverage) AS coverage"
+    ).fetchone()
+    assert counts == {"observations": 1, "coverage": 1}
+
+
 @pytest.mark.parametrize(
     "cancelled_phase",
     ["identity_revision_derivation", "address_resolution", "target_materialisation"],
@@ -242,13 +511,7 @@ def test_each_real_psi_phase_cancels_its_exact_connection_and_rolls_back(
     predecessor = uuid.uuid4()
     connection.execute("INSERT INTO serving.accepted_generation VALUES ('psi',%s)", (predecessor,))
     connection.commit()
-    connection.execute(
-        "CREATE TEMP TABLE propertyscope_import_stage "
-        "(ordinal BIGINT PRIMARY KEY,payload JSONB NOT NULL) ON COMMIT DROP"
-    )
-    connection.execute(
-        "INSERT INTO propertyscope_import_stage VALUES (1,%s)", (Jsonb(_psi_row(key="one")),)
-    )
+    _stage_typed_psi_rows(connection, [_psi_row(key="one")])
     replacement: list[tuple[str, str]] = []
     for phase, statement in import_profiles._PSI_PHASE_SQL:
         if phase == cancelled_phase:
