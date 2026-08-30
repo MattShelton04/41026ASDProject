@@ -46,6 +46,7 @@ from scripts.devtools.config import (
     SUPPORTED_LLM_PROVIDERS,
     TERMINAL_COLLECTION_STATES,
 )
+from scripts.devtools.operator_report import collect_operator_report, render_operator_report
 
 
 def _compose_command(*arguments: str) -> tuple[str, ...]:
@@ -728,6 +729,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 timeout_seconds=arguments.timeout,
                 base_url=arguments.base_url,
             )
+        elif command == ("operator", "report"):
+            with httpx.Client(follow_redirects=False) as client:
+                report = collect_operator_report(
+                    client,
+                    data_base_url=arguments.base_url,
+                    feature_health_url=arguments.feature_health_url,
+                    ai_health_url=arguments.ai_health_url,
+                )
+            print(render_operator_report(report), flush=True)
         elif command == ("ui", "serve"):
             _run(
                 (

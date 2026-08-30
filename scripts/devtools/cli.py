@@ -126,8 +126,17 @@ def _data_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     sync_psi.add_argument("--current-weekly", action="store_true")
 
 
+def _operator_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    operator = root.add_parser("operator", help="Inspect review and publication readiness")
+    commands = operator.add_subparsers(dest="action", required=True)
+    report = commands.add_parser("report", help="Print a read-only operational evidence report")
+    report.add_argument("--base-url", default=PROPERTYSCOPE_API_URL)
+    report.add_argument("--feature-health-url", default="http://127.0.0.1:5200/health/ready")
+    report.add_argument("--ai-health-url", default="http://127.0.0.1:5005/health/ready")
+
+
 def build_parser() -> argparse.ArgumentParser:
-    """Build the discoverable three-group development command tree."""
+    """Build the discoverable development command tree."""
     parser = argparse.ArgumentParser(
         description="Operate PropertyScope development stacks, UI fixtures, and source data."
     )
@@ -136,4 +145,5 @@ def build_parser() -> argparse.ArgumentParser:
     _stack_commands(groups)
     _ui_commands(groups)
     _data_commands(groups)
+    _operator_commands(groups)
     return parser
