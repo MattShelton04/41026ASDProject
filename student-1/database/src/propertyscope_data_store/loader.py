@@ -15,6 +15,7 @@ from typing import Any
 
 from propertyscope_data_store.configuration import StoreSettings
 from propertyscope_data_store.import_profiles import (
+    IMPORT_PHASE_LABELS,
     REGISTERED_PROFILES,
     ImportProfileError,
     iter_ndjson_import,
@@ -29,6 +30,11 @@ ACTIVATION_HEARTBEAT_SECONDS = 30
 IMPORT_LEASE_SECONDS = 120
 IMPORT_HEARTBEAT_SECONDS = 30
 ARTIFACT_HASH_CHUNK_BYTES = 1024 * 1024
+ACTIVATION_PHASE_LABELS = {
+    "artifact_verification": "Verifying release artifact",
+    "materialisation": "Materialising reviewed release",
+    "commit_pointer": "Committing accepted-generation pointer",
+}
 
 
 class ImportCancelledError(RuntimeError):
@@ -187,10 +193,16 @@ class DatabaseLoader:
             )
             heartbeater.start()
             try:
+                self._update_activation_progress(
+                    operation_id, lease_token=token, phase_key="artifact_verification"
+                )
                 artifact = self.store.release_artifact(
                     uuid.UUID(str(operation["dataset_release_id"]))
                 )
                 self._verify_release_export(artifact, lease_failed_event=heartbeat_failed)
+                self._update_activation_progress(
+                    operation_id, lease_token=token, phase_key="materialisation"
+                )
                 self.store.materialize_release_activation(
                     operation_id,
                     worker_id=self.worker_id,
@@ -205,6 +217,9 @@ class DatabaseLoader:
                 raise RuntimeError("publication activation lease could not be renewed")
             if self.stop_event.is_set():
                 raise InterruptedError("database loader stopped during publication activation")
+            self._update_activation_progress(
+                operation_id, lease_token=token, phase_key="commit_pointer"
+            )
             self.store.finish_release_activation(
                 operation_id,
                 worker_id=self.worker_id,
@@ -253,6 +268,19 @@ class DatabaseLoader:
                 # A lost database connection leaves the leased operation recoverable after expiry.
                 logger.exception("Publication activation outcome could not be persisted")
 
+    def _update_activation_progress(
+        self, operation_id: uuid.UUID, *, lease_token: str, phase_key: str
+    ) -> None:
+        reporter = getattr(self.store, "update_release_activation_progress", None)
+        if reporter is not None:
+            reporter(
+                operation_id,
+                worker_id=self.worker_id,
+                lease_token=lease_token,
+                phase_key=phase_key,
+                phase=ACTIVATION_PHASE_LABELS[phase_key],
+            )
+
     def stop(self) -> None:
         self.stop_event.set()
 
@@ -287,13 +315,20 @@ class DatabaseLoader:
         total_bytes = int(work["artifact_bytes"])
         self._update_import_progress(
             operation_id,
-            phase="verifying and copying canonical stream",
+            phase_key="artifact_verification",
             rows_processed=0,
             bytes_processed=0,
             total_bytes=total_bytes,
         )
         raise_if_cancelled(force=True)
         if work["media_type"] == "application/x-ndjson":
+            self._update_import_progress(
+                operation_id,
+                phase_key="typed_staging",
+                rows_processed=0,
+                bytes_processed=0,
+                total_bytes=total_bytes,
+            )
             with path.open("rb") as stream:
                 verified = _VerifiedLineStream(
                     stream,
@@ -301,7 +336,7 @@ class DatabaseLoader:
                     expected_bytes=total_bytes,
                     progress=lambda rows, bytes_: self._update_import_progress(
                         operation_id,
-                        phase="verifying and copying canonical stream",
+                        phase_key="typed_staging",
                         rows_processed=rows,
                         bytes_processed=bytes_,
                         total_bytes=total_bytes,
@@ -315,15 +350,15 @@ class DatabaseLoader:
                     profile=profile,
                     rows=cancellable_rows,
                     verify_complete=verified.verify_complete,
-                    phase_callback=lambda phase, count: self._update_import_progress(
+                    phase_callback=lambda phase_key, count: self._update_import_progress(
                         operation_id,
-                        phase=phase,
+                        phase_key=phase_key,
                         # COPY completion does not measure the following set-based SQL insert.
                         # Retain its durable row checkpoint, but clear the gauge rather than
                         # displaying 100% for that long phase.
                         rows_processed=count,
                         bytes_processed=0,
-                        total_rows=count if phase == "recording import quality" else None,
+                        total_rows=count if phase_key == "verification" else None,
                         total_bytes=None,
                     ),
                     lease_failed_event=lease_failed_event,
@@ -335,18 +370,45 @@ class DatabaseLoader:
                 raise RuntimeError("artifact checksum does not match registered metadata")
             self._update_import_progress(
                 operation_id,
-                phase="verified canonical document",
+                phase_key="artifact_verification",
                 rows_processed=0,
                 bytes_processed=len(data),
                 total_bytes=total_bytes,
             )
+            self._update_import_progress(
+                operation_id,
+                phase_key="typed_staging",
+                rows_processed=0,
+                bytes_processed=0,
+            )
             prepared = prepare_import(data, profile=profile)
             raise_if_cancelled(force=True)
+            if profile == "psi-sales":
+                for phase_key in ("identity_revision_derivation", "address_resolution"):
+                    self._update_import_progress(
+                        operation_id,
+                        phase_key=phase_key,
+                        rows_processed=len(prepared.rows),
+                        bytes_processed=0,
+                    )
+            self._update_import_progress(
+                operation_id,
+                phase_key="target_materialisation",
+                rows_processed=len(prepared.rows),
+                bytes_processed=0,
+            )
             imported = self.store.execute_import_profile(
                 work,
                 prepared,
                 lease_failed_event=lease_failed_event,
                 stop_event=self.stop_event,
+            )
+            self._update_import_progress(
+                operation_id,
+                phase_key="verification",
+                rows_processed=imported.rows_accepted,
+                bytes_processed=0,
+                total_rows=imported.rows_accepted,
             )
         else:
             raise RuntimeError("registered import requires canonical JSON or NDJSON")
@@ -368,7 +430,13 @@ class DatabaseLoader:
     def _update_import_progress(self, operation_id: uuid.UUID, **values: Any) -> None:
         reporter = getattr(self.store, "update_import_progress", None)
         if reporter is not None:
-            reporter(operation_id, **values)
+            phase_key = str(values.pop("phase_key"))
+            reporter(
+                operation_id,
+                phase_key=phase_key,
+                phase=IMPORT_PHASE_LABELS[phase_key],
+                **values,
+            )
 
     def _verify_release_export(
         self,

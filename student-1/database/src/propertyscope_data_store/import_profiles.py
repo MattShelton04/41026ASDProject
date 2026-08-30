@@ -15,6 +15,15 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 CANONICAL_SCHEMA_VERSION = "propertyscope.canonical-import.v1"
+POSTGRES_INTEGER_MAX = 2_147_483_647
+IMPORT_PHASE_LABELS: Mapping[str, str] = {
+    "artifact_verification": "Verifying canonical artifact",
+    "typed_staging": "Validating and copying typed canonical rows",
+    "identity_revision_derivation": "Deriving deterministic identities and revisions",
+    "address_resolution": "Resolving eligible exact addresses",
+    "target_materialisation": "Materialising isolated candidate generation",
+    "verification": "Verifying candidate generation",
+}
 REGISTERED_PROFILES = frozenset(
     {"property-fixture", "gnaf-nsw", "psi-sales", "bocsar-sparse", "schools-master"}
 )
@@ -174,8 +183,14 @@ def execute_stream_import(
                     copy.write_row((staged, Jsonb(row)))
         if staged == 0:
             raise ImportProfileError("canonical import artifact must not be empty")
+        if phase_callback is not None and profile == "psi-sales":
+            # The current PSI statement performs these set operations as one indivisible
+            # database operation. Persist the stable boundaries before entering it; totals
+            # deliberately remain indeterminate until PR2 splits and measures the phases.
+            phase_callback("identity_revision_derivation", staged)
+            phase_callback("address_resolution", staged)
         if phase_callback is not None:
-            phase_callback("inserting candidate generation", staged)
+            phase_callback("target_materialisation", staged)
         accepted = _insert_profile_rows(
             cursor,
             profile,
@@ -185,7 +200,7 @@ def execute_stream_import(
             typed_gnaf_stage=profile == "gnaf-nsw",
         )
         if phase_callback is not None:
-            phase_callback("recording import quality", accepted)
+            phase_callback("verification", accepted)
         quality_checks = _record_quality(
             cursor,
             profile=profile,
@@ -511,8 +526,20 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         "property_name": _optional_text(source, "property_name", index),
         "unit_number": _optional_upper_text(source, "unit_number", index),
         "house_number": _optional_text(source, "house_number", index),
-        "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
-        "street_number_last": _optional_integer(source, "street_number_last", index, minimum=0),
+        "street_number_first": _optional_integer(
+            source,
+            "street_number_first",
+            index,
+            minimum=0,
+            maximum=POSTGRES_INTEGER_MAX,
+        ),
+        "street_number_last": _optional_integer(
+            source,
+            "street_number_last",
+            index,
+            minimum=0,
+            maximum=POSTGRES_INTEGER_MAX,
+        ),
         "street_number_suffix": _optional_upper_text(source, "street_number_suffix", index),
         "street_name": _optional_text(source, "street_name", index),
         "street_name_normalised": _optional_upper_text(source, "street_name_normalised", index),
@@ -639,6 +666,7 @@ def _integer(
     index: int,
     *,
     minimum: int | None = None,
+    maximum: int | None = None,
     allowed: set[int] | None = None,
 ) -> int:
     value = row.get(field)
@@ -646,15 +674,26 @@ def _integer(
         raise ImportProfileError(f"record {index} {field} must be an integer")
     if minimum is not None and value < minimum:
         raise ImportProfileError(f"record {index} {field} is below its minimum")
+    if maximum is not None and value > maximum:
+        raise ImportProfileError(f"record {index} {field} is above its maximum")
     if allowed is not None and value not in allowed:
         raise ImportProfileError(f"record {index} {field} is not registered")
     return value
 
 
 def _optional_integer(
-    row: Mapping[str, Any], field: str, index: int, *, minimum: int | None = None
+    row: Mapping[str, Any],
+    field: str,
+    index: int,
+    *,
+    minimum: int | None = None,
+    maximum: int | None = None,
 ) -> int | None:
-    return None if row.get(field) is None else _integer(row, field, index, minimum=minimum)
+    return (
+        None
+        if row.get(field) is None
+        else _integer(row, field, index, minimum=minimum, maximum=maximum)
+    )
 
 
 def _decimal(row: Mapping[str, Any], field: str, index: int) -> Decimal:

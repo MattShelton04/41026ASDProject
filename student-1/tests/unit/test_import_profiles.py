@@ -19,10 +19,13 @@ from propertyscope_data_store.import_profiles import (
     _GNAF_STREAM_STAGE_SQL,
     _PROFILE_INSERT_SQL,
     CANONICAL_SCHEMA_VERSION,
+    IMPORT_PHASE_LABELS,
+    POSTGRES_INTEGER_MAX,
     ImportProfileError,
     ImportResult,
     _insert_profile_rows,
     execute_import,
+    execute_stream_import,
     iter_ndjson_import,
     prepare_import,
 )
@@ -376,6 +379,124 @@ def test_psi_import_rejects_unexpected_nonnumeric_postcode_corruption() -> None:
         prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
 
 
+@pytest.mark.parametrize("field", ["street_number_first", "street_number_last"])
+def test_psi_rejects_address_numbers_outside_postgresql_integer_range(field: str) -> None:
+    record = {**_contract_records("psi-sales")[0], field: 6_711_011_622}
+
+    with pytest.raises(
+        ImportProfileError,
+        match=rf"record 1 {field} is above its maximum",
+    ) as caught:
+        prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
+
+    error = _safe_loader_error(caught.value)
+    assert error["code"] == "canonical_record_invalid"
+    assert f"record 1 {field} is above its maximum" in str(error["message"])
+
+    boundary = {**record, field: POSTGRES_INTEGER_MAX}
+    assert prepare_import(_artifact("psi-sales", [boundary]), profile="psi-sales").rows[0][
+        field
+    ] == (POSTGRES_INTEGER_MAX)
+
+
+class _CopySink:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self.rows = rows
+
+    def __enter__(self) -> _CopySink:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def write_row(self, row: tuple[object, ...]) -> None:
+        self.rows.append(row)
+
+
+class _StreamingCursor:
+    rowcount = 1
+
+    def __init__(self) -> None:
+        self.copied: list[tuple[object, ...]] = []
+        self.statements: list[str] = []
+        self.current: dict[str, int] | None = None
+
+    def __enter__(self) -> _StreamingCursor:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def copy(self, _statement: str) -> _CopySink:
+        return _CopySink(self.copied)
+
+    def execute(self, statement: str, _parameters: object = None) -> None:
+        normalised = " ".join(statement.split())
+        self.statements.append(normalised)
+        self.current = (
+            {"count": len(self.copied)} if normalised.startswith("SELECT count(*)") else None
+        )
+
+    def fetchone(self) -> dict[str, int] | None:
+        return self.current
+
+
+class _StreamingConnection:
+    def __init__(self) -> None:
+        self.stream_cursor = _StreamingCursor()
+
+    def cursor(self) -> _StreamingCursor:
+        return self.stream_cursor
+
+
+def test_invalid_final_psi_row_stops_before_destination_materialisation() -> None:
+    valid = _contract_records("psi-sales")[0]
+    invalid = {
+        **valid,
+        "source_business_key": "001:INVALID:1",
+        "street_number_first": 6_711_011_622,
+    }
+    rows = iter_ndjson_import(
+        (json.dumps(row).encode() + b"\n" for row in (valid, invalid)),
+        profile="psi-sales",
+    )
+    connection = _StreamingConnection()
+
+    with pytest.raises(
+        ImportProfileError,
+        match="record 2 street_number_first is above its maximum",
+    ):
+        execute_stream_import(
+            cast(Any, connection),
+            {
+                "ingestion_run_id": uuid.uuid4(),
+                "candidate_release_id": uuid.uuid4(),
+                "artifact_record_id": uuid.uuid4(),
+            },
+            profile="psi-sales",
+            rows=rows,
+        )
+
+    assert len(connection.stream_cursor.copied) == 1
+    assert not any(
+        "INSERT INTO warehouse.psi_sale" in sql for sql in connection.stream_cursor.statements
+    )
+    assert not any(
+        "serving.accepted_generation" in sql for sql in connection.stream_cursor.statements
+    )
+
+
+def test_import_phase_registry_has_stable_indeterminate_set_sql_boundaries() -> None:
+    assert tuple(IMPORT_PHASE_LABELS) == (
+        "artifact_verification",
+        "typed_staging",
+        "identity_revision_derivation",
+        "address_resolution",
+        "target_materialisation",
+        "verification",
+    )
+
+
 def test_loader_exposes_bounded_canonical_validation_evidence() -> None:
     error = _safe_loader_error(ImportProfileError("record 1978 postcode must contain four digits"))
 
@@ -441,6 +562,7 @@ class _ActivationStore:
         self.materialized = False
         self.finished_status = ""
         self.finished_error: dict[str, Any] | None = None
+        self.progress_phases: list[tuple[str, str]] = []
 
     def claim_release_activation(self, **_: Any) -> dict[str, Any]:
         return {
@@ -455,6 +577,11 @@ class _ActivationStore:
 
     def heartbeat_release_activation(self, *_: Any, **__: Any) -> None:
         self.heartbeats += 1
+
+    def update_release_activation_progress(self, *_: Any, **kwargs: Any) -> None:
+        assert kwargs["worker_id"] == "loader-test"
+        assert kwargs["lease_token"] == "activation-token"
+        self.progress_phases.append((str(kwargs["phase_key"]), str(kwargs["phase"])))
 
     def materialize_release_activation(self, *_: Any, **kwargs: Any) -> None:
         assert kwargs["stop_event"] is not None
@@ -535,6 +662,11 @@ def test_loader_prioritises_and_finishes_background_release_activation(tmp_path:
     assert store.heartbeats == 1
     assert store.materialized is True
     assert store.finished_status == "succeeded"
+    assert [key for key, _label in store.progress_phases] == [
+        "artifact_verification",
+        "materialisation",
+        "commit_pointer",
+    ]
 
 
 def test_loader_renews_import_lease_until_work_finishes(

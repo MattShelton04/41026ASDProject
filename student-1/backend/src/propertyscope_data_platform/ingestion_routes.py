@@ -8,7 +8,7 @@ from typing import Any
 
 from flask import Blueprint, Response, jsonify, request
 
-from propertyscope_data_platform.clients import DataStoreClient
+from propertyscope_data_platform.clients import DataStoreClient, DependencyUnavailableError
 from propertyscope_data_platform.configuration import JobProfile, Registry
 from propertyscope_data_platform.domain import SourceDefinitionCreate, SourceDefinitionUpdate
 from propertyscope_data_platform.http_support import (
@@ -232,13 +232,37 @@ def register_ingestion_routes(
 
     @api.post(f"{base}/ingestion-runs/<uuid:run_id>/cancel")
     def run_cancel(run_id: uuid.UUID) -> Response:
-        return forward(
-            store.request(
+        try:
+            cancellation = store.request(
                 "POST",
                 f"{internal}/runs/{run_id}/cancel",
                 headers=request.headers,
                 json=json_body(optional=True),
             )
+        except DependencyUnavailableError:
+            return reconcile_cancel(run_id)
+        if cancellation.status_code < 500:
+            return forward(cancellation)
+        return reconcile_cancel(run_id)
+
+    def reconcile_cancel(run_id: uuid.UUID) -> Response:
+        """Return cancellation only when a read proves its durable request timestamp."""
+        try:
+            current = store.request("GET", f"{internal}/runs/{run_id}", headers=request.headers)
+        except DependencyUnavailableError:
+            current = None
+        if current is not None and current.status_code < 400:
+            try:
+                payload = current.json()
+            except ValueError:
+                payload = None
+            run_data = payload.get("run") if isinstance(payload, dict) else None
+            if isinstance(run_data, dict) and run_data.get("cancel_requested_at"):
+                return forward(current)
+        return problem(
+            503,
+            "cancellation_unconfirmed",
+            "The cancellation outcome could not be confirmed; retry this cancellation request",
         )
 
     def create_follow_up_run(run_id: uuid.UUID, *, run_mode: str) -> Response:
