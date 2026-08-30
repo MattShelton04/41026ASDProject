@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, Self, cast
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
 
@@ -266,8 +266,8 @@ class ReleaseManifestV1(ProductModel):
     record_count: int = Field(ge=0)
     record_count_definition: str
     content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    media_type: Literal["application/x-ndjson"]
-    content_encoding: Literal["gzip"]
+    media_type: str
+    content_encoding: str | None = None
     byte_count: int = Field(ge=1)
     geography_coverage: tuple[str, ...]
     temporal_coverage: dict[str, str] | None = None
@@ -280,6 +280,23 @@ class ReleaseManifestV1(ProductModel):
     known_limitations: tuple[str, ...]
     created_at: datetime
     supersedes_release_id: uuid.UUID | None = None
+
+    @classmethod
+    def model_validate(cls, obj: Any, **kwargs: Any) -> Self:
+        """Parse either immutable manifest revision at legacy import boundaries."""
+        if (
+            cls is ReleaseManifestV1
+            and isinstance(obj, Mapping)
+            and obj.get("manifest_schema_version") == "propertyscope.release-manifest.v2"
+        ):
+            return cast(Self, ReleaseManifestV2.model_validate(obj, **kwargs))
+        return super().model_validate(obj, **kwargs)
+
+
+class ReleaseManifestV2(ReleaseManifestV1):
+    manifest_schema_version: Literal["propertyscope.release-manifest.v2"]
+    media_type: Literal["application/x-ndjson"]
+    content_encoding: Literal["gzip"]
 
 
 class DataProductCatalogueEntry(ProductModel):
@@ -316,7 +333,7 @@ class ReleaseDetailContract(ProductModel):
     )
     record_count: int = Field(ge=0)
     content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    manifest_json: ReleaseManifestV1
+    manifest_json: ReleaseManifestV1 | ReleaseManifestV2
     supersedes_release_id: uuid.UUID | None = None
     version: int = Field(ge=1)
     receipts: tuple[PublicationReceiptResult, ...] = ()
@@ -441,8 +458,8 @@ class RegisteredReleaseBuilder:
             context, records
         )
         decision = context.redistribution_policy
-        manifest = ReleaseManifestV1(
-            manifest_schema_version="propertyscope.release-manifest.v1",
+        manifest = ReleaseManifestV2(
+            manifest_schema_version="propertyscope.release-manifest.v2",
             product_schema_version=self.spec.contract,
             release_id=context.release_id,
             release_version=context.release_version,
@@ -871,8 +888,8 @@ class StreamingProduct:
             else None
         )
         decision = self._context.redistribution_policy
-        return ReleaseManifestV1(
-            manifest_schema_version="propertyscope.release-manifest.v1",
+        return ReleaseManifestV2(
+            manifest_schema_version="propertyscope.release-manifest.v2",
             product_schema_version=self._builder.spec.contract,
             release_id=self._context.release_id,
             release_version=self._context.release_version,
@@ -1041,6 +1058,7 @@ def product_schema_documents() -> dict[str, dict[str, Any]]:
         "school-points.v2.schema.json": SchoolPointRecord,
         "product-contract-set.v1.schema.json": ProductContractSetV1,
         "release-manifest.v1.schema.json": ReleaseManifestV1,
+        "release-manifest.v2.schema.json": ReleaseManifestV2,
         "data-product-catalogue-entry.v1.schema.json": DataProductCatalogueEntry,
         "release-detail.v1.schema.json": ReleaseDetailContract,
         "consumer-import-acknowledgement.v1.schema.json": ConsumerImportAcknowledgement,
@@ -1051,9 +1069,12 @@ def product_schema_documents() -> dict[str, dict[str, Any]]:
     for filename, model in models.items():
         schema = model.model_json_schema(mode="validation")
         if filename == "consumer-publication-request.v1.schema.json":
-            schema["properties"]["manifest"] = ReleaseManifestV1.model_json_schema(
+            manifest_schema = TypeAdapter(ReleaseManifestV1 | ReleaseManifestV2).json_schema(
                 mode="validation"
             )
+            manifest_definitions = manifest_schema.pop("$defs", {})
+            schema.setdefault("$defs", {}).update(manifest_definitions)
+            schema["properties"]["manifest"] = manifest_schema
         if filename == "consumer-import-acknowledgement.v1.schema.json":
             schema["allOf"] = [
                 {

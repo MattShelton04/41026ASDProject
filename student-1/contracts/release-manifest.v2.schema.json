@@ -1,5 +1,5 @@
 {
-  "$id": "https://propertyscope.local/contracts/release-manifest.v1.schema.json",
+  "$id": "https://propertyscope.local/contracts/release-manifest.v2.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -22,16 +22,9 @@
       "type": "string"
     },
     "content_encoding": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Content Encoding"
+      "const": "gzip",
+      "title": "Content Encoding",
+      "type": "string"
     },
     "content_sha256": {
       "pattern": "^[0-9a-f]{64}$",
@@ -81,7 +74,7 @@
       "type": "string"
     },
     "manifest_schema_version": {
-      "pattern": "^propertyscope\\.release-manifest\\.v1$",
+      "const": "propertyscope.release-manifest.v2",
       "title": "Manifest Schema Version",
       "type": "string"
     },
@@ -93,6 +86,7 @@
       "type": "array"
     },
     "media_type": {
+      "const": "application/x-ndjson",
       "title": "Media Type",
       "type": "string"
     },
@@ -221,6 +215,7 @@
     "record_count_definition",
     "content_sha256",
     "media_type",
+    "content_encoding",
     "byte_count",
     "geography_coverage",
     "measures",
@@ -232,6 +227,6 @@
     "known_limitations",
     "created_at"
   ],
-  "title": "ReleaseManifestV1",
+  "title": "ReleaseManifestV2",
   "type": "object"
 }

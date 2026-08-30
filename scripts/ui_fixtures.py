@@ -257,7 +257,7 @@ def fixture_source_records(scenario: str) -> list[dict[str, Any]]:
 
 def _release_manifest(release: dict[str, Any]) -> dict[str, Any]:
     return {
-        "manifest_schema_version": "propertyscope.release-manifest.v1",
+        "manifest_schema_version": "propertyscope.release-manifest.v2",
         "product_schema_version": PRODUCT_SCHEMA,
         "release_id": release["id"],
         "release_version": release["release_version"],

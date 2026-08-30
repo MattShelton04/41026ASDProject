@@ -10,7 +10,9 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import httpx
+import jsonschema
 import pytest
+import yaml
 
 from propertyscope_data_platform.app import create_app
 from propertyscope_data_platform.clients import AiModeClient, ConsumerImportClient, DataStoreClient
@@ -36,6 +38,7 @@ def test_contract_package_is_deterministic_closed_and_registry_complete() -> Non
             "consumer-import-acknowledgement.v1.schema.json",
             "consumer-publication-receipt.v1.schema.json",
             "release-manifest.v1.schema.json",
+            "release-manifest.v2.schema.json",
         ):
             assert required in first.filenames
 
@@ -71,6 +74,10 @@ def test_contract_package_is_discovered_and_downloaded_over_fixed_http() -> None
     metadata_response = client.get("/api/data-platform/v1/product-contracts/v1")
     assert metadata_response.status_code == 200
     metadata = metadata_response.get_json()
+    openapi = yaml.safe_load(
+        (FEATURE_ROOT / "contracts" / "data-platform-api.v1.openapi.yaml").read_text("utf-8")
+    )
+    jsonschema.validate(metadata, openapi["components"]["schemas"]["ProductContractPackage"])
     assert metadata["media_type"] == "application/zip"
     assert metadata["artifact_path"].endswith(f"/{metadata['content_sha256']}.zip")
 

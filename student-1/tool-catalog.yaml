@@ -490,7 +490,7 @@ tools:
       output_schema:
         type: object
         properties:
-          status: {enum: [accepted, rejected, pending]}
+          status: {enum: [accepted, failed, pending]}
           receipt_id: {type: [string, "null"]}
           replayed: {type: boolean}
         required: [status, receipt_id, replayed]

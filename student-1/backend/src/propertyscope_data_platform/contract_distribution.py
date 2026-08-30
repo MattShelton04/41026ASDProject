@@ -20,6 +20,7 @@ CONTRACT_SET_VERSION = "propertyscope.product-contract-set.v1"
 PROTOCOL_CONTRACTS = (
     "product-contract-set.v1.schema.json",
     "release-manifest.v1.schema.json",
+    "release-manifest.v2.schema.json",
     "consumer-publication-request.v1.schema.json",
     "consumer-import-acknowledgement.v1.schema.json",
     "consumer-publication-receipt.v1.schema.json",

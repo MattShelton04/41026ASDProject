@@ -10,6 +10,7 @@ import httpx
 import jsonschema
 import pytest
 import yaml
+from flask import Flask
 from pydantic import ValidationError as PydanticValidationError
 
 from ai_mode.tool_catalog import load_tool_catalog
@@ -23,6 +24,7 @@ from propertyscope_data_platform.release_builders import (
     product_contract_set_document,
     product_schema_documents,
 )
+from propertyscope_data_platform.release_publication import _catalog_publication_output
 from shared_consumer_protocol import ImportReceipt
 from shared_contracts.feature import load_feature_manifest
 
@@ -156,25 +158,83 @@ def test_cancel_contract_preserves_conflict_and_documents_unconfirmed_reconcilia
     assert representation["example"]["code"] == "cancellation_unconfirmed"
 
 
-def test_release_manifest_fixtures_encode_success_and_failure() -> None:
-    schema = _json("release-manifest.v1.schema.json")
-    jsonschema.Draft202012Validator.check_schema(schema)
-    jsonschema.validate(_json("fixtures/release-manifest.valid.json"), schema)
+def test_release_manifest_revisions_preserve_legacy_and_constrain_current_transport() -> None:
+    legacy_schema = _json("release-manifest.v1.schema.json")
+    current_schema = _json("release-manifest.v2.schema.json")
+    jsonschema.Draft202012Validator.check_schema(legacy_schema)
+    jsonschema.Draft202012Validator.check_schema(current_schema)
+    jsonschema.validate(_json("fixtures/release-manifest.valid.json"), legacy_schema)
+    jsonschema.validate(_json("fixtures/release-manifest.v2.valid.json"), current_schema)
     with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate(_json("fixtures/release-manifest.invalid-checksum.json"), schema)
+        jsonschema.validate(
+            _json("fixtures/release-manifest.v2.invalid-transport.json"), current_schema
+        )
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(_json("fixtures/release-manifest.invalid-checksum.json"), legacy_schema)
     for name in (
         "release-manifest.invalid-schema-version.json",
         "release-manifest.invalid-missing-field.json",
     ):
         with pytest.raises(jsonschema.ValidationError):
-            jsonschema.validate(_json(f"fixtures/{name}"), schema)
-    valid = _json("fixtures/release-manifest.valid.json")
-    for invalid_transport in (
-        {**valid, "media_type": "application/json"},
-        {**valid, "content_encoding": "identity"},
-    ):
-        with pytest.raises(jsonschema.ValidationError):
-            jsonschema.validate(invalid_transport, schema)
+            jsonschema.validate(_json(f"fixtures/{name}"), legacy_schema)
+
+
+def test_openapi_describes_manifest_compatibility_and_failed_publication_envelopes() -> None:
+    document = yaml.safe_load((CONTRACTS / "data-platform-api.v1.openapi.yaml").read_text("utf-8"))
+    manifest_schema = document["paths"]["/dataset-releases/{release_id}/manifest"]["get"][
+        "responses"
+    ]["200"]["content"]["application/json"]["schema"]
+    assert manifest_schema["oneOf"] == [
+        {"$ref": "./release-manifest.v2.schema.json"},
+        {"$ref": "./release-manifest.v1.schema.json"},
+    ]
+
+    failed = document["paths"]["/dataset-releases/{release_id}/publish"]["post"]["responses"][
+        "424"
+    ]["content"]
+    assert failed == {
+        "application/json": {"schema": {"$ref": "#/components/schemas/PublicationResult"}},
+        "application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}},
+    }
+
+
+def test_release_detail_accepts_closed_legacy_and_current_manifest_evidence() -> None:
+    schema = _json("release-detail.v1.schema.json")
+    legacy = _json("fixtures/release-detail.valid.json")
+    jsonschema.validate(legacy, schema)
+
+    current = deepcopy(legacy)
+    current_manifest = _json("fixtures/release-manifest.v2.valid.json")
+    current.update(
+        {
+            "schema_version": current_manifest["product_schema_version"],
+            "content_sha256": current_manifest["content_sha256"],
+            "manifest_json": current_manifest,
+        }
+    )
+    jsonschema.validate(current, schema)
+
+
+def test_publication_request_accepts_legacy_evidence_but_fixture_uses_current_manifest() -> None:
+    schema = _json("consumer-publication-request.v1.schema.json")
+    current = _json("fixtures/consumer-publication-request.valid.json")
+    jsonschema.validate(current, schema)
+    assert current["manifest"]["manifest_schema_version"] == "propertyscope.release-manifest.v2"
+
+    legacy_manifest = _json("fixtures/release-manifest.valid.json")
+    legacy = {
+        "release_id": legacy_manifest["release_id"],
+        "dataset_id": legacy_manifest["dataset_id"],
+        "schema_version": legacy_manifest["product_schema_version"],
+        "content_sha256": legacy_manifest["content_sha256"],
+        "record_count": legacy_manifest["record_count"],
+        "manifest": legacy_manifest,
+        "artifact_path": (
+            f"/api/data-platform/v1/dataset-releases/{legacy_manifest['release_id']}/artifact"
+        ),
+        "idempotency_key": "legacy-release-replay-1",
+    }
+    jsonschema.validate(legacy, schema)
 
 
 @pytest.mark.parametrize(
@@ -347,6 +407,7 @@ def test_openapi_references_checked_in_discovery_and_release_contracts() -> None
         "./data-product-catalogue-entry.v1.schema.json",
         "./release-detail.v1.schema.json",
         "./release-manifest.v1.schema.json",
+        "./release-manifest.v2.schema.json",
         "./consumer-publication-receipt.v1.schema.json",
     ):
         assert reference in document
@@ -482,6 +543,48 @@ def test_release_inspection_tool_declares_all_composed_evidence() -> None:
     assert len(required_names) == len(required)
     assert set(properties) == expected
     assert required_names == expected
+
+
+def test_release_publication_tool_outputs_match_the_closed_catalog() -> None:
+    catalog = load_tool_catalog(ROOT / "tool-catalog.yaml")
+    registration = next(
+        item for item in catalog.tools if item.definition.name == "data.release_publish.v1"
+    )
+    schema = cast(dict[str, Any], registration.definition.output_schema)
+    receipt_id = "71000000-0000-4000-8000-000000000099"
+    variants = (
+        ("accepted", receipt_id, True, 200),
+        ("accepted", None, True, 200),
+        ("pending", receipt_id, False, 202),
+        ("pending", None, False, 202),
+        ("failed", receipt_id, True, 424),
+        ("failed", None, False, 409),
+    )
+
+    app = Flask("publication-tool-contract-test")
+    emitted_statuses: set[str] = set()
+    with app.app_context():
+        for status, variant_receipt_id, replayed, status_code in variants:
+            response = _catalog_publication_output(
+                status,
+                receipt_id=variant_receipt_id,
+                replayed=replayed,
+                status_code=status_code,
+            )
+            payload = response.get_json()
+            assert isinstance(payload, dict)
+            jsonschema.validate(payload, schema)
+            assert response.status_code == status_code
+            emitted_statuses.add(status)
+
+    status_schema = cast(dict[str, Any], schema["properties"])["status"]
+    assert cast(dict[str, Any], status_schema)["enum"] == ["accepted", "failed", "pending"]
+    assert emitted_statuses == {"accepted", "failed", "pending"}
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(
+            {"status": "rejected", "receipt_id": receipt_id, "replayed": False},
+            schema,
+        )
 
 
 def test_release_discovery_uses_real_statuses_and_source_metadata_is_not_load_evidence() -> None:

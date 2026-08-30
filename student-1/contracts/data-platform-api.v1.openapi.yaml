@@ -234,7 +234,19 @@ paths:
     put: {operationId: updateDatasetRelease, responses: {'200': {description: Release updated}, '409': {$ref: '#/components/responses/Problem'}}}
     delete: {operationId: deleteDatasetRelease, responses: {'204': {description: Deleted}, '409': {$ref: '#/components/responses/Problem'}}}
   /dataset-releases/{release_id}/manifest:
-    get: {operationId: getReleaseManifest, parameters: [{$ref: '#/components/parameters/ReleaseId'}], responses: {'200': {description: Release manifest, content: {application/json: {schema: {$ref: './release-manifest.v1.schema.json'}}}}, '404': {$ref: '#/components/responses/Problem'}}}
+    get:
+      operationId: getReleaseManifest
+      parameters: [{$ref: '#/components/parameters/ReleaseId'}]
+      responses:
+        '200':
+          description: Immutable release manifest; current releases use v2 and retained releases may use v1
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - {$ref: './release-manifest.v2.schema.json'}
+                  - {$ref: './release-manifest.v1.schema.json'}
+        '404': {$ref: '#/components/responses/Problem'}
   /dataset-releases/{release_id}/artifact:
     get:
       operationId: downloadReleaseArtifact
@@ -278,10 +290,16 @@ paths:
         content: {application/json: {schema: {$ref: '#/components/schemas/OperatorPublishRequest'}}}
       responses:
         '200': {description: Previously completed publication replayed from matching immutable evidence, content: {application/json: {schema: {$ref: '#/components/schemas/PublicationResult'}}}}
-        '202': {description: Consumer accepted and background activation queued, content: {application/json: {schema: {$ref: '#/components/schemas/PublicationResult'}}}}
+        '202': {description: Durable consumer import or accepted-version activation queued, content: {application/json: {schema: {$ref: '#/components/schemas/PublicationResult'}}}}
         '409': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/Problem'}
-        '424': {$ref: '#/components/responses/Problem'}
+        '424':
+          description: Durable consumer publication failed, or the consumer rejected the release
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PublicationResult'}
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
   /dataset-releases/{release_id}/consumer-imports/{operation_id}:
     get:
       operationId: getReleaseConsumerImport
@@ -518,7 +536,7 @@ components:
         media_type: {const: application/zip}
         content_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
         byte_count: {type: integer, minimum: 1}
-        artifact_path: {type: string, pattern: '^/api/data-platform/v1/product-contracts/v1/sha256/[0-9a-f]{64}\\.zip$'}
+        artifact_path: {type: string, pattern: '^/api/data-platform/v1/product-contracts/v1/sha256/[0-9a-f]{64}\.zip$'}
     PublicationResult:
       type: object
       additionalProperties: false

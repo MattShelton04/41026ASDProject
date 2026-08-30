@@ -6,8 +6,10 @@ contract package at `GET /api/data-platform/v1/product-contracts/v1`, then downl
 digest-bound archive from the returned
 `GET /api/data-platform/v1/product-contracts/v1/sha256/{digest}.zip` path. The packaged
 `product-contract-set.v1.json` index binds each runtime builder version to a fixed relative
-record-schema path and transport. Consumers do not reach into backend source paths, import Feature
-1 Python, or connect to its PostgreSQL/PostGIS database.
+record-schema path and transport. The archive also contains both immutable manifest revisions:
+`release-manifest.v1` for historical accepted evidence and `release-manifest.v2` for current
+gzip-NDJSON releases. Consumers do not reach into backend source paths, import Feature 1 Python, or
+connect to its PostgreSQL/PostGIS database.
 
 ## Registered catalogue and readiness
 
@@ -110,15 +112,16 @@ All routes below are relative to `/api/data-platform/v1` and are described in Op
 - `GET /dataset-releases/{release_id}` composes immutable release state, receipts, quality results,
   quality summary, and accepted predecessor evidence.
 - `GET /dataset-releases/{release_id}/manifest` returns the manifest for exactly that release.
-- `GET /dataset-releases/{release_id}/artifact` returns only a verified, at-most-50 MB
-  `release_export` permitted by the source policy. Accepted artifacts include `Digest`, `ETag`,
-  `Content-Type`, `Content-Disposition`, and immutable cache headers.
+- `GET /dataset-releases/{release_id}/artifact` returns the exact verified `release_export`
+  permitted by the source policy. Its bytes must equal the manifest `byte_count`; consumers enforce
+  their separately signed-off compressed and expanded byte budgets. Accepted artifacts include
+  `Digest`, `ETag`, `Content-Type`, `Content-Disposition`, and immutable cache headers.
 - `GET /dataset-releases/{release_id}/records` is a bounded operator preview. It is not the
   consumer product or an export mechanism.
 - `POST /dataset-releases/{release_id}/submit-review`, `/publish`, and `/reject` implement the
   version-checked review lifecycle. Publish also requires an `Idempotency-Key` and explicit human
-  approval. A valid publish returns `202` with a durable background activation; the prior accepted
-  version remains live until that operation succeeds.
+  approval. A valid publish returns `202` with a durable consumer import or accepted-version
+  activation; the prior accepted version remains live until the complete workflow succeeds.
 - Property identity consumers use `GET /properties/search`, `/properties/{property_ref}`,
   `/properties/{property_ref}/map-context`, `/properties/{property_ref}/coverage`, and
   `/properties/{property_ref}/report-section`.
@@ -216,6 +219,11 @@ contracts. Legacy `property-snapshot.v1`, `property-sales.v2`, `crime-series.v1`
 `school-points.v1` schemas remain unchanged for accepted-release evidence and read compatibility;
 new builders emit only v2/v3 record contracts. Legacy entries are not registrations for producing
 new releases.
+Likewise, `propertyscope.release-manifest.v1` remains unchanged and may describe accepted legacy
+`application/json` evidence with no content encoding. Current builders emit only
+`propertyscope.release-manifest.v2`, whose closed schema requires `application/x-ndjson` and
+`gzip`. Release-detail and publication-request contracts accept either immutable manifest revision
+so a retained accepted release remains inspectable and replayable without weakening new output.
 Existing routes may receive additive response-envelope fields, which consumers must ignore unless
 their selected JSON Schema says otherwise. Enum meaning is never changed in place. A breaking
 endpoint change requires a new API version and a documented migration period.

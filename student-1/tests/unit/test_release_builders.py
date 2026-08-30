@@ -21,6 +21,8 @@ from propertyscope_data_platform.configuration import (
 from propertyscope_data_platform.release_builders import (
     BuildContext,
     RegisteredReleaseBuilder,
+    ReleaseManifestV1,
+    ReleaseManifestV2,
     default_release_builders,
     resolve_release_builder,
     validate_release_job,
@@ -268,7 +270,27 @@ def test_registered_property_builder_is_byte_deterministic() -> None:
     assert first.manifest.byte_count == len(first.content)
     assert first.manifest.media_type == "application/x-ndjson"
     assert first.manifest.content_encoding == "gzip"
+    assert first.manifest.manifest_schema_version == "propertyscope.release-manifest.v2"
     assert len(_built_records(first)) == first.manifest.record_count
+
+
+def test_manifest_parser_preserves_legacy_evidence_and_returns_current_revision() -> None:
+    legacy = json.loads(
+        (ROOT / "contracts/fixtures/release-manifest.valid.json").read_text("utf-8")
+    )
+    current = json.loads(
+        (ROOT / "contracts/fixtures/release-manifest.v2.valid.json").read_text("utf-8")
+    )
+
+    parsed_legacy = ReleaseManifestV1.model_validate(legacy)
+    parsed_current = ReleaseManifestV1.model_validate(current)
+
+    assert type(parsed_legacy) is ReleaseManifestV1
+    assert parsed_legacy.media_type == "application/json"
+    assert parsed_legacy.content_encoding is None
+    assert isinstance(parsed_current, ReleaseManifestV2)
+    assert parsed_current.media_type == "application/x-ndjson"
+    assert parsed_current.content_encoding == "gzip"
 
 
 def test_release_byte_bounds_cover_registered_scope_without_widening_other_products() -> None:

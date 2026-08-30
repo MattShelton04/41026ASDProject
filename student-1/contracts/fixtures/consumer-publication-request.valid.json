@@ -5,7 +5,7 @@
   "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "record_count": 1,
   "manifest": {
-    "manifest_schema_version": "propertyscope.release-manifest.v1",
+    "manifest_schema_version": "propertyscope.release-manifest.v2",
     "product_schema_version": "propertyscope.property-sales.v3",
     "release_id": "60000000-0000-0000-0000-000000000002",
     "release_version": "release-fixture-sales-v1",
