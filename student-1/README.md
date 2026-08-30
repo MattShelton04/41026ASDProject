@@ -201,18 +201,27 @@ implementation and executable architecture checks cannot substitute for that rec
 
 ## Backend structure and correlation
 
-`api.py` is the HTTP composition surface. Generic Flask response/proxy mechanics live in
-`http_support.py`; registered run-scope rules live in the framework-independent
-`scope_policy.py`; protected tool approval matching lives in `approval.py`; and registered source
-acquisition lives in `source_transport.py`. Source-format parsing remains under `adapters/`, while
-`runner.py` coordinates durable tasks and heartbeats rather than owning transport policy.
+`api.py` is the HTTP composition surface. It retains service health, runtime capability and
+artifact-retention endpoints, then delegates cohesive route families to registrars. Data-product
+catalogue reads live in `data_product_routes.py`; release HTTP binding lives in
+`release_routes.py`; candidate loading, publication state transitions and public evidence
+projection live separately in `release_imports.py`, `release_publication.py` and
+`release_projection.py`. Generic Flask response/proxy mechanics live in `http_support.py`;
+registered run-scope rules live in the framework-independent `scope_policy.py`; protected tool
+approval matching lives in `approval.py`; and registered source acquisition lives in
+`source_transport.py`. Source-format parsing remains under `adapters/`, while `runner.py`
+coordinates durable tasks and heartbeats rather than owning transport policy.
 
-The database service keeps one public transaction-owning facade in `repository.py`; registered
-import lifecycle SQL is isolated behind its private `_import_operations.py` collaborator. Immutable
-release preview/builder projections live in `query_specs.py`, retry/task sequencing lives in
-`orchestration_policy.py`, and serialization/replay projections live in `persistence_support.py`.
-This keeps PostgreSQL atomicity visible at one facade without burying every persistence aggregate,
-pure policy, and public projection contract in the same repository module.
+The database service keeps one public transaction-owning facade in `repository.py`. Registered
+import lifecycle SQL is isolated behind its private `_import_operations.py` collaborator;
+generation-aware canonical-property discovery lives in `_property_reads.py`; and release metadata
+plus bounded immutable-generation projections live in `_release_records.py`. Each collaborator
+depends on a narrow owner protocol and is reached through the stable facade, so callers retain one
+repository contract and transaction owner. Immutable release query specifications live in
+`query_specs.py`, retry/task sequencing lives in `orchestration_policy.py`, and serialization/replay
+projections live in `persistence_support.py`. This keeps PostgreSQL atomicity visible at one facade
+without burying every persistence aggregate, pure policy, and public projection contract in the
+same repository module.
 
 Runtime versions are not duplicated in repository constants. At database API startup,
 `runtime_registry.py` loads an immutable persistence projection from the reviewed
