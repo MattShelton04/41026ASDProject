@@ -72,6 +72,9 @@ cancellation on its own connection, so an operator must not find and cancel an u
 Cancellation intent commits before child-task cleanup and does not take `FOR UPDATE` on the run:
 source-scale inserts hold a foreign-key key-share lock on that row for their transaction, and a
 strong parent-row lock would make cancellation wait behind the statement it must interrupt.
+Worker acknowledgement abandons only draft/candidate releases in the same terminal transaction,
+and a repeated cancellation request reruns that bounded cleanup even when the run is already
+cancelled. A crash after the intent commit therefore cannot strand a manually actionable candidate.
 If neither the cancellation response nor a reconciliation read proves persistence, the public API
 returns `cancellation_unconfirmed` and the same request may be retried safely.
 

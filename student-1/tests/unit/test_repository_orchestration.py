@@ -444,7 +444,17 @@ def test_cancel_retry_replays_the_durable_cancelled_outcome() -> None:
                 "cancel_requested_at": cancelled_at,
                 "run_mode": "full_refresh",
                 "parent_run_id": None,
-            }
+            },
+            None,
+            None,
+            {"count": 0},
+            {
+                "id": run_id,
+                "status": "cancelled",
+                "cancel_requested_at": cancelled_at,
+                "run_mode": "full_refresh",
+                "parent_run_id": None,
+            },
         ]
     )
 
@@ -452,7 +462,53 @@ def test_cancel_retry_replays_the_durable_cancelled_outcome() -> None:
 
     assert run["status"] == "cancelled"
     assert run["cancel_requested_at"] == cancelled_at.isoformat()
-    assert len(connection.queries) == 1
+    assert len(connection.queries) == 5
+    release_cleanup = connection.queries[4]
+    assert "UPDATE ops.dataset_release SET status='abandoned'" in release_cleanup
+    assert "status IN ('draft','candidate')" in release_cleanup
+
+
+def test_cancel_retry_reconciles_cleanup_failure_after_intent_commit() -> None:
+    class CleanupFailureConnection(ScriptedConnection):
+        def execute(
+            self, query: str, parameters: Sequence[object] | None = None
+        ) -> ScriptedConnection:
+            if "UPDATE ops.run_task SET status='cancelled'" in query:
+                raise RuntimeError("simulated cleanup crash")
+            return super().execute(query, parameters)
+
+    run_id = uuid.uuid4()
+    cancelled_at = datetime.now(UTC)
+    first = CleanupFailureConnection(
+        [
+            {"id": run_id, "status": "staging", "cancel_requested_at": None},
+            {"id": run_id, "status": "staging", "cancel_requested_at": cancelled_at},
+        ]
+    )
+    with pytest.raises(RuntimeError, match="simulated cleanup crash"):
+        ConnectedStore(first).request_cancel(run_id)
+    assert first.commit_count == 1
+    assert "cancel_requested_at=COALESCE" in first.queries[1]
+
+    retry = ScriptedConnection(
+        [
+            {"id": run_id, "status": "staging", "cancel_requested_at": cancelled_at},
+            {"id": run_id, "status": "staging", "cancel_requested_at": cancelled_at},
+            None,
+            None,
+            {"count": 0},
+            {
+                "id": run_id,
+                "status": "cancelled",
+                "cancel_requested_at": cancelled_at,
+                "run_mode": "full_refresh",
+                "parent_run_id": None,
+            },
+        ]
+    )
+    reconciled = ConnectedStore(retry).request_cancel(run_id)
+    assert reconciled["status"] == "cancelled"
+    assert "UPDATE ops.dataset_release SET status='abandoned'" in retry.queries[5]
 
 
 def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> None:
@@ -495,6 +551,7 @@ def test_active_cancellation_is_acknowledged_by_the_next_task_heartbeat() -> Non
             },
             None,
             None,
+            None,
         ]
     )
 
@@ -510,8 +567,43 @@ def test_active_cancellation_is_acknowledged_by_the_next_task_heartbeat() -> Non
     assert "run.cancel_requested_at IS NOT NULL" in heartbeat
     assert "RETURNING task.*" in heartbeat
     assert "status IN ('pending','retry_wait')" in connection.queries[1]
-    assert "UPDATE ops.ingestion_run SET status='cancelled'" in connection.queries[2]
+    assert "UPDATE ops.dataset_release SET status='abandoned'" in connection.queries[2]
+    assert "status IN ('draft','candidate')" in connection.queries[2]
+    assert "UPDATE ops.ingestion_run SET status='cancelled'" in connection.queries[3]
     assert connection.committed is True
+
+
+def test_task_finish_after_persisted_cancel_abandons_only_the_candidate() -> None:
+    run_id = uuid.uuid4()
+    task_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            {
+                "id": task_id,
+                "ingestion_run_id": run_id,
+                "stage": "import",
+                "status": "succeeded",
+            },
+            {"cancel_requested_at": datetime.now(UTC)},
+            None,
+            None,
+            None,
+        ]
+    )
+
+    ConnectedStore(connection).complete_task(
+        task_id,
+        worker_id="runner-1",
+        lease_token="lease-1",
+        rows_in=10,
+        rows_out=10,
+    )
+
+    release_cleanup = connection.queries[3]
+    assert "UPDATE ops.dataset_release SET status='abandoned'" in release_cleanup
+    assert "status IN ('draft','candidate')" in release_cleanup
+    assert "accepted" not in release_cleanup
+    assert "UPDATE ops.ingestion_run SET status='cancelled'" in connection.queries[4]
 
 
 def test_resume_requeues_cancelled_unfinished_task_from_interrupted_run() -> None:

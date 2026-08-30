@@ -700,19 +700,21 @@ class PropertyScopeStore:
             ).fetchone()
             if run is None:
                 raise NotFoundError("record does not exist")
-            if run["status"] == "cancelled" and run["cancel_requested_at"] is not None:
-                # A client may lose the first response after this database committed. Returning
-                # the same durable outcome makes retry/reconciliation truthful and idempotent.
-                return _run_projection(_dict(run))
-            if run["status"] in TERMINAL_RUN_STATES:
+            replaying_cancel = (
+                run["status"] == "cancelled" and run["cancel_requested_at"] is not None
+            )
+            if run["status"] in TERMINAL_RUN_STATES and not replaying_cancel:
                 raise ConflictError("terminal run cannot be cancelled")
-            requested = connection.execute(
-                """UPDATE ops.ingestion_run SET
-                cancel_requested_at=COALESCE(cancel_requested_at,%s),version=version+1
-                WHERE id=%s AND status NOT IN ('succeeded','failed','cancelled') RETURNING *""",
-                (now, run_id),
-            ).fetchone()
-            connection.commit()
+            if replaying_cancel:
+                requested = run
+            else:
+                requested = connection.execute(
+                    """UPDATE ops.ingestion_run SET
+                    cancel_requested_at=COALESCE(cancel_requested_at,%s),version=version+1
+                    WHERE id=%s AND status NOT IN ('succeeded','failed','cancelled') RETURNING *""",
+                    (now, run_id),
+                ).fetchone()
+                connection.commit()
         if requested is None:
             current = self.get_run(run_id)
             if current["status"] == "cancelled" and current["cancel_requested_at"] is not None:
@@ -949,6 +951,24 @@ class PropertyScopeStore:
                     error_json=COALESCE(error_json,%s),version=version+1
                     WHERE ingestion_run_id=%s AND status IN ('pending','retry_wait')""",
                     (now, now, _json(_cancellation_error()), run_id),
+                )
+                connection.execute(
+                    """UPDATE ops.dataset_release SET status='abandoned',terminal_reason_json=%s,
+                    review_comment='System-terminalized cancelled ingestion candidate; retained for audit.',
+                    updated_at=%s,version=version+1 WHERE ingestion_run_id=%s
+                    AND status IN ('draft','candidate')""",
+                    (
+                        _json(
+                            {
+                                "code": "ingestion_cancelled",
+                                "message": "Candidate release abandoned after operator cancellation",
+                                "ingestion_run_id": str(run_id),
+                                "bounded_error": _cancellation_error(),
+                            }
+                        ),
+                        now,
+                        run_id,
+                    ),
                 )
                 connection.execute(
                     """UPDATE ops.ingestion_run SET status='cancelled',finished_at=%s,
@@ -2194,6 +2214,24 @@ class PropertyScopeStore:
                     error_json=COALESCE(error_json,%s),version=version+1
                     WHERE ingestion_run_id=%s AND status IN ('pending','retry_wait')""",
                     (now, now, _json(_cancellation_error()), run_id),
+                )
+                connection.execute(
+                    """UPDATE ops.dataset_release SET status='abandoned',terminal_reason_json=%s,
+                    review_comment='System-terminalized cancelled ingestion candidate; retained for audit.',
+                    updated_at=%s,version=version+1 WHERE ingestion_run_id=%s
+                    AND status IN ('draft','candidate')""",
+                    (
+                        _json(
+                            {
+                                "code": "ingestion_cancelled",
+                                "message": "Candidate release abandoned after operator cancellation",
+                                "ingestion_run_id": str(run_id),
+                                "bounded_error": _cancellation_error(),
+                            }
+                        ),
+                        now,
+                        run_id,
+                    ),
                 )
                 connection.execute(
                     """UPDATE ops.ingestion_run SET status='cancelled',finished_at=%s,error_json=%s,
