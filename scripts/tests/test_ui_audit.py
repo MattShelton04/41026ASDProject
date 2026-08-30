@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from hashlib import sha256
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
+import scripts.ui_audit.runner as audit_runner
 from scripts.ui_audit.config import AuditSelection, compile_batches, load_config
 from scripts.ui_audit.models import AuditBatch, AuditCase, ExpectedFailure, Viewport
 from scripts.ui_audit.report import atomic_json, load_completed_batch, summary_for
@@ -191,6 +195,20 @@ def test_source_digest_includes_untracked_source() -> None:
 
     assert before != first
     assert first != second
+
+
+def test_source_digest_hashes_utf8_git_diff_without_locale_decoding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    diff = "documentation — with smart punctuation”.\n".encode()
+    outputs = iter(("abc123\n", diff, b""))
+
+    def fake_run(*_args: object, **_kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(stdout=next(outputs))
+
+    monkeypatch.setattr(audit_runner.subprocess, "run", fake_run)
+
+    assert source_digest() == ("abc123", sha256(diff).hexdigest())
 
 
 def test_expected_failure_requires_exact_method_target_and_status() -> None:
