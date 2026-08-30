@@ -462,6 +462,21 @@ class _RegisteredImportOperations:
         policy = dict(current.get("space_recovery_policy_json") or {})
         destination_may_have_been_touched = policy.get("destination_may_have_been_touched", True)
         recovery_relations = relations if destination_may_have_been_touched is not False else ()
+        pre_vacuum_reindex_relations = tuple(
+            str(measurement["relation"])
+            for measurement in measured_before
+            if str(measurement["relation"]) in recovery_relations
+            and _requires_atomic_reindex(measurement, measurement)
+        )
+        if pre_vacuum_reindex_relations:
+            policy.update(
+                {
+                    "relations_pending_reindex": list(pre_vacuum_reindex_relations),
+                    "reindex_evidence_phase": "before_vacuum",
+                    "measured_before": measured_before,
+                }
+            )
+            self._record_recovery_policy(operation_id, policy)
         if recovery_relations:
             with self._owner.connection() as connection:
                 # Loader connections begin with transaction-local safety settings. VACUUM must run
@@ -491,7 +506,7 @@ class _RegisteredImportOperations:
             str(measurement["relation"])
             for measurement in measured_after_vacuum
             if str(measurement["relation"]) in recovery_relations
-            and _requires_concurrent_reindex(
+            and _requires_atomic_reindex(
                 before_by_relation[str(measurement["relation"])], measurement
             )
         )
@@ -612,7 +627,7 @@ class _RegisteredImportOperations:
         return measurements
 
 
-def _requires_concurrent_reindex(before: JsonObject, after_vacuum: JsonObject) -> bool:
+def _requires_atomic_reindex(before: JsonObject, after_vacuum: JsonObject) -> bool:
     dead_tuples = int(before["n_dead_tup"])
     live_tuples = int(before["n_live_tup"])
     index_bytes = int(after_vacuum["index_bytes"])

@@ -173,8 +173,9 @@ measures again, and records `completed`. A preflight or typed-stage failure skip
 source-scale rollback bloat (at least 100,000 dead tuples, at least 25% as many dead as live tuples,
 and at least 64 MiB of retained indexes) additionally triggers bounded exact-table
 `REINDEX TABLE`. This atomic form may briefly block queries but cannot strand invalid concurrent
-reindex artifacts on timeout; it is restricted to measured rollback bloat. Pending exact relations
-and bounded failure evidence remain durable so the operator endpoint can safely retry after the
+reindex artifacts on timeout; it is restricted to measured rollback bloat. The pre-VACUUM
+measurement durably records pending exact relations before VACUUM changes tuple statistics, and
+bounded failure evidence remains durable so the operator endpoint can safely retry after the
 lock/space condition is resolved. This makes aborted pages reusable without a
 blocking `VACUUM FULL`, table rewrite or broad-schema maintenance. Timeout or unavailable relation
 leaves the durable marker at `needed` for a later safe retry.

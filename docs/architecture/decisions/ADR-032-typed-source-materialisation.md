@@ -49,8 +49,9 @@ at least 100,000 dead tuples, dead tuples are at least 25% of live tuples, and r
 still exceed 64 MiB, exact-table `REINDEX TABLE` runs under a separate ten-minute bound. The
 non-concurrent form is deliberately atomic on timeout and cannot leave `_ccnew`/`_ccold` artifacts;
 it takes an access-exclusive lock and is reserved for measured rollback recovery rather than routine
-maintenance. The pending exact relations and a safe error code are persisted before/after an
-unsuccessful attempt, so a retry cannot lose the need once VACUUM has reset tuple statistics. A
+maintenance. The pending exact relations are persisted from the pre-VACUUM measurement before
+VACUUM starts, and a safe error code is persisted after an unsuccessful reindex attempt, so a
+process crash or retry cannot lose the need once VACUUM has reset tuple statistics. A
 timeout leaves the operation `needed`; no `VACUUM FULL`, table rewrite
 or unrelated relation is permitted. The
 conservative disk check measures the loader artifact mount as a proxy for the single-host Docker

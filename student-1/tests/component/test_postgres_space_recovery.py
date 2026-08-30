@@ -18,7 +18,7 @@ from psycopg.types.json import Jsonb
 import propertyscope_data_store._import_operations as import_operations
 from propertyscope_data_store._import_operations import (
     _RegisteredImportOperations,
-    _requires_concurrent_reindex,
+    _requires_atomic_reindex,
 )
 
 ADMIN_URL = os.getenv("PROPERTYSCOPE_TEST_POSTGRES_URL", "").strip()
@@ -214,7 +214,7 @@ def test_failed_import_with_no_dead_tuples_skips_vacuum(
 def test_atomic_reindex_requires_measured_source_scale_bloat(
     before: dict[str, int], after: dict[str, int], expected: bool
 ) -> None:
-    assert _requires_concurrent_reindex(cast(Any, before), cast(Any, after)) is expected
+    assert _requires_atomic_reindex(cast(Any, before), cast(Any, after)) is expected
 
 
 def test_atomic_reindex_timeout_leaves_original_indexes_and_retries(
@@ -284,3 +284,48 @@ def test_atomic_reindex_timeout_leaves_original_indexes_and_retries(
     )
     assert retried["space_recovery_status"] == "completed"
     assert retried["space_recovery_policy_json"]["operation"] == "vacuum_and_atomic_reindex"
+
+
+def test_recovery_resumes_durable_reindex_evidence_after_vacuum_crash(
+    recovery_database: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = recovery_database
+    operation_id = uuid.uuid4()
+    connection.execute(
+        """
+        CREATE SCHEMA ops;
+        CREATE SCHEMA warehouse;
+        CREATE TABLE warehouse.psi_sale (id BIGINT PRIMARY KEY);
+        CREATE TABLE ops.import_operation (
+            id UUID PRIMARY KEY,import_profile_key TEXT NOT NULL,status TEXT NOT NULL,
+            space_recovery_status TEXT NOT NULL,space_recovery_policy_json JSONB NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1
+        );
+        """
+    )
+    connection.execute(
+        """INSERT INTO ops.import_operation
+        (id,import_profile_key,status,space_recovery_status,space_recovery_policy_json)
+        VALUES (%s,'psi-sales','failed','needed',%s)""",
+        (
+            operation_id,
+            Jsonb(
+                {
+                    "destination_may_have_been_touched": True,
+                    "relations_pending_reindex": ["warehouse.psi_sale"],
+                    "reindex_evidence_phase": "before_vacuum",
+                }
+            ),
+        ),
+    )
+    connection.commit()
+
+    result = _RegisteredImportOperations(cast(Any, _Owner(connection))).recover_import_space(
+        operation_id
+    )
+
+    policy = result["space_recovery_policy_json"]
+    assert result["space_recovery_status"] == "completed"
+    assert policy["operation"] == "vacuum_and_atomic_reindex"
+    assert policy["relations_reindexed"] == ["warehouse.psi_sale"]
+    assert policy["relations_pending_reindex"] == []
