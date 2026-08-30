@@ -27,9 +27,11 @@ import {
   formStateChanged,
   isPsiJob,
   isSchoolsJob,
+  INTERRUPTED_DETAIL_RECONCILIATION_LIMIT,
   liveProfileLabel,
   nextAgentPollDelay,
   nextPollDelay,
+  nextRunDetailPollDelay,
   parseJsonField,
   parseIntegerField,
   parseJsonTextList,
@@ -624,6 +626,22 @@ test("polling stops for terminal states and backs off when hidden", () => {
   assert.equal(nextPollDelay("running", 0, true), 10000);
   assert.equal(nextPollDelay("succeeded"), null);
   assert.equal(nextPollDelay("failed"), null);
+});
+
+test("interrupted detail reconciliation is slow and explicitly bounded", () => {
+  assert.equal(nextPollDelay("interrupted"), null);
+  assert.equal(nextRunDetailPollDelay("interrupted"), 15000);
+  assert.equal(nextRunDetailPollDelay("interrupted", 1), 30000);
+  assert.equal(nextRunDetailPollDelay("interrupted", 0, true), 60000);
+  assert.equal(nextRunDetailPollDelay(
+    "interrupted", 0, false, INTERRUPTED_DETAIL_RECONCILIATION_LIMIT - 1,
+  ), 15000);
+  assert.equal(nextRunDetailPollDelay(
+    "interrupted", 0, false, INTERRUPTED_DETAIL_RECONCILIATION_LIMIT,
+  ), null);
+  assert.equal(nextRunDetailPollDelay("succeeded"), null);
+  assert.equal(nextRunDetailPollDelay("failed"), null);
+  assert.equal(nextRunDetailPollDelay("cancelled"), null);
 });
 
 test("agent polling follows active and review states without refreshing terminal runs", () => {

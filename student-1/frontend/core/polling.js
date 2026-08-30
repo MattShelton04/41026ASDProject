@@ -3,6 +3,7 @@ export const ACTIVE_RUN_STATES = new Set([
   "normalising", "validating", "building_release", "running", "cancelling", "resuming",
 ]);
 export const TERMINAL_RUN_STATES = new Set(["succeeded", "failed", "cancelled"]);
+export const INTERRUPTED_DETAIL_RECONCILIATION_LIMIT = 12;
 export const ACTIVE_AGENT_STATES = new Set([
   "queued", "planning", "ready", "acting", "observing", "adapting", "review_required",
 ]);
@@ -86,6 +87,22 @@ export function nextPollDelay(status, failures = 0, hidden = false) {
   const base = status === "queued" || status === "requested" ? 2000 : 1200;
   const backedOff = Math.min(15000, base * (2 ** Math.min(failures, 3)));
   return hidden ? Math.max(10000, backedOff * 3) : backedOff;
+}
+
+export function nextRunDetailPollDelay(
+  status,
+  failures = 0,
+  hidden = false,
+  interruptedAttempts = 0,
+) {
+  const state = String(status || "").toLowerCase();
+  const activeDelay = nextPollDelay(state, failures, hidden);
+  if (activeDelay !== null) return activeDelay;
+  if (state !== "interrupted" || interruptedAttempts >= INTERRUPTED_DETAIL_RECONCILIATION_LIMIT) {
+    return null;
+  }
+  const backedOff = Math.min(60000, 15000 * (2 ** Math.min(failures, 2)));
+  return hidden ? Math.max(60000, backedOff) : backedOff;
 }
 
 export function nextAgentPollDelay(status, failures = 0, hidden = false) {
