@@ -102,6 +102,15 @@ connection before another worker may recover it.
 
 ## Performance checks
 
+PSI and BOCSAR use typed temporary staging and transaction-local source phases. The loader casts
+canonical values once before COPY, ANALYZEs planner-sensitive staging and narrow PSI identity and
+address tables, and enforces a loader-only `temp_file_limit`. Before COPY it also requires free
+artifact-volume capacity for the compressed-artifact expansion allowance plus an operator reserve.
+The Compose defaults are 16 GiB of PostgreSQL temporary files, a 4 GiB reserve and a 3x artifact
+allowance. Override the corresponding `PROPERTYSCOPE_LOADER_*` variables only from measured
+evidence. The disposable benchmark sequence and evidence fields are specified in
+[`source-scale-benchmark-methodology.md`](source-scale-benchmark-methodology.md).
+
 With complete source generations retained, verify the public path rather than counting entire
 tables manually:
 
@@ -154,9 +163,10 @@ When a database import fails or is cancelled after opening its transaction, its 
 marked `space_recovery_status=needed` with an exact, profile-derived relation list and the
 `measure_then_target_exact_relations` policy. This is an operator-visible recovery obligation, not
 an automatic `VACUUM FULL` or broad reindex. Measure dead tuples and allocated bytes first; PR2's
-source-scale benchmark evidence determines whether an exact relation needs bounded vacuum/reindex
-or whether disposable release storage removes that need. The current marker is evidence for the
-operator and the PR2 remediation workflow; no endpoint claims recovery is complete yet.
+source-scale benchmark evidence determines whether an exact relation needs bounded vacuum/reindex.
+Typed temporary PSI/BOCSAR work drops automatically at transaction end; destination rollback space
+uses the existing exact-relation, measure-first policy. The marker is evidence for the operator;
+no endpoint claims recovery is complete until that targeted work is measured and performed.
 
 The PR1 disposable PostgreSQL cancellation test proves transaction rollback and transaction-local
 table cleanup at every PSI materialisation boundary. Executor spill-file size and `pgsql_tmp`

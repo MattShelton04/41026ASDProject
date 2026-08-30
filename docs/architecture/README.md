@@ -41,6 +41,8 @@ Architecture sources, decisions, and exported diagrams belong here.
   scale. Tutor/team approval of that exception is confirmed in the approved scope baseline.
 - `decisions/ADR-020-shared-browser-mapping-provider.md` records the domain-neutral MapLibre,
   provider, GeoJSON safety and viewport-loading seam while preserving feature-owned map layers.
+- `decisions/ADR-032-typed-source-materialisation.md` records typed PSI/BOCSAR staging, narrow
+  deterministic phases, loader-local resource limits and the disposable benchmark gate.
 - `reviews/` retains external/adversarial review inputs. Findings are not
   authoritative until verified and dispositioned in the architecture record.
 - Future artefacts should cover individual microservices, the integrated application,

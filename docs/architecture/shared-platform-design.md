@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Status | Living architecture; approved five-feature allocation, Release 0 shared baseline and Feature 1 integrated |
-| Last verified | 29 August 2026 |
+| Last verified | 30 August 2026 |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related records | `docs/architecture/registered-feature-scope.md`, `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
@@ -66,6 +66,17 @@ materialisation and accepted-pointer phases separately. Set-based work deliberat
 or percentage until it has a truthful measure. Failed and cancelled imports retain a
 relation-scoped, measure-first space-recovery policy rather than running broad maintenance
 automatically.
+
+The source-scale materialisation increment keeps that transaction boundary while replacing the
+wide JSONB PSI and BOCSAR staging paths with typed temporary tables populated through
+`COPY ... FREEZE`. PSI derives retransmission identity and deterministic revisions in a narrow,
+analysed phase, resolves each distinct eligible eight-component address once, and only then joins
+the earliest wide fact into the destination. BOCSAR preserves separate sparse observations and
+coverage evidence without an ordinal destination sort. Candidate inserts retain conflict guards
+and the accepted pointer remains untouched until the complete transaction succeeds. A loader-local
+PostgreSQL temporary-file limit and a pre-COPY disk-capacity check bound failure; neither setting
+changes the database globally. Disposable real-shape benchmarks, not production artifacts, gate
+100,000 then 1,000,000-row evidence and enforce the 30-minute statement ceiling.
 
 Feature 1's maintenance pass separates HTTP mechanics, correlation, approval verification,
 run-scope policy and registered source transport from the backend API composition surface. The
