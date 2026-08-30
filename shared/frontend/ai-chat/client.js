@@ -1,3 +1,5 @@
+import { RequestTimeoutError, withRequestLifecycle } from "../browser/index.js";
+
 export class AssistantApiError extends Error {
   constructor(message, { status = 0, requestId = "", problem = null } = {}) {
     super(message);
@@ -12,12 +14,12 @@ function requestId() {
   return globalThis.crypto?.randomUUID?.() || `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export async function assistantRequest(fetcher, path, { timeoutMs = 10000, body, headers = {}, ...options } = {}) {
-  const controller = new AbortController();
+export async function assistantRequest(fetcher, path, {
+  timeoutMs = 10000, body, headers = {}, signal = null, signals = [], ...options
+} = {}) {
   const id = requestId();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetcher(path, {
+    const response = await withRequestLifecycle((requestSignal) => fetcher(path, {
       ...options,
       headers: {
         Accept: "application/json",
@@ -26,8 +28,8 @@ export async function assistantRequest(fetcher, path, { timeoutMs = 10000, body,
         ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: controller.signal,
-    });
+      signal: requestSignal,
+    }), { signal, signals, timeoutMs });
     const responseId = response.headers?.get?.("X-Request-ID") || id;
     let payload = null;
     try { payload = await response.json(); } catch { /* converted below */ }
@@ -39,21 +41,26 @@ export async function assistantRequest(fetcher, path, { timeoutMs = 10000, body,
     }
     return { body: payload, requestId: responseId };
   } catch (error) {
-    if (error.name === "AbortError") throw new AssistantApiError("The assistant request timed out.", { requestId: id });
+    if (error instanceof RequestTimeoutError) throw new AssistantApiError("The assistant request timed out.", { requestId: id });
+    if (error.name === "AbortError") throw error;
     if (error instanceof AssistantApiError) throw error;
     throw new AssistantApiError("The assistant service could not be reached.", { requestId: id });
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
 export function createAssistantClient({ fetcher = globalThis.fetch.bind(globalThis), apiRoot = "/api/assistant/v1" } = {}) {
   const root = apiRoot.replace(/\/$/, "");
+  const lifecycle = new AbortController();
+  const request = (path, options = {}) => assistantRequest(fetcher, path, {
+    ...options,
+    signals: [lifecycle.signal, ...(options.signals || [])],
+  });
   return Object.freeze({
-    capabilities: () => assistantRequest(fetcher, `${root}/capabilities`),
-    createTurn: (turn) => assistantRequest(fetcher, `${root}/turns`, { method: "POST", body: turn, timeoutMs: 15000 }),
-    getTurn: (runId) => assistantRequest(fetcher, `${root}/turns/${encodeURIComponent(runId)}`),
-    getEvents: (runId, after = 0) => assistantRequest(fetcher, `${root}/turns/${encodeURIComponent(runId)}/events?after=${after}&limit=100`),
-    cancelTurn: (runId) => assistantRequest(fetcher, `${root}/turns/${encodeURIComponent(runId)}/cancel`, { method: "POST" }),
+    capabilities: () => request(`${root}/capabilities`),
+    createTurn: (turn) => request(`${root}/turns`, { method: "POST", body: turn, timeoutMs: 15000 }),
+    getTurn: (runId) => request(`${root}/turns/${encodeURIComponent(runId)}`),
+    getEvents: (runId, after = 0) => request(`${root}/turns/${encodeURIComponent(runId)}/events?after=${after}&limit=100`),
+    cancelTurn: (runId) => request(`${root}/turns/${encodeURIComponent(runId)}/cancel`, { method: "POST" }),
+    destroy: () => lifecycle.abort(),
   });
 }

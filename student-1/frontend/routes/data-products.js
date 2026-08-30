@@ -1,7 +1,7 @@
 import { collection } from "../core/api.js";
 import { append, el } from "../core/dom.js";
-import { displayName, humanise, researchAreaLabel } from "../core/formats.js?v=18";
-import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
+import { displayName, humanise, researchAreaLabel } from "../core/formats.js";
+import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
 

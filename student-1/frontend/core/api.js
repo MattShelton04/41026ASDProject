@@ -1,3 +1,5 @@
+import { RequestTimeoutError, withRequestLifecycle } from "./request.js";
+
 export const API_BASE = "/api/data-platform/v1";
 
 export class ApiError extends Error {
@@ -16,22 +18,25 @@ export function newRequestId() {
 }
 
 export async function requestJson(fetcher, path, options = {}) {
-  const { timeoutMs = 10000, headers = {}, body, ...rest } = options;
-  const controller = new AbortController();
+  const {
+    timeoutMs = 10000, headers = {}, body, signal = null, signals = [], ...rest
+  } = options;
   const requestId = headers["X-Request-ID"] || headers["X-Request-Id"] || newRequestId();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetcher(path.startsWith("/") ? path : `${API_BASE}/${path}`, {
-      ...rest,
-      headers: {
-        Accept: "application/json",
-        "X-Request-ID": requestId,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-        ...headers,
+    const response = await withRequestLifecycle((requestSignal) => fetcher(
+      path.startsWith("/") ? path : `${API_BASE}/${path}`,
+      {
+        ...rest,
+        headers: {
+          Accept: "application/json",
+          "X-Request-ID": requestId,
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+          ...headers,
+        },
+        body: body === undefined || typeof body === "string" ? body : JSON.stringify(body),
+        signal: requestSignal,
       },
-      body: body === undefined || typeof body === "string" ? body : JSON.stringify(body),
-      signal: controller.signal,
-    });
+    ), { signal, signals, timeoutMs });
     const responseRequestId = response.headers?.get?.("X-Request-ID") || response.headers?.get?.("X-Request-Id") || requestId;
     if (response.status === 204) return { body: null, response, requestId: responseRequestId };
     let parsed = null;
@@ -43,11 +48,10 @@ export async function requestJson(fetcher, path, options = {}) {
     if (parsed === null) throw new ApiError("The service returned an unreadable response.", { status: response.status, requestId: responseRequestId });
     return { body: parsed, response, requestId: responseRequestId };
   } catch (error) {
-    if (error.name === "AbortError") throw new ApiError(`The request timed out after ${timeoutMs / 1000} seconds.`, { requestId });
+    if (error instanceof RequestTimeoutError) throw new ApiError(`The request timed out after ${timeoutMs / 1000} seconds.`, { requestId });
+    if (error.name === "AbortError") throw error;
     if (error instanceof ApiError) throw error;
     throw new ApiError("The data service could not be reached.", { requestId });
-  } finally {
-    clearTimeout(timer);
   }
 }
 

@@ -1,8 +1,8 @@
 import { entity } from "../core/api.js";
 import { append, button, el } from "../core/dom.js";
-import { humanise } from "../core/formats.js?v=18";
-import { createSubmissionGuard, isPsiJob } from "../core/forms.js?v=18";
-import { technicalDetails } from "../components/layout.js?v=17";
+import { humanise } from "../core/formats.js";
+import { createSubmissionGuard, isPsiJob } from "../core/forms.js";
+import { technicalDetails } from "../components/layout.js";
 
 export function createRunPlanner({ request, mutate, confirmAction }) {
   return async function openPlanDialog(job, capabilities = null, { intent = "run" } = {}) {

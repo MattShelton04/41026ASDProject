@@ -1,12 +1,12 @@
-import { append, el, link, notice, parseShellRoute } from "./core.js?v=10";
-import { createEvidenceRoute } from "./routes/evidence.js?v=10";
-import { createAssistantRoute } from "./routes/assistant.js?v=3";
-import { createFeaturesRoute } from "./routes/features.js?v=10";
-import { createRoadmapRoute } from "./routes/roadmap.js?v=10";
-import { createStatusRoute } from "./routes/status.js?v=10";
-import { findFeature } from "./features.js?v=10";
-import { loadFeature1Bridge } from "./feature-1-bridge.js?v=12";
-import { createToastController } from "./browser/index.js?v=3";
+import { append, el, link, notice, parseShellRoute, requestJson, requestText } from "./core.js";
+import { createEvidenceRoute } from "./routes/evidence.js";
+import { createAssistantRoute } from "./routes/assistant.js";
+import { createFeaturesRoute } from "./routes/features.js";
+import { createRoadmapRoute } from "./routes/roadmap.js";
+import { createStatusRoute } from "./routes/status.js";
+import { findFeature } from "./features.js";
+import { loadFeature1Bridge } from "./feature-1-bridge.js";
+import { createToastController } from "./browser/index.js";
 
 const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const config = { ...externalConfig };
@@ -21,7 +21,22 @@ const primaryNav = document.querySelector("#primary-navigation");
 const toastController = createToastController(toast, { duration: 3600 });
 let renderGeneration = 0;
 let activeRouteController = null;
+let routeRequests = new AbortController();
 let researchAreaRetryRequested = false;
+
+function routeRequestJson(path, options = {}) {
+  return requestJson(path, {
+    ...options,
+    signals: [routeRequests.signal, ...(options.signals || [])],
+  });
+}
+
+function routeRequestText(path, options = {}) {
+  return requestText(path, {
+    ...options,
+    signals: [routeRequests.signal, ...(options.signals || [])],
+  });
+}
 
 function announce(message) {
   if (announcement) announcement.textContent = message;
@@ -118,13 +133,26 @@ function updateNavigation(route) {
 const routes = {
   assistant: createAssistantRoute({ announce }),
   features: createFeaturesRoute({ config }),
-  "system-status": createStatusRoute({ config, getFeature1Adapter: () => feature1Adapter, announce }),
-  evidence: createEvidenceRoute({ config, getFeature1Adapter: () => feature1Adapter, announce }),
+  "system-status": createStatusRoute({
+    config,
+    getFeature1Adapter: () => feature1Adapter,
+    announce,
+    requestJson: routeRequestJson,
+    requestText: routeRequestText,
+  }),
+  evidence: createEvidenceRoute({
+    config,
+    getFeature1Adapter: () => feature1Adapter,
+    announce,
+    requestJson: routeRequestJson,
+  }),
   "release-roadmap": createRoadmapRoute({ config }),
 };
 
 async function renderRoute() {
   const generation = ++renderGeneration;
+  routeRequests.abort();
+  routeRequests = new AbortController();
   activeRouteController?.destroy?.();
   activeRouteController = null;
   const route = parseShellRoute(location.hash);
@@ -202,6 +230,15 @@ function installFeature1Adapter(adapter) {
   }
 }
 
-loadFeature1Bridge({ overrides: externalConfig, onLateAdapter: installFeature1Adapter })
+function reportFeature1BridgeError(error) {
+  console.error("Feature 1 shell adapter could not be loaded.", error);
+  announce("Property data integration is unavailable. Built-in navigation remains available.");
+}
+
+loadFeature1Bridge({
+  overrides: externalConfig,
+  onLateAdapter: installFeature1Adapter,
+  onError: reportFeature1BridgeError,
+})
   .then(installFeature1Adapter)
-  .catch(() => {});
+  .catch(reportFeature1BridgeError);

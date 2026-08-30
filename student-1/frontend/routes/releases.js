@@ -1,14 +1,14 @@
 import { collection, entity, newRequestId, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=18";
-import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js?v=18";
-import { createPublicationAttemptKeys } from "../core/publication.js?v=2";
-import { publicationSuccessMessage, reconcilePublicationTimeout } from "./release-publication.js?v=2";
-import { runDialogForm } from "../components/dialogs.js?v=18";
-import { formField, filterToolbar } from "../components/forms.js?v=17";
-import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
+import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js";
+import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js";
+import { createPublicationAttemptKeys } from "../core/publication.js";
+import { publicationSuccessMessage, reconcilePublicationTimeout } from "./release-publication.js";
+import { runDialogForm } from "../components/dialogs.js";
+import { formField, filterToolbar } from "../components/forms.js";
+import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState } from "../components/states.js";
-import { cell, makeTable, primaryCell, technicalReference } from "../components/tables.js?v=18";
+import { cell, makeTable, primaryCell, technicalReference } from "../components/tables.js";
 
 const RELEASE_FIELDS = [
   { name: "dataset_id", label: "Dataset ID", required: true, createOnly: true },
@@ -171,7 +171,15 @@ export function createReleaseRoutes({
     const activations = body.activations || [];
     const activeActivation = [...activations].reverse().find((item) => ["queued", "claimed", "running", "interrupted"].includes(item.status)) || null;
     let manifest = release.manifest_json || body.manifest;
-    if (!manifest) { try { manifest = (await request(`dataset-releases/${id}/manifest`)).body; } catch { manifest = null; } }
+    let manifestError = null;
+    if (!manifest) {
+      try {
+        manifest = (await request(`dataset-releases/${id}/manifest`)).body;
+      } catch (error) {
+        if (error.name === "AbortError") throw error;
+        manifestError = error;
+      }
+    }
     const [qualityResult, acceptedResult, previewResult] = await Promise.allSettled([
       request(`ingestion-runs/${release.ingestion_run_id}/quality-results?limit=100`),
       request("dataset-releases?status=accepted&limit=100"),
@@ -252,7 +260,17 @@ export function createReleaseRoutes({
     const releaseBody = el("div");
     append(releaseBody, detailList([["State", badge(release.status)], ["Schema", release.schema_version], ["Source generation records", formatNumber(sourceRecordCount ?? release.record_count)], ["Portable product records", formatNumber(release.record_count)], ["Content hash", el("code", "mono", release.content_sha256)], ["Coverage", release.coverage_json ? technicalDetails(release.coverage_json, "Inspect coverage") : "Unknown"], ["Review note", release.review_comment || "No review note recorded"], ["Created", formatDate(release.created_at)], ["Published", formatDate(release.accepted_at)], ["Request ID", el("code", "mono", requestId)]]), technicalDetails(release, "Inspect version metadata"));
     const side = el("div", "stack");
-    append(side, panel("Dataset manifest", "Files and settings needed to reproduce this version", manifest ? technicalDetails(manifest, "Inspect manifest") : el("p", "", "Manifest unavailable.")));
+    append(side, panel(
+      "Dataset manifest",
+      "Files and settings needed to reproduce this version",
+      manifest
+        ? technicalDetails(manifest, "Inspect manifest")
+        : el(
+          "div",
+          "notice warning",
+          `Manifest unavailable.${manifestError?.requestId ? ` Request ID: ${manifestError.requestId}.` : ""}`,
+        ),
+    ));
     const receiptBody = el("div");
     if (!receipts.length) append(receiptBody, el("p", "", "No consumer publication receipts recorded."));
     for (const receipt of receipts) append(receiptBody, detailList([["Research area", researchAreaLabel(receipt.target_feature)], ["Status", badge(receipt.status)], ["Rows received", formatNumber(receipt.rows_accepted)], ["Request ID", el("code", "mono", receipt.request_id || requestId)], ["Failure details", receipt.error_json ? technicalDetails(receipt.error_json, "Inspect failure") : "None recorded"]]));

@@ -1,4 +1,4 @@
-import { reconcilePublication } from "../core/publication.js?v=2";
+import { reconcilePublication } from "../core/publication.js";
 
 export function publicationSuccessMessage(body) {
   const outcome = body?.publication_status || reconcilePublication(body);

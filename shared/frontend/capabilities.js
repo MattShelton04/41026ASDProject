@@ -1,4 +1,4 @@
-import { featureRegistry } from "./features.js?v=10";
+import { featureRegistry } from "./features.js";
 
 export const RELEASE_STAGES = Object.freeze([
   {

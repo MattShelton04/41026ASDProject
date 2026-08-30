@@ -5,4 +5,5 @@ export {
   createDrawerController,
   createTableRegion,
   createToastController,
-} from "./interactions.js?v=3";
+} from "./interactions.js";
+export { RequestTimeoutError, withRequestLifecycle } from "./request.js";

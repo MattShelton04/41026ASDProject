@@ -1,5 +1,5 @@
-import { append, badge, cell, el, formatDate, link, notice, pageHeader, panel, requestJson, requestText, table } from "../core.js?v=10";
-import { featureRegistry } from "../features.js?v=10";
+import { append, badge, cell, el, formatDate, link, notice, pageHeader, panel, requestJson, requestText, table } from "../core.js";
+import { featureRegistry } from "../features.js";
 
 export function classifyHealth(payload) {
   const raw = String(payload?.status || "unknown").toLowerCase();
@@ -57,18 +57,25 @@ function dependencyComponent(base, { name, kind, owner, rawStatus, detail }) {
   };
 }
 
-async function check(name, kind, owner, path, detail, href = "") {
+async function check(request, name, kind, owner, path, detail, href = "") {
   const started = performance.now();
   try {
-    const result = await requestJson(path);
+    const result = await request(path);
     const health = classifyHealth(result.body);
     return { name, kind, owner, detail, href, enabled: true, latency: Math.round(performance.now() - started), requestId: result.requestId, ...health, payload: result.body };
   } catch (error) {
+    if (error.name === "AbortError") throw error;
     return { name, kind, owner, detail: `${detail} The live check failed: ${error.message}.`, href, enabled: true, latency: null, requestId: error.requestId, readiness: "unavailable", label: "Unavailable", tone: "partial", error };
   }
 }
 
-export function createStatusRoute({ config, getFeature1Adapter, announce }) {
+export function createStatusRoute({
+  config,
+  getFeature1Adapter,
+  announce,
+  requestJson: requestJsonFn = requestJson,
+  requestText: requestTextFn = requestText,
+}) {
   return async function renderStatus(root) {
     const refresh = el("button", "ps-button ps-button--primary", "Refresh status");
     refresh.type = "button";
@@ -91,12 +98,16 @@ export function createStatusRoute({ config, getFeature1Adapter, announce }) {
         return card;
       }));
       const shellStarted = performance.now();
-      const shellCheck = requestText("/healthz").then(() => {
+      const shellCheck = requestTextFn("/healthz").then(() => {
         return { name: "Shared product shell", kind: "Frontend", owner: "Shared platform", detail: "This navigation and operational dashboard service is responding.", href: "#home", enabled: true, latency: Math.round(performance.now() - shellStarted), requestId: "Browser-local check", readiness: "ready", label: "Ready", tone: "confirmed" };
-      }).catch((error) => ({ name: "Shared product shell", kind: "Frontend", owner: "Shared platform", detail: `The shell health check failed: ${error.message}.`, href: "#home", enabled: true, latency: null, requestId: "Browser-local check", readiness: "unavailable", label: "Unavailable", tone: "partial" }));
+      }).catch((error) => {
+        if (error.name === "AbortError") throw error;
+        return { name: "Shared product shell", kind: "Frontend", owner: "Shared platform", detail: `The shell health check failed: ${error.message}.`, href: "#home", enabled: true, latency: null, requestId: "Browser-local check", readiness: "unavailable", label: "Unavailable", tone: "partial" };
+      });
       const primaryComponents = await Promise.all([
         shellCheck,
         ...enabledFeatures.map((feature) => check(
+          requestJsonFn,
           feature.label,
           "Feature API",
           feature.owner,
@@ -104,7 +115,7 @@ export function createStatusRoute({ config, getFeature1Adapter, announce }) {
           `${feature.summary} Readiness is observed independently from its deployment gate.`,
           feature.href,
         )),
-        check("AI review history", "Shared API", "Shared platform", "/api/shared-health/ai-mode", "Recorded AI reviews and the configured model connection.", config.agentRuns),
+        check(requestJsonFn, "AI review history", "Shared API", "Shared platform", "/api/shared-health/ai-mode", "Recorded AI reviews and the configured model connection.", config.agentRuns),
       ]);
       const shellApi = primaryComponents[0];
       const featureApis = primaryComponents.slice(1, 1 + enabledFeatures.length);

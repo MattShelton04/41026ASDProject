@@ -146,12 +146,20 @@ test("component source preserves disclosure/focus state and surfaces polling war
   assert.match(components, /ps-ai-chat__typing-dots/);
 });
 
-test("assistant module graph versions every changed local dependency", async () => {
-  const { readFileSync } = await import("node:fs");
-  for (const name of ["index.js", "controller.js", "components.js", "feature-route.js"]) {
-    const source = readFileSync(new URL(`./${name}`, import.meta.url), "utf8");
-    assert.doesNotMatch(source, /from "\.\/[^"?]+\.js";/, `${name} has an unversioned local import`);
-  }
-  const sharedRoute = readFileSync(new URL("../routes/assistant.js", import.meta.url), "utf8");
-  assert.match(sharedRoute, /ai-chat\/index\.js\?v=3/);
+test("destroying an assistant client aborts its in-flight requests", async () => {
+  let observedAbort = false;
+  const fetcher = (_url, options) => new Promise((_resolve, reject) => {
+    options.signal.addEventListener("abort", () => {
+      observedAbort = true;
+      const error = new Error("route changed");
+      error.name = "AbortError";
+      reject(error);
+    }, { once: true });
+  });
+  const client = createAssistantClient({ fetcher });
+  const pending = client.capabilities();
+  client.destroy();
+
+  await assert.rejects(pending, { name: "AbortError" });
+  assert.equal(observedAbort, true);
 });

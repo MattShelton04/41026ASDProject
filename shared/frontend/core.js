@@ -1,5 +1,11 @@
 export { append, el } from "./browser/index.js";
-import { append, createTableRegion, el } from "./browser/index.js?v=3";
+import {
+  RequestTimeoutError,
+  append,
+  createTableRegion,
+  el,
+  withRequestLifecycle,
+} from "./browser/index.js";
 
 export function humanise(value) {
   if (value === null || value === undefined || value === "") return "Unknown";
@@ -94,15 +100,13 @@ export function requestId() {
   return globalThis.crypto?.randomUUID?.() || `shell-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export async function requestJson(path, { timeoutMs = 6000 } = {}) {
-  const controller = new AbortController();
+export async function requestJson(path, { timeoutMs = 6000, signal = null, signals = [] } = {}) {
   const id = requestId();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(path, {
+    const response = await withRequestLifecycle((requestSignal) => fetch(path, {
       headers: { Accept: "application/json", "X-Request-ID": id },
-      signal: controller.signal,
-    });
+      signal: requestSignal,
+    }), { signal, signals, timeoutMs });
     const responseId = response.headers.get("X-Request-ID") || id;
     let body = null;
     try { body = await response.json(); } catch { /* handled as a safe dependency error */ }
@@ -114,33 +118,27 @@ export async function requestJson(path, { timeoutMs = 6000 } = {}) {
     }
     return { body, requestId: responseId };
   } catch (error) {
-    if (error.name === "AbortError") {
+    if (error instanceof RequestTimeoutError) {
       const timeout = new Error(`Timed out after ${timeoutMs / 1000} seconds`);
       timeout.requestId = id;
       throw timeout;
     }
     if (!error.requestId) error.requestId = id;
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
-export async function requestText(path, { timeoutMs = 6000 } = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+export async function requestText(path, { timeoutMs = 6000, signal = null, signals = [] } = {}) {
   try {
-    const response = await fetch(path, {
+    const response = await withRequestLifecycle((requestSignal) => fetch(path, {
       headers: { Accept: "text/plain" },
-      signal: controller.signal,
-    });
+      signal: requestSignal,
+    }), { signal, signals, timeoutMs });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.text();
   } catch (error) {
-    if (error.name === "AbortError") throw new Error(`Timed out after ${timeoutMs / 1000} seconds`);
+    if (error instanceof RequestTimeoutError) throw new Error(`Timed out after ${timeoutMs / 1000} seconds`);
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
