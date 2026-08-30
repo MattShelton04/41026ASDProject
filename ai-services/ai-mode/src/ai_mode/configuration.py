@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from math import isfinite
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -70,6 +71,15 @@ class Settings:
     environment: str = DEFAULT_ENVIRONMENT
     log_level: str = DEFAULT_LOG_LEVEL
 
+    def __post_init__(self) -> None:
+        """Keep safety-critical timing invariants true for injected settings too."""
+        _require_positive_finite(self.openai_timeout_seconds, "OpenAI timeout")
+        _require_positive_finite(self.openai_health_timeout_seconds, "OpenAI health timeout")
+        _require_positive_finite(
+            self.queue_reconcile_interval_seconds,
+            "queue reconcile interval",
+        )
+
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
         """Load settings without mutating process environment; read an explicit secret file."""
@@ -88,8 +98,16 @@ class Settings:
             ),
             "OpenAI insecure HTTP opt-in",
         )
-        _validate_provider_url(base_url, allow_insecure_http=allow_insecure_http)
-        _validate_provider_url(gemini_base_url, allow_insecure_http=allow_insecure_http)
+        _validate_provider_url(
+            base_url,
+            label="OPENAI_BASE_URL",
+            allow_insecure_http=allow_insecure_http,
+        )
+        _validate_provider_url(
+            gemini_base_url,
+            label="GEMINI_BASE_URL",
+            allow_insecure_http=allow_insecure_http,
+        )
         api_key = (
             _configured_secret(
                 values,
@@ -252,19 +270,24 @@ class Settings:
         return ()
 
 
-def _validate_provider_url(value: str, *, allow_insecure_http: bool) -> None:
+def _validate_provider_url(
+    value: str,
+    *,
+    label: str,
+    allow_insecure_http: bool,
+) -> None:
     parsed = urlparse(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ConfigurationError("OPENAI_BASE_URL must be an absolute http or https URL")
+        raise ConfigurationError(f"{label} must be an absolute http or https URL")
     if parsed.username is not None or parsed.password is not None:
-        raise ConfigurationError("OPENAI_BASE_URL must not contain credentials")
+        raise ConfigurationError(f"{label} must not contain credentials")
     if (
         parsed.scheme == "http"
         and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
         and not allow_insecure_http
     ):
         raise ConfigurationError(
-            "OPENAI_BASE_URL must use https; set OPENAI_ALLOW_INSECURE_HTTP=true "
+            f"{label} must use https; set OPENAI_ALLOW_INSECURE_HTTP=true "
             "only for trusted local development"
         )
 
@@ -317,9 +340,13 @@ def _positive_float(value: str, label: str) -> float:
         parsed = float(value)
     except ValueError as exc:
         raise ConfigurationError(f"{label} must be numeric") from exc
-    if parsed <= 0:
-        raise ConfigurationError(f"{label} must be greater than zero")
+    _require_positive_finite(parsed, label)
     return parsed
+
+
+def _require_positive_finite(value: float, label: str) -> None:
+    if not isfinite(value) or value <= 0:
+        raise ConfigurationError(f"{label} must be finite and greater than zero")
 
 
 def _bounded_float(

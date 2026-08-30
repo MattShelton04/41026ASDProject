@@ -24,8 +24,11 @@ def test_queue_executes_work_and_stops_cleanly() -> None:
 def test_queue_rejects_invalid_capacity_and_full_buffer() -> None:
     with pytest.raises(ValueError, match="capacity must be positive"):
         SerialRunQueue(lambda run_id: None, capacity=0)
-    with pytest.raises(ValueError, match="reconcile interval must be positive"):
+    with pytest.raises(ValueError, match="reconcile interval must be finite and positive"):
         SerialRunQueue(lambda run_id: None, reconcile_interval_seconds=0)
+    for invalid in (float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="reconcile interval must be finite and positive"):
+            SerialRunQueue(lambda run_id: None, reconcile_interval_seconds=invalid)
 
     entered = Event()
     release = Event()

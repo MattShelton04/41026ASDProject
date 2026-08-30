@@ -187,6 +187,66 @@ def test_runner_marks_exhausted_dependency_timeout_as_retryable(
     assert failure["retryable"] is True
 
 
+def test_runner_marks_an_interrupted_import_as_retryable(tmp_path: Path) -> None:
+    failure: dict[str, object] = {}
+    import_reads = 0
+
+    def control_plane(request: httpx.Request) -> httpx.Response:
+        nonlocal import_reads
+        path = request.url.path
+        if path.endswith("/tasks/claim"):
+            return httpx.Response(
+                200,
+                json={
+                    "task": {
+                        "id": "task-1",
+                        "ingestion_run_id": "run-1",
+                        "stage": "import",
+                        "lease_token": "lease-1",
+                    }
+                },
+            )
+        if path.endswith("/tasks/task-1/heartbeat"):
+            return httpx.Response(200, json={"task": {"id": "task-1", "status": "running"}})
+        if path.endswith("/runs/run-1/imports"):
+            return httpx.Response(
+                202,
+                json={"operation": {"id": "import-1", "status": "running"}},
+            )
+        if path.endswith("/worker/imports/import-1"):
+            import_reads += 1
+            return httpx.Response(
+                200,
+                json={
+                    "operation": {
+                        "id": "import-1",
+                        "status": "interrupted",
+                        "error_json": {
+                            "code": "import_lease_expired",
+                            "message": (
+                                "Import loader heartbeat expired; explicit resume is required"
+                            ),
+                            "retryable": True,
+                        },
+                    }
+                },
+            )
+        if path.endswith("/tasks/task-1/fail"):
+            failure.update(cast(dict[str, object], json.loads(request.content)))
+            return httpx.Response(200, json={"task": {"id": "task-1", "status": "retry_wait"}})
+        raise AssertionError(f"unexpected control request {path}")
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "runner-1", 0.001, 300),
+        client=httpx.Client(transport=httpx.MockTransport(control_plane)),
+    )
+
+    assert runner.run_once() is True
+    assert import_reads == 1
+    assert failure["retryable"] is True
+    assert cast(dict[str, object], failure["error"])["code"] == "import_lease_expired"
+
+
 def test_cancellation_polling_is_bounded_independently_of_the_recovery_lease() -> None:
     assert _cancellation_poll_interval(300) == 5.0
     assert _cancellation_poll_interval(30) == 5.0

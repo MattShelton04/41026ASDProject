@@ -92,6 +92,42 @@ def test_import_watcher_cancels_source_scale_insertion_statement() -> None:
         assert connection.cancelled.wait(1.5)
 
 
+def test_import_watcher_cancels_source_scale_work_after_lease_loss() -> None:
+    operation_id = uuid.uuid4()
+    connection = CancellableConnection([])
+    lease_failed = Event()
+
+    class ActiveStore(ConnectedStore):
+        def import_cancel_requested(self, requested: uuid.UUID) -> bool:
+            assert requested == operation_id
+            return False
+
+    with ActiveStore(connection)._cancellable_import_connection(
+        operation_id,
+        lease_failed_event=lease_failed,
+    ):
+        lease_failed.set()
+        assert connection.cancelled.wait(1.5)
+
+
+def test_import_watcher_cancels_source_scale_work_during_loader_shutdown() -> None:
+    operation_id = uuid.uuid4()
+    connection = CancellableConnection([])
+    loader_stopped = Event()
+
+    class ActiveStore(ConnectedStore):
+        def import_cancel_requested(self, requested: uuid.UUID) -> bool:
+            assert requested == operation_id
+            return False
+
+    with ActiveStore(connection)._cancellable_import_connection(
+        operation_id,
+        stop_event=loader_stopped,
+    ):
+        loader_stopped.set()
+        assert connection.cancelled.wait(1.5)
+
+
 def test_activation_watcher_cancels_candidate_index_materialisation() -> None:
     operation_id = uuid.uuid4()
     release_id = uuid.uuid4()
@@ -1450,6 +1486,75 @@ def test_activation_claim_recovers_expired_lease_with_bounded_attempts() -> None
     assert "lease_expires_at<=%s" in claim
     assert "attempt_number<3" in claim
     assert "FOR UPDATE SKIP LOCKED LIMIT 1" in claim
+
+
+def test_import_claim_interrupts_expired_work_before_claiming_queued_work() -> None:
+    operation_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            None,
+            None,
+            {
+                "id": operation_id,
+                "status": "claimed",
+                "lease_owner": "loader-2",
+                "lease_token": "new-token",
+            },
+        ]
+    )
+
+    claimed = ConnectedStore(connection).claim_import(worker_id="loader-2", lease_seconds=120)
+
+    assert claimed is not None and claimed["id"] == str(operation_id)
+    cancelled = connection.queries[0]
+    assert "SET status='cancelled'" in cancelled
+    assert "run.cancel_requested_at IS NOT NULL" in cancelled
+    interruption = connection.queries[1]
+    assert "UPDATE ops.import_operation operation SET status='interrupted'" in interruption
+    assert "run.cancel_requested_at IS NULL" in interruption
+    assert "operation.status IN ('claimed','running')" in interruption
+    assert "operation.lease_expires_at<=%s" in interruption
+    interruption_parameters = connection.parameters[1]
+    assert interruption_parameters is not None
+    assert "import_lease_expired" in str(interruption_parameters[0])
+    claim = connection.queries[2]
+    assert "WHERE status='queued'" in claim
+    assert "FOR UPDATE SKIP LOCKED LIMIT 1" in claim
+    assert connection.committed is True
+
+
+def test_import_claim_terminalises_expired_work_for_a_cancelled_run() -> None:
+    connection = ScriptedConnection([None, None, None])
+
+    claimed = ConnectedStore(connection).claim_import(worker_id="loader-2", lease_seconds=120)
+
+    assert claimed is None
+    cancellation = connection.queries[0]
+    assert "SET status='cancelled'" in cancellation
+    assert "finished_at=%s" in cancellation
+    assert "run.cancel_requested_at IS NOT NULL" in cancellation
+    cancellation_parameters = connection.parameters[0]
+    assert cancellation_parameters is not None
+    assert "operator_cancelled" in str(cancellation_parameters[1])
+    assert "WHERE status='queued'" in connection.queries[2]
+
+
+def test_interrupted_import_reenqueue_increments_attempt_once_and_replay_is_stable() -> None:
+    operation_id = uuid.uuid4()
+    resumed = ScriptedConnection([{"id": operation_id, "status": "queued", "attempt_number": 2}])
+
+    operation = ConnectedStore(resumed).enqueue_import(operation_id)
+
+    assert operation["attempt_number"] == 2
+    assert "CASE WHEN status='interrupted'" in resumed.queries[0]
+    assert "THEN attempt_number+1 ELSE attempt_number END" in resumed.queries[0]
+
+    replay = ScriptedConnection(
+        [None, {"id": operation_id, "status": "queued", "attempt_number": 2}]
+    )
+    replayed = ConnectedStore(replay).enqueue_import(operation_id)
+
+    assert replayed["attempt_number"] == 2
 
 
 def test_activation_state_trace_terminalises_an_interrupted_third_attempt() -> None:
