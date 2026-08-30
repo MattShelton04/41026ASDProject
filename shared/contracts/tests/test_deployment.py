@@ -138,9 +138,7 @@ def test_ai_catalogue_mount_is_confined_to_the_dedicated_runtime_directory(
         ("backend_base_path", "/api/x;return/v1"),
     ],
 )
-def test_enabled_projection_rejects_nginx_configuration_injection(
-    field: str, value: str
-) -> None:
+def test_enabled_projection_rejects_nginx_configuration_injection(field: str, value: str) -> None:
     paths = {field: value}
     manifest = _manifest(onboarding=_onboarding(), **paths)
     selection = DeploymentSelectionV1(

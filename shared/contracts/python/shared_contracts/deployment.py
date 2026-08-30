@@ -82,9 +82,7 @@ class AiOnboarding(ContractModel):
     def validate_runtime_path(cls, value: str) -> str:
         _validate_absolute_path("runtime_path", value)
         if _AI_CATALOG_RUNTIME_PATH.fullmatch(value) is None:
-            raise ValueError(
-                "runtime_path must be one flat YAML catalogue under /etc/ai-mode"
-            )
+            raise ValueError("runtime_path must be one flat YAML catalogue under /etc/ai-mode")
         return value
 
 
@@ -205,9 +203,7 @@ class DeploymentRoute(ContractModel):
         match = pattern.fullmatch(self.path)
         if match is None:
             expected = (
-                "/features/{namespace}/"
-                if self.kind == "frontend"
-                else "/api/{namespace}/vN"
+                "/features/{namespace}/" if self.kind == "frontend" else "/api/{namespace}/vN"
             )
             raise ValueError(f"{self.kind} route must use the owned {expected} namespace")
         if self.kind == "backend" and match.group("namespace") in _RESERVED_BACKEND_NAMESPACES:
@@ -322,11 +318,13 @@ def build_deployment_projection(
         namespaces = {
             match.group("namespace")
             for route in routes
-            if (match := (
-                _FRONTEND_ROUTE.fullmatch(route.path)
-                if route.kind == "frontend"
-                else _BACKEND_ROUTE.fullmatch(route.path)
-            ))
+            if (
+                match := (
+                    _FRONTEND_ROUTE.fullmatch(route.path)
+                    if route.kind == "frontend"
+                    else _BACKEND_ROUTE.fullmatch(route.path)
+                )
+            )
             is not None
         }
         if len(namespaces) > 1:
@@ -424,9 +422,7 @@ def _reject_projection_duplicates(features: Iterable[EnabledFeatureProjection]) 
                 )
 
     _reject_overlapping_route_claims(
-        (feature.feature_key, route.path)
-        for feature in features
-        for route in feature.routes
+        (feature.feature_key, route.path) for feature in features for route in feature.routes
     )
 
 

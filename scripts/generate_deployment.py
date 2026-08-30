@@ -235,9 +235,7 @@ def _enabled_compose_services(root: Path) -> tuple[str, ...]:
                 )
     return tuple(
         sorted(
-            service
-            for service, feature_key in service_features.items()
-            if feature_key in enabled
+            service for service, feature_key in service_features.items() if feature_key in enabled
         )
     )
 
@@ -249,8 +247,7 @@ def _services_payload(root: Path) -> str:
     build_services = [
         service
         for service in enabled
-        if isinstance(compose_services.get(service), dict)
-        and "build" in compose_services[service]
+        if isinstance(compose_services.get(service), dict) and "build" in compose_services[service]
     ]
     return (
         json.dumps(

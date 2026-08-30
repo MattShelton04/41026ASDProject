@@ -59,11 +59,11 @@ def _repository(tmp_path: Path, *, enabled: bool) -> Path:
                 "services": {
                     "example-frontend": {
                         "build": ".",
-                        "labels": {"propertyscope.feature-key": "student-1-example"}
+                        "labels": {"propertyscope.feature-key": "student-1-example"},
                     },
                     "example-backend": {
                         "build": ".",
-                        "labels": {"propertyscope.feature-key": "student-1-example"}
+                        "labels": {"propertyscope.feature-key": "student-1-example"},
                     },
                 }
             },
@@ -97,12 +97,11 @@ def test_outputs_expose_only_explicitly_enabled_features(tmp_path: Path) -> None
         "example-backend",
         "example-frontend",
     ]
-    assert json.loads(enabled[Path("deployment/enabled-services.v1.json")])[
-        "build_services"
-    ] == ["example-backend", "example-frontend"]
-    assert json.loads(disabled[Path("deployment/enabled-services.v1.json")])[
-        "build_services"
-    ] == []
+    assert json.loads(enabled[Path("deployment/enabled-services.v1.json")])["build_services"] == [
+        "example-backend",
+        "example-frontend",
+    ]
+    assert json.loads(disabled[Path("deployment/enabled-services.v1.json")])["build_services"] == []
     assert json.loads(disabled[Path("deployment/enabled-services.v1.json")])["services"] == []
     enabled_compose = yaml.safe_load(enabled[Path("deployment/enabled-features.compose.yml")])
     assert enabled_compose["services"]["example-backend"]["profiles"] == ["release-0"]

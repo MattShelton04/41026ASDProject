@@ -160,9 +160,7 @@ def _owned_path(owner: str, value: str, *, kind: str) -> str:
 def _validate_enabled_paths(root: Path, projection: DeploymentProjectionV1) -> None:
     for feature in projection.features:
         if feature.ai is not None:
-            catalog = _owned_path(
-                feature.owner, feature.ai.tool_catalog, kind="AI tool catalogue"
-            )
+            catalog = _owned_path(feature.owner, feature.ai.tool_catalog, kind="AI tool catalogue")
             if not (root / catalog).is_file():
                 raise OnboardingConfigurationError(
                     f"enabled feature {feature.feature_key} AI tool catalogue does not exist: "
