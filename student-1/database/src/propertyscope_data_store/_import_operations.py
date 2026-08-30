@@ -29,6 +29,16 @@ from propertyscope_data_store.persistence_support import json_document as _json
 from propertyscope_data_store.persistence_support import normalise_row as _dict
 
 JsonObject = dict[str, Any]
+_IMPORT_TARGET_RELATIONS: Mapping[str, tuple[str, ...]] = {
+    "property-fixture": ("warehouse.gnaf_address",),
+    "gnaf-nsw": ("warehouse.gnaf_address",),
+    "psi-sales": ("warehouse.psi_sale",),
+    "bocsar-sparse": (
+        "warehouse.bocsar_observation",
+        "warehouse.bocsar_coverage",
+    ),
+    "schools-master": ("warehouse.school",),
+}
 
 
 class _ImportOperationOwner(Protocol):
@@ -120,6 +130,7 @@ class _RegisteredImportOperations:
         work: Mapping[str, Any],
         prepared: PreparedImport,
         *,
+        phase_callback: Any | None = None,
         lease_failed_event: Event | None = None,
         stop_event: Event | None = None,
     ) -> ImportResult:
@@ -130,7 +141,12 @@ class _RegisteredImportOperations:
             lease_failed_event=lease_failed_event,
             stop_event=stop_event,
         ) as connection:
-            return execute_import(connection, work, prepared)
+            return execute_import(
+                connection,
+                work,
+                prepared,
+                phase_callback=phase_callback,
+            )
 
     def execute_stream_import_profile(
         self,
@@ -161,6 +177,7 @@ class _RegisteredImportOperations:
         self,
         operation_id: uuid.UUID,
         *,
+        phase_key: str,
         phase: str,
         rows_processed: int,
         bytes_processed: int,
@@ -171,11 +188,13 @@ class _RegisteredImportOperations:
         now = datetime.now(UTC)
         with self._owner.connection() as connection:
             row = connection.execute(
-                """UPDATE ops.import_operation SET progress_phase=%s,progress_rows=%s,
+                """UPDATE ops.import_operation SET progress_phase_key=%s,progress_phase=%s,
+                progress_rows=%s,
                 progress_bytes=%s,progress_total_rows=%s,progress_total_bytes=%s,
                 progress_updated_at=%s,heartbeat_at=%s,version=version+1
                 WHERE id=%s AND status IN ('claimed','running') RETURNING ingestion_run_id,run_task_id""",
                 (
+                    phase_key[:100],
                     phase[:100],
                     max(0, rows_processed),
                     max(0, bytes_processed),
@@ -188,10 +207,12 @@ class _RegisteredImportOperations:
             ).fetchone()
             if row is not None:
                 connection.execute(
-                    """UPDATE ops.run_task SET progress_phase=%s,progress_rows=%s,
+                    """UPDATE ops.run_task SET progress_phase_key=%s,progress_phase=%s,
+                    progress_rows=%s,
                     progress_bytes=%s,progress_total_rows=%s,progress_total_bytes=%s,
                     progress_updated_at=%s,heartbeat_at=%s WHERE id=%s""",
                     (
+                        phase_key[:100],
                         phase[:100],
                         max(0, rows_processed),
                         max(0, bytes_processed),
@@ -292,7 +313,19 @@ class _RegisteredImportOperations:
             connection.execute(
                 """UPDATE ops.import_operation operation SET status='cancelled',finished_at=%s,
                 error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
-                heartbeat_at=NULL,version=operation.version+1 FROM ops.ingestion_run run
+                heartbeat_at=NULL,space_recovery_status='needed',
+                space_recovery_policy_json=jsonb_build_object(
+                    'policy','measure_then_target_exact_relations',
+                    'trigger','cancelled_import_lease_expired_after_possible_rollback',
+                    'relations',to_jsonb(CASE operation.import_profile_key
+                        WHEN 'psi-sales' THEN ARRAY['warehouse.psi_sale']::text[]
+                        WHEN 'bocsar-sparse' THEN ARRAY[
+                            'warehouse.bocsar_observation','warehouse.bocsar_coverage']::text[]
+                        WHEN 'schools-master' THEN ARRAY['warehouse.school']::text[]
+                        ELSE ARRAY['warehouse.gnaf_address']::text[] END),
+                    'automatic_destructive_maintenance',false,
+                    'next_step','measure dead tuples and allocated bytes before bounded maintenance'
+                ),version=operation.version+1 FROM ops.ingestion_run run
                 WHERE run.id=operation.ingestion_run_id AND run.cancel_requested_at IS NOT NULL
                 AND operation.status IN ('claimed','running')
                 AND operation.lease_expires_at<=%s""",
@@ -359,10 +392,23 @@ class _RegisteredImportOperations:
         if status not in {"succeeded", "failed", "cancelled"}:
             raise ConflictError("loader may finish only as succeeded, failed, or cancelled")
         now = datetime.now(UTC)
+        recovery_status = "needed" if status in {"failed", "cancelled"} else "not_required"
+        recovery_policy: JsonObject = {}
+        if recovery_status == "needed":
+            current = self._owner.get_import(operation_id)
+            profile = str(current["import_profile_key"])
+            recovery_policy = {
+                "policy": "measure_then_target_exact_relations",
+                "trigger": f"import_{status}_after_transaction_rollback",
+                "relations": list(_IMPORT_TARGET_RELATIONS.get(profile, ())),
+                "automatic_destructive_maintenance": False,
+                "next_step": "measure dead tuples and allocated bytes before bounded maintenance",
+            }
         with self._owner.connection() as connection:
             row = connection.execute(
                 """UPDATE ops.import_operation SET status=%s,finished_at=%s,rows_in=%s,
                 rows_staged=%s,rows_accepted=%s,rows_rejected=%s,result_json=%s,error_json=%s,
+                space_recovery_status=%s,space_recovery_policy_json=%s,
                 lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
                 version=version+1 WHERE id=%s AND lease_owner=%s AND lease_token=%s
                 AND lease_expires_at>%s AND status IN ('claimed','running') RETURNING *""",
@@ -375,6 +421,8 @@ class _RegisteredImportOperations:
                     counts.get("rows_rejected", 0),
                     _json(result) if result else None,
                     _json(error) if error else None,
+                    recovery_status,
+                    _json(recovery_policy),
                     operation_id,
                     worker_id,
                     lease_token,

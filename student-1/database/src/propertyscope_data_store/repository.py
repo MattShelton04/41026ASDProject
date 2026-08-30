@@ -686,6 +686,10 @@ class PropertyScopeStore:
             ).fetchone()
             if run is None:
                 raise NotFoundError("record does not exist")
+            if run["status"] == "cancelled" and run["cancel_requested_at"] is not None:
+                # A client may lose the first response after this database committed. Returning
+                # the same durable outcome makes retry/reconciliation truthful and idempotent.
+                return _run_projection(_dict(run))
             if run["status"] in TERMINAL_RUN_STATES:
                 raise ConflictError("terminal run cannot be cancelled")
             connection.execute(
@@ -1406,6 +1410,39 @@ class PropertyScopeStore:
             raise LeaseConflictError("activation lease is stale or owned by another loader")
         return _dict(row)
 
+    def update_release_activation_progress(
+        self,
+        operation_id: uuid.UUID,
+        *,
+        worker_id: str,
+        lease_token: str,
+        phase_key: str,
+        phase: str,
+    ) -> JsonObject:
+        """Persist the current indeterminate publication phase under the active lease."""
+        now = datetime.now(UTC)
+        with self.connection() as connection:
+            row = connection.execute(
+                """UPDATE ops.release_activation SET progress_phase_key=%s,progress_phase=%s,
+                progress_updated_at=%s,heartbeat_at=%s,version=version+1
+                WHERE id=%s AND lease_owner=%s AND lease_token=%s AND lease_expires_at>%s
+                AND status IN ('claimed','running') RETURNING *""",
+                (
+                    phase_key[:100],
+                    phase[:100],
+                    now,
+                    now,
+                    operation_id,
+                    worker_id,
+                    lease_token,
+                    now,
+                ),
+            ).fetchone()
+            connection.commit()
+        if row is None:
+            raise LeaseConflictError("activation is not running")
+        return _dict(row)
+
     def materialize_release_activation(
         self,
         operation_id: uuid.UUID,
@@ -1872,6 +1909,7 @@ class PropertyScopeStore:
         work: Mapping[str, Any],
         prepared: PreparedImport,
         *,
+        phase_callback: Any | None = None,
         lease_failed_event: Event | None = None,
         stop_event: Event | None = None,
     ) -> ImportResult:
@@ -1879,6 +1917,7 @@ class PropertyScopeStore:
         return self._imports().execute_import_profile(
             work,
             prepared,
+            phase_callback=phase_callback,
             lease_failed_event=lease_failed_event,
             stop_event=stop_event,
         )
@@ -1909,6 +1948,7 @@ class PropertyScopeStore:
         self,
         operation_id: uuid.UUID,
         *,
+        phase_key: str,
         phase: str,
         rows_processed: int,
         bytes_processed: int,
@@ -1918,6 +1958,7 @@ class PropertyScopeStore:
         """Persist throttled loader progress and make it effective run activity."""
         self._imports().update_import_progress(
             operation_id,
+            phase_key=phase_key,
             phase=phase,
             rows_processed=rows_processed,
             bytes_processed=bytes_processed,

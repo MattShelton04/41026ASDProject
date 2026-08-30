@@ -145,7 +145,24 @@ paths:
   /ingestion-runs/{run_id}/quality-results:
     get: {operationId: listRunQualityResults, parameters: [{$ref: '#/components/parameters/RunId'}], responses: {'200': {$ref: '#/components/responses/Page'}}}
   /ingestion-runs/{run_id}/cancel:
-    post: {operationId: cancelRun, parameters: [{$ref: '#/components/parameters/RunId'}], responses: {'200': {description: Run cancelled}, '409': {$ref: '#/components/responses/Problem'}}}
+    post:
+      operationId: cancelRun
+      parameters: [{$ref: '#/components/parameters/RunId'}]
+      responses:
+        '200': {description: Durable cancellation requested or reconciled}
+        '409': {$ref: '#/components/responses/Problem'}
+        '503':
+          description: Cancellation persistence could not be confirmed; retrying is safe.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+              example:
+                type: about:blank
+                title: Service Unavailable
+                status: 503
+                detail: The cancellation outcome could not be confirmed; retry this cancellation request
+                code: cancellation_unconfirmed
+                request_id: 70000000-0000-0000-0000-000000000001
   /ingestion-runs/{run_id}/resume:
     post: {operationId: resumeRun, parameters: [{$ref: '#/components/parameters/RunId'}], responses: {'200': {description: Run resumed}, '409': {$ref: '#/components/responses/Problem'}}}
   /ingestion-runs/{run_id}/retry:

@@ -17,12 +17,18 @@ from propertyscope_data_store.import_profiles import (
     _GNAF_STREAM_COLUMNS,
     _GNAF_STREAM_INSERT_SQL,
     _GNAF_STREAM_STAGE_SQL,
-    _PROFILE_INSERT_SQL,
+    _PSI_ADDRESS_RESOLUTION_SQL,
+    _PSI_IDENTITY_SQL,
+    _PSI_PHASE_SQL,
+    _PSI_TARGET_INSERT_SQL,
     CANONICAL_SCHEMA_VERSION,
+    IMPORT_PHASE_LABELS,
+    POSTGRES_INTEGER_MAX,
     ImportProfileError,
     ImportResult,
     _insert_profile_rows,
     execute_import,
+    execute_stream_import,
     iter_ndjson_import,
     prepare_import,
 )
@@ -376,6 +382,124 @@ def test_psi_import_rejects_unexpected_nonnumeric_postcode_corruption() -> None:
         prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
 
 
+@pytest.mark.parametrize("field", ["street_number_first", "street_number_last"])
+def test_psi_rejects_address_numbers_outside_postgresql_integer_range(field: str) -> None:
+    record = {**_contract_records("psi-sales")[0], field: 6_711_011_622}
+
+    with pytest.raises(
+        ImportProfileError,
+        match=rf"record 1 {field} is above its maximum",
+    ) as caught:
+        prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
+
+    error = _safe_loader_error(caught.value)
+    assert error["code"] == "canonical_record_invalid"
+    assert f"record 1 {field} is above its maximum" in str(error["message"])
+
+    boundary = {**record, field: POSTGRES_INTEGER_MAX}
+    assert prepare_import(_artifact("psi-sales", [boundary]), profile="psi-sales").rows[0][
+        field
+    ] == (POSTGRES_INTEGER_MAX)
+
+
+class _CopySink:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self.rows = rows
+
+    def __enter__(self) -> _CopySink:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def write_row(self, row: tuple[object, ...]) -> None:
+        self.rows.append(row)
+
+
+class _StreamingCursor:
+    rowcount = 1
+
+    def __init__(self) -> None:
+        self.copied: list[tuple[object, ...]] = []
+        self.statements: list[str] = []
+        self.current: dict[str, int] | None = None
+
+    def __enter__(self) -> _StreamingCursor:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def copy(self, _statement: str) -> _CopySink:
+        return _CopySink(self.copied)
+
+    def execute(self, statement: str, _parameters: object = None) -> None:
+        normalised = " ".join(statement.split())
+        self.statements.append(normalised)
+        self.current = (
+            {"count": len(self.copied)} if normalised.startswith("SELECT count(*)") else None
+        )
+
+    def fetchone(self) -> dict[str, int] | None:
+        return self.current
+
+
+class _StreamingConnection:
+    def __init__(self) -> None:
+        self.stream_cursor = _StreamingCursor()
+
+    def cursor(self) -> _StreamingCursor:
+        return self.stream_cursor
+
+
+def test_invalid_final_psi_row_stops_before_destination_materialisation() -> None:
+    valid = _contract_records("psi-sales")[0]
+    invalid = {
+        **valid,
+        "source_business_key": "001:INVALID:1",
+        "street_number_first": 6_711_011_622,
+    }
+    rows = iter_ndjson_import(
+        (json.dumps(row).encode() + b"\n" for row in (valid, invalid)),
+        profile="psi-sales",
+    )
+    connection = _StreamingConnection()
+
+    with pytest.raises(
+        ImportProfileError,
+        match="record 2 street_number_first is above its maximum",
+    ):
+        execute_stream_import(
+            cast(Any, connection),
+            {
+                "ingestion_run_id": uuid.uuid4(),
+                "candidate_release_id": uuid.uuid4(),
+                "artifact_record_id": uuid.uuid4(),
+            },
+            profile="psi-sales",
+            rows=rows,
+        )
+
+    assert len(connection.stream_cursor.copied) == 1
+    assert not any(
+        "INSERT INTO warehouse.psi_sale" in sql for sql in connection.stream_cursor.statements
+    )
+    assert not any(
+        "serving.accepted_generation" in sql for sql in connection.stream_cursor.statements
+    )
+
+
+def test_import_phase_registry_has_stable_indeterminate_set_sql_boundaries() -> None:
+    assert tuple(IMPORT_PHASE_LABELS) == (
+        "artifact_verification",
+        "typed_staging",
+        "identity_revision_derivation",
+        "address_resolution",
+        "target_materialisation",
+        "verification",
+    )
+
+
 def test_loader_exposes_bounded_canonical_validation_evidence() -> None:
     error = _safe_loader_error(ImportProfileError("record 1978 postcode must contain four digits"))
 
@@ -388,7 +512,7 @@ def test_loader_exposes_bounded_canonical_validation_evidence() -> None:
 
 
 def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions() -> None:
-    source = _PROFILE_INSERT_SQL["psi-sales"]
+    source = "\n".join(statement for _phase, statement in _PSI_PHASE_SQL)
 
     assert "distinct_source_rows" in source
     assert "source_row_sha256" in source
@@ -396,16 +520,55 @@ def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions(
     assert "source_partition_year" in source
     assert "street_name_normalised" in source
     assert "registry.property" in source
-    assert "count(*)=1" in source
+    assert "count(property.property_ref)=1" in source
     assert "exact_address" in source
     assert "LEFT JOIN LATERAL" not in source
     assert "upper(" not in source
-    assert "HAVING count(*)=1" in source
+    assert "CASE WHEN count(property.property_ref)=1" in source
     assert "property.street_number_last" in source
     assert "property.street_number_suffix" in source
     assert "property.unit_number" in source
-    assert "NULLIF(ranked.payload->>'street_type','') IS NOT NULL" in source
+    assert "NULLIF(payload->>'street_type','') IS NOT NULL" in source
     assert "house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'" in source
+    assert "identity.payload->>'house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'" in source
+
+
+def test_psi_phase_callbacks_immediately_precede_their_real_sql_boundaries() -> None:
+    events: list[str] = []
+
+    class PhaseCursor(_PersistedCandidateCountCursor):
+        def execute(self, statement: str, parameters: tuple[object, ...]) -> None:
+            phase_by_sql = {
+                _PSI_IDENTITY_SQL: "identity_revision_derivation",
+                _PSI_ADDRESS_RESOLUTION_SQL: "address_resolution",
+                _PSI_TARGET_INSERT_SQL: "target_materialisation",
+            }
+            if statement in phase_by_sql:
+                events.append(f"sql:{phase_by_sql[statement]}")
+            super().execute(statement, parameters)
+
+    cursor = PhaseCursor({"warehouse.psi_sale": 7})
+    release_id, artifact_id, run_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+    accepted = _insert_profile_rows(
+        cursor,
+        "psi-sales",
+        release_id=release_id,
+        artifact_id=artifact_id,
+        run_id=run_id,
+        phase_rows=7,
+        phase_callback=lambda phase, rows: events.append(f"callback:{phase}:{rows}"),
+    )
+
+    assert accepted == 7
+    assert events == [
+        "callback:identity_revision_derivation:7",
+        "sql:identity_revision_derivation",
+        "callback:address_resolution:7",
+        "sql:address_resolution",
+        "callback:target_materialisation:7",
+        "sql:target_materialisation",
+    ]
 
 
 class _Store:
@@ -417,6 +580,7 @@ class _Store:
         work: dict[str, Any],
         prepared: Any,
         *,
+        phase_callback: Any | None = None,
         lease_failed_event: Event | None = None,
         stop_event: Event | None = None,
     ) -> ImportResult:
@@ -424,6 +588,9 @@ class _Store:
         assert stop_event is None or not stop_event.is_set()
         assert prepared.profile == "property-fixture"
         assert work["candidate_release_id"] == "60000000-0000-0000-0000-000000000001"
+        if phase_callback is not None:
+            phase_callback("target_materialisation", 1)
+            phase_callback("verification", 1)
         return ImportResult(1, 1, 1, 0, 2)
 
 
@@ -441,6 +608,7 @@ class _ActivationStore:
         self.materialized = False
         self.finished_status = ""
         self.finished_error: dict[str, Any] | None = None
+        self.progress_phases: list[tuple[str, str]] = []
 
     def claim_release_activation(self, **_: Any) -> dict[str, Any]:
         return {
@@ -455,6 +623,11 @@ class _ActivationStore:
 
     def heartbeat_release_activation(self, *_: Any, **__: Any) -> None:
         self.heartbeats += 1
+
+    def update_release_activation_progress(self, *_: Any, **kwargs: Any) -> None:
+        assert kwargs["worker_id"] == "loader-test"
+        assert kwargs["lease_token"] == "activation-token"
+        self.progress_phases.append((str(kwargs["phase_key"]), str(kwargs["phase"])))
 
     def materialize_release_activation(self, *_: Any, **kwargs: Any) -> None:
         assert kwargs["stop_event"] is not None
@@ -535,6 +708,11 @@ def test_loader_prioritises_and_finishes_background_release_activation(tmp_path:
     assert store.heartbeats == 1
     assert store.materialized is True
     assert store.finished_status == "succeeded"
+    assert [key for key, _label in store.progress_phases] == [
+        "artifact_verification",
+        "materialisation",
+        "commit_pointer",
+    ]
 
 
 def test_loader_renews_import_lease_until_work_finishes(

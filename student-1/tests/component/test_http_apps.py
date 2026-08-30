@@ -19,6 +19,141 @@ from propertyscope_data_platform.clients import (
 from propertyscope_data_platform.domain import ConsumerPublicationRequest
 
 
+def _backend_with_database(database: Any) -> Any:
+    transport = httpx.MockTransport(database)
+    return create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai",
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
+        ),
+    )
+
+
+def test_cancel_reconciles_a_lost_response_after_durable_persistence() -> None:
+    run_id = "60000000-0000-0000-0000-000000000041"
+    calls: list[str] = []
+
+    def database(request: httpx.Request) -> httpx.Response:
+        calls.append(f"{request.method} {request.url.path}")
+        if request.method == "POST":
+            raise httpx.ReadError("response was lost after commit", request=request)
+        return httpx.Response(
+            200,
+            json={
+                "run": {
+                    "id": run_id,
+                    "status": "running",
+                    "cancel_requested_at": "2026-08-30T01:02:03Z",
+                }
+            },
+        )
+
+    response = (
+        _backend_with_database(database)
+        .test_client()
+        .post(f"/api/data-platform/v1/ingestion-runs/{run_id}/cancel", json={})
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["run"]["cancel_requested_at"] == "2026-08-30T01:02:03Z"
+    assert calls == [
+        f"POST /internal/data-platform/v1/runs/{run_id}/cancel",
+        f"GET /internal/data-platform/v1/runs/{run_id}",
+    ]
+
+
+def test_cancel_reconciles_persisted_503_and_idempotent_retry() -> None:
+    run_id = "60000000-0000-0000-0000-000000000042"
+    calls: list[str] = []
+
+    def database(request: httpx.Request) -> httpx.Response:
+        calls.append(f"{request.method} {request.url.path}")
+        if request.method == "POST":
+            return httpx.Response(503, json={"code": "dependency_unavailable"})
+        return httpx.Response(
+            200,
+            json={
+                "run": {
+                    "id": run_id,
+                    "status": "cancelled",
+                    "cancel_requested_at": "2026-08-30T02:03:04Z",
+                }
+            },
+        )
+
+    client = _backend_with_database(database).test_client()
+    first = client.post(f"/api/data-platform/v1/ingestion-runs/{run_id}/cancel", json={})
+    replay = client.post(f"/api/data-platform/v1/ingestion-runs/{run_id}/cancel", json={})
+
+    assert first.status_code == replay.status_code == 200
+    assert first.get_json() == replay.get_json()
+    assert replay.get_json()["run"]["status"] == "cancelled"
+    assert calls == [
+        f"POST /internal/data-platform/v1/runs/{run_id}/cancel",
+        f"GET /internal/data-platform/v1/runs/{run_id}",
+        f"POST /internal/data-platform/v1/runs/{run_id}/cancel",
+        f"GET /internal/data-platform/v1/runs/{run_id}",
+    ]
+
+
+def test_cancel_keeps_safe_failure_when_persistence_is_unproven() -> None:
+    run_id = "60000000-0000-0000-0000-000000000043"
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(503, json={"code": "dependency_unavailable"})
+        return httpx.Response(
+            200,
+            json={
+                "run": {
+                    "id": run_id,
+                    "status": "running",
+                    "cancel_requested_at": None,
+                }
+            },
+        )
+
+    response = (
+        _backend_with_database(database)
+        .test_client()
+        .post(f"/api/data-platform/v1/ingestion-runs/{run_id}/cancel", json={})
+    )
+
+    assert response.status_code == 503
+    assert response.content_type == "application/problem+json"
+    assert response.get_json()["code"] == "cancellation_unconfirmed"
+
+
+def test_cancel_preserves_terminal_run_conflict_without_reconciliation() -> None:
+    run_id = "60000000-0000-0000-0000-000000000044"
+    calls: list[str] = []
+
+    def database(request: httpx.Request) -> httpx.Response:
+        calls.append(f"{request.method} {request.url.path}")
+        return httpx.Response(
+            409,
+            json={
+                "status": 409,
+                "code": "conflict",
+                "detail": "terminal run cannot be cancelled",
+            },
+            headers={"Content-Type": "application/problem+json"},
+        )
+
+    response = (
+        _backend_with_database(database)
+        .test_client()
+        .post(f"/api/data-platform/v1/ingestion-runs/{run_id}/cancel", json={})
+    )
+
+    assert response.status_code == 409
+    assert response.get_json()["detail"] == "terminal run cannot be cancelled"
+    assert calls == [f"POST /internal/data-platform/v1/runs/{run_id}/cancel"]
+
+
 def test_backend_proxies_property_search_and_preserves_expected_negative() -> None:
     def database(request: httpx.Request) -> httpx.Response:
         assert request.headers["X-PropertyScope-Internal-Token"] == "secret"

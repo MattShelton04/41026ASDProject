@@ -1012,6 +1012,84 @@ def test_failed_run_poll_keeps_the_current_view_and_backs_off(
     assert detail_reads == 2
 
 
+def test_interrupted_run_detail_reconciles_external_resume_on_the_same_page(
+    page: Page, fixture_origin: str
+) -> None:
+    desired_state = "interrupted"
+    detail_reads = 0
+
+    def changing_run_detail(route: Route) -> None:
+        nonlocal detail_reads, desired_state
+        detail_reads += 1
+        response = route.fetch()
+        payload = response.json()
+        payload["run"]["status"] = desired_state
+        route.fulfill(response=response, json=payload)
+
+    page.route(f"**/api/data-platform/v1/ingestion-runs/{RUN_ID}", changing_run_detail)
+    _open(page, fixture_origin, f"runs/{RUN_ID}")
+
+    expect(page.get_by_role("button", name="Resume update")).to_be_visible()
+    expect(page.get_by_role("button", name="Cancel update")).to_have_count(0)
+    expect(
+        page.get_by_text("checking periodically for recovery started elsewhere", exact=False)
+    ).to_be_visible()
+
+    desired_state = "queued"
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    expect(page.locator(".badge").filter(has_text="Queued").first).to_be_visible()
+    desired_state = "staging"
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    expect(page.locator(".badge").filter(has_text="Staging").first).to_be_visible()
+    desired_state = "succeeded"
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    expect(page.locator(".badge").filter(has_text="Succeeded").first).to_be_visible()
+
+    terminal_read_count = detail_reads
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    page.wait_for_timeout(100)
+    assert detail_reads == terminal_read_count
+
+
+def test_running_unknown_total_is_explicitly_indeterminate(page: Page, fixture_origin: str) -> None:
+    def running_detail(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        payload["run"]["status"] = "staging"
+        route.fulfill(response=response, json=payload)
+
+    def indeterminate_tasks(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        task = payload["items"][0]
+        task.update(
+            {
+                "status": "running",
+                "stage": "import",
+                "logical_key": "typed-materialisation",
+                "progress_phase": "resolving exact addresses",
+                "progress_rows": 100000,
+                "progress_total_rows": None,
+                "progress_bytes": 0,
+                "progress_total_bytes": None,
+                "finished_at": None,
+            }
+        )
+        route.fulfill(response=response, json=payload)
+
+    page.route(f"**/api/data-platform/v1/ingestion-runs/{RUN_ID}", running_detail)
+    page.route(
+        f"**/api/data-platform/v1/ingestion-runs/{RUN_ID}/tasks?limit=100",
+        indeterminate_tasks,
+    )
+    _open(page, fixture_origin, f"runs/{RUN_ID}")
+
+    expect(
+        page.get_by_text("100,000 rows · remaining work indeterminate", exact=False)
+    ).to_be_visible()
+    expect(page.locator("progress.timeline-progress")).to_have_count(0)
+
+
 def test_jobs_list_error_retry_restores_route_heading_focus(
     page: Page, fixture_origin: str
 ) -> None:

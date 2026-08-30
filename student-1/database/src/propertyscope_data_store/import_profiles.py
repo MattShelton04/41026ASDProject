@@ -15,6 +15,15 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 CANONICAL_SCHEMA_VERSION = "propertyscope.canonical-import.v1"
+POSTGRES_INTEGER_MAX = 2_147_483_647
+IMPORT_PHASE_LABELS: Mapping[str, str] = {
+    "artifact_verification": "Verifying canonical artifact",
+    "typed_staging": "Validating and copying typed canonical rows",
+    "identity_revision_derivation": "Deriving deterministic identities and revisions",
+    "address_resolution": "Resolving eligible exact addresses",
+    "target_materialisation": "Materialising isolated candidate generation",
+    "verification": "Verifying candidate generation",
+}
 REGISTERED_PROFILES = frozenset(
     {"property-fixture", "gnaf-nsw", "psi-sales", "bocsar-sparse", "schools-master"}
 )
@@ -74,6 +83,8 @@ def execute_import(
     connection: Connection[Any],
     work: Mapping[str, Any],
     prepared: PreparedImport,
+    *,
+    phase_callback: Callable[[str, int], None] | None = None,
 ) -> ImportResult:
     """COPY validated rows and insert one isolated candidate generation atomically."""
     run_id = uuid.UUID(str(work["ingestion_run_id"]))
@@ -93,7 +104,11 @@ def execute_import(
             release_id=release_id,
             artifact_id=artifact_id,
             run_id=run_id,
+            phase_rows=len(prepared.rows),
+            phase_callback=phase_callback,
         )
+        if phase_callback is not None:
+            phase_callback("verification", accepted)
         quality_checks = _record_quality(
             cursor,
             profile=prepared.profile,
@@ -174,8 +189,6 @@ def execute_stream_import(
                     copy.write_row((staged, Jsonb(row)))
         if staged == 0:
             raise ImportProfileError("canonical import artifact must not be empty")
-        if phase_callback is not None:
-            phase_callback("inserting candidate generation", staged)
         accepted = _insert_profile_rows(
             cursor,
             profile,
@@ -183,9 +196,11 @@ def execute_stream_import(
             artifact_id=artifact_id,
             run_id=run_id,
             typed_gnaf_stage=profile == "gnaf-nsw",
+            phase_rows=staged,
+            phase_callback=phase_callback,
         )
         if phase_callback is not None:
-            phase_callback("recording import quality", accepted)
+            phase_callback("verification", accepted)
         quality_checks = _record_quality(
             cursor,
             profile=profile,
@@ -216,7 +231,20 @@ def _insert_profile_rows(
     artifact_id: uuid.UUID,
     run_id: uuid.UUID,
     typed_gnaf_stage: bool = False,
+    phase_rows: int = 0,
+    phase_callback: Callable[[str, int], None] | None = None,
 ) -> int:
+    if profile == "psi-sales":
+        return _insert_psi_rows(
+            cursor,
+            release_id=release_id,
+            artifact_id=artifact_id,
+            run_id=run_id,
+            phase_rows=phase_rows,
+            phase_callback=phase_callback,
+        )
+    if phase_callback is not None:
+        phase_callback("target_materialisation", phase_rows)
     statement = _GNAF_STREAM_INSERT_SQL if typed_gnaf_stage else _PROFILE_INSERT_SQL[profile]
     parameters: tuple[object, ...] = (release_id, artifact_id, run_id)
     cursor.execute(statement, parameters)
@@ -230,6 +258,28 @@ def _insert_profile_rows(
             raise ImportProfileError("candidate generation row count is unavailable")
         return int(observations["count"]) + int(coverage["count"])
     cursor.execute(_PROFILE_COUNT_SQL[profile], parameters)
+    persisted = cursor.fetchone()
+    if persisted is None:
+        raise ImportProfileError("candidate generation row count is unavailable")
+    return int(persisted["count"])
+
+
+def _insert_psi_rows(
+    cursor: Any,
+    *,
+    release_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    run_id: uuid.UUID,
+    phase_rows: int,
+    phase_callback: Callable[[str, int], None] | None,
+) -> int:
+    """Run PSI identity, address, and target work as truthful transaction-local phases."""
+    parameters: tuple[object, ...] = (release_id, artifact_id, run_id)
+    for phase_key, statement in _PSI_PHASE_SQL:
+        if phase_callback is not None:
+            phase_callback(phase_key, phase_rows)
+        cursor.execute(statement, parameters if phase_key == "target_materialisation" else ())
+    cursor.execute(_PROFILE_COUNT_SQL["psi-sales"], parameters)
     persisted = cursor.fetchone()
     if persisted is None:
         raise ImportProfileError("candidate generation row count is unavailable")
@@ -511,8 +561,20 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         "property_name": _optional_text(source, "property_name", index),
         "unit_number": _optional_upper_text(source, "unit_number", index),
         "house_number": _optional_text(source, "house_number", index),
-        "street_number_first": _optional_integer(source, "street_number_first", index, minimum=0),
-        "street_number_last": _optional_integer(source, "street_number_last", index, minimum=0),
+        "street_number_first": _optional_integer(
+            source,
+            "street_number_first",
+            index,
+            minimum=0,
+            maximum=POSTGRES_INTEGER_MAX,
+        ),
+        "street_number_last": _optional_integer(
+            source,
+            "street_number_last",
+            index,
+            minimum=0,
+            maximum=POSTGRES_INTEGER_MAX,
+        ),
         "street_number_suffix": _optional_upper_text(source, "street_number_suffix", index),
         "street_name": _optional_text(source, "street_name", index),
         "street_name_normalised": _optional_upper_text(source, "street_name_normalised", index),
@@ -639,6 +701,7 @@ def _integer(
     index: int,
     *,
     minimum: int | None = None,
+    maximum: int | None = None,
     allowed: set[int] | None = None,
 ) -> int:
     value = row.get(field)
@@ -646,15 +709,26 @@ def _integer(
         raise ImportProfileError(f"record {index} {field} must be an integer")
     if minimum is not None and value < minimum:
         raise ImportProfileError(f"record {index} {field} is below its minimum")
+    if maximum is not None and value > maximum:
+        raise ImportProfileError(f"record {index} {field} is above its maximum")
     if allowed is not None and value not in allowed:
         raise ImportProfileError(f"record {index} {field} is not registered")
     return value
 
 
 def _optional_integer(
-    row: Mapping[str, Any], field: str, index: int, *, minimum: int | None = None
+    row: Mapping[str, Any],
+    field: str,
+    index: int,
+    *,
+    minimum: int | None = None,
+    maximum: int | None = None,
 ) -> int | None:
-    return None if row.get(field) is None else _integer(row, field, index, minimum=minimum)
+    return (
+        None
+        if row.get(field) is None
+        else _integer(row, field, index, minimum=minimum, maximum=maximum)
+    )
 
 
 def _decimal(row: Mapping[str, Any], field: str, index: int) -> Decimal:
@@ -799,95 +873,6 @@ _PROFILE_INSERT_SQL = {
         FROM propertyscope_import_stage ORDER BY ordinal
         ON CONFLICT (dataset_release_id,gnaf_pid) DO NOTHING
     """,
-    "psi-sales": """
-        WITH distinct_source_rows AS (
-            SELECT DISTINCT ON (
-                payload->>'source_business_key',payload->>'source_row_sha256'
-            ) payload,ordinal
-            FROM propertyscope_import_stage
-            ORDER BY payload->>'source_business_key',payload->>'source_row_sha256',ordinal
-        ), ranked_source_rows AS (
-            SELECT payload,row_number() OVER (
-                PARTITION BY payload->>'source_business_key' ORDER BY ordinal
-            )::integer AS derived_revision
-            FROM distinct_source_rows
-        ), exact_candidates AS (
-            SELECT ranked.payload->>'source_business_key' AS source_business_key,
-                ranked.derived_revision,min(property.property_ref::text)::uuid
-                    AS exact_property_ref
-            FROM ranked_source_rows ranked
-            JOIN registry.property property
-              ON property.postcode=ranked.payload->>'postcode'
-             AND property.locality=ranked.payload->>'locality'
-             AND property.street_name=ranked.payload->>'street_name_normalised'
-             AND property.street_type=ranked.payload->>'street_type'
-             AND property.street_number_first=
-                 (ranked.payload->>'street_number_first')::integer
-             AND COALESCE(property.street_number_last,-1)=COALESCE(
-                 NULLIF(ranked.payload->>'street_number_last','')::integer,-1)
-             AND COALESCE(property.street_number_suffix,'')=COALESCE(
-                 ranked.payload->>'street_number_suffix','')
-             AND COALESCE(property.unit_number,'')=COALESCE(
-                 ranked.payload->>'unit_number','')
-            WHERE NULLIF(ranked.payload->>'postcode','') IS NOT NULL
-              AND NULLIF(ranked.payload->>'locality','') IS NOT NULL
-              AND NULLIF(ranked.payload->>'street_name_normalised','') IS NOT NULL
-              AND NULLIF(ranked.payload->>'street_type','') IS NOT NULL
-              AND NULLIF(ranked.payload->>'street_number_first','') IS NOT NULL
-              AND ranked.payload->>'house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
-            GROUP BY ranked.payload->>'source_business_key',ranked.derived_revision
-            HAVING count(*)=1
-        ), prepared_rows AS (
-            SELECT ranked.*,candidate.exact_property_ref
-            FROM ranked_source_rows ranked
-            LEFT JOIN exact_candidates candidate
-              ON candidate.source_business_key=ranked.payload->>'source_business_key'
-             AND candidate.derived_revision=ranked.derived_revision
-        )
-        INSERT INTO warehouse.psi_sale (
-            dataset_release_id,source_business_key,source_revision,source_era,
-            source_partition_year,district_code,
-            property_id,dealing_id,source_system,valuation_number,source_downloaded_at,
-            property_name,unit_number,house_number,street_number_first,street_number_last,
-            street_number_suffix,
-            street_name,street_name_normalised,street_type,locality,postcode,land_description,
-            dimensions,zoning_code,nature_code,primary_purpose,strata_lot_number,component_code,
-            sale_code,interest_of_sale,contract_date,settlement_date,price_aud,area_original,
-            area_unit,area_square_metres,property_ref,match_tier,match_confidence,
-            geographic_precision,source_row_sha256,normalisation_version,artifact_record_id,
-            ingestion_run_id,created_at
-        ) SELECT %s,payload->>'source_business_key',derived_revision,
-            payload->>'source_era',(payload->>'source_partition_year')::integer,
-            NULLIF(payload->>'district_code',''),
-            NULLIF(payload->>'property_id',''),NULLIF(payload->>'dealing_id',''),
-            NULLIF(payload->>'source_system',''),NULLIF(payload->>'valuation_number',''),
-            NULLIF(payload->>'source_downloaded_at','')::timestamp,
-            NULLIF(payload->>'property_name',''),NULLIF(payload->>'unit_number',''),
-            NULLIF(payload->>'house_number',''),
-            NULLIF(payload->>'street_number_first','')::integer,
-            NULLIF(payload->>'street_number_last','')::integer,
-            NULLIF(payload->>'street_number_suffix',''),NULLIF(payload->>'street_name',''),
-            NULLIF(payload->>'street_name_normalised',''),NULLIF(payload->>'street_type',''),
-            NULLIF(payload->>'locality',''),NULLIF(payload->>'postcode',''),
-            NULLIF(payload->>'land_description',''),NULLIF(payload->>'dimensions',''),
-            NULLIF(payload->>'zoning_code',''),NULLIF(payload->>'nature_code',''),
-            NULLIF(payload->>'primary_purpose',''),NULLIF(payload->>'strata_lot_number',''),
-            NULLIF(payload->>'component_code',''),NULLIF(payload->>'sale_code',''),
-            NULLIF(payload->>'interest_of_sale',''),
-            NULLIF(payload->>'contract_date','')::date,NULLIF(payload->>'settlement_date','')::date,
-            NULLIF(payload->>'price_aud','')::bigint,NULLIF(payload->>'area_original','')::numeric,
-            NULLIF(payload->>'area_unit',''),NULLIF(payload->>'area_square_metres','')::numeric,
-            COALESCE(NULLIF(payload->>'property_ref','')::uuid,exact_property_ref),
-            CASE WHEN COALESCE(NULLIF(payload->>'property_ref','')::uuid,exact_property_ref)
-                IS NOT NULL THEN 'A' ELSE payload->>'match_tier' END,
-            CASE WHEN COALESCE(NULLIF(payload->>'property_ref','')::uuid,exact_property_ref)
-                IS NOT NULL THEN 1 ELSE (payload->>'match_confidence')::numeric END,
-            CASE WHEN COALESCE(NULLIF(payload->>'property_ref','')::uuid,exact_property_ref)
-                IS NOT NULL THEN 'exact_address' ELSE payload->>'geographic_precision' END,
-            payload->>'source_row_sha256','1.0.0',%s,%s,now()
-        FROM prepared_rows ORDER BY payload->>'source_business_key',derived_revision
-        ON CONFLICT (dataset_release_id,source_business_key,source_revision) DO NOTHING
-    """,
     "bocsar-sparse": """
         INSERT INTO warehouse.bocsar_observation (
             dataset_release_id,geography_kind,geography_value,source_category_key,
@@ -903,6 +888,129 @@ _PROFILE_INSERT_SQL = {
         DO NOTHING
     """,
 }
+
+_PSI_IDENTITY_SQL = """
+    CREATE TEMP TABLE propertyscope_psi_identity_stage ON COMMIT DROP AS
+    WITH distinct_source_rows AS (
+        SELECT DISTINCT ON (
+            payload->>'source_business_key',payload->>'source_row_sha256'
+        ) ordinal,payload
+        FROM propertyscope_import_stage
+        ORDER BY payload->>'source_business_key',payload->>'source_row_sha256',ordinal
+    )
+    SELECT ordinal,payload,payload->>'source_business_key' AS source_business_key,
+        payload->>'source_row_sha256' AS source_row_sha256,
+        row_number() OVER (
+            PARTITION BY payload->>'source_business_key' ORDER BY ordinal
+        )::integer AS derived_revision
+    FROM distinct_source_rows
+"""
+
+_PSI_ADDRESS_RESOLUTION_SQL = """
+    CREATE TEMP TABLE propertyscope_psi_address_resolution ON COMMIT DROP AS
+    WITH eligible_addresses AS (
+        SELECT DISTINCT payload->>'postcode' AS postcode,
+            payload->>'locality' AS locality,
+            payload->>'street_name_normalised' AS street_name_normalised,
+            payload->>'street_type' AS street_type,
+            (payload->>'street_number_first')::integer AS street_number_first,
+            NULLIF(payload->>'street_number_last','')::integer AS street_number_last,
+            NULLIF(payload->>'street_number_suffix','') AS street_number_suffix,
+            NULLIF(payload->>'unit_number','') AS unit_number
+        FROM propertyscope_psi_identity_stage
+        WHERE NULLIF(payload->>'postcode','') IS NOT NULL
+          AND NULLIF(payload->>'locality','') IS NOT NULL
+          AND NULLIF(payload->>'street_name_normalised','') IS NOT NULL
+          AND NULLIF(payload->>'street_type','') IS NOT NULL
+          AND NULLIF(payload->>'street_number_first','') IS NOT NULL
+          AND payload->>'house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
+    )
+    SELECT eligible.postcode,eligible.locality,eligible.street_name_normalised,
+        eligible.street_type,eligible.street_number_first,eligible.street_number_last,
+        eligible.street_number_suffix,eligible.unit_number,
+        CASE WHEN count(property.property_ref)=1
+            THEN min(property.property_ref::text)::uuid ELSE NULL END AS exact_property_ref
+    FROM eligible_addresses eligible
+    JOIN registry.property property
+      ON property.postcode=eligible.postcode
+     AND property.locality=eligible.locality
+     AND property.street_name=eligible.street_name_normalised
+     AND property.street_type=eligible.street_type
+     AND property.street_number_first=eligible.street_number_first
+     AND COALESCE(property.street_number_last,-1)=COALESCE(eligible.street_number_last,-1)
+     AND COALESCE(property.street_number_suffix,'')=COALESCE(eligible.street_number_suffix,'')
+     AND COALESCE(property.unit_number,'')=COALESCE(eligible.unit_number,'')
+    GROUP BY eligible.postcode,eligible.locality,eligible.street_name_normalised,
+        eligible.street_type,eligible.street_number_first,eligible.street_number_last,
+        eligible.street_number_suffix,eligible.unit_number
+"""
+
+_PSI_TARGET_INSERT_SQL = """
+    INSERT INTO warehouse.psi_sale (
+        dataset_release_id,source_business_key,source_revision,source_era,
+        source_partition_year,district_code,
+        property_id,dealing_id,source_system,valuation_number,source_downloaded_at,
+        property_name,unit_number,house_number,street_number_first,street_number_last,
+        street_number_suffix,
+        street_name,street_name_normalised,street_type,locality,postcode,land_description,
+        dimensions,zoning_code,nature_code,primary_purpose,strata_lot_number,component_code,
+        sale_code,interest_of_sale,contract_date,settlement_date,price_aud,area_original,
+        area_unit,area_square_metres,property_ref,match_tier,match_confidence,
+        geographic_precision,source_row_sha256,normalisation_version,artifact_record_id,
+        ingestion_run_id,created_at
+    ) SELECT %s,identity.source_business_key,identity.derived_revision,
+        payload->>'source_era',(payload->>'source_partition_year')::integer,
+        NULLIF(payload->>'district_code',''),
+        NULLIF(payload->>'property_id',''),NULLIF(payload->>'dealing_id',''),
+        NULLIF(payload->>'source_system',''),NULLIF(payload->>'valuation_number',''),
+        NULLIF(payload->>'source_downloaded_at','')::timestamp,
+        NULLIF(payload->>'property_name',''),NULLIF(payload->>'unit_number',''),
+        NULLIF(payload->>'house_number',''),
+        NULLIF(payload->>'street_number_first','')::integer,
+        NULLIF(payload->>'street_number_last','')::integer,
+        NULLIF(payload->>'street_number_suffix',''),NULLIF(payload->>'street_name',''),
+        NULLIF(payload->>'street_name_normalised',''),NULLIF(payload->>'street_type',''),
+        NULLIF(payload->>'locality',''),NULLIF(payload->>'postcode',''),
+        NULLIF(payload->>'land_description',''),NULLIF(payload->>'dimensions',''),
+        NULLIF(payload->>'zoning_code',''),NULLIF(payload->>'nature_code',''),
+        NULLIF(payload->>'primary_purpose',''),NULLIF(payload->>'strata_lot_number',''),
+        NULLIF(payload->>'component_code',''),NULLIF(payload->>'sale_code',''),
+        NULLIF(payload->>'interest_of_sale',''),
+        NULLIF(payload->>'contract_date','')::date,NULLIF(payload->>'settlement_date','')::date,
+        NULLIF(payload->>'price_aud','')::bigint,NULLIF(payload->>'area_original','')::numeric,
+        NULLIF(payload->>'area_unit',''),NULLIF(payload->>'area_square_metres','')::numeric,
+        COALESCE(NULLIF(payload->>'property_ref','')::uuid,resolution.exact_property_ref),
+        CASE WHEN COALESCE(NULLIF(payload->>'property_ref','')::uuid,
+            resolution.exact_property_ref) IS NOT NULL THEN 'A' ELSE payload->>'match_tier' END,
+        CASE WHEN COALESCE(NULLIF(payload->>'property_ref','')::uuid,
+            resolution.exact_property_ref) IS NOT NULL
+            THEN 1 ELSE (payload->>'match_confidence')::numeric END,
+        CASE WHEN COALESCE(NULLIF(payload->>'property_ref','')::uuid,
+            resolution.exact_property_ref) IS NOT NULL
+            THEN 'exact_address' ELSE payload->>'geographic_precision' END,
+        identity.source_row_sha256,'1.0.0',%s,%s,now()
+    FROM propertyscope_psi_identity_stage identity
+    LEFT JOIN propertyscope_psi_address_resolution resolution
+      ON resolution.postcode=payload->>'postcode'
+     AND resolution.locality=payload->>'locality'
+     AND resolution.street_name_normalised=payload->>'street_name_normalised'
+     AND resolution.street_type=payload->>'street_type'
+     AND resolution.street_number_first=(payload->>'street_number_first')::integer
+     AND COALESCE(resolution.street_number_last,-1)=COALESCE(
+         NULLIF(payload->>'street_number_last','')::integer,-1)
+     AND COALESCE(resolution.street_number_suffix,'')=COALESCE(
+         payload->>'street_number_suffix','')
+     AND COALESCE(resolution.unit_number,'')=COALESCE(payload->>'unit_number','')
+     AND identity.payload->>'house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
+    ORDER BY identity.source_business_key,identity.derived_revision
+    ON CONFLICT (dataset_release_id,source_business_key,source_revision) DO NOTHING
+"""
+
+_PSI_PHASE_SQL = (
+    ("identity_revision_derivation", _PSI_IDENTITY_SQL),
+    ("address_resolution", _PSI_ADDRESS_RESOLUTION_SQL),
+    ("target_materialisation", _PSI_TARGET_INSERT_SQL),
+)
 
 _PROFILE_COUNT_SQL = {
     "property-fixture": """

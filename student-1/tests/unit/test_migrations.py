@@ -520,3 +520,16 @@ def test_cached_reprocessing_reconciles_found_to_verified_rows() -> None:
 
     assert "run_mode = 'reprocess_cached'" in migration
     assert "SET rows_discovered = rows_staged" in migration
+
+
+def test_truthful_loader_phases_and_bounded_recovery_are_durable() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE).joinpath("038_truthful_loader_phases.sql").read_text("utf-8")
+    )
+
+    assert migration.count("progress_phase_key") == 3
+    assert "ALTER TABLE ops.release_activation" in migration
+    assert "space_recovery_status" in migration
+    assert "space_recovery_policy_json" in migration
+    assert "\nVACUUM" not in migration
+    assert "\nREINDEX" not in migration

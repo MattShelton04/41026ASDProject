@@ -83,7 +83,9 @@ Open <http://localhost:5200>. The main product path is:
 4. Preview the source and proposed work, then follow progress in **Update history**.
    Each timeline step shows its elapsed or completed duration. Active row/byte phases show bounded
    progress and an approximate remaining time once enough evidence exists; set-based database work
-   stays explicitly indeterminate rather than presenting a misleading 100% bar.
+   stays explicitly indeterminate rather than presenting a misleading 100% bar. An interrupted
+   detail page performs a finite slow reconciliation check and refreshes immediately when its tab
+   becomes visible, so a resume performed elsewhere appears on the already-open page.
 5. Review new versions under **Published data** before publishing or rejecting them. Data checks,
    files and coverage are opened from the update or version they explain instead of appearing as
    separate primary destinations. Publication returns after queueing a durable background

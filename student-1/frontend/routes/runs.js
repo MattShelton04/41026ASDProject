@@ -1,7 +1,7 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, durationMilliseconds, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js";
-import { actionAvailability, createLatestRequestGuard, nextPollDelay, retainRecent } from "../core/polling.js";
+import { actionAvailability, createLatestRequestGuard, nextRunDetailPollDelay, retainRecent } from "../core/polling.js";
 import { parseRoute, routeQuery } from "../core/router.js";
 import { runFailureSummary } from "../core/run-failure.js";
 import { filterToolbar } from "../components/forms.js";
@@ -48,14 +48,15 @@ function runTimeline(tasks, { available = true } = {}) {
     const usesRows = Number.isFinite(rowTotal) && rowTotal > 0;
     const processed = usesRows ? durableRows : Number(task.progress_bytes || 0);
     const total = usesRows ? rowTotal : byteTotal;
+    const progressRatio = Number.isFinite(total) && total > 0
+      ? Math.max(0, Math.min(1, processed / total))
+      : null;
+    const indeterminate = task.status === "running" && progressRatio === null;
     const unitProgress = usesRows
       ? `${formatNumber(processed)} of ${formatNumber(total)} rows`
       : Number.isFinite(total) && total > 0
         ? `${formatBytes(processed)} of ${formatBytes(total)}`
-        : `${formatNumber(durableRows)} rows · total not yet known`;
-    const progressRatio = Number.isFinite(total) && total > 0
-      ? Math.max(0, Math.min(1, processed / total))
-      : null;
+        : `${formatNumber(durableRows)} rows · ${indeterminate ? "remaining work indeterminate" : "total not recorded"}`;
     const elapsedMs = task.started_at ? durationMilliseconds(task.started_at, finished) : null;
     const remainingMs = task.status === "running" && progressRatio > 0 && progressRatio < 1
       && elapsedMs >= 10_000 ? elapsedMs * ((1 - progressRatio) / progressRatio) : null;
@@ -195,7 +196,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
     }
   }
 
-  async function renderRunDetail(id, { polling = false } = {}) {
+  async function renderRunDetail(id, { polling = false, resetInterruptedReconciliation = false } = {}) {
     const refresh = refreshGuard.begin();
     const routeEpoch = generationGuard.capture();
     const isCurrent = () => refresh.isCurrent()
@@ -203,6 +204,10 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       && parseRoute(location.hash).route === "runs"
       && parseRoute(location.hash).id === id;
     clearTimeout(state.pollTimer);
+    if (resetInterruptedReconciliation) state.interruptedReconciliationAttempts = 0;
+    if (polling && state.lastRunStatus === "interrupted") {
+      state.interruptedReconciliationAttempts += 1;
+    }
     if (!polling) renderLoading(view, "Loading run evidence");
     else {
       view.setAttribute("aria-busy", "true");
@@ -267,9 +272,20 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
         }
       }
       append(view, pageHeading("Data update", displayName(run.job_name || `Update ${String(id).slice(0, 8)}`), `${humanise(run.run_mode)} · started ${formatDate(run.requested_at)}`, actions));
-      const refreshStatus = el("p", "run-refresh-status", nextPollDelay(run.status) !== null
-        ? "Refreshed just now · updates automatically while this update is active"
-        : "Refreshed just now · latest saved status");
+      const nextDelay = nextRunDetailPollDelay(
+        run.status,
+        0,
+        document.hidden,
+        state.interruptedReconciliationAttempts,
+      );
+      const refreshCopy = run.status === "interrupted"
+        ? nextDelay === null
+          ? "Refreshed just now · automatic recovery checks complete; return to this tab or refresh to check again"
+          : "Refreshed just now · checking periodically for recovery started elsewhere"
+        : nextDelay !== null
+          ? "Refreshed just now · updates automatically while this update is active"
+          : "Refreshed just now · latest saved status";
+      const refreshStatus = el("p", "run-refresh-status", refreshCopy);
       refreshStatus.dataset.runRefreshStatus = "";
       append(view, refreshStatus);
       const releaseWarning = feedWarning("Published-version details", releasesFeed);
@@ -313,6 +329,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       const statusChanged = state.lastRunStatus && state.lastRunStatus !== run.status;
       if (statusChanged) announce(`Run status changed to ${humanise(run.status)}.`);
       state.lastRunStatus = run.status;
+      if (run.status !== "interrupted") state.interruptedReconciliationAttempts = 0;
       pollFailures = 0;
       view.setAttribute("aria-busy", "false");
       scheduleRunPoll(id, run.status);
@@ -333,7 +350,12 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
 
   function scheduleRunPoll(id, status, failures = 0) {
     clearTimeout(state.pollTimer);
-    const delay = nextPollDelay(status, failures, document.hidden);
+    const delay = nextRunDetailPollDelay(
+      status,
+      failures,
+      document.hidden,
+      state.interruptedReconciliationAttempts,
+    );
     if (delay === null) return;
     const routeEpoch = generationGuard.capture();
     state.pollTimer = setTimeout(() => {

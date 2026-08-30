@@ -132,6 +132,19 @@ def test_openapi_operations_exactly_match_public_runtime_routes() -> None:
     assert described == runtime
 
 
+def test_cancel_contract_preserves_conflict_and_documents_unconfirmed_reconciliation() -> None:
+    document = yaml.safe_load((CONTRACTS / "data-platform-api.v1.openapi.yaml").read_text("utf-8"))
+    responses = document["paths"]["/ingestion-runs/{run_id}/cancel"]["post"]["responses"]
+
+    assert set(responses) == {"200", "409", "503"}
+    assert responses["409"] == {"$ref": "#/components/responses/Problem"}
+    unavailable = responses["503"]
+    representation = unavailable["content"]["application/problem+json"]
+    assert representation["schema"] == {"$ref": "#/components/schemas/Problem"}
+    assert representation["example"]["status"] == 503
+    assert representation["example"]["code"] == "cancellation_unconfirmed"
+
+
 def test_release_manifest_fixtures_encode_success_and_failure() -> None:
     schema = _json("release-manifest.v1.schema.json")
     jsonschema.Draft202012Validator.check_schema(schema)

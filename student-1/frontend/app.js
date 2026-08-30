@@ -50,7 +50,12 @@ for (const item of document.querySelectorAll("[data-product-path]")) {
   item.href = new URL(item.dataset.productPath, new URL(productHomeUrl, window.location.href)).href;
 }
 
-const state = { pollTimer: null, lastRunStatus: "", lastAgentStatus: "" };
+const state = {
+  pollTimer: null,
+  lastRunStatus: "",
+  lastAgentStatus: "",
+  interruptedReconciliationAttempts: 0,
+};
 const generationGuard = createGenerationGuard();
 let lastRenderedHash = location.hash;
 let guardedNavigationGeneration = 0;
@@ -223,6 +228,7 @@ async function renderRoute({ focus = false } = {}) {
   featureAssistant.destroy();
   const routeEpoch = generationGuard.begin();
   clearTimeout(state.pollTimer); state.lastRunStatus = ""; state.lastAgentStatus = "";
+  state.interruptedReconciliationAttempts = 0;
   liveRegion.textContent = "";
   const requestedHash = location.hash;
   const { route, id } = parseRoute(requestedHash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
@@ -326,7 +332,9 @@ window.addEventListener("hashchange", () => {
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) return;
   const current = parseRoute(location.hash);
-  if (current.route === "runs" && current.id && ACTIVE_RUN_STATES.has(state.lastRunStatus)) renderRunDetail(current.id, { polling: true });
+  if (current.route === "runs" && current.id && (ACTIVE_RUN_STATES.has(state.lastRunStatus) || state.lastRunStatus === "interrupted")) {
+    renderRunDetail(current.id, { polling: true, resetInterruptedReconciliation: true });
+  }
   else if (current.route === "ai" && current.id && ACTIVE_AGENT_STATES.has(state.lastAgentStatus)) resumeAgentTrace(current.id);
 });
 

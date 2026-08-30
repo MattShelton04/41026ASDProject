@@ -110,6 +110,47 @@ def test_import_watcher_cancels_source_scale_insertion_statement() -> None:
         assert connection.cancelled.wait(1.5)
 
 
+@pytest.mark.parametrize(
+    "phase_key",
+    [
+        "artifact_verification",
+        "typed_staging",
+        "identity_revision_derivation",
+        "address_resolution",
+        "target_materialisation",
+        "verification",
+    ],
+)
+def test_every_durable_import_phase_remains_exactly_cancellable(phase_key: str) -> None:
+    operation_id = uuid.uuid4()
+    run_id = uuid.uuid4()
+    task_id = uuid.uuid4()
+    progress = ScriptedConnection(
+        [
+            {"ingestion_run_id": run_id, "run_task_id": task_id},
+            None,
+            None,
+        ]
+    )
+    statement = CancellableConnection([])
+    cancellation = ScriptedConnection([{"cancel_requested_at": datetime.now(UTC)}])
+    store = SequencedConnectionStore([progress, statement, cancellation])
+
+    store.update_import_progress(
+        operation_id,
+        phase_key=phase_key,
+        phase=phase_key.replace("_", " "),
+        rows_processed=0,
+        bytes_processed=0,
+    )
+    with store._cancellable_import_connection(operation_id):
+        assert statement.cancelled.wait(1.5)
+
+    assert "progress_phase_key=%s" in progress.queries[0]
+    assert progress.parameters[0] is not None
+    assert progress.parameters[0][0] == phase_key
+
+
 def test_import_watcher_cancels_source_scale_work_after_lease_loss() -> None:
     operation_id = uuid.uuid4()
     connection = CancellableConnection([])
@@ -387,6 +428,28 @@ def test_queued_cancellation_is_immediately_terminal_and_cancels_pending_tasks()
     run_update_parameters = connection.parameters[4]
     assert run_update_parameters is not None
     assert run_update_parameters[4] is True
+
+
+def test_cancel_retry_replays_the_durable_cancelled_outcome() -> None:
+    run_id = uuid.uuid4()
+    cancelled_at = datetime.now(UTC)
+    connection = ScriptedConnection(
+        [
+            {
+                "id": run_id,
+                "status": "cancelled",
+                "cancel_requested_at": cancelled_at,
+                "run_mode": "full_refresh",
+                "parent_run_id": None,
+            }
+        ]
+    )
+
+    run = ConnectedStore(connection).request_cancel(run_id)
+
+    assert run["status"] == "cancelled"
+    assert run["cancel_requested_at"] == cancelled_at.isoformat()
+    assert len(connection.queries) == 1
 
 
 def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> None:
@@ -1580,10 +1643,52 @@ def test_import_claim_terminalises_expired_work_for_a_cancelled_run() -> None:
     assert "SET status='cancelled'" in cancellation
     assert "finished_at=%s" in cancellation
     assert "run.cancel_requested_at IS NOT NULL" in cancellation
+    assert "space_recovery_status='needed'" in cancellation
+    assert "measure_then_target_exact_relations" in cancellation
+    assert "warehouse.psi_sale" in cancellation
+    assert "warehouse.bocsar_observation" in cancellation
+    assert "warehouse.bocsar_coverage" in cancellation
+    assert "automatic_destructive_maintenance',false" in cancellation
     cancellation_parameters = connection.parameters[0]
     assert cancellation_parameters is not None
     assert "operator_cancelled" in str(cancellation_parameters[1])
     assert "WHERE status='queued'" in connection.queries[2]
+
+
+def test_cancelled_import_projects_bounded_relation_scoped_space_recovery() -> None:
+    operation_id = uuid.uuid4()
+    completed = {
+        "id": operation_id,
+        "status": "cancelled",
+        "space_recovery_status": "needed",
+    }
+    connection = ScriptedConnection(
+        [
+            {"id": operation_id, "import_profile_key": "bocsar-sparse"},
+            completed,
+        ]
+    )
+
+    result = ConnectedStore(connection).finish_import(
+        operation_id,
+        worker_id="loader-1",
+        lease_token="lease-token",
+        status="cancelled",
+        counts={},
+        result=None,
+        error={"code": "operator_cancelled"},
+    )
+
+    assert result["space_recovery_status"] == "needed"
+    update = connection.queries[1]
+    assert "space_recovery_status=%s" in update
+    assert "space_recovery_policy_json=%s" in update
+    parameters = connection.parameters[1]
+    assert parameters is not None
+    policy = str(parameters[9])
+    assert "warehouse.bocsar_observation" in policy
+    assert "warehouse.bocsar_coverage" in policy
+    assert "automatic_destructive_maintenance" in policy
 
 
 def test_interrupted_import_reenqueue_increments_attempt_once_and_replay_is_stable() -> None:
