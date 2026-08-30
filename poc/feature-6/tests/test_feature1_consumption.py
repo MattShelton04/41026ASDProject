@@ -67,6 +67,18 @@ class AtomicMemoryStore:
         return receipt.as_dict()
 
 
+class CrossKeyReplayStore(AtomicMemoryStore):
+    def import_release_atomic(
+        self,
+        publication: PublicationRequest,
+        records: Iterable[Mapping[str, Any]],
+    ) -> Mapping[str, Any]:
+        for retained in self.publications.values():
+            if retained.release_id == publication.release_id:
+                return {**retained.receipt.as_dict(), "replayed": True}
+        return super().import_release_atomic(publication, records)
+
+
 def _schema_validator() -> JsonSchemaRecordValidator:
     schema = json.loads(
         (ROOT / "student-1" / "contracts" / "property-sales.v2.schema.json").read_text(
@@ -295,6 +307,54 @@ def test_accepted_reconciliation_pulls_once_and_handles_no_release() -> None:
 
     assert first == replay
     assert first is not None and first.status == "accepted"
+    assert store.import_calls == 1
+
+
+def test_accepted_reconciliation_reuses_callback_receipt_across_operation_keys() -> None:
+    record = _envelope()["records"][0]
+    artifact = gzip.compress(json.dumps(record).encode() + b"\n")
+    callback = _publication(artifact, key="callback-publication-key")
+    manifest = callback["manifest"]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/data-products/nsw-psi-sales/accepted"):
+            return httpx.Response(
+                200,
+                json={
+                    "release": {
+                        "id": str(RELEASE_ID),
+                        "dataset_id": "nsw-psi-sales",
+                        "target_feature": "feature-2",
+                        "release_version": "fixture-sales-v2",
+                        "schema_version": SCHEMA_VERSION,
+                        "status": "accepted",
+                        "content_sha256": callback["content_sha256"],
+                        "record_count": 1,
+                        "manifest_json": manifest,
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            stream=httpx.ByteStream(artifact),
+            headers={"Digest": _digest_header(str(callback["content_sha256"]))},
+        )
+
+    feature1 = Feature1Client(
+        "http://feature-1.local",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    store = CrossKeyReplayStore()
+    importer = PublicationImporter(feature1, store, _schema_validator())
+
+    callback_receipt = importer.import_callback(
+        callback, header_idempotency_key="callback-publication-key"
+    )
+    reconciled_receipt = importer.reconcile_accepted("nsw-psi-sales", "feature-2")
+
+    assert reconciled_receipt == callback_receipt
+    assert reconciled_receipt is not None
+    assert reconciled_receipt.consumer_operation_id == "callback-publication-key"
     assert store.import_calls == 1
 
 

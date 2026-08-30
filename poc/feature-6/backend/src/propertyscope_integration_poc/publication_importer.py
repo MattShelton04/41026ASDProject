@@ -340,10 +340,13 @@ class PublicationImporter:
         ) as response:
             _validate_digest_header(response, publication.content_sha256)
             records = self._records(publication, response.iter_raw())
-            receipt = PublicationReceipt.from_mapping(
-                self._store.import_release_atomic(publication, records)
-            )
-        _validate_receipt(receipt, publication)
+            stored_receipt = self._store.import_release_atomic(publication, records)
+            receipt = PublicationReceipt.from_mapping(stored_receipt)
+        _validate_receipt(
+            receipt,
+            publication,
+            allow_operation_alias=stored_receipt.get("replayed") is True,
+        )
         return receipt
 
     def _records(
@@ -514,9 +517,14 @@ def _same_evidence(left: StoredPublication, right: PublicationRequest) -> bool:
     )
 
 
-def _validate_receipt(receipt: PublicationReceipt, publication: PublicationRequest) -> None:
+def _validate_receipt(
+    receipt: PublicationReceipt,
+    publication: PublicationRequest,
+    *,
+    allow_operation_alias: bool = False,
+) -> None:
     if (
-        receipt.consumer_operation_id != publication.idempotency_key
+        (not allow_operation_alias and receipt.consumer_operation_id != publication.idempotency_key)
         or receipt.schema_version != publication.schema_version
         or receipt.content_sha256 != publication.content_sha256
         or receipt.rows_received > publication.record_count

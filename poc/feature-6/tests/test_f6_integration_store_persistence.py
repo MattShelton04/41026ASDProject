@@ -14,7 +14,11 @@ sys.path.insert(0, str(ROOT / "poc" / "feature-6" / "database" / "src"))
 
 from propertyscope_integration_poc import Settings, StoreHttpClient  # noqa: E402
 from propertyscope_integration_store import create_app  # noqa: E402
-from propertyscope_integration_store.errors import ConflictError, ValidationError  # noqa: E402
+from propertyscope_integration_store.errors import (  # noqa: E402
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
 from propertyscope_integration_store.repository import IntegrationStore  # noqa: E402
 
 PROPERTY = "a0000000-0000-0000-0000-000000000001"
@@ -110,6 +114,47 @@ def test_atomic_import_is_idempotent_and_rejects_conflicting_evidence(
         store.import_release(
             target_feature="feature-2",
             idempotency_key="sales-import-0001",
+            provider_release_id=SALES_RELEASE,
+            dataset_id="nsw-psi-sales",
+            schema_version="propertyscope.property-sales.v2",
+            content_sha256="b" * 64,
+            record_count=1,
+            records=records,
+        )
+
+
+def test_same_release_replays_original_receipt_across_operation_keys(
+    store: IntegrationStore,
+) -> None:
+    records = [sale("sale-1", 1, 800_000)]
+    first = import_release(
+        store,
+        release_id=SALES_RELEASE,
+        dataset="nsw-psi-sales",
+        schema="propertyscope.property-sales.v2",
+        records=records,
+        key="callback-import-0001",
+    )
+
+    replay = import_release(
+        store,
+        release_id=SALES_RELEASE,
+        dataset="nsw-psi-sales",
+        schema="propertyscope.property-sales.v2",
+        records=records,
+        key="reconcile-import-0001",
+    )
+
+    assert replay["replayed"] is True
+    assert replay["consumer_operation_id"] == first["consumer_operation_id"]
+    assert replay["consumer_operation_id"] == "callback-import-0001"
+    with pytest.raises(NotFoundError):
+        store.find_import("feature-2", "reconcile-import-0001")
+
+    with pytest.raises(ConflictError, match="different evidence"):
+        store.import_release(
+            target_feature="feature-2",
+            idempotency_key="changed-import-0001",
             provider_release_id=SALES_RELEASE,
             dataset_id="nsw-psi-sales",
             schema_version="propertyscope.property-sales.v2",

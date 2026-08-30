@@ -205,13 +205,26 @@ class IntegrationStore:
                 replay_receipt["replayed"] = True
                 return replay_receipt
             duplicate = connection.execute(
-                """SELECT idempotency_key FROM release_import
+                """SELECT target_feature, schema_version, content_sha256, record_count,
+                          receipt_json
+                   FROM release_import
                    WHERE dataset_id=? AND provider_release_id=?""",
                 (dataset_id, release_id),
             ).fetchone()
             if duplicate is not None:
+                duplicate_evidence = (
+                    duplicate["target_feature"],
+                    duplicate["schema_version"],
+                    duplicate["content_sha256"],
+                    duplicate["record_count"],
+                )
+                requested_evidence = (target, schema_version, content_sha256, record_count)
                 connection.rollback()
-                raise ConflictError("provider release was imported under another operation key")
+                if duplicate_evidence != requested_evidence:
+                    raise ConflictError("provider release was imported with different evidence")
+                replay_receipt = _json_object(duplicate["receipt_json"], "receipt")
+                replay_receipt["replayed"] = True
+                return replay_receipt
             try:
                 if dataset_id == "nsw-psi-sales":
                     accepted_count = self._import_sales(connection, release_id, records)
