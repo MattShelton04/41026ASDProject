@@ -158,6 +158,11 @@ source-scale benchmark evidence determines whether an exact relation needs bound
 or whether disposable release storage removes that need. The current marker is evidence for the
 operator and the PR2 remediation workflow; no endpoint claims recovery is complete yet.
 
+The PR1 disposable PostgreSQL cancellation test proves transaction rollback and transaction-local
+table cleanup at every PSI materialisation boundary. Executor spill-file size and `pgsql_tmp`
+cleanup require a forced-spill workload and are therefore a tracked PR2 benchmark measurement, not
+claimed by the small reliability fixture.
+
 `GET /api/data-platform/v1/artifact-retention` reports each referenced physical object, retained
 bytes, reference count, run states and retention reason. Cleanup is explicit and dry-run by
 default:

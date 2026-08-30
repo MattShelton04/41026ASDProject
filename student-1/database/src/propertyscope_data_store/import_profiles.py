@@ -1001,6 +1001,7 @@ _PSI_TARGET_INSERT_SQL = """
      AND COALESCE(resolution.street_number_suffix,'')=COALESCE(
          payload->>'street_number_suffix','')
      AND COALESCE(resolution.unit_number,'')=COALESCE(payload->>'unit_number','')
+     AND identity.payload->>'house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
     ORDER BY identity.source_business_key,identity.derived_revision
     ON CONFLICT (dataset_release_id,source_business_key,source_revision) DO NOTHING
 """

@@ -94,7 +94,9 @@ def _create_minimal_import_schema(connection: psycopg.Connection[Any]) -> None:
     connection.commit()
 
 
-def _psi_row(*, key: str, street_number_first: int = 10) -> dict[str, object]:
+def _psi_row(
+    *, key: str, street_number_first: int = 10, house_number: str = "10"
+) -> dict[str, object]:
     return {
         "source_business_key": key,
         "source_revision": 1,
@@ -108,7 +110,7 @@ def _psi_row(*, key: str, street_number_first: int = 10) -> dict[str, object]:
         "source_downloaded_at": None,
         "property_name": None,
         "unit_number": None,
-        "house_number": "10",
+        "house_number": house_number,
         "street_number_first": street_number_first,
         "street_number_last": None,
         "street_number_suffix": None,
@@ -183,6 +185,48 @@ def test_invalid_final_row_rolls_back_stage_and_preserves_predecessor(
         "SELECT to_regclass('pg_temp.propertyscope_import_stage') AS relation"
     ).fetchone()
     assert temporary is not None and temporary["relation"] is None
+
+
+def test_address_resolution_does_not_leak_from_eligible_to_ineligible_row(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    property_ref = uuid.uuid4()
+    connection.execute(
+        "INSERT INTO registry.property "
+        "VALUES (%s,'2000','SYDNEY','EXAMPLE','ST',10,NULL,NULL,NULL)",
+        (property_ref,),
+    )
+    connection.execute(
+        "CREATE TEMP TABLE propertyscope_import_stage "
+        "(ordinal BIGINT PRIMARY KEY,payload JSONB NOT NULL) ON COMMIT DROP"
+    )
+    connection.execute(
+        "INSERT INTO propertyscope_import_stage VALUES (1,%s),(2,%s)",
+        (
+            Jsonb(_psi_row(key="eligible")),
+            Jsonb(_psi_row(key="ineligible", house_number="LOT 10")),
+        ),
+    )
+
+    accepted = import_profiles._insert_psi_rows(
+        connection.cursor(),
+        release_id=uuid.uuid4(),
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        phase_rows=2,
+        phase_callback=None,
+    )
+
+    rows = connection.execute(
+        "SELECT source_business_key,property_ref FROM warehouse.psi_sale "
+        "ORDER BY source_business_key"
+    ).fetchall()
+    assert accepted == 2
+    assert rows == [
+        {"source_business_key": "eligible", "property_ref": property_ref},
+        {"source_business_key": "ineligible", "property_ref": None},
+    ]
 
 
 @pytest.mark.parametrize(

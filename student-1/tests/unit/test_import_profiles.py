@@ -530,6 +530,7 @@ def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions(
     assert "property.unit_number" in source
     assert "NULLIF(payload->>'street_type','') IS NOT NULL" in source
     assert "house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'" in source
+    assert "identity.payload->>'house_number' ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'" in source
 
 
 def test_psi_phase_callbacks_immediately_precede_their_real_sql_boundaries() -> None:
