@@ -243,8 +243,6 @@ test("the optional shell evidence adapter is domain-neutral, closed, and manifes
   );
   const source = readFileSync(new URL("./routes/evidence.js", import.meta.url), "utf8");
   assert.doesNotMatch(source, /getFeature1Adapter|Property data|sale|crime|school|planning|buyer/i);
-  const featureAdapter = readFileSync(new URL("../../student-1/frontend/integration/shell.js", import.meta.url), "utf8");
-  assert.match(featureAdapter, /export function createShellEvidenceAdapter/);
 });
 
 test("the shell renders before its optional Feature 1 projection loads", () => {

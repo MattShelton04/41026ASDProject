@@ -991,3 +991,11 @@ test("live acquisition controls always use the complete registered source", asyn
   assert.doesNotMatch(app, /scope-profile|Maximum addresses|maximum-records/);
   assert.doesNotMatch(app, /request\("runtime-capabilities"\)/);
 });
+
+test("Feature 1 exports the manifest-declared domain-neutral evidence hook", async () => {
+  const adapter = await readFile(
+    new URL("../../frontend/integration/shell.js", import.meta.url),
+    "utf8",
+  );
+  assert.match(adapter, /export function createShellEvidenceAdapter/);
+});
