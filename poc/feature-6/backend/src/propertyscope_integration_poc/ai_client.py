@@ -97,7 +97,8 @@ class AiModeClient:
         payload = self._request(
             "GET", f"/api/v1/agent-runs/{run_id}", headers=_safe_headers(headers)
         )
-        if payload.get("feature_key") != FEATURE_KEY:
+        run = payload.get("run")
+        if not isinstance(run, Mapping) or run.get("feature_key") != FEATURE_KEY:
             raise AiModeUnavailableError("AI run does not belong to this POC", status_code=404)
         return payload
 

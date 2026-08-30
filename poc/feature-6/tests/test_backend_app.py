@@ -34,6 +34,7 @@ from propertyscope_integration_store.app import (  # noqa: E402
 PROPERTY_REF = uuid.UUID("a0000000-0000-0000-0000-000000000001")
 MARKET_ID = uuid.UUID("b0000000-0000-0000-0000-000000000001")
 SITE_ID = uuid.UUID("c0000000-0000-0000-0000-000000000001")
+RUN_ID = uuid.UUID("d0000000-0000-0000-0000-000000000001")
 
 
 @contextmanager
@@ -357,6 +358,33 @@ def test_ai_mode_client_sends_exact_feature_tool_and_limit_boundary() -> None:
     }
     assert "User question" in payload["objective"]
     assert observed["key"] == "poc-ai-run-key"
+
+
+def test_ai_mode_client_reads_the_run_detail_envelope() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == f"/api/v1/agent-runs/{RUN_ID}"
+        return httpx.Response(
+            200,
+            json={
+                "run": {
+                    "id": str(RUN_ID),
+                    "feature_key": "propertyscope-integration-poc",
+                    "status": "failed",
+                },
+                "steps": [],
+                "reviews": [],
+            },
+        )
+
+    ai_mode = AiModeClient(
+        "http://ai-mode.local",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    result = ai_mode.get_run(RUN_ID)
+
+    assert result["run"]["feature_key"] == "propertyscope-integration-poc"
+    assert result["run"]["status"] == "failed"
 
 
 def test_callback_returns_closed_consumer_receipt_and_request_id() -> None:
