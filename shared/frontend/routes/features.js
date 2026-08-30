@@ -1,6 +1,6 @@
-import { capabilityState } from "../capabilities.js?v=10";
-import { featureRegistry } from "../features.js?v=10";
-import { append, badge, el, link, pageHeader } from "../core.js?v=10";
+import { capabilityState } from "../capabilities.js";
+import { featureRegistry } from "../features.js";
+import { append, badge, el, link, pageHeader } from "../core.js";
 
 function featureCard(feature) {
   const card = el("article", "ps-card feature-directory-card");

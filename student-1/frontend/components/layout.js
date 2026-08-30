@@ -1,5 +1,5 @@
 import { append, el } from "../core/dom.js";
-import { stateLabel } from "../core/formats.js?v=18";
+import { stateLabel } from "../core/formats.js";
 
 export function pageHeading(kicker, title, description, actions = []) {
   const heading = el("header", "page-heading");

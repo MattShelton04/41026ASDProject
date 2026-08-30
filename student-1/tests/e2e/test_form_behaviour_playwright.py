@@ -1038,17 +1038,23 @@ def test_jobs_list_error_retry_restores_route_heading_focus(
     assert reads == 2
 
 
-@pytest.mark.parametrize("late_status", [200, 503])
-def test_late_jobs_route_cannot_replace_a_newer_release_route(
-    page: Page,
-    fixture_origin: str,
-    late_status: int,
+def test_leaving_jobs_aborts_its_request_without_replacing_the_new_route(
+    page: Page, fixture_origin: str
 ) -> None:
     held: list[Route] = []
+    failed_requests: list[str] = []
 
     def hold_jobs(route: Route) -> None:
         held.append(route)
 
+    page.on(
+        "requestfailed",
+        lambda request: (
+            failed_requests.append(request.url)
+            if "/api/data-platform/v1/jobs?" in request.url
+            else None
+        ),
+    )
     page.route("**/api/data-platform/v1/jobs?*", hold_jobs)
     page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=populated&test={time.time_ns()}#jobs")
     deadline = time.monotonic() + 5
@@ -1061,34 +1067,32 @@ def test_late_jobs_route_cannot_replace_a_newer_release_route(
     expect(heading).to_be_visible()
     expect(heading).to_be_focused()
 
-    with page.expect_response(
-        lambda response: "/api/data-platform/v1/jobs?" in response.url
-    ) as response_info:
-        if late_status == 200:
-            held[0].continue_()
-        else:
-            held[0].fulfill(
-                status=503,
-                content_type="application/problem+json",
-                headers={"X-Request-ID": "late-jobs-request"},
-                body=json.dumps(
-                    {
-                        "title": "Delayed jobs failure",
-                        "status": 503,
-                        "detail": "This response belongs to the previous route.",
-                    }
-                ),
-            )
-    response_info.value.finished()
-    page.evaluate(
-        "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
-    )
+    deadline = time.monotonic() + 2
+    while not failed_requests and time.monotonic() < deadline:
+        page.wait_for_timeout(10)
+    assert failed_requests, "the obsolete Jobs request was not aborted"
 
     expect(heading).to_be_visible()
     expect(heading).to_be_focused()
     assert page.title() == "PropertyScope | Published data"
     assert page.evaluate("location.hash") == "#releases"
-    expect(page.get_by_text("This response belongs to the previous route.")).to_have_count(0)
+
+
+def test_ai_review_history_and_specialist_routes_render_from_live_fixture_contracts(
+    page: Page, fixture_origin: str
+) -> None:
+    _open(page, fixture_origin, "ai")
+    expect(page.get_by_role("heading", name="AI review", exact=True)).to_be_visible()
+    recent_reviews = page.get_by_text("Recent AI reviews", exact=True)
+    expect(recent_reviews).to_be_visible()
+    recent_reviews.click()
+    page.get_by_role("link", name="View result").click()
+    page.wait_for_function(f"() => location.hash === '#ai/{AGENT_RUN_ID}'")
+    expect(page.get_by_role("heading", name="AI review result", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="Recommended next step")).to_be_visible()
+
+    _open(page, fixture_origin, "quality")
+    expect(page.get_by_role("heading", name="Choose a data update")).to_be_visible()
 
 
 def test_jobs_list_secondary_actions_use_keyboard_accessible_overflow(

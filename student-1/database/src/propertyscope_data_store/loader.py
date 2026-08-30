@@ -21,6 +21,7 @@ from propertyscope_data_store.import_profiles import (
     prepare_import,
 )
 from propertyscope_data_store.repository import PropertyScopeStore
+from propertyscope_data_store.runtime_registry import load_runtime_registry
 
 logger = logging.getLogger(__name__)
 ACTIVATION_LEASE_SECONDS = 120
@@ -503,7 +504,10 @@ def _safe_loader_error(exc: Exception) -> dict[str, object]:
 
 def main() -> None:
     settings = StoreSettings.from_environment()
-    store = PropertyScopeStore(settings.database_url)
+    store = PropertyScopeStore(
+        settings.database_url,
+        runtime_registry=load_runtime_registry(settings.runtime_profile_root),
+    )
     loader = DatabaseLoader(
         store,
         settings.artifact_root,

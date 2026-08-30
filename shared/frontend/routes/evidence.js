@@ -1,4 +1,4 @@
-import { append, badge, cell, el, formatDate, formatNumber, humanise, link, notice, pageHeader, panel, requestJson, table } from "../core.js?v=10";
+import { append, badge, cell, el, formatDate, formatNumber, humanise, link, notice, pageHeader, panel, requestJson, table } from "../core.js";
 
 function statusTone(value) {
   if (["accepted", "succeeded", "confirmed"].includes(value)) return "confirmed";
@@ -6,7 +6,7 @@ function statusTone(value) {
   return "unknown";
 }
 
-export function createEvidenceRoute({ config, getFeature1Adapter, announce }) {
+export function createEvidenceRoute({ config, getFeature1Adapter, announce, requestJson: request = requestJson }) {
   return async function renderEvidence(root) {
     const adapter = getFeature1Adapter();
     if (!adapter) {
@@ -42,9 +42,12 @@ export function createEvidenceRoute({ config, getFeature1Adapter, announce }) {
     append(languagePanel.body, definitions);
 
     const [releasesResult, runsResult] = await Promise.allSettled([
-      requestJson(evidence.published.path),
-      requestJson(evidence.agentRuns.path),
+      request(evidence.published.path),
+      request(evidence.agentRuns.path),
     ]);
+    const cancellation = [releasesResult, runsResult]
+      .find((item) => item.status === "rejected" && item.reason?.name === "AbortError");
+    if (cancellation) throw cancellation.reason;
     const failures = [releasesResult, runsResult].filter((item) => item.status === "rejected");
     state.replaceChildren(notice(failures.length ? "warning" : "success", failures.length ? "Some history is unavailable" : "Sources and history loaded", failures.length ? "Available sections are still shown. Try again later for anything missing." : "Current records loaded."));
     state.dataset.loadState = "settled";

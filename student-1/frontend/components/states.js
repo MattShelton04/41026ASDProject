@@ -1,5 +1,5 @@
 import { append, button, el } from "../core/dom.js";
-import { icon } from "./icons.js?v=1";
+import { icon } from "./icons.js";
 
 export function renderLoading(view, title = "Loading evidence") {
   view.replaceChildren();

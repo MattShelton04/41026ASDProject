@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+
+def _default_runtime_profile_root() -> Path:
+    return Path(__file__).resolve().parents[3] / "config" / "job-profiles"
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +19,7 @@ class StoreSettings:
     artifact_root: Path
     internal_token: str
     auto_migrate: bool = True
+    runtime_profile_root: Path = field(default_factory=_default_runtime_profile_root)
 
     @classmethod
     def from_environment(cls) -> StoreSettings:
@@ -32,6 +37,12 @@ class StoreSettings:
             ).resolve(),
             internal_token=token,
             auto_migrate=_boolean("PROPERTYSCOPE_AUTO_MIGRATE", default=True),
+            runtime_profile_root=Path(
+                os.environ.get(
+                    "PROPERTYSCOPE_RUNTIME_PROFILE_ROOT",
+                    str(_default_runtime_profile_root()),
+                )
+            ).resolve(),
         )
 
 

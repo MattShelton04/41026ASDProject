@@ -55,6 +55,12 @@ database services. AI-mode keeps its existing independent workflow store.
 - Migrations must rebuild from empty and produce a checked schema fingerprint. Manual DDL
   and direct reuse of the earlier database are prohibited.
 
+The executable fingerprint contract is versioned separately from migration ordering. Its current
+coverage, canonicalisation and compatibility rules are defined in
+[`../feature-1-schema-fingerprint-policy.md`](../feature-1-schema-fingerprint-policy.md). Consumers
+must compare both the policy identifier and digest; policy versions are intentionally not
+cross-comparable.
+
 The shared architecture, Compose topology, architecture validator and tests are updated
 together with the implementation. The repository owner authorised implementation on
 13 August 2026 and tutor approval has since been confirmed. The submission evidence should

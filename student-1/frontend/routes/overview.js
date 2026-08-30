@@ -1,10 +1,10 @@
 import { collection } from "../core/api.js";
 import { append, el, link } from "../core/dom.js";
-import { displayName, formatDate, humanise, statusTone } from "../core/formats.js?v=18";
+import { displayName, formatDate, humanise, statusTone } from "../core/formats.js";
 import { ACTIVE_RUN_STATES } from "../core/polling.js";
-import { badge, pageHeading, panel } from "../components/layout.js?v=17";
-import { icon, withIcon } from "../components/icons.js?v=1";
-import { cell, makeTable } from "../components/tables.js?v=18";
+import { badge, pageHeading, panel } from "../components/layout.js";
+import { icon, withIcon } from "../components/icons.js";
+import { cell, makeTable } from "../components/tables.js";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
 
 const OVERVIEW_FEED_LABELS = ["Source definitions", "Update history", "Published data"];

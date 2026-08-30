@@ -41,7 +41,9 @@ aliases or bare `id` fields to a domain-neutral kind. Exact `_id` and `_ref` fie
 fallback; an unannotated bare `id` is deliberately ambiguous and cannot authorize a later call.
 The `x-*` annotation is orchestration metadata only: it does not change JSON Schema validation or
 the feature tool's HTTP payload contract, so adding or correcting it does not require a tool API
-version bump.
+version bump. Enforcement and bounded prompt projection share one domain-neutral schema traversal
+so their interpretation cannot drift; feature-specific identifier kinds remain in feature-owned
+tool schemas.
 
 Release 1 MCP/RAG adapters and Release 2 role separation must reuse these contracts and
 the same run model. Their runtime behavior is intentionally not implemented or enabled

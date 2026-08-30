@@ -9,26 +9,56 @@ export const ACTIVE_AGENT_STATES = new Set([
 
 export function createGenerationGuard() {
   let generation = 0;
+  let controller = new AbortController();
   const capture = () => {
     const candidate = generation;
     return Object.freeze({
       generation: candidate,
+      signal: controller.signal,
       isCurrent: () => candidate === generation,
     });
   };
+  const advance = () => {
+    controller.abort();
+    controller = new AbortController();
+    generation += 1;
+    return generation;
+  };
   return {
-    next() { generation += 1; return generation; },
-    begin() { generation += 1; return capture(); },
+    next: advance,
+    begin() { advance(); return capture(); },
     capture,
     current() { return generation; },
+    signal() { return controller.signal; },
     isCurrent(candidate) { return candidate === generation; },
   };
 }
 
 export function createLatestRequestGuard() {
   let sequence = 0;
+  let controller = null;
+  const begin = () => {
+    controller?.abort();
+    controller = new AbortController();
+    const candidate = ++sequence;
+    const requestController = controller;
+    return Object.freeze({
+      sequence: candidate,
+      signal: requestController.signal,
+      isCurrent: () => candidate === sequence,
+      finish: () => {
+        if (controller === requestController) controller = null;
+      },
+    });
+  };
   return {
-    next() { sequence += 1; return sequence; },
+    next() { return begin().sequence; },
+    begin,
+    cancel() {
+      sequence += 1;
+      controller?.abort();
+      controller = null;
+    },
     isCurrent(candidate) { return candidate === sequence; },
   };
 }

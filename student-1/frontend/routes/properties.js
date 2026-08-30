@@ -1,9 +1,9 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { confidenceLabel, coverageRows, displayName, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js?v=18";
-import { createSubmissionGuard, propertySearchQuery } from "../core/forms.js?v=18";
+import { confidenceLabel, coverageRows, displayName, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js";
+import { createSubmissionGuard, propertySearchQuery } from "../core/forms.js";
 import { parseRoute, routeQuery } from "../core/router.js";
-import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
+import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
 import { createMap, createOpenFreeMapProvider, featureCollection, pointFeature } from "../mapping/index.js";

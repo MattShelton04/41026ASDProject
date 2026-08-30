@@ -1,13 +1,13 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, durationMilliseconds, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js?v=19";
-import { actionAvailability, createLatestRequestGuard, nextPollDelay, retainRecent } from "../core/polling.js?v=18";
+import { displayName, durationMilliseconds, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js";
+import { actionAvailability, createLatestRequestGuard, nextPollDelay, retainRecent } from "../core/polling.js";
 import { parseRoute, routeQuery } from "../core/router.js";
-import { runFailureSummary } from "../core/run-failure.js?v=1";
-import { filterToolbar } from "../components/forms.js?v=17";
-import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
+import { runFailureSummary } from "../core/run-failure.js";
+import { filterToolbar } from "../components/forms.js";
+import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
-import { cell, makeTable, primaryCell, technicalReference } from "../components/tables.js?v=18";
+import { cell, makeTable, primaryCell, technicalReference } from "../components/tables.js";
 
 const RUN_FILTERS = ["", "requested", "queued", "running", "succeeded", "failed", "cancelled", "interrupted"];
 
@@ -196,9 +196,9 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
   }
 
   async function renderRunDetail(id, { polling = false } = {}) {
-    const refresh = refreshGuard.next();
+    const refresh = refreshGuard.begin();
     const routeEpoch = generationGuard.capture();
-    const isCurrent = () => refreshGuard.isCurrent(refresh)
+    const isCurrent = () => refresh.isCurrent()
       && routeEpoch.isCurrent()
       && parseRoute(location.hash).route === "runs"
       && parseRoute(location.hash).id === id;
@@ -211,10 +211,12 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
     }
     try {
       const supportingFeeds = Promise.allSettled([
-        request(`ingestion-runs/${id}/tasks?limit=100`), request(`ingestion-runs/${id}/quality-results?limit=100`), request(`ingestion-runs/${id}/artifacts?limit=100`),
-        request(`dataset-releases?ingestion_run_id=${encodeURIComponent(id)}&limit=100`),
+        request(`ingestion-runs/${id}/tasks?limit=100`, { signal: refresh.signal }),
+        request(`ingestion-runs/${id}/quality-results?limit=100`, { signal: refresh.signal }),
+        request(`ingestion-runs/${id}/artifacts?limit=100`, { signal: refresh.signal }),
+        request(`dataset-releases?ingestion_run_id=${encodeURIComponent(id)}&limit=100`, { signal: refresh.signal }),
       ]);
-      const detailResult = await request(`ingestion-runs/${id}`);
+      const detailResult = await request(`ingestion-runs/${id}`, { signal: refresh.signal });
       if (!isCurrent()) return;
       const [tasksResult, qualityResult, artifactsResult, releasesResult] = await supportingFeeds;
       if (!isCurrent()) return;
@@ -324,6 +326,8 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
         view.setAttribute("aria-busy", "false");
         scheduleRunPoll(id, state.lastRunStatus, pollFailures);
       }
+    } finally {
+      refresh.finish();
     }
   }
 

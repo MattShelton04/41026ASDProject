@@ -468,7 +468,9 @@ results. Feature-owned input/output schemas use the optional `x-identifier-kind`
 an alias or bare `id` needs a stable kind; exact `_id` and `_ref` names are the fallback. Bare
 `id` fields require annotation, and unavailable historical tool definitions fail closed. These
 `x-*` fields are orchestration metadata and do not alter payload validation, so metadata-only
-corrections do not version a feature tool's HTTP contract.
+corrections do not version a feature tool's HTTP contract. One domain-neutral schema traversal
+in `agent-core` supplies both deterministic authorization and AI-mode's bounded prompt ledger;
+feature-specific identifier kinds and field aliases exist only in each feature's tool schemas.
 
 ### 7.4 Tool naming and ownership
 

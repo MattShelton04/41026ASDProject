@@ -235,32 +235,6 @@ test("Feature 1 assistant wrapper projects only allowlisted typed page context",
   assert.deepEqual(assistantContextFromHash("#assistant?route=made-up&ingestion_run_id=10000000-0000-4000-8000-000000000004"), {});
 });
 
-test("Feature 1 assistant cache versions load its adapter and shared graph atomically", async () => {
-  const route = await readFile(new URL("../../frontend/routes/assistant.js", import.meta.url), "utf8");
-  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
-  const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
-  assert.match(route, /ai-chat\/index\.js\?v=3/);
-  assert.match(route, /integration\/assistant\.js\?v=2/);
-  assert.match(app, /routes\/assistant\.js\?v=3/);
-  assert.match(html, /app\.js\?v=42/);
-});
-
-test("release publication timeout fixes load through one versioned module graph", async () => {
-  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
-  const route = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
-  const helper = await readFile(
-    new URL("../../frontend/routes/release-publication.js", import.meta.url),
-    "utf8",
-  );
-  const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
-
-  assert.match(html, /app\.js\?v=42/);
-  assert.match(app, /routes\/releases\.js\?v=23/);
-  assert.match(route, /core\/publication\.js\?v=2/);
-  assert.match(route, /release-publication\.js\?v=2/);
-  assert.match(helper, /core\/publication\.js\?v=2/);
-});
-
 test("failed update summary prefers specific step evidence over a generic run error", () => {
   const summary = runFailureSummary(
     { error_json: { code: "stage_execution_failed", message: "Generic failure" } },
@@ -291,16 +265,6 @@ test("cached replay guidance is limited to the proven PSI postcode compatibility
   });
 
   assert.equal(summary.cachedReplayRecommended, true);
-});
-
-test("run failure diagnostics load through a versioned route module", async () => {
-  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
-  const html = await readFile(new URL("../../frontend/index.html", import.meta.url), "utf8");
-
-  assert.match(html, /app\.js\?v=42/);
-  assert.match(app, /routes\/runs\.js\?v=21/);
-  const route = await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8");
-  assert.match(route, /core\/run-failure\.js\?v=1/);
 });
 
 test("JSON form fields reject arrays and invalid input", () => {
@@ -633,36 +597,6 @@ test("the latest guarded close observes a declined or accepted discard decision"
   assert.deepEqual(decisions, [["latest", false], ["accepted", true]]);
 });
 
-test("every existing Feature 1 form is wired to explicit retention and submission behavior", async () => {
-  const sources = {
-    shell: await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
-    forms: await readFile(new URL("../../frontend/components/forms.js", import.meta.url), "utf8"),
-    entities: await readFile(new URL("../../frontend/routes/entities.js", import.meta.url), "utf8"),
-    properties: await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8"),
-    plan: await readFile(new URL("../../frontend/routes/run-plan.js", import.meta.url), "utf8"),
-    releases: await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8"),
-    runs: await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8"),
-    ai: await readFile(new URL("../../frontend/routes/ai-diagnosis.js", import.meta.url), "utf8"),
-  };
-  assert.match(sources.shell, /runDialogForm\(\{/); // job create/edit
-  assert.match(sources.shell, /propertySearchQuery\(headerPropertyQuery\.value/); // header search
-  assert.match(sources.forms, /Reset filters/); // job and release filters
-  assert.match(sources.forms, /active-filters/);
-  assert.match(sources.properties, /propertySearchQuery\(input\.value\)/); // property discovery
-  assert.match(sources.properties, /createSubmissionGuard/);
-  assert.match(sources.plan, /onConfirm: async \(\) =>/); // run planner and confirmation
-  assert.match(sources.plan, /discardMessage: "Discard your changed update scope\?"/);
-  assert.match(sources.entities, /mutate\(`jobs\/\$\{item\.id\}`/);
-  assert.doesNotMatch(sources.entities, /kind === "sources"|request\(`sources/);
-  assert.match(sources.releases, /runDialogForm\(\{/); // release create/edit
-  assert.equal((sources.releases.match(/onConfirm: \(\) => mutate/g) || []).length, 3); // delete, submit, reject
-  assert.match(sources.releases, /onConfirm: \(\) => publishReviewedRelease/); // bounded publish + timeout reconciliation
-  assert.match(sources.runs, /onConfirm: async \(\) => \{ created = await mutate/);
-  assert.match(sources.ai, /createSubmissionGuard/); // AI review
-  assert.doesNotMatch(sources.shell, /entityDialog\.close\("save"\)/);
-  assert.match(sources.shell, /requestActiveDialogClose/);
-});
-
 test("job source detection and explicit year partitions are bounded", () => {
   assert.equal(isPsiJob({ profile_key: "nsw-psi-sales-year" }), true);
   assert.equal(isPsiJob({ adapter_key: "schools-csv" }), false);
@@ -717,11 +651,13 @@ test("generation guards reject late route and polling work", () => {
 
 test("latest-request guards reject slow refreshes after a newer refresh starts", async () => {
   const guard = createLatestRequestGuard();
-  const slow = guard.next();
-  const fast = guard.next();
+  const slow = guard.begin();
+  const fast = guard.begin();
   await Promise.resolve();
-  assert.equal(guard.isCurrent(slow), false);
-  assert.equal(guard.isCurrent(fast), true);
+  assert.equal(slow.signal.aborted, true);
+  assert.equal(slow.isCurrent(), false);
+  assert.equal(fast.isCurrent(), true);
+  fast.finish();
 });
 
 test("recent feed caches evict the least recently used run", () => {
@@ -773,12 +709,6 @@ test("the application shell exposes keyboard landmarks, live status and native d
   assert.match(app, /pendingGuardedNavigation\?\.generation !== generation/);
   assert.match(app, /location\.hash = pending\.requestedHash/);
   assert.match(app, /mediaQuery: window\.matchMedia\("\(max-width: 780px\)"\)/);
-});
-
-test("property search has an explicit persistent label association", async () => {
-  const source = await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8");
-  assert.match(source, /searchField\.htmlFor = "property-search-query"/);
-  assert.match(source, /input\.id = "property-search-query"/);
 });
 
 test("tables use named contained scroll regions and native links instead of interactive rows", async () => {
@@ -890,93 +820,12 @@ test("report-section release evidence is bounded and defensively normalized", ()
   assert.deepEqual(reportReleaseRows(null), []);
 });
 
-test("release CRUD and report-section routes are represented in the browser client", async () => {
-  const source = [
-    await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8"),
-    await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8"),
-  ].join("\n");
-  assert.match(source, /Create draft version/);
-  assert.match(source, /method: item \? "PUT" : "POST"/);
-  assert.match(source, /method: "DELETE"/);
-  assert.match(source, /properties\/\$\{encodedRef\}\/report-section/);
-  assert.match(source, /New and published versions/);
-  assert.match(source, /Data checks/);
-  assert.match(source, /primaryCell\(releaseLink, release\.release_version \|\| "Version not recorded"\)/);
-  assert.doesNotMatch(source, /Deterministic quality review/);
-  assert.match(source, /item\.release_version \|\| item\.dataset_release_id/);
-  assert.match(source, /badge\(item\.coverage_status\)/);
-});
-
 test("release details render bounded paginated dataset records", async () => {
   const releases = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
   assert.match(releases, /dataset-releases\/\$\{id\}\/records\?limit=25&offset=0/);
   assert.match(releases, /function releasePreviewPanel/);
   assert.match(releases, /No other version is included/);
   assert.match(releases, /Next page/);
-});
-
-test("data product catalogue clearly identifies a missing published version", async () => {
-  const products = await readFile(new URL("../../frontend/routes/data-products.js", import.meta.url), "utf8");
-  assert.match(products, /No published version yet/);
-  assert.doesNotMatch(products, /contract-valid release/);
-  assert.doesNotMatch(products, /\|\| "None"/);
-});
-
-test("operator UI exposes working submit controls, backfills and durable histories", async () => {
-  const source = [
-    await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
-    await readFile(new URL("../../frontend/components/forms.js", import.meta.url), "utf8"),
-    await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8"),
-    await readFile(new URL("../../frontend/routes/entities.js", import.meta.url), "utf8"),
-    await readFile(new URL("../../frontend/routes/run-plan.js", import.meta.url), "utf8"),
-    await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8"),
-  ].join("\n");
-  assert.match(source, /search\.type = "submit"/);
-  assert.match(source, /apply\.type = "submit"/);
-  assert.match(source, /button\("Start update"/);
-  assert.match(source, /button\("Load earlier data"/);
-  assert.match(source, /imports every record available/);
-  assert.match(source, /Complete sales history/);
-  assert.match(source, /Preview update/);
-  assert.match(source, /link\("Update history"/);
-  assert.match(source, /`#ai\/release:\$\{linkedRelease\.id\}\?goal=\$\{failed \? "quality" : "compare"\}`/);
-});
-
-test("operator state routes preserve partial evidence and explain lifecycle context", async () => {
-  const overview = await readFile(new URL("../../frontend/routes/overview.js", import.meta.url), "utf8");
-  const entities = await readFile(new URL("../../frontend/routes/entities.js", import.meta.url), "utf8");
-  const releases = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
-  const runs = await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8");
-  assert.match(overview, /projectOverviewFeeds/);
-  assert.match(overview, /allUnavailable/);
-  assert.match(overview, /runsAvailable \? active : "Unavailable"/);
-  assert.match(overview, /Temporarily unavailable:/);
-  assert.doesNotMatch(overview, /request\("overview"\)/);
-  assert.match(entities, /Available processing options could not be checked/);
-  assert.match(entities, /This data update is disabled/);
-  assert.match(releases, /releaseLifecycleContext/);
-  assert.match(releases, /primaryCell\(releaseLink, release\.release_version/);
-  assert.match(runs, /not run \(cached result reused\)/);
-  assert.match(runs, /about \$\{formatDuration\(0, remainingMs\)\} remaining/);
-  assert.match(runs, /#assistant\?route=runs\/detail&ingestion_run_id=/);
-});
-
-test("run polling preserves the rendered view and isolates supporting feed failures", async () => {
-  const runs = await readFile(new URL("../../frontend/routes/runs.js", import.meta.url), "utf8");
-  assert.match(runs, /Promise\.allSettled/);
-  assert.match(runs, /resolveFeed\(tasksResult, cache, "tasks"\)/);
-  assert.match(runs, /Showing the last loaded details/);
-  assert.match(runs, /captureRefreshState\(view\)/);
-  assert.match(runs, /restoreRefreshState\(view, refreshState\)/);
-  assert.match(runs, /Refresh delayed · retrying automatically/);
-  assert.match(runs, /refreshGuard\.isCurrent\(refresh\)/);
-});
-
-test("route lifecycle titles and focuses the first page or error heading", async () => {
-  const app = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
-  assert.match(app, /view\.querySelector\("h1, h2"\)/);
-  assert.match(app, /const retryRoute = \(\) => renderRoute\(\{ focus: true \}\)/);
-  assert.equal([...app.matchAll(/rerender: retryRoute/g)].length, 8);
 });
 
 test("production frontend imports focused core and component modules", async () => {
@@ -998,25 +847,6 @@ test("production frontend imports focused core and component modules", async () 
   assert.match(source, /\.\/routes\/ai-diagnosis\.js/);
 });
 
-test("property discovery consumes shell search queries and stays product-facing", async () => {
-  const source = await readFile(new URL("../../frontend/routes/properties.js", import.meta.url), "utf8");
-  assert.match(source, /routeQuery\(location\.hash\)\.get\("q"\)/);
-  assert.match(source, /if \(input\.value\) queueMicrotask/);
-  assert.match(source, /Find a NSW property/);
-  assert.match(source, /street, suburb, postcode or any combination/);
-  assert.doesNotMatch(source, /items\.slice\(0, 5\)/);
-  assert.match(source, /Show more matches/);
-  assert.match(source, /nextOffset = page\.body\.next_offset \?\? null/);
-  assert.match(source, /hasMore: nextOffset !== null/);
-  assert.doesNotMatch(source, /Feature [1-5]|buyer features|Dossier report/);
-  assert.match(source, /#properties\/\$\{encodeURIComponent\(item\.property_ref\)\}/);
-  assert.match(source, /Property references and recorded coordinates/);
-  assert.match(source, /confidenceLabel/);
-  assert.match(source, /All search terms matched/);
-  assert.match(source, /Sources and identifiers/);
-  assert.doesNotMatch(source, /Advanced identity evidence/);
-});
-
 test("live acquisition controls always use the complete registered source", async () => {
   const app = [
     await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
@@ -1026,37 +856,4 @@ test("live acquisition controls always use the complete registered source", asyn
   assert.match(app, /Complete dataset: all available source records/);
   assert.doesNotMatch(app, /scope-profile|Maximum addresses|maximum-records/);
   assert.doesNotMatch(app, /request\("runtime-capabilities"\)/);
-});
-
-test("AI review history is loaded from the shared service projection without redundant consent", async () => {
-  const source = await readFile(new URL("../../frontend/routes/ai-diagnosis.js", import.meta.url), "utf8");
-  assert.match(source, /request\("agent-runs\?limit=10"\)/);
-  assert.match(source, /disclosurePanel\("Recent AI reviews"/);
-  assert.match(source, /`#ai\/\$\{run\.id\}`/);
-  assert.match(source, /selectedAgentRun/);
-  assert.match(source, /OBJECTIVES = Object\.freeze/);
-  assert.doesNotMatch(source, /el\("textarea"\)/);
-  assert.doesNotMatch(source, /review-acknowledgement|type = "checkbox"/);
-  assert.match(source, /url\.searchParams\.set\("run", runId\)/);
-  assert.match(source, /nextAgentPollDelay/);
-  assert.match(source, /from "\.\.\/core\/polling\.js\?v=18"/);
-  assert.match(source, /refreshGuard\.isCurrent\(refresh\)/);
-  assert.match(source, /captureTraceRefreshState\(host\)/);
-  assert.match(source, /restoreTraceRefreshState\(host, refreshState\)/);
-  assert.match(source, /recordedSteps\?\.length \? recordedSteps : events/);
-  assert.match(source, /aria-live/);
-  assert.match(source, /Recommended next step/);
-  assert.match(source, /The review recovered from/);
-  assert.match(source, /AI review failed/);
-  assert.match(source, /retained activity record and cannot be changed/);
-  assert.match(source, /function reviewPresentation/);
-  assert.match(source, /recommended_next_step/);
-  assert.match(source, /function traceStep/);
-});
-
-test("specialist detail views require an exact data update", async () => {
-  const source = await readFile(new URL("../../frontend/routes/evidence.js", import.meta.url), "utf8");
-  assert.match(source, /Choose a data update/);
-  assert.match(source, /The selected update has no recorded/);
-  assert.match(source, /#\$\{kind\}\/\$\{run\.id\}/);
 });

@@ -1,5 +1,5 @@
-import { createAssistantClient } from "./client.js?v=3";
-import { createAiChat } from "./controller.js?v=3";
+import { createAssistantClient } from "./client.js";
+import { createAiChat } from "./controller.js";
 
 function required(value, name) {
   if (typeof value !== "string" || !value.trim()) {

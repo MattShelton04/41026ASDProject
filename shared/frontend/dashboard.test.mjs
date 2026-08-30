@@ -53,7 +53,7 @@ test("feature registry is the bounded source for shell routes and availability",
 
 test("shared navigation distinguishes global destinations from research-area transitions", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  assert.match(html, /src="app\.js\?v=16"/);
+  assert.match(html, /src="app\.js\?v=17"/);
   assert.match(html, /class="area-launcher"/);
   assert.match(html, /Open research area/);
   assert.match(html, /class="rail-area-link"/);
@@ -69,7 +69,7 @@ test("shared home loads the pinned local HTMX build with a strict configuration"
   const provenance = readFileSync(new URL("./vendor/README.md", import.meta.url), "utf8");
 
   assert.match(html, /src="vendor\/htmx-2\.0\.10\.min\.js"/);
-  assert.ok(html.indexOf("htmx-2.0.10.min.js") < html.indexOf("app.js?v=16"));
+  assert.ok(html.indexOf("htmx-2.0.10.min.js") < html.indexOf("app.js?v=17"));
   assert.match(html, /"allowEval":false/);
   assert.match(html, /"allowScriptTags":false/);
   assert.doesNotMatch(html, /https?:\/\/[^"']*htmx/i);
@@ -175,7 +175,12 @@ test("the Feature 1 bridge validates its complete nested contract", async () => 
     /createFeature1ShellAdapter/,
   );
   assert.throws(() => validateFeature1Adapter({ ...expected, evidence: {} }), /evidence\.copy/);
-  assert.equal(await loadFeature1Bridge({ importer: async () => { throw new Error("offline"); } }), null);
+  let loadError = null;
+  assert.equal(await loadFeature1Bridge({
+    importer: async () => { throw new Error("offline"); },
+    onError: (error) => { loadError = error; },
+  }), null);
+  assert.match(loadError.message, /offline/);
   const started = performance.now();
   assert.equal(await loadFeature1Bridge({ importer: () => new Promise(() => {}), timeoutMs: 5 }), null);
   assert.ok(performance.now() - started < 100);
@@ -186,13 +191,20 @@ test("the Feature 1 bridge validates its complete nested contract", async () => 
     onLateAdapter: receiveLate,
   }), null);
   assert.equal(await lateAdapter, expected);
+  let receiveLateError;
+  const lateError = new Promise((resolve) => { receiveLateError = resolve; });
+  assert.equal(await loadFeature1Bridge({
+    importer: () => new Promise((resolve) => setTimeout(() => resolve({}), 10)),
+    timeoutMs: 1,
+    onLateAdapter: () => assert.fail("invalid adapter must not be installed"),
+    onError: receiveLateError,
+  }), null);
+  assert.match((await lateError).message, /createFeature1ShellAdapter/);
 });
 
 test("the shell renders before its optional Feature 1 projection loads", () => {
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
-  assert.match(app, /feature-1-bridge\.js\?v=12/);
-  assert.match(app, /routes\/assistant\.js\?v=3/);
-  assert.ok(app.indexOf("renderRoute();") < app.indexOf("loadFeature1Bridge({ overrides: externalConfig"));
+  assert.ok(app.indexOf("renderRoute();") < app.indexOf("loadFeature1Bridge({"));
   assert.doesNotMatch(app, /await\s+loadFeature1Bridge/);
   assert.match(app, /\["features", "system-status", "evidence"\]\.includes\(parseShellRoute\(location\.hash\)\)/);
   assert.doesNotMatch(app, /parseShellRoute\(location\.hash\) !== "home"/);
@@ -252,8 +264,7 @@ test("design tokens expose shared type, control, focus and layering contracts", 
 test("AI workload dashboard leads with outcome and bounded recovery evidence", () => {
   const html = readFileSync(new URL("./operations/ai-mode/index.html", import.meta.url), "utf8");
   const app = readFileSync(new URL("./operations/ai-mode/app.js", import.meta.url), "utf8");
-  assert.match(html, /assets\/app\.js\?v=11/);
-  assert.match(app, /assets\/contexts\.js\?v=1/);
+  assert.match(html, /assets\/app\.js\?v=12/);
   assert.match(html, /AI review result/);
   assert.match(html, /aria-label="PropertyScope navigation"/);
   assert.match(html, /class="research-area-return"/);

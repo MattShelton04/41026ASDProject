@@ -1,25 +1,25 @@
 import { API_BASE, newRequestId, requestJson } from "./core/api.js";
 import { append, el } from "./core/dom.js";
-import { humanise } from "./core/formats.js?v=18";
-import { parseIntegerField, parseJsonField, propertySearchQuery } from "./core/forms.js?v=18";
-import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js?v=18";
-import { parseRoute } from "./core/router.js?v=7";
-import { requestActiveDialogClose, runDialogForm } from "./components/dialogs.js?v=18";
-import { createDrawerController, createToastController } from "./browser/index.js?v=3";
-import { formField } from "./components/forms.js?v=17";
-import { hydrateIcons } from "./components/icons.js?v=1";
+import { humanise } from "./core/formats.js";
+import { parseIntegerField, parseJsonField, propertySearchQuery } from "./core/forms.js";
+import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
+import { parseRoute } from "./core/router.js";
+import { requestActiveDialogClose, runDialogForm } from "./components/dialogs.js";
+import { createDrawerController, createToastController } from "./browser/index.js";
+import { formField } from "./components/forms.js";
+import { hydrateIcons } from "./components/icons.js";
 import { renderLoading } from "./components/states.js";
-import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js?v=20";
-import { createFeatureAssistantRoute } from "./routes/assistant.js?v=3";
-import { createEntityRoutes } from "./routes/entities.js?v=20";
-import { createDataProductRoutes } from "./routes/data-products.js?v=18";
-import { createEvidenceRoutes } from "./routes/evidence.js?v=17";
-import { renderOverview } from "./routes/overview.js?v=21";
-import { createPropertyRoutes } from "./routes/properties.js?v=21";
-import { createReleaseRoutes } from "./routes/releases.js?v=23";
-import { createRunPlanner } from "./routes/run-plan.js?v=20";
-import { createRunRoutes } from "./routes/runs.js?v=21";
-import { createSourceHtmxRoute } from "./routes/sources-htmx.js?v=1";
+import { createAiDiagnosisRoutes } from "./routes/ai-diagnosis.js";
+import { createFeatureAssistantRoute } from "./routes/assistant.js";
+import { createEntityRoutes } from "./routes/entities.js";
+import { createDataProductRoutes } from "./routes/data-products.js";
+import { createEvidenceRoutes } from "./routes/evidence.js";
+import { renderOverview } from "./routes/overview.js";
+import { createPropertyRoutes } from "./routes/properties.js";
+import { createReleaseRoutes } from "./routes/releases.js";
+import { createRunPlanner } from "./routes/run-plan.js";
+import { createRunRoutes } from "./routes/runs.js";
+import { createSourceHtmxRoute } from "./routes/sources-htmx.js";
 
 const view = document.querySelector("#view");
 const liveRegion = document.querySelector("#live-region");
@@ -50,7 +50,7 @@ for (const item of document.querySelectorAll("[data-product-path]")) {
   item.href = new URL(item.dataset.productPath, new URL(productHomeUrl, window.location.href)).href;
 }
 
-const state = { pollTimer: null, lastRunStatus: "", lastAgentStatus: "", requests: new Map() };
+const state = { pollTimer: null, lastRunStatus: "", lastAgentStatus: "" };
 const generationGuard = createGenerationGuard();
 let lastRenderedHash = location.hash;
 let guardedNavigationGeneration = 0;
@@ -83,6 +83,13 @@ function loading(title = "Loading evidence") { renderLoading(view, title); }
 
 function request(path, options = {}) {
   return requestJson(fetch, path.startsWith("/") ? path : `${API_BASE}/${path}`, options);
+}
+
+function routeRequest(path, options = {}) {
+  return request(path, {
+    ...options,
+    signals: [generationGuard.signal(), ...(options.signals || [])],
+  });
 }
 
 const JOB_FIELDS = [
@@ -197,14 +204,14 @@ async function mutate(path, { method = "POST", body = {}, success = "Action comp
 
 const openPlanDialog = createRunPlanner({ request, mutate, confirmAction });
 const retryRoute = () => renderRoute({ focus: true });
-const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, generationGuard, rerender: retryRoute });
+const { renderEntityList, renderEntityDetail } = createEntityRoutes({ view, request: routeRequest, openEntityDialog, openPlanDialog, confirmAction, mutate, generationGuard, rerender: retryRoute });
 const { renderSources, requestSourceDialogClose } = createSourceHtmxRoute({ view, entityDialog, actionDialog, confirmDiscard, announce, showToast });
-const { renderRuns, renderRunDetail } = createRunRoutes({ view, request, mutate, confirmAction, announce, state, generationGuard, rerender: retryRoute });
-const { renderProperties } = createPropertyRoutes({ view, request, announce, generationGuard, rerender: retryRoute });
-const { renderDataProducts } = createDataProductRoutes({ view, request, loading, generationGuard, rerender: retryRoute });
-const { renderReleases } = createReleaseRoutes({ view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender: retryRoute });
-const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request, loading, generationGuard, rerender: retryRoute });
-const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request, loading, mutate, state, generationGuard, rerender: retryRoute });
+const { renderRuns, renderRunDetail } = createRunRoutes({ view, request: routeRequest, mutate, confirmAction, announce, state, generationGuard, rerender: retryRoute });
+const { renderProperties } = createPropertyRoutes({ view, request: routeRequest, announce, generationGuard, rerender: retryRoute });
+const { renderDataProducts } = createDataProductRoutes({ view, request: routeRequest, loading, generationGuard, rerender: retryRoute });
+const { renderReleases } = createReleaseRoutes({ view, request: routeRequest, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender: retryRoute });
+const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request: routeRequest, loading, generationGuard, rerender: retryRoute });
+const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request: routeRequest, loading, mutate, state, generationGuard, rerender: retryRoute });
 const featureAssistant = createFeatureAssistantRoute({ view, announce });
 
 async function checkHealth() {

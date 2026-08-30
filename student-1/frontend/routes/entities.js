@@ -1,11 +1,11 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, formatDate, humanise, researchAreaLabel } from "../core/formats.js?v=18";
+import { displayName, formatDate, humanise, researchAreaLabel } from "../core/formats.js";
 import { routeQuery } from "../core/router.js";
-import { filterToolbar } from "../components/forms.js?v=17";
-import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
+import { filterToolbar } from "../components/forms.js";
+import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
-import { actionMenu, cell, makeTable, primaryCell } from "../components/tables.js?v=18";
+import { actionMenu, cell, makeTable, primaryCell } from "../components/tables.js";
 
 function operationStep(number, title, description) {
   const item = el("div", "operation-step");

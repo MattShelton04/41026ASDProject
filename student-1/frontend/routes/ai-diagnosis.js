@@ -1,10 +1,10 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js?v=18";
-import { createSubmissionGuard } from "../core/forms.js?v=18";
-import { createLatestRequestGuard, nextAgentPollDelay } from "../core/polling.js?v=18";
-import { parseRoute, routeQuery } from "../core/router.js?v=7";
-import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js?v=17";
+import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js";
+import { createSubmissionGuard } from "../core/forms.js";
+import { createLatestRequestGuard, nextAgentPollDelay } from "../core/polling.js";
+import { parseRoute, routeQuery } from "../core/router.js";
+import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
 
@@ -156,9 +156,9 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
   }
 
   async function renderAgentTrace(id, host, failures = 0) {
-    const refresh = refreshGuard.next();
+    const refresh = refreshGuard.begin();
     const routeEpoch = generationGuard.capture();
-    const isCurrent = () => refreshGuard.isCurrent(refresh)
+    const isCurrent = () => refresh.isCurrent()
       && routeEpoch.isCurrent()
       && parseRoute(location.hash).route === "ai"
       && parseRoute(location.hash).id === id;
@@ -166,9 +166,13 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     const refreshState = captureTraceRefreshState(host);
     host.setAttribute("aria-busy", "true");
     const [detailResult, eventsResult] = await Promise.allSettled([
-      request(`agent-runs/${id}`), request(`agent-runs/${id}/events${queryString({ after: 0, limit: 100 })}`),
+      request(`agent-runs/${id}`, { signal: refresh.signal }),
+      request(`agent-runs/${id}/events${queryString({ after: 0, limit: 100 })}`, { signal: refresh.signal }),
     ]);
-    if (!isCurrent()) return;
+    if (!isCurrent()) {
+      refresh.finish();
+      return;
+    }
     const detailError = detailResult.status === "rejected" ? detailResult.reason : null;
     const eventsError = eventsResult.status === "rejected" ? eventsResult.reason : null;
     const run = detailResult.status === "fulfilled" ? entity(detailResult.value.body, "agent_run") : { id, status: host.dataset.agentStatus || "unknown" };
@@ -209,6 +213,7 @@ export function createAiDiagnosisRoutes({ view, request, loading, mutate, state,
     updateHistorySummary(id, run);
     state.lastAgentStatus = run.status;
     scheduleAgentPoll(id, host, run.status, detailError || eventsError ? failures + 1 : 0);
+    refresh.finish();
   }
 
   function updateHistorySummary(id, run) {

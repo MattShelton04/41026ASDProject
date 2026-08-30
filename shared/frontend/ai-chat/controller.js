@@ -2,10 +2,10 @@ import { append, el } from "../browser/index.js";
 import {
   defaultSuggestions, findAssistantScope, normalizeAssistantContexts, normalizeAssistantScopes,
   TERMINAL_ASSISTANT_STATES,
-} from "./definitions.js?v=3";
-import { renderAssistantTurn, contextSummary } from "./components.js?v=3";
-import { completedTurnHistory, normalizeTurnDetail } from "./formats.js?v=3";
-import { mergeAssistantEvents, nextAssistantPollDelay } from "./polling.js?v=3";
+} from "./definitions.js";
+import { renderAssistantTurn, contextSummary } from "./components.js";
+import { completedTurnHistory, normalizeTurnDetail } from "./formats.js";
+import { mergeAssistantEvents, nextAssistantPollDelay } from "./polling.js";
 
 function runFromCreate(payload) {
   return normalizeTurnDetail(payload);
@@ -262,6 +262,7 @@ export function createAiChat({
       if (turn.run.status !== previousStatus) announce(`Assistant turn ${turn.run.status}.`);
       schedulePoll(turn, 0);
     } catch (error) {
+      if (state.destroyed || error.name === "AbortError") return;
       turn.pollWarning = error;
       renderTurn(turn);
       schedulePoll(turn, failures + 1);
@@ -306,6 +307,7 @@ export function createAiChat({
       announce(`Assistant run ${turn.id} created.`);
       schedulePoll(turn);
     } catch (error) {
+      if (state.destroyed || error.name === "AbortError") return;
       turn.error = error;
       turn.run = { status: "failed" };
       renderTurn(turn);
@@ -326,6 +328,7 @@ export function createAiChat({
       renderTurn(turn);
       schedulePoll(turn);
     } catch (error) {
+      if (state.destroyed || error.name === "AbortError") return;
       turn.cancelWarning = error;
       renderTurn(turn);
       announce("Cancellation could not be requested.");
@@ -374,6 +377,7 @@ export function createAiChat({
       state.destroyed = true;
       for (const timer of state.timers.values()) clearTimeout(timer);
       state.timers.clear();
+      client.destroy?.();
     },
     get turns() { return [...state.turns]; },
   });

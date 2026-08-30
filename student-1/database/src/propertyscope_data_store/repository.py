@@ -5,11 +5,9 @@
 
 from __future__ import annotations
 
-import re
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
 from typing import Any
@@ -19,11 +17,23 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 from propertyscope_data_store._import_operations import _RegisteredImportOperations
+from propertyscope_data_store._property_reads import (
+    PROPERTY_SEARCH_CANDIDATE_LIMIT as PROPERTY_SEARCH_CANDIDATE_LIMIT,
+)
+from propertyscope_data_store._property_reads import (
+    PropertySearchResults as PropertySearchResults,
+)
+from propertyscope_data_store._property_reads import (
+    _CanonicalPropertyReads,
+)
+from propertyscope_data_store._property_reads import (
+    _normalise_property_query as _normalise_property_query,
+)
+from propertyscope_data_store._release_records import _ReleaseRecords
 from propertyscope_data_store.errors import (
     ConflictError,
     LeaseConflictError,
     NotFoundError,
-    ValidationError,
 )
 from propertyscope_data_store.import_profiles import (
     ImportResult,
@@ -49,82 +59,15 @@ from propertyscope_data_store.persistence_support import require_source_snapshot
 from propertyscope_data_store.persistence_support import (
     validate_artifact_replay as _validate_artifact_replay,
 )
-from propertyscope_data_store.query_specs import (
-    PREVIEW_SPECS,
-    encode_export_cursor,
-    normalise_product_rows,
-    release_export_query,
-    release_product_query,
+from propertyscope_data_store.runtime_registry import (
+    RuntimeProfile,
+    RuntimeRegistry,
+    RuntimeRegistryError,
 )
 
 JsonObject = dict[str, Any]
-PROPERTY_SEARCH_CANDIDATE_LIMIT = 500
-PROPERTY_SEARCH_UNDERSPECIFIED_TERMS = frozenset(
-    {
-        "australia",
-        "nsw",
-        "street",
-        "st",
-        "road",
-        "rd",
-        "avenue",
-        "ave",
-        "drive",
-        "dr",
-        "lane",
-        "ln",
-        "court",
-        "ct",
-        "place",
-        "pl",
-        "highway",
-        "hwy",
-        "unit",
-        "lot",
-    }
-)
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_ACTIVATION_STATES = frozenset({"succeeded", "failed"})
-REGISTERED_ADAPTER_VERSIONS = {
-    "fixture-snapshot": "1.0.0",
-    "gnaf-bulk": "1.0.0",
-    "psi-bulk": "1.0.0",
-    "bocsar-bulk": "1.0.0",
-    "schools-csv": "1.0.0",
-}
-REGISTERED_RELEASE_BUILDER_VERSIONS = {
-    "property-snapshot": "2.0.0",
-    "property-sales": "3.0.0",
-    "crime-series": "2.0.0",
-    "school-points": "2.0.0",
-}
-
-
-@dataclass(frozen=True)
-class PropertySearchResults:
-    """A bounded property-search page plus the number of matching properties."""
-
-    items: list[JsonObject]
-    total: int
-    total_is_lower_bound: bool = False
-
-
-def _normalise_property_query(query: str) -> str:
-    """Align user input with the punctuation-neutral registry search documents."""
-
-    return re.sub(r"[^a-z0-9]+", " ", query.lower()).strip()
-
-
-def _property_query_is_underspecified(normalised: str) -> bool:
-    """Reject common address vocabulary that cannot selectively identify a property."""
-
-    tokens = tuple(normalised.split())
-    distinctive = tuple(
-        token for token in tokens if token not in PROPERTY_SEARCH_UNDERSPECIFIED_TERMS
-    )
-    if not distinctive:
-        return bool(tokens)
-    return len(distinctive) == 1 and distinctive[0].isalpha() and len(distinctive[0]) < 8
 
 
 def _activation_receipt_matches(evidence: Mapping[str, Any]) -> bool:
@@ -138,10 +81,44 @@ def _activation_receipt_matches(evidence: Mapping[str, Any]) -> bool:
     )
 
 
+def _validate_runtime_profile_values(values: Mapping[str, Any], profile: RuntimeProfile) -> None:
+    """Reject a request that contradicts its selected registered profile.
+
+    Runtime fields may be omitted because the registry supplies them.  Keeping the
+    compatibility fields on the HTTP contract lets existing clients send their
+    snapshot, but a stale or manipulated value can no longer be silently ignored.
+    """
+    expected = {
+        "profile_version": profile.version,
+        "adapter_key": profile.adapter.key,
+        "adapter_version": profile.adapter.version,
+        "release_builder_key": profile.release_builder.key,
+        "release_builder_version": profile.release_builder.version,
+        "import_profile_key": profile.import_profile.key,
+        "import_profile_version": profile.import_profile.version,
+        "quality_policy_key": profile.quality_policy.key,
+        "quality_policy_version": profile.quality_policy.version,
+    }
+    for field, registered in expected.items():
+        supplied = values.get(field)
+        if supplied is not None and str(supplied) != registered:
+            raise RuntimeRegistryError(
+                f"{field} conflicts with profile {profile.key}: "
+                f"expected {registered}, received {supplied}"
+            )
+
+
 class PropertyScopeStore:
     """Exclusive persistence facade for Feature 1 PostgreSQL/PostGIS."""
 
-    def __init__(self, database_url: str, *, open_pool: bool = True) -> None:
+    def __init__(
+        self,
+        database_url: str,
+        *,
+        runtime_registry: RuntimeRegistry,
+        open_pool: bool = True,
+    ) -> None:
+        self._runtime_registry = runtime_registry
         self._pool = ConnectionPool(
             database_url,
             min_size=1,
@@ -394,13 +371,14 @@ class PropertyScopeStore:
     def create_job(self, values: Mapping[str, Any]) -> JsonObject:
         job_id = uuid.UUID(str(values.get("id", uuid.uuid4())))
         now = datetime.now(UTC)
-        adapter_key = str(values["adapter_key"])
-        builder_key = str(values["release_builder_key"])
         try:
-            adapter_version = REGISTERED_ADAPTER_VERSIONS[adapter_key]
-            builder_version = REGISTERED_RELEASE_BUILDER_VERSIONS[builder_key]
-        except KeyError as exc:
-            raise ConflictError("job references an unregistered runtime component") from exc
+            registry = self._runtime_registry
+            if registry is None:
+                raise RuntimeRegistryError("runtime registry was not configured")
+            runtime = registry.profile(str(values["profile_key"]))
+            _validate_runtime_profile_values(values, runtime)
+        except (KeyError, RuntimeRegistryError) as exc:
+            raise ConflictError(f"job runtime configuration is invalid: {exc}") from exc
         columns = (
             "source_definition_id",
             "name",
@@ -422,8 +400,15 @@ class PropertyScopeStore:
             "schedule_text",
         )
         runtime_versions = {
-            "adapter_version": adapter_version,
-            "release_builder_version": builder_version,
+            "profile_version": runtime.version,
+            "adapter_key": runtime.adapter.key,
+            "adapter_version": runtime.adapter.version,
+            "release_builder_key": runtime.release_builder.key,
+            "release_builder_version": runtime.release_builder.version,
+            "import_profile_key": runtime.import_profile.key,
+            "import_profile_version": runtime.import_profile.version,
+            "quality_policy_key": runtime.quality_policy.key,
+            "quality_policy_version": runtime.quality_policy.version,
         }
         parameters = [
             runtime_versions[name] if name in runtime_versions else values[name] for name in columns
@@ -1015,7 +1000,14 @@ class PropertyScopeStore:
             error=error,
         )
 
-    # Release lifecycle and evidence.
+    # Release metadata and bounded projections; publication transitions remain below.
+    def _releases(self) -> _ReleaseRecords:
+        records = getattr(self, "_release_records", None)
+        if records is None:
+            records = _ReleaseRecords(self)
+            self._release_records = records
+        return records
+
     def list_releases(
         self,
         *,
@@ -1027,303 +1019,53 @@ class PropertyScopeStore:
         limit: int,
         offset: int,
     ) -> list[JsonObject]:
-        query = """SELECT release.* FROM ops.dataset_release release
-        JOIN ops.source_definition source ON source.id=release.source_definition_id"""
-        params: list[Any] = []
-        predicates: list[str] = ["source.status<>'retired'"]
-        if status:
-            predicates.append("release.status=%s")
-            params.append(status)
-        elif not ingestion_run_id:
-            predicates.append("release.status<>'abandoned'")
-        for column, value in (
-            ("dataset_id", dataset_id),
-            ("target_feature", target_feature),
-            ("schema_version", schema_version),
-            ("ingestion_run_id", ingestion_run_id),
-        ):
-            if value:
-                predicates.append(f"release.{column}=%s")
-                params.append(value)
-        query += " WHERE " + " AND ".join(predicates)
-        query += " ORDER BY release.created_at DESC LIMIT %s OFFSET %s"
-        params.extend((limit, offset))
-        return self._fetch_all(query, params)
+        return self._releases().list_releases(
+            status=status,
+            dataset_id=dataset_id,
+            target_feature=target_feature,
+            schema_version=schema_version,
+            ingestion_run_id=ingestion_run_id,
+            limit=limit,
+            offset=offset,
+        )
 
     def get_release(self, release_id: uuid.UUID) -> JsonObject:
-        return self._required("SELECT * FROM ops.dataset_release WHERE id=%s", (release_id,))
+        return self._releases().get_release(release_id)
 
     def release_artifact(self, release_id: uuid.UUID) -> JsonObject:
-        return self._required(
-            """SELECT artifact.*,
-            release.manifest_json->>'redistribution_decision' AS redistribution_policy,
-            release.manifest_json->>'content_encoding' AS content_encoding,
-            release.status AS release_status
-            FROM ops.dataset_release release
-            JOIN ops.artifact_record artifact ON artifact.id=release.artifact_record_id
-            WHERE release.id=%s""",
-            (release_id,),
-        )
+        return self._releases().release_artifact(release_id)
 
     def create_release(self, values: Mapping[str, Any]) -> JsonObject:
-        if values.get("status", "draft") != "draft":
-            raise ConflictError("new releases must begin as drafts")
-        now = datetime.now(UTC)
-        try:
-            with self.connection() as connection:
-                row = connection.execute(
-                    """INSERT INTO ops.dataset_release (
-                    id,dataset_id,source_definition_id,ingestion_run_id,target_feature,
-                    release_version,schema_version,coverage_json,record_count,content_sha256,
-                    artifact_record_id,manifest_json,status,review_comment,created_at,updated_at,version
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1) RETURNING *""",
-                    (
-                        uuid.UUID(str(values.get("id", uuid.uuid4()))),
-                        values["dataset_id"],
-                        uuid.UUID(str(values["source_definition_id"])),
-                        uuid.UUID(str(values["ingestion_run_id"])),
-                        values["target_feature"],
-                        values["release_version"],
-                        values["schema_version"],
-                        _json(values.get("coverage", {})),
-                        int(values.get("record_count", 0)),
-                        values["content_sha256"],
-                        uuid.UUID(str(values["artifact_record_id"])),
-                        _json(values.get("manifest", {})),
-                        values.get("status", "draft"),
-                        values.get("review_comment"),
-                        now,
-                        now,
-                    ),
-                ).fetchone()
-                connection.commit()
-        except errors.UniqueViolation as exc:
-            raise ConflictError("release version already exists for this dataset") from exc
-        except errors.ForeignKeyViolation as exc:
-            raise NotFoundError("source, run, or artifact does not exist") from exc
-        return _dict(row)
+        return self._releases().create_release(values)
 
     def update_release(self, release_id: uuid.UUID, values: Mapping[str, Any]) -> JsonObject:
-        current = self.get_release(release_id)
-        if current["status"] != "draft":
-            raise ConflictError("bound candidate and terminal release evidence is immutable")
-        with self.connection() as connection:
-            row = connection.execute(
-                """UPDATE ops.dataset_release SET release_version=%s,schema_version=%s,
-                coverage_json=%s,record_count=%s,content_sha256=%s,manifest_json=%s,
-                review_comment=%s,updated_at=%s,version=version+1 WHERE id=%s AND version=%s
-                AND status='draft' RETURNING *""",
-                (
-                    values.get("release_version", current["release_version"]),
-                    values.get("schema_version", current["schema_version"]),
-                    _json(values.get("coverage", current["coverage_json"])),
-                    int(values.get("record_count", current["record_count"])),
-                    values.get("content_sha256", current["content_sha256"]),
-                    _json(values.get("manifest", current["manifest_json"])),
-                    values.get("review_comment", current["review_comment"]),
-                    datetime.now(UTC),
-                    release_id,
-                    int(values["version"]),
-                ),
-            ).fetchone()
-            connection.commit()
-        if row is None:
-            raise ConflictError("release version does not match")
-        return _dict(row)
+        return self._releases().update_release(release_id, values)
 
     def delete_release(self, release_id: uuid.UUID) -> None:
-        release = self.get_release(release_id)
-        if release["status"] not in {"draft", "rejected"}:
-            raise ConflictError("only draft or rejected local releases can be deleted")
-        try:
-            self._delete("ops", "dataset_release", release_id)
-        except errors.ForeignKeyViolation as exc:
-            raise ConflictError(
-                "release has retained quality, receipt, or registry evidence"
-            ) from exc
+        self._releases().delete_release(release_id)
 
     def release_receipts(self, release_id: uuid.UUID) -> list[JsonObject]:
-        self.get_release(release_id)
-        return self._fetch_all(
-            "SELECT * FROM ops.publication_receipt WHERE dataset_release_id=%s ORDER BY created_at",
-            (release_id,),
-        )
+        return self._releases().release_receipts(release_id)
 
     def preview_release_records(
         self, release_id: uuid.UUID, *, limit: int, offset: int
     ) -> JsonObject:
-        """Return a bounded, allowlisted projection of one isolated release generation."""
-        context = self._required(
-            """SELECT release.id,release.dataset_id,release.release_version,release.status,
-            release.record_count,release.coverage_json,job.import_profile_key
-            FROM ops.dataset_release release
-            JOIN ops.ingestion_run run ON run.id=release.ingestion_run_id
-            JOIN ops.job_definition job ON job.id=run.job_definition_id
-            WHERE release.id=%s""",
-            (release_id,),
-        )
-        profile = str(context["import_profile_key"])
-        spec = PREVIEW_SPECS.get(profile)
-        if spec is None:
-            raise ConflictError("release import profile does not support bounded preview")
-        coverage = context.get("coverage_json")
-        release_scope = (
-            coverage.get("release_scope", coverage) if isinstance(coverage, Mapping) else None
-        )
-        has_registered_bound = (
-            isinstance(release_scope, Mapping)
-            and isinstance(release_scope.get("maximum_records"), int)
-            and not isinstance(release_scope.get("maximum_records"), bool)
-        )
-        if profile != "bocsar-sparse" and has_registered_bound and isinstance(coverage, Mapping):
-            query = release_product_query(profile, release_id, coverage, limit=limit, offset=offset)
-            projected = self._fetch_all(query.select_sql, query.select_params)
-            items = [
-                {column: row[column] for column in spec.columns if column in row}
-                for row in projected
-            ]
-            total_row = self._required(query.count_sql, query.count_params)
-        else:
-            # Historical seed releases predate explicit product scopes. BOCSAR's
-            # preview intentionally remains observation-oriented while its export
-            # aggregates those observations into coverage-aware series.
-            items = self._fetch_all(spec.select_sql, (release_id, limit, offset))
-            total_row = self._required(spec.count_sql, (release_id,))
-        return {
-            "release": {
-                key: context[key]
-                for key in ("id", "dataset_id", "release_version", "status", "record_count")
-            },
-            "profile": profile,
-            "columns": list(spec.columns),
-            "items": items,
-            "count": len(items),
-            "total": int(total_row["count"]),
-            "limit": limit,
-            "offset": offset,
-            "next_offset": offset + len(items)
-            if offset + len(items) < int(total_row["count"])
-            else None,
-        }
+        return self._releases().preview_release_records(release_id, limit=limit, offset=offset)
 
     def release_build_context(self, run_id: uuid.UUID) -> JsonObject:
-        """Return one persistence-neutral build context bound to an imported generation."""
-        return self._required(
-            """SELECT release.id AS release_id,release.release_version,release.dataset_id,
-            release.target_feature,release.id AS candidate_generation_id,release.coverage_json,
-            COALESCE(release.supersedes_release_id,(
-                SELECT prior.id FROM ops.dataset_release prior
-                WHERE prior.dataset_id=release.dataset_id
-                  AND prior.target_feature=release.target_feature
-                  AND prior.status='accepted' ORDER BY prior.accepted_at DESC LIMIT 1
-            )) AS supersedes_release_id,
-            COALESCE(run.source_snapshot_json->>'source_release',run.profile_key) AS source_release,
-            run.normalisation_version,run.release_builder_version,
-            job.release_builder_key,job.import_profile_key,source.name AS source_name,
-            source.publisher,source.licence_id,source.licence_url,
-            source.redistribution_policy,source_artifact.created_at AS source_retrieved_at
-            FROM ops.ingestion_run run JOIN ops.job_definition job
-              ON job.id=run.job_definition_id
-            JOIN ops.source_definition source ON source.id=run.source_definition_id
-            JOIN ops.dataset_release release ON release.ingestion_run_id=run.id
-            LEFT JOIN LATERAL (
-                SELECT artifact.created_at FROM ops.artifact_record artifact
-                WHERE artifact.ingestion_run_id=run.id
-                  AND artifact.artifact_kind IN ('source_snapshot','source_raw')
-                ORDER BY artifact.created_at DESC LIMIT 1
-            ) source_artifact ON true
-            WHERE run.id=%s AND release.status IN ('draft','candidate')""",
-            (run_id,),
-        )
+        return self._releases().release_build_context(run_id)
 
     def release_product_records(
         self, release_id: uuid.UUID, *, limit: int, cursor: str | None
     ) -> JsonObject:
-        """Keyset-page the complete immutable candidate projection."""
-        context = self._required(
-            """SELECT release.id,release.coverage_json,job.import_profile_key
-            FROM ops.dataset_release release JOIN ops.ingestion_run run
-              ON run.id=release.ingestion_run_id
-            JOIN ops.job_definition job ON job.id=run.job_definition_id
-            WHERE release.id=%s AND release.status IN ('draft','candidate')""",
-            (release_id,),
-        )
-        profile = str(context["import_profile_key"])
-        query = release_export_query(profile, release_id, limit=limit, cursor=cursor)
-        rows = normalise_product_rows(
-            profile, self._fetch_all(query.select_sql, query.select_params)
-        )
-        total = (
-            int(self._required(query.count_sql, query.count_params)["count"])
-            if cursor is None
-            else None
-        )
-        next_cursor = (
-            encode_export_cursor(rows[-1], query.cursor_columns) if len(rows) == limit else None
-        )
-        return {
-            "release_id": str(release_id),
-            "candidate_generation_id": str(release_id),
-            "items": rows,
-            "count": len(rows),
-            "total": total,
-            "limit": limit,
-            "cursor": cursor,
-            "next_cursor": next_cursor,
-        }
+        return self._releases().release_product_records(release_id, limit=limit, cursor=cursor)
 
     def release_sales_source_records(
         self, release_id: uuid.UUID, *, year: int, limit: int, offset: int
     ) -> JsonObject:
-        """Page complete PSI facts from an immutable accepted generation by source year."""
-        context = self._required(
-            """SELECT release.id,release.dataset_id,release.release_version,release.status,
-            release.schema_version,job.import_profile_key
-            FROM ops.dataset_release release JOIN ops.ingestion_run run
-              ON run.id=release.ingestion_run_id
-            JOIN ops.job_definition job ON job.id=run.job_definition_id
-            WHERE release.id=%s""",
-            (release_id,),
+        return self._releases().release_sales_source_records(
+            release_id, year=year, limit=limit, offset=offset
         )
-        if context["dataset_id"] != "nsw-psi-sales" or context["import_profile_key"] != "psi-sales":
-            raise ConflictError("release does not contain PSI sales source records")
-        if context["schema_version"] != "propertyscope.property-sales.v2":
-            raise ConflictError("sales source records require the current v2 sales contract")
-        if context["status"] not in {"accepted", "superseded"}:
-            raise ConflictError("sales source records require an accepted immutable generation")
-        select_sql = """SELECT source_business_key,source_revision,source_era,
-            source_partition_year,district_code,property_id AS source_property_id,dealing_id,
-            source_system,valuation_number,source_downloaded_at::text,property_name,
-            unit_number,house_number,street_number_first,street_number_last,
-            street_number_suffix,street_name,street_name_normalised,street_type,locality,
-            postcode,land_description,dimensions,zoning_code,nature_code,primary_purpose,
-            strata_lot_number,component_code,sale_code,interest_of_sale,contract_date::text,
-            settlement_date::text,price_aud,area_original::text,area_unit,
-            area_square_metres::text,property_ref,match_tier,match_confidence::text,
-            geographic_precision,source_row_sha256,normalisation_version
-            FROM warehouse.psi_sale WHERE dataset_release_id=%s AND source_partition_year=%s
-            ORDER BY source_business_key,source_revision LIMIT %s OFFSET %s"""
-        items = self._fetch_all(select_sql, (release_id, year, limit, offset))
-        total_row = self._required(
-            """SELECT count(*) AS count FROM warehouse.psi_sale
-            WHERE dataset_release_id=%s AND source_partition_year=%s""",
-            (release_id, year),
-        )
-        total = int(total_row["count"])
-        return {
-            "schema_version": "propertyscope.psi-source-records.v1",
-            "release": {
-                key: context[key]
-                for key in ("id", "dataset_id", "release_version", "status", "schema_version")
-            },
-            "source_partition_year": year,
-            "items": items,
-            "count": len(items),
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-            "next_offset": offset + len(items) if offset + len(items) < total else None,
-        }
 
     def bind_release_export(self, release_id: uuid.UUID, values: Mapping[str, Any]) -> JsonObject:
         """Atomically bind the verified export and complete the candidate transition."""
@@ -2062,289 +1804,23 @@ class PropertyScopeStore:
             )
 
     # Property discovery reads only accepted serving evidence.
+    def _properties(self) -> _CanonicalPropertyReads:
+        reads = getattr(self, "_property_reads", None)
+        if reads is None:
+            reads = _CanonicalPropertyReads(self)
+            self._property_reads = reads
+        return reads
+
     def search_properties(
         self, query: str, *, state: str, limit: int, offset: int = 0
     ) -> PropertySearchResults:
-        normalised = _normalise_property_query(query)
-        if not normalised:
-            return PropertySearchResults(items=[], total=0)
-        if _property_query_is_underspecified(normalised):
-            raise ValidationError(
-                "q must include a street number, postcode, locality, or distinctive address term"
-            )
-        numeric_value: int | str | None = None
-        if normalised.isdigit() and len(normalised) == 4:
-            warehouse_match = "address.postcode=%s"
-            legacy_match = "property.postcode=%s"
-            alias_match = "FALSE"
-            numeric_value = normalised
-        elif normalised.isdigit():
-            warehouse_match = "address.street_number_first=%s"
-            legacy_match = "property.street_number_first=%s"
-            alias_match = "FALSE"
-            numeric_value = int(normalised)
-        else:
-            warehouse_match = (
-                "trim(regexp_replace(lower(address.address_display), "
-                "'[^a-z0-9]+',' ','g')) LIKE '%%' || %s || '%%'"
-            )
-            legacy_match = "property.address_search LIKE '%%' || %s || '%%'"
-            alias_match = "alias.alias_search LIKE '%%' || %s || '%%'"
-        search_params: list[Any] = [
-            numeric_value if numeric_value is not None else normalised,
-            PROPERTY_SEARCH_CANDIDATE_LIMIT + 1,
-            numeric_value if numeric_value is not None else normalised,
-        ]
-        if numeric_value is None:
-            search_params.append(normalised)
-        search_params.extend(
-            [
-                PROPERTY_SEARCH_CANDIDATE_LIMIT + 1,
-                PROPERTY_SEARCH_CANDIDATE_LIMIT,
-                normalised,
-                normalised,
-                normalised,
-                normalised,
-                normalised,
-                state,
-                PROPERTY_SEARCH_CANDIDATE_LIMIT,
-                limit,
-                offset,
-            ]
-        )
-        rows = self._fetch_all(
-            f"""
-            WITH accepted_addresses AS MATERIALIZED (
-                SELECT COALESCE(address.property_ref,
-                           md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
-                       address.address_display,address.locality,address.postcode,'NSW' AS state,
-                       CASE WHEN address.source_status='CURRENT' THEN 'verified'
-                            ELSE 'retired' END AS resolution_status,address.geom,
-                       trim(regexp_replace(lower(address.address_display),
-                           '[^a-z0-9]+',' ','g')) AS search_text,
-                       address.address_display AS matched_address,'canonical' AS match_kind
-                FROM warehouse.gnaf_address address
-                JOIN serving.accepted_generation accepted
-                  ON accepted.dataset_release_id=address.dataset_release_id
-                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
-                WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
-                  AND address.published
-                  AND {warehouse_match}
-                LIMIT %s
-            ), legacy_documents AS (
-                SELECT property.property_ref,property.address_display,property.locality,
-                       property.postcode,property.state,property.resolution_status,property.geom,
-                       property.address_search AS search_text,
-                       property.address_display AS matched_address,'canonical' AS match_kind
-                FROM registry.property property
-                WHERE {legacy_match} AND EXISTS (
-                    SELECT 1 FROM registry.property_identifier identifier
-                    JOIN serving.accepted_generation accepted
-                      ON accepted.dataset_release_id=identifier.source_release_id
-                    WHERE identifier.property_ref=property.property_ref AND identifier.is_current
-                ) AND NOT EXISTS (
-                    SELECT 1 FROM warehouse.gnaf_address accepted_address
-                    JOIN serving.accepted_generation accepted
-                      ON accepted.dataset_release_id=accepted_address.dataset_release_id
-                    WHERE accepted_address.published AND COALESCE(accepted_address.property_ref,
-                        md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
-                        =property.property_ref
-                )
-                UNION ALL
-                SELECT property.property_ref,property.address_display,property.locality,
-                       property.postcode,property.state,property.resolution_status,property.geom,
-                       alias.alias_search,alias.alias_display,'alias'
-                FROM registry.address_alias alias
-                JOIN registry.property property ON property.property_ref=alias.property_ref
-                JOIN serving.accepted_generation accepted
-                  ON accepted.dataset_release_id=alias.source_release_id
-                WHERE alias.is_current
-                  AND {alias_match}
-                  AND NOT EXISTS (
-                      SELECT 1 FROM warehouse.gnaf_address accepted_address
-                      JOIN serving.accepted_generation accepted
-                        ON accepted.dataset_release_id=accepted_address.dataset_release_id
-                      WHERE accepted_address.published AND COALESCE(accepted_address.property_ref,
-                          md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
-                          =property.property_ref
-                  )
-            ), search_documents AS MATERIALIZED (
-                SELECT * FROM accepted_addresses
-                UNION ALL SELECT * FROM legacy_documents
-                LIMIT %s
-            ), candidate_documents AS (
-                SELECT * FROM search_documents LIMIT %s
-            ), candidates AS (
-                SELECT document.property_ref,document.address_display,document.locality,
-                       document.postcode,document.state,document.resolution_status,
-                       ST_X(document.geom) AS longitude,ST_Y(document.geom) AS latitude,
-                       document.matched_address,document.match_kind,
-                       greatest(
-                           similarity(document.search_text,%s),
-                           word_similarity(%s,document.search_text),
-                           CASE WHEN document.search_text=%s THEN 1 ELSE 0 END
-                       ) AS score,
-                       CASE
-                           WHEN document.search_text=%s THEN 0
-                           WHEN document.search_text LIKE %s || '%%' THEN 1
-                           ELSE 2
-                       END AS match_rank
-                FROM candidate_documents document
-                WHERE document.state=%s
-            ), best_matches AS (
-                SELECT DISTINCT ON (property_ref) * FROM candidates
-                ORDER BY property_ref,match_rank,score DESC,
-                         CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END,matched_address
-            ), summary AS (
-                SELECT count(*)::bigint AS total_count,
-                       (SELECT count(*)>%s FROM search_documents) AS total_is_lower_bound
-                FROM best_matches
-            )
-            SELECT page.*,summary.total_count,summary.total_is_lower_bound
-            FROM summary LEFT JOIN LATERAL (
-                SELECT property_ref,address_display,locality,postcode,state,resolution_status,
-                       longitude,latitude,score,matched_address,match_kind,
-                       CASE match_rank
-                           WHEN 0 THEN 'exact'
-                           WHEN 1 THEN 'prefix'
-                           ELSE 'contains'
-                       END AS match_method
-                FROM best_matches
-                ORDER BY match_rank,score DESC,address_display LIMIT %s OFFSET %s
-            ) page ON true
-            """,
-            search_params,
-        )
-        total = int(rows[0].get("total_count", 0)) if rows else 0
-        total_is_lower_bound = bool(rows[0].get("total_is_lower_bound", False)) if rows else False
-        page: list[JsonObject] = []
-        for row in rows:
-            row.pop("total_count", None)
-            row.pop("total_is_lower_bound", None)
-            if row.get("property_ref") is not None:
-                page.append(row)
-        return PropertySearchResults(
-            items=page,
-            total=total,
-            total_is_lower_bound=total_is_lower_bound,
-        )
+        return self._properties().search_properties(query, state=state, limit=limit, offset=offset)
 
     def property_snapshot(self, property_ref: uuid.UUID) -> JsonObject:
-        accepted_address = self._fetch_one(
-            """SELECT jsonb_build_object(
-                'property_ref',COALESCE(address.property_ref,
-                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid),
-                'address_display',address.address_display,'flat_type',address.flat_type,
-                'unit_number',address.unit_number,
-                'street_number_first',address.street_number_first,
-                'street_number_suffix',address.street_number_suffix,
-                'street_number_last',address.street_number_last,
-                'street_name',COALESCE(address.street_name,address.address_display),
-                'street_type',address.street_type,'locality',address.locality,
-                'postcode',address.postcode,'state','NSW',
-                'address_search',trim(regexp_replace(lower(address.address_display),
-                    '[^a-z0-9]+',' ','g')),
-                'geometry',ST_AsGeoJSON(address.geom)::jsonb,
-                'longitude',ST_X(address.geom),'latitude',ST_Y(address.geom),
-                'resolution_status',CASE WHEN address.source_status='CURRENT'
-                    THEN 'verified' ELSE 'retired' END,
-                'created_at',address.created_at,'updated_at',address.created_at,'version',1
-            ) AS property,jsonb_build_object(
-                'id',md5('propertyscope-' ||
-                    CASE WHEN release.dataset_id='gnaf-nsw' THEN 'gnaf_pid'
-                         ELSE 'fixture_pid' END || '-identifier:' || release.id::text || ':' ||
-                         address.gnaf_pid)::uuid,
-                'property_ref',COALESCE(address.property_ref,
-                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid),
-                'scheme',CASE WHEN release.dataset_id='gnaf-nsw' THEN 'gnaf_pid'
-                              ELSE 'fixture_pid' END,
-                'identifier_value',address.gnaf_pid,'source_release_id',release.id,
-                'is_current',true,'valid_from',NULL,'valid_to',NULL,
-                'match_method','source-authoritative','match_confidence',1,
-                'evidence_json',jsonb_build_object('geocode_type',address.geocode_type,
-                    'source_crs',address.source_crs),'created_at',address.created_at
-            ) AS identifier
-            FROM warehouse.gnaf_address address
-            JOIN serving.accepted_generation accepted
-              ON accepted.dataset_release_id=address.dataset_release_id
-            JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
-            WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
-              AND address.published
-              AND COALESCE(address.property_ref,
-                  md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
-            LIMIT 1""",
-            (property_ref,),
-        )
-        if accepted_address is not None:
-            return {
-                "property": dict(accepted_address["property"]),
-                "identifiers": [dict(accepted_address["identifier"])],
-                "aliases": [],
-                "coverage": self.property_coverage(property_ref),
-            }
-        property_row = self._required(
-            """SELECT *,ST_X(geom) AS longitude,ST_Y(geom) AS latitude,
-            ST_AsGeoJSON(geom)::jsonb AS geometry FROM registry.property WHERE property_ref=%s""",
-            (property_ref,),
-        )
-        identifiers = self._fetch_all(
-            "SELECT * FROM registry.property_identifier WHERE property_ref=%s ORDER BY created_at",
-            (property_ref,),
-        )
-        aliases = self._fetch_all(
-            "SELECT * FROM registry.address_alias WHERE property_ref=%s ORDER BY alias_display",
-            (property_ref,),
-        )
-        coverage = self.property_coverage(property_ref)
-        return {
-            "property": property_row,
-            "identifiers": identifiers,
-            "aliases": aliases,
-            "coverage": coverage,
-        }
+        return self._properties().property_snapshot(property_ref)
 
     def property_coverage(self, property_ref: uuid.UUID) -> list[JsonObject]:
-        exists = self._fetch_one(
-            """SELECT 1 AS present FROM warehouse.gnaf_address address
-            JOIN serving.accepted_generation accepted
-              ON accepted.dataset_release_id=address.dataset_release_id
-            WHERE address.published AND COALESCE(address.property_ref,
-                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
-            UNION ALL SELECT 1 FROM registry.property WHERE property_ref=%s LIMIT 1""",
-            (property_ref, property_ref),
-        )
-        if exists is None:
-            raise NotFoundError("record does not exist")
-        return self._fetch_all(
-            """WITH accepted_identity AS (
-                SELECT COALESCE(address.property_ref,
-                           md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
-                       release.dataset_id,release.target_feature,
-                       release.id AS dataset_release_id,'supported' AS coverage_status,
-                       release.coverage_json AS coverage_scope,
-                       accepted.activated_at AS checked_at,release.release_version,
-                       release.schema_version,release.accepted_at
-                FROM warehouse.gnaf_address address
-                JOIN serving.accepted_generation accepted
-                  ON accepted.dataset_release_id=address.dataset_release_id
-                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
-                WHERE address.published AND COALESCE(address.property_ref,
-                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
-            ), retained_coverage AS (
-                SELECT coverage.*,release.release_version,release.schema_version,
-                       release.accepted_at
-                FROM serving.property_coverage coverage
-                LEFT JOIN ops.dataset_release release ON release.id=coverage.dataset_release_id
-                WHERE coverage.property_ref=%s AND NOT EXISTS (
-                    SELECT 1 FROM accepted_identity identity
-                    WHERE identity.dataset_id=coverage.dataset_id
-                      AND identity.target_feature=coverage.target_feature
-                )
-            )
-            SELECT * FROM accepted_identity UNION ALL SELECT * FROM retained_coverage
-            ORDER BY target_feature,dataset_id""",
-            (property_ref, property_ref),
-        )
+        return self._properties().property_coverage(property_ref)
 
     def overview(self) -> JsonObject:
         with self.connection() as connection:

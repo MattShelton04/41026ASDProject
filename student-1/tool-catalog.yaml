@@ -483,7 +483,7 @@ tools:
         type: object
         properties:
           release_id:
-            {type: string, minLength: 1, maxLength: 150, x-identifier-kind: release_id}
+            {type: string, format: uuid, x-identifier-kind: release_id}
           idempotency_key: {type: string, minLength: 8, maxLength: 200}
         required: [release_id, idempotency_key]
         additionalProperties: false

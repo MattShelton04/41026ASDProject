@@ -12,7 +12,7 @@ import {
   shouldRefreshDetail,
   statusesForFilter,
 } from "/operations/ai-mode/assets/polling.js";
-import { resolveResearchAreaContext } from "/operations/ai-mode/assets/contexts.js?v=1";
+import { resolveResearchAreaContext } from "/operations/ai-mode/assets/contexts.js";
 
 const API_ROOT = "/api/v1";
 const EVENT_LIMIT = 200;

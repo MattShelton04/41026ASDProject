@@ -1,5 +1,5 @@
-import { capabilityManifest, capabilityState, RELEASE_STAGES } from "../capabilities.js?v=10";
-import { append, badge, cell, el, link, notice, pageHeader, panel, table } from "../core.js?v=10";
+import { capabilityManifest, capabilityState, RELEASE_STAGES } from "../capabilities.js";
+import { append, badge, cell, el, link, notice, pageHeader, panel, table } from "../core.js";
 
 function stageCard(stage) {
   const card = el("article", `ps-card roadmap-card roadmap-card--${stage.state}`);
