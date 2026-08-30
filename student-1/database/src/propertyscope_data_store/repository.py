@@ -181,6 +181,16 @@ class PropertyScopeStore:
         except Exception:
             return False
 
+    def database_size_bytes(self) -> int:
+        """Return the owning PostgreSQL database's current allocated size."""
+        with self.connection() as connection:
+            row = connection.execute(
+                "SELECT pg_database_size(current_database())::bigint AS database_size_bytes"
+            ).fetchone()
+        if row is None or int(row["database_size_bytes"]) < 0:
+            raise RuntimeError("PostgreSQL database size is unavailable")
+        return int(row["database_size_bytes"])
+
     def counts(self) -> JsonObject:
         tables = (
             "ops.source_definition",

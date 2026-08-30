@@ -73,7 +73,9 @@ services:
     stop_grace_period: 35s
 
   f1-postgres:
-    profiles: [release-0]
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-1-propertyscope-data-platform
     image: postgis/postgis:16-3.4
     command:
       - postgres
@@ -106,7 +108,9 @@ services:
     stop_grace_period: 60s
 
   f1-db-api:
-    profiles: [release-0]
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-1-propertyscope-data-platform
     build:
       context: .
       dockerfile: student-1/Dockerfile
@@ -136,7 +140,9 @@ services:
     cpus: ${PROPERTYSCOPE_DATABASE_CPU_LIMIT:-2.0}
 
   f1-db-loader:
-    profiles: [release-0]
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-1-propertyscope-data-platform
     build:
       context: .
       dockerfile: student-1/Dockerfile
@@ -150,6 +156,7 @@ services:
       PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB: ${PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB:-16777216}
       PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES: ${PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES:-4294967296}
       PROPERTYSCOPE_LOADER_ARTIFACT_EXPANSION_FACTOR: ${PROPERTYSCOPE_LOADER_ARTIFACT_EXPANSION_FACTOR:-3}
+      PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES: ${PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES:-68719476736}
     depends_on:
       f1-db-api:
         condition: service_healthy
@@ -161,7 +168,9 @@ services:
     cpus: ${PROPERTYSCOPE_LOADER_CPU_LIMIT:-2.0}
 
   f1-backend:
-    profiles: [release-0]
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-1-propertyscope-data-platform
     build:
       context: .
       dockerfile: student-1/Dockerfile
@@ -192,7 +201,9 @@ services:
     stop_grace_period: 35s
 
   f1-runner:
-    profiles: [release-0]
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-1-propertyscope-data-platform
     build:
       context: .
       dockerfile: student-1/Dockerfile
@@ -223,7 +234,9 @@ services:
     cpus: ${PROPERTYSCOPE_RUNNER_CPU_LIMIT:-2.0}
 
   f1-frontend:
-    profiles: [release-0]
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-1-propertyscope-data-platform
     build:
       context: .
       dockerfile: student-1/Dockerfile

@@ -57,8 +57,10 @@ After the 100k suite succeeds and is reviewed:
 uv run python scripts/source_scale_benchmark.py run --dataset psi --scale 1000000 --repetitions 3 --gate-evidence .propertyscope-runtime/source-scale-benchmarks/psi-100000-TIMESTAMP/suite-summary.json --database-url postgresql://USER:PASSWORD@HOST/propertyscope_benchmark --confirm-disposable --confirm-database propertyscope_benchmark
 ```
 
-Outputs stay below `.propertyscope-runtime/source-scale-benchmarks/`, which is ignored by Git.
-Do not copy credentials into summaries or command transcripts.
+Raw outputs stay below `.propertyscope-runtime/source-scale-benchmarks/`, which is ignored by Git.
+Do not copy credentials into summaries or command transcripts. Preserve a bounded, credential-free
+attestation of reviewed suites under `docs/release-0/evidence/` so a clean checkout retains per-run
+metrics, cleanup outcomes, semantic fingerprints and suite/plan hashes.
 
 ## Comparisons
 
@@ -111,6 +113,12 @@ and removed every schema. The raw summaries and plans remain in the ignored loca
 - `psi-100000-20260830T094159Z` and `bocsar-100000-20260830T094305Z` (cancellation);
 - `psi-100000-20260830T094349Z` and `bocsar-100000-20260830T094421Z` (100k);
 - `psi-1000000-20260830T094455Z` and `bocsar-1000000-20260830T094758Z` (1m).
+
+The compact checked-in
+[`source-scale-benchmark-attestation-2026-08-30.md`](evidence/source-scale-benchmark-attestation-2026-08-30.md)
+preserves every run's core counters, cleanup result and semantic fingerprint plus SHA-256 evidence
+for each suite summary and plan manifest. It is the reviewable branch artifact; larger local JSON
+remains optional supporting detail.
 
 Elapsed time is the complete measured identity/address/target interval described above, not only
 the final insert. Temp and WAL values are database/cluster counter deltas and should be treated as

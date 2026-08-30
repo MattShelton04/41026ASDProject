@@ -9,6 +9,7 @@ from pathlib import Path
 DEFAULT_LOADER_TEMP_FILE_LIMIT_KIB = 16 * 1024 * 1024
 DEFAULT_LOADER_DISK_RESERVE_BYTES = 4 * 1024 * 1024 * 1024
 DEFAULT_LOADER_ARTIFACT_EXPANSION_FACTOR = 3
+DEFAULT_LOADER_DATABASE_CAPACITY_BYTES: int | None = None
 
 
 def _default_runtime_profile_root() -> Path:
@@ -27,6 +28,7 @@ class StoreSettings:
     loader_temp_file_limit_kib: int = DEFAULT_LOADER_TEMP_FILE_LIMIT_KIB
     loader_disk_reserve_bytes: int = DEFAULT_LOADER_DISK_RESERVE_BYTES
     loader_artifact_expansion_factor: int = DEFAULT_LOADER_ARTIFACT_EXPANSION_FACTOR
+    loader_database_capacity_bytes: int | None = DEFAULT_LOADER_DATABASE_CAPACITY_BYTES
 
     @classmethod
     def from_environment(cls) -> StoreSettings:
@@ -68,6 +70,11 @@ class StoreSettings:
                 minimum=1,
                 maximum=16,
             ),
+            loader_database_capacity_bytes=_optional_bounded_integer(
+                "PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES",
+                minimum=8 * 1024 * 1024 * 1024,
+                maximum=16 * 1024 * 1024 * 1024 * 1024,
+            ),
         )
 
 
@@ -82,6 +89,19 @@ def _bounded_integer(name: str, *, default: int, minimum: int, maximum: int) -> 
     raw = os.environ.get(name)
     if raw is None:
         return default
+    try:
+        value = int(raw.strip())
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer") from exc
+    if value < minimum or value > maximum:
+        raise RuntimeError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
+def _optional_bounded_integer(name: str, *, minimum: int, maximum: int) -> int | None:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return None
     try:
         value = int(raw.strip())
     except ValueError as exc:

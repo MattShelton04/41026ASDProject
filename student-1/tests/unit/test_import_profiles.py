@@ -673,6 +673,9 @@ def test_bocsar_typed_normal_path_uses_rowcount_without_destination_scans() -> N
 
 
 class _Store:
+    def database_size_bytes(self) -> int:
+        return 1024
+
     def import_cancel_requested(self, _operation_id: uuid.UUID) -> bool:
         return False
 
@@ -930,7 +933,12 @@ def test_loader_verifies_artifact_then_delegates_registered_copy_profile(tmp_pat
     path = tmp_path / relative
     path.parent.mkdir(parents=True)
     path.write_bytes(data)
-    loader = DatabaseLoader(cast(Any, _Store()), tmp_path, worker_id="loader-test")
+    loader = DatabaseLoader(
+        cast(Any, _Store()),
+        tmp_path,
+        worker_id="loader-test",
+        database_capacity_bytes=128 * 1024 * 1024 * 1024,
+    )
     work = {
         "id": "70000000-0000-0000-0000-000000000001",
         "import_profile_key": "property-fixture",
@@ -955,7 +963,12 @@ def test_loader_stops_before_reading_a_cancelled_import(tmp_path: Path) -> None:
     path = tmp_path / relative
     path.parent.mkdir(parents=True)
     path.write_bytes(data)
-    loader = DatabaseLoader(cast(Any, _CancelledStore()), tmp_path, worker_id="loader-test")
+    loader = DatabaseLoader(
+        cast(Any, _CancelledStore()),
+        tmp_path,
+        worker_id="loader-test",
+        database_capacity_bytes=128 * 1024 * 1024 * 1024,
+    )
 
     with pytest.raises(ImportCancelledError, match="cancelled by operator"):
         loader._execute(
@@ -978,7 +991,12 @@ def test_loader_stops_before_reading_an_import_during_shutdown(tmp_path: Path) -
     path = tmp_path / relative
     path.parent.mkdir(parents=True)
     path.write_bytes(data)
-    loader = DatabaseLoader(cast(Any, _Store()), tmp_path, worker_id="loader-test")
+    loader = DatabaseLoader(
+        cast(Any, _Store()),
+        tmp_path,
+        worker_id="loader-test",
+        database_capacity_bytes=128 * 1024 * 1024 * 1024,
+    )
     loader.stop()
 
     with pytest.raises(InterruptedError, match="loader stopped"):

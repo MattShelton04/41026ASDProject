@@ -110,12 +110,21 @@ connection before another worker may recover it.
 
 PSI and BOCSAR use typed temporary staging and transaction-local source phases. The loader casts
 canonical values once before COPY, ANALYZEs planner-sensitive staging and narrow PSI identity and
-address tables, and enforces a loader-only `temp_file_limit`. Before COPY it also requires free
-artifact-volume capacity for the compressed-artifact expansion allowance plus an operator reserve.
-The Compose defaults are 16 GiB of PostgreSQL temporary files, a 4 GiB reserve and a 3x artifact
-database-growth allowance. Preflight requires all three allowances, rather than treating the temp
-limit as free capacity. Override the corresponding `PROPERTYSCOPE_LOADER_*` variables only from
-measured evidence. The disposable benchmark sequence and evidence fields are specified in
+address tables, and enforces a loader-only `temp_file_limit`. Before COPY it observes the artifact
+filesystem separately, then asks the owning PostgreSQL service for
+`pg_database_size(current_database())`. Database headroom is evaluated against the explicit
+`PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES` deployment ceiling; artifact free space is never treated as
+database capacity. Missing capacity or an unavailable database-size observation fails closed before
+COPY.
+
+The local Compose default declares a conservative 64 GiB Feature 1 PostgreSQL capacity budget,
+16 GiB of transaction-local temporary files, a 4 GiB database reserve and a 3x artifact
+database-growth allowance. The capacity value is a deployment budget, not disk discovery: set it no
+higher than storage actually provisioned for PostgreSQL after reserving cluster, WAL and filesystem
+overhead. Preflight requires current database size plus all three growth/headroom allowances to fit
+inside that ceiling. Override the corresponding `PROPERTYSCOPE_LOADER_*` or
+`PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES` variables only from measured evidence. The disposable
+benchmark sequence and evidence fields are specified in
 [`source-scale-benchmark-methodology.md`](source-scale-benchmark-methodology.md).
 
 With complete source generations retained, verify the public path rather than counting entire
