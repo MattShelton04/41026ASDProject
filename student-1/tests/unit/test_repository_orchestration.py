@@ -90,6 +90,13 @@ class SequencedConnectionStore(PropertyScopeStore):
         yield connection
 
 
+def test_repository_reuses_one_collaborator_per_persistence_aggregate() -> None:
+    store = ConnectedStore(ScriptedConnection([]))
+
+    assert store._properties() is store._properties()
+    assert store._releases() is store._releases()
+
+
 def test_import_watcher_cancels_source_scale_insertion_statement() -> None:
     operation_id = uuid.uuid4()
     connection = CancellableConnection([])
