@@ -19,6 +19,9 @@ Architecture sources, decisions, and exported diagrams belong here.
 - `feature-integration-and-experience-contract.md` is the implementable cross-feature baseline for
   edge routes, browser context hand-off, HTTP dependencies, publication/composition flows, common
   styling, failure behaviour, onboarding and group integration tests.
+- `feature-6-integration-poc.md` is the local-only, non-assessed Features 2–5 integration
+  experiment. It records the live topology, real-data support, Mermaid flows and onboarding
+  friction without changing the approved five-feature allocation.
 - `agent-run-state-machine.md` is the implemented operational specification for run
   transitions, durable phase checkpoints, tool turns, idempotency, and restart recovery.
 - `shared-run-observability-proposal.md` records the implemented local read-only baseline
