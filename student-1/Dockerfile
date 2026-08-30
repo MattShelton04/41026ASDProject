@@ -13,6 +13,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY ai-services/agent-core/pyproject.toml ai-services/agent-core/pyproject.toml
 COPY ai-services/ai-mode/pyproject.toml ai-services/ai-mode/pyproject.toml
+COPY shared/consumer-protocol/pyproject.toml shared/consumer-protocol/pyproject.toml
 COPY shared/contracts/pyproject.toml shared/contracts/pyproject.toml
 COPY shared/testkit/pyproject.toml shared/testkit/pyproject.toml
 COPY student-1/pyproject.toml student-1/pyproject.toml
@@ -24,6 +25,7 @@ COPY student-5/pyproject.toml student-5/pyproject.toml
 RUN uv sync --locked --no-dev --package student-1-feature --no-install-workspace
 
 COPY shared/contracts/python shared/contracts/python
+COPY shared/consumer-protocol/python shared/consumer-protocol/python
 COPY student-1/backend/src student-1/backend/src
 COPY student-1/database/src student-1/database/src
 COPY student-1/config student-1/config
@@ -42,6 +44,7 @@ RUN groupadd --gid 10001 propertyscope \
     && install -d --owner propertyscope --group propertyscope /var/lib/propertyscope/artifacts
 COPY --from=builder --chown=propertyscope:propertyscope /app/.venv /app/.venv
 COPY --from=builder --chown=propertyscope:propertyscope /app/shared/contracts /app/shared/contracts
+COPY --from=builder --chown=propertyscope:propertyscope /app/shared/consumer-protocol /app/shared/consumer-protocol
 COPY --from=builder --chown=propertyscope:propertyscope /app/student-1 /app/student-1
 USER propertyscope
 
