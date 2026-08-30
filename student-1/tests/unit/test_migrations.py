@@ -6,7 +6,12 @@ from typing import Any, cast
 
 import pytest
 
-from propertyscope_data_store.migrations import MIGRATION_PACKAGE, migrate, schema_fingerprint
+from propertyscope_data_store.migrations import (
+    MIGRATION_PACKAGE,
+    SCHEMA_FINGERPRINT_POLICY_VERSION,
+    migrate,
+    schema_fingerprint,
+)
 
 
 class ExistingMigrationConnection:
@@ -59,48 +64,189 @@ class SchemaConnection:
     def __init__(
         self,
         *,
-        column_name: str = "id",
-        index_name: str = "run_task_pkey",
+        mutation: tuple[str, str, object] | None = None,
         dict_rows: bool = False,
+        reverse_relation_rows: bool = False,
     ) -> None:
-        self.column_name = column_name
-        self.index_name = index_name
+        self.mutation = mutation
         self.dict_rows = dict_rows
-        self.rows: list[dict[str, str] | tuple[str, ...]] = []
+        self.reverse_relation_rows = reverse_relation_rows
+        self.rows: list[dict[str, object] | tuple[object, ...]] = []
+        self.queries: list[str] = []
+
+    @staticmethod
+    def _datasets() -> list[tuple[str, dict[str, object]]]:
+        return [
+            (
+                "relation",
+                {
+                    "schema_name": "ops",
+                    "relation_name": "run_task",
+                    "relation_kind": "r",
+                    "persistence": "p",
+                    "is_partition": False,
+                },
+            ),
+            ("schema", {"schema_name": "ops"}),
+            (
+                "column",
+                {
+                    "schema_name": "ops",
+                    "relation_name": "run_task",
+                    "ordinal_position": 1,
+                    "column_name": "id",
+                    "data_type": "uuid",
+                    "type_schema": "pg_catalog",
+                    "type_name": "uuid",
+                    "domain_schema": None,
+                    "domain_name": None,
+                    "character_maximum_length": None,
+                    "numeric_precision": None,
+                    "numeric_precision_radix": None,
+                    "numeric_scale": None,
+                    "datetime_precision": None,
+                    "interval_type": None,
+                    "interval_precision": None,
+                    "collation_schema": None,
+                    "collation_name": None,
+                    "is_nullable": "NO",
+                    "column_default": "gen_random_uuid()",
+                    "is_identity": "NO",
+                    "identity_generation": None,
+                    "identity_start": None,
+                    "identity_increment": None,
+                    "identity_minimum": None,
+                    "identity_maximum": None,
+                    "identity_cycle": "NO",
+                    "is_generated": "NEVER",
+                    "generation_expression": None,
+                    "spatial_type": None,
+                    "spatial_srid": None,
+                    "spatial_dimensions": None,
+                },
+            ),
+            (
+                "index",
+                {
+                    "schema_name": "ops",
+                    "relation_name": "run_task",
+                    "index_name": "run_task_pkey",
+                    "access_method": "btree",
+                    "is_unique": True,
+                    "is_primary": True,
+                    "is_valid": True,
+                    "is_ready": True,
+                    "is_clustered": False,
+                    "is_replica_identity": False,
+                    "key_attribute_count": 1,
+                    "predicate": None,
+                },
+            ),
+            (
+                "index_attribute",
+                {
+                    "schema_name": "ops",
+                    "relation_name": "run_task",
+                    "index_name": "run_task_pkey",
+                    "ordinal_position": 1,
+                    "is_included": False,
+                    "column_name": "id",
+                    "expression": None,
+                    "operator_class_schema": "pg_catalog",
+                    "operator_class_name": "uuid_ops",
+                    "collation_schema": None,
+                    "collation_name": None,
+                    "is_descending": False,
+                    "nulls_first": False,
+                },
+            ),
+            (
+                "constraint",
+                {
+                    "schema_name": "ops",
+                    "relation_name": "run_task",
+                    "constraint_name": "run_task_pkey",
+                    "constraint_type": "p",
+                    "is_deferrable": False,
+                    "initially_deferred": False,
+                    "is_validated": True,
+                    "no_inherit": True,
+                    "referenced_schema": None,
+                    "referenced_relation": None,
+                    "foreign_key_match_type": " ",
+                    "foreign_key_update_action": " ",
+                    "foreign_key_delete_action": " ",
+                    "check_expression": None,
+                },
+            ),
+            (
+                "constraint_attribute",
+                {
+                    "schema_name": "ops",
+                    "relation_name": "run_task",
+                    "constraint_name": "run_task_pkey",
+                    "ordinal_position": 1,
+                    "column_name": "id",
+                    "referenced_column_name": None,
+                    "exclusion_operator_schema": None,
+                    "exclusion_operator_name": None,
+                },
+            ),
+            (
+                "view",
+                {
+                    "schema_name": "serving",
+                    "relation_name": "accepted_property",
+                    "relation_kind": "v",
+                    "query_expression": "SELECT id FROM registry.property",
+                },
+            ),
+            (
+                "extension",
+                {
+                    "extension_name": "postgis",
+                    "extension_version": "3.4.0",
+                    "installed_schema": "public",
+                },
+            ),
+        ]
 
     def execute(self, query: str) -> SchemaConnection:
-        values: tuple[str, ...]
-        fields: tuple[str, ...]
-        if "information_schema.columns" in query:
-            values = ("ops", "run_task", self.column_name, "uuid", "NO", "")
-            fields = (
-                "table_schema",
-                "table_name",
-                "column_name",
-                "data_type",
-                "is_nullable",
-                "column_default",
+        self.queries.append(query)
+        category, row = self._datasets()[len(self.queries) - 1]
+        if self.mutation is not None and self.mutation[0] == category:
+            row[self.mutation[1]] = self.mutation[2]
+        rows = [row]
+        if category == "relation":
+            rows.append(
+                {
+                    "schema_name": "registry",
+                    "relation_name": "property",
+                    "relation_kind": "r",
+                    "persistence": "p",
+                    "is_partition": False,
+                }
             )
-        else:
-            values = (
-                "ops",
-                "run_task",
-                self.index_name,
-                f"CREATE UNIQUE INDEX {self.index_name} ...",
-            )
-            fields = ("schemaname", "tablename", "indexname", "indexdef")
-        self.rows = [dict(zip(fields, values, strict=True))] if self.dict_rows else [values]
+            if self.reverse_relation_rows:
+                rows.reverse()
+        self.rows = rows if self.dict_rows else [tuple(item.values()) for item in rows]
         return self
 
-    def fetchall(self) -> list[dict[str, str] | tuple[str, ...]]:
+    def fetchall(self) -> list[dict[str, object] | tuple[object, ...]]:
         return self.rows
 
 
-def test_schema_fingerprint_covers_columns_and_indexes() -> None:
-    value = schema_fingerprint(cast(Any, SchemaConnection()))
+def test_schema_fingerprint_v2_is_deterministic_and_uses_structured_catalogues() -> None:
+    connection = SchemaConnection()
+
+    value = schema_fingerprint(cast(Any, connection))
 
     assert len(value) == 64
     assert value == schema_fingerprint(cast(Any, SchemaConnection()))
+    assert SCHEMA_FINGERPRINT_POLICY_VERSION == "propertyscope-postgresql-schema.v2"
+    assert len(connection.queries) == 9
+    assert all("pg_indexes" not in query for query in connection.queries)
+    assert all("pg_get_constraintdef" not in query for query in connection.queries)
 
 
 def test_schema_fingerprint_canonicalises_real_dict_rows() -> None:
@@ -109,16 +255,58 @@ def test_schema_fingerprint_canonicalises_real_dict_rows() -> None:
     assert tuple_value == schema_fingerprint(cast(Any, SchemaConnection(dict_rows=True)))
 
 
-def test_schema_fingerprint_changes_with_schema_values() -> None:
-    baseline = schema_fingerprint(cast(Any, SchemaConnection(dict_rows=True)))
-    changed_column = schema_fingerprint(
-        cast(Any, SchemaConnection(column_name="ingestion_run_id", dict_rows=True))
+def test_schema_fingerprint_is_independent_of_catalogue_row_order() -> None:
+    ordered = schema_fingerprint(cast(Any, SchemaConnection()))
+    reversed_relations = schema_fingerprint(cast(Any, SchemaConnection(reverse_relation_rows=True)))
+
+    assert ordered == reversed_relations
+
+
+@pytest.mark.parametrize(
+    ("category", "field", "value"),
+    [
+        ("schema", "schema_name", "registry"),
+        ("relation", "relation_kind", "m"),
+        ("column", "numeric_precision", 12),
+        ("column", "numeric_scale", 2),
+        ("column", "column_default", "uuid_generate_v4()"),
+        ("column", "is_nullable", "YES"),
+        ("column", "spatial_srid", 4283),
+        ("index", "predicate", "published"),
+        ("index_attribute", "operator_class_name", "uuid_minmax_ops"),
+        ("constraint", "constraint_type", "f"),
+        ("constraint", "check_expression", "id IS NOT NULL"),
+        ("constraint_attribute", "referenced_column_name", "id"),
+        ("view", "relation_kind", "m"),
+        ("view", "query_expression", "SELECT id, status FROM registry.property"),
+        ("extension", "extension_version", "3.5.0"),
+    ],
+)
+def test_schema_fingerprint_changes_for_every_v2_contract_category(
+    category: str, field: str, value: object
+) -> None:
+    baseline = schema_fingerprint(cast(Any, SchemaConnection()))
+    changed = schema_fingerprint(cast(Any, SchemaConnection(mutation=(category, field, value))))
+
+    assert baseline != changed
+
+
+def test_schema_fingerprint_normalises_only_unquoted_expression_whitespace() -> None:
+    compact = schema_fingerprint(
+        cast(Any, SchemaConnection(mutation=("column", "column_default", "now()")))
     )
-    changed_index = schema_fingerprint(
-        cast(Any, SchemaConnection(index_name="run_task_run_id_idx", dict_rows=True))
+    spaced = schema_fingerprint(
+        cast(Any, SchemaConnection(mutation=("column", "column_default", "  now()  ")))
+    )
+    quoted_single_space = schema_fingerprint(
+        cast(Any, SchemaConnection(mutation=("column", "column_default", "'a b'::text")))
+    )
+    quoted_double_space = schema_fingerprint(
+        cast(Any, SchemaConnection(mutation=("column", "column_default", "'a  b'::text")))
     )
 
-    assert len({baseline, changed_column, changed_index}) == 3
+    assert compact == spaced
+    assert quoted_single_space != quoted_double_space
 
 
 def test_accepted_release_manifest_migration_removes_candidate_only_wording() -> None:

@@ -13,6 +13,7 @@ from propertyscope_data_store.errors import (
     StoreError,
     ValidationError,
 )
+from propertyscope_data_store.migrations import SCHEMA_FINGERPRINT_POLICY_VERSION
 from propertyscope_data_store.repository import PropertyScopeStore
 
 
@@ -58,7 +59,13 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
 
     @api.get("/internal/data-platform/v1/schema/fingerprint")
     def fingerprint() -> Response:
-        return jsonify({"algorithm": "sha256", "fingerprint": store.fingerprint()})
+        return jsonify(
+            {
+                "algorithm": "sha256",
+                "fingerprint": store.fingerprint(),
+                "policy_version": SCHEMA_FINGERPRINT_POLICY_VERSION,
+            }
+        )
 
     @api.get("/internal/data-platform/v1/sources")
     def sources_list() -> Response:
