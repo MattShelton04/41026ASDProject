@@ -11,6 +11,7 @@ from pydantic import Field, model_validator
 
 from shared_contracts.agent import Identifier
 from shared_contracts.base import ContractModel
+from shared_contracts.deployment import FeatureOnboarding
 
 
 class FeatureManifestError(ValueError):
@@ -28,6 +29,7 @@ class FeatureManifest(ContractModel):
     backend_base_path: str = Field(min_length=2, max_length=200)
     health_path: str = Field(min_length=2, max_length=200)
     ai_capabilities: tuple[Identifier, ...] = Field(default=(), max_length=50)
+    onboarding: FeatureOnboarding | None = None
 
     @model_validator(mode="after")
     def validate_identity_and_paths(self) -> FeatureManifest:

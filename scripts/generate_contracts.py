@@ -27,12 +27,16 @@ from shared_contracts import (
     AgentRunEvidenceDetail,
     AgentRunPage,
     AgentRunRequest,
+    DeploymentProjectionV1,
+    DeploymentSelectionV1,
     FeatureManifest,
+    FeatureOnboarding,
     HealthResponse,
     HumanReviewRequest,
     ModelRegistry,
     ProblemDetail,
     ToolDefinition,
+    TypedHealthProjection,
 )
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -51,6 +55,10 @@ SCHEMA_MODELS: dict[str, type[BaseModel]] = {
     "problem-detail.schema.json": ProblemDetail,
     "tool-definition.schema.json": ToolDefinition,
     "feature-manifest.schema.json": FeatureManifest,
+    "feature-onboarding.schema.json": FeatureOnboarding,
+    "deployment-selection.v1.schema.json": DeploymentSelectionV1,
+    "deployment-projection.v1.schema.json": DeploymentProjectionV1,
+    "typed-health-projection.v1.schema.json": TypedHealthProjection,
     "model-registry.schema.json": ModelRegistry,
 }
 

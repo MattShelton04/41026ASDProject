@@ -10,6 +10,7 @@ import { loadFeature1Bridge, validateFeature1Adapter } from "./feature-1-bridge.
 import { resolveResearchAreaContext } from "./operations/ai-mode/contexts.js";
 import { classifyHealth, overallReadiness } from "./routes/status.js";
 import { SHARED_ASSISTANT_SCOPES, sharedAssistantSuggestions } from "./routes/assistant.js";
+import { validateEvidenceAdapter } from "./routes/evidence.js";
 
 function attributes(source) {
   return Object.fromEntries(
@@ -53,7 +54,7 @@ test("feature registry is the bounded source for shell routes and availability",
 
 test("shared navigation distinguishes global destinations from research-area transitions", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  assert.match(html, /src="app\.js\?v=17"/);
+  assert.match(html, /src="app\.js\?v=18"/);
   assert.match(html, /class="area-launcher"/);
   assert.match(html, /Open research area/);
   assert.match(html, /class="rail-area-link"/);
@@ -69,7 +70,7 @@ test("shared home loads the pinned local HTMX build with a strict configuration"
   const provenance = readFileSync(new URL("./vendor/README.md", import.meta.url), "utf8");
 
   assert.match(html, /src="vendor\/htmx-2\.0\.10\.min\.js"/);
-  assert.ok(html.indexOf("htmx-2.0.10.min.js") < html.indexOf("app.js?v=17"));
+  assert.ok(html.indexOf("htmx-2.0.10.min.js") < html.indexOf("app.js?v=18"));
   assert.match(html, /"allowEval":false/);
   assert.match(html, /"allowScriptTags":false/);
   assert.doesNotMatch(html, /https?:\/\/[^"']*htmx/i);
@@ -162,6 +163,7 @@ test("the Feature 1 bridge validates its complete nested contract", async () => 
     links: { propertyDiscovery: "/properties", dataOperations: "/operations", agentRuns: "/runs" },
     primarySearchHref() {}, statusDependencies() {},
     evidence: {
+      action: { label: "Open source workspace", href: "/operations" },
       copy: Object.fromEntries(["headerDescription", "releasePanelDescription", "agentPanelDescription", "releaseEmpty", "releaseError", "agentEmpty", "agentError", "transitionLabel"].map((key) => [key, key])),
       published: { path: "/published", project() {}, href() {} },
       agentRuns: { path: "/runs", project() {}, href() {} },
@@ -174,7 +176,7 @@ test("the Feature 1 bridge validates its complete nested contract", async () => 
     loadFeature1Bridge({ importer: async () => ({}) }),
     /createFeature1ShellAdapter/,
   );
-  assert.throws(() => validateFeature1Adapter({ ...expected, evidence: {} }), /evidence\.copy/);
+  assert.throws(() => validateFeature1Adapter({ ...expected, evidence: {} }), /evidence\.action/);
   let loadError = null;
   assert.equal(await loadFeature1Bridge({
     importer: async () => { throw new Error("offline"); },
@@ -202,6 +204,22 @@ test("the Feature 1 bridge validates its complete nested contract", async () => 
   assert.match((await lateError).message, /createFeature1ShellAdapter/);
 });
 
+test("the optional shell evidence adapter is domain-neutral and closed", () => {
+  const adapter = {
+    action: { label: "Open source workspace", href: "/source" },
+    copy: Object.fromEntries(["headerDescription", "releasePanelDescription", "agentPanelDescription", "releaseEmpty", "releaseError", "agentEmpty", "agentError", "transitionLabel"].map((key) => [key, key])),
+    published: { path: "/published", project() {}, href() {} },
+    agentRuns: { path: "/runs", project() {}, href() {} },
+  };
+  assert.equal(validateEvidenceAdapter(adapter), adapter);
+  assert.throws(() => validateEvidenceAdapter({ ...adapter, action: null }), /action\.label/);
+  assert.throws(() => validateEvidenceAdapter({ ...adapter, published: { ...adapter.published, path: "" } }), /published\.path/);
+  assert.throws(() => validateEvidenceAdapter({ ...adapter, published: { ...adapter.published, path: "https://other.example/releases" } }), /same-origin path/);
+  assert.throws(() => validateEvidenceAdapter({ ...adapter, inventedFeatureEvidence: {} }), /unsupported inventedFeatureEvidence/);
+  const source = readFileSync(new URL("./routes/evidence.js", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /getFeature1Adapter|Property data|sale|crime|school|planning|buyer/i);
+});
+
 test("the shell renders before its optional Feature 1 projection loads", () => {
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
   assert.ok(app.indexOf("renderRoute();") < app.indexOf("loadFeature1Bridge({"));
@@ -227,22 +245,25 @@ test("AI activity context accepts only the bounded Feature 1 transition", () => 
 });
 
 test("shared routes use public same-origin projections and safe DOM rendering", () => {
-  const nginx = readFileSync(new URL("./nginx.conf", import.meta.url), "utf8");
+  const nginx = [
+    readFileSync(new URL("./nginx.conf", import.meta.url), "utf8"),
+    readFileSync(new URL("./generated/enabled-feature-routes.conf", import.meta.url), "utf8"),
+  ].join("\n");
   const statusRoute = readFileSync(new URL("./routes/status.js", import.meta.url), "utf8");
   const evidenceRoute = readFileSync(new URL("./routes/evidence.js", import.meta.url), "utf8");
   assert.match(nginx, /location = \/api\/shared-health\/data-platform/);
-  assert.match(nginx, /location \/api\/data-platform\//);
+  assert.match(nginx, /location \^~ \/api\/data-platform\/v1\//);
   assert.match(nginx, /location \/api\/ai-mode\//);
   assert.match(nginx, /location \/api\/v1\//);
   assert.match(nginx, /location \/api\//);
-  assert.match(nginx, /location \/features\/data-platform\//);
+  assert.match(nginx, /location \^~ \/features\/data-platform\//);
   assert.match(nginx, /market-intelligence\|suburb-analytics\|due-diligence\|buyer-workspaces/);
   assert.match(nginx, /location \/operations\/ai-mode\//);
   assert.match(nginx, /location \/fragments\/\s*\{\s*try_files \$uri =404;/);
-  assert.match(nginx, /proxy_pass \$data_platform_frontend_upstream/);
+  assert.match(nginx, /proxy_pass \$enabled_feature_0_frontend/);
   assert.match(nginx, /resolver 127\.0\.0\.11/);
   assert.match(nginx, /absolute_redirect off/);
-  assert.match(nginx, /proxy_pass \$data_platform_upstream/);
+  assert.match(nginx, /proxy_pass \$enabled_feature_0_backend/);
   assert.match(nginx, /proxy_pass \$ai_mode_upstream/);
   assert.doesNotMatch(statusRoute, /innerHTML/);
   assert.match(statusRoute, /featureRegistry\(config\)/);

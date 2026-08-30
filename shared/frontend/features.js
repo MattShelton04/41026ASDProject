@@ -1,3 +1,7 @@
+import { ENABLED_FEATURES } from "./generated/enabled-features.js";
+
+const ENABLED_BY_KEY = new Map(ENABLED_FEATURES.map((item) => [item.featureKey, item]));
+
 const DEFINITIONS = [
   {
     id: "property-records",
@@ -14,7 +18,6 @@ const DEFINITIONS = [
     healthPath: "/api/shared-health/data-platform",
     aliases: ["feature-1"],
     implemented: true,
-    enabled: true,
   },
   {
     id: "sales-market",
@@ -30,7 +33,6 @@ const DEFINITIONS = [
     defaultHash: "#market-cases",
     healthPath: "/api/shared-health/market-intelligence",
     implemented: false,
-    enabled: false,
     aliases: ["feature-2"],
   },
   {
@@ -47,7 +49,6 @@ const DEFINITIONS = [
     defaultHash: "#suburbs",
     healthPath: "/api/shared-health/suburb-analytics",
     implemented: false,
-    enabled: false,
     aliases: ["feature-3"],
   },
   {
@@ -64,7 +65,6 @@ const DEFINITIONS = [
     defaultHash: "#site-reviews",
     healthPath: "/api/shared-health/due-diligence",
     implemented: false,
-    enabled: false,
     aliases: ["feature-4"],
   },
   {
@@ -81,15 +81,45 @@ const DEFINITIONS = [
     defaultHash: "#workspace",
     healthPath: "/api/shared-health/buyer-workspaces",
     implemented: false,
-    enabled: false,
     aliases: ["feature-5"],
   },
 ];
 
-export const FEATURE_DEFINITIONS = Object.freeze(DEFINITIONS.map((item) => Object.freeze({
-  ...item,
-  aliases: Object.freeze([...item.aliases]),
-})));
+const PROJECTED_DEFINITIONS = DEFINITIONS.map((item) => {
+  const enabled = ENABLED_BY_KEY.get(item.featureKey);
+  return Object.freeze({
+    ...item,
+    implemented: Boolean(enabled),
+    enabled: Boolean(enabled),
+    frontendBase: enabled?.frontendBase || item.frontendBase,
+    healthPath: enabled?.publicHealthPath || item.healthPath,
+    aliases: Object.freeze([...item.aliases]),
+  });
+});
+
+for (const enabled of ENABLED_FEATURES) {
+  if (DEFINITIONS.some((item) => item.featureKey === enabled.featureKey)) continue;
+  const slug = enabled.frontendBase?.split("/").filter(Boolean).at(-1) || enabled.featureKey;
+  PROJECTED_DEFINITIONS.push(Object.freeze({
+    id: enabled.featureKey,
+    slug,
+    featureKey: enabled.featureKey,
+    label: enabled.displayName,
+    shortLabel: enabled.displayName,
+    owner: enabled.owner,
+    summary: enabled.displayName,
+    detail: enabled.displayName,
+    icon: "•",
+    frontendBase: enabled.frontendBase,
+    defaultHash: "",
+    healthPath: enabled.publicHealthPath,
+    aliases: Object.freeze([]),
+    implemented: true,
+    enabled: true,
+  }));
+}
+
+export const FEATURE_DEFINITIONS = Object.freeze(PROJECTED_DEFINITIONS);
 
 function configuredHref(definition, config) {
   if (config.featureHrefs?.[definition.id]) return config.featureHrefs[definition.id];
@@ -99,7 +129,7 @@ function configuredHref(definition, config) {
 export function featureRegistry(config = {}) {
   return FEATURE_DEFINITIONS.map((definition) => Object.freeze({
     ...definition,
-    href: definition.implemented && definition.enabled ? configuredHref(definition, config) : undefined,
+    href: definition.enabled ? configuredHref(definition, config) : undefined,
   }));
 }
 

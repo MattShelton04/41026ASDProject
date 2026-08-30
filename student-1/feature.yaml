@@ -19,3 +19,34 @@ ai_capabilities:
   - property.inspect.v1
   - data.run_retry.v1
   - data.release_publish.v1
+onboarding:
+  frontend:
+    asset_root: student-1/frontend
+    service: f1-frontend
+    internal_port: 8080
+    host_port_variable: PROPERTYSCOPE_PORT
+    host_port_default: 5200
+    route_fragment: student-1/frontend/integration/research-area.html
+  backend:
+    service: f1-backend
+    internal_port: 5201
+    additional_paths:
+      - /fragments/data-platform/
+  ai:
+    tool_catalog: student-1/tool-catalog.yaml
+    runtime_path: /etc/ai-mode/propertyscope-tools.yaml
+  quality:
+    python_test_paths:
+      - student-1/tests
+    node_test_files:
+      - student-1/tests/frontend/core.test.mjs
+    coverage_packages:
+      - propertyscope_data_platform
+      - propertyscope_data_store
+    coverage_fail_under: 60
+  databases:
+    - database_service: f1-postgres
+      volumes:
+        - f1-postgres-data
+  evidence_adapter:
+    path: student-1/frontend/integration/shell.js

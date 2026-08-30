@@ -106,76 +106,6 @@
       "title": "EvidenceAdapterOnboarding",
       "type": "object"
     },
-    "FeatureOnboarding": {
-      "additionalProperties": false,
-      "description": "Optional deployment metadata owned beside a feature manifest.",
-      "properties": {
-        "ai": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AiOnboarding"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "backend": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/BackendOnboarding"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "databases": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/DatabaseOnboarding"
-          },
-          "maxItems": 20,
-          "title": "Databases",
-          "type": "array"
-        },
-        "evidence_adapter": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/EvidenceAdapterOnboarding"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "frontend": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/FrontendOnboarding"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "quality": {
-          "$ref": "#/$defs/QualityOnboarding",
-          "default": {
-            "coverage_fail_under": null,
-            "coverage_packages": [],
-            "node_test_files": [],
-            "python_test_paths": []
-          }
-        }
-      },
-      "title": "FeatureOnboarding",
-      "type": "object"
-    },
     "FrontendOnboarding": {
       "additionalProperties": false,
       "description": "Feature-owned frontend assets and their edge service projection.",
@@ -287,55 +217,12 @@
     }
   },
   "additionalProperties": false,
-  "description": "Domain-neutral metadata owned by one student feature slice.",
+  "description": "Optional deployment metadata owned beside a feature manifest.",
   "properties": {
-    "ai_capabilities": {
-      "default": [],
-      "items": {
-        "maxLength": 100,
-        "minLength": 1,
-        "pattern": "^[a-z0-9][a-z0-9_.-]*$",
-        "type": "string"
-      },
-      "maxItems": 50,
-      "title": "Ai Capabilities",
-      "type": "array"
-    },
-    "backend_base_path": {
-      "maxLength": 200,
-      "minLength": 2,
-      "title": "Backend Base Path",
-      "type": "string"
-    },
-    "display_name": {
-      "maxLength": 100,
-      "minLength": 1,
-      "title": "Display Name",
-      "type": "string"
-    },
-    "feature_key": {
-      "maxLength": 100,
-      "minLength": 1,
-      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
-      "title": "Feature Key",
-      "type": "string"
-    },
-    "frontend_base_path": {
-      "maxLength": 200,
-      "minLength": 2,
-      "title": "Frontend Base Path",
-      "type": "string"
-    },
-    "health_path": {
-      "maxLength": 200,
-      "minLength": 2,
-      "title": "Health Path",
-      "type": "string"
-    },
-    "onboarding": {
+    "ai": {
       "anyOf": [
         {
-          "$ref": "#/$defs/FeatureOnboarding"
+          "$ref": "#/$defs/AiOnboarding"
         },
         {
           "type": "null"
@@ -343,32 +230,58 @@
       ],
       "default": null
     },
-    "owner": {
-      "enum": [
-        "student-1",
-        "student-2",
-        "student-3",
-        "student-4",
-        "student-5"
+    "backend": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BackendOnboarding"
+        },
+        {
+          "type": "null"
+        }
       ],
-      "title": "Owner",
-      "type": "string"
+      "default": null
     },
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
+    "databases": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/DatabaseOnboarding"
+      },
+      "maxItems": 20,
+      "title": "Databases",
+      "type": "array"
+    },
+    "evidence_adapter": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EvidenceAdapterOnboarding"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "frontend": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FrontendOnboarding"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "quality": {
+      "$ref": "#/$defs/QualityOnboarding",
+      "default": {
+        "coverage_fail_under": null,
+        "coverage_packages": [],
+        "node_test_files": [],
+        "python_test_paths": []
+      }
     }
   },
-  "required": [
-    "feature_key",
-    "display_name",
-    "owner",
-    "frontend_base_path",
-    "backend_base_path",
-    "health_path"
-  ],
-  "title": "FeatureManifest",
+  "title": "FeatureOnboarding",
   "type": "object"
 }

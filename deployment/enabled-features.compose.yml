@@ -1,0 +1,9 @@
+services:
+  f1-frontend:
+    ports:
+    - 127.0.0.1:${PROPERTYSCOPE_PORT:-5200}:8080
+  shared-ai-mode:
+    environment:
+      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml
+    volumes:
+    - ./student-1/tool-catalog.yaml:/etc/ai-mode/propertyscope-tools.yaml:ro

@@ -37,6 +37,7 @@ def _contrast(first: tuple[int, int, int], second: tuple[int, int, int]) -> floa
 def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
     page = _read("shared/frontend/index.html")
     registry = _read("shared/frontend/features.js")
+    enabled_registry = _read("shared/frontend/generated/enabled-features.js")
     script = _read("shared/frontend/app.js")
     fragment = _read("shared/frontend/fragments/research-areas.html")
 
@@ -44,9 +45,9 @@ def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
     assert "See what is known." in page
     assert 'id="property-search-form"' in page
     assert "Build the picture around a property" in page
-    assert registry.count("featureKey:") == 5
+    assert registry.count('featureKey: "') == 5
     assert registry.count("implemented: false") == 4
-    assert registry.count("enabled: false") == 4
+    assert enabled_registry.count('"featureKey"') == 1
     assert 'id="feature-area-list"' in page
     assert fragment.count("Not available yet") == 4
     assert "renderHomeFeatures" not in script
@@ -68,6 +69,7 @@ def test_shared_home_routes_only_live_product_and_operator_surfaces() -> None:
     page = _read("shared/frontend/index.html")
     script = _read("shared/frontend/app.js")
     registry = _read("shared/frontend/features.js")
+    enabled_registry = _read("shared/frontend/generated/enabled-features.js")
     fragment = _read("shared/frontend/fragments/research-areas.html")
 
     assert 'data-config-link="propertyDiscovery"' in page
@@ -79,20 +81,19 @@ def test_shared_home_routes_only_live_product_and_operator_surfaces() -> None:
     assert 'hx-get="/fragments/research-areas.html"' in page
     assert fragment.count("data-feature-id=") == 5
     assert "homeFeatureRow" not in script
-    assert registry.count("frontendBase:") == 5
-    assert registry.count("implemented: true") == 1
-    assert 'frontendBase: "/features/data-platform/"' in registry
+    assert registry.count("frontendBase:") >= 5
+    assert '"frontendBase": "/features/data-platform/"' in enabled_registry
     assert "http://localhost:5005" not in page
     assert "http://localhost:5005" not in script
 
 
 def test_implemented_feature_manifest_matches_browser_projection() -> None:
     manifest = load_feature_manifest(REPOSITORY_ROOT / "student-1" / "feature.yaml")
-    registry = _read("shared/frontend/features.js")
+    registry = _read("shared/frontend/generated/enabled-features.js")
 
-    assert f'featureKey: "{manifest.feature_key}"' in registry
-    assert f'owner: "{manifest.owner}"' in registry
-    assert f'frontendBase: "{manifest.frontend_base_path}"' in registry
+    assert f'"featureKey": "{manifest.feature_key}"' in registry
+    assert f'"owner": "{manifest.owner}"' in registry
+    assert f'"frontendBase": "{manifest.frontend_base_path}"' in registry
 
 
 def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -> None:
@@ -103,6 +104,8 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     roadmap = _read("shared/frontend/routes/roadmap.js")
     features = _read("shared/frontend/routes/features.js")
     nginx = _read("shared/frontend/nginx.conf")
+    enabled_nginx = _read("shared/frontend/generated/enabled-feature-routes.conf")
+    complete_nginx = nginx + enabled_nginx
 
     for route in ("features", "system-status", "evidence", "release-roadmap"):
         assert f'href="#{route}"' in page
@@ -113,12 +116,12 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "Detailed availability" in roadmap
     assert "PropertyScope research areas" in features
     assert "resolver 127.0.0.11" in nginx
-    assert "proxy_pass $data_platform_upstream" in nginx
+    assert "proxy_pass $enabled_feature_0_backend" in enabled_nginx
     assert "proxy_pass $ai_mode_upstream" in nginx
     assert "location /api/" in nginx
     assert "application/problem+json" in nginx
     assert "location /operations/ai-mode/" in nginx
-    assert "location /fragments/data-platform/" in nginx
+    assert "location ^~ /fragments/data-platform/" in enabled_nginx
     assert "database" not in evidence.lower()
     assert "dependencies?.database" not in status
     assert 'target_feature === "feature-1"' not in evidence
@@ -126,7 +129,7 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "map $http_x_request_id $correlation_request_id" in nginx
     assert '"~^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"' in nginx
     assert "proxy_hide_header X-Request-ID" in nginx
-    assert nginx.count("proxy_set_header X-Request-ID $correlation_request_id") == 8
+    assert complete_nginx.count("proxy_set_header X-Request-ID $correlation_request_id") >= 8
     assert "add_header X-Request-ID $correlation_request_id always" in nginx
     assert '"request_id":"$correlation_request_id"' in nginx
 

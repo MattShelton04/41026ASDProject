@@ -1,0 +1,4 @@
+schema_version: 1
+features:
+  - feature_key: student-1-propertyscope-data-platform
+    enabled: true

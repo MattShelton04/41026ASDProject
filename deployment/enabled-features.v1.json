@@ -1,0 +1,59 @@
+{
+  "features": [
+    {
+      "ai": {
+        "runtime_path": "/etc/ai-mode/propertyscope-tools.yaml",
+        "tool_catalog": "student-1/tool-catalog.yaml"
+      },
+      "databases": [
+        {
+          "database_service": "f1-postgres",
+          "volumes": [
+            "f1-postgres-data"
+          ]
+        }
+      ],
+      "enabled": true,
+      "evidence_adapter": {
+        "path": "student-1/frontend/integration/shell.js"
+      },
+      "feature_key": "student-1-propertyscope-data-platform",
+      "frontend": {
+        "asset_root": "student-1/frontend",
+        "host_port_default": 5200,
+        "host_port_variable": "PROPERTYSCOPE_PORT",
+        "internal_port": 8080,
+        "route_fragment": "student-1/frontend/integration/research-area.html",
+        "service": "f1-frontend"
+      },
+      "health_path": "/health/ready",
+      "owner": "student-1",
+      "quality": {
+        "coverage_fail_under": 60,
+        "coverage_packages": [
+          "propertyscope_data_platform",
+          "propertyscope_data_store"
+        ],
+        "node_test_files": [
+          "student-1/tests/frontend/core.test.mjs"
+        ],
+        "python_test_paths": [
+          "student-1/tests"
+        ]
+      },
+      "routes": [
+        {
+          "kind": "frontend",
+          "path": "/features/data-platform/",
+          "service": "f1-frontend"
+        },
+        {
+          "kind": "backend",
+          "path": "/api/data-platform/v1",
+          "service": "f1-backend"
+        }
+      ]
+    }
+  ],
+  "schema_version": 1
+}

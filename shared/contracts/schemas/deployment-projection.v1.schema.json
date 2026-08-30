@@ -24,40 +24,6 @@
       "title": "AiOnboarding",
       "type": "object"
     },
-    "BackendOnboarding": {
-      "additionalProperties": false,
-      "description": "Backend service that owns the feature's declared API route.",
-      "properties": {
-        "additional_paths": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "maxItems": 20,
-          "title": "Additional Paths",
-          "type": "array"
-        },
-        "internal_port": {
-          "maximum": 65535,
-          "minimum": 1,
-          "title": "Internal Port",
-          "type": "integer"
-        },
-        "service": {
-          "maxLength": 100,
-          "minLength": 1,
-          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
-          "title": "Service",
-          "type": "string"
-        }
-      },
-      "required": [
-        "service",
-        "internal_port"
-      ],
-      "title": "BackendOnboarding",
-      "type": "object"
-    },
     "DatabaseOnboarding": {
       "additionalProperties": false,
       "description": "One database service and the named volumes it exclusively owns.",
@@ -89,6 +55,132 @@
       "title": "DatabaseOnboarding",
       "type": "object"
     },
+    "DeploymentRoute": {
+      "additionalProperties": false,
+      "description": "One same-origin edge path bound to a declared service.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "frontend",
+            "backend"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 200,
+          "minLength": 2,
+          "title": "Path",
+          "type": "string"
+        },
+        "service": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Service",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "path",
+        "service"
+      ],
+      "title": "DeploymentRoute",
+      "type": "object"
+    },
+    "EnabledFeatureProjection": {
+      "additionalProperties": false,
+      "description": "Deployment-safe projection for one explicitly enabled feature.",
+      "properties": {
+        "ai": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AiOnboarding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "databases": {
+          "items": {
+            "$ref": "#/$defs/DatabaseOnboarding"
+          },
+          "title": "Databases",
+          "type": "array"
+        },
+        "enabled": {
+          "const": true,
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "evidence_adapter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceAdapterOnboarding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "feature_key": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Feature Key",
+          "type": "string"
+        },
+        "frontend": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FrontendOnboarding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "health_path": {
+          "maxLength": 200,
+          "minLength": 2,
+          "title": "Health Path",
+          "type": "string"
+        },
+        "owner": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Owner",
+          "type": "string"
+        },
+        "quality": {
+          "$ref": "#/$defs/QualityOnboarding"
+        },
+        "routes": {
+          "items": {
+            "$ref": "#/$defs/DeploymentRoute"
+          },
+          "title": "Routes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "feature_key",
+        "owner",
+        "routes",
+        "quality",
+        "databases",
+        "health_path"
+      ],
+      "title": "EnabledFeatureProjection",
+      "type": "object"
+    },
     "EvidenceAdapterOnboarding": {
       "additionalProperties": false,
       "description": "Optional feature-owned executable that returns its own evidence object.",
@@ -104,76 +196,6 @@
         "path"
       ],
       "title": "EvidenceAdapterOnboarding",
-      "type": "object"
-    },
-    "FeatureOnboarding": {
-      "additionalProperties": false,
-      "description": "Optional deployment metadata owned beside a feature manifest.",
-      "properties": {
-        "ai": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AiOnboarding"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "backend": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/BackendOnboarding"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "databases": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/DatabaseOnboarding"
-          },
-          "maxItems": 20,
-          "title": "Databases",
-          "type": "array"
-        },
-        "evidence_adapter": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/EvidenceAdapterOnboarding"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "frontend": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/FrontendOnboarding"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "quality": {
-          "$ref": "#/$defs/QualityOnboarding",
-          "default": {
-            "coverage_fail_under": null,
-            "coverage_packages": [],
-            "node_test_files": [],
-            "python_test_paths": []
-          }
-        }
-      },
-      "title": "FeatureOnboarding",
       "type": "object"
     },
     "FrontendOnboarding": {
@@ -287,72 +309,14 @@
     }
   },
   "additionalProperties": false,
-  "description": "Domain-neutral metadata owned by one student feature slice.",
+  "description": "Deterministic projection consumed by deployment and quality tooling.",
   "properties": {
-    "ai_capabilities": {
-      "default": [],
+    "features": {
       "items": {
-        "maxLength": 100,
-        "minLength": 1,
-        "pattern": "^[a-z0-9][a-z0-9_.-]*$",
-        "type": "string"
+        "$ref": "#/$defs/EnabledFeatureProjection"
       },
-      "maxItems": 50,
-      "title": "Ai Capabilities",
+      "title": "Features",
       "type": "array"
-    },
-    "backend_base_path": {
-      "maxLength": 200,
-      "minLength": 2,
-      "title": "Backend Base Path",
-      "type": "string"
-    },
-    "display_name": {
-      "maxLength": 100,
-      "minLength": 1,
-      "title": "Display Name",
-      "type": "string"
-    },
-    "feature_key": {
-      "maxLength": 100,
-      "minLength": 1,
-      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
-      "title": "Feature Key",
-      "type": "string"
-    },
-    "frontend_base_path": {
-      "maxLength": 200,
-      "minLength": 2,
-      "title": "Frontend Base Path",
-      "type": "string"
-    },
-    "health_path": {
-      "maxLength": 200,
-      "minLength": 2,
-      "title": "Health Path",
-      "type": "string"
-    },
-    "onboarding": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/FeatureOnboarding"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
-    },
-    "owner": {
-      "enum": [
-        "student-1",
-        "student-2",
-        "student-3",
-        "student-4",
-        "student-5"
-      ],
-      "title": "Owner",
-      "type": "string"
     },
     "schema_version": {
       "const": 1,
@@ -362,13 +326,8 @@
     }
   },
   "required": [
-    "feature_key",
-    "display_name",
-    "owner",
-    "frontend_base_path",
-    "backend_base_path",
-    "health_path"
+    "features"
   ],
-  "title": "FeatureManifest",
+  "title": "DeploymentProjectionV1",
   "type": "object"
 }
