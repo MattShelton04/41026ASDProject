@@ -69,6 +69,23 @@ plan temp is `read/written` blocks. Every row ended with its schema dropped and 
 Identical fingerprints across each dataset/scale comparison are the bounded semantic-equivalence
 signal. They do not claim that synthetic records establish official-source equivalence.
 
+## Production capacity calibration
+
+The harness inserts deterministic rows directly and therefore records no compressed artifact byte
+count. Artifact expansion alone cannot be derived from this evidence. Production uses absolute
+source-scale floors derived from the largest typed one-million-row counters above, projected to the
+known source count with a 2.5 safety factor and rounded upward:
+
+| Dataset | Planning count | Projected heap + index | Applied growth floor | Projected WAL | Applied WAL floor | Projected temp | Configured temp allowance |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| PSI | 7.4m | 5.38 GiB | 6 GiB | 13.91 GiB | 16 GiB | 7.49 GiB | 16 GiB |
+| BOCSAR | 10.114565m | 7.22 GiB | 8 GiB | 18.53 GiB | 20 GiB | 3.42 GiB | 16 GiB |
+
+The loader adds its 4 GiB reserve and requires both the fixed server-owned physical data/WAL
+filesystem observation and the separately declared deployment ceiling to cover the applicable
+growth, WAL and full temporary-file allowances before COPY. The configured artifact-derived value
+can only raise the growth allowance; it cannot reduce these measured floors.
+
 ## Per-run cancellation evidence
 
 Every row finished `cancelled` with cancel requested, rollback completed and schema dropped all

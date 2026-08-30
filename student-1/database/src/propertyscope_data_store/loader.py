@@ -36,6 +36,17 @@ ACTIVATION_PHASE_LABELS = {
     "materialisation": "Materialising reviewed release",
     "commit_pointer": "Committing accepted-generation pointer",
 }
+GIBIBYTE = 1024 * 1024 * 1024
+# Floors conservatively project the largest measured 1m relation and WAL growth to the
+# official-source record counts with the documented 2.5 safety factor, rounded upward.
+SOURCE_SCALE_DATABASE_GROWTH_FLOORS_BYTES = {
+    "psi-sales": 6 * GIBIBYTE,
+    "bocsar-sparse": 8 * GIBIBYTE,
+}
+SOURCE_SCALE_WAL_FLOORS_BYTES = {
+    "psi-sales": 16 * GIBIBYTE,
+    "bocsar-sparse": 20 * GIBIBYTE,
+}
 
 
 class ImportCancelledError(RuntimeError):
@@ -346,7 +357,7 @@ class DatabaseLoader:
         path = self._artifact_path(str(work["storage_key"]))
         if path.stat().st_size != int(work["artifact_bytes"]):
             raise RuntimeError("artifact size does not match registered metadata")
-        self._preflight_materialisation_capacity(int(work["artifact_bytes"]))
+        self._preflight_materialisation_capacity(int(work["artifact_bytes"]), profile=profile)
         last_cancel_check = 0.0
 
         def raise_if_cancelled(*, force: bool = False) -> None:
@@ -464,13 +475,21 @@ class DatabaseLoader:
             "accepted_generation_unchanged": True,
         }
 
-    def _preflight_materialisation_capacity(self, artifact_bytes: int) -> None:
-        """Fail before COPY unless the owning database fits its declared capacity budget."""
+    def _preflight_materialisation_capacity(
+        self, artifact_bytes: int, *, profile: str = ""
+    ) -> None:
+        """Fail before COPY unless declared and physical database headroom are sufficient."""
         temporary_file_allowance_bytes = self.temp_file_limit_kib * 1024
-        database_growth_allowance_bytes = artifact_bytes * self.artifact_expansion_factor
+        artifact_growth_allowance_bytes = artifact_bytes * self.artifact_expansion_factor
+        database_growth_floor_bytes = SOURCE_SCALE_DATABASE_GROWTH_FLOORS_BYTES.get(profile, 0)
+        database_growth_allowance_bytes = max(
+            artifact_growth_allowance_bytes, database_growth_floor_bytes
+        )
+        wal_allowance_bytes = SOURCE_SCALE_WAL_FLOORS_BYTES.get(profile, 0)
         required_database_headroom_bytes = (
             database_growth_allowance_bytes
             + temporary_file_allowance_bytes
+            + wal_allowance_bytes
             + self.disk_reserve_bytes
         )
         try:
@@ -483,8 +502,11 @@ class DatabaseLoader:
                 details={
                     "artifact_bytes": artifact_bytes,
                     "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
                     "database_growth_allowance_bytes": database_growth_allowance_bytes,
                     "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
                     "reserve_bytes": self.disk_reserve_bytes,
                 },
             ) from exc
@@ -498,8 +520,11 @@ class DatabaseLoader:
                     "artifact_available_free_bytes": max(0, artifact_available_free_bytes),
                     "required_database_headroom_bytes": required_database_headroom_bytes,
                     "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
                     "database_growth_allowance_bytes": database_growth_allowance_bytes,
                     "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
                     "reserve_bytes": self.disk_reserve_bytes,
                 },
             )
@@ -516,11 +541,61 @@ class DatabaseLoader:
                     "database_capacity_bytes": self.database_capacity_bytes,
                     "required_database_headroom_bytes": required_database_headroom_bytes,
                     "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
                     "database_growth_allowance_bytes": database_growth_allowance_bytes,
                     "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
                     "reserve_bytes": self.disk_reserve_bytes,
                 },
             ) from exc
+        try:
+            database_filesystem_available_bytes = self.store.database_filesystem_available_bytes()
+        except Exception as exc:
+            raise LoaderResourceLimitError(
+                "loader_database_filesystem_capacity_unavailable",
+                "PostgreSQL data/WAL filesystem capacity could not be observed "
+                "before materialisation",
+                retryable=True,
+                details={
+                    "artifact_bytes": artifact_bytes,
+                    "artifact_available_free_bytes": max(0, artifact_available_free_bytes),
+                    "database_size_bytes": database_size_bytes,
+                    "database_capacity_bytes": self.database_capacity_bytes,
+                    "required_database_headroom_bytes": required_database_headroom_bytes,
+                    "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
+                    "database_growth_allowance_bytes": database_growth_allowance_bytes,
+                    "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
+                    "reserve_bytes": self.disk_reserve_bytes,
+                },
+            ) from exc
+        if database_filesystem_available_bytes < required_database_headroom_bytes:
+            raise LoaderResourceLimitError(
+                "insufficient_loader_database_filesystem_space",
+                "Insufficient physical PostgreSQL data/WAL filesystem space for safe "
+                "materialisation",
+                retryable=True,
+                details={
+                    "artifact_bytes": artifact_bytes,
+                    "artifact_available_free_bytes": max(0, artifact_available_free_bytes),
+                    "database_size_bytes": database_size_bytes,
+                    "database_capacity_bytes": self.database_capacity_bytes,
+                    "database_filesystem_available_bytes": max(
+                        0, database_filesystem_available_bytes
+                    ),
+                    "required_database_headroom_bytes": required_database_headroom_bytes,
+                    "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
+                    "database_growth_allowance_bytes": database_growth_allowance_bytes,
+                    "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
+                    "reserve_bytes": self.disk_reserve_bytes,
+                },
+            )
         projected_database_bytes = database_size_bytes + required_database_headroom_bytes
         if projected_database_bytes > self.database_capacity_bytes:
             raise LoaderResourceLimitError(
@@ -532,14 +607,20 @@ class DatabaseLoader:
                     "artifact_available_free_bytes": max(0, artifact_available_free_bytes),
                     "database_size_bytes": database_size_bytes,
                     "database_capacity_bytes": self.database_capacity_bytes,
+                    "database_filesystem_available_bytes": max(
+                        0, database_filesystem_available_bytes
+                    ),
                     "database_available_headroom_bytes": max(
                         0, self.database_capacity_bytes - database_size_bytes
                     ),
                     "required_database_headroom_bytes": required_database_headroom_bytes,
                     "projected_database_bytes": projected_database_bytes,
                     "artifact_expansion_factor": self.artifact_expansion_factor,
+                    "artifact_growth_allowance_bytes": artifact_growth_allowance_bytes,
+                    "database_growth_floor_bytes": database_growth_floor_bytes,
                     "database_growth_allowance_bytes": database_growth_allowance_bytes,
                     "temporary_file_allowance_bytes": temporary_file_allowance_bytes,
+                    "wal_allowance_bytes": wal_allowance_bytes,
                     "reserve_bytes": self.disk_reserve_bytes,
                 },
             )

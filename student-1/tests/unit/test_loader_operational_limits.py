@@ -16,11 +16,16 @@ from propertyscope_data_store.configuration import (
     StoreSettings,
 )
 from propertyscope_data_store.loader import (
+    SOURCE_SCALE_DATABASE_GROWTH_FLOORS_BYTES,
+    SOURCE_SCALE_WAL_FLOORS_BYTES,
     DatabaseLoader,
     LoaderResourceLimitError,
     _safe_loader_error,
 )
-from propertyscope_data_store.repository import PropertyScopeStore
+from propertyscope_data_store.repository import (
+    _POSTGRES_FILESYSTEM_CAPACITY_PROGRAM,
+    PropertyScopeStore,
+)
 
 
 class _RecordingConnection:
@@ -64,6 +69,35 @@ def test_store_observes_current_database_size_through_the_owning_connection() ->
     assert connection.query == (
         "SELECT pg_database_size(current_database())::bigint AS database_size_bytes"
     )
+
+
+def test_store_observes_physical_data_and_wal_capacity_with_one_fixed_server_command() -> None:
+    class CapacityConnection:
+        def __init__(self) -> None:
+            self.queries: list[str] = []
+
+        def execute(self, query: object) -> CapacityConnection:
+            rendered = query.as_string() if hasattr(query, "as_string") else str(query)
+            self.queries.append(rendered)
+            return self
+
+        def fetchone(self) -> dict[str, int]:
+            return {"available_bytes": 98_765, "observation_count": 2}
+
+    connection = CapacityConnection()
+    store = cast(Any, object.__new__(PropertyScopeStore))
+    store.connection = lambda: nullcontext(connection)
+
+    assert PropertyScopeStore.database_filesystem_available_bytes(store) == 98_765
+    assert len(connection.queries) == 3
+    assert "CREATE TEMP TABLE propertyscope_loader_filesystem_capacity" in connection.queries[0]
+    quoted_program = _POSTGRES_FILESYSTEM_CAPACITY_PROGRAM.replace("'", "''")
+    assert connection.queries[1] == (
+        "COPY pg_temp.propertyscope_loader_filesystem_capacity (available_bytes)\n"
+        f"                    FROM PROGRAM '{quoted_program}'"
+    )
+    assert "$PGDATA" in connection.queries[1]
+    assert "SELECT min(available_bytes)" in connection.queries[2]
 
 
 def test_loader_limit_configuration_is_typed_and_bounded(
@@ -123,6 +157,7 @@ class _PreflightStore:
         self.recovery_requested: uuid.UUID | None = None
         self.accepted_predecessor = "50000000-0000-0000-0000-000000000001"
         self.current_database_bytes = 1024
+        self.database_filesystem_bytes = 1024 * 1024 * 1024 * 1024
 
     def claim_release_activation(self, **_: Any) -> None:
         return None
@@ -143,6 +178,9 @@ class _PreflightStore:
 
     def database_size_bytes(self) -> int:
         return self.current_database_bytes
+
+    def database_filesystem_available_bytes(self) -> int:
+        return self.database_filesystem_bytes
 
     def execute_stream_import_profile(self, *_: Any, **__: Any) -> None:
         self.destination_started = True
@@ -179,6 +217,9 @@ def test_insufficient_database_capacity_fails_despite_artifact_headroom_and_pres
     }
     store = _PreflightStore(work)
     predecessor = store.accepted_predecessor
+    database_growth = SOURCE_SCALE_DATABASE_GROWTH_FLOORS_BYTES["psi-sales"]
+    wal_growth = SOURCE_SCALE_WAL_FLOORS_BYTES["psi-sales"]
+    required_headroom = database_growth + wal_growth + 64 * 1024 * 1024 + 100
     loader = DatabaseLoader(
         cast(Any, store),
         tmp_path,
@@ -186,7 +227,7 @@ def test_insufficient_database_capacity_fails_despite_artifact_headroom_and_pres
         disk_reserve_bytes=100,
         artifact_expansion_factor=2,
         temp_file_limit_kib=64 * 1024,
-        database_capacity_bytes=store.current_database_bytes + 64 * 1024 * 1024 + 100,
+        database_capacity_bytes=store.current_database_bytes + required_headroom - 1,
         disk_free_bytes=lambda _: 1024 * 1024 * 1024 * 1024,
     )
 
@@ -212,15 +253,17 @@ def test_insufficient_database_capacity_fails_despite_artifact_headroom_and_pres
         "artifact_bytes": len(payload),
         "artifact_available_free_bytes": 1024 * 1024 * 1024 * 1024,
         "database_size_bytes": store.current_database_bytes,
-        "database_capacity_bytes": store.current_database_bytes + 64 * 1024 * 1024 + 100,
-        "database_available_headroom_bytes": 64 * 1024 * 1024 + 100,
-        "required_database_headroom_bytes": len(payload) * 2 + 100 + 64 * 1024 * 1024,
-        "projected_database_bytes": (
-            store.current_database_bytes + len(payload) * 2 + 100 + 64 * 1024 * 1024
-        ),
+        "database_capacity_bytes": store.current_database_bytes + required_headroom - 1,
+        "database_filesystem_available_bytes": store.database_filesystem_bytes,
+        "database_available_headroom_bytes": required_headroom - 1,
+        "required_database_headroom_bytes": required_headroom,
+        "projected_database_bytes": store.current_database_bytes + required_headroom,
         "artifact_expansion_factor": 2,
-        "database_growth_allowance_bytes": len(payload) * 2,
+        "artifact_growth_allowance_bytes": len(payload) * 2,
+        "database_growth_floor_bytes": database_growth,
+        "database_growth_allowance_bytes": database_growth,
         "temporary_file_allowance_bytes": 64 * 1024 * 1024,
+        "wal_allowance_bytes": wal_growth,
         "reserve_bytes": 100,
     }
     assert str(tmp_path) not in str(error)
@@ -270,6 +313,56 @@ def test_database_size_observation_failure_is_not_masked_by_artifact_capacity(
         loader._preflight_materialisation_capacity(1)
 
     assert captured.value.code == "loader_database_capacity_unavailable"
+    assert captured.value.retryable is True
+
+
+def test_physical_database_shortage_fails_closed_before_destination_materialisation(
+    tmp_path: Path,
+) -> None:
+    store = _PreflightStore({"id": uuid.uuid4()})
+    store.database_filesystem_bytes = 64 * 1024 * 1024
+    loader = DatabaseLoader(
+        cast(Any, store),
+        tmp_path,
+        worker_id="loader-limits",
+        disk_reserve_bytes=1,
+        artifact_expansion_factor=1,
+        temp_file_limit_kib=64 * 1024,
+        database_capacity_bytes=128 * 1024 * 1024 * 1024,
+        disk_free_bytes=lambda _: 10**12,
+    )
+
+    with pytest.raises(LoaderResourceLimitError) as captured:
+        loader._preflight_materialisation_capacity(1, profile="property-fixture")
+
+    assert captured.value.code == "insufficient_loader_database_filesystem_space"
+    assert captured.value.retryable is True
+    assert captured.value.details["database_filesystem_available_bytes"] == 64 * 1024 * 1024
+    assert captured.value.details["required_database_headroom_bytes"] == 64 * 1024 * 1024 + 2
+
+
+def test_physical_database_observation_failure_is_fail_closed(tmp_path: Path) -> None:
+    store = _PreflightStore({"id": uuid.uuid4()})
+
+    def unavailable() -> int:
+        raise RuntimeError("server observation unavailable")
+
+    store.database_filesystem_available_bytes = unavailable  # type: ignore[method-assign]
+    loader = DatabaseLoader(
+        cast(Any, store),
+        tmp_path,
+        worker_id="loader-limits",
+        disk_reserve_bytes=0,
+        artifact_expansion_factor=1,
+        temp_file_limit_kib=64 * 1024,
+        database_capacity_bytes=128 * 1024 * 1024 * 1024,
+        disk_free_bytes=lambda _: 10**12,
+    )
+
+    with pytest.raises(LoaderResourceLimitError) as captured:
+        loader._preflight_materialisation_capacity(1, profile="property-fixture")
+
+    assert captured.value.code == "loader_database_filesystem_capacity_unavailable"
     assert captured.value.retryable is True
 
 

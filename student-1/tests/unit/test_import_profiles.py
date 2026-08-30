@@ -676,6 +676,9 @@ class _Store:
     def database_size_bytes(self) -> int:
         return 1024
 
+    def database_filesystem_available_bytes(self) -> int:
+        return 1024 * 1024 * 1024 * 1024
+
     def import_cancel_requested(self, _operation_id: uuid.UUID) -> bool:
         return False
 

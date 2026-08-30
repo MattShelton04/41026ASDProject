@@ -110,19 +110,22 @@ connection before another worker may recover it.
 
 PSI and BOCSAR use typed temporary staging and transaction-local source phases. The loader casts
 canonical values once before COPY, ANALYZEs planner-sensitive staging and narrow PSI identity and
-address tables, and enforces a loader-only `temp_file_limit`. Before COPY it observes the artifact
-filesystem separately, then asks the owning PostgreSQL service for
-`pg_database_size(current_database())`. Database headroom is evaluated against the explicit
-`PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES` deployment ceiling; artifact free space is never treated as
-database capacity. Missing capacity or an unavailable database-size observation fails closed before
-COPY.
+address tables, and enforces a loader-only `temp_file_limit`. Before COPY it observes the immutable
+artifact filesystem separately, then asks PostgreSQL for both
+`pg_database_size(current_database())` and physical free bytes on its data and WAL filesystems. The
+physical observation is one fixed server-side command containing no request or configured path
+interpolation; the loader never mounts the database volume. An unavailable observation fails closed.
+Artifact free space is never treated as database capacity because materialisation only reads the
+already-complete artifact.
 
 The local Compose default declares a conservative 64 GiB Feature 1 PostgreSQL capacity budget,
-16 GiB of transaction-local temporary files, a 4 GiB database reserve and a 3x artifact
-database-growth allowance. The capacity value is a deployment budget, not disk discovery: set it no
-higher than storage actually provisioned for PostgreSQL after reserving cluster, WAL and filesystem
-overhead. Preflight requires current database size plus all three growth/headroom allowances to fit
-inside that ceiling. Override the corresponding `PROPERTYSCOPE_LOADER_*` or
+16 GiB of transaction-local temporary files and a 4 GiB reserve. PSI additionally reserves 6 GiB
+for relation/index growth and 16 GiB for WAL; BOCSAR reserves 8 GiB and 20 GiB respectively. These
+floors project the largest observed one-million-row counters to the known source counts with a 2.5
+safety factor and round upward. The 3x artifact growth allowance remains for other profiles and wins
+for PSI/BOCSAR only when it is larger than the measured floor. Preflight requires both the physical
+server observation and current database size against the declared ceiling to cover every applicable
+allowance. Override the corresponding `PROPERTYSCOPE_LOADER_*` or
 `PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES` variables only from measured evidence. The disposable
 benchmark sequence and evidence fields are specified in
 [`source-scale-benchmark-methodology.md`](source-scale-benchmark-methodology.md).

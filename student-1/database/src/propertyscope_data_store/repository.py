@@ -68,6 +68,11 @@ from propertyscope_data_store.runtime_registry import (
 JsonObject = dict[str, Any]
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_ACTIVATION_STATES = frozenset({"succeeded", "failed"})
+_POSTGRES_FILESYSTEM_CAPACITY_PROGRAM = (
+    'set -eu; test -n "$PGDATA"; '
+    'LC_ALL=C df -PB1 -- "$PGDATA" "$PGDATA/pg_wal" '
+    "| awk 'NR > 1 {print $4}'"
+)
 
 
 def _activation_receipt_matches(evidence: Mapping[str, Any]) -> bool:
@@ -190,6 +195,40 @@ class PropertyScopeStore:
         if row is None or int(row["database_size_bytes"]) < 0:
             raise RuntimeError("PostgreSQL database size is unavailable")
         return int(row["database_size_bytes"])
+
+    def database_filesystem_available_bytes(self) -> int:
+        """Observe physical data/WAL headroom from the PostgreSQL server filesystem.
+
+        The command is a fixed application constant executed by PostgreSQL itself. No path,
+        request value or connection setting is interpolated into shell text: the official server
+        process supplies ``PGDATA`` and the shell quotes it as one argument. Deployments that do
+        not permit the fixed server observation fail closed in the loader preflight.
+        """
+        with self.connection() as connection:
+            connection.execute(
+                """CREATE TEMP TABLE propertyscope_loader_filesystem_capacity (
+                available_bytes BIGINT NOT NULL CHECK (available_bytes >= 0)
+                ) ON COMMIT DROP"""
+            )
+            connection.execute(
+                sql.SQL(
+                    """COPY pg_temp.propertyscope_loader_filesystem_capacity (available_bytes)
+                    FROM PROGRAM {}"""
+                ).format(sql.Literal(_POSTGRES_FILESYSTEM_CAPACITY_PROGRAM))
+            )
+            row = connection.execute(
+                """SELECT min(available_bytes)::bigint AS available_bytes,
+                count(*)::integer AS observation_count
+                FROM pg_temp.propertyscope_loader_filesystem_capacity"""
+            ).fetchone()
+        if (
+            row is None
+            or int(row["observation_count"]) not in {1, 2}
+            or row["available_bytes"] is None
+            or int(row["available_bytes"]) < 0
+        ):
+            raise RuntimeError("PostgreSQL data/WAL filesystem capacity is unavailable")
+        return int(row["available_bytes"])
 
     def counts(self) -> JsonObject:
         tables = (

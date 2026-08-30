@@ -149,6 +149,22 @@ keeps projected temp use below 8 GiB for PSI and 4 GiB for BOCSAR. These are wat
 separately observed official run, not end-to-end duration or official semantic-equivalence claims;
 the absolute 30-minute ceiling still applies.
 
+Capacity uses the largest one-million-row counter rather than a median. The harness creates rows
+directly in PostgreSQL, so it has no meaningful compressed-artifact byte count and cannot calibrate
+an artifact expansion ratio. The production preflight therefore applies these absolute floors; the
+configured artifact ratio is only an additional bound when it is larger.
+
+| Dataset | Official planning count | 1m heap + index | 2.5x projected growth | Production growth floor | Largest 1m WAL | 2.5x projected WAL | Production WAL floor |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| PSI | 7.4m | 312,295,424 B | 5.38 GiB | 6 GiB | 807,627,025 B | 13.91 GiB | 16 GiB |
+| BOCSAR | 10.114565m | 306,454,528 B | 7.22 GiB | 8 GiB | 786,711,413 B | 18.53 GiB | 20 GiB |
+
+The configured 16 GiB temporary-file allowance also exceeds the corresponding 7.49 GiB PSI and
+3.42 GiB BOCSAR projections. Before COPY, the server reports physical free bytes for both `PGDATA`
+and `PGDATA/pg_wal`; the smaller observation must cover growth, WAL, the full temp allowance and the
+reserve. A separate declared-capacity calculation must pass as well. Failure or unavailability of
+either observation stops before destination materialisation.
+
 Migration 039 currently builds the exact-address expression index over 30 retained registry rows;
 the measured index is 16 KiB and migrations 038/039 completed within the same one-second timestamp.
 This does not establish source-scale online-build behaviour. Before `registry.property` is allowed

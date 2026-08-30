@@ -6,12 +6,13 @@
 
 ## Context
 
-The first complete PSI and BOCSAR imports proved the release transaction and predecessor-safety
-model, but their wide JSONB plans repeatedly extracted values, sorted multi-million-row wide
-relations, spilled heavily, and left destination allocation after rollback. PSI also reached the
-expensive materialisation before an out-of-range address number failed. Global database tuning,
-disabled integrity checks, chunk commits and unlogged destination tables would weaken the existing
-atomic release contract.
+The first source-scale PSI and BOCSAR attempts acquired and staged their complete artifacts but did
+not complete candidate imports. Their wide JSONB plans repeatedly extracted values, sorted
+multi-million-row wide relations, spilled heavily, and left destination allocation after rollback.
+PSI also reached expensive materialisation before an out-of-range address number failed. The
+accepted predecessors remained live, which preserved the release safety boundary without proving a
+successful full candidate import. Global database tuning, disabled integrity checks, chunk commits
+and unlogged destination tables would weaken the existing atomic release contract.
 
 ## Decision
 
@@ -28,9 +29,13 @@ atomic release contract.
   is still one transaction, and pointer activation remains a later reviewed transaction.
 - An expression/covering property index matches the exact `COALESCE` predicates used by PSI.
 - PostgreSQL temporary files are bounded with `SET LOCAL temp_file_limit` only on loader-owned
-  connections. A conservative free-space check runs before COPY and includes configured temporary
-  files, artifact-derived database/index growth and reserve allowances. Failures expose bounded
-  resource evidence, preserve the predecessor, and retain the relation-scoped recovery obligation.
+  connections. Before COPY, PostgreSQL itself executes one fixed, non-parameterised capacity
+  observation for its data and WAL paths. The loader requires the lower physical headroom to cover
+  configured temporary files, measured source-scale database and WAL floors, artifact-derived
+  growth when larger, and an operator reserve. The declared deployment ceiling remains a second
+  independent bound. An unavailable observation fails closed; no other service mounts the database
+  volume. Failures expose bounded resource evidence, preserve the predecessor, and retain the
+  relation-scoped recovery obligation.
 - Performance evidence uses disposable real-shape schemas at 100,000 records, then 1,000,000 only
   after three clean reset runs per variant. Each measured statement has a 30-minute ceiling and
   five-minute progress evidence. Full official artifacts are permitted only when the smaller-run
@@ -53,10 +58,12 @@ maintenance. The pending exact relations are persisted from the pre-VACUUM measu
 VACUUM starts, and a safe error code is persisted after an unsuccessful reindex attempt, so a
 process crash or retry cannot lose the need once VACUUM has reset tuple statistics. A
 timeout leaves the operation `needed`; no `VACUUM FULL`, table rewrite
-or unrelated relation is permitted. The
-conservative disk check measures the loader artifact mount as a proxy for the single-host Docker
-disk pool and therefore remains an operator-tunable safety bound, not a prediction of exact
-PostgreSQL growth on independently provisioned storage.
+or unrelated relation is permitted. The immutable artifact filesystem is observed separately
+because it is already fully written and is read-only during materialisation; its free space is never
+treated as PostgreSQL capacity. Source-scale floors come from the largest measured one-million-row
+relation, WAL and temporary-file growth projected to the known official record counts with a 2.5
+safety factor and rounded upward. The physical PostgreSQL observation and operator-declared
+deployment ceiling must both pass.
 
 The benchmark harness is evidence tooling, not a production data generator. Its synthetic rows
 preserve relevant shapes and duplicate/address cardinalities but do not establish official-source
