@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from flask import Blueprint, Response, jsonify, request
@@ -43,9 +44,17 @@ from propertyscope_data_platform.release_routes import (
     release_inspection,
 )
 from propertyscope_data_platform.worker_routes import register_worker_routes
+from shared_contracts import HealthStatus, ReadinessCheckProjection, project_readiness
 
 BASE = "/api/data-platform/v1"
 INTERNAL = "/internal/data-platform/v1"
+
+
+def _service_version() -> str:
+    try:
+        return version("student-1-feature")
+    except PackageNotFoundError:
+        return "0+unknown"
 
 
 def create_blueprint(
@@ -66,14 +75,38 @@ def create_blueprint(
 
     @api.get("/health/live")
     def live() -> tuple[Response, int]:
-        return jsonify({"status": "healthy", "service": "propertyscope-data-platform"}), 200
+        projection = project_readiness(
+            service="propertyscope-data-platform",
+            version=_service_version(),
+            checks={
+                "process": ReadinessCheckProjection(
+                    required=True,
+                    status=HealthStatus.HEALTHY,
+                    detail="Feature 1 process is accepting HTTP requests",
+                )
+            },
+        )
+        return jsonify(projection.model_dump(mode="json")), projection.http_status
 
     @api.get("/health/ready")
     def ready() -> tuple[Response, int]:
         healthy = store.ready()
-        return jsonify(
-            {"status": "healthy" if healthy else "unhealthy", "dependencies": {"database": healthy}}
-        ), 200 if healthy else 503
+        projection = project_readiness(
+            service="propertyscope-data-platform",
+            version=_service_version(),
+            checks={
+                "database": ReadinessCheckProjection(
+                    required=True,
+                    status=HealthStatus.HEALTHY if healthy else HealthStatus.UNHEALTHY,
+                    detail=(
+                        "Feature-owned database API is ready"
+                        if healthy
+                        else "Feature-owned database API is unavailable"
+                    ),
+                )
+            },
+        )
+        return jsonify(projection.model_dump(mode="json")), projection.http_status
 
     @api.get(f"{BASE}/overview")
     def overview() -> Response:

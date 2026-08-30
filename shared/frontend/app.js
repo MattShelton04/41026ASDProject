@@ -141,8 +141,7 @@ const routes = {
     requestText: routeRequestText,
   }),
   evidence: createEvidenceRoute({
-    config,
-    getFeature1Adapter: () => feature1Adapter,
+    getEvidenceAdapter: () => feature1Adapter?.evidence ?? null,
     announce,
     requestJson: routeRequestJson,
   }),

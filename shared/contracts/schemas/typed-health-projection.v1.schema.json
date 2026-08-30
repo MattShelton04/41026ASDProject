@@ -1,0 +1,100 @@
+{
+  "$defs": {
+    "HealthStatus": {
+      "description": "Portable health state used by liveness and readiness endpoints.",
+      "enum": [
+        "healthy",
+        "degraded",
+        "unhealthy"
+      ],
+      "title": "HealthStatus",
+      "type": "string"
+    },
+    "ReadinessCheckProjection": {
+      "additionalProperties": false,
+      "description": "One required or optional process/readiness dependency.",
+      "properties": {
+        "detail": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        },
+        "status": {
+          "$ref": "#/$defs/HealthStatus"
+        }
+      },
+      "required": [
+        "required",
+        "status"
+      ],
+      "title": "ReadinessCheckProjection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Health body and HTTP status with explicit optional-degradation semantics.",
+  "properties": {
+    "checks": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ReadinessCheckProjection"
+      },
+      "title": "Checks",
+      "type": "object"
+    },
+    "http_status": {
+      "enum": [
+        200,
+        503
+      ],
+      "title": "Http Status",
+      "type": "integer"
+    },
+    "media_type": {
+      "const": "application/json",
+      "default": "application/json",
+      "title": "Media Type",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "service": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Service",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/HealthStatus"
+    },
+    "version": {
+      "maxLength": 50,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "service",
+    "version",
+    "status",
+    "http_status"
+  ],
+  "title": "TypedHealthProjection",
+  "type": "object"
+}

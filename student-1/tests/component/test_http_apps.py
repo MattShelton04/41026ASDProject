@@ -17,6 +17,7 @@ from propertyscope_data_platform.clients import (
     DataStoreClient,
 )
 from propertyscope_data_platform.domain import ConsumerPublicationRequest
+from shared_contracts import TypedHealthProjection
 
 
 def _backend_with_database(database: Any) -> Any:
@@ -940,7 +941,16 @@ def test_ai_unavailable_does_not_break_readiness() -> None:
     )
     response = app.test_client().get("/health/ready")
     assert response.status_code == 200
-    assert response.get_json()["dependencies"]["database"] is True
+    assert response.mimetype == "application/json"
+    payload = response.get_json()
+    TypedHealthProjection.model_validate(payload)
+    assert payload["status"] == "healthy"
+    assert payload["http_status"] == 200
+    assert payload["checks"]["database"] == {
+        "required": True,
+        "status": "healthy",
+        "detail": "Feature-owned database API is ready",
+    }
 
 
 def test_release_diagnosis_uses_supported_prompt_contract() -> None:

@@ -1,23 +1,75 @@
 import { append, badge, cell, el, formatDate, formatNumber, humanise, link, notice, pageHeader, panel, requestJson, table } from "../core.js";
 
+const REQUIRED_COPY = Object.freeze([
+  "headerDescription", "releasePanelDescription", "agentPanelDescription",
+  "releaseEmpty", "releaseError", "agentEmpty", "agentError", "transitionLabel",
+]);
+
+export class EvidenceAdapterError extends TypeError {}
+
+function requireString(value, path) {
+  if (typeof value !== "string" || !value) throw new EvidenceAdapterError(`Evidence adapter is missing ${path}.`);
+}
+
+function requireFunction(value, path) {
+  if (typeof value !== "function") throw new EvidenceAdapterError(`Evidence adapter is missing ${path}().`);
+}
+
+function requireSameOriginPath(value, path, { allowHash = false } = {}) {
+  requireString(value, path);
+  let target;
+  try {
+    target = new URL(value, "https://propertyscope.invalid/");
+  } catch {
+    throw new EvidenceAdapterError(`Evidence adapter ${path} must be a same-origin path.`);
+  }
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\")
+      || target.origin !== "https://propertyscope.invalid" || (!allowHash && target.hash)) {
+    throw new EvidenceAdapterError(`Evidence adapter ${path} must be a same-origin path.`);
+  }
+}
+
+function requireClosed(value, names, path) {
+  const unexpected = Object.keys(value).find((name) => !names.includes(name));
+  if (unexpected) throw new EvidenceAdapterError(`Evidence adapter ${path} contains unsupported ${unexpected}.`);
+}
+
+/** Validate the optional, domain-neutral shell boundary without interpreting feature records. */
+export function validateEvidenceAdapter(adapter) {
+  if (!adapter || typeof adapter !== "object") throw new EvidenceAdapterError("Evidence adapter must be an object.");
+  requireClosed(adapter, ["action", "copy", "published", "agentRuns"], "root");
+  requireString(adapter.action?.label, "action.label");
+  requireSameOriginPath(adapter.action?.href, "action.href", { allowHash: true });
+  requireClosed(adapter.action, ["label", "href"], "action");
+  for (const name of REQUIRED_COPY) requireString(adapter.copy?.[name], `copy.${name}`);
+  requireClosed(adapter.copy, REQUIRED_COPY, "copy");
+  for (const section of ["published", "agentRuns"]) {
+    requireSameOriginPath(adapter[section]?.path, `${section}.path`);
+    requireFunction(adapter[section]?.project, `${section}.project`);
+    requireFunction(adapter[section]?.href, `${section}.href`);
+    requireClosed(adapter[section], ["path", "project", "href"], section);
+  }
+  return adapter;
+}
+
 function statusTone(value) {
   if (["accepted", "succeeded", "confirmed"].includes(value)) return "confirmed";
   if (["failed", "partial", "review_required"].includes(value)) return "partial";
   return "unknown";
 }
 
-export function createEvidenceRoute({ config, getFeature1Adapter, announce, requestJson: request = requestJson }) {
+export function createEvidenceRoute({ getEvidenceAdapter, announce, requestJson: request = requestJson }) {
   return async function renderEvidence(root) {
-    const adapter = getFeature1Adapter();
-    if (!adapter) {
+    const candidate = getEvidenceAdapter?.();
+    if (!candidate) {
       append(root, pageHeader("About the data", "Sources and history", "Feature evidence is temporarily unavailable while its public adapter loads."));
       append(root, notice("warning", "History unavailable", "Reload this page to retry if the feature connection remains unavailable."));
       announce("The shared evidence index is waiting for its feature provider.");
       return;
     }
-    const { evidence } = adapter;
+    const evidence = validateEvidenceAdapter(candidate);
     const copy = evidence.copy;
-    append(root, pageHeader("About the data", "Sources and history", copy.headerDescription, [link("Open Property data", config.dataOperations, "ps-button")]));
+    append(root, pageHeader("About the data", "Sources and history", copy.headerDescription, [link(evidence.action.label, evidence.action.href, "ps-button")]));
     const state = el("div", "dashboard-state", "Loading current records…");
     state.setAttribute("role", "status");
     state.dataset.loadState = "loading";
