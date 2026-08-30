@@ -125,6 +125,8 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "location /fragments/data-platform/" in nginx
     assert "location /features/integration-poc/" in poc_nginx
     assert "location /api/integration-poc/" in poc_nginx
+    assert "location = /api/integration-poc/v1/imports/reconcile" in poc_nginx
+    assert "proxy_read_timeout 14400s" in poc_nginx
     assert "location = /api/shared-health/integration-poc" in poc_nginx
     assert "database" not in evidence.lower()
     assert "dependencies?.database" not in status
@@ -136,7 +138,7 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert (
         nginx.count("proxy_set_header X-Request-ID $correlation_request_id")
         + poc_nginx.count("proxy_set_header X-Request-ID $correlation_request_id")
-        == 11
+        == 12
     )
     assert "add_header X-Request-ID $correlation_request_id always" in nginx
     assert '"request_id":"$correlation_request_id"' in nginx
