@@ -126,19 +126,14 @@ def _download_contract_package(provider_origin: str) -> dict[str, Mapping[str, A
     metadata_response.raise_for_status()
     metadata = metadata_response.json()
     artifact_path = metadata["artifact_path"]
-    assert artifact_path.startswith(
-        "/api/data-platform/v1/product-contracts/v1/sha256/"
-    )
+    assert artifact_path.startswith("/api/data-platform/v1/product-contracts/v1/sha256/")
     artifact_response = httpx.get(f"{provider_origin}{artifact_path}", timeout=5)
     artifact_response.raise_for_status()
     content = artifact_response.content
     assert len(content) == metadata["byte_count"]
     assert hashlib.sha256(content).hexdigest() == metadata["content_sha256"]
     with ZipFile(io.BytesIO(content)) as archive:
-        return {
-            filename: json.loads(archive.read(filename))
-            for filename in archive.namelist()
-        }
+        return {filename: json.loads(archive.read(filename)) for filename in archive.namelist()}
 
 
 @contextmanager

@@ -258,7 +258,7 @@ def test_backend_exposes_complete_sales_source_pages_from_accepted_generation() 
                     "items": [
                         {
                             "id": release_id,
-                                "schema_version": "propertyscope.property-sales.v3",
+                            "schema_version": "propertyscope.property-sales.v3",
                         }
                     ]
                 },
@@ -278,7 +278,7 @@ def test_backend_exposes_complete_sales_source_pages_from_accepted_generation() 
                     "dataset_id": "nsw-psi-sales",
                     "release_version": "2026-08",
                     "status": "accepted",
-                        "schema_version": "propertyscope.property-sales.v3",
+                    "schema_version": "propertyscope.property-sales.v3",
                 },
                 "source_partition_year": 1999,
                 "items": [{"source_business_key": "001:P1:1"}],

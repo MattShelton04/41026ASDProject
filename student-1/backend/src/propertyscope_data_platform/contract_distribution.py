@@ -84,14 +84,10 @@ def build_product_contract_package(contracts_root: Path) -> ProductContractPacka
     )
 
 
-def register_contract_distribution_routes(
-    api: Blueprint, *, feature_root: Path, base: str
-) -> None:
+def register_contract_distribution_routes(api: Blueprint, *, feature_root: Path, base: str) -> None:
     """Expose discovery plus one digest-bound immutable package; never arbitrary files."""
     package = build_product_contract_package(feature_root / "contracts")
-    artifact_path = (
-        f"{base}/product-contracts/v1/sha256/{package.content_sha256}.zip"
-    )
+    artifact_path = f"{base}/product-contracts/v1/sha256/{package.content_sha256}.zip"
 
     @api.get(f"{base}/product-contracts/v1")
     def product_contract_package_metadata() -> Response:

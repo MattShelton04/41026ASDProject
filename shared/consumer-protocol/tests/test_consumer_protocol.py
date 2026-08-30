@@ -647,9 +647,12 @@ def test_durable_commit_then_exception_never_rolls_back_and_reconciles_idempoten
 
     assert reconcile_before_import(persisted_receipt) is persisted_receipt
     assert sink.begin_calls == 1
-    assert persisted_receipt.reconciles(
-        request, target=TARGET, consumer_operation_id="different-operation"
-    ) is False
+    assert (
+        persisted_receipt.reconciles(
+            request, target=TARGET, consumer_operation_id="different-operation"
+        )
+        is False
+    )
 
 
 def test_closed_models_reject_incoherent_count_evidence() -> None:

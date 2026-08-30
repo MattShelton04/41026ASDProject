@@ -63,9 +63,7 @@ def test_contract_package_is_discovered_and_downloaded_over_fixed_http() -> None
         store_client=DataStoreClient(
             "http://database", "secret", client=httpx.Client(transport=unavailable)
         ),
-        ai_mode_client=AiModeClient(
-            "http://ai", client=httpx.Client(transport=unavailable)
-        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=unavailable)),
         consumer_client=ConsumerImportClient({}),
     )
     client = app.test_client()
@@ -86,6 +84,9 @@ def test_contract_package_is_discovered_and_downloaded_over_fixed_http() -> None
     assert artifact.headers["Cache-Control"].endswith("immutable")
 
     assert client.get("/api/data-platform/v1/product-contracts/v1?path=secret").status_code == 422
-    assert client.get(
-        "/api/data-platform/v1/product-contracts/v1/sha256/" + "0" * 64 + ".zip"
-    ).status_code == 404
+    assert (
+        client.get(
+            "/api/data-platform/v1/product-contracts/v1/sha256/" + "0" * 64 + ".zip"
+        ).status_code
+        == 404
+    )
