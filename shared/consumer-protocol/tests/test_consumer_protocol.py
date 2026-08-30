@@ -157,6 +157,37 @@ def test_real_http_import_verifies_then_atomically_commits() -> None:
     assert state.requests[0][1]["Accept-Encoding"] == "identity"
 
 
+@pytest.mark.parametrize(
+    ("manifest"),
+    [
+        {"target_feature": "different-target"},
+        {"product_schema_version": "records.v2"},
+    ],
+)
+def test_conflicting_recognized_manifest_aliases_are_rejected(
+    manifest: dict[str, str],
+) -> None:
+    body = artifact([{"sequence": 1}, {"sequence": 2}])
+
+    with pytest.raises(ValidationError, match="conflicts"):
+        publication(body, manifest=manifest)
+
+
+def test_equal_recognized_manifest_aliases_remain_compatible() -> None:
+    body = artifact([{"sequence": 1}, {"sequence": 2}])
+
+    request = publication(
+        body,
+        manifest={
+            "target_feature": TARGET,
+            "product_schema_version": "records.v1",
+        },
+    )
+
+    assert request.manifest_binding.target == TARGET
+    assert request.manifest_binding.schema_version == "records.v1"
+
+
 def test_trace_context_is_forwarded_without_generating_values() -> None:
     body = artifact([{"sequence": 1}, {"sequence": 2}])
     sink = RecordingSink()

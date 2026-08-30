@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -44,6 +45,23 @@ class ManifestBinding(ContractModel):
     byte_count: int = Field(ge=1)
     media_type: Literal["application/x-ndjson"]
     content_encoding: Literal["gzip"]
+
+    @model_validator(mode="before")
+    @classmethod
+    def recognized_aliases_agree(cls, value: Any) -> Any:
+        if not isinstance(value, Mapping):
+            return value
+        for canonical, compatibility_alias in (
+            ("target", "target_feature"),
+            ("schema_version", "product_schema_version"),
+        ):
+            if (
+                canonical in value
+                and compatibility_alias in value
+                and value[canonical] != value[compatibility_alias]
+            ):
+                raise ValueError(f"manifest {canonical} conflicts with {compatibility_alias}")
+        return value
 
 
 class PublicationRequest(ContractModel):
