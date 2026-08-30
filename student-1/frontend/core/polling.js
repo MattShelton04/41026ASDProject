@@ -9,8 +9,17 @@ export const ACTIVE_AGENT_STATES = new Set([
 
 export function createGenerationGuard() {
   let generation = 0;
+  const capture = () => {
+    const candidate = generation;
+    return Object.freeze({
+      generation: candidate,
+      isCurrent: () => candidate === generation,
+    });
+  };
   return {
     next() { generation += 1; return generation; },
+    begin() { generation += 1; return capture(); },
+    capture,
     current() { return generation; },
     isCurrent(candidate) { return candidate === generation; },
   };

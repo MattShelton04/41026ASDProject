@@ -67,7 +67,7 @@ function releaseStateTabs(releases, selected, filters) {
 }
 
 export function createReleaseRoutes({
-  view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, rerender,
+  view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender,
 }) {
   const publicationKeys = createPublicationAttemptKeys(newRequestId);
 
@@ -132,14 +132,16 @@ export function createReleaseRoutes({
   }
 
   async function renderReleases(id = "") {
+    const routeEpoch = generationGuard.capture();
     loading("Loading release evidence");
     try {
-      if (id) return await renderReleaseDetail(id);
+      if (id) return await renderReleaseDetail(id, routeEpoch);
       const params = new URLSearchParams(location.hash.split("?")[1] || "");
       const requestedState = params.get("state") || "all";
       const selectedState = RELEASE_STATES.some((state) => state.key === requestedState) ? requestedState : "all";
       const filters = { q: params.get("q") || "", status: params.get("status") || "" };
       const { body } = await request("dataset-releases?limit=100");
+      if (!routeEpoch.isCurrent()) return;
       const releases = collection(body);
       const search = filters.q.toLowerCase();
       const visible = releases.filter((release) => matchesReleaseState(release, selectedState)
@@ -156,10 +158,13 @@ export function createReleaseRoutes({
         (release) => { const row = el("tr"); const releaseLink = link(displayName(release.dataset_id || "Dataset"), `#releases/${release.id}`); append(row, cell(primaryCell(releaseLink, release.release_version || "Version not recorded"), "primary-cell"), cell(researchAreaLabel(release.target_feature)), cell(formatNumber(release.record_count), "numeric"), cell(badge(release.status)), cell(formatDate(release.accepted_at)), cell(technicalReference(release.content_sha256, 12))); return row; },
         "Published data versions", { responsive: true },
       )));
-    } catch (error) { view.replaceChildren(errorState(error, rerender)); }
+    } catch (error) {
+      if (!routeEpoch.isCurrent()) return;
+      view.replaceChildren(errorState(error, rerender));
+    }
   }
 
-  async function renderReleaseDetail(id) {
+  async function renderReleaseDetail(id, routeEpoch) {
     const { body, requestId } = await request(`dataset-releases/${id}`);
     const release = entity(body, "release");
     const receipts = body.receipts || [];
@@ -172,6 +177,7 @@ export function createReleaseRoutes({
       request("dataset-releases?status=accepted&limit=100"),
       request(`dataset-releases/${id}/records?limit=25&offset=0`),
     ]);
+    if (!routeEpoch.isCurrent()) return;
     const qualityResults = qualityResult.status === "fulfilled" ? collection(qualityResult.value.body) : [];
     const acceptedReleases = acceptedResult.status === "fulfilled" ? collection(acceptedResult.value.body) : [];
     const predecessor = acceptedReleases.find((candidate) => candidate.id === release.supersedes_release_id)

@@ -5,12 +5,14 @@ import { badge, detailList, pageHeading, panel, technicalDetails } from "../comp
 import { errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
 
-export function createDataProductRoutes({ view, request, loading, rerender }) {
+export function createDataProductRoutes({ view, request, loading, generationGuard, rerender }) {
   async function renderDataProducts(id = "") {
+    const routeEpoch = generationGuard.capture();
     loading("Loading data product definitions");
     try {
-      if (id) return renderDetail(id);
+      if (id) return await renderDetail(id, routeEpoch);
       const products = collection((await request("data-products")).body);
+      if (!routeEpoch.isCurrent()) return;
       view.replaceChildren();
       append(view, pageHeading(
         "Advanced data settings",
@@ -53,12 +55,14 @@ export function createDataProductRoutes({ view, request, loading, rerender }) {
         ),
       ));
     } catch (error) {
+      if (!routeEpoch.isCurrent()) return;
       view.replaceChildren(errorState(error, rerender));
     }
   }
 
-  async function renderDetail(id) {
+  async function renderDetail(id, routeEpoch) {
     const product = (await request(`data-products/${encodeURIComponent(id)}`)).body;
+    if (!routeEpoch.isCurrent()) return;
     view.replaceChildren();
     append(view, pageHeading(
       "Publishing settings",

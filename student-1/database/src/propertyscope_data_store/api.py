@@ -226,7 +226,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             worker_id=required_text(body, "worker_id"),
             lease_token=required_text(body, "lease_token"),
             error=object_value(body.get("error", {})),
-            retryable=bool(body.get("retryable", False)),
+            retryable=boolean_value(body, "retryable", default=False),
         )
         return jsonify({"task": task})
 
@@ -470,7 +470,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             lease_token=required_text(body, "lease_token"),
             status=required_text(body, "status"),
             counts={
-                key: int(body.get(key, 0))
+                key: nonnegative_integer(body, key, default=0)
                 for key in ("rows_in", "rows_staged", "rows_accepted", "rows_rejected")
             },
             result=object_value(body["result"]) if body.get("result") else None,
@@ -547,6 +547,13 @@ def nonnegative_integer(body: dict[str, Any], name: str, *, default: int = 0) ->
     if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
         raise ValidationError(f"{name} must be a non-negative integer")
     return int(raw)
+
+
+def boolean_value(body: dict[str, Any], name: str, *, default: bool) -> bool:
+    raw = body.get(name, default)
+    if not isinstance(raw, bool):
+        raise ValidationError(f"{name} must be a boolean")
+    return raw
 
 
 def required_text(body: dict[str, Any], name: str) -> str:

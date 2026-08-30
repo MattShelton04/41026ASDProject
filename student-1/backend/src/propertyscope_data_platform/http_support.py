@@ -39,7 +39,9 @@ def json_body(*, optional: bool = False) -> dict[str, Any]:
     if optional and not request.data:
         return {}
     value: Any = request.get_json(silent=True)
-    return value if isinstance(value, dict) else {}
+    if not isinstance(value, dict):
+        raise ValueError("request body must be a JSON object")
+    return value
 
 
 def required_uuid(body: Mapping[str, Any], name: str) -> uuid.UUID:

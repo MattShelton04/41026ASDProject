@@ -68,7 +68,13 @@ tools:
       output_schema:
         type: object
         properties:
-          items: {type: array, maxItems: 50, items: {type: object}}
+          items:
+            type: array
+            maxItems: 50
+            items:
+              type: object
+              properties:
+                id: {type: string, format: uuid, x-identifier-kind: release_id}
           count: {type: integer, minimum: 0, maximum: 50}
         required: [items, count]
         additionalProperties: false
@@ -92,7 +98,13 @@ tools:
       output_schema:
         type: object
         properties:
-          items: {type: array, maxItems: 25, items: {type: object}}
+          items:
+            type: array
+            maxItems: 25
+            items:
+              type: object
+              properties:
+                id: {type: string, format: uuid, x-identifier-kind: run_id}
           count: {type: integer, minimum: 0, maximum: 25}
         required: [items, count]
         additionalProperties: false
@@ -110,13 +122,16 @@ tools:
       input_schema:
         type: object
         properties:
-          release_id: {type: string, format: uuid}
+          release_id: {type: string, format: uuid, x-identifier-kind: release_id}
         required: [release_id]
         additionalProperties: false
       output_schema:
         type: object
         properties:
-          release: {type: object}
+          release:
+            type: object
+            properties:
+              id: {type: string, format: uuid, x-identifier-kind: release_id}
           quality_results: {type: array, maxItems: 100, items: {type: object}}
           quality_summary:
             type: object
@@ -129,7 +144,10 @@ tools:
             additionalProperties: false
           receipts: {type: array, maxItems: 100, items: {type: object}}
           activations: {type: array, maxItems: 100, items: {type: object}}
-          accepted_predecessor: {type: [object, "null"]}
+          accepted_predecessor:
+            type: [object, "null"]
+            properties:
+              id: {type: string, format: uuid, x-identifier-kind: release_id}
           release_contract: {type: [object, "null"]}
         required:
           - release
@@ -154,13 +172,16 @@ tools:
       input_schema:
         type: object
         properties:
-          run_id: {type: string, format: uuid}
+          run_id: {type: string, format: uuid, x-identifier-kind: run_id}
         required: [run_id]
         additionalProperties: false
       output_schema:
         type: object
         properties:
-          run: {type: object}
+          run:
+            type: object
+            properties:
+              id: {type: string, format: uuid, x-identifier-kind: run_id}
           tasks: {type: array, maxItems: 100, items: {type: object}}
           quality_results: {type: array, maxItems: 100, items: {type: object}}
         required: [run, tasks, quality_results]
@@ -179,7 +200,7 @@ tools:
       input_schema:
         type: object
         properties:
-          run_id: {type: string, format: uuid}
+          run_id: {type: string, format: uuid, x-identifier-kind: run_id}
         required: [run_id]
         additionalProperties: false
       output_schema:
@@ -249,7 +270,7 @@ tools:
           run:
             type: object
             properties:
-              id: {$ref: '#/$defs/nullable_uuid'}
+              id: {$ref: '#/$defs/nullable_uuid', x-identifier-kind: run_id}
               job_definition_id: {$ref: '#/$defs/nullable_uuid'}
               job_name: {type: [string, 'null'], maxLength: 200}
               source_definition_id: {$ref: '#/$defs/nullable_uuid'}
@@ -266,7 +287,7 @@ tools:
                 required: [profile, all_records, explicit_complete_source]
                 additionalProperties: false
               attempt_number: {type: integer, minimum: 1}
-              parent_run_id: {$ref: '#/$defs/nullable_uuid'}
+              parent_run_id: {$ref: '#/$defs/nullable_uuid', x-identifier-kind: run_id}
               counts:
                 type: object
                 properties:
@@ -327,15 +348,23 @@ tools:
       input_schema:
         type: object
         properties:
-          candidate_release_id: {type: string, format: uuid}
-          predecessor_release_id: {type: string, format: uuid}
+          candidate_release_id:
+            {type: string, format: uuid, x-identifier-kind: release_id}
+          predecessor_release_id:
+            {type: string, format: uuid, x-identifier-kind: release_id}
         required: [candidate_release_id, predecessor_release_id]
         additionalProperties: false
       output_schema:
         type: object
         properties:
-          candidate: {type: object}
-          predecessor: {type: object}
+          candidate:
+            type: object
+            properties:
+              id: {type: string, format: uuid, x-identifier-kind: release_id}
+          predecessor:
+            type: object
+            properties:
+              id: {type: string, format: uuid, x-identifier-kind: release_id}
           differences: {type: array, maxItems: 100, items: {type: object}}
         required: [candidate, predecessor, differences]
         additionalProperties: false
@@ -402,7 +431,7 @@ tools:
       input_schema:
         type: object
         properties:
-          property_ref: {type: string, format: uuid}
+          property_ref: {type: string, format: uuid, x-identifier-kind: property_ref}
         required: [property_ref]
         additionalProperties: false
       output_schema:
@@ -428,14 +457,14 @@ tools:
       input_schema:
         type: object
         properties:
-          run_id: {type: string, format: uuid}
+          run_id: {type: string, format: uuid, x-identifier-kind: run_id}
           idempotency_key: {type: string, minLength: 8, maxLength: 200}
         required: [run_id, idempotency_key]
         additionalProperties: false
       output_schema:
         type: object
         properties:
-          child_run_id: {type: string, format: uuid}
+          child_run_id: {type: string, format: uuid, x-identifier-kind: run_id}
           replayed: {type: boolean}
         required: [child_run_id, replayed]
         additionalProperties: false
@@ -453,7 +482,8 @@ tools:
       input_schema:
         type: object
         properties:
-          release_id: {type: string, minLength: 1, maxLength: 150}
+          release_id:
+            {type: string, minLength: 1, maxLength: 150, x-identifier-kind: release_id}
           idempotency_key: {type: string, minLength: 8, maxLength: 200}
         required: [release_id, idempotency_key]
         additionalProperties: false

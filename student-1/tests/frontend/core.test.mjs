@@ -706,8 +706,12 @@ test("generation guards reject late route and polling work", () => {
   const guard = createGenerationGuard();
   const first = guard.next();
   assert.equal(guard.isCurrent(first), true);
-  guard.next();
+  const firstEpoch = guard.capture();
+  const secondEpoch = guard.begin();
   assert.equal(guard.isCurrent(first), false);
+  assert.equal(firstEpoch.isCurrent(), false);
+  assert.equal(secondEpoch.isCurrent(), true);
+  assert.equal(secondEpoch.generation, 2);
   assert.equal(guard.current(), 2);
 });
 

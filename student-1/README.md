@@ -207,11 +207,12 @@ implementation and executable architecture checks cannot substitute for that rec
 acquisition lives in `source_transport.py`. Source-format parsing remains under `adapters/`, while
 `runner.py` coordinates durable tasks and heartbeats rather than owning transport policy.
 
-The database service keeps transaction-owning SQL in `repository.py`, while immutable release
-preview/builder projections live in `query_specs.py`, retry/task sequencing lives in
-`orchestration_policy.py`, and serialization/replay projections live in
-`persistence_support.py`. This keeps PostgreSQL atomicity visible in one facade without burying
-pure policy and public projection contracts inside a two-thousand-line repository module.
+The database service keeps one public transaction-owning facade in `repository.py`; registered
+import lifecycle SQL is isolated behind its private `_import_operations.py` collaborator. Immutable
+release preview/builder projections live in `query_specs.py`, retry/task sequencing lives in
+`orchestration_policy.py`, and serialization/replay projections live in `persistence_support.py`.
+This keeps PostgreSQL atomicity visible at one facade without burying every persistence aggregate,
+pure policy, and public projection contract in the same repository module.
 
 At the shared proxy and every Feature 1 HTTP hop, `X-Request-ID`, `X-Agent-Run-ID`, `traceparent`
 and `Idempotency-Key` are forwarded case-insensitively under canonical names. Invalid request/span

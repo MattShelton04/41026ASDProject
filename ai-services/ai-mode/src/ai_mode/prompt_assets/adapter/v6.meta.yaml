@@ -1,0 +1,5 @@
+prompt_id: adapter
+version: v6
+role: adapter
+template: v6.system.j2
+description: Reporting with explicit separation between narrative and typed identifier provenance.

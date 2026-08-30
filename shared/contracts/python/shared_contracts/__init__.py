@@ -31,6 +31,7 @@ from shared_contracts.agent import (
     ToolError,
     ToolOutcome,
     ToolResult,
+    TrustedIdentifier,
 )
 from shared_contracts.feature import (
     FeatureManifest,
@@ -157,6 +158,7 @@ __all__ = [
     "ToolError",
     "ToolOutcome",
     "ToolResult",
+    "TrustedIdentifier",
     "is_valid_request_id",
     "is_valid_traceparent",
     "load_feature_manifest",

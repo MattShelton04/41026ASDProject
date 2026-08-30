@@ -44,6 +44,11 @@ def test_product_catalog_composes_scoped_tools() -> None:
         "data.release_publish.v1",
     ]
     assert registry.definitions_for("student-2-feature") == ()
+    definitions = {definition.name: definition for definition in registry.definitions}
+    release_items = definitions["data.releases.v1"].output_schema["properties"]["items"]
+    assert release_items["items"]["properties"]["id"]["x-identifier-kind"] == "release_id"
+    run_schema = definitions["data.run_explain.v1"].output_schema
+    assert run_schema["$defs"]["run"]["properties"]["id"]["x-identifier-kind"] == "run_id"
     executor.close()
 
 

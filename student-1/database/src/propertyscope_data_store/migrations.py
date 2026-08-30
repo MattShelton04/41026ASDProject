@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping, Sequence
 from hashlib import sha256
 from importlib.resources import files
 from typing import Any
@@ -50,7 +52,7 @@ def schema_fingerprint(connection: Connection[Any]) -> str:
     rows = connection.execute(
         """
         SELECT table_schema, table_name, column_name, data_type, is_nullable,
-               COALESCE(column_default, '')
+               COALESCE(column_default, '') AS column_default
         FROM information_schema.columns
         WHERE table_schema IN ('ops', 'registry', 'warehouse', 'serving', 'stage')
         ORDER BY table_schema, table_name, ordinal_position
@@ -64,5 +66,42 @@ def schema_fingerprint(connection: Connection[Any]) -> str:
         ORDER BY schemaname, tablename, indexname
         """
     ).fetchall()
-    payload = "\n".join("|".join(str(value) for value in row) for row in (*rows, *indexes))
+    payload = json.dumps(
+        [
+            *_fingerprint_records(
+                "column",
+                rows,
+                (
+                    "table_schema",
+                    "table_name",
+                    "column_name",
+                    "data_type",
+                    "is_nullable",
+                    "column_default",
+                ),
+            ),
+            *_fingerprint_records(
+                "index",
+                indexes,
+                ("schemaname", "tablename", "indexname", "indexdef"),
+            ),
+        ],
+        default=str,
+        separators=(",", ":"),
+    )
     return sha256(payload.encode()).hexdigest()
+
+
+def _fingerprint_records(
+    kind: str,
+    rows: Sequence[Mapping[str, Any] | Sequence[Any]],
+    fields: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    """Canonicalise tuple rows and the store's real ``dict_row`` results identically."""
+    return [
+        {
+            "kind": kind,
+            "values": [row[field] for field in fields] if isinstance(row, Mapping) else list(row),
+        }
+        for row in rows
+    ]

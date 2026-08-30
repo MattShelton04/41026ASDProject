@@ -208,6 +208,15 @@
             "default": null,
             "title": "Traceparent"
           },
+          "trusted_identifiers": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TrustedIdentifier"
+            },
+            "maxItems": 100,
+            "title": "Trusted Identifiers",
+            "type": "array"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -526,13 +535,14 @@
             "type": "string"
           },
           "prompt_set": {
-            "default": "default.v4",
+            "default": "default.v6",
             "enum": [
               "default.v1",
               "default.v2",
               "default.v3",
               "default.v4",
-              "default.v5"
+              "default.v5",
+              "default.v6"
             ],
             "title": "Prompt Set",
             "type": "string"
@@ -555,6 +565,15 @@
             ],
             "default": null,
             "title": "Tool Allowlist"
+          },
+          "trusted_identifiers": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TrustedIdentifier"
+            },
+            "maxItems": 100,
+            "title": "Trusted Identifiers",
+            "type": "array"
           }
         },
         "required": [
@@ -2438,6 +2457,30 @@
         ],
         "title": "ToolOutcome",
         "type": "string"
+      },
+      "TrustedIdentifier": {
+        "additionalProperties": false,
+        "description": "One feature-supplied identifier that orchestration may copy into a tool call.",
+        "properties": {
+          "kind": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "value": {
+            "format": "uuid",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ],
+        "title": "TrustedIdentifier",
+        "type": "object"
       }
     }
   },

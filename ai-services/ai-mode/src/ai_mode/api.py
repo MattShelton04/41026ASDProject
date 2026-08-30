@@ -45,6 +45,13 @@ def _services() -> AppServices:
     return cast(AppServices, current_app.extensions["ai_mode_services"])
 
 
+def _request_hash(command: AgentRunRequest) -> str:
+    """Preserve hashes for legacy requests that predate the empty trust ledger field."""
+    exclude = {"trusted_identifiers"} if not command.trusted_identifiers else None
+    payload = command.model_dump_json(exclude=exclude)
+    return sha256(payload.encode("utf-8")).hexdigest()
+
+
 @api.post("/agent-runs")
 def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response, int]:
     """Validate, persist, and enqueue a bounded agent run."""
@@ -93,7 +100,7 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
     created = True
     try:
         if idempotency_key:
-            request_hash = sha256(command.model_dump_json().encode("utf-8")).hexdigest()
+            request_hash = _request_hash(command)
             run, created = services.store.create_or_get(
                 run,
                 idempotency_key=idempotency_key,

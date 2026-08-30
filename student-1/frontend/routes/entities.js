@@ -22,14 +22,16 @@ export function jobLifecycleMessage(status) {
   return `This data update cannot start while its lifecycle status is ${humanise(status || "unknown")}.`;
 }
 
-export function createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, rerender }) {
+export function createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, generationGuard, rerender }) {
   async function renderEntityList() {
+    const routeEpoch = generationGuard.capture();
     const params = routeQuery(location.hash);
     const selectedStatus = params.has("status") ? params.get("status") || "all" : "active";
     const filters = { q: params.get("q") || "", status: selectedStatus };
     renderLoading(view, "Loading jobs");
     try {
       const { body } = await request(`jobs${queryString({ q: filters.q, status: filters.status === "all" ? "" : filters.status, limit: 100 })}`);
+      if (!routeEpoch.isCurrent()) return;
       const items = collection(body);
       view.replaceChildren();
       append(
@@ -135,11 +137,13 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
       const resultLabel = items.length === 1 ? "data update" : "data updates";
       append(view, panel(`${items.length} ${resultLabel}`, "Showing up to 100 results", table));
     } catch (error) {
+      if (!routeEpoch.isCurrent()) return;
       view.replaceChildren(errorState(error, rerender));
     }
   }
 
   async function renderEntityDetail(id) {
+    const routeEpoch = generationGuard.capture();
     renderLoading(view, "Loading job");
     try {
       const result = await request(`jobs/${encodeURIComponent(id)}`);
@@ -151,6 +155,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
       } catch (error) {
         capabilitiesError = error;
       }
+      if (!routeEpoch.isCurrent()) return;
       view.replaceChildren();
       const runNow = button("Start update", "button primary", () => openPlanDialog(item, capabilities, { intent: "run" }));
       const backfill = button("Load earlier data", "button secondary", () => openPlanDialog(item, capabilities, { intent: "backfill" }));
@@ -220,6 +225,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
       append(layout, panel("Update settings", "Saved settings used for this data update", left), right);
       append(view, layout);
     } catch (error) {
+      if (!routeEpoch.isCurrent()) return;
       view.replaceChildren(errorState(error, rerender));
     }
   }

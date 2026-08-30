@@ -23,11 +23,13 @@ export function projectOverviewFeeds(results) {
   };
 }
 
-export async function renderOverview({ view, request, rerender }) {
+export async function renderOverview({ view, request, generationGuard, rerender }) {
+  const routeEpoch = generationGuard.capture();
   renderLoading(view, "Loading operations overview");
   const results = await Promise.allSettled([
     request("sources?limit=100"), request("ingestion-runs?limit=25"), request("dataset-releases?limit=100"),
   ]);
+  if (!routeEpoch.isCurrent()) return;
   const feeds = projectOverviewFeeds(results);
   if (feeds.allUnavailable) {
     view.replaceChildren(errorState(feeds.failures[0].error, rerender));

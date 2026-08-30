@@ -5,15 +5,17 @@ import { badge, pageHeading, panel, technicalDetails } from "../components/layou
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
 
-export function createEvidenceRoutes({ view, request, loading, rerender }) {
+export function createEvidenceRoutes({ view, request, loading, generationGuard, rerender }) {
   async function renderEvidenceExplorer(kind, runId = "") {
+    const routeEpoch = generationGuard.capture();
     loading(kind === "quality" ? "Loading data checks" : "Loading files");
     try {
-      if (!runId) return await renderRunPicker(kind);
+      if (!runId) return await renderRunPicker(kind, routeEpoch);
       const [runResult, evidenceResult] = await Promise.allSettled([
         request(`ingestion-runs/${runId}`),
         request(`ingestion-runs/${runId}/${kind === "quality" ? "quality-results" : "artifacts"}?limit=100`),
       ]);
+      if (!routeEpoch.isCurrent()) return;
       view.replaceChildren();
       append(view, pageHeading("Update details", kind === "quality" ? "Data checks" : "Files and history", kind === "quality" ? "Review the checks and samples recorded for one data update." : "Review the files, checksums and source history recorded for one data update.", [link("Choose another update", `#${kind}`, "button secondary")]));
       if (runResult.status === "fulfilled") {
@@ -24,11 +26,15 @@ export function createEvidenceRoutes({ view, request, loading, rerender }) {
       const items = collection(evidenceResult.value.body);
       if (!items.length) { append(view, emptyState(kind === "quality" ? "No data checks recorded" : "No files recorded", `The selected update has no recorded ${kind === "quality" ? "check results" : "file details"}.`)); return; }
       append(view, panel(`${formatNumber(items.length)} ${kind === "quality" ? "checks" : "files"}`, "Recorded for the selected update", kind === "quality" ? qualityTable(items) : artifactTable(items)));
-    } catch (error) { view.replaceChildren(errorState(error, rerender)); }
+    } catch (error) {
+      if (!routeEpoch.isCurrent()) return;
+      view.replaceChildren(errorState(error, rerender));
+    }
   }
 
-  async function renderRunPicker(kind) {
+  async function renderRunPicker(kind, routeEpoch) {
     const result = await request("ingestion-runs?limit=50");
+    if (!routeEpoch.isCurrent()) return;
     const runs = collection(result.body);
     view.replaceChildren();
     append(view, pageHeading("Update details", kind === "quality" ? "Data checks" : "Files and history", `Choose a data update to inspect its ${kind === "quality" ? "check results" : "files"}.`));
@@ -40,9 +46,11 @@ export function createEvidenceRoutes({ view, request, loading, rerender }) {
   }
 
   async function renderCoverage() {
+    const routeEpoch = generationGuard.capture();
     loading("Loading coverage matrix");
     try {
       const result = await request("dataset-releases?limit=100");
+      if (!routeEpoch.isCurrent()) return;
       const rows = collection(result.body).filter((item) => ["accepted", "superseded"].includes(item.status)).map((release) => {
         const coverage = release.coverage_json || {};
         return { dataset_id: release.dataset_id, locality: coverage.locality || coverage.area || coverage.state || "NSW", coverage_status: coverage.status || (coverage.complete === false ? "partial" : "supported"), target_feature: release.target_feature, release_version: release.release_version, accepted_at: release.accepted_at, release_state: release.status, description: coverage.profile, limitations: coverage.limitations || coverage.known_limitations };
@@ -55,7 +63,10 @@ export function createEvidenceRoutes({ view, request, loading, rerender }) {
         [{ label: "Dataset" }, { label: "Area" }, { label: "Research area" }, { label: "Coverage" }, { label: "Publication state" }, { label: "Published version" }, { label: "As at" }, { label: "Limitations" }], rows,
         (item) => { const row = el("tr"); append(row, cell(primaryCell(displayName(item.dataset_id), displayName(item.description))), cell(item.locality), cell(researchAreaLabel(item.target_feature)), cell(badge(item.coverage_status)), cell(badge(item.release_state)), cell(item.release_version, "mono"), cell(formatDate(item.accepted_at)), cell(item.limitations ? technicalDetails(item.limitations, "Inspect") : "None recorded")); return row; },
       )));
-    } catch (error) { view.replaceChildren(errorState(error, rerender)); }
+    } catch (error) {
+      if (!routeEpoch.isCurrent()) return;
+      view.replaceChildren(errorState(error, rerender));
+    }
   }
 
   return { renderEvidenceExplorer, renderCoverage };

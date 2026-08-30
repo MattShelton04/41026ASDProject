@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from flask import Flask
 
 from agent_core import transition_run
+from ai_mode.api import _request_hash
 from ai_mode.persistence import PersistenceError
 from ai_mode.queue import RunQueueFullError
 from ai_mode.services import AppServices
@@ -13,6 +14,7 @@ from shared_contracts import (
     IDEMPOTENCY_KEY_HEADER,
     REQUEST_ID_HEADER,
     TRACEPARENT_HEADER,
+    AgentRunRequest,
     AgentStep,
     ApprovalStatus,
     ModelRoleName,
@@ -150,6 +152,18 @@ def test_create_is_idempotent_for_exact_retries_and_conflicts_on_changed_input(
     assert replay.get_json() == first.get_json()
     assert_problem_detail(conflict.get_json(), status=409, code="idempotency_conflict")
     assert app_services.queue.run_ids == [UUID(first.get_json()["id"])]  # type: ignore[attr-defined]
+
+
+def test_secure_default_changes_hash_while_explicit_v4_preserves_legacy_hash() -> None:
+    command = AgentRunRequest(feature_key="student-1-feature", objective="Find records")
+
+    assert _request_hash(command) == (
+        "d10ef2e9f604364185f42b470ddc10f689a5dbbf34d02573381ba73a86b67307"
+    )
+    legacy = command.evolve(prompt_set="default.v4")
+    assert _request_hash(legacy) == (
+        "c40ec5e92affe3fa737c05b99ca1c5cb60f7309a8317cc519937abfc6004155b"
+    )
 
 
 def test_traceparent_is_validated_and_persisted(app: Flask, app_services: AppServices) -> None:

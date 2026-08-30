@@ -25,6 +25,7 @@ from shared_contracts import (
     ToolDefinition,
     ToolOutcome,
     ToolResult,
+    TrustedIdentifier,
 )
 
 PROMPT_ROOT = Path(__file__).resolve().parents[1] / "src" / "ai_mode" / "prompt_assets"
@@ -80,8 +81,8 @@ def test_builder_keeps_stable_instructions_before_untrusted_dynamic_data() -> No
     assert "software-controlled" in request.messages[0].content
     assert request.messages[1].role == "user"
     assert "untrusted task data" in request.messages[1].content
-    assert request.prompt_hash == PromptRegistry(PROMPT_ROOT).load("planner", "v4").content_hash
-    assert request.prompt_version == "v4"
+    assert request.prompt_hash == PromptRegistry(PROMPT_ROOT).load("planner", "v6").content_hash
+    assert request.prompt_version == "v6"
     assert request.max_output_tokens == 2_048
     assert len(request.rendered_input_hash) == 64
 
@@ -118,10 +119,68 @@ def test_builder_constructs_evidence_based_adaptation_request() -> None:
     assert '"has_remaining_action":false' in request.messages[1].content
     assert '"objective":"Find records"' in request.messages[1].content
     assert request.prompt_id == "adapter"
-    assert request.prompt_version == "v4"
+    assert request.prompt_version == "v6"
     assert request.max_output_tokens == 4_096
     assert "every success criterion" in request.messages[0].content
-    assert "same failed call" in request.messages[0].content
+    assert "different allowlisted call" in request.messages[0].content
+
+
+def test_v6_prompts_receive_the_explicit_trusted_identifier_ledger() -> None:
+    trusted = TrustedIdentifier(kind="record_ref", value=uuid4())
+    run = create_run(
+        AgentRunRequest(
+            feature_key="student-1-feature",
+            objective=f"Untrusted narrative record_ref: {uuid4()}",
+            prompt_set="default.v6",
+            trusted_identifiers=(trusted,),
+        ),
+        run_id=uuid4(),
+        request_id="request-v6",
+        now=datetime(2026, 8, 30, tzinfo=UTC),
+    )
+    definition = ToolDefinition(
+        name="records.inspect.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Inspect a record",
+        input_schema={"type": "object"},
+        output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    builder = RegistryPromptBuilder(PromptRegistry(PROMPT_ROOT))
+
+    plan_request = builder.build_plan_request(run, (definition,))
+    assert f'"kind":"record_ref","value":"{trusted.value}"' in plan_request.messages[1].content
+    assert "not an identifier-provenance source" in plan_request.messages[0].content
+
+    plan = Plan(
+        goal="Inspect the trusted record",
+        actions=(
+            {
+                "sequence": 1,
+                "tool_name": definition.name,
+                "purpose": "Inspect it",
+            },
+        ),
+        success_criteria=("The record is inspected",),
+        risk_level="low",
+    )
+    result = ToolResult(
+        call_id=uuid4(),
+        outcome=ToolOutcome.SUCCEEDED,
+        content={"record_ref": str(trusted.value)},
+        duration_ms=1,
+    )
+    adaptation_request = builder.build_adaptation_request(
+        run,
+        plan,
+        result,
+        Observation(facts=("The record was inspected.",)),
+        (result,),
+    )
+    assert f'"kind":"record_ref","value":"{trusted.value}"' in (
+        adaptation_request.messages[1].content
+    )
 
 
 def test_v5_prompts_define_untrusted_history_and_plain_capability_boundaries() -> None:
@@ -259,13 +318,38 @@ def test_large_cumulative_tool_evidence_is_projected_below_message_limit() -> No
 def test_replanner_receives_exact_identifiers_discovered_by_successful_tools() -> None:
     run = _run()
     record_id = "10000000-0000-4000-8000-000000000020"
-    definition = ToolDefinition(
+    inspect_definition = ToolDefinition(
         name="student_1.records.inspect.v1",
         version="v1",
         feature_key="student-1-feature",
         description="Inspect a record",
         input_schema={"type": "object"},
         output_schema={"type": "object"},
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    search_definition = ToolDefinition(
+        name="student_1.records.search.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Search records",
+        input_schema={"type": "object"},
+        output_schema={
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "x-identifier-kind": "record_ref",
+                            }
+                        },
+                    },
+                }
+            },
+        },
         side_effect=SideEffectClass.READ_ONLY,
     )
     succeeded = AgentStep(
@@ -278,17 +362,18 @@ def test_replanner_receives_exact_identifiers_discovered_by_successful_tools() -
         output={
             "tool_result": {
                 "outcome": "succeeded",
-                "content": {"items": [{"record_id": record_id, "label": "Exact result"}]},
+                "content": {"items": [{"id": record_id, "label": "Exact result"}]},
                 "evidence_references": [f"record:{record_id}"],
             }
         },
     )
 
     request = RegistryPromptBuilder(PromptRegistry(PROMPT_ROOT)).build_plan_request(
-        run, (definition,), (succeeded,)
+        run, (search_definition, inspect_definition), (succeeded,)
     )
 
     assert '"discovered_identifiers"' in request.messages[1].content
+    assert '"type":"record_ref"' in request.messages[1].content
     assert f'"value":"{record_id}"' in request.messages[1].content
     assert '"result_evidence"' in request.messages[1].content
 
@@ -328,3 +413,136 @@ def test_identifier_ledger_is_deduplicated_bounded_and_ignores_idempotency_keys(
     assert len(identifiers) == 50
     assert all(item["type"] == "record_id" for item in identifiers)
     assert len({item["value"] for item in identifiers}) == 50
+
+
+def test_identifier_ledger_uses_output_schema_types_and_ignores_non_uuids() -> None:
+    release_id = "60000000-0000-0000-0000-000000000017"
+    identifiers = _identifier_ledger(
+        {"items": [{"id": release_id}, {"id": "not-a-uuid"}]},
+        schema={
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "x-identifier-kind": "release_id",
+                            }
+                        },
+                    },
+                }
+            },
+        },
+    )
+
+    assert identifiers == [
+        {"type": "release_id", "value": release_id, "path": "result.items[0].id"}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("value", "schema"),
+    [
+        (
+            {"subject": "70000000-0000-0000-0000-000000000099"},
+            {
+                "type": "object",
+                "properties": {
+                    "subject": {
+                        "oneOf": [
+                            {
+                                "type": "string",
+                                "pattern": "^6",
+                                "x-identifier-kind": "release_id",
+                            },
+                            {"type": "string", "pattern": "^7"},
+                        ]
+                    }
+                },
+            },
+        ),
+        (
+            {"subject": "70000000-0000-0000-0000-000000000099"},
+            {
+                "type": "object",
+                "properties": {"subject": {"type": "string"}},
+                "additionalProperties": {
+                    "type": "string",
+                    "x-identifier-kind": "release_id",
+                },
+            },
+        ),
+        (
+            {"subject": "70000000-0000-0000-0000-000000000099"},
+            {
+                "type": "object",
+                "properties": {"subject": True},
+                "additionalProperties": {
+                    "type": "string",
+                    "x-identifier-kind": "release_id",
+                },
+            },
+        ),
+        (
+            {"values": ["70000000-0000-0000-0000-000000000099"]},
+            {
+                "type": "object",
+                "properties": {
+                    "values": {
+                        "type": "array",
+                        "prefixItems": [{"type": "string"}],
+                        "items": {
+                            "type": "string",
+                            "x-identifier-kind": "release_id",
+                        },
+                    }
+                },
+            },
+        ),
+    ],
+)
+def test_identifier_ledger_ignores_non_applicable_schema_paths(
+    value: dict[str, object], schema: dict[str, object]
+) -> None:
+    assert _identifier_ledger(value, schema=schema) == []
+
+
+def test_identifier_ledger_types_uuid_object_keys_from_property_names() -> None:
+    record_ref = "a0000000-0000-0000-0000-000000000092"
+
+    assert _identifier_ledger(
+        {"records": {record_ref: True}},
+        schema={
+            "type": "object",
+            "properties": {
+                "records": {
+                    "type": "object",
+                    "propertyNames": {
+                        "format": "uuid",
+                        "x-identifier-kind": "record_ref",
+                    },
+                }
+            },
+        },
+    ) == [
+        {
+            "type": "record_ref",
+            "value": record_ref,
+            "path": f"result.records.{record_ref}",
+        }
+    ]
+
+
+def test_identifier_ledger_normalizes_compact_uuid_values() -> None:
+    canonical = "60000000-0000-0000-0000-000000000099"
+
+    assert _identifier_ledger(
+        {"release_id": canonical.replace("-", "")},
+        schema={
+            "type": "object",
+            "properties": {"release_id": {"type": "string"}},
+        },
+    ) == [{"type": "release_id", "value": canonical, "path": "result.release_id"}]

@@ -100,11 +100,14 @@ paths:
     post:
       operationId: createSource
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SourceDefinition'}}}}
-      responses: {'201': {description: Source created}, '400': {$ref: '#/components/responses/Problem'}}
+      responses: {'201': {description: Source created}, '422': {$ref: '#/components/responses/Problem'}}
   /sources/{source_id}:
     parameters: [{$ref: '#/components/parameters/SourceId'}]
     get: {operationId: getSource, responses: {'200': {description: Source detail}, '404': {$ref: '#/components/responses/Problem'}}}
-    put: {operationId: updateSource, responses: {'200': {description: Source updated}, '409': {$ref: '#/components/responses/Problem'}}}
+    put:
+      operationId: updateSource
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SourceDefinitionUpdate'}}}}
+      responses: {'200': {description: Source updated}, '409': {$ref: '#/components/responses/Problem'}, '422': {$ref: '#/components/responses/Problem'}}
     delete: {operationId: deleteSource, responses: {'204': {description: Deleted}, '409': {$ref: '#/components/responses/Problem'}}}
   /jobs:
     get: {operationId: listJobs, responses: {'200': {$ref: '#/components/responses/Page'}}}
@@ -463,10 +466,8 @@ components:
         finished_at: {type: [string, 'null'], format: date-time}
         error_json: {type: [object, 'null']}
         version: {type: integer, minimum: 1}
-    SourceDefinition:
+    SourceDefinitionFields:
       type: object
-      additionalProperties: false
-      required: [name, publisher, source_url, adapter_key, cadence, licence_id, licence_url, redistribution_policy, target_features]
       properties:
         name: {type: string, minLength: 1, maxLength: 500}
         publisher: {type: string, minLength: 1, maxLength: 500}
@@ -477,7 +478,21 @@ components:
         licence_url: {type: string, format: uri}
         redistribution_policy: {type: string}
         target_features: {type: array, minItems: 1, maxItems: 5, uniqueItems: true, items: {type: string}}
+        status: {enum: [draft, active, disabled, retired], default: draft}
         notes: {type: string, maxLength: 2000}
+    SourceDefinition:
+      allOf:
+        - {$ref: '#/components/schemas/SourceDefinitionFields'}
+        - {type: object, required: [name, publisher, source_url, adapter_key, cadence, licence_id, licence_url, redistribution_policy, target_features]}
+      unevaluatedProperties: false
+    SourceDefinitionUpdate:
+      allOf:
+        - {$ref: '#/components/schemas/SourceDefinitionFields'}
+        - type: object
+          required: [name, publisher, source_url, adapter_key, cadence, licence_id, licence_url, redistribution_policy, target_features, version]
+          properties:
+            version: {type: integer, minimum: 1}
+      unevaluatedProperties: false
     RunRequest:
       type: object
       additionalProperties: false

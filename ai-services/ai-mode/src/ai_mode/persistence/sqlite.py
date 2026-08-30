@@ -231,7 +231,7 @@ class SQLiteRunStore(RunStore):
         return AgentRunDetail(run=run, steps=steps, reviews=reviews)
 
     def list_resumable(self) -> tuple[AgentRunDetail, ...]:
-        """Load active runs in a stable order for startup reconciliation."""
+        """Load active run aggregates in a stable, constant-query snapshot."""
         excluded = (
             RunStatus.REVIEW_REQUIRED.value,
             RunStatus.SUCCEEDED.value,
@@ -239,19 +239,65 @@ class SQLiteRunStore(RunStore):
             RunStatus.CANCELLED.value,
         )
         with self._connection() as connection:
-            rows = connection.execute(
+            connection.execute("BEGIN")
+            run_rows = connection.execute(
                 """
-                SELECT id FROM agent_runs
+                SELECT id, payload_json FROM agent_runs
                 WHERE status NOT IN (?, ?, ?, ?)
                 ORDER BY updated_at ASC, id ASC
                 """,
                 excluded,
             ).fetchall()
+            step_rows = connection.execute(
+                """
+                SELECT step.run_id, step.payload_json
+                FROM agent_steps AS step
+                JOIN agent_runs AS run ON run.id = step.run_id
+                WHERE run.status NOT IN (?, ?, ?, ?)
+                ORDER BY run.updated_at ASC, run.id ASC, step.sequence ASC
+                """,
+                excluded,
+            ).fetchall()
+            review_rows = connection.execute(
+                """
+                SELECT review.run_id, review.payload_json
+                FROM human_reviews AS review
+                JOIN agent_runs AS run ON run.id = review.run_id
+                WHERE run.status NOT IN (?, ?, ?, ?)
+                ORDER BY
+                    run.updated_at ASC,
+                    run.id ASC,
+                    review.reviewed_at ASC,
+                    review.id ASC
+                """,
+                excluded,
+            ).fetchall()
+            connection.commit()
+
+        step_payloads: dict[str, list[str]] = {str(row["id"]): [] for row in run_rows}
+        review_payloads: dict[str, list[str]] = {str(row["id"]): [] for row in run_rows}
+        for row in step_rows:
+            step_payloads[str(row["run_id"])].append(str(row["payload_json"]))
+        for row in review_rows:
+            review_payloads[str(row["run_id"])].append(str(row["payload_json"]))
+
         details: list[AgentRunDetail] = []
-        for row in rows:
-            detail = self.get(UUID(row["id"]))
-            if detail is not None:
-                details.append(detail)
+        for row in run_rows:
+            run_id = str(row["id"])
+            try:
+                detail = AgentRunDetail(
+                    run=AgentRun.model_validate_json(row["payload_json"]),
+                    steps=tuple(
+                        AgentStep.model_validate_json(payload) for payload in step_payloads[run_id]
+                    ),
+                    reviews=tuple(
+                        HumanReview.model_validate_json(payload)
+                        for payload in review_payloads[run_id]
+                    ),
+                )
+            except ValueError as exc:
+                raise PersistenceError(f"stored agent run is invalid: {run_id}") from exc
+            details.append(detail)
         return tuple(details)
 
     def list_run_snapshots(self, query: RunListQuery) -> tuple[tuple[RunSnapshot, ...], bool]:
