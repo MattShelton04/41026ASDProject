@@ -65,6 +65,19 @@ counter while PostgreSQL reclaims dead tuples. Let that cleanup finish unless di
 immediate risk. Stop or terminate only an exact confirmed application culprit; never target all
 database sessions.
 
+Supported cancellation is idempotent. The first request durably sets `cancel_requested_at`; a
+retry after a lost or dependency-failure response reads that durable run and returns the same
+cancelled/requested outcome. The database loader watches that exact operation and calls PostgreSQL
+cancellation on its own connection, so an operator must not find and cancel an unrelated backend.
+If neither the cancellation response nor a reconciliation read proves persistence, the public API
+returns `cancellation_unconfirmed` and the same request may be retried safely.
+
+Import progress uses stable phase keys: `artifact_verification`, `typed_staging`,
+`identity_revision_derivation`, `address_resolution`, `target_materialisation`, and
+`verification`. Publication activation uses `artifact_verification`, `materialisation`, and
+`commit_pointer`. Byte and row totals are shown only for phases that can be measured; a null total
+means the remaining set operation is indeterminate, not complete.
+
 ## Inspect publication progress
 
 Open the release under **Published data**. The **Background publication** panel shows queued,
@@ -136,6 +149,14 @@ their full hash/count/size evidence but remain unavailable to anonymous download
 
 Failed or cancelled ingestion-owned candidates are migrated and reconciled to `abandoned`. They
 remain linked from the run for audit but do not appear in the normal Published data workflow.
+
+When a database import fails or is cancelled after opening its transaction, its operation is also
+marked `space_recovery_status=needed` with an exact, profile-derived relation list and the
+`measure_then_target_exact_relations` policy. This is an operator-visible recovery obligation, not
+an automatic `VACUUM FULL` or broad reindex. Measure dead tuples and allocated bytes first; PR2's
+source-scale benchmark evidence determines whether an exact relation needs bounded vacuum/reindex
+or whether disposable release storage removes that need. Mark recovery complete only after the
+targeted evidence is retained.
 
 `GET /api/data-platform/v1/artifact-retention` reports each referenced physical object, retained
 bytes, reference count, run states and retention reason. Cleanup is explicit and dry-run by

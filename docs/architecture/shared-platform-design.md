@@ -56,6 +56,17 @@ trusted local use. The canonical gate includes deterministic Python and frontend
 enforces at least 90% branch coverage for the shared/AI core, and separately ratchets Feature 1
 while its broader integration-heavy suite is improved.
 
+The Feature 1 reliability increment also treats cancellation and source-scale progress as durable
+protocol outcomes. A cancellation request can be retried after a lost response and is reconciled
+from the stored `cancel_requested_at` evidence; the credential-owning loader cancels the exact
+Psycopg connection that owns the active statement. Import operations persist stable phase keys for
+artifact verification, typed staging, identity/revision derivation, address resolution, candidate
+materialisation and verification. Publication activation records its verification,
+materialisation and accepted-pointer phases separately. Set-based work deliberately has no total
+or percentage until it has a truthful measure. Failed and cancelled imports retain a
+relation-scoped, measure-first space-recovery policy rather than running broad maintenance
+automatically.
+
 Feature 1's maintenance pass separates HTTP mechanics, correlation, approval verification,
 run-scope policy and registered source transport from the backend API composition surface. The
 database repository retains atomic PostgreSQL operations but delegates immutable preview/builder
