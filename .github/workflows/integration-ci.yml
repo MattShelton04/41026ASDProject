@@ -63,5 +63,5 @@ jobs:
         env:
           OPENAI_API_KEY_FILE: /dev/null
         run: |
-          docker compose --profile release-0 config --quiet
-          docker compose --file docker-compose.yml --file docker-compose.dev.yml --profile release-0 config --quiet
+          docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 config --quiet
+          docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --file docker-compose.dev.yml --profile release-0 config --quiet
