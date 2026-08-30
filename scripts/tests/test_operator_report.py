@@ -166,6 +166,7 @@ def test_report_rejects_oversized_responses() -> None:
 def test_report_requests_identity_encoding_and_rejects_compressed_control_plane() -> None:
     def service(request: httpx.Request) -> httpx.Response:
         assert request.headers["Accept-Encoding"] == "identity"
+
         class EncodedStream(httpx.SyncByteStream):
             def __iter__(self) -> Iterator[bytes]:
                 yield b"compressed"

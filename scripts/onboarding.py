@@ -116,9 +116,7 @@ def discover_quality_inputs(root: Path = REPOSITORY_ROOT) -> FeatureQualityInput
                 )
             python_paths.append(relative)
         for raw_path in feature.quality.node_test_files:
-            relative = _owned_existing_path(
-                root, feature.owner, raw_path, kind="Node quality file"
-            )
+            relative = _owned_existing_path(root, feature.owner, raw_path, kind="Node quality file")
             path = root / relative
             if not path.is_file():
                 raise OnboardingConfigurationError(

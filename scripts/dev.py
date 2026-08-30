@@ -798,8 +798,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         or f"http://127.0.0.1:{feature_port}/health/ready"
                     ),
                     ai_health_url=(
-                        arguments.ai_health_url
-                        or f"http://127.0.0.1:{ai_port}/health/ready"
+                        arguments.ai_health_url or f"http://127.0.0.1:{ai_port}/health/ready"
                     ),
                 )
             print(render_operator_report(report), flush=True)

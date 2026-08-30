@@ -103,9 +103,9 @@ def test_outputs_expose_only_explicitly_enabled_features(tmp_path: Path) -> None
     ]
     assert json.loads(disabled[Path("deployment/enabled-services.v1.json")])["build_services"] == []
     assert json.loads(disabled[Path("deployment/enabled-services.v1.json")])["services"] == []
-    assert json.loads(enabled[Path("deployment/enabled-services.v1.json")])[
-        "disabled_services"
-    ] == []
+    assert (
+        json.loads(enabled[Path("deployment/enabled-services.v1.json")])["disabled_services"] == []
+    )
     assert json.loads(disabled[Path("deployment/enabled-services.v1.json")])[
         "disabled_services"
     ] == ["example-backend", "example-frontend"]

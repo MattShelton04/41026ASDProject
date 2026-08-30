@@ -26,9 +26,7 @@ def test_catalogue_rejects_mismatched_tool_feature_key() -> None:
         tools=(
             registration.model_copy(
                 update={
-                    "definition": registration.definition.evolve(
-                        feature_key="student-2-unowned"
-                    )
+                    "definition": registration.definition.evolve(feature_key="student-2-unowned")
                 }
             ),
         ),

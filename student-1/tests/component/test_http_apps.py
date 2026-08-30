@@ -953,6 +953,34 @@ def test_ai_unavailable_does_not_break_readiness() -> None:
     }
 
 
+def test_database_unavailable_returns_typed_unready_projection() -> None:
+    unavailable = httpx.MockTransport(lambda _: httpx.Response(503))
+    store = DataStoreClient("http://database", "secret", client=httpx.Client(transport=unavailable))
+    app = create_backend_app(
+        store_client=store,
+        ai_mode_client=AiModeClient(
+            "http://ai",
+            client=httpx.Client(
+                transport=httpx.MockTransport(lambda _: httpx.Response(200, json={}))
+            ),
+        ),
+    )
+
+    response = app.test_client().get("/health/ready")
+
+    assert response.status_code == 503
+    assert response.mimetype == "application/json"
+    payload = response.get_json()
+    projection = TypedHealthProjection.model_validate(payload)
+    assert projection.http_status == 503
+    assert projection.status.value == "unhealthy"
+    assert payload["checks"]["database"] == {
+        "required": True,
+        "status": "unhealthy",
+        "detail": "Feature-owned database API is unavailable",
+    }
+
+
 def test_release_diagnosis_uses_supported_prompt_contract() -> None:
     release_id = "60000000-0000-0000-0000-000000000011"
 

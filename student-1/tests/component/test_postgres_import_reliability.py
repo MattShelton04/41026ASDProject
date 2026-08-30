@@ -567,14 +567,33 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
     )
     assert failed["status"] == "failed"
 
+    connection.execute("UPDATE ops.dataset_release SET version=3 WHERE id=%s", (release_id,))
+    connection.commit()
+    retry_values = {
+        **values,
+        "expected_release_version": 3,
+        "comment": "Approved after version-conflict reconciliation",
+        "idempotency_key": "delivery-two",
+        "request_id": "request-two-version-three",
+    }
     retried, created = operations.create(
         release_id,
-        {**values, "idempotency_key": "delivery-two", "request_id": "request-two"},
+        retry_values,
     )
     assert created is False
     assert retried["id"] == operation["id"]
     assert retried["phase_key"] == "queue_activation"
     assert retried["activation_attempt"] == 2
+    durable_retry = connection.execute(
+        """SELECT expected_release_version,review_comment,request_id
+        FROM ops.consumer_import_operation WHERE id=%s""",
+        (operation_id,),
+    ).fetchone()
+    assert durable_retry == {
+        "expected_release_version": 3,
+        "review_comment": "Approved after version-conflict reconciliation",
+        "request_id": "request-two-version-three",
+    }
     alias_count = connection.execute(
         "SELECT count(*) AS count FROM ops.consumer_import_delivery_alias"
     ).fetchone()
@@ -583,7 +602,7 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
     claimed = operations.claim(worker_id="runner-five", lease_seconds=30)
     assert claimed is not None
     connection.execute(
-        "INSERT INTO ops.release_activation VALUES (%s,%s,%s,2,'interrupted',NULL)",
+        "INSERT INTO ops.release_activation VALUES (%s,%s,%s,3,'interrupted',NULL)",
         (second_activation_id, release_id, receipt_id),
     )
     connection.commit()

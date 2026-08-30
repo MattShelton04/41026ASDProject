@@ -81,14 +81,11 @@ def validate_catalog_ownership(catalog: ToolCatalog, manifest: FeatureManifest) 
                 "tool service origin must exactly match the manifest backend service and port"
             )
     owned_roots = tuple(
-        path.rstrip("/")
-        for path in (manifest.backend_base_path, *backend.additional_paths)
+        path.rstrip("/") for path in (manifest.backend_base_path, *backend.additional_paths)
     )
     for registration in catalog.tools:
         if registration.definition.feature_key != manifest.feature_key:
-            raise ValueError(
-                "tool definition feature_key must match its owning feature manifest"
-            )
+            raise ValueError("tool definition feature_key must match its owning feature manifest")
         path = _canonical_tool_path(registration.path)
         if not any(path == root or path.startswith(f"{root}/") for root in owned_roots):
             raise ValueError("tool binding path must stay inside an owned backend route namespace")
