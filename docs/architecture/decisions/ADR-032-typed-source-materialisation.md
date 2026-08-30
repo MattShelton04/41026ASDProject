@@ -44,7 +44,10 @@ tables disappear at transaction end. After a failed/cancelled outcome is durable
 measures the profile's exact allowlisted destination relations and, when durable phase evidence
 shows target materialisation began, runs bounded non-rewriting
 `VACUUM (ANALYZE, INDEX_CLEANUP ON)`, measures again and records completion. A preflight or staging
-failure records that no target maintenance was required. A timeout leaves the operation `needed`; no `VACUUM FULL`, table rewrite
+failure records that no target maintenance was required. When the before/after measurement shows
+at least 100,000 dead tuples, dead tuples are at least 25% of live tuples, and retained indexes
+still exceed 64 MiB, exact-table `REINDEX TABLE CONCURRENTLY` runs under the same bound. A timeout
+leaves the operation `needed`; no `VACUUM FULL`, table rewrite
 or unrelated relation is permitted. The
 conservative disk check measures the loader artifact mount as a proxy for the single-host Docker
 disk pool and therefore remains an operator-tunable safety bound, not a prediction of exact

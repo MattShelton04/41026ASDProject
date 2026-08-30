@@ -15,7 +15,11 @@ from psycopg.conninfo import conninfo_to_dict, make_conninfo
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from propertyscope_data_store._import_operations import _RegisteredImportOperations
+import propertyscope_data_store._import_operations as import_operations
+from propertyscope_data_store._import_operations import (
+    _RegisteredImportOperations,
+    _requires_concurrent_reindex,
+)
 
 ADMIN_URL = os.getenv("PROPERTYSCOPE_TEST_POSTGRES_URL", "").strip()
 pytestmark = pytest.mark.skipif(
@@ -75,6 +79,7 @@ class _Owner:
 
 def test_failed_import_vacuums_only_registered_relations_and_records_measurements(
     recovery_database: psycopg.Connection[dict[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     connection = recovery_database
     operation_id = uuid.uuid4()
@@ -102,6 +107,8 @@ def test_failed_import_vacuums_only_registered_relations_and_records_measurement
     connection.commit()
     connection.execute("DELETE FROM warehouse.psi_sale")
     connection.execute("DELETE FROM warehouse.unrelated")
+    connection.commit()
+    connection.execute("SELECT pg_stat_force_next_flush()")
     connection.execute("ANALYZE warehouse.psi_sale")
     connection.execute("ANALYZE warehouse.unrelated")
     connection.execute(
@@ -119,6 +126,8 @@ def test_failed_import_vacuums_only_registered_relations_and_records_measurement
         ),
     )
     connection.commit()
+    monkeypatch.setattr(import_operations, "SPACE_RECOVERY_REINDEX_MIN_DEAD_TUPLES", 1)
+    monkeypatch.setattr(import_operations, "SPACE_RECOVERY_REINDEX_MIN_INDEX_BYTES", 1)
 
     result = _RegisteredImportOperations(cast(Any, _Owner(connection))).recover_import_space(
         operation_id
@@ -126,7 +135,8 @@ def test_failed_import_vacuums_only_registered_relations_and_records_measurement
 
     policy = result["space_recovery_policy_json"]
     assert result["space_recovery_status"] == "completed"
-    assert policy["operation"] == "vacuum_analyze_index_cleanup"
+    assert policy["operation"] == "vacuum_and_concurrent_reindex"
+    assert policy["relations_reindexed"] == ["warehouse.psi_sale"]
     assert [item["relation"] for item in policy["measured_before"]] == ["warehouse.psi_sale"]
     assert [item["relation"] for item in policy["measured_after"]] == ["warehouse.psi_sale"]
     assert policy["measured_after"][0]["n_dead_tup"] == 0
@@ -190,3 +200,18 @@ def test_failed_import_with_no_dead_tuples_skips_vacuum(
         "WHERE schemaname='warehouse' AND relname='psi_sale'"
     ).fetchone()
     assert last_vacuum == {"last_vacuum": None}
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "expected"),
+    [
+        ({"n_dead_tup": 9_796_443, "n_live_tup": 10}, {"index_bytes": 1_779_228_672}, True),
+        ({"n_dead_tup": 99_999, "n_live_tup": 10}, {"index_bytes": 1_779_228_672}, False),
+        ({"n_dead_tup": 100_000, "n_live_tup": 1_000_000}, {"index_bytes": 1_779_228_672}, False),
+        ({"n_dead_tup": 9_796_443, "n_live_tup": 10}, {"index_bytes": 16_384}, False),
+    ],
+)
+def test_concurrent_reindex_requires_measured_source_scale_bloat(
+    before: dict[str, int], after: dict[str, int], expected: bool
+) -> None:
+    assert _requires_concurrent_reindex(cast(Any, before), cast(Any, after)) is expected

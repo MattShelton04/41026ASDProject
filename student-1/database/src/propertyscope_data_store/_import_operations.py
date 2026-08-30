@@ -40,6 +40,8 @@ _IMPORT_TARGET_RELATIONS: Mapping[str, tuple[str, ...]] = {
     "schools-master": ("warehouse.school",),
 }
 SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS = 10 * 60
+SPACE_RECOVERY_REINDEX_MIN_DEAD_TUPLES = 100_000
+SPACE_RECOVERY_REINDEX_MIN_INDEX_BYTES = 64 * 1024 * 1024
 
 
 class _ImportOperationOwner(Protocol):
@@ -480,17 +482,54 @@ class _RegisteredImportOperations:
                 finally:
                     connection.execute("RESET statement_timeout")
                     connection.autocommit = False
+        measured_after_vacuum = self._measure_relations(relations)
+        before_by_relation = {
+            str(measurement["relation"]): measurement for measurement in measured_before
+        }
+        reindex_relations = tuple(
+            str(measurement["relation"])
+            for measurement in measured_after_vacuum
+            if str(measurement["relation"]) in recovery_relations
+            and _requires_concurrent_reindex(
+                before_by_relation[str(measurement["relation"])], measurement
+            )
+        )
+        if reindex_relations:
+            with self._owner.connection() as connection:
+                connection.commit()
+                connection.autocommit = True
+                try:
+                    connection.execute(
+                        "SELECT set_config('statement_timeout',%s,false)",
+                        (f"{SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS}s",),
+                    )
+                    for relation in reindex_relations:
+                        schema_name, table_name = relation.split(".", maxsplit=1)
+                        connection.execute(
+                            sql.SQL("REINDEX TABLE CONCURRENTLY {}").format(
+                                sql.Identifier(schema_name, table_name)
+                            )
+                        )
+                finally:
+                    connection.execute("RESET statement_timeout")
+                    connection.autocommit = False
         measured_after = self._measure_relations(relations)
         policy.update(
             {
                 "operation": (
-                    "vacuum_analyze_index_cleanup"
-                    if recovery_relations
-                    else "not_required_before_target_materialisation"
+                    "vacuum_and_concurrent_reindex"
+                    if reindex_relations
+                    else (
+                        "vacuum_analyze_index_cleanup"
+                        if recovery_relations
+                        else "not_required_before_target_materialisation"
+                    )
                 ),
                 "relations_recovered": list(recovery_relations),
+                "relations_reindexed": list(reindex_relations),
                 "statement_timeout_seconds": SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS,
                 "measured_before": measured_before,
+                "measured_after_vacuum": measured_after_vacuum,
                 "measured_after": measured_after,
                 "completed_at": datetime.now(UTC).isoformat(),
                 "automatic_destructive_maintenance": False,
@@ -530,3 +569,14 @@ class _RegisteredImportOperations:
                 measurements.append(_dict(row))
             connection.commit()
         return measurements
+
+
+def _requires_concurrent_reindex(before: JsonObject, after_vacuum: JsonObject) -> bool:
+    dead_tuples = int(before["n_dead_tup"])
+    live_tuples = int(before["n_live_tup"])
+    index_bytes = int(after_vacuum["index_bytes"])
+    return (
+        dead_tuples >= SPACE_RECOVERY_REINDEX_MIN_DEAD_TUPLES
+        and dead_tuples * 4 >= max(1, live_tuples)
+        and index_bytes >= SPACE_RECOVERY_REINDEX_MIN_INDEX_BYTES
+    )
