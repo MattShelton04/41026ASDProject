@@ -281,6 +281,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
                 "release": store.get_release(release_id),
                 "receipts": store.release_receipts(release_id),
                 "activations": store.release_activations(release_id),
+                "consumer_imports": store.release_consumer_imports(release_id),
             }
         )
 
@@ -342,6 +343,114 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     def releases_receipt(release_id: uuid.UUID) -> tuple[Response, int]:
         receipt, created = store.record_publication_receipt(release_id, payload())
         return jsonify({"receipt": receipt, "created": created}), 201 if created else 200
+
+    @api.post("/internal/data-platform/v1/releases/<uuid:release_id>/consumer-imports")
+    def consumer_import_create(release_id: uuid.UUID) -> tuple[Response, int]:
+        body = payload()
+        operation, created = store.create_consumer_import(
+            release_id,
+            {
+                "dataset_id": required_text(body, "dataset_id"),
+                "target_feature": required_text(body, "target_feature"),
+                "schema_version": required_text(body, "schema_version"),
+                "content_sha256": required_text(body, "content_sha256"),
+                "record_count": bounded_integer(
+                    body, "record_count", minimum=0, maximum=10_000_000_000
+                ),
+                "artifact_path": required_text(body, "artifact_path"),
+                "expected_release_version": bounded_integer(
+                    body, "expected_release_version", minimum=1, maximum=1_000_000
+                ),
+                "comment": required_text(body, "comment"),
+                "idempotency_key": required_text(body, "idempotency_key"),
+                "request_id": required_text(body, "request_id"),
+            },
+        )
+        return jsonify({"operation": operation, "created": created}), 202 if created else 200
+
+    @api.get("/internal/data-platform/v1/consumer-imports/<uuid:operation_id>")
+    def consumer_import_get(operation_id: uuid.UUID) -> Response:
+        return jsonify({"operation": store.get_consumer_import(operation_id)})
+
+    @api.post("/internal/data-platform/v1/consumer-imports/claim")
+    def consumer_import_claim() -> Response:
+        body = payload()
+        operation = store.claim_consumer_import(
+            worker_id=required_text(body, "worker_id"),
+            lease_seconds=bounded_integer(body, "lease_seconds", minimum=10, maximum=300),
+        )
+        return jsonify({"operation": operation})
+
+    @api.post("/internal/data-platform/v1/consumer-imports/<uuid:operation_id>/acknowledge")
+    def consumer_import_acknowledge(operation_id: uuid.UUID) -> Response:
+        body = payload()
+        result = body.get("result")
+        if result is not None and not isinstance(result, dict):
+            raise ValidationError("result must be an object")
+        operation = store.acknowledge_consumer_import(
+            operation_id,
+            worker_id=required_text(body, "worker_id"),
+            lease_token=required_text(body, "lease_token"),
+            consumer_operation_id=required_text(body, "consumer_operation_id"),
+            remote_status=required_text(body, "remote_status"),
+            result=result,
+            poll_seconds=bounded_integer(body, "poll_seconds", minimum=1, maximum=300),
+        )
+        return jsonify({"operation": operation})
+
+    @api.post("/internal/data-platform/v1/consumer-imports/<uuid:operation_id>/retry")
+    def consumer_import_retry(operation_id: uuid.UUID) -> Response:
+        body = payload()
+        error = body.get("error")
+        if not isinstance(error, dict):
+            raise ValidationError("error must be an object")
+        operation = store.retry_consumer_import(
+            operation_id,
+            worker_id=required_text(body, "worker_id"),
+            lease_token=required_text(body, "lease_token"),
+            error=error,
+            retry_seconds=bounded_integer(body, "retry_seconds", minimum=1, maximum=300),
+        )
+        return jsonify({"operation": operation})
+
+    @api.post("/internal/data-platform/v1/consumer-imports/<uuid:operation_id>/receipt")
+    def consumer_import_receipt(operation_id: uuid.UUID) -> Response:
+        body = payload()
+        operation = store.attach_consumer_import_receipt(
+            operation_id,
+            worker_id=required_text(body, "worker_id"),
+            lease_token=required_text(body, "lease_token"),
+            receipt_id=uuid.UUID(required_text(body, "publication_receipt_id")),
+            receipt_status=required_text(body, "receipt_status"),
+        )
+        return jsonify({"operation": operation})
+
+    @api.post("/internal/data-platform/v1/consumer-imports/<uuid:operation_id>/activation")
+    def consumer_import_activation(operation_id: uuid.UUID) -> Response:
+        body = payload()
+        operation = store.attach_consumer_import_activation(
+            operation_id,
+            worker_id=required_text(body, "worker_id"),
+            lease_token=required_text(body, "lease_token"),
+            activation_id=uuid.UUID(required_text(body, "release_activation_id")),
+        )
+        return jsonify({"operation": operation})
+
+    @api.post("/internal/data-platform/v1/consumer-imports/<uuid:operation_id>/activation-status")
+    def consumer_import_activation_status(operation_id: uuid.UUID) -> Response:
+        body = payload()
+        error = body.get("error")
+        if error is not None and not isinstance(error, dict):
+            raise ValidationError("error must be an object")
+        operation = store.record_consumer_import_activation_outcome(
+            operation_id,
+            worker_id=required_text(body, "worker_id"),
+            lease_token=required_text(body, "lease_token"),
+            activation_status=required_text(body, "activation_status"),
+            error=error,
+            poll_seconds=bounded_integer(body, "poll_seconds", minimum=1, maximum=300),
+        )
+        return jsonify({"operation": operation})
 
     @api.post("/internal/data-platform/v1/releases/<uuid:release_id>/activations")
     def releases_activation(release_id: uuid.UUID) -> tuple[Response, int]:

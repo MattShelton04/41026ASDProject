@@ -15,6 +15,9 @@ from propertyscope_data_platform.http_support import forward
 from propertyscope_data_platform.release_builders import ReleaseDetailContract
 
 INTERNAL = "/internal/data-platform/v1"
+CONSUMER_CONNECT_TIMEOUT_SECONDS = 5
+CONSUMER_STATUS_TIMEOUT_SECONDS = 5
+CONSUMER_RESPONSE_MAX_BYTES = 64 * 1024
 
 
 def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Response:
@@ -70,6 +73,9 @@ def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Respons
         "receipts": [public_receipt(item) for item in release_envelope.get("receipts", [])],
         "activations": [
             public_activation(item) for item in release_envelope.get("activations", [])
+        ],
+        "consumer_imports": [
+            public_consumer_import(item) for item in release_envelope.get("consumer_imports", [])
         ],
         "accepted_predecessor": predecessor,
     }
@@ -134,3 +140,37 @@ def public_activation(operation: Mapping[str, Any]) -> dict[str, Any]:
             "version",
         )
     }
+
+
+def public_consumer_import(operation: Mapping[str, Any]) -> dict[str, Any]:
+    """Expose durable delivery progress without worker credentials or review comments."""
+    projected = {
+        key: operation.get(key)
+        for key in (
+            "id",
+            "dataset_release_id",
+            "dataset_id",
+            "target_feature",
+            "schema_version",
+            "content_sha256",
+            "record_count",
+            "status",
+            "phase_key",
+            "remote_status",
+            "consumer_operation_id",
+            "publication_receipt_id",
+            "release_activation_id",
+            "attempt_number",
+            "requested_at",
+            "started_at",
+            "finished_at",
+            "error_json",
+            "version",
+        )
+    }
+    projected["budgets"] = {
+        "connect_timeout_seconds": CONSUMER_CONNECT_TIMEOUT_SECONDS,
+        "status_timeout_seconds": CONSUMER_STATUS_TIMEOUT_SECONDS,
+        "maximum_response_bytes": CONSUMER_RESPONSE_MAX_BYTES,
+    }
+    return projected

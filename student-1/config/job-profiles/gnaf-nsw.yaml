@@ -6,9 +6,9 @@ source_key: gnaf-nsw
 adapter: {key: gnaf-bulk, version: 1.0.0}
 refresh_strategy: full_snapshot
 supported_modes: [full_refresh, reprocess_cached]
-release_builder: {key: property-snapshot, version: 2.0.0}
+release_builder: {key: property-snapshot, version: 3.0.0}
 import_profile: {key: gnaf-nsw, version: 1.0.0}
-target: {feature: feature-1, contract: propertyscope.property-snapshot.v1}
+target: {feature: feature-1, contract: propertyscope.property-snapshot.v2}
 scope:
   profile: full-data
   state: NSW

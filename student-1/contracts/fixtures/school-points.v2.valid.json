@@ -1,0 +1,19 @@
+{
+  "school_code": "S0001",
+  "school_name": "Example Public School",
+  "school_type": "Primary",
+  "operational_status": "Closed",
+  "locality_original": "Sydney",
+  "locality_normalised": "SYDNEY",
+  "state": "NSW",
+  "lga": "City of Sydney",
+  "latitude": -33.86,
+  "longitude": 151.2,
+  "provenance": {
+    "release_id": "60000000-0000-0000-0000-000000000004",
+    "release_version": "fixture-schools-v1",
+    "candidate_generation_id": "60000000-0000-0000-0000-000000000004",
+    "source_record_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "normalisation_version": "1.0.0"
+  }
+}

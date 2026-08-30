@@ -17,6 +17,9 @@ from propertyscope_data_platform.clients import (
     DataStoreClient,
 )
 from propertyscope_data_platform.configuration import load_job_profiles
+from propertyscope_data_platform.contract_distribution import (
+    register_contract_distribution_routes,
+)
 from propertyscope_data_platform.data_product_routes import register_data_product_routes
 from propertyscope_data_platform.http_support import (
     forward,
@@ -131,6 +134,8 @@ def create_blueprint(
             return problem(422, "invalid_query", "Assistant capabilities take no query fields")
         return jsonify(capability_guide())
 
+    register_contract_distribution_routes(api, feature_root=resolved_feature_root, base=BASE)
+
     register_data_product_routes(
         api,
         store,
@@ -167,6 +172,7 @@ def create_blueprint(
     register_worker_routes(
         api,
         store,
+        consumers,
         internal=INTERNAL,
         ensure_import_operation=ensure_import_operation,
         finalize_candidate_release=finalize_candidate_release,

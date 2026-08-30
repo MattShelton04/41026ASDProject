@@ -7,6 +7,7 @@ members = [
     "agent-core",
     "ai-mode",
     "asd-project-workspace",
+    "shared-consumer-protocol",
     "shared-contracts",
     "shared-testkit",
     "student-1-feature",
@@ -855,6 +856,23 @@ wheels = [
 ]
 
 [[package]]
+name = "shared-consumer-protocol"
+version = "0.1.0"
+source = { editable = "shared/consumer-protocol" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "shared-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "pydantic", specifier = ">=2.11,<3" },
+    { name = "shared-contracts", editable = "shared/contracts" },
+]
+
+[[package]]
 name = "shared-contracts"
 version = "0.1.0"
 source = { editable = "shared/contracts" }
@@ -916,6 +934,11 @@ dependencies = [
     { name = "shared-contracts" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "shared-consumer-protocol" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "flask", specifier = ">=3.1,<4" },
@@ -926,6 +949,9 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "shared-contracts", editable = "shared/contracts" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "shared-consumer-protocol", editable = "shared/consumer-protocol" }]
 
 [[package]]
 name = "student-2-feature"

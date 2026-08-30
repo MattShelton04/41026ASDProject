@@ -6,9 +6,9 @@ source_key: nsw-government-schools
 adapter: {key: schools-csv, version: 1.0.0}
 refresh_strategy: full_snapshot
 supported_modes: [full_refresh, reprocess_cached]
-release_builder: {key: school-points, version: 2.0.0}
+release_builder: {key: school-points, version: 3.0.0}
 import_profile: {key: schools-master, version: 1.0.0}
-target: {feature: feature-3, contract: propertyscope.school-points.v1}
+target: {feature: feature-3, contract: propertyscope.school-points.v2}
 scope:
   profile: full-data
   all_records: true

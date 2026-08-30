@@ -147,7 +147,7 @@ class AcquisitionRunner:
         response.raise_for_status()
         task: dict[str, Any] | None = response.json().get("task")
         if task is None:
-            return False
+            return self._run_consumer_import_once()
         task_id = str(task["id"])
         lease_token = str(task["lease_token"])
         try:
@@ -180,6 +180,32 @@ class AcquisitionRunner:
         except Exception as exc:
             logger.exception("Run task %s (%s) failed", task_id, task.get("stage"))
             self._report_failure(task, lease_token, exc, retryable=False)
+        return True
+
+    def _run_consumer_import_once(self) -> bool:
+        """Advance one bounded delivery phase without tying work to a browser request."""
+        claim = self.client.post(
+            f"{self.settings.backend_url}/internal/data-platform/v1/worker/consumer-imports/claim",
+            headers=self._headers(),
+            json={
+                "worker_id": self.settings.worker_id,
+                "lease_seconds": self.settings.lease_seconds,
+            },
+        )
+        claim.raise_for_status()
+        operation = claim.json().get("operation")
+        if not isinstance(operation, dict):
+            return False
+        result = self.client.post(
+            f"{self.settings.backend_url}/internal/data-platform/v1/worker/consumer-imports/"
+            f"{operation['id']}/step",
+            headers=self._headers(),
+            json={
+                "worker_id": self.settings.worker_id,
+                "lease_token": operation["lease_token"],
+            },
+        )
+        result.raise_for_status()
         return True
 
     def _report_failure(

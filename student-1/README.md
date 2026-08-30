@@ -36,6 +36,12 @@ showcase path, see [Feature 1 marking evidence](MARKING_EVIDENCE.md).
 For the implemented provider catalogue, HTTP/artifact contracts, compatibility policy,
 publication/recovery lifecycle, dataset semantics, and future-registration procedure, see
 [the Release 0 data-product consumer guide](DATA_PRODUCT_CONSUMER_GUIDE.md).
+The supported `GET /api/data-platform/v1/product-contracts/v1` discovery resource and its
+digest-bound ZIP are the consumer entry point for producer-owned record schemas; consumers do not
+read repository paths. Releases use gzip-compressed NDJSON, and external publication is a
+durable consumer-import operation with a short connect phase and a fixed status resource. The final
+receipt is stored before activation is queued; the prior accepted release remains live until the
+atomic pointer switch completes.
 
 Version-controlled source/job configuration lives in `config/`, HTTP and release schemas in
 `contracts/`, and persistence-neutral Pydantic/domain policy in
@@ -215,7 +221,9 @@ approval matching lives in `approval.py`; and registered source acquisition live
 coordinates durable tasks and heartbeats rather than owning transport policy.
 
 The database service keeps one public transaction-owning facade in `repository.py`. Registered
-import lifecycle SQL is isolated behind its private `_import_operations.py` collaborator;
+import lifecycle SQL is isolated behind its private `_import_operations.py` collaborator; outbound
+publication delivery and crash-safe reconciliation are isolated behind
+`_consumer_import_operations.py`;
 generation-aware canonical-property discovery lives in `_property_reads.py`; and release metadata
 plus bounded immutable-generation projections live in `_release_records.py`. Each collaborator
 depends on a narrow owner protocol and is reached through the stable facade, so callers retain one

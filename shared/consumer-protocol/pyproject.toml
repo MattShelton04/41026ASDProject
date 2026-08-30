@@ -1,0 +1,20 @@
+[project]
+name = "shared-consumer-protocol"
+version = "0.1.0"
+description = "Domain-neutral verified publication import protocol for ASD services"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "httpx>=0.28,<1",
+    "pydantic>=2.11,<3",
+    "shared-contracts",
+]
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = "python"
+
+[tool.uv.sources]
+shared-contracts = { workspace = true }

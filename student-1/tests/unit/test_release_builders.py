@@ -21,6 +21,8 @@ from propertyscope_data_platform.configuration import (
 from propertyscope_data_platform.release_builders import (
     BuildContext,
     RegisteredReleaseBuilder,
+    ReleaseManifestV1,
+    ReleaseManifestV2,
     default_release_builders,
     resolve_release_builder,
     validate_release_job,
@@ -90,6 +92,10 @@ def _property_row(index: int = 1) -> dict[str, Any]:
     }
 
 
+def _built_records(product: Any) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in gzip.decompress(product.content).splitlines()]
+
+
 def test_release_cancellation_removes_partial_stream_artifact(tmp_path: Path) -> None:
     def cancelled_rows() -> Any:
         yield _property_row()
@@ -118,8 +124,8 @@ def test_existing_build_release_defect_is_closed_by_constructing_the_configured_
                 200,
                 json={
                     "context": _context().model_dump(mode="json"),
-                    "builder": {"key": "property-snapshot", "version": "2.0.0"},
-                    "target_contract": "propertyscope.property-snapshot.v1",
+                    "builder": {"key": "property-snapshot", "version": "3.0.0"},
+                    "target_contract": "propertyscope.property-snapshot.v2",
                     "release_id": release_id,
                 },
             )
@@ -172,7 +178,7 @@ def test_existing_build_release_defect_is_closed_by_constructing_the_configured_
 
     assert (rows_in, rows_out) == (1, 1)
     assert observed["artifact"]["artifact_kind"] == "release_export"
-    assert observed["artifact"]["schema_version"] == "propertyscope.property-snapshot.v1"
+    assert observed["artifact"]["schema_version"] == "propertyscope.property-snapshot.v2"
     assert observed["content"]["source_address_id"] == "FIX-001"
     assert observed["finalize"]["manifest"]["content_encoding"] == "gzip"
     assert observed["finalize"]["manifest"]["media_type"] == "application/x-ndjson"
@@ -181,7 +187,7 @@ def test_existing_build_release_defect_is_closed_by_constructing_the_configured_
         observed["finalize"]["manifest"]["content_sha256"] == observed["artifact"]["content_sha256"]
     )
     assert observed["finalize"]["manifest"]["record_count"] == 1
-    assert observed["finalize"]["schema_version"] == "propertyscope.property-snapshot.v1"
+    assert observed["finalize"]["schema_version"] == "propertyscope.property-snapshot.v2"
 
 
 def test_runner_rejects_an_inconsistent_complete_page_count(tmp_path: Path) -> None:
@@ -191,8 +197,8 @@ def test_runner_rejects_an_inconsistent_complete_page_count(tmp_path: Path) -> N
                 200,
                 json={
                     "context": _context(scope={"maximum_records": 1}).model_dump(mode="json"),
-                    "builder": {"key": "property-snapshot", "version": "2.0.0"},
-                    "target_contract": "propertyscope.property-snapshot.v1",
+                    "builder": {"key": "property-snapshot", "version": "3.0.0"},
+                    "target_contract": "propertyscope.property-snapshot.v2",
                     "release_id": "60000000-0000-0000-0000-000000000099",
                 },
             )
@@ -252,7 +258,7 @@ def test_discovery_persists_manifest_source_release_evidence(tmp_path: Path) -> 
 
 
 def test_registered_property_builder_is_byte_deterministic() -> None:
-    builder = resolve_release_builder("property-snapshot", "2.0.0")
+    builder = resolve_release_builder("property-snapshot", "3.0.0")
     rows = [_property_row(2), _property_row(1)]
 
     first = builder.build(_context(), rows, created_at=FIXED_TIME)
@@ -262,6 +268,29 @@ def test_registered_property_builder_is_byte_deterministic() -> None:
     assert first.manifest.content_sha256 == hashlib.sha256(first.content).hexdigest()
     assert first.manifest.record_count == 2
     assert first.manifest.byte_count == len(first.content)
+    assert first.manifest.media_type == "application/x-ndjson"
+    assert first.manifest.content_encoding == "gzip"
+    assert first.manifest.manifest_schema_version == "propertyscope.release-manifest.v2"
+    assert len(_built_records(first)) == first.manifest.record_count
+
+
+def test_manifest_parser_preserves_legacy_evidence_and_returns_current_revision() -> None:
+    legacy = json.loads(
+        (ROOT / "contracts/fixtures/release-manifest.valid.json").read_text("utf-8")
+    )
+    current = json.loads(
+        (ROOT / "contracts/fixtures/release-manifest.v2.valid.json").read_text("utf-8")
+    )
+
+    parsed_legacy = ReleaseManifestV1.model_validate(legacy)
+    parsed_current = ReleaseManifestV1.model_validate(current)
+
+    assert type(parsed_legacy) is ReleaseManifestV1
+    assert parsed_legacy.media_type == "application/json"
+    assert parsed_legacy.content_encoding is None
+    assert isinstance(parsed_current, ReleaseManifestV2)
+    assert parsed_current.media_type == "application/x-ndjson"
+    assert parsed_current.content_encoding == "gzip"
 
 
 def test_release_byte_bounds_cover_registered_scope_without_widening_other_products() -> None:
@@ -274,13 +303,13 @@ def test_release_byte_bounds_cover_registered_scope_without_widening_other_produ
 
 def test_property_builder_preserves_published_identity_without_inventing_precision() -> None:
     property_ref = "a0000000-0000-0000-0000-000000000001"
-    product = resolve_release_builder("property-snapshot", "2.0.0").build(
+    product = resolve_release_builder("property-snapshot", "3.0.0").build(
         _context(),
         [{**_property_row(), "property_ref": property_ref, "geocode_precision": None}],
         created_at=FIXED_TIME,
     )
 
-    record = json.loads(product.content)["records"][0]
+    record = _built_records(product)[0]
     assert record["property_ref"] == property_ref
     assert record["geocode_precision"] is None
 
@@ -293,7 +322,7 @@ def test_release_builder_registry_fails_closed() -> None:
 
 
 def test_sales_builder_preserves_revisions_nulls_and_source_aligned_fields() -> None:
-    builder = resolve_release_builder("property-sales", "3.0.0")
+    builder = resolve_release_builder("property-sales", "4.0.0")
     context = _context(
         dataset_id="nsw-psi-sales",
         target_feature="feature-2",
@@ -338,18 +367,18 @@ def test_sales_builder_preserves_revisions_nulls_and_source_aligned_fields() -> 
         created_at=FIXED_TIME,
     )
 
-    payload = json.loads(product.content)
-    assert [item["source_revision"] for item in payload["records"]] == [1, 2]
-    assert payload["records"][0]["price_aud"] is None
-    assert payload["records"][0]["property_ref"] is None
-    assert payload["records"][0]["area_original"] == "1.5"
-    assert payload["schema_version"] == "propertyscope.property-sales.v2"
-    assert payload["records"][0]["street_name"] == "HOPETOUN ST"
-    assert payload["records"][0]["zoning_code"] == "R3"
+    records = _built_records(product)
+    assert [item["source_revision"] for item in records] == [1, 2]
+    assert records[0]["price_aud"] is None
+    assert records[0]["property_ref"] is None
+    assert records[0]["area_original"] == "1.5"
+    assert records[0]["street_name"] == "HOPETOUN ST"
+    assert records[0]["zoning_code"] == "R3"
+    assert product.manifest.product_schema_version == "propertyscope.property-sales.v3"
 
 
 def test_crime_builder_preserves_exact_coverage_and_coverage_only_series() -> None:
-    builder = resolve_release_builder("crime-series", "2.0.0")
+    builder = resolve_release_builder("crime-series", "3.0.0")
     context = _context(
         dataset_id="bocsar-crime",
         target_feature="feature-3",
@@ -378,14 +407,14 @@ def test_crime_builder_preserves_exact_coverage_and_coverage_only_series() -> No
 
     product = builder.build(context, [coverage], created_at=FIXED_TIME)
 
-    series = json.loads(product.content)["records"][0]
+    series = _built_records(product)[0]
     assert series["observed_months"] == list(months)
     assert series["observations"] == []
     assert series["blank_means_observed_zero"] is True
 
 
 def test_crime_builder_accepts_current_official_coverage_history() -> None:
-    builder = resolve_release_builder("crime-series", "2.0.0")
+    builder = resolve_release_builder("crime-series", "3.0.0")
     context = _context(
         dataset_id="bocsar-crime",
         target_feature="feature-3",
@@ -413,11 +442,11 @@ def test_crime_builder_accepts_current_official_coverage_history() -> None:
 
     product = builder.build(context, [coverage], created_at=FIXED_TIME)
 
-    assert len(json.loads(product.content)["records"][0]["observed_months"]) == 375
+    assert len(_built_records(product)[0]["observed_months"]) == 375
 
 
 def test_school_builder_orders_codes_and_preserves_non_operational_status() -> None:
-    builder = resolve_release_builder("school-points", "2.0.0")
+    builder = resolve_release_builder("school-points", "3.0.0")
     context = _context(
         dataset_id="nsw-government-schools",
         target_feature="feature-3",
@@ -443,7 +472,7 @@ def test_school_builder_orders_codes_and_preserves_non_operational_status() -> N
         created_at=FIXED_TIME,
     )
 
-    records = json.loads(product.content)["records"]
+    records = _built_records(product)
     assert [item["school_code"] for item in records] == ["S0001", "S0002"]
     assert records[1]["operational_status"] == "Closed"
 
@@ -455,7 +484,7 @@ def test_school_builder_accepts_registered_lord_howe_footprint() -> None:
         import_profile="schools-master",
         redistribution_policy="approved-bounded-extract",
     )
-    product = resolve_release_builder("school-points", "2.0.0").build(
+    product = resolve_release_builder("school-points", "3.0.0").build(
         context,
         [
             {
@@ -474,7 +503,7 @@ def test_school_builder_accepts_registered_lord_howe_footprint() -> None:
         created_at=FIXED_TIME,
     )
 
-    assert json.loads(product.content)["records"][0]["longitude"] == 159.069032
+    assert _built_records(product)[0]["longitude"] == 159.069032
 
 
 def test_every_job_profile_matches_a_complete_release_builder_registration() -> None:
@@ -492,7 +521,7 @@ def test_every_job_profile_matches_a_complete_release_builder_registration() -> 
 
 
 def test_builder_bounds_fail_without_silent_truncation() -> None:
-    registered = resolve_release_builder("property-snapshot", "2.0.0")
+    registered = resolve_release_builder("property-snapshot", "3.0.0")
     row_bounded = RegisteredReleaseBuilder(replace(registered.spec, max_rows=1))
     byte_bounded = RegisteredReleaseBuilder(replace(registered.spec, max_bytes=10))
 
@@ -517,7 +546,7 @@ def test_builder_bounds_fail_without_silent_truncation() -> None:
             "target contract",
         ),
         (
-            {"target": {"feature": "feature-2", "contract": "propertyscope.property-snapshot.v1"}},
+            {"target": {"feature": "feature-2", "contract": "propertyscope.property-snapshot.v2"}},
             None,
             "target feature",
         ),
@@ -531,7 +560,7 @@ def test_incomplete_release_registrations_fail_closed(
     sources = load_source_register(ROOT / "config" / "source-register.yaml")
     original = profiles.get_profile("fixture-property-full")
     profile = type(original).model_validate({**original.model_dump(mode="python"), **change})
-    available = schemas if schemas is not None else {"propertyscope.property-snapshot.v1"}
+    available = schemas if schemas is not None else {"propertyscope.property-snapshot.v2"}
 
     with pytest.raises(ConfigurationError, match=message):
         validate_release_job(
@@ -558,8 +587,8 @@ def test_runner_rejects_generation_change_during_pagination(tmp_path: Path) -> N
                 200,
                 json={
                     "context": context.model_dump(mode="json"),
-                    "builder": {"key": "property-snapshot", "version": "2.0.0"},
-                    "target_contract": "propertyscope.property-snapshot.v1",
+                    "builder": {"key": "property-snapshot", "version": "3.0.0"},
+                    "target_contract": "propertyscope.property-snapshot.v2",
                     "release_id": release_id,
                 },
             )

@@ -303,6 +303,236 @@
       "title": "ReleaseManifestV1",
       "type": "object"
     },
+    "ReleaseManifestV2": {
+      "additionalProperties": false,
+      "properties": {
+        "builder_key": {
+          "title": "Builder Key",
+          "type": "string"
+        },
+        "builder_version": {
+          "title": "Builder Version",
+          "type": "string"
+        },
+        "byte_count": {
+          "minimum": 1,
+          "title": "Byte Count",
+          "type": "integer"
+        },
+        "candidate_generation_id": {
+          "format": "uuid",
+          "title": "Candidate Generation Id",
+          "type": "string"
+        },
+        "content_encoding": {
+          "const": "gzip",
+          "title": "Content Encoding",
+          "type": "string"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "dataset_id": {
+          "title": "Dataset Id",
+          "type": "string"
+        },
+        "download_permitted": {
+          "title": "Download Permitted",
+          "type": "boolean"
+        },
+        "entity_types": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entity Types",
+          "type": "array"
+        },
+        "geography_coverage": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Geography Coverage",
+          "type": "array"
+        },
+        "import_profile": {
+          "title": "Import Profile",
+          "type": "string"
+        },
+        "known_limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Known Limitations",
+          "type": "array"
+        },
+        "licence_url": {
+          "title": "Licence Url",
+          "type": "string"
+        },
+        "manifest_schema_version": {
+          "const": "propertyscope.release-manifest.v2",
+          "title": "Manifest Schema Version",
+          "type": "string"
+        },
+        "measures": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Measures",
+          "type": "array"
+        },
+        "media_type": {
+          "const": "application/x-ndjson",
+          "title": "Media Type",
+          "type": "string"
+        },
+        "normalisation_version": {
+          "title": "Normalisation Version",
+          "type": "string"
+        },
+        "product_schema_version": {
+          "title": "Product Schema Version",
+          "type": "string"
+        },
+        "publisher": {
+          "title": "Publisher",
+          "type": "string"
+        },
+        "record_count": {
+          "minimum": 0,
+          "title": "Record Count",
+          "type": "integer"
+        },
+        "record_count_definition": {
+          "title": "Record Count Definition",
+          "type": "string"
+        },
+        "redistribution_decision": {
+          "title": "Redistribution Decision",
+          "type": "string"
+        },
+        "release_id": {
+          "format": "uuid",
+          "title": "Release Id",
+          "type": "string"
+        },
+        "release_version": {
+          "title": "Release Version",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "source_effective_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Effective At"
+        },
+        "source_licence": {
+          "title": "Source Licence",
+          "type": "string"
+        },
+        "source_release": {
+          "title": "Source Release",
+          "type": "string"
+        },
+        "source_retrieved_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Retrieved At"
+        },
+        "supersedes_release_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Supersedes Release Id"
+        },
+        "target_feature": {
+          "pattern": "^feature-[1-5]$",
+          "title": "Target Feature",
+          "type": "string"
+        },
+        "temporal_coverage": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Temporal Coverage"
+        }
+      },
+      "required": [
+        "manifest_schema_version",
+        "product_schema_version",
+        "release_id",
+        "release_version",
+        "dataset_id",
+        "target_feature",
+        "builder_key",
+        "builder_version",
+        "import_profile",
+        "normalisation_version",
+        "publisher",
+        "source",
+        "source_release",
+        "candidate_generation_id",
+        "record_count",
+        "record_count_definition",
+        "content_sha256",
+        "media_type",
+        "content_encoding",
+        "byte_count",
+        "geography_coverage",
+        "measures",
+        "entity_types",
+        "source_licence",
+        "licence_url",
+        "redistribution_decision",
+        "download_permitted",
+        "known_limitations",
+        "created_at"
+      ],
+      "title": "ReleaseManifestV2",
+      "type": "object"
+    },
     "SafeError": {
       "additionalProperties": false,
       "properties": {
@@ -356,7 +586,15 @@
       "type": "string"
     },
     "manifest_json": {
-      "$ref": "#/$defs/ReleaseManifestV1"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReleaseManifestV1"
+        },
+        {
+          "$ref": "#/$defs/ReleaseManifestV2"
+        }
+      ],
+      "title": "Manifest Json"
     },
     "receipts": {
       "default": [],

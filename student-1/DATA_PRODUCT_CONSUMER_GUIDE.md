@@ -1,19 +1,25 @@
 # PropertyScope Release 0 data-product consumer guide
 
-This guide is the implemented provider contract for Feature 1. The normative machine-readable
-definitions are `contracts/data-platform-api.v1.openapi.yaml` and the versioned JSON Schemas in
-`contracts/`. Consumers use HTTP and immutable artifacts; they do not import Feature 1 Python or
+This guide is the implemented provider contract for Feature 1. The normative API definition is
+`contracts/data-platform-api.v1.openapi.yaml`. Consumers discover the supported producer-owned
+contract package at `GET /api/data-platform/v1/product-contracts/v1`, then download the immutable
+digest-bound archive from the returned
+`GET /api/data-platform/v1/product-contracts/v1/sha256/{digest}.zip` path. The packaged
+`product-contract-set.v1.json` index binds each runtime builder version to a fixed relative
+record-schema path and transport. The archive also contains both immutable manifest revisions:
+`release-manifest.v1` for historical accepted evidence and `release-manifest.v2` for current
+gzip-NDJSON releases. Consumers do not reach into backend source paths, import Feature 1 Python, or
 connect to its PostgreSQL/PostGIS database.
 
 ## Registered catalogue and readiness
 
 | Dataset | Builder | Contract | Target | Fixture proof | Redistribution |
 | --- | --- | --- | --- | --- | --- |
-| `fixture-property` | `property-snapshot 1.0.0` | `propertyscope.property-snapshot.v1` | Feature 1 | Executable offline | Download permitted, synthetic fixture |
-| `gnaf-nsw` | `property-snapshot 1.0.0` | `propertyscope.property-snapshot.v1` | Feature 1 | Executable fixture and optional official archive | Licence-controlled; public artifact returns 403 |
-| `nsw-psi-sales` | `property-sales 2.0.0` | `propertyscope.property-sales.v2` | Feature 2 | Complete cached/live transport | Bounded derived artifact |
-| `bocsar-crime` | `crime-series 1.0.0` | `propertyscope.crime-series.v1` | Feature 3 | Complete live transport | Approved bounded extract |
-| `nsw-government-schools` | `school-points 1.0.0` | `propertyscope.school-points.v1` | Feature 3 | Complete live transport | Approved bounded extract |
+| `fixture-property` | `property-snapshot 3.0.0` | `propertyscope.property-snapshot.v2` | Feature 1 | Executable offline | Download permitted, synthetic fixture |
+| `gnaf-nsw` | `property-snapshot 3.0.0` | `propertyscope.property-snapshot.v2` | Feature 1 | Executable fixture and optional official archive | Licence-controlled; public artifact returns 403 |
+| `nsw-psi-sales` | `property-sales 4.0.0` | `propertyscope.property-sales.v3` | Feature 2 | Complete cached/live transport | Bounded derived artifact |
+| `bocsar-crime` | `crime-series 3.0.0` | `propertyscope.crime-series.v2` | Feature 3 | Complete live transport | Approved bounded extract |
+| `nsw-government-schools` | `school-points 3.0.0` | `propertyscope.school-points.v2` | Feature 3 | Complete live transport | Approved bounded extract |
 
 Feature 4 and Feature 5 have no registered source jobs. Spatial database capability is not a data
 product, and this feature does not invent planning, hazard, zoning, strata, building, or dossier
@@ -21,10 +27,12 @@ data.
 
 ## Five-minute consumer quickstart
 
-A consuming feature implements exactly one callback route:
+A consuming feature first fetches and verifies the advertised digest-bound contract archive, then
+implements one import route and one operation-status route:
 
 ```text
 POST /api/data-import/v1/propertyscope-releases
+GET  /api/data-import/v1/propertyscope-releases/{operation_id}
 ```
 
 Feature 1 calls that route on the consumer backend origin configured by
@@ -33,26 +41,48 @@ Feature 1 calls that route on the consumer backend origin configured by
 for example `http://feature-3-backend:5000`; do not publish a database-service address. The callback
 must:
 
-1. Validate the JSON body with `contracts/consumer-publication-request.v1.schema.json`, which also
+1. Validate the JSON body with the package's
+   `consumer-publication-request.v1.schema.json`, which also
    validates the complete nested release manifest.
-2. Treat the `Idempotency-Key` header and body `idempotency_key` as the same durable operation key.
-   Replays return the original receipt without importing twice.
-3. Resolve `artifact_path` only against the consumer's configured Feature 1 origin, download without
-   following redirects, and validate bytes, SHA-256, product schema, release ID and record count.
-4. Import through the consumer's own database API in one atomic operation. The consumer owns its
-   domain validation and keeps normal reads independent of Feature 1.
-5. Return a body matching `contracts/consumer-publication-receipt.v1.schema.json`. A domain rejection
-   is a typed receipt—normally HTTP `422`, though Feature 1 also accepts a valid typed rejection in a
-   `2xx` response—and is preserved verbatim as evidence.
+2. Treat the `Idempotency-Key` header and body `idempotency_key` as one delivery key while issuing
+   and durably persisting a distinct consumer operation ID. Replays return that same operation.
+3. Return a queued/running or terminal body matching
+   `consumer-import-acknowledgement.v1.schema.json` within the five-second connect budget. The fixed
+   status route returns the same identity and evidence; it never redirects.
+4. Use `shared-consumer-protocol` to resolve `artifact_path` only against the configured Feature 1
+   origin, enforce explicit byte/record budgets, and stream-validate gzip-NDJSON, SHA-256, schema,
+   release identity and count.
+5. Import through the consumer's own database API in one atomic operation. The consumer owns its
+   domain validation and keeps normal reads independent of Feature 1. Terminal evidence is closed
+   and retained before the operation reports `accepted`, `rejected`, or `failed`.
 
-Minimal accepted response:
+Minimal queued response:
 
 ```json
 {
-  "consumer_operation_id": "the-request-idempotency-key",
+  "consumer_operation_id": "consumer-issued-operation-17",
+  "status": "queued",
+  "release_id": "60000000-0000-0000-0000-000000000099",
+  "dataset_id": "bocsar-crime",
+  "target": "feature-3",
+  "schema_version": "propertyscope.crime-series.v2",
+  "content_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "record_count": 125
+}
+```
+
+Minimal accepted terminal response:
+
+```json
+{
+  "consumer_operation_id": "consumer-issued-operation-17",
   "status": "accepted",
-  "schema_version": "propertyscope.crime-series.v1",
-  "content_sha256": "the-64-character-request-hash",
+  "release_id": "60000000-0000-0000-0000-000000000099",
+  "dataset_id": "bocsar-crime",
+  "target": "feature-3",
+  "schema_version": "propertyscope.crime-series.v2",
+  "content_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "record_count": 125,
   "rows_received": 125,
   "rows_accepted": 125,
   "rows_rejected": 0,
@@ -60,31 +90,12 @@ Minimal accepted response:
 }
 ```
 
-Minimal rejected response:
-
-```json
-{
-  "consumer_operation_id": "the-request-idempotency-key",
-  "status": "rejected",
-  "schema_version": "propertyscope.crime-series.v1",
-  "content_sha256": "the-64-character-request-hash",
-  "rows_received": 125,
-  "rows_accepted": 0,
-  "rows_rejected": 125,
-  "error": {
-    "code": "unsupported_period",
-    "message": "The release period is outside this feature's supported range",
-    "retryable": false,
-    "details": {"supported_from": "2024-01"}
-  }
-}
-```
-
-Copy-pasteable complete request and receipt examples live in
+Copy-pasteable complete request and legacy immediate-receipt examples live in
 `contracts/fixtures/consumer-publication-request.valid.json` and
 `contracts/fixtures/consumer-publication-receipt.valid.json`. The independent real-HTTP reference
-consumer is exercised by `uv run pytest student-1/tests/component/test_real_http_publication.py`;
-that test is the quickest executable onboarding proof and imports no Feature 1 production code.
+consumer is exercised by `uv run pytest student-1/tests/component/test_real_http_publication.py`.
+It consumes runner-produced bytes through the Shared helper and producer-owned schema package; it
+does not import Feature 1 implementation modules in the consumer boundary.
 
 ## Stable consumer API
 
@@ -101,15 +112,16 @@ All routes below are relative to `/api/data-platform/v1` and are described in Op
 - `GET /dataset-releases/{release_id}` composes immutable release state, receipts, quality results,
   quality summary, and accepted predecessor evidence.
 - `GET /dataset-releases/{release_id}/manifest` returns the manifest for exactly that release.
-- `GET /dataset-releases/{release_id}/artifact` returns only a verified, at-most-50 MB
-  `release_export` permitted by the source policy. Accepted artifacts include `Digest`, `ETag`,
-  `Content-Type`, `Content-Disposition`, and immutable cache headers.
+- `GET /dataset-releases/{release_id}/artifact` returns the exact verified `release_export`
+  permitted by the source policy. Its bytes must equal the manifest `byte_count`; consumers enforce
+  their separately signed-off compressed and expanded byte budgets. Accepted artifacts include
+  `Digest`, `ETag`, `Content-Type`, `Content-Disposition`, and immutable cache headers.
 - `GET /dataset-releases/{release_id}/records` is a bounded operator preview. It is not the
   consumer product or an export mechanism.
 - `POST /dataset-releases/{release_id}/submit-review`, `/publish`, and `/reject` implement the
   version-checked review lifecycle. Publish also requires an `Idempotency-Key` and explicit human
-  approval. A valid publish returns `202` with a durable background activation; the prior accepted
-  version remains live until that operation succeeds.
+  approval. A valid publish returns `202` with a durable consumer import or accepted-version
+  activation; the prior accepted version remains live until the complete workflow succeeds.
 - Property identity consumers use `GET /properties/search`, `/properties/{property_ref}`,
   `/properties/{property_ref}/map-context`, `/properties/{property_ref}/coverage`, and
   `/properties/{property_ref}/report-section`.
@@ -137,49 +149,81 @@ and candidate-generation ID, and a count or generation change aborts constructio
 no database credentials. Candidate data does not enter accepted property search. The public API
 does not advertise a draft as current.
 
-Publication sends a versioned request containing release and dataset IDs, schema, exact byte
-SHA-256, record count, manifest, provider-relative artifact path, and idempotency key. The consumer
-resolves that path against its configured Feature 1 origin, downloads without redirects, validates
-the schema/hash/count, and returns a typed receipt. Feature 1 durably records that receipt before
-the accepted-pointer transaction. A rejected, malformed, mismatched, unavailable, or timed-out
-consumer leaves the predecessor active. Feature 1 queues a leased activation and returns `202`
-after retaining an accepted receipt. Accepted property reads resolve the immutable warehouse
-generation selected by the accepted pointer, so candidate address fields cannot leak through a
-global registry update. The loader's final pointer transaction contains no source-scale DML.
+Publication creates or resumes a durable consumer-import operation containing the immutable release
+and dataset IDs, target, schema, exact byte SHA-256, record count, manifest, provider-relative
+artifact path, and delivery idempotency key. The HTTP connect and status exchanges each have a
+five-second timeout, reject redirects, and accept at most 64 KiB of response JSON. They return a
+genuine consumer-issued operation ID and closed evidence; Feature 1 never relabels its delivery key
+as that ID. The browser receives `202` plus a fixed same-origin status resource and never waits for
+the artifact import.
 
-For Feature 1's own property products there is no separate downstream service. Before recording
-its local receipt, the provider re-reads the registered `release_export` from content-addressed
-storage and verifies the manifest, artifact registration, exact bytes, product schema/release ID,
-and record count. It does not synthesize acceptance from release metadata alone.
+The consumer resolves the artifact path against its configured Feature 1 origin and applies explicit
+compressed-byte, expanded-byte, line, and record budgets before and during streaming. Complete
+products are not truncated to a producer row/byte ceiling: the signed-off consumer capacity must be
+at least the exact manifest `byte_count` and `record_count`, with its own expansion limit. The Shared
+consumer protocol rejects a declaration over those configured limits before download and then
+checks the compressed bytes, SHA-256, gzip framing, NDJSON records, product schema, and count before
+an atomic import handoff. A leased Feature 1 worker polls durable progress and makes at most five
+delivery attempts; an expired lease resumes the recorded phase rather than restarting accepted work.
+
+Feature 1 records the final receipt before queueing activation. A rejected, malformed, mismatched,
+unavailable, timed-out, or exhausted operation leaves the predecessor active. Accepted property
+reads resolve the immutable warehouse generation selected by the accepted pointer, so candidate
+address fields cannot leak through a global registry update. The loader's final pointer transaction
+contains no source-scale DML.
+
+For Feature 1's own property products there is no separate downstream service. The short
+self-publication path verifies the durable manifest, artifact ledger, content-addressed storage key,
+exact registered bytes, product schema/release ID, and record count established during construction.
+The activation loader later streams the physical artifact and rechecks its exact bytes and SHA-256
+before materialisation. Self-publication persists its own operation identity; it does not fabricate
+one from the browser idempotency key or synthesize acceptance from release metadata alone.
 
 Replaying an operation that produced an accepted receipt returns that retained receipt and
-reconciles the durable activation without a duplicate consumer import. A recorded rejected,
-failed, or unavailable attempt is immutable; after correcting the cause, the operator starts a new
-publication operation with a new idempotency key. The same target/key with different release evidence conflicts. A consumer that missed the push calls
-the accepted-product endpoint repeatedly; lookups are stable and do not mutate state.
+reconciles the durable activation without a duplicate download. A new delivery key for the same
+release, dataset, target, schema, checksum and record count resumes the original durable operation;
+mismatched evidence conflicts. A rejected, failed, or unavailable operation remains inspectable and
+can retry only through its bounded durable lifecycle. A consumer that missed the push calls the
+accepted-product endpoint repeatedly; lookups are stable and do not mutate state.
 
 Accepted artifacts and manifests are immutable. Corrections are new releases with a supersession
 reference. Cached reprocessing creates a new candidate from retained verified evidence and cannot
 replace an accepted artifact in place.
 
-## Envelope, hashing, and downstream product projections
+## Gzip-NDJSON framing, hashing, and downstream product projections
 
-Every product is UTF-8 JSON with no byte-order mark, compression, or trailing newline. Object keys
-are lexicographically sorted, separators are `,` and `:`, non-ASCII text is retained as UTF-8, and
-NaN/infinity are forbidden. Builders make record ordering explicit. Null source values remain JSON
-`null`; dates are ISO `YYYY-MM-DD`; decimals that require source fidelity are canonical strings.
-SHA-256 covers the exact downloadable bytes, not a re-serialised object. The manifest count is the
-number of records in the product envelope and its byte count is the exact artifact length.
+Every downloadable product uses media type `application/x-ndjson` with content encoding `gzip`.
+After decompression it is UTF-8 NDJSON with no byte-order mark: each non-empty line is exactly one
+record matching the schema selected from `product-contract-set.v1.json`, and the final record has a
+newline. There is no outer product envelope. Within each record, object keys are lexicographically
+sorted, separators are `,` and `:`, non-ASCII text is retained as UTF-8, and NaN/infinity are
+forbidden. Builders make record ordering explicit. Null source values remain JSON `null`; dates are
+ISO `YYYY-MM-DD`; decimals that require source fidelity are canonical strings. SHA-256 and
+`byte_count` cover the exact compressed downloadable bytes. `record_count` is the number of
+decompressed non-empty NDJSON records.
 
-Release 0 uses one immutable JSON artifact per downstream consumer release. Builder row and byte
-projections describe that separately published artifact; they do not limit the complete generation
-imported into the Feature 1 warehouse. PSI retains explicit downstream years and its partition year
-even when business dates are null. Exceeding a consumer projection fails release construction and
-does not alter or truncate the imported candidate generation. There is no silent truncation and no
-multipart or compressed-product fallback.
+Release 0 uses one immutable gzip-NDJSON artifact per downstream consumer release. Builder row and
+byte projections describe that separately published artifact; they do not limit the complete
+generation imported into the Feature 1 warehouse. PSI retains explicit downstream years and its
+partition year even when business dates are null. Exceeding a consumer projection fails release
+construction and does not alter or truncate the imported candidate generation. There is no silent
+truncation or multipart fallback.
 
-Schemas are closed (`additionalProperties: false`). Additive record fields therefore require a
-new declared schema revision and builder registration; silently changing v1 is not compatible.
+Record schemas are closed (`additionalProperties: false`). The v1 contract-set compatibility
+policy is `closed-record-schemas-require-new-version-for-shape-changes`: additive, removed, renamed,
+or type-changed record fields require a new declared schema revision and builder registration;
+silently changing v1 is not compatible. A consumer pins a schema version from the package index and
+may support old and new versions concurrently during its own migration.
+The package index lists current gzip-NDJSON record contracts separately from legacy envelope
+contracts. Legacy `property-snapshot.v1`, `property-sales.v2`, `crime-series.v1`, and
+`school-points.v1` schemas remain unchanged for accepted-release evidence and read compatibility;
+new builders emit only v2/v3 record contracts. Legacy entries are not registrations for producing
+new releases.
+Likewise, `propertyscope.release-manifest.v1` remains unchanged and may describe accepted legacy
+`application/json` evidence with no content encoding. Current builders emit only
+`propertyscope.release-manifest.v2`, whose closed schema requires `application/x-ndjson` and
+`gzip`. Release-detail and publication-request contracts accept either immutable manifest revision
+so a retained accepted release remains inspectable and replayable without weakening new output.
 Existing routes may receive additive response-envelope fields, which consumers must ignore unless
 their selected JSON Schema says otherwise. Enum meaning is never changed in place. A breaking
 endpoint change requires a new API version and a documented migration period.
@@ -201,12 +245,13 @@ integration surface allowed by policy.
 The product preserves source business key and revision, source era, district/property/dealing IDs,
 nullable contract/settlement dates, nullable AUD price, original and square-metre area strings,
 nullable `property_ref`, match tier/confidence/geographic precision, hashes, and provenance.
-Version 2 additionally preserves the official source/download identifiers, historical valuation
-number, property name, unit/house/street/locality/postcode fields, land description/dimensions,
+Version 3 retains the Version 2 fields that preserve official source/download identifiers,
+historical valuation number, property name, unit/house/street/locality/postcode fields, land description/dimensions,
 zoning, nature, primary purpose, strata lot, component, sale code and interest-of-sale fields.
 Feature 1 derives conservative street components and assigns an exact-address `property_ref` only
 when those components resolve to one unique accepted registry property; ambiguous rows remain
-`MISS`. The pre-deployment v1 draft was removed rather than retained as a second supported contract.
+`MISS`. The pre-deployment v1 draft was removed rather than retained as a second supported contract;
+the accepted v2 envelope remains available as legacy evidence rather than being rewritten in place.
 Ordering is business key then revision, and a duplicate key/revision fails construction. Unmatched,
 nominal, unusual, part-sale, bulk, and future-dated source records are not silently converted into
 analytics. Feature 2 owns exclusions, comparable semantics, medians, trends, valuations, forecasts,
@@ -223,7 +268,7 @@ Release 0 uses verified BOCSAR **postcode** geography. The registered scopes and
 fixtures use `geography_kind=postcode`; no postcode-to-suburb translation occurs. The builder
 retains one exact sorted `observed_months` universe per geography/category, first/last/count,
 completeness hash, `blank_means_observed_zero`, sparse positive observations, and coverage-only
-series. The v1 coverage capacity is 600 months; the August 2026 official archives currently
+series. The v2 coverage capacity is 600 months; the August 2026 official archives currently
 contain 372–375 months from 1995 onward, so this is a growth guard rather than a truncation rule.
 An absent sparse observation means zero only when that exact month is present and the flag
 is true. Outside-coverage months are unavailable, not zero. Feature 1 does not calculate rates,

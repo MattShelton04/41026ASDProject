@@ -1,0 +1,10 @@
+{
+  "consumer_operation_id": "consumer-issued-operation-17",
+  "status": "queued",
+  "release_id": "60000000-0000-0000-0000-000000000099",
+  "dataset_id": "bocsar-crime",
+  "target": "feature-3",
+  "schema_version": "propertyscope.crime-series.v1",
+  "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "record_count": 125
+}

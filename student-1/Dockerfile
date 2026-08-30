@@ -13,6 +13,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY ai-services/agent-core/pyproject.toml ai-services/agent-core/pyproject.toml
 COPY ai-services/ai-mode/pyproject.toml ai-services/ai-mode/pyproject.toml
+COPY shared/consumer-protocol/pyproject.toml shared/consumer-protocol/pyproject.toml
 COPY shared/contracts/pyproject.toml shared/contracts/pyproject.toml
 COPY shared/testkit/pyproject.toml shared/testkit/pyproject.toml
 COPY student-1/pyproject.toml student-1/pyproject.toml

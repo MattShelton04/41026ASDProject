@@ -37,6 +37,8 @@ def test_named_stages_are_composable_and_check_preserves_order() -> None:
     assert check.commands_for("check") == expected
     assert "--check" in check.commands_for("format")[0]
     assert "--check" not in check.commands_for("format", write=True)[0]
+    assert "shared/consumer-protocol/tests" in check.CORE_TEST_PATHS
+    assert "--cov=shared_consumer_protocol" in check.commands_for("test")[0]
     assert all(command[:2] == ("node", "--check") for command in check.compile_commands())
 
 

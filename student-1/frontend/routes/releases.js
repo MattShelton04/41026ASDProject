@@ -2,8 +2,18 @@ import { collection, entity, newRequestId, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js";
 import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js";
-import { createPublicationAttemptKeys } from "../core/publication.js";
-import { publicationSuccessMessage, reconcilePublicationTimeout } from "./release-publication.js";
+import {
+  activePublicationOperation,
+  createPublicationAttemptKeys,
+  nextPublicationPollDelay,
+  PUBLICATION_POLL_LIMIT,
+  reconcilePublication,
+} from "../core/publication.js";
+import {
+  consumerImportStatusPath,
+  publicationSuccessMessage,
+  reconcilePublicationTimeout,
+} from "./release-publication.js";
 import { runDialogForm } from "../components/dialogs.js";
 import { formField, filterToolbar } from "../components/forms.js";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
@@ -70,6 +80,64 @@ export function createReleaseRoutes({
   view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender,
 }) {
   const publicationKeys = createPublicationAttemptKeys(newRequestId);
+  const publicationStatusPaths = new Map();
+  const publicationPolling = {
+    timer: null, attempts: 0, releaseId: "", statusPath: "", routeEpoch: null, outcome: "unknown",
+  };
+
+  function stopPublicationPolling({ reset = false } = {}) {
+    clearTimeout(publicationPolling.timer);
+    publicationPolling.timer = null;
+    if (reset) {
+      publicationPolling.attempts = 0;
+      publicationPolling.releaseId = "";
+      publicationPolling.statusPath = "";
+      publicationPolling.routeEpoch = null;
+      publicationPolling.outcome = "unknown";
+    }
+  }
+
+  async function refreshPublicationStatus() {
+    const { releaseId, statusPath, routeEpoch } = publicationPolling;
+    if (!releaseId || !routeEpoch?.isCurrent() || document.hidden) return;
+    publicationPolling.timer = null;
+    try {
+      if (statusPath) {
+        const { body } = await request(statusPath);
+        publicationPolling.outcome = reconcilePublication(body);
+      }
+      publicationPolling.attempts += 1;
+      if (!routeEpoch.isCurrent()) return;
+      await renderReleaseDetail(releaseId, routeEpoch, { polling: true });
+    } catch (error) {
+      if (error?.name === "AbortError" || !routeEpoch.isCurrent()) return;
+      publicationPolling.attempts += 1;
+      schedulePublicationPoll(releaseId, statusPath, routeEpoch, "pending");
+    }
+  }
+
+  function schedulePublicationPoll(releaseId, statusPath, routeEpoch, outcome) {
+    stopPublicationPolling();
+    publicationPolling.releaseId = releaseId;
+    publicationPolling.statusPath = statusPath;
+    publicationPolling.routeEpoch = routeEpoch;
+    publicationPolling.outcome = outcome;
+    const delay = nextPublicationPollDelay(
+      publicationPolling.attempts,
+      outcome,
+      { visible: !document.hidden },
+    );
+    if (delay === null) return;
+    publicationPolling.timer = setTimeout(refreshPublicationStatus, delay);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden || !publicationPolling.routeEpoch?.isCurrent()) return;
+    if (publicationPolling.outcome !== "pending"
+      || publicationPolling.attempts >= PUBLICATION_POLL_LIMIT) return;
+    stopPublicationPolling();
+    refreshPublicationStatus();
+  });
 
   async function publishReviewedRelease(release, comment) {
     const key = publicationKeys.acquire(release);
@@ -80,6 +148,13 @@ export function createReleaseRoutes({
         headers: { "Idempotency-Key": key.value },
       });
       showToast(`${publicationSuccessMessage(body)}. Request ID ${requestId}`);
+      const operation = body?.consumer_import;
+      if (operation?.id && reconcilePublication(body) === "pending") {
+        publicationStatusPaths.set(
+          release.id,
+          consumerImportStatusPath(release.id, operation.id, body.status_path),
+        );
+      }
       publicationKeys.clear(key.identity);
       return body;
     } catch (error) {
@@ -132,6 +207,7 @@ export function createReleaseRoutes({
   }
 
   async function renderReleases(id = "") {
+    stopPublicationPolling({ reset: true });
     const routeEpoch = generationGuard.capture();
     loading("Loading release evidence");
     try {
@@ -164,12 +240,20 @@ export function createReleaseRoutes({
     }
   }
 
-  async function renderReleaseDetail(id, routeEpoch) {
+  async function renderReleaseDetail(id, routeEpoch, { polling = false } = {}) {
+    if (!polling) publicationPolling.attempts = 0;
+    stopPublicationPolling();
     const { body, requestId } = await request(`dataset-releases/${id}`);
     const release = entity(body, "release");
     const receipts = body.receipts || [];
     const activations = body.activations || [];
+    const consumerImports = body.consumer_imports || [];
+    const activeConsumerImport = activePublicationOperation({ consumer_imports: consumerImports });
     const activeActivation = [...activations].reverse().find((item) => ["queued", "claimed", "running", "interrupted"].includes(item.status)) || null;
+    const publicationOutcome = reconcilePublication({
+      release, activations, consumer_imports: consumerImports,
+    });
+    const publicationInProgress = publicationOutcome === "pending";
     let manifest = release.manifest_json || body.manifest;
     let manifestError = null;
     if (!manifest) {
@@ -218,7 +302,7 @@ export function createReleaseRoutes({
       });
       if (ok) rerender();
     }));
-    if (["review", "review_required", "awaiting_review"].includes(release.status) && !blocking && !activeActivation) actions.push(button("Publish", "button primary", async () => {
+    if (["review", "review_required", "awaiting_review"].includes(release.status) && !blocking && !publicationInProgress) actions.push(button("Publish", "button primary", async () => {
       const comment = requiredReviewText("Approval note");
       const ok = await confirmAction({
         title: "Publish this version?",
@@ -232,7 +316,7 @@ export function createReleaseRoutes({
       });
       if (ok) rerender();
     }));
-    if (["candidate", "review", "review_required", "awaiting_review"].includes(release.status) && !activeActivation) actions.push(button("Reject", "button danger", async () => {
+    if (["candidate", "review", "review_required", "awaiting_review"].includes(release.status) && !publicationInProgress) actions.push(button("Reject", "button danger", async () => {
       const reason = requiredReviewText("Reason for rejection");
       const ok = await confirmAction({
         title: "Reject this version?",
@@ -254,7 +338,10 @@ export function createReleaseRoutes({
     const lifecycleNotice = el("div", `notice ${lifecycle.tone}`.trim());
     append(lifecycleNotice, badge(release.status), document.createTextNode(` ${lifecycle.message}`));
     append(view, lifecycleNotice);
-    if (activeActivation) append(view, el("div", "notice info", `Publishing continues in the database loader (${displayName(activeActivation.status)}). The currently published version remains live until materialisation and the final pointer switch succeed.`));
+    if (activeConsumerImport && activeConsumerImport.status !== "activation_queued") append(view, el("div", "notice info", `Consumer delivery continues (${displayName(activeConsumerImport.phase_key || activeConsumerImport.status)}). The currently published version remains live until the consumer accepts this version and activation succeeds.`));
+    else if (activeActivation) append(view, el("div", "notice info", `Accepted-version activation continues (${displayName(activeActivation.status)}). The currently published version remains live until the final pointer switch succeeds.`));
+    else if (activeConsumerImport?.status === "activation_queued") append(view, el("div", "notice info", "The consumer accepted this version and accepted-version activation is queued. The currently published version remains live until the final pointer switch succeeds."));
+    if (publicationInProgress && publicationPolling.attempts >= PUBLICATION_POLL_LIMIT) append(view, el("div", "notice warning", "Automatic publication updates paused after a bounded reconciliation period. Reload this page to continue checking the durable operation."));
     if (blocking) append(view, el("div", "notice negative", "Required data checks failed, so this version cannot be published. Review the failures, then retry or reject it."));
     const layout = el("div", "detail-layout");
     const releaseBody = el("div");
@@ -275,6 +362,20 @@ export function createReleaseRoutes({
     if (!receipts.length) append(receiptBody, el("p", "", "No consumer publication receipts recorded."));
     for (const receipt of receipts) append(receiptBody, detailList([["Research area", researchAreaLabel(receipt.target_feature)], ["Status", badge(receipt.status)], ["Rows received", formatNumber(receipt.rows_accepted)], ["Request ID", el("code", "mono", receipt.request_id || requestId)], ["Failure details", receipt.error_json ? technicalDetails(receipt.error_json, "Inspect failure") : "None recorded"]]));
     append(side, panel("Publication receipts", "Recorded outcomes from each destination", receiptBody));
+    const consumerImportBody = el("div");
+    if (!consumerImports.length) append(consumerImportBody, el("p", "", "No consumer import operations recorded."));
+    for (const operation of [...consumerImports].reverse()) append(consumerImportBody, detailList([
+      ["Status", badge(operation.status)],
+      ["Phase", displayName(operation.phase_key || "Not recorded")],
+      ["Consumer status", displayName(operation.remote_status || "Not reported")],
+      ["Attempt", formatNumber(operation.attempt_number)],
+      ["Requested", formatDate(operation.requested_at)],
+      ["Started", formatDate(operation.started_at)],
+      ["Finished", formatDate(operation.finished_at)],
+      ["Budgets", operation.budgets ? technicalDetails(operation.budgets, "Inspect limits") : "Not recorded"],
+      ["Failure details", operation.error_json ? technicalDetails(operation.error_json, "Inspect failure") : "None recorded"],
+    ]));
+    append(side, panel("Consumer import operations", "Durable delivery, receipt, and activation queueing", consumerImportBody));
     const activationBody = el("div");
     if (!activations.length) append(activationBody, el("p", "", "No background publication operations recorded."));
     for (const activation of [...activations].reverse()) append(activationBody, detailList([["Status", badge(activation.status)], ["Attempt", formatNumber(activation.attempt_number)], ["Requested", formatDate(activation.requested_at)], ["Materialised", formatDate(activation.materialized_at)], ["Finished", formatDate(activation.finished_at)], ["Failure details", activation.error_json ? technicalDetails(activation.error_json, "Inspect failure") : "None recorded"]]));
@@ -284,6 +385,15 @@ export function createReleaseRoutes({
     if (previewResult.status === "fulfilled") append(view, releasePreviewPanel(id, previewResult.value.body));
     else append(view, panel("Dataset preview", "Records in this version", el("div", "notice warning", "A record preview is unavailable for this dataset. Version details and data checks remain available.")));
     append(view, renderReleaseReviewEvidence(release, predecessor, qualityResults, { qualityUnavailable: qualityResult.status === "rejected", predecessorUnavailable: acceptedResult.status === "rejected" }));
+    const newestConsumerImport = [...consumerImports].reverse()[0] || null;
+    const statusPath = newestConsumerImport?.id
+      ? consumerImportStatusPath(
+        id,
+        newestConsumerImport.id,
+        publicationStatusPaths.get(id) || "",
+      )
+      : "";
+    schedulePublicationPoll(id, statusPath, routeEpoch, publicationOutcome);
   }
 
   function requiredReviewText(label) {

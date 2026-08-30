@@ -12,6 +12,7 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CORE_TEST_PATHS = (
     "shared/contracts/tests",
+    "shared/consumer-protocol/tests",
     "shared/testkit/tests",
     "ai-services/agent-core/tests",
     "ai-services/ai-mode/tests",
@@ -49,6 +50,7 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "-m",
         "mypy",
         "shared/contracts/python/shared_contracts",
+        "shared/consumer-protocol/python/shared_consumer_protocol",
         "shared/testkit/python/shared_testkit",
         "ai-services/agent-core/src/agent_core",
         "ai-services/ai-mode/src/ai_mode",
@@ -74,6 +76,7 @@ TEST_COMMANDS: tuple[Command, ...] = (
         "--cov=agent_core",
         "--cov=ai_mode",
         "--cov=shared_contracts",
+        "--cov=shared_consumer_protocol",
         "--cov=shared_testkit",
         "--cov-report=term-missing",
         *CORE_TEST_PATHS,

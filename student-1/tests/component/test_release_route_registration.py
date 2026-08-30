@@ -50,6 +50,13 @@ EXPECTED_RELEASE_AND_PRODUCT_ROUTES: dict[str, tuple[str, frozenset[str]]] = {
         "propertyscope-data-platform.release_publish",
         frozenset({"POST"}),
     ),
+    (
+        "/api/data-platform/v1/dataset-releases/<uuid:release_id>"
+        "/consumer-imports/<uuid:operation_id>"
+    ): (
+        "propertyscope-data-platform.release_consumer_import",
+        frozenset({"GET"}),
+    ),
     "/api/data-platform/v1/dataset-releases/<uuid:release_id>/reject": (
         "propertyscope-data-platform.release_reject",
         frozenset({"POST"}),
