@@ -62,7 +62,7 @@ class ConnectedStore(PropertyScopeStore):
         runtime_registry: RuntimeRegistry | None = None,
     ) -> None:
         self.test_connection = connection
-        self._runtime_registry = runtime_registry
+        self._runtime_registry = cast(RuntimeRegistry, runtime_registry)
 
     @contextmanager
     def connection(self) -> Iterator[Any]:

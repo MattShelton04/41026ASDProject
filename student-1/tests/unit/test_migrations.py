@@ -229,7 +229,10 @@ class SchemaConnection:
             )
             if self.reverse_relation_rows:
                 rows.reverse()
-        self.rows = rows if self.dict_rows else [tuple(item.values()) for item in rows]
+        materialized: list[dict[str, object] | tuple[object, ...]] = (
+            list(rows) if self.dict_rows else [tuple(item.values()) for item in rows]
+        )
+        self.rows = materialized
         return self
 
     def fetchall(self) -> list[dict[str, object] | tuple[object, ...]]:
