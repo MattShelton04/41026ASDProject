@@ -206,6 +206,45 @@ def _stage_typed_bocsar_rows(
     connection.execute("ANALYZE propertyscope_bocsar_import_stage")
 
 
+def test_cancel_intent_update_is_not_blocked_by_import_foreign_key_share(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    run_id = uuid.uuid4()
+    connection.execute(
+        """
+        CREATE SCHEMA ops;
+        CREATE TABLE ops.ingestion_run (
+            id UUID PRIMARY KEY,status TEXT NOT NULL,cancel_requested_at TIMESTAMPTZ,
+            version INT NOT NULL
+        );
+        CREATE TABLE warehouse.cancel_probe (
+            id UUID PRIMARY KEY,ingestion_run_id UUID NOT NULL REFERENCES ops.ingestion_run(id)
+        );
+        """
+    )
+    connection.execute("INSERT INTO ops.ingestion_run VALUES (%s,'staging',NULL,1)", (run_id,))
+    connection.commit()
+    blocker = psycopg.connect(_database_url(str(connection.info.dbname)), row_factory=dict_row)
+    canceller = psycopg.connect(_database_url(str(connection.info.dbname)), row_factory=dict_row)
+    try:
+        blocker.execute("INSERT INTO warehouse.cancel_probe VALUES (%s,%s)", (uuid.uuid4(), run_id))
+        canceller.execute("SET LOCAL statement_timeout='1s'")
+        started = time.monotonic()
+        row = canceller.execute(
+            """UPDATE ops.ingestion_run SET cancel_requested_at=clock_timestamp(),version=version+1
+            WHERE id=%s AND status NOT IN ('succeeded','failed','cancelled') RETURNING *""",
+            (run_id,),
+        ).fetchone()
+        canceller.commit()
+        assert row is not None and row["cancel_requested_at"] is not None
+        assert time.monotonic() - started < 1
+    finally:
+        blocker.rollback()
+        blocker.close()
+        canceller.close()
+
+
 def test_invalid_final_row_rolls_back_stage_and_preserves_predecessor(
     isolated_postgres: psycopg.Connection[dict[str, object]],
 ) -> None:

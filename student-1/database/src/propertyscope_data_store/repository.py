@@ -696,7 +696,7 @@ class PropertyScopeStore:
         now = datetime.now(UTC)
         with self.connection() as connection:
             run = connection.execute(
-                "SELECT * FROM ops.ingestion_run WHERE id=%s FOR UPDATE", (run_id,)
+                "SELECT * FROM ops.ingestion_run WHERE id=%s", (run_id,)
             ).fetchone()
             if run is None:
                 raise NotFoundError("record does not exist")
@@ -706,6 +706,22 @@ class PropertyScopeStore:
                 return _run_projection(_dict(run))
             if run["status"] in TERMINAL_RUN_STATES:
                 raise ConflictError("terminal run cannot be cancelled")
+            requested = connection.execute(
+                """UPDATE ops.ingestion_run SET
+                cancel_requested_at=COALESCE(cancel_requested_at,%s),version=version+1
+                WHERE id=%s AND status NOT IN ('succeeded','failed','cancelled') RETURNING *""",
+                (now, run_id),
+            ).fetchone()
+            connection.commit()
+        if requested is None:
+            current = self.get_run(run_id)
+            if current["status"] == "cancelled" and current["cancel_requested_at"] is not None:
+                return current
+            raise ConflictError("terminal run cannot be cancelled")
+        # Commit cancellation intent before touching child rows. Source-scale imports hold
+        # foreign-key key-share locks on the run for their whole candidate transaction; a
+        # SELECT FOR UPDATE here would make supported cancellation wait behind materialisation.
+        with self.connection() as connection:
             connection.execute(
                 """UPDATE ops.run_task SET status='cancelled',finished_at=%s,updated_at=%s,
                 lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,

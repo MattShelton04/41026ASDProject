@@ -406,6 +406,7 @@ def test_queued_cancellation_is_immediately_terminal_and_cancels_pending_tasks()
     connection = ScriptedConnection(
         [
             {"id": run_id, "status": "queued"},
+            {"id": run_id, "status": "queued"},
             None,
             None,
             {"count": 0},
@@ -422,10 +423,12 @@ def test_queued_cancellation_is_immediately_terminal_and_cancels_pending_tasks()
 
     assert run["status"] == "cancelled"
     assert run["execution_semantics"] == "new_pipeline_run"
-    task_update = connection.queries[1]
+    assert "FOR UPDATE" not in connection.queries[0]
+    assert "cancel_requested_at=COALESCE" in connection.queries[1]
+    task_update = connection.queries[2]
     assert "status IN ('pending','retry_wait')" in task_update
     assert "SET status='cancelled'" in task_update
-    run_update_parameters = connection.parameters[4]
+    run_update_parameters = connection.parameters[5]
     assert run_update_parameters is not None
     assert run_update_parameters[4] is True
 
@@ -457,6 +460,7 @@ def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> N
     connection = ScriptedConnection(
         [
             {"id": run_id, "status": "acquiring"},
+            {"id": run_id, "status": "acquiring"},
             None,
             None,
             {"count": 1},
@@ -472,7 +476,9 @@ def test_active_cancellation_remains_cooperative_until_the_lease_finishes() -> N
     run = ConnectedStore(connection).request_cancel(run_id)
 
     assert run["status"] == "acquiring"
-    run_update_parameters = connection.parameters[4]
+    assert "FOR UPDATE" not in connection.queries[0]
+    assert connection.commit_count == 2
+    run_update_parameters = connection.parameters[5]
     assert run_update_parameters is not None
     assert run_update_parameters[4] is False
 

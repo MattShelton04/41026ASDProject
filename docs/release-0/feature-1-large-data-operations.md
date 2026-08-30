@@ -69,6 +69,9 @@ Supported cancellation is idempotent. The first request durably sets `cancel_req
 retry after a lost or dependency-failure response reads that durable run and returns the same
 cancelled/requested outcome. The database loader watches that exact operation and calls PostgreSQL
 cancellation on its own connection, so an operator must not find and cancel an unrelated backend.
+Cancellation intent commits before child-task cleanup and does not take `FOR UPDATE` on the run:
+source-scale inserts hold a foreign-key key-share lock on that row for their transaction, and a
+strong parent-row lock would make cancellation wait behind the statement it must interrupt.
 If neither the cancellation response nor a reconciliation read proves persistence, the public API
 returns `cancellation_unconfirmed` and the same request may be retried safely.
 
