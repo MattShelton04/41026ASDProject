@@ -353,10 +353,12 @@ def test_ai_degradation_is_not_projected_as_ready() -> None:
     assert tool.get_json()["poc"]["ai_mode_state"] == "degraded"
 
 
-def test_ai_mode_client_requires_healthy_body_not_only_http_200() -> None:
+def test_ai_mode_client_preserves_degraded_body_regardless_of_http_readiness_mode() -> None:
+    response_status = 503
+
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(
-            200,
+            response_status,
             json={
                 "status": "degraded",
                 "checks": {
@@ -378,6 +380,33 @@ def test_ai_mode_client_requires_healthy_body_not_only_http_200() -> None:
         "ready": False,
         "state": "degraded",
         "detail": "Openai authentication or model access failed",
+    }
+
+
+def test_ai_mode_client_requires_a_valid_healthy_readiness_body() -> None:
+    responses = iter(
+        (
+            httpx.Response(200, json={"status": "healthy", "checks": {}}),
+            httpx.Response(200, text="not JSON"),
+            httpx.Response(503, json={"status": "unexpected"}),
+        )
+    )
+
+    ai_mode = AiModeClient(
+        "http://ai-mode.local",
+        client=httpx.Client(transport=httpx.MockTransport(lambda _: next(responses))),
+    )
+
+    assert ai_mode.readiness()["state"] == "ready"
+    assert ai_mode.readiness() == {
+        "ready": False,
+        "state": "unavailable",
+        "detail": "AI mode readiness returned invalid JSON.",
+    }
+    assert ai_mode.readiness() == {
+        "ready": False,
+        "state": "unavailable",
+        "detail": "AI mode readiness returned HTTP 503.",
     }
 
 

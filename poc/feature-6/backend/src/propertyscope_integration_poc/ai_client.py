@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Literal, TypedDict
 from urllib.parse import urlsplit
 
 import httpx
@@ -22,6 +22,12 @@ class AiModeUnavailableError(RuntimeError):
         super().__init__(detail)
         self.detail = detail
         self.status_code = status_code
+
+
+class AiModeReadiness(TypedDict):
+    ready: bool
+    state: Literal["ready", "degraded", "unavailable"]
+    detail: str
 
 
 class AiModeClient:
@@ -43,7 +49,7 @@ class AiModeClient:
     def ready(self) -> bool:
         return bool(self.readiness()["ready"])
 
-    def readiness(self) -> dict[str, Any]:
+    def readiness(self) -> AiModeReadiness:
         """Project AI-mode's body-level health without treating degraded as ready."""
         try:
             response = self._client.get(
@@ -54,12 +60,6 @@ class AiModeClient:
                 "ready": False,
                 "state": "unavailable",
                 "detail": "AI mode is unreachable; deterministic research remains usable.",
-            }
-        if response.status_code != 200:
-            return {
-                "ready": False,
-                "state": "unavailable",
-                "detail": f"AI mode readiness returned HTTP {response.status_code}.",
             }
         try:
             payload = response.json()
@@ -72,12 +72,6 @@ class AiModeClient:
                 "detail": "AI mode readiness returned invalid JSON.",
             }
         health_status = payload.get("status")
-        if health_status == "healthy":
-            return {
-                "ready": True,
-                "state": "ready",
-                "detail": "AI explanations are available.",
-            }
         checks = payload.get("checks")
         provider = checks.get("llm_provider") if isinstance(checks, Mapping) else None
         provider_detail = provider.get("detail") if isinstance(provider, Mapping) else None
@@ -86,6 +80,18 @@ class AiModeClient:
                 "ready": False,
                 "state": "degraded",
                 "detail": str(provider_detail or "AI mode is degraded."),
+            }
+        if response.status_code != 200:
+            return {
+                "ready": False,
+                "state": "unavailable",
+                "detail": f"AI mode readiness returned HTTP {response.status_code}.",
+            }
+        if health_status == "healthy":
+            return {
+                "ready": True,
+                "state": "ready",
+                "detail": "AI explanations are available.",
             }
         return {
             "ready": False,

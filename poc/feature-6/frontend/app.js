@@ -91,9 +91,9 @@ async function readiness(signal) {
     const [status, imports] = await Promise.all([request("/provider/status", {}, signal), request("/imports", {}, signal)]);
     const grid = el("section", "poc-grid");
     append(grid,
-      card("Feature 1", status.feature_1?.ready ? "Ready" : "Unavailable", status.feature_1?.detail || "Public HTTP boundary", status.feature_1?.ready ? "complete" : "unavailable"),
+      card("Feature 1 catalogue", status.feature_1?.ready ? "Reachable" : "Unavailable", status.feature_1?.detail || "Public HTTP boundary", status.feature_1?.ready ? "complete" : "unavailable"),
       card("POC database", status.store?.ready ? "Ready" : "Unavailable", "Exclusive SQLite owner", status.store?.ready ? "complete" : "unavailable"),
-      card("AI explanations", status.ai_mode?.state === "ready" ? "Ready" : status.ai_mode?.state === "degraded" ? "Degraded" : "Unavailable", status.ai_mode?.detail || "Optional shared AI-mode boundary", status.ai_mode?.state === "ready" ? "complete" : "partial"),
+      card("AI explanations", status.ai_mode?.state === "ready" ? "Ready" : status.ai_mode?.state === "degraded" ? "Degraded" : "Unavailable", status.ai_mode?.detail || "Optional shared AI-mode boundary", status.ai_mode?.state === "ready" ? "complete" : status.ai_mode?.state === "degraded" ? "partial" : "unavailable"),
       card("Imported releases", String(listItems(imports).length), "Approved immutable publication imports", listItems(imports).length ? "confirmed" : "partial"),
     );
     append(root, grid);
