@@ -41,15 +41,57 @@ class AiModeClient:
         )
 
     def ready(self) -> bool:
+        return bool(self.readiness()["ready"])
+
+    def readiness(self) -> dict[str, Any]:
+        """Project AI-mode's body-level health without treating degraded as ready."""
         try:
-            return (
-                self._client.get(
-                    self.origin + "/health/ready", timeout=2, follow_redirects=False
-                ).status_code
-                == 200
+            response = self._client.get(
+                self.origin + "/health/ready", timeout=2, follow_redirects=False
             )
         except httpx.TransportError:
-            return False
+            return {
+                "ready": False,
+                "state": "unavailable",
+                "detail": "AI mode is unreachable; deterministic research remains usable.",
+            }
+        if response.status_code != 200:
+            return {
+                "ready": False,
+                "state": "unavailable",
+                "detail": f"AI mode readiness returned HTTP {response.status_code}.",
+            }
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if not isinstance(payload, Mapping):
+            return {
+                "ready": False,
+                "state": "unavailable",
+                "detail": "AI mode readiness returned invalid JSON.",
+            }
+        health_status = payload.get("status")
+        if health_status == "healthy":
+            return {
+                "ready": True,
+                "state": "ready",
+                "detail": "AI explanations are available.",
+            }
+        checks = payload.get("checks")
+        provider = checks.get("llm_provider") if isinstance(checks, Mapping) else None
+        provider_detail = provider.get("detail") if isinstance(provider, Mapping) else None
+        if health_status == "degraded":
+            return {
+                "ready": False,
+                "state": "degraded",
+                "detail": str(provider_detail or "AI mode is degraded."),
+            }
+        return {
+            "ready": False,
+            "state": "unavailable",
+            "detail": "AI mode returned an unrecognised readiness state.",
+        }
 
     def create_research_run(
         self,

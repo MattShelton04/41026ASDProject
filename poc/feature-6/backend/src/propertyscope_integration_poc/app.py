@@ -120,12 +120,13 @@ def create_app(
     def ready() -> tuple[Response, int] | Response:
         store_ready = store.ready(headers=_forward_headers())
         provider = _provider_projection(feature1, store_ready=store_ready)
+        ai_readiness = ai_mode.readiness()
         payload = {
             "status": "ready" if store_ready else "not_ready",
             "service": "feature-6-integration-poc",
             "store_ready": store_ready,
             "provider_state": provider["feature_1"]["state"],
-            "ai_mode_state": "ready" if ai_mode.ready() else "unavailable",
+            "ai_mode_state": ai_readiness["state"],
             "deterministic_crud_available": store_ready,
         }
         if store_ready:
@@ -145,12 +146,7 @@ def create_app(
         projection = _provider_projection(
             feature1, store_ready=store.ready(headers=_forward_headers())
         )
-        ai_ready = ai_mode.ready()
-        projection["ai_mode"] = {
-            "ready": ai_ready,
-            "state": "ready" if ai_ready else "unavailable",
-            "detail": "AI explanations are optional; deterministic research remains usable.",
-        }
+        projection["ai_mode"] = ai_mode.readiness()
         return jsonify(projection)
 
     @app.get(f"{BASE}/imports")
@@ -258,13 +254,15 @@ def create_app(
         projection = _provider_projection(
             feature1, store_ready=store.ready(headers=_forward_headers())
         )
+        ai_readiness = ai_mode.readiness()
         return jsonify(
             {
                 "feature_1": projection["feature_1"],
                 "store": projection["store"],
                 "catalogue": projection["catalogue"],
                 "poc": {
-                    "ai_mode_ready": ai_mode.ready(),
+                    "ai_mode_ready": ai_readiness["ready"],
+                    "ai_mode_state": ai_readiness["state"],
                     "friction": projection["friction"],
                 },
             }

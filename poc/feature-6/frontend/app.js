@@ -93,6 +93,7 @@ async function readiness(signal) {
     append(grid,
       card("Feature 1", status.feature_1?.ready ? "Ready" : "Unavailable", status.feature_1?.detail || "Public HTTP boundary", status.feature_1?.ready ? "complete" : "unavailable"),
       card("POC database", status.store?.ready ? "Ready" : "Unavailable", "Exclusive SQLite owner", status.store?.ready ? "complete" : "unavailable"),
+      card("AI explanations", status.ai_mode?.state === "ready" ? "Ready" : status.ai_mode?.state === "degraded" ? "Degraded" : "Unavailable", status.ai_mode?.detail || "Optional shared AI-mode boundary", status.ai_mode?.state === "ready" ? "complete" : "partial"),
       card("Imported releases", String(listItems(imports).length), "Accepted immutable products only", listItems(imports).length ? "confirmed" : "partial"),
     );
     append(root, grid);

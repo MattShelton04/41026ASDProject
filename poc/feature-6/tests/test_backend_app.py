@@ -187,9 +187,25 @@ class FakeImporter:
 
 class FakeAiMode:
     available = True
+    degraded = False
 
     def ready(self) -> bool:
-        return self.available
+        return bool(self.readiness()["ready"])
+
+    def readiness(self) -> Mapping[str, Any]:
+        if self.degraded:
+            return {
+                "ready": False,
+                "state": "degraded",
+                "detail": "Model authentication failed",
+            }
+        return {
+            "ready": self.available,
+            "state": "ready" if self.available else "unavailable",
+            "detail": "AI explanations are available"
+            if self.available
+            else "AI mode is unreachable",
+        }
 
     def create_research_run(self, property_ref: uuid.UUID, *_: Any, **__: Any) -> Mapping[str, Any]:
         if not self.available:
@@ -315,6 +331,54 @@ def test_ai_unavailability_is_explicit_without_disabling_research() -> None:
     assert ai_response.content_type == "application/problem+json"
     assert "deterministic research remains usable" in ai_response.get_json()["detail"]
     assert research.status_code == 200
+
+
+def test_ai_degradation_is_not_projected_as_ready() -> None:
+    ai_mode = FakeAiMode()
+    ai_mode.degraded = True
+    client = _app(ai_mode=ai_mode).test_client()
+
+    health = client.get("/health/ready")
+    status = client.get("/api/integration-poc/v1/provider/status")
+    tool = client.post("/api/integration-poc/v1/tools/provider.readiness.v1", json={})
+
+    assert health.status_code == 200
+    assert health.get_json()["ai_mode_state"] == "degraded"
+    assert status.get_json()["ai_mode"] == {
+        "ready": False,
+        "state": "degraded",
+        "detail": "Model authentication failed",
+    }
+    assert tool.get_json()["poc"]["ai_mode_ready"] is False
+    assert tool.get_json()["poc"]["ai_mode_state"] == "degraded"
+
+
+def test_ai_mode_client_requires_healthy_body_not_only_http_200() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "status": "degraded",
+                "checks": {
+                    "llm_provider": {
+                        "status": "degraded",
+                        "detail": "Openai authentication or model access failed",
+                    }
+                },
+            },
+        )
+
+    ai_mode = AiModeClient(
+        "http://ai-mode.local",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert ai_mode.ready() is False
+    assert ai_mode.readiness() == {
+        "ready": False,
+        "state": "degraded",
+        "detail": "Openai authentication or model access failed",
+    }
 
 
 def test_ai_mode_client_sends_exact_feature_tool_and_limit_boundary() -> None:
