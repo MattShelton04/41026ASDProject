@@ -1045,7 +1045,11 @@ def test_locality_summary_uses_one_accepted_generation_and_opt_in_street_groupin
     assert result["top_streets"] == [{"street_name": "EXAMPLE", "address_count": 9}]
     assert len(store.queries) == 2
     assert "serving.accepted_generation" in store.queries[0]
+    assert "%s::text IS NULL OR address.locality=%s" in store.queries[0]
+    assert "%s::text IS NULL OR address.postcode=%s" in store.queries[0]
     assert "GROUP BY street_name" in store.queries[1]
+    assert "%s::text IS NULL OR locality=%s" in store.queries[1]
+    assert "%s::text IS NULL OR postcode=%s" in store.queries[1]
 
 
 def test_locality_summary_reports_missing_accepted_generation_without_street_scan() -> None:

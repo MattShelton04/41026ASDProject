@@ -295,8 +295,8 @@ class _CanonicalPropertyReads:
             LEFT JOIN warehouse.gnaf_address address
               ON address.dataset_release_id=generation.dataset_release_id
              AND address.published
-             AND (%s IS NULL OR address.locality=%s)
-             AND (%s IS NULL OR address.postcode=%s)
+             AND (%s::text IS NULL OR address.locality=%s)
+             AND (%s::text IS NULL OR address.postcode=%s)
             GROUP BY generation.dataset_release_id,generation.dataset_id,
                      generation.release_version,generation.schema_version,
                      generation.accepted_at""",
@@ -333,8 +333,8 @@ class _CanonicalPropertyReads:
                 """SELECT street_name,count(*)::bigint AS address_count
                 FROM warehouse.gnaf_address
                 WHERE dataset_release_id=%s AND published
-                  AND (%s IS NULL OR locality=%s)
-                  AND (%s IS NULL OR postcode=%s)
+                  AND (%s::text IS NULL OR locality=%s)
+                  AND (%s::text IS NULL OR postcode=%s)
                   AND NULLIF(street_name,'') IS NOT NULL
                 GROUP BY street_name
                 ORDER BY address_count DESC,street_name
