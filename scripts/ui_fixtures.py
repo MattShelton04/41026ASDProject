@@ -690,7 +690,7 @@ def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[
         items = [] if scenario == "empty" else coverage
         return {"items": items, "count": len(items)}
     if route.endswith("/sale-history"):
-        items = [
+        sale_items: list[dict[str, Any]] = [
             {
                 "source_business_key": "001:P1:1",
                 "source_revision": 2,
@@ -715,8 +715,8 @@ def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[
             }
         ]
         return {
-            "items": items,
-            "count": len(items),
+            "items": sale_items,
+            "count": len(sale_items),
             "limit": 50,
             "has_more": False,
             "supported": True,
