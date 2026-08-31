@@ -14,6 +14,7 @@ from werkzeug.datastructures import Headers
 from propertyscope_data_platform.approval import approved_tool_call
 from propertyscope_data_platform.assistant import (
     ASSISTANT_FEATURE_KEY,
+    ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS,
     ASSISTANT_TOOL_ALLOWLIST,
     AssistantTurnRequest,
     build_assistant_objective,
@@ -413,6 +414,29 @@ def register_assistant_tool_routes(
         data = response.json()
         return jsonify({"items": data.get("items", []), "count": data.get("count", 0)})
 
+    @api.post(f"{base}/tools/properties.locality-summary.v1")
+    def tool_property_locality_summary() -> Response:
+        body = json_body()
+        locality = str(body.get("locality", "")).strip()
+        postcode = str(body.get("postcode", "")).strip()
+        if not locality and not postcode:
+            return problem(422, "invalid_tool_input", "locality or postcode is required")
+        params: dict[str, Any] = {
+            "include_streets": "true" if body.get("include_streets") is True else "false"
+        }
+        if locality:
+            params["locality"] = locality
+        if postcode:
+            params["postcode"] = postcode
+        return forward(
+            store.request(
+                "GET",
+                f"{internal}/properties/locality-summary",
+                headers=request.headers,
+                params=params,
+            )
+        )
+
     @api.post(f"{base}/tools/properties.inspect.v1")
     def tool_property_inspect() -> Response:
         property_ref = required_uuid(json_body(), "property_ref")
@@ -422,12 +446,21 @@ def register_assistant_tool_routes(
         if upstream.status_code >= 400:
             return forward(upstream)
         snapshot = upstream.json()
+        history = store.request(
+            "GET",
+            f"{internal}/properties/{property_ref}/sale-history",
+            headers=request.headers,
+            params={"limit": 25},
+        )
+        if history.status_code >= 400:
+            return forward(history)
         return jsonify(
             {
                 "property": snapshot["property"],
                 "identifiers": snapshot.get("identifiers", [])[:25],
                 "aliases": snapshot.get("aliases", [])[:25],
                 "coverage": snapshot.get("coverage", [])[:25],
+                "sales_history": history.json(),
             }
         )
 
@@ -506,6 +539,6 @@ def assistant_run(
     owned = (
         run.get("feature_key") == ASSISTANT_FEATURE_KEY
         and isinstance(allowlist, list)
-        and tuple(allowlist) == ASSISTANT_TOOL_ALLOWLIST
+        and tuple(allowlist) in ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS
     )
     return detail, owned

@@ -355,12 +355,34 @@ paths:
       responses:
         '200': {description: Ranked current property matches, content: {application/json: {schema: {$ref: '#/components/schemas/PropertySearchPage'}}}}
         '422': {$ref: '#/components/responses/Problem'}
+  /properties/locality-summary:
+    get:
+      operationId: getPropertyLocalitySummary
+      description: Aggregates one compatible accepted NSW address generation without fuzzy-search sampling.
+      parameters:
+        - {name: locality, in: query, schema: {type: string, minLength: 1, maxLength: 100}}
+        - {name: postcode, in: query, schema: {type: string, pattern: '^[0-9]{4}$'}}
+        - {name: include_streets, in: query, schema: {type: boolean, default: false}}
+      responses:
+        '200': {description: Accepted address summary}
+        '422': {$ref: '#/components/responses/Problem'}
   /properties/{property_ref}:
     get: {operationId: getProperty, parameters: [{$ref: '#/components/parameters/PropertyRef'}], responses: {'200': {description: Property evidence}, '404': {$ref: '#/components/responses/Problem'}}}
   /properties/{property_ref}/map-context:
     get: {operationId: getPropertyMapContext, parameters: [{$ref: '#/components/parameters/PropertyRef'}], responses: {'200': {description: Property map context}, '404': {$ref: '#/components/responses/Problem'}}}
   /properties/{property_ref}/coverage:
     get: {operationId: getPropertyCoverage, parameters: [{$ref: '#/components/parameters/PropertyRef'}], responses: {'200': {description: Accepted product coverage}, '404': {$ref: '#/components/responses/Problem'}}}
+  /properties/{property_ref}/sale-history:
+    get:
+      operationId: getPropertySaleHistory
+      description: Returns a bounded latest-revision sale timeline from the immutable accepted PSI generation when supported rows resolve to this property.
+      parameters:
+        - {$ref: '#/components/parameters/PropertyRef'}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+      responses:
+        '200': {description: Accepted sale history, content: {application/json: {schema: {$ref: '#/components/schemas/PropertySaleHistory'}}}}
+        '404': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
   /properties/{property_ref}/report-section:
     get:
       operationId: getPropertyReportSection
@@ -394,6 +416,8 @@ paths:
     post: {operationId: toolPropertiesSearch, responses: {'200': {description: Tool result}}}
   /tools/properties.inspect.v1:
     post: {operationId: toolPropertiesInspect, responses: {'200': {description: Tool result}}}
+  /tools/properties.locality-summary.v1:
+    post: {operationId: toolPropertiesLocalitySummary, responses: {'200': {description: Accepted address aggregate}}}
   /tools/runs.retry.v1:
     post: {operationId: toolRunsRetry, responses: {'200': {description: Tool result}}}
   /tools/releases.publish.v1:
@@ -508,6 +532,60 @@ components:
         query: {type: string, minLength: 2, maxLength: 200}
         supported: {type: boolean}
         reason: {type: string, minLength: 1, maxLength: 200}
+    PropertySaleHistory:
+      type: object
+      additionalProperties: false
+      required: [items, count, limit, has_more, supported, availability, release]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [source_business_key, source_revision, contract_date, settlement_date, price_aud, area_original, area_unit, area_square_metres, property_id, dealing_id, match_tier, match_confidence, geographic_precision, nature_code, primary_purpose, sale_code, dataset_release_id, release_version, schema_version, accepted_at]
+            properties:
+              source_business_key: {type: string, minLength: 1}
+              source_revision: {type: integer, minimum: 1}
+              contract_date: {type: [string, 'null'], format: date}
+              settlement_date: {type: [string, 'null'], format: date}
+              price_aud: {type: [integer, 'null'], minimum: 0}
+              area_original: {type: [number, string, 'null']}
+              area_unit: {type: [string, 'null']}
+              area_square_metres: {type: [number, string, 'null'], minimum: 0}
+              property_id: {type: [string, 'null']}
+              dealing_id: {type: [string, 'null']}
+              match_tier: {enum: [A, B, C, D, MISS]}
+              match_confidence: {type: [number, string], minimum: 0, maximum: 1}
+              geographic_precision: {type: string, minLength: 1}
+              nature_code: {type: [string, 'null']}
+              primary_purpose: {type: [string, 'null']}
+              sale_code: {type: [string, 'null']}
+              dataset_release_id: {type: string, format: uuid}
+              release_version: {type: string, minLength: 1}
+              schema_version: {type: string, minLength: 1}
+              accepted_at: {type: string, format: date-time}
+        count: {type: integer, minimum: 0, maximum: 100}
+        limit: {type: integer, minimum: 1, maximum: 100}
+        has_more: {type: boolean}
+        supported: {type: boolean}
+        availability:
+          type: object
+          additionalProperties: false
+          required: [status, reason, accepted_release_id]
+          properties:
+            status: {enum: [available, dataset_unavailable, unsupported_contract]}
+            reason: {type: string, minLength: 1, maxLength: 300}
+            accepted_release_id: {type: [string, 'null'], format: uuid}
+        release:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [dataset_release_id, release_version, schema_version, accepted_at]
+          properties:
+            dataset_release_id: {type: string, format: uuid}
+            release_version: {type: string, minLength: 1}
+            schema_version: {type: string, minLength: 1}
+            accepted_at: {type: string, format: date-time}
     DataProductCatalogue:
       type: object
       additionalProperties: false

@@ -82,6 +82,10 @@ EXPECTED_ASSISTANT_TOOL_ROUTES: dict[str, tuple[str, frozenset[str]]] = {
         "propertyscope-data-platform.tool_property_inspect",
         frozenset({"POST"}),
     ),
+    "/api/data-platform/v1/tools/properties.locality-summary.v1": (
+        "propertyscope-data-platform.tool_property_locality_summary",
+        frozenset({"POST"}),
+    ),
     "/api/data-platform/v1/tools/runs.retry.v1": (
         "propertyscope-data-platform.tool_retry",
         frozenset({"POST"}),

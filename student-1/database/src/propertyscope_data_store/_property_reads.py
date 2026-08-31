@@ -250,6 +250,141 @@ class _CanonicalPropertyReads:
             total_is_lower_bound=total_is_lower_bound,
         )
 
+    def locality_summary(
+        self,
+        *,
+        locality: str | None,
+        postcode: str | None,
+        include_streets: bool,
+    ) -> JsonObject:
+        """Aggregate one accepted address generation without fuzzy-search sampling."""
+
+        normalised_locality = locality.strip().upper() if locality else None
+        normalised_postcode = postcode.strip() if postcode else None
+        if not normalised_locality and not normalised_postcode:
+            raise ValidationError("locality or postcode is required")
+        if normalised_postcode and not re.fullmatch(r"\d{4}", normalised_postcode):
+            raise ValidationError("postcode must contain four digits")
+        summary = self._owner._fetch_one(
+            """WITH selected_generation AS MATERIALIZED (
+                SELECT release.id AS dataset_release_id,release.dataset_id,
+                       release.release_version,release.schema_version,release.accepted_at
+                FROM serving.accepted_generation accepted
+                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+                WHERE accepted.target_feature='feature-1'
+                  AND release.status='accepted'
+                  AND release.dataset_id IN ('gnaf-nsw','fixture-property')
+                  AND release.schema_version IN (
+                      'propertyscope.property-snapshot.v1',
+                      'propertyscope.property-snapshot.v2'
+                  )
+                ORDER BY CASE WHEN release.dataset_id='gnaf-nsw' THEN 0 ELSE 1 END
+                LIMIT 1
+            )
+            SELECT generation.dataset_release_id,generation.dataset_id,
+                   generation.release_version,generation.schema_version,
+                   generation.accepted_at,count(address.gnaf_pid)::bigint AS total,
+                   count(address.gnaf_pid) FILTER (
+                       WHERE NULLIF(address.unit_number,'') IS NOT NULL
+                   )::bigint AS with_unit_number,
+                   min(ST_Y(address.geom)) AS min_latitude,
+                   max(ST_Y(address.geom)) AS max_latitude,
+                   min(ST_X(address.geom)) AS min_longitude,
+                   max(ST_X(address.geom)) AS max_longitude
+            FROM selected_generation generation
+            LEFT JOIN warehouse.gnaf_address address
+              ON address.dataset_release_id=generation.dataset_release_id
+             AND address.published
+             AND (%s::text IS NULL OR address.locality=%s)
+             AND (%s::text IS NULL OR address.postcode=%s)
+            GROUP BY generation.dataset_release_id,generation.dataset_id,
+                     generation.release_version,generation.schema_version,
+                     generation.accepted_at""",
+            (
+                normalised_locality,
+                normalised_locality,
+                normalised_postcode,
+                normalised_postcode,
+            ),
+        )
+        if summary is None:
+            return {
+                "availability": {
+                    "status": "dataset_unavailable",
+                    "reason": "No compatible accepted NSW address generation is available.",
+                    "accepted_release_id": None,
+                },
+                "scope": {
+                    "locality": normalised_locality,
+                    "postcode": normalised_postcode,
+                    "state": "NSW",
+                },
+                "total_registered_addresses": 0,
+                "unit_number_summary": {"with_unit_number": 0, "without_unit_number": 0},
+                "bounding_box": None,
+                "top_streets": [],
+                "release": None,
+            }
+        total = int(summary.get("total", 0))
+        with_unit_number = int(summary.get("with_unit_number", 0))
+        top_streets: list[JsonObject] = []
+        if include_streets and total:
+            top_streets = self._owner._fetch_all(
+                """SELECT street_name,count(*)::bigint AS address_count
+                FROM warehouse.gnaf_address
+                WHERE dataset_release_id=%s AND published
+                  AND (%s::text IS NULL OR locality=%s)
+                  AND (%s::text IS NULL OR postcode=%s)
+                  AND NULLIF(street_name,'') IS NOT NULL
+                GROUP BY street_name
+                ORDER BY address_count DESC,street_name
+                LIMIT 20""",
+                (
+                    summary["dataset_release_id"],
+                    normalised_locality,
+                    normalised_locality,
+                    normalised_postcode,
+                    normalised_postcode,
+                ),
+            )
+        bounding_box = None
+        if total and summary.get("min_latitude") is not None:
+            bounding_box = {
+                "min_latitude": summary["min_latitude"],
+                "max_latitude": summary["max_latitude"],
+                "min_longitude": summary["min_longitude"],
+                "max_longitude": summary["max_longitude"],
+            }
+        return {
+            "availability": {
+                "status": "available",
+                "reason": "Counts use one compatible accepted NSW address generation.",
+                "accepted_release_id": summary["dataset_release_id"],
+            },
+            "scope": {
+                "locality": normalised_locality,
+                "postcode": normalised_postcode,
+                "state": "NSW",
+            },
+            "total_registered_addresses": total,
+            "unit_number_summary": {
+                "with_unit_number": with_unit_number,
+                "without_unit_number": total - with_unit_number,
+            },
+            "bounding_box": bounding_box,
+            "top_streets": top_streets,
+            "release": {
+                key: summary[key]
+                for key in (
+                    "dataset_release_id",
+                    "dataset_id",
+                    "release_version",
+                    "schema_version",
+                    "accepted_at",
+                )
+            },
+        }
+
     def property_snapshot(self, property_ref: uuid.UUID) -> JsonObject:
         accepted_address = self._owner._fetch_one(
             """SELECT jsonb_build_object(
@@ -366,3 +501,123 @@ class _CanonicalPropertyReads:
             ORDER BY target_feature,dataset_id""",
             (property_ref, property_ref),
         )
+
+    def property_sale_history(self, property_ref: uuid.UUID, *, limit: int) -> JsonObject:
+        """Return latest accepted PSI revisions for one canonical property.
+
+        The accepted-generation join keeps a publication pointer switch atomic for readers.
+        Corrected retransmissions remain stored, but only the latest source revision is shown as
+        a sale event.  ``limit + 1`` supplies bounded truncation evidence without an unbounded
+        count over the source-scale PSI generation.
+        """
+
+        rows = self._owner._fetch_all(
+            """WITH property_presence AS MATERIALIZED (
+                SELECT true AS present
+                FROM warehouse.gnaf_address address
+                JOIN serving.accepted_generation accepted
+                  ON accepted.dataset_release_id=address.dataset_release_id
+                WHERE address.published AND COALESCE(address.property_ref,
+                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
+                UNION ALL
+                SELECT true FROM registry.property property WHERE property.property_ref=%s
+                LIMIT 1
+            ), accepted_pointer AS MATERIALIZED (
+                SELECT release.id AS dataset_release_id,release.release_version,
+                       release.schema_version,release.accepted_at
+                FROM serving.accepted_generation accepted
+                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+                WHERE accepted.dataset_id='nsw-psi-sales'
+                  AND accepted.target_feature='feature-2'
+                  AND release.status='accepted'
+                LIMIT 1
+            ), accepted_sales AS MATERIALIZED (
+                SELECT * FROM accepted_pointer
+                WHERE schema_version IN (
+                    'propertyscope.property-sales.v2',
+                    'propertyscope.property-sales.v3'
+                )
+            ), latest_sales AS (
+                SELECT DISTINCT ON (sale.source_business_key)
+                       sale.source_business_key,sale.source_revision,sale.contract_date,
+                       sale.settlement_date,sale.price_aud,sale.area_original,sale.area_unit,
+                       sale.area_square_metres,sale.property_id,sale.dealing_id,
+                       sale.match_tier,sale.match_confidence,sale.geographic_precision,
+                       sale.nature_code,sale.primary_purpose,sale.sale_code,
+                       accepted.dataset_release_id,accepted.release_version,
+                       accepted.schema_version,accepted.accepted_at
+                FROM accepted_sales accepted
+                JOIN warehouse.psi_sale sale
+                  ON sale.dataset_release_id=accepted.dataset_release_id
+                WHERE sale.property_ref=%s
+                ORDER BY sale.source_business_key,sale.source_revision DESC
+            ), page AS MATERIALIZED (
+                SELECT * FROM latest_sales
+                ORDER BY COALESCE(contract_date,settlement_date) DESC NULLS LAST,
+                         source_business_key
+                LIMIT %s
+            )
+            SELECT presence.present,pointer.dataset_release_id AS pointer_release_id,
+                   pointer.schema_version AS pointer_schema_version,
+                   accepted.dataset_release_id,accepted.release_version,
+                   accepted.schema_version,accepted.accepted_at,
+                   page.source_business_key,page.source_revision,page.contract_date,
+                   page.settlement_date,page.price_aud,page.area_original,page.area_unit,
+                   page.area_square_metres,page.property_id,page.dealing_id,page.match_tier,
+                   page.match_confidence,page.geographic_precision,page.nature_code,
+                   page.primary_purpose,page.sale_code
+            FROM property_presence presence
+            LEFT JOIN accepted_pointer pointer ON true
+            LEFT JOIN accepted_sales accepted ON true
+            LEFT JOIN page ON true
+            ORDER BY COALESCE(page.contract_date,page.settlement_date) DESC NULLS LAST,
+                     page.source_business_key""",
+            (property_ref, property_ref, property_ref, limit + 1),
+        )
+        if not rows:
+            raise NotFoundError("record does not exist")
+        first = rows[0]
+        supported = first.get("dataset_release_id") is not None
+        pointer_available = first.get("pointer_release_id") is not None
+        items = [
+            {
+                key: value
+                for key, value in row.items()
+                if key not in {"present", "pointer_release_id", "pointer_schema_version"}
+            }
+            for row in rows
+            if row.get("source_business_key") is not None
+        ]
+        has_more = len(items) > limit
+        return {
+            "items": items[:limit],
+            "count": min(len(items), limit),
+            "limit": limit,
+            "has_more": has_more,
+            "supported": supported,
+            "availability": {
+                "status": "available"
+                if supported
+                else "unsupported_contract"
+                if pointer_available
+                else "dataset_unavailable",
+                "reason": (
+                    "Sale history uses the compatible accepted NSW PSI generation."
+                    if supported
+                    else "The accepted NSW PSI generation uses an unsupported schema."
+                    if pointer_available
+                    else "No accepted NSW PSI generation is available."
+                ),
+                "accepted_release_id": first.get("dataset_release_id")
+                if supported
+                else first.get("pointer_release_id"),
+            },
+            "release": {
+                "dataset_release_id": first["dataset_release_id"],
+                "release_version": first["release_version"],
+                "schema_version": first["schema_version"],
+                "accepted_at": first["accepted_at"],
+            }
+            if supported
+            else None,
+        }
