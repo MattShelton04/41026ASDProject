@@ -441,7 +441,27 @@ tools:
           identifiers: {type: array, maxItems: 25, items: {type: object}}
           aliases: {type: array, maxItems: 25, items: {type: object}}
           coverage: {type: array, maxItems: 25, items: {type: object}}
-        required: [property, identifiers, aliases, coverage]
+          sales_history:
+            type: object
+            properties:
+              availability:
+                type: object
+                properties:
+                  status: {enum: [available, dataset_unavailable, unsupported_contract]}
+                  reason: {type: string, minLength: 1, maxLength: 300}
+                  accepted_release_id:
+                    {type: [string, "null"], format: uuid, x-identifier-kind: release_id}
+                required: [status, reason, accepted_release_id]
+                additionalProperties: false
+              items: {type: array, maxItems: 25, items: {type: object}}
+              count: {type: integer, minimum: 0, maximum: 25}
+              limit: {type: integer, minimum: 1, maximum: 100}
+              has_more: {type: boolean}
+              supported: {type: boolean}
+              release: {type: [object, "null"]}
+            required: [availability, items, count, limit, has_more, supported, release]
+            additionalProperties: false
+        required: [property, identifiers, aliases, coverage, sales_history]
         additionalProperties: false
       side_effect: read_only
       timeout_ms: 3000
@@ -449,6 +469,84 @@ tools:
     service: propertyscope-data-platform-backend
     method: POST
     path: /api/data-platform/v1/tools/properties.inspect.v1
+  - definition:
+      name: property.locality_summary.v1
+      version: v1
+      feature_key: student-1-propertyscope-data-platform
+      description: Count accepted NSW address records for an exact locality, postcode, or both. These are registered address records, not houses, legal lots, dwellings or ownership records. Street aggregation is opt-in.
+      input_schema:
+        type: object
+        properties:
+          locality: {type: string, minLength: 1, maxLength: 100}
+          postcode: {type: string, pattern: "^\\d{4}$"}
+          include_streets: {type: boolean, default: false}
+        anyOf:
+          - required: [locality]
+          - required: [postcode]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          availability:
+            type: object
+            properties:
+              status: {enum: [available, dataset_unavailable]}
+              reason: {type: string, minLength: 1, maxLength: 300}
+              accepted_release_id:
+                {type: [string, "null"], format: uuid, x-identifier-kind: release_id}
+            required: [status, reason, accepted_release_id]
+            additionalProperties: false
+          scope:
+            type: object
+            properties:
+              locality: {type: [string, "null"]}
+              postcode: {type: [string, "null"], pattern: "^\\d{4}$"}
+              state: {const: NSW}
+            required: [locality, postcode, state]
+            additionalProperties: false
+          total_registered_addresses: {type: integer, minimum: 0}
+          unit_number_summary:
+            type: object
+            properties:
+              with_unit_number: {type: integer, minimum: 0}
+              without_unit_number: {type: integer, minimum: 0}
+            required: [with_unit_number, without_unit_number]
+            additionalProperties: false
+          bounding_box:
+            type: [object, "null"]
+            properties:
+              min_latitude: {type: number}
+              max_latitude: {type: number}
+              min_longitude: {type: number}
+              max_longitude: {type: number}
+            required: [min_latitude, max_latitude, min_longitude, max_longitude]
+            additionalProperties: false
+          top_streets:
+            type: array
+            maxItems: 20
+            items:
+              type: object
+              properties:
+                street_name: {type: string, minLength: 1}
+                address_count: {type: integer, minimum: 1}
+              required: [street_name, address_count]
+              additionalProperties: false
+          release: {type: [object, "null"]}
+        required:
+          - availability
+          - scope
+          - total_registered_addresses
+          - unit_number_summary
+          - bounding_box
+          - top_streets
+          - release
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 5000
+      requires_approval: false
+    service: propertyscope-data-platform-backend
+    method: POST
+    path: /api/data-platform/v1/tools/properties.locality-summary.v1
   - definition:
       name: data.run_retry.v1
       version: v1

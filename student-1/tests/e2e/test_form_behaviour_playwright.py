@@ -270,7 +270,9 @@ def test_property_identity_renders_before_optional_calls_settle(
           const pending = [];
           window.fetch = (input, options) => {
             const url = String(input);
-            if (/\/properties\/[^/]+\/(map-context|coverage|sale-history|report-section)(\?.*)?$/.test(url)) {
+            if (
+              /\/properties\/[^/]+\/(map-context|coverage|sale-history|report-section)(\?.*)?$/.test(url)
+            ) {
               return new Promise((resolve, reject) => {
                 pending.push(() => originalFetch(input, options).then(resolve, reject));
               });

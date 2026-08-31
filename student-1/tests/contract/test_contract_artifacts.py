@@ -85,6 +85,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/dataset-releases/{release_id}/reject",
         "/dataset-releases/{release_id}/agent-runs",
         "/properties/search",
+        "/properties/locality-summary",
         "/properties/{property_ref}",
         "/properties/{property_ref}/map-context",
         "/properties/{property_ref}/coverage",
@@ -104,6 +105,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/tools/coverage.inspect.v1",
         "/tools/properties.search.v1",
         "/tools/properties.inspect.v1",
+        "/tools/properties.locality-summary.v1",
         "/tools/runs.retry.v1",
         "/tools/releases.publish.v1",
     }
@@ -628,6 +630,7 @@ def test_release_discovery_uses_real_statuses_and_source_metadata_is_not_load_ev
         "identifiers",
         "aliases",
         "coverage",
+        "sales_history",
     }
 
 

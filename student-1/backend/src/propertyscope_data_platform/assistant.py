@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 ASSISTANT_FEATURE_KEY = "student-1-propertyscope-data-platform"
-ASSISTANT_TOOL_ALLOWLIST = (
+ASSISTANT_TOOL_ALLOWLIST_V1 = (
     "platform.capabilities.v1",
     "data.sources.v1",
     "data.releases.v1",
@@ -22,6 +22,11 @@ ASSISTANT_TOOL_ALLOWLIST = (
     "property.search.v1",
     "property.inspect.v1",
 )
+ASSISTANT_TOOL_ALLOWLIST = (
+    *ASSISTANT_TOOL_ALLOWLIST_V1,
+    "property.locality_summary.v1",
+)
+ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS = (ASSISTANT_TOOL_ALLOWLIST_V1, ASSISTANT_TOOL_ALLOWLIST)
 AssistantScope = Literal["application", "feature"]
 AssistantHistoryRole = Literal["user", "assistant"]
 AssistantContextRoute = Literal["releases/detail", "runs/detail", "properties/detail"]
@@ -124,7 +129,7 @@ class AssistantTurnRequest(BaseModel):
 def capability_guide() -> dict[str, object]:
     """Return the small, versioned source of truth used by UI and model tooling."""
     return {
-        "revision": "2026-08-29.v2",
+        "revision": "2026-08-31.v3",
         "application": {
             "name": "PropertyScope NSW",
             "summary": (
@@ -192,7 +197,9 @@ def capability_guide() -> dict[str, object]:
                     "Explain PropertyScope and the website",
                     "Describe registered datasets and sources",
                     "Search accepted NSW property address evidence",
-                    "Inspect an exact property, update run or dataset release",
+                    "Count accepted NSW addresses by locality or postcode",
+                    "Inspect an exact property and its accepted sale history",
+                    "Inspect an update run or dataset release",
                     "Explain the current stage and saved progress of an exact data update",
                     "Compare candidate and accepted dataset releases",
                     "Explain coverage and quality evidence",
@@ -208,6 +215,7 @@ def capability_guide() -> dict[str, object]:
             "Which datasets and sources are available?",
             "How does AI activity stay reviewable?",
             "Find an accepted property record in Parramatta.",
+            "How many registered addresses are in Sutherland 2232?",
         ],
     }
 
@@ -253,6 +261,11 @@ def build_assistant_objective(command: AssistantTurnRequest) -> str:
         "progress, timestamps, bounded errors and quality results as recorded evidence. Its "
         "progress values are saved checkpoints rather than a throughput forecast; do not invent "
         "a remaining-time estimate. "
+        "For exact locality or postcode address counts, call property.locality_summary.v1; "
+        "do not estimate counts from property.search.v1 results. Property counts mean registered "
+        "address records, not dwellings, legal lots or houses. For a selected property, "
+        "property.inspect.v1 includes accepted sale-history availability and bounded rows; an "
+        "unpublished candidate is not buyer-facing sale evidence. "
         "Distinguish accepted data from candidates and missing evidence from a passing result. "
         "If the requested capability is unavailable, say so plainly, do not claim the task was "
         "performed, and offer a safe supported alternative grounded in the capability guide. "

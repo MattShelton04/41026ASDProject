@@ -14,7 +14,7 @@ from propertyscope_data_platform.assistant import (
 def test_capability_guide_is_bounded_and_honest_about_availability() -> None:
     guide = capability_guide()
 
-    assert guide["revision"] == "2026-08-29.v2"
+    assert guide["revision"] == "2026-08-31.v3"
     features = guide["features"]
     assert isinstance(features, list)
     assert len(features) == 5
@@ -58,6 +58,8 @@ def test_assistant_objective_preserves_exact_validated_context() -> None:
     assert "active source" in objective
     assert "fully loaded" in objective
     assert "unknown or partial" in objective
+    assert "property.locality_summary.v1" in objective
+    assert "accepted sale-history" in objective
 
 
 def test_assistant_objective_carries_only_bounded_untrusted_completed_history() -> None:

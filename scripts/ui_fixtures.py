@@ -720,6 +720,11 @@ def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[
             "limit": 50,
             "has_more": False,
             "supported": True,
+            "availability": {
+                "status": "available",
+                "reason": "Sale history uses the compatible accepted NSW PSI generation.",
+                "accepted_release_id": "60000000-0000-0000-0000-000000000002",
+            },
             "release": {
                 "dataset_release_id": "60000000-0000-0000-0000-000000000002",
                 "release_version": "2026.08.23-psi",

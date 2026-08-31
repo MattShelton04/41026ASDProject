@@ -27,6 +27,17 @@ def register_property_routes(
             )
         )
 
+    @api.get(f"{base}/properties/locality-summary")
+    def property_locality_summary() -> Response:
+        return forward(
+            store.request(
+                "GET",
+                f"{internal}/properties/locality-summary",
+                headers=request.headers,
+                params=request.args,
+            )
+        )
+
     @api.get(f"{base}/properties/<uuid:property_ref>")
     def property_detail(property_ref: uuid.UUID) -> Response:
         return forward(

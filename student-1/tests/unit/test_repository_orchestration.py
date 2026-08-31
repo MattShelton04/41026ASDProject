@@ -1003,6 +1003,67 @@ def test_property_search_uses_structured_columns_for_postcodes() -> None:
     assert store.params[2] == "2000"
 
 
+def test_locality_summary_uses_one_accepted_generation_and_opt_in_street_grouping() -> None:
+    release_id = uuid.uuid4()
+
+    class LocalityStore(PropertyQueryStore):
+        def __init__(self) -> None:
+            super().__init__()
+            self.queries: list[str] = []
+
+        def _fetch_one(self, query: str, params: Sequence[Any]) -> dict[str, Any] | None:
+            self.queries.append(" ".join(query.split()))
+            return {
+                "dataset_release_id": release_id,
+                "dataset_id": "gnaf-nsw",
+                "release_version": "2026.08.31",
+                "schema_version": "propertyscope.property-snapshot.v2",
+                "accepted_at": datetime(2026, 8, 31, tzinfo=UTC),
+                "total": 42,
+                "with_unit_number": 12,
+                "min_latitude": -34.1,
+                "max_latitude": -34.0,
+                "min_longitude": 151.0,
+                "max_longitude": 151.1,
+            }
+
+        def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+            self.queries.append(" ".join(query.split()))
+            self.params = params
+            return [{"street_name": "EXAMPLE", "address_count": 9}]
+
+    store = LocalityStore()
+    result = store.locality_summary(locality=" sutherland ", postcode="2232", include_streets=True)
+
+    assert result["availability"]["status"] == "available"
+    assert result["total_registered_addresses"] == 42
+    assert result["unit_number_summary"] == {
+        "with_unit_number": 12,
+        "without_unit_number": 30,
+    }
+    assert result["scope"] == {"locality": "SUTHERLAND", "postcode": "2232", "state": "NSW"}
+    assert result["top_streets"] == [{"street_name": "EXAMPLE", "address_count": 9}]
+    assert len(store.queries) == 2
+    assert "serving.accepted_generation" in store.queries[0]
+    assert "GROUP BY street_name" in store.queries[1]
+
+
+def test_locality_summary_reports_missing_accepted_generation_without_street_scan() -> None:
+    class UnavailableLocalityStore(PropertyQueryStore):
+        def _fetch_one(self, query: str, params: Sequence[Any]) -> dict[str, Any] | None:
+            self.query = " ".join(query.split())
+            self.params = params
+            return None
+
+    result = UnavailableLocalityStore().locality_summary(
+        locality=None, postcode="2000", include_streets=True
+    )
+
+    assert result["availability"]["status"] == "dataset_unavailable"
+    assert result["total_registered_addresses"] == 0
+    assert result["top_streets"] == []
+
+
 def test_property_sale_history_is_bounded_to_latest_revisions_in_accepted_generation() -> None:
     release_id = uuid.uuid4()
 
@@ -1031,6 +1092,7 @@ def test_property_sale_history_is_bounded_to_latest_revisions_in_accepted_genera
     assert result["count"] == 2
     assert result["has_more"] is True
     assert result["supported"] is True
+    assert result["availability"]["status"] == "available"
     assert result["release"]["dataset_release_id"] == release_id
     assert "accepted.dataset_id='nsw-psi-sales'" in store.query
     assert "accepted.target_feature='feature-2'" in store.query
@@ -1063,8 +1125,42 @@ def test_property_sale_history_reports_unsupported_without_scanning_other_genera
         "limit": 50,
         "has_more": False,
         "supported": False,
+        "availability": {
+            "status": "dataset_unavailable",
+            "reason": "No accepted NSW PSI generation is available.",
+            "accepted_release_id": None,
+        },
         "release": None,
     }
+
+
+def test_property_sale_history_distinguishes_an_incompatible_accepted_contract() -> None:
+    pointer_id = uuid.uuid4()
+
+    class IncompatibleHistoryStore(PropertyQueryStore):
+        def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+            super()._fetch_all(query, params)
+            return [
+                {
+                    "present": True,
+                    "pointer_release_id": pointer_id,
+                    "pointer_schema_version": "propertyscope.fixture.v1",
+                    "dataset_release_id": None,
+                    "release_version": None,
+                    "schema_version": None,
+                    "accepted_at": None,
+                    "source_business_key": None,
+                }
+            ]
+
+    result = IncompatibleHistoryStore().property_sale_history(uuid.uuid4(), limit=50)
+
+    assert result["availability"] == {
+        "status": "unsupported_contract",
+        "reason": "The accepted NSW PSI generation uses an unsupported schema.",
+        "accepted_release_id": pointer_id,
+    }
+    assert result["items"] == []
 
 
 class PropertySearchApiStore:
@@ -1092,6 +1188,11 @@ class PropertySearchApiStore:
             "limit": limit,
             "has_more": False,
             "supported": True,
+            "availability": {
+                "status": "available",
+                "reason": "Accepted sale history is available.",
+                "accepted_release_id": str(uuid.uuid4()),
+            },
             "release": {"dataset_release_id": str(uuid.uuid4())},
         }
 

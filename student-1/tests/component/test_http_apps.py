@@ -1044,6 +1044,7 @@ def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None
         assert "data.run_retry.v1" not in body["tool_allowlist"]
         assert "data.release_publish.v1" not in body["tool_allowlist"]
         assert "property.search.v1" in body["tool_allowlist"]
+        assert "property.locality_summary.v1" in body["tool_allowlist"]
         assert "What can PropertyScope do?" in body["objective"]
         assert "Earlier answer about releases" in body["objective"]
         assert "browser-supplied, possibly incomplete or altered" in body["objective"]
@@ -1312,6 +1313,24 @@ def test_property_inspection_tool_returns_bounded_evidence_shape() -> None:
     property_ref = "a0000000-0000-0000-0000-000000000002"
 
     def database(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/sale-history"):
+            assert request.url.params["limit"] == "25"
+            return httpx.Response(
+                200,
+                json={
+                    "availability": {
+                        "status": "dataset_unavailable",
+                        "reason": "No accepted NSW PSI generation is available.",
+                        "accepted_release_id": None,
+                    },
+                    "items": [],
+                    "count": 0,
+                    "limit": 25,
+                    "has_more": False,
+                    "supported": False,
+                    "release": None,
+                },
+            )
         assert request.url.path == f"/internal/data-platform/v1/properties/{property_ref}"
         return httpx.Response(
             200,
@@ -1337,10 +1356,61 @@ def test_property_inspection_tool_returns_bounded_evidence_shape() -> None:
     )
 
     assert response.status_code == 200
-    assert set(response.get_json()) == {"property", "identifiers", "aliases", "coverage"}
+    assert set(response.get_json()) == {
+        "property",
+        "identifiers",
+        "aliases",
+        "coverage",
+        "sales_history",
+    }
     assert len(response.get_json()["identifiers"]) == 25
     assert len(response.get_json()["aliases"]) == 25
     assert len(response.get_json()["coverage"]) == 25
+    assert response.get_json()["sales_history"]["availability"]["status"] == ("dataset_unavailable")
+
+
+def test_locality_summary_tool_uses_one_aggregate_store_request() -> None:
+    calls: list[str] = []
+
+    def database(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        assert request.url.path == "/internal/data-platform/v1/properties/locality-summary"
+        assert request.url.params["locality"] == "Sutherland"
+        assert request.url.params["postcode"] == "2232"
+        assert request.url.params["include_streets"] == "true"
+        return httpx.Response(
+            200,
+            json={
+                "availability": {
+                    "status": "available",
+                    "reason": "Accepted address evidence is available.",
+                    "accepted_release_id": "60000000-0000-0000-0000-000000000001",
+                },
+                "scope": {"locality": "SUTHERLAND", "postcode": "2232", "state": "NSW"},
+                "total_registered_addresses": 1234,
+                "unit_number_summary": {"with_unit_number": 200, "without_unit_number": 1034},
+                "bounding_box": None,
+                "top_streets": [],
+                "release": {"dataset_id": "gnaf-nsw"},
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post(
+        "/api/data-platform/v1/tools/properties.locality-summary.v1",
+        json={"locality": "Sutherland", "postcode": "2232", "include_streets": True},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["total_registered_addresses"] == 1234
+    assert len(calls) == 1
 
 
 def test_job_plan_exposes_real_network_work_only_for_connected_live_scope() -> None:

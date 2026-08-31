@@ -1999,6 +1999,19 @@ class PropertyScopeStore:
     def property_coverage(self, property_ref: uuid.UUID) -> list[JsonObject]:
         return self._properties().property_coverage(property_ref)
 
+    def locality_summary(
+        self,
+        *,
+        locality: str | None,
+        postcode: str | None,
+        include_streets: bool,
+    ) -> JsonObject:
+        return self._properties().locality_summary(
+            locality=locality,
+            postcode=postcode,
+            include_streets=include_streets,
+        )
+
     def property_sale_history(self, property_ref: uuid.UUID, *, limit: int) -> JsonObject:
         return self._properties().property_sale_history(property_ref, limit=limit)
 

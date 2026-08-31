@@ -527,6 +527,22 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             }
         )
 
+    @api.get("/internal/data-platform/v1/properties/locality-summary")
+    def property_locality_summary() -> Response:
+        unknown = set(request.args) - {"locality", "postcode", "include_streets"}
+        if unknown:
+            raise ValidationError("unsupported locality-summary query field")
+        locality = request.args.get("locality", "").strip() or None
+        postcode = request.args.get("postcode", "").strip() or None
+        include_streets = request.args.get("include_streets", "false").lower() == "true"
+        return jsonify(
+            store.locality_summary(
+                locality=locality,
+                postcode=postcode,
+                include_streets=include_streets,
+            )
+        )
+
     @api.get("/internal/data-platform/v1/properties/<uuid:property_ref>")
     def property_get(property_ref: uuid.UUID) -> Response:
         return jsonify(store.property_snapshot(property_ref))

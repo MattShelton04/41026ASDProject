@@ -83,7 +83,10 @@ Playwright smoke command. This audit host is separate from the production-like s
 
 Open <http://localhost:5200>. The main product path is:
 
-1. Use **Property search** to find a NSW address and review the sources available for it.
+1. Use **Property search** to find a NSW address, review the sources available for it and, when a
+   compatible NSW PSI generation has been accepted, inspect its matched sale history. The page
+   loads identity first and hydrates the bounded latest-revision sale timeline separately. Candidate
+   or unpublished PSI rows never appear in buyer-facing property results.
 2. Use **Data overview** to check whether published property data is current or needs attention.
 3. Open **Data updates**, choose an update, then select **Start update** or **Load earlier data**.
 4. Preview the source and proposed work, then follow progress in **Update history**.
@@ -107,6 +110,14 @@ Only one response runs at a time. From an update detail page, **Ask AI about upd
 exact run as validated page context, allowing the assistant to explain the current stage, durable counters,
 quality evidence, errors and limitations without inventing a remaining-time forecast. See
 [`docs/ui/shared-ai-chat.md`](../docs/ui/shared-ai-chat.md).
+
+The assistant also exposes an exact accepted-generation locality summary for questions such as
+"How many registered addresses are in Sutherland 2232?" Counts are computed in PostgreSQL rather
+than estimated from fuzzy search results, and are explicitly address-record counts rather than
+claims about houses, dwellings, legal lots or ownership. Tool availability is stable: when a
+compatible accepted dataset is missing, tools return typed availability evidence instead of being
+dynamically hidden. Address resolution, quality and catalogue questions continue to use the existing
+search, release-inspection and source/release tools rather than duplicating overlapping tools.
 
 ### Which local URL and container should I use?
 
