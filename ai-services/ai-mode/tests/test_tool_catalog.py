@@ -40,6 +40,7 @@ def test_product_catalog_composes_scoped_tools() -> None:
         "data.coverage.v1",
         "property.search.v1",
         "property.inspect.v1",
+        "property.locality_summary.v1",
         "data.run_retry.v1",
         "data.release_publish.v1",
     ]
