@@ -226,12 +226,20 @@ class OperationsService:
         )
 
     def _tool_evidence(self, step: AgentStep) -> ToolCallEvidence | None:
+        call_value = step.input.get("tool_call")
+        if call_value is None:
+            calls = step.input.get("tool_calls")
+            call_value = calls[0] if isinstance(calls, list) and calls else None
         try:
-            call = ToolCall.model_validate(step.input.get("tool_call"))
+            call = ToolCall.model_validate(call_value)
         except ValidationError:
             return None
+        result_value = step.output.get("tool_result")
+        if result_value is None:
+            results = step.output.get("tool_results")
+            result_value = results[0] if isinstance(results, list) and results else None
         try:
-            result = ToolResult.model_validate(step.output.get("tool_result"))
+            result = ToolResult.model_validate(result_value)
         except ValidationError:
             result = None
         return ToolCallEvidence(

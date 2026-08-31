@@ -154,15 +154,15 @@ def test_create_is_idempotent_for_exact_retries_and_conflicts_on_changed_input(
     assert app_services.queue.run_ids == [UUID(first.get_json()["id"])]  # type: ignore[attr-defined]
 
 
-def test_secure_default_changes_hash_while_explicit_v4_preserves_legacy_hash() -> None:
+def test_parallel_ready_default_and_explicit_v4_have_stable_distinct_hashes() -> None:
     command = AgentRunRequest(feature_key="student-1-feature", objective="Find records")
 
     assert _request_hash(command) == (
-        "d10ef2e9f604364185f42b470ddc10f689a5dbbf34d02573381ba73a86b67307"
+        "e0ade590ba8f73961247a9365652fcc38f9391ed02a8b641a79d0d5b8fba88f1"
     )
     legacy = command.evolve(prompt_set="default.v4")
     assert _request_hash(legacy) == (
-        "c40ec5e92affe3fa737c05b99ca1c5cb60f7309a8317cc519937abfc6004155b"
+        "710fe5ed243a140b1b5aaa32bd7e45f6627b442976bfbd3a489eacf488f0655f"
     )
 
 

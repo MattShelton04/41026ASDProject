@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import NoReturn
 from uuid import UUID
@@ -22,7 +23,12 @@ from agent_core.errors import (
 )
 from agent_core.generation import ValidatedModelOutput, generate_validated
 from agent_core.identifier_schema import identifier_candidates
-from agent_core.limits import ensure_time_remaining, ensure_within_limits, remaining_time_ms
+from agent_core.limits import (
+    ensure_time_remaining,
+    ensure_tool_calls_available,
+    ensure_within_limits,
+    remaining_time_ms,
+)
 from agent_core.ports import (
     Clock,
     IdGenerator,
@@ -192,6 +198,226 @@ class AgentRunner:
         return ready
 
     def _act(self, detail: AgentRunDetail) -> AgentRun:
+        """Dispatch one sequential action or one bounded read-only execution stage."""
+        run = detail.run
+        try:
+            ensure_within_limits(run, now=self._clock.now())
+            plan, action_index = self._active_plan(detail.steps)
+            stage_number = plan.actions[action_index].sequence
+            stage_actions = tuple(
+                action for action in plan.actions[action_index:] if action.sequence == stage_number
+            )[: run.limits.max_parallel_tools]
+            definitions = tuple(
+                self._resolve_tool(run, action.tool_name) for action in stage_actions
+            )
+            for action, definition in zip(stage_actions, definitions, strict=True):
+                self._tools.validate_input(definition, action.arguments)
+        except IndexError as exc:
+            return self._fail(run, exc, code="plan_exhausted")
+        except AgentCoreError as exc:
+            return self._fail(run, exc, code=self._error_code(exc))
+
+        if len(stage_actions) == 1:
+            return self._act_single(detail)
+        if any(
+            definition.side_effect is not SideEffectClass.READ_ONLY for definition in definitions
+        ):
+            return self._fail(
+                run,
+                AgentCoreError("parallel tool batches may contain only read-only actions"),
+                code="tool_policy_rejected",
+            )
+        if any(definition.requires_approval for definition in definitions):
+            # Preserve the exact one-action human review contract. No protected call
+            # is ever submitted to the worker pool.
+            return self._act_single(detail)
+
+        try:
+            ensure_tool_calls_available(run, len(stage_actions))
+        except RunLimitExceededError as exc:
+            return self._fail(run, exc, code="run_limit_reached")
+
+        resumable = self._resumable_pending_batch(detail.steps)
+        if resumable is None:
+            step_id = self._ids.new()
+            calls = tuple(
+                ToolCall(
+                    id=self._ids.new(),
+                    run_id=run.id,
+                    step_id=step_id,
+                    request_id=run.request_id,
+                    traceparent=run.traceparent,
+                    tool_name=definition.name,
+                    tool_version=definition.version,
+                    arguments=action.arguments,
+                    approval_status=ApprovalStatus.NOT_REQUIRED,
+                )
+                for action, definition in zip(stage_actions, definitions, strict=True)
+            )
+            step = AgentStep(
+                id=step_id,
+                run_id=run.id,
+                sequence=len(detail.steps) + 1,
+                phase=StepPhase.ACT,
+                status=StepStatus.RUNNING,
+                started_at=self._clock.now(),
+                input={
+                    "stage": stage_number,
+                    "tool_calls": [call.model_dump(mode="json") for call in calls],
+                },
+            )
+        else:
+            step, calls = resumable
+            expected = tuple(
+                (action.tool_name, definition.version, action.arguments)
+                for action, definition in zip(stage_actions, definitions, strict=True)
+            )
+            actual = tuple((call.tool_name, call.tool_version, call.arguments) for call in calls)
+            if actual != expected:
+                return self._fail(
+                    run,
+                    AgentCoreError("recovered batch no longer matches the active plan"),
+                    code="recovery_state_invalid",
+                )
+            step = step.evolve(status=StepStatus.RUNNING)
+        dispatching = run.evolve(tool_call_count=run.tool_call_count + len(calls))
+        acting = transition_run(dispatching, RunStatus.ACTING, now=self._clock.now())
+        self._store.save(acting, expected_version=run.version, step=step)
+
+        try:
+            now = self._clock.now()
+            ensure_time_remaining(acting, now=now)
+            remaining_ms = remaining_time_ms(acting, now=now)
+            results = self._execute_read_only_batch(
+                calls,
+                definitions,
+                remaining_ms=remaining_ms,
+                max_workers=run.limits.max_parallel_tools,
+            )
+        except RunLimitExceededError as exc:
+            return self._fail_with_step(acting, step, exc, code="run_limit_reached")
+
+        validated: list[ToolResult] = []
+        for call, definition, result in zip(calls, definitions, results, strict=True):
+            if result.call_id != call.id:
+                return self._fail_with_step(
+                    acting,
+                    step,
+                    AgentCoreError("tool executor returned a result for a different call"),
+                    code="invalid_tool_result",
+                )
+            if result.outcome is ToolOutcome.SUCCEEDED:
+                try:
+                    self._tools.validate_output(definition, result.content)
+                except ToolSchemaValidationError as exc:
+                    result = ToolResult(
+                        call_id=call.id,
+                        outcome=ToolOutcome.FAILED,
+                        error=ToolError(code="invalid_tool_output", message=str(exc)),
+                        duration_ms=result.duration_ms,
+                        retryable=False,
+                    )
+            validated.append(result)
+        results = tuple(validated)
+
+        completed = self._complete_step(
+            step,
+            now=self._clock.now(),
+            output={
+                **step.output,
+                "tool_results": [result.model_dump(mode="json") for result in results],
+            },
+        )
+        failures = tuple(
+            (call, result)
+            for call, result in zip(calls, results, strict=True)
+            if result.outcome is not ToolOutcome.SUCCEEDED
+        )
+        if failures:
+            _, first_result = failures[0]
+            error = first_result.error or ToolError(
+                code="tool_failed", message="Tool execution failed"
+            )
+            failed_step = completed.evolve(status=StepStatus.FAILED, error=error)
+            repeated_failure = next(
+                (
+                    (call, result)
+                    for call, result in failures
+                    if self._repeats_failed_read(detail.steps, call, result)
+                ),
+                None,
+            )
+            if repeated_failure is not None:
+                repeated_call, repeated_result = repeated_failure
+                repeated_code = (
+                    repeated_result.error.code if repeated_result.error else "tool_failed"
+                )
+                repeated_error = ToolError(
+                    code="repeated_tool_failure",
+                    message=(
+                        f"{repeated_call.tool_name} repeated {repeated_code} for the same arguments"
+                    ),
+                )
+                failed = transition_run(
+                    acting,
+                    RunStatus.FAILED,
+                    now=self._clock.now(),
+                    error=repeated_error,
+                )
+                self._store.save(
+                    failed,
+                    expected_version=acting.version,
+                    step=failed_step.evolve(error=repeated_error),
+                )
+                return failed
+            observing = transition_run(acting, RunStatus.OBSERVING, now=self._clock.now())
+            self._store.save(observing, expected_version=acting.version, step=failed_step)
+            return observing
+
+        observing = transition_run(acting, RunStatus.OBSERVING, now=self._clock.now())
+        self._store.save(observing, expected_version=acting.version, step=completed)
+        return observing
+
+    def _execute_read_only_batch(
+        self,
+        calls: tuple[ToolCall, ...],
+        definitions: tuple[ToolDefinition, ...],
+        *,
+        remaining_ms: int,
+        max_workers: int,
+    ) -> tuple[ToolResult, ...]:
+        """Execute a read-only batch concurrently while retaining planner order."""
+
+        def execute(call: ToolCall, definition: ToolDefinition) -> ToolResult:
+            try:
+                return self._tool_executor.execute(
+                    call,
+                    definition,
+                    timeout_ms=min(definition.timeout_ms, remaining_ms),
+                )
+            except Exception as exc:
+                return ToolResult(
+                    call_id=call.id,
+                    outcome=ToolOutcome.FAILED,
+                    error=ToolError(
+                        code="tool_executor_error",
+                        message=self._safe_message(exc),
+                    ),
+                    duration_ms=0,
+                    retryable=False,
+                )
+
+        with ThreadPoolExecutor(
+            max_workers=min(max_workers, len(calls)),
+            thread_name_prefix="agent-tool",
+        ) as executor:
+            futures = [
+                executor.submit(execute, call, definition)
+                for call, definition in zip(calls, definitions, strict=True)
+            ]
+            return tuple(future.result() for future in futures)
+
+    def _act_single(self, detail: AgentRunDetail) -> AgentRun:
         run = detail.run
         try:
             ensure_within_limits(run, now=self._clock.now())
@@ -267,6 +493,10 @@ class AgentRunner:
             self._store.save(review, expected_version=run.version, step=step)
             return review
 
+        try:
+            ensure_tool_calls_available(run, 1)
+        except RunLimitExceededError as exc:
+            return self._fail_with_step(run, step, exc, code="run_limit_reached")
         dispatching = run.evolve(tool_call_count=run.tool_call_count + 1)
         acting = transition_run(dispatching, RunStatus.ACTING, now=self._clock.now())
         self._store.save(acting, expected_version=run.version, step=step)
@@ -370,11 +600,17 @@ class AgentRunner:
     def _observe(self, detail: AgentRunDetail) -> AgentRun:
         run = detail.run
         plan, _ = self._active_plan(detail.steps, include_current_action=True)
-        result = self._last_tool_result(detail.steps)
-        outcome_fact = f"Tool call {result.outcome.value}."
-        error_fact = f"Error code: {result.error.code}." if result.error else "No tool error."
+        results = self._last_tool_results(detail.steps)
+        facts: list[str] = []
+        for index, result in enumerate(results, start=1):
+            facts.append(f"Tool call {index} {result.outcome.value}.")
+            facts.append(
+                f"Tool call {index} error code: {result.error.code}."
+                if result.error
+                else f"Tool call {index} reported no error."
+            )
         observation = Observation(
-            facts=(outcome_fact, error_fact),
+            facts=tuple(facts),
             unassessed_criteria=plan.success_criteria,
         )
         now = self._clock.now()
@@ -386,7 +622,7 @@ class AgentRunner:
             status=StepStatus.SUCCEEDED,
             started_at=now,
             completed_at=now,
-            input={"tool_result": result.model_dump(mode="json")},
+            input={"tool_results": [result.model_dump(mode="json") for result in results]},
             output={"observation": observation.model_dump(mode="json")},
         )
         adapting = transition_run(run, RunStatus.ADAPTING, now=now)
@@ -399,11 +635,12 @@ class AgentRunner:
             ensure_time_remaining(run, now=self._clock.now())
         except RunLimitExceededError as exc:
             return self._fail(run, exc, code="run_limit_reached")
-        plan, action_index = self._active_plan(detail.steps, include_current_action=True)
-        result = self._last_tool_result(detail.steps)
+        plan, _ = self._active_plan(detail.steps, include_current_action=True)
+        current_results = self._last_tool_results(detail.steps)
+        result = current_results[-1]
         tool_results = self._active_plan_tool_results(detail.steps)
         observation = self._last_observation(detail.steps)
-        has_remaining_action = action_index + 1 < len(plan.actions)
+        has_remaining_action = len(tool_results) < len(plan.actions)
         now = self._clock.now()
         step = self._running_step(
             run,
@@ -414,7 +651,13 @@ class AgentRunner:
         )
         in_progress = run.evolve(version=run.version + 1, updated_at=now)
         self._store.save(in_progress, expected_version=run.version, step=step)
-        if result.outcome is ToolOutcome.SUCCEEDED and has_remaining_action:
+        if (
+            all(
+                current_result.outcome is ToolOutcome.SUCCEEDED
+                for current_result in current_results
+            )
+            and has_remaining_action
+        ):
             adaptation = Adaptation(
                 decision=AdaptationDecision.CONTINUE,
                 justification=(
@@ -430,6 +673,7 @@ class AgentRunner:
                 request = self._with_run_deadline(
                     self._prompt_builder.build_adaptation_request(
                         in_progress,
+                        self._definitions_for_run(in_progress),
                         plan,
                         result,
                         observation,
@@ -552,9 +796,10 @@ class AgentRunner:
         if previous_position is None or previous is None:
             return False
         results = [
-            ToolResult.model_validate(step.output["tool_result"])
+            result
             for step in steps[previous_position + 1 :]
-            if step.phase is StepPhase.ACT and "tool_result" in step.output
+            if step.phase is StepPhase.ACT
+            for result in AgentRunner._step_tool_results(step)
         ]
         if not results or any(result.outcome is not ToolOutcome.SUCCEEDED for result in results):
             return False
@@ -576,8 +821,10 @@ class AgentRunner:
         """Return tool-name and argument mistakes to bounded model repair before execution."""
         successful_calls = self._successful_call_signatures(prior_steps)
         try:
+            stage_definitions: dict[int, list[ToolDefinition]] = {}
             for action in plan.actions:
                 definition = self._resolve_tool(run, action.tool_name)
+                stage_definitions.setdefault(action.sequence, []).append(definition)
                 self._tools.validate_input(definition, action.arguments)
                 self._validate_exact_identifiers(run, definition, action.arguments, prior_steps)
                 signature = (
@@ -587,6 +834,14 @@ class AgentRunner:
                 if signature in successful_calls:
                     raise ModelOutputValidationError(
                         "plan repeats a tool call that already succeeded in this run"
+                    )
+            for definitions in stage_definitions.values():
+                if len(definitions) > 1 and any(
+                    definition.side_effect is not SideEffectClass.READ_ONLY
+                    for definition in definitions
+                ):
+                    raise ModelOutputValidationError(
+                        "mutating actions must use a unique sequential stage"
                     )
         except (ToolSchemaValidationError, UnknownToolError) as exc:
             raise ModelOutputValidationError(str(exc)) from exc
@@ -614,22 +869,18 @@ class AgentRunner:
         for step in steps:
             if step.phase is not StepPhase.ACT:
                 continue
-            result = step.output.get("tool_result")
-            call = step.input.get("tool_call")
-            if (
-                not isinstance(result, dict)
-                or result.get("outcome") != ToolOutcome.SUCCEEDED.value
-                or not isinstance(call, dict)
-                or not isinstance(call.get("tool_name"), str)
-                or not isinstance(call.get("arguments"), dict)
+            for call, result in zip(
+                AgentRunner._step_tool_calls(step),
+                AgentRunner._step_tool_results(step),
+                strict=False,
             ):
-                continue
-            signatures.add(
-                (
-                    str(call["tool_name"]),
-                    json.dumps(call["arguments"], sort_keys=True, separators=(",", ":")),
-                )
-            )
+                if result.outcome is ToolOutcome.SUCCEEDED:
+                    signatures.add(
+                        (
+                            call.tool_name,
+                            json.dumps(call.arguments, sort_keys=True, separators=(",", ":")),
+                        )
+                    )
         return signatures
 
     def _validate_exact_identifiers(
@@ -649,25 +900,23 @@ class AgentRunner:
         for step in prior_steps:
             if step.phase is not StepPhase.ACT:
                 continue
-            result = step.output.get("tool_result")
-            if not isinstance(result, dict) or result.get("outcome") != ToolOutcome.SUCCEEDED.value:
-                continue
-            content = result.get("content")
-            call = step.input.get("tool_call")
-            tool_name = str(call.get("tool_name", "")) if isinstance(call, dict) else ""
-            if not tool_name:
-                raise ModelOutputValidationError(
-                    "persisted tool evidence is missing its immutable tool name"
-                )
-            try:
-                output_schema = self._resolve_tool(run, tool_name).output_schema
-            except UnknownToolError as exc:
-                raise ModelOutputValidationError(
-                    f"persisted tool evidence references an unavailable definition: {tool_name}"
-                ) from exc
-            for candidate in identifier_candidates(content, schema=output_schema):
-                if candidate.kind is not None:
-                    discovered.setdefault(candidate.kind, set()).add(candidate.value)
+            for call, result in zip(
+                self._step_tool_calls(step),
+                self._step_tool_results(step),
+                strict=False,
+            ):
+                if result.outcome is not ToolOutcome.SUCCEEDED:
+                    continue
+                try:
+                    output_schema = self._resolve_tool(run, call.tool_name).output_schema
+                except UnknownToolError as exc:
+                    raise ModelOutputValidationError(
+                        "persisted tool evidence references an unavailable definition: "
+                        f"{call.tool_name}"
+                    ) from exc
+                for candidate in identifier_candidates(result.content, schema=output_schema):
+                    if candidate.kind is not None:
+                        discovered.setdefault(candidate.kind, set()).add(candidate.value)
 
         for candidate in identifier_candidates(arguments, schema=definition.input_schema):
             kind = candidate.kind
@@ -694,21 +943,21 @@ class AgentRunner:
         if result.error is None:
             return False
         for step in steps:
-            if step.phase is not StepPhase.ACT or "tool_result" not in step.output:
+            if step.phase is not StepPhase.ACT:
                 continue
-            try:
-                previous_call = ToolCall.model_validate(step.input.get("tool_call"))
-                previous_result = ToolResult.model_validate(step.output["tool_result"])
-            except ValueError:
-                continue
-            if (
-                previous_result.outcome is not ToolOutcome.SUCCEEDED
-                and previous_result.error is not None
-                and previous_call.tool_name == call.tool_name
-                and previous_call.arguments == call.arguments
-                and previous_result.error.code == result.error.code
+            for previous_call, previous_result in zip(
+                AgentRunner._step_tool_calls(step),
+                AgentRunner._step_tool_results(step),
+                strict=False,
             ):
-                return True
+                if (
+                    previous_result.outcome is not ToolOutcome.SUCCEEDED
+                    and previous_result.error is not None
+                    and previous_call.tool_name == call.tool_name
+                    and previous_call.arguments == call.arguments
+                    and previous_result.error.code == result.error.code
+                ):
+                    return True
         return False
 
     @staticmethod
@@ -779,20 +1028,36 @@ class AgentRunner:
         )
         if plan_position is None or plan is None:
             raise AgentCoreError("run has no persisted valid plan")
-        action_count = sum(
-            step.phase is StepPhase.ACT and step.status is not StepStatus.PENDING
+        completed_act_steps = [
+            step
             for step in steps[plan_position + 1 :]
+            if step.phase is StepPhase.ACT and step.status is not StepStatus.PENDING
+        ]
+        action_count = sum(
+            len(AgentRunner._step_tool_results(step)) for step in completed_act_steps
         )
         if include_current_action:
-            action_count = max(0, action_count - 1)
+            current_count = (
+                len(AgentRunner._step_tool_results(completed_act_steps[-1]))
+                if completed_act_steps
+                else 0
+            )
+            action_count = max(0, action_count - current_count)
         return plan, action_count
 
     @staticmethod
-    def _last_tool_result(steps: tuple[AgentStep, ...]) -> ToolResult:
+    def _last_tool_results(steps: tuple[AgentStep, ...]) -> tuple[ToolResult, ...]:
         for step in reversed(steps):
-            if step.phase is StepPhase.ACT and "tool_result" in step.output:
-                return ToolResult.model_validate(step.output["tool_result"])
+            if step.phase is StepPhase.ACT:
+                results = AgentRunner._step_tool_results(step)
+                if results:
+                    return results
         raise AgentCoreError("run has no persisted tool result")
+
+    @staticmethod
+    def _last_tool_result(steps: tuple[AgentStep, ...]) -> ToolResult:
+        """Return the last result for compatibility with singular callers."""
+        return AgentRunner._last_tool_results(steps)[-1]
 
     @staticmethod
     def _active_plan_tool_results(steps: tuple[AgentStep, ...]) -> tuple[ToolResult, ...]:
@@ -808,10 +1073,89 @@ class AgentRunner:
         if plan_position is None:
             raise AgentCoreError("run has no persisted valid plan")
         return tuple(
-            ToolResult.model_validate(step.output["tool_result"])
+            result
             for step in steps[plan_position + 1 :]
-            if step.phase is StepPhase.ACT and "tool_result" in step.output
+            if step.phase is StepPhase.ACT
+            for result in AgentRunner._step_tool_results(step)
         )
+
+    @staticmethod
+    def _step_tool_calls(step: AgentStep) -> tuple[ToolCall, ...]:
+        plural = step.input.get("tool_calls")
+        values = plural if isinstance(plural, list) else [step.input.get("tool_call")]
+        calls: list[ToolCall] = []
+        for value in values:
+            if value is None:
+                continue
+            try:
+                calls.append(ToolCall.model_validate(value))
+            except ValueError:
+                if not isinstance(value, dict):
+                    continue
+                tool_name = value.get("tool_name")
+                if not isinstance(tool_name, str):
+                    continue
+                arguments_value = value.get("arguments", {})
+                arguments = arguments_value if isinstance(arguments_value, dict) else {}
+                calls.append(
+                    ToolCall.model_construct(
+                        id=step.id,
+                        run_id=step.run_id,
+                        step_id=step.id,
+                        request_id="unknown",
+                        traceparent=None,
+                        tool_name=tool_name,
+                        tool_version=str(value.get("tool_version", "v1")),
+                        arguments=arguments,
+                        idempotency_key=None,
+                        approval_status=ApprovalStatus.NOT_REQUIRED,
+                    )
+                )
+        return tuple(calls)
+
+    @staticmethod
+    def _step_tool_results(step: AgentStep) -> tuple[ToolResult, ...]:
+        plural = step.output.get("tool_results")
+        values = plural if isinstance(plural, list) else [step.output.get("tool_result")]
+        results: list[ToolResult] = []
+        for value in values:
+            if value is None:
+                continue
+            try:
+                results.append(ToolResult.model_validate(value))
+            except ValueError:
+                if not isinstance(value, dict):
+                    continue
+                try:
+                    outcome = ToolOutcome(str(value.get("outcome")))
+                except ValueError:
+                    continue
+                error_value = value.get("error")
+                error = (
+                    ToolError.model_validate(error_value) if isinstance(error_value, dict) else None
+                )
+                content_value = value.get("content", {})
+                content = content_value if isinstance(content_value, dict) else {}
+                duration_value = value.get("duration_ms", 0)
+                duration_ms = duration_value if isinstance(duration_value, int) else 0
+                references_value = value.get("evidence_references", ())
+                evidence_references = (
+                    tuple(item for item in references_value if isinstance(item, str))
+                    if isinstance(references_value, list)
+                    else ()
+                )
+                results.append(
+                    ToolResult.model_construct(
+                        call_id=step.id,
+                        outcome=outcome,
+                        content=content,
+                        error=error,
+                        duration_ms=duration_ms,
+                        retryable=bool(value.get("retryable", False)),
+                        evidence_references=evidence_references,
+                    )
+                )
+        return tuple(results)
 
     @staticmethod
     def _last_observation(steps: tuple[AgentStep, ...]) -> Observation:
@@ -833,6 +1177,20 @@ class AgentRunner:
                 ApprovalStatus.APPROVED,
             }:
                 return step, call
+        return None
+
+    @staticmethod
+    def _resumable_pending_batch(
+        steps: tuple[AgentStep, ...],
+    ) -> tuple[AgentStep, tuple[ToolCall, ...]] | None:
+        for step in reversed(steps):
+            if step.phase is not StepPhase.ACT or step.status is not StepStatus.PENDING:
+                continue
+            calls = AgentRunner._step_tool_calls(step)
+            if len(calls) > 1 and all(
+                call.approval_status is ApprovalStatus.NOT_REQUIRED for call in calls
+            ):
+                return step, calls
         return None
 
     def _pause_uncertain_effect(

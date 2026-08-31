@@ -18,6 +18,7 @@ from agent_core.identifier_schema import IdentifierCandidate, identifier_candida
 from agent_core.limits import (
     LimitKind,
     ensure_time_remaining,
+    ensure_tool_calls_available,
     ensure_within_limits,
     remaining_time_ms,
 )
@@ -96,6 +97,7 @@ __all__ = [
     "can_transition",
     "create_run",
     "ensure_time_remaining",
+    "ensure_tool_calls_available",
     "ensure_within_limits",
     "generate_validated",
     "identifier_candidates",

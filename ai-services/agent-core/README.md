@@ -17,10 +17,12 @@ package performs no Flask, SQLite, filesystem, or network I/O.
 - bounded structured-output validation with at most one repair;
 - a persisted phase runner that records state before and after model/tool effects; and
 - deterministic cancellation and protected-action review policies; and
-- effect-aware restart recovery for model, read-only, and uncertain mutation work.
+- effect-aware restart recovery for model, read-only batches, and uncertain mutation work.
 
-The runner executes one action at a time. It persists `acting` before dispatching a
-tool and persists the result before observation. A protected action becomes
+The runner executes each plan stage in deterministic order. Independent `read_only`
+actions sharing a sequence are dispatched concurrently up to `max_parallel_tools`; mutations
+remain single-action stages. It persists `acting` and every ordered call before dispatching the
+stage, then persists every ordered result before observation. A protected action becomes
 `review_required`; approval resumes the original call and idempotency key rather than
 constructing a new mutation.
 

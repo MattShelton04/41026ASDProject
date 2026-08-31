@@ -24,6 +24,14 @@ def ensure_within_limits(run: AgentRun, *, now: datetime) -> None:
     ensure_time_remaining(run, now=now)
 
 
+def ensure_tool_calls_available(run: AgentRun, count: int) -> None:
+    """Reject a dispatch whose complete batch would exceed the tool-call budget."""
+    if count < 1:
+        raise ValueError("tool call batch size must be positive")
+    if run.tool_call_count + count > run.limits.max_tool_calls:
+        raise RunLimitExceededError(f"{LimitKind.TOOL_CALLS.value} limit reached")
+
+
 def ensure_time_remaining(run: AgentRun, *, now: datetime) -> None:
     """Reject another external-I/O phase after the elapsed-time budget."""
     if remaining_time_ms(run, now=now) == 0:

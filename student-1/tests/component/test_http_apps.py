@@ -988,7 +988,7 @@ def test_release_diagnosis_uses_supported_prompt_contract() -> None:
         if request.url.host == "database":
             return httpx.Response(200, json={"release": {"id": release_id}})
         body = cast(dict[str, Any], json.loads(request.content))
-        assert body["prompt_set"] == "default.v6"
+        assert body["prompt_set"] == "default.v7"
         assert body["feature_key"] == "student-1-propertyscope-data-platform"
         assert "model_profile" not in body
         assert release_id in body["objective"]
@@ -1039,7 +1039,7 @@ def test_assistant_turn_creates_one_read_only_feature_scoped_agent_run() -> None
         assert request.url.path == "/api/v1/agent-runs"
         body = json.loads(request.content)
         assert body["feature_key"] == "student-1-propertyscope-data-platform"
-        assert body["prompt_set"] == "default.v6"
+        assert body["prompt_set"] == "default.v7"
         assert body["limits"]["max_tool_calls"] == 10
         assert "data.run_retry.v1" not in body["tool_allowlist"]
         assert "data.release_publish.v1" not in body["tool_allowlist"]

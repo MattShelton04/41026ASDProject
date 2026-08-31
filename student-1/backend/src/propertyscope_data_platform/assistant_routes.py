@@ -113,7 +113,7 @@ def register_assistant_tool_routes(
                         else []
                     ),
                 ],
-                "prompt_set": "default.v6",
+                "prompt_set": "default.v7",
                 "limits": {
                     "max_iterations": 6,
                     "max_tool_calls": 12,
@@ -139,7 +139,7 @@ def register_assistant_tool_routes(
                 "feature_key": ASSISTANT_FEATURE_KEY,
                 "objective": build_assistant_objective(command),
                 "trusted_identifiers": command.context.trusted_identifiers(),
-                "prompt_set": "default.v6",
+                "prompt_set": "default.v7",
                 "tool_allowlist": list(ASSISTANT_TOOL_ALLOWLIST),
                 "limits": {
                     "max_iterations": 6,

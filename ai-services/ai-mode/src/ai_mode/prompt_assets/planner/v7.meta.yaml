@@ -1,0 +1,5 @@
+prompt_id: planner
+version: v7
+role: planner
+template: v7.system.j2
+description: Planner with typed provenance and deterministic parallel read-only stages.

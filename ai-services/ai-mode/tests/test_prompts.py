@@ -81,10 +81,53 @@ def test_builder_keeps_stable_instructions_before_untrusted_dynamic_data() -> No
     assert "software-controlled" in request.messages[0].content
     assert request.messages[1].role == "user"
     assert "untrusted task data" in request.messages[1].content
-    assert request.prompt_hash == PromptRegistry(PROMPT_ROOT).load("planner", "v6").content_hash
-    assert request.prompt_version == "v6"
+    assert len(request.prompt_hash) == 64
+    assert request.prompt_version == "v7"
     assert request.max_output_tokens == 2_048
     assert len(request.rendered_input_hash) == 64
+
+
+def test_tool_catalogue_is_in_the_cacheable_prefix_and_user_fields_are_stable_first() -> None:
+    definition = ToolDefinition(
+        name="student_1.records.search.v1",
+        version="v1",
+        feature_key="student-1-feature",
+        description="Search records using the complete immutable schema",
+        input_schema={
+            "type": "object",
+            "properties": {"query": {"type": "string", "minLength": 1}},
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+        output_schema={
+            "type": "object",
+            "properties": {"count": {"type": "integer", "minimum": 0}},
+            "required": ["count"],
+            "additionalProperties": False,
+        },
+        side_effect=SideEffectClass.READ_ONLY,
+    )
+    builder = RegistryPromptBuilder(PromptRegistry(PROMPT_ROOT))
+    first = builder.build_plan_request(_run(), (definition,))
+    changed_run = create_run(
+        AgentRunRequest(feature_key="student-1-feature", objective="A different objective"),
+        run_id=uuid4(),
+        request_id="request-2",
+        now=datetime(2026, 8, 1, tzinfo=UTC),
+    )
+    second = builder.build_plan_request(changed_run, (definition,))
+
+    system = first.messages[0].content
+    user = first.messages[1].content
+    assert "ALLOWLISTED TOOL CATALOGUE" in system
+    assert definition.name in system
+    assert '"input_schema"' in system
+    assert len(system.encode("utf-8")) >= 5_000
+    assert '"tools"' not in user
+    assert user.index('"feature_key"') < user.index('"limits"') < user.index('"objective"')
+    assert user.index('"objective"') < user.index('"prior_tool_attempts"')
+    assert first.prompt_hash == second.prompt_hash
+    assert first.rendered_input_hash != second.rendered_input_hash
 
 
 def test_builder_constructs_evidence_based_adaptation_request() -> None:
@@ -110,7 +153,7 @@ def test_builder_constructs_evidence_based_adaptation_request() -> None:
     observation = Observation(facts=("Tool call succeeded.",))
 
     request = RegistryPromptBuilder(PromptRegistry(PROMPT_ROOT)).build_adaptation_request(
-        run, plan, result, observation, (result,)
+        run, (), plan, result, observation, (result,)
     )
 
     assert request.role.value == "adapter"
@@ -119,7 +162,7 @@ def test_builder_constructs_evidence_based_adaptation_request() -> None:
     assert '"has_remaining_action":false' in request.messages[1].content
     assert '"objective":"Find records"' in request.messages[1].content
     assert request.prompt_id == "adapter"
-    assert request.prompt_version == "v6"
+    assert request.prompt_version == "v7"
     assert request.max_output_tokens == 4_096
     assert "every success criterion" in request.messages[0].content
     assert "different allowlisted call" in request.messages[0].content
@@ -173,6 +216,7 @@ def test_v6_prompts_receive_the_explicit_trusted_identifier_ledger() -> None:
     )
     adaptation_request = builder.build_adaptation_request(
         run,
+        (definition,),
         plan,
         result,
         Observation(facts=("The record was inspected.",)),
@@ -230,6 +274,7 @@ def test_v5_prompts_define_untrusted_history_and_plain_capability_boundaries() -
     )
     adaptation_request = builder.build_adaptation_request(
         run,
+        (definition,),
         plan,
         result,
         Observation(facts=("Requested capability is unavailable.",)),
@@ -306,7 +351,7 @@ def test_large_cumulative_tool_evidence_is_projected_below_message_limit() -> No
     observation = Observation(facts=("Tool call succeeded.",))
 
     request = RegistryPromptBuilder(PromptRegistry(PROMPT_ROOT)).build_adaptation_request(
-        run, plan, result, observation, tuple(result for _ in range(12))
+        run, (), plan, result, observation, tuple(result for _ in range(12))
     )
 
     assert all(len(message.content) <= 100_000 for message in request.messages)

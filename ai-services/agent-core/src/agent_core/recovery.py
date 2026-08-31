@@ -117,19 +117,29 @@ def _recover_action(
 ) -> RecoveryDecision:
     step = _single_running_step(detail, StepPhase.ACT)
     try:
-        call = ToolCall.model_validate(step.input.get("tool_call"))
+        calls_value = step.input.get("tool_calls")
+        if isinstance(calls_value, list):
+            calls = tuple(ToolCall.model_validate(value) for value in calls_value)
+        else:
+            calls = (ToolCall.model_validate(step.input.get("tool_call")),)
     except ValueError as exc:
         raise AgentCoreError("interrupted action has no valid persisted tool call") from exc
+    if not calls:
+        raise AgentCoreError("interrupted action has no valid persisted tool call")
 
     try:
-        definition = tools.resolve(
-            detail.run.feature_key,
-            call.tool_name,
-            version=call.tool_version,
+        definitions = tuple(
+            tools.resolve(
+                detail.run.feature_key,
+                call.tool_name,
+                version=call.tool_version,
+            )
+            for call in calls
         )
-        replay_is_safe = (
+        replay_is_safe = all(
             definition.version == call.tool_version
             and definition.side_effect is SideEffectClass.READ_ONLY
+            for call, definition in zip(calls, definitions, strict=True)
         )
     except UnknownToolError:
         replay_is_safe = False
@@ -156,6 +166,9 @@ def _recover_action(
             changed=True,
         )
 
+    if len(calls) != 1:
+        raise AgentCoreError("interrupted parallel batch was not entirely read-only")
+    call = calls[0]
     if call.idempotency_key is None:
         raise AgentCoreError("interrupted effectful action has no idempotency key")
     review_call = call.evolve(approval_status=ApprovalStatus.PENDING)
