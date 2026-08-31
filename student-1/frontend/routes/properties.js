@@ -201,6 +201,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     const encodedRef = encodeURIComponent(propertyRef);
     const mapResult = settled(request(`properties/${encodedRef}/map-context`));
     const coverageResult = settled(request(`properties/${encodedRef}/coverage`));
+    const saleHistoryResult = settled(request(`properties/${encodedRef}/sale-history?limit=50`));
     const reportResult = settled(request(`properties/${encodedRef}/report-section`));
     try {
       const detailResult = await request(`properties/${encodedRef}`);
@@ -225,6 +226,9 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
       append(contentColumn, panel("Location", "Verified property point and surrounding street context", mapHost));
       const coverageHost = pendingSection("Loading available research coverage…");
       append(contentColumn, panel("Research available", "Published datasets currently linked to this property", coverageHost));
+      const saleHistoryHost = pendingSection("Loading accepted sale history…");
+      const saleHistoryPanel = panel("Sale history", "Recorded transactions from the current published NSW sales release", saleHistoryHost);
+      append(contentColumn, saleHistoryPanel);
       const technicalBody = el("div", "stack");
       append(technicalBody, detailList([["PropertyScope reference", el("code", "mono", property.property_ref)], ["Request ID", el("code", "mono", detailResult.requestId)]]));
       const coordinateHost = pendingSection("Loading recorded coordinates…");
@@ -261,6 +265,21 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
         coverageCount.textContent = `${coverage.length} research datasets available`;
         resolvePendingSection(coverageHost);
         coverageHost.replaceChildren(coverageSection(coverage, result));
+      });
+      void saleHistoryResult.then((result) => {
+        if (!canHydrate(routeEpoch, saleHistoryHost, propertyRef)) return;
+        if (result.status === "rejected") {
+          resolvePendingSection(saleHistoryHost);
+          saleHistoryHost.replaceChildren(el("div", "notice warning", `Sale history is temporarily unavailable; verified property identity remains usable.${problemSuffix(result.reason)}`));
+          return;
+        }
+        const items = collection(result.value.body);
+        if (!result.value.body.supported || !items.length) {
+          saleHistoryPanel.remove();
+          return;
+        }
+        resolvePendingSection(saleHistoryHost);
+        saleHistoryHost.replaceChildren(saleHistorySection(result.value.body, items));
       });
       void reportResult.then((result) => {
         if (!canHydrate(routeEpoch, reportHost, propertyRef)) return;
@@ -438,6 +457,57 @@ function coverageSection(coverage, result) {
   }
   append(section, cards);
   return section;
+}
+
+function saleHistorySection(payload, items) {
+  const section = el("section", "stack property-sale-history");
+  const release = payload.release || {};
+  append(section, el(
+    "p",
+    "field-help",
+    `${payload.has_more ? "Latest " : ""}${formatNumber(items.length)} recorded sale${items.length === 1 ? "" : "s"}${release.release_version ? ` · published version ${release.release_version}` : ""}. Corrected publisher records are shown once at their latest revision.`,
+  ));
+  append(section, makeTable(
+    [{ label: "Contract date" }, { label: "Price" }, { label: "Settlement" }, { label: "Land area" }, { label: "Source match" }],
+    items,
+    (item) => {
+      const row = el("tr");
+      append(
+        row,
+        cell(formatSaleDate(item.contract_date), "primary-cell"),
+        cell(formatSalePrice(item.price_aud), "numeric"),
+        cell(formatSaleDate(item.settlement_date)),
+        cell(formatSaleArea(item), "numeric"),
+        cell(confidenceLabel(item.match_confidence)),
+      );
+      return row;
+    },
+    "Accepted NSW property sale history",
+  ));
+  return section;
+}
+
+function formatSaleDate(value) {
+  if (!value) return "Not recorded";
+  const isoDate = /^\d{4}-\d{2}-\d{2}$/.test(String(value))
+    ? new Date(`${value}T00:00:00Z`)
+    : new Date(value);
+  return Number.isNaN(isoDate.valueOf())
+    ? String(value)
+    : new Intl.DateTimeFormat("en-AU", { dateStyle: "medium", timeZone: "UTC" }).format(isoDate);
+}
+
+function formatSalePrice(value) {
+  if (value === null || value === undefined || value === "") return "Not recorded";
+  return `$${formatNumber(value)}`;
+}
+
+function formatSaleArea(item) {
+  if (item.area_square_metres !== null && item.area_square_metres !== undefined) {
+    return `${formatNumber(item.area_square_metres)} m²`;
+  }
+  if (item.area_original === null || item.area_original === undefined) return "Not recorded";
+  return `${formatNumber(item.area_original)} ${item.area_unit || "unit not recorded"}`;
 }
 
 function propertyMap({ property, latitude, longitude, announce, routeEpoch }) {

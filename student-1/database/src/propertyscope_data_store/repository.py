@@ -1999,6 +1999,9 @@ class PropertyScopeStore:
     def property_coverage(self, property_ref: uuid.UUID) -> list[JsonObject]:
         return self._properties().property_coverage(property_ref)
 
+    def property_sale_history(self, property_ref: uuid.UUID, *, limit: int) -> JsonObject:
+        return self._properties().property_sale_history(property_ref, limit=limit)
+
     def overview(self) -> JsonObject:
         with self.connection() as connection:
             runs = connection.execute(

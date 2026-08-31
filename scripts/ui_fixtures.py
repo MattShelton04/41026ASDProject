@@ -418,6 +418,7 @@ def fixture_response(
                 "/overview",
                 "/map-context",
                 "/coverage",
+                "/sale-history",
                 "/report-section",
                 "/artifacts",
                 "/events",
@@ -688,6 +689,44 @@ def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[
     if route.endswith("/coverage"):
         items = [] if scenario == "empty" else coverage
         return {"items": items, "count": len(items)}
+    if route.endswith("/sale-history"):
+        items = [
+            {
+                "source_business_key": "001:P1:1",
+                "source_revision": 2,
+                "contract_date": "2025-01-11",
+                "settlement_date": "2025-02-11",
+                "price_aud": 760000,
+                "area_original": "500",
+                "area_unit": "M",
+                "area_square_metres": "500",
+                "property_id": "P1",
+                "dealing_id": "D1",
+                "match_tier": "A",
+                "match_confidence": "1.0000",
+                "geographic_precision": "exact_address",
+                "nature_code": "R",
+                "primary_purpose": None,
+                "sale_code": None,
+                "dataset_release_id": "60000000-0000-0000-0000-000000000002",
+                "release_version": "2026.08.23-psi",
+                "schema_version": "propertyscope.property-sales.v3",
+                "accepted_at": TIMESTAMP,
+            }
+        ]
+        return {
+            "items": items,
+            "count": len(items),
+            "limit": 50,
+            "has_more": False,
+            "supported": True,
+            "release": {
+                "dataset_release_id": "60000000-0000-0000-0000-000000000002",
+                "release_version": "2026.08.23-psi",
+                "schema_version": "propertyscope.property-sales.v3",
+                "accepted_at": TIMESTAMP,
+            },
+        }
     if route.endswith("/report-section"):
         return {
             "schema_version": REPORT_SCHEMA,

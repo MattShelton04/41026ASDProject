@@ -366,3 +366,92 @@ class _CanonicalPropertyReads:
             ORDER BY target_feature,dataset_id""",
             (property_ref, property_ref),
         )
+
+    def property_sale_history(self, property_ref: uuid.UUID, *, limit: int) -> JsonObject:
+        """Return latest accepted PSI revisions for one canonical property.
+
+        The accepted-generation join keeps a publication pointer switch atomic for readers.
+        Corrected retransmissions remain stored, but only the latest source revision is shown as
+        a sale event.  ``limit + 1`` supplies bounded truncation evidence without an unbounded
+        count over the source-scale PSI generation.
+        """
+
+        rows = self._owner._fetch_all(
+            """WITH property_presence AS MATERIALIZED (
+                SELECT true AS present
+                FROM warehouse.gnaf_address address
+                JOIN serving.accepted_generation accepted
+                  ON accepted.dataset_release_id=address.dataset_release_id
+                WHERE address.published AND COALESCE(address.property_ref,
+                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
+                UNION ALL
+                SELECT true FROM registry.property property WHERE property.property_ref=%s
+                LIMIT 1
+            ), accepted_sales AS MATERIALIZED (
+                SELECT release.id AS dataset_release_id,release.release_version,
+                       release.schema_version,release.accepted_at
+                FROM serving.accepted_generation accepted
+                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+                WHERE accepted.dataset_id='nsw-psi-sales'
+                  AND accepted.target_feature='feature-2'
+                  AND release.status='accepted'
+                LIMIT 1
+            ), latest_sales AS (
+                SELECT DISTINCT ON (sale.source_business_key)
+                       sale.source_business_key,sale.source_revision,sale.contract_date,
+                       sale.settlement_date,sale.price_aud,sale.area_original,sale.area_unit,
+                       sale.area_square_metres,sale.property_id,sale.dealing_id,
+                       sale.match_tier,sale.match_confidence,sale.geographic_precision,
+                       sale.nature_code,sale.primary_purpose,sale.sale_code,
+                       accepted.dataset_release_id,accepted.release_version,
+                       accepted.schema_version,accepted.accepted_at
+                FROM accepted_sales accepted
+                JOIN warehouse.psi_sale sale
+                  ON sale.dataset_release_id=accepted.dataset_release_id
+                WHERE sale.property_ref=%s
+                ORDER BY sale.source_business_key,sale.source_revision DESC
+            ), page AS MATERIALIZED (
+                SELECT * FROM latest_sales
+                ORDER BY COALESCE(contract_date,settlement_date) DESC NULLS LAST,
+                         source_business_key
+                LIMIT %s
+            )
+            SELECT presence.present,accepted.dataset_release_id,accepted.release_version,
+                   accepted.schema_version,accepted.accepted_at,
+                   page.source_business_key,page.source_revision,page.contract_date,
+                   page.settlement_date,page.price_aud,page.area_original,page.area_unit,
+                   page.area_square_metres,page.property_id,page.dealing_id,page.match_tier,
+                   page.match_confidence,page.geographic_precision,page.nature_code,
+                   page.primary_purpose,page.sale_code
+            FROM property_presence presence
+            LEFT JOIN accepted_sales accepted ON true
+            LEFT JOIN page ON true
+            ORDER BY COALESCE(page.contract_date,page.settlement_date) DESC NULLS LAST,
+                     page.source_business_key""",
+            (property_ref, property_ref, property_ref, limit + 1),
+        )
+        if not rows:
+            raise NotFoundError("record does not exist")
+        first = rows[0]
+        supported = first.get("dataset_release_id") is not None
+        items = [
+            {key: value for key, value in row.items() if key != "present"}
+            for row in rows
+            if row.get("source_business_key") is not None
+        ]
+        has_more = len(items) > limit
+        return {
+            "items": items[:limit],
+            "count": min(len(items), limit),
+            "limit": limit,
+            "has_more": has_more,
+            "supported": supported,
+            "release": {
+                "dataset_release_id": first["dataset_release_id"],
+                "release_version": first["release_version"],
+                "schema_version": first["schema_version"],
+                "accepted_at": first["accepted_at"],
+            }
+            if supported
+            else None,
+        }

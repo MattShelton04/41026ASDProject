@@ -44,6 +44,7 @@ from propertyscope_data_store.source_materialisation import (
     PSI_IDENTITY_SQL,
     PSI_PHASE_SQL,
     PSI_STAGE_SQL,
+    PSI_STREAM_COLUMNS,
     PSI_TARGET_INSERT_SQL,
 )
 
@@ -392,18 +393,17 @@ def test_psi_import_rejects_unexpected_nonnumeric_postcode_corruption() -> None:
 
 
 @pytest.mark.parametrize("field", ["street_number_first", "street_number_last"])
-def test_psi_rejects_address_numbers_outside_postgresql_integer_range(field: str) -> None:
-    record = {**_contract_records("psi-sales")[0], field: 6_711_011_622}
+def test_psi_retains_sale_with_unusable_derived_address_number(field: str) -> None:
+    record = {
+        **_contract_records("psi-sales")[0],
+        "house_number": "6711011622" if field == "street_number_first" else "10-6711011622",
+        field: 6_711_011_622,
+    }
 
-    with pytest.raises(
-        ImportProfileError,
-        match=rf"record 1 {field} is above its maximum",
-    ) as caught:
-        prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
+    prepared = prepare_import(_artifact("psi-sales", [record]), profile="psi-sales")
 
-    error = _safe_loader_error(caught.value)
-    assert error["code"] == "canonical_record_invalid"
-    assert f"record 1 {field} is above its maximum" in str(error["message"])
+    assert prepared.rows[0][field] is None
+    assert prepared.rows[0]["house_number"] == record["house_number"]
 
     boundary = {**record, field: POSTGRES_INTEGER_MAX}
     assert prepare_import(_artifact("psi-sales", [boundary]), profile="psi-sales").rows[0][
@@ -495,7 +495,7 @@ class _StreamingConnection:
         return self.stream_cursor
 
 
-def test_invalid_final_psi_row_stops_before_destination_materialisation() -> None:
+def test_unusable_final_psi_address_number_is_retained_with_quality_warning() -> None:
     valid = _contract_records("psi-sales")[0]
     invalid = {
         **valid,
@@ -508,27 +508,31 @@ def test_invalid_final_psi_row_stops_before_destination_materialisation() -> Non
     )
     connection = _StreamingConnection()
 
-    with pytest.raises(
-        ImportProfileError,
-        match="record 2 street_number_first is above its maximum",
-    ):
-        execute_stream_import(
-            cast(Any, connection),
-            {
-                "ingestion_run_id": uuid.uuid4(),
-                "candidate_release_id": uuid.uuid4(),
-                "artifact_record_id": uuid.uuid4(),
-            },
-            profile="psi-sales",
-            rows=rows,
-        )
+    result = execute_stream_import(
+        cast(Any, connection),
+        {
+            "ingestion_run_id": uuid.uuid4(),
+            "candidate_release_id": uuid.uuid4(),
+            "artifact_record_id": uuid.uuid4(),
+        },
+        profile="psi-sales",
+        rows=rows,
+    )
 
-    assert len(connection.stream_cursor.copied) == 1
-    assert not any(
+    assert len(connection.stream_cursor.copied) == 2
+    assert (
+        connection.stream_cursor.copied[1][PSI_STREAM_COLUMNS.index("street_number_first")] is None
+    )
+    assert result.rows_accepted == 1
+    assert result.rows_rejected == 0
+    assert result.quality_checks == 3
+    assert any(
         "INSERT INTO warehouse.psi_sale" in sql for sql in connection.stream_cursor.statements
     )
     assert not any(
-        "serving.accepted_generation" in sql for sql in connection.stream_cursor.statements
+        "UPDATE serving.accepted_generation" in sql
+        or "INSERT INTO serving.accepted_generation" in sql
+        for sql in connection.stream_cursor.statements
     )
 
 
@@ -563,12 +567,14 @@ def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions(
     assert "derived_revision" in source
     assert "source_partition_year" in source
     assert "street_name_normalised" in source
+    assert "warehouse.gnaf_address" in source
+    assert "accepted.dataset_id='gnaf-nsw'" in source
     assert "registry.property" in source
-    assert "count(property.property_ref)=1" in source
+    assert "count(DISTINCT property.property_ref)=1" in source
     assert "exact_address" in source
     assert "LEFT JOIN LATERAL" not in source
     assert "upper(" not in source
-    assert "CASE WHEN count(property.property_ref)=1" in source
+    assert "CASE WHEN count(DISTINCT property.property_ref)=1" in source
     assert "property.street_number_last" in source
     assert "property.street_number_suffix" in source
     assert "property.unit_number" in source
@@ -624,7 +630,9 @@ def test_psi_source_scale_path_casts_once_and_avoids_a_final_wide_sort() -> None
     assert "min(ordinal) AS first_ordinal" in PSI_IDENTITY_SQL
     assert "ORDER BY first_ordinal" in PSI_IDENTITY_SQL
     assert "SELECT DISTINCT source.postcode" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "LEFT JOIN registry.property" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "accepted_gnaf_candidates AS MATERIALIZED" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "registry_fallback_candidates" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "JOIN registry.property" in PSI_ADDRESS_RESOLUTION_SQL
     assert "match_count" in PSI_ADDRESS_RESOLUTION_SQL
     assert "COALESCE(source.property_ref,resolution.exact_property_ref)" in source
     assert "JOIN propertyscope_psi_import_stage source" in PSI_TARGET_INSERT_SQL

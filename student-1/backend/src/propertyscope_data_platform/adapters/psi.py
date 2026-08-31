@@ -16,6 +16,8 @@ from tempfile import SpooledTemporaryFile
 from typing import IO
 from zipfile import BadZipFile, ZipFile, ZipInfo
 
+POSTGRES_INTEGER_MAX = 2_147_483_647
+
 
 @dataclass(frozen=True, slots=True)
 class PsiSale:
@@ -494,7 +496,13 @@ def _street_number_first(value: str) -> int | None:
             digits += character
         elif digits:
             break
-    return int(digits) if digits else None
+    if not digits:
+        return None
+    number = int(digits)
+    # PSI house-number text is a publisher fact and is preserved separately. A
+    # handful of source rows contain concatenated identifiers that are not usable
+    # address numbers. Do not manufacture a typed match component for them.
+    return number if number <= POSTGRES_INTEGER_MAX else None
 
 
 def _street_number_suffix(value: str) -> str | None:
@@ -522,7 +530,10 @@ def _street_number_last(value: str) -> int | None:
             digits += character
         elif digits:
             break
-    return int(digits) if digits else None
+    if not digits:
+        return None
+    number = int(digits)
+    return number if number <= POSTGRES_INTEGER_MAX else None
 
 
 def _source_datetime(value: str) -> datetime | None:

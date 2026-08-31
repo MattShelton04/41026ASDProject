@@ -59,6 +59,17 @@ def register_property_routes(
             )
         )
 
+    @api.get(f"{base}/properties/<uuid:property_ref>/sale-history")
+    def property_sale_history(property_ref: uuid.UUID) -> Response:
+        return forward(
+            store.request(
+                "GET",
+                f"{internal}/properties/{property_ref}/sale-history",
+                headers=request.headers,
+                params=request.args,
+            )
+        )
+
     @api.get(f"{base}/properties/<uuid:property_ref>/report-section")
     def property_report_section(property_ref: uuid.UUID) -> Response:
         """Return bounded canonical evidence for the Feature 5 report composer."""

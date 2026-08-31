@@ -28,7 +28,7 @@ from psycopg.types.json import Jsonb
 from propertyscope_data_store import import_profiles
 from propertyscope_data_store._consumer_import_operations import _ConsumerImportOperations
 from propertyscope_data_store.errors import ConflictError, NotFoundError
-from propertyscope_data_store.import_profiles import ImportProfileError, iter_ndjson_import
+from propertyscope_data_store.import_profiles import iter_ndjson_import
 from propertyscope_data_store.repository import PropertyScopeStore
 from propertyscope_data_store.source_materialisation import (
     BOCSAR_COPY_SQL,
@@ -702,7 +702,7 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
     assert terminal["attempt_number"] == 5
 
 
-def test_invalid_final_row_rolls_back_stage_and_preserves_predecessor(
+def test_unusable_psi_address_number_does_not_abort_or_move_accepted_pointer(
     isolated_postgres: psycopg.Connection[dict[str, object]],
 ) -> None:
     connection = isolated_postgres
@@ -710,24 +710,26 @@ def test_invalid_final_row_rolls_back_stage_and_preserves_predecessor(
     connection.execute("INSERT INTO serving.accepted_generation VALUES ('psi',%s)", (predecessor,))
     connection.commit()
     valid = _psi_row(key="valid")
-    invalid = _psi_row(key="invalid", street_number_first=6_711_011_622)
+    invalid_address = _psi_row(
+        key="invalid-address",
+        street_number_first=6_711_011_622,
+        house_number="6711011622",
+    )
 
-    with pytest.raises(ImportProfileError, match="record 2 street_number_first"):
-        connection.execute(
-            "CREATE TEMP TABLE propertyscope_import_stage "
-            "(ordinal BIGINT PRIMARY KEY,payload JSONB NOT NULL) ON COMMIT DROP"
+    validated = list(
+        iter_ndjson_import(
+            (json.dumps(item).encode() + b"\n" for item in (valid, invalid_address)),
+            profile="psi-sales",
         )
-        for ordinal, row in enumerate(
-            iter_ndjson_import(
-                (json.dumps(item).encode() + b"\n" for item in (valid, invalid)),
-                profile="psi-sales",
-            ),
-            start=1,
-        ):
-            connection.execute(
-                "INSERT INTO propertyscope_import_stage VALUES (%s,%s)",
-                (ordinal, Jsonb(row)),
-            )
+    )
+    assert validated[1]["house_number"] == "6711011622"
+    assert validated[1]["street_number_first"] is None
+    _stage_typed_psi_rows(connection, validated)
+
+    staged = connection.execute(
+        "SELECT count(*) AS count FROM propertyscope_psi_import_stage"
+    ).fetchone()
+    assert staged is not None and staged["count"] == 2
     connection.rollback()
 
     count = connection.execute("SELECT count(*) AS count FROM warehouse.psi_sale").fetchone()

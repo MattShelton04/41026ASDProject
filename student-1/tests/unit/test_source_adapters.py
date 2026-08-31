@@ -555,6 +555,23 @@ def test_psi_address_parser_preserves_supported_number_ranges_and_suffixes() -> 
     assert sale.street_type == "ST"
 
 
+def test_psi_address_parser_retains_sale_and_raw_text_when_number_is_unusable() -> None:
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr(
+            "20050107.DAT",
+            "B;708;3135855;326;20050107 11:42;;;6711011622;MOUNTAIN;ULTIMO;2007;;;"
+            "20020902;20041208;922500;;3;COMMERCIAL;6;;;;0;AB159244\n",
+        )
+
+    sale = next(iter_psi_archive(stream.getvalue(), source_year=2004))
+
+    assert sale.source_business_key == "708:3135855:326"
+    assert sale.house_number == "6711011622"
+    assert sale.street_number_first is None
+    assert sale.price_aud == 922500
+
+
 def test_psi_archive_preserves_undocumented_legacy_area_unit_without_conversion() -> None:
     row = (
         "B;255;ARCHIVE;0146000000;2687054;;127;CADELL ST WENTWORTH;WENTWORTH;;"

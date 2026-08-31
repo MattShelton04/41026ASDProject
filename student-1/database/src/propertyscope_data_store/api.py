@@ -536,6 +536,11 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         items = store.property_coverage(property_ref)
         return jsonify({"items": items, "count": len(items)})
 
+    @api.get("/internal/data-platform/v1/properties/<uuid:property_ref>/sale-history")
+    def property_sale_history(property_ref: uuid.UUID) -> Response:
+        limit = query_integer("limit", minimum=1, maximum=100, default=50)
+        return jsonify(store.property_sale_history(property_ref, limit=limit))
+
     @api.post("/internal/data-platform/v1/imports")
     def imports_create() -> tuple[Response, int]:
         operation, created = store.create_import(payload())

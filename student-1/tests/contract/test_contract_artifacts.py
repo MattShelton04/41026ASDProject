@@ -88,6 +88,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/properties/{property_ref}",
         "/properties/{property_ref}/map-context",
         "/properties/{property_ref}/coverage",
+        "/properties/{property_ref}/sale-history",
         "/properties/{property_ref}/report-section",
         "/agent-runs",
         "/agent-runs/{run_id}",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -43,6 +44,8 @@ IMPORT_PHASE_LABELS: Mapping[str, str] = {
 REGISTERED_PROFILES = frozenset(
     {"property-fixture", "gnaf-nsw", "psi-sales", "bocsar-sparse", "schools-master"}
 )
+_PSI_QUALITY_WARNINGS_KEY = "_propertyscope_import_quality_warnings"
+_PSI_ADDRESS_NUMBER_OUT_OF_RANGE = "address_number_out_of_range"
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +149,8 @@ def execute_stream_import(
     release_id = uuid.UUID(str(work["candidate_release_id"]))
     artifact_id = uuid.UUID(str(work["artifact_record_id"]))
     staged = 0
+    quality_warning_rows = 0
+    quality_warning_counts: Counter[str] = Counter()
     with connection.cursor() as cursor:
         if profile == "gnaf-nsw":
             cursor.execute(_GNAF_STREAM_STAGE_SQL)
@@ -159,6 +164,10 @@ def execute_stream_import(
             with cursor.copy(PSI_COPY_SQL) as copy:
                 for staged, row in enumerate(rows, start=1):
                     _require_copy_ordinal(staged)
+                    warnings = row.get(_PSI_QUALITY_WARNINGS_KEY, ())
+                    if warnings:
+                        quality_warning_rows += 1
+                        quality_warning_counts.update(str(warning) for warning in warnings)
                     copy.write_row((staged, *(row[field] for field in PSI_STREAM_COLUMNS[1:])))
             if staged > POSTGRES_INTEGER_MAX:
                 raise ImportProfileError(
@@ -210,6 +219,8 @@ def execute_stream_import(
             release_id=release_id,
             expected=accepted if profile == "psi-sales" else staged,
             accepted=accepted,
+            quality_warning_rows=quality_warning_rows,
+            quality_warning_counts=quality_warning_counts,
         )
         cursor.execute(
             """UPDATE ops.dataset_release SET record_count=%s,
@@ -412,13 +423,16 @@ def _record_quality(
     release_id: uuid.UUID,
     expected: int,
     accepted: int,
+    quality_warning_rows: int = 0,
+    quality_warning_counts: Mapping[str, int] | None = None,
 ) -> int:
     # BOCSAR has two candidate tables, so accepted rows can exceed source envelope rows.
     load_complete = accepted >= expected
-    results = (
+    results: list[tuple[str, str, str, str, object, object, str]] = [
         (
             f"import.{profile}.schema",
             "schema",
+            "blocking",
             "pass",
             {"schema_version": CANONICAL_SCHEMA_VERSION},
             {"schema_version": CANONICAL_SCHEMA_VERSION},
@@ -427,6 +441,7 @@ def _record_quality(
         (
             f"import.{profile}.candidate-row-count",
             "completeness",
+            "blocking",
             "pass" if load_complete else "fail",
             {"accepted": accepted},
             {"minimum": expected},
@@ -434,13 +449,30 @@ def _record_quality(
             if load_complete
             else "Candidate generation lost validated rows.",
         ),
-    )
-    for rule_key, dimension, status, observed, expected_value, message in results:
+    ]
+    if quality_warning_rows:
+        results.append(
+            (
+                f"import.{profile}.source-anomalies",
+                "validity",
+                "warning",
+                "warn",
+                {
+                    "rows_retained": quality_warning_rows,
+                    "anomaly_counts": dict(sorted((quality_warning_counts or {}).items())),
+                },
+                {"rows_retained": 0},
+                "Publisher sale rows were retained, but unusable derived address-number "
+                "components were recorded as unknown; original house-number text remains "
+                "available.",
+            )
+        )
+    for rule_key, dimension, severity, status, observed, expected_value, message in results:
         cursor.execute(
             """INSERT INTO ops.quality_result (
                 id,ingestion_run_id,dataset_release_id,rule_key,rule_version,dimension,
                 severity,status,observed_value_json,expected_value_json,message,created_at
-            ) VALUES (%s,%s,%s,%s,'1.0.0',%s,'blocking',%s,%s,%s,%s,now())
+            ) VALUES (%s,%s,%s,%s,'1.0.0',%s,%s,%s,%s,%s,%s,now())
             ON CONFLICT (ingestion_run_id,rule_key) DO NOTHING""",
             (
                 uuid.uuid4(),
@@ -448,6 +480,7 @@ def _record_quality(
                 release_id,
                 rule_key,
                 dimension,
+                severity,
                 status,
                 Jsonb(observed),
                 Jsonb(expected_value),
@@ -573,6 +606,7 @@ def _gnaf(row: object, index: int) -> dict[str, Any]:
 
 def _psi(row: object, index: int) -> dict[str, Any]:
     source = _object(row, index)
+    quality_warnings: set[str] = set()
     confidence = _decimal(source, "match_confidence", index)
     if not Decimal("0") <= confidence <= Decimal("1"):
         raise ImportProfileError(f"record {index} match_confidence is outside 0..1")
@@ -610,6 +644,20 @@ def _psi(row: object, index: int) -> dict[str, Any]:
             raise ImportProfileError(
                 f"record {index} source_downloaded_at must be an ISO date-time"
             ) from exc
+    street_number_first = _optional_psi_address_integer(
+        source, "street_number_first", index, quality_warnings=quality_warnings
+    )
+    street_number_last = _optional_psi_address_integer(
+        source, "street_number_last", index, quality_warnings=quality_warnings
+    )
+    if street_number_first is None and _derived_psi_address_number_is_out_of_range(
+        source.get("house_number"), last=False
+    ):
+        quality_warnings.add(_PSI_ADDRESS_NUMBER_OUT_OF_RANGE)
+    if street_number_last is None and _derived_psi_address_number_is_out_of_range(
+        source.get("house_number"), last=True
+    ):
+        quality_warnings.add(_PSI_ADDRESS_NUMBER_OUT_OF_RANGE)
     result = {
         "source_business_key": _text(source, "source_business_key", index),
         "source_revision": _integer(
@@ -626,20 +674,8 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         "property_name": _optional_text(source, "property_name", index),
         "unit_number": _optional_upper_text(source, "unit_number", index),
         "house_number": _optional_text(source, "house_number", index),
-        "street_number_first": _optional_integer(
-            source,
-            "street_number_first",
-            index,
-            minimum=0,
-            maximum=POSTGRES_INTEGER_MAX,
-        ),
-        "street_number_last": _optional_integer(
-            source,
-            "street_number_last",
-            index,
-            minimum=0,
-            maximum=POSTGRES_INTEGER_MAX,
-        ),
+        "street_number_first": street_number_first,
+        "street_number_last": street_number_last,
         "street_number_suffix": _optional_upper_text(source, "street_number_suffix", index),
         "street_name": _optional_text(source, "street_name", index),
         "street_name_normalised": _optional_upper_text(source, "street_name_normalised", index),
@@ -675,7 +711,46 @@ def _psi(row: object, index: int) -> dict[str, Any]:
         for key, value in result.items()
         if key not in {"source_revision", "source_partition_year"}
     }
-    return {**result, "source_row_sha256": _with_hash(facts)["source_row_sha256"]}
+    validated = {**result, "source_row_sha256": _with_hash(facts)["source_row_sha256"]}
+    if quality_warnings:
+        validated[_PSI_QUALITY_WARNINGS_KEY] = tuple(sorted(quality_warnings))
+    return validated
+
+
+def _optional_psi_address_integer(
+    row: Mapping[str, Any],
+    field: str,
+    index: int,
+    *,
+    quality_warnings: set[str],
+) -> int | None:
+    """Retain a PSI sale when only its derived address integer is unusable."""
+    if row.get(field) is None:
+        return None
+    parsed = _integer(row, field, index, minimum=0)
+    if parsed > POSTGRES_INTEGER_MAX:
+        quality_warnings.add(_PSI_ADDRESS_NUMBER_OUT_OF_RANGE)
+        return None
+    return parsed
+
+
+def _derived_psi_address_number_is_out_of_range(value: object, *, last: bool) -> bool:
+    """Recognise the conservative number shape emitted by the PSI adapter."""
+    if not isinstance(value, str):
+        return False
+    if last:
+        if "-" not in value:
+            return False
+        candidate = value.split("-", 1)[1].strip()
+    else:
+        candidate = value.strip()
+    digits = ""
+    for character in candidate:
+        if character.isdigit():
+            digits += character
+        elif digits:
+            break
+    return bool(digits) and int(digits) > POSTGRES_INTEGER_MAX
 
 
 def _bocsar(row: object, index: int) -> dict[str, Any]:
