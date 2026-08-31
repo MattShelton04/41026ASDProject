@@ -2,6 +2,7 @@
 
 - Status: Proposed for team approval; implemented as the Release 0 baseline
 - Date: 1 August 2026
+- Amended: 31 August 2026 (bounded parallel read-only execution stages)
 - Owner: Shared platform team
 - Supersedes: None
 
@@ -21,6 +22,12 @@ do not request or persist hidden reasoning.
 
 Use optimistic run versions. Commit each run change and its associated step/review in
 one transaction. A model-format error receives at most one schema-informed repair.
+
+Equal, ordered plan sequence values define an execution stage. Deterministic code may dispatch
+only independent read-only actions in that stage concurrently, bounded by the persisted
+`max_parallel_tools` and remaining tool/time budgets. Mutations and protected actions remain
+sequential. Persist every ordered call before dispatch and every ordered result afterward; replay
+an interrupted batch only when every persisted call resolves to an immutable read-only tool.
 
 ## Alternatives considered
 

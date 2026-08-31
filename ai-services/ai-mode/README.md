@@ -101,10 +101,10 @@ values through `trusted_identifiers`, and feature tool schemas annotate ambiguou
 `x-identifier-kind`. Existing persisted snapshots remain readable with an empty ledger, but an
 active pre-ledger run cannot regain trust by parsing its objective. Drain active runs before a
 rolling deployment of this boundary change, or allow those runs to fail safely and start a new
-run with explicit identifier context. Changing the omitted prompt default from v4 to v6 also
-changes its request hash: an exact retry of a pre-deployment idempotency key that omitted
-`prompt_set` returns a conflict. To retrieve that retained run, repeat it with explicit
-`prompt_set: default.v4`; new callers should use the secure v6 default.
+run with explicit identifier context. Prompt-default and run-limit upgrades change the canonical
+create-request hash: an exact retry of a pre-deployment idempotency key can therefore conflict.
+Retrieve an existing run by ID rather than replaying an old create command across this contract
+upgrade; new callers should use the parallel-ready v7 default.
 
 The run index refreshes every two seconds while active work is loaded and every ten seconds
 when the page is terminal; hidden tabs back off further. Selected active runs keep the measured
@@ -174,12 +174,16 @@ For a containerised custom registry, mount the file read-only and set
 `AI_MODE_MODEL_REGISTRY_PATH` to its path inside the container; a host path is not
 implicitly visible in Docker.
 
-The default `default.v6` prompt set keeps explicit generic output skeletons, maps every
+The default `default.v7` prompt set keeps explicit generic output skeletons, maps every
 objective requirement to observable success criteria, and keeps untrusted objective prose
-separate from the persisted typed identifier ledger. Replanning receives a bounded history of
+separate from the persisted typed identifier ledger. Its immutable developer prefix contains the
+canonical allowlisted tool definitions and JSON Schemas before any per-run data, while dynamic
+JSON preserves stable-to-volatile field order for provider prompt caching. The planner assigns
+independent reads to a shared execution stage and keeps effects sequential. Replanning receives
+a bounded history of
 prior tool attempts whose identifier types come from the persisted tool output schemas. Its
 final result is an evidence-backed brief with findings, a safe next step, a safety boundary, and
-exact evidence references. Immutable `default.v1` through `default.v5` remain accepted for
+exact evidence references. Immutable `default.v1` through `default.v6` remain accepted for
 replaying runs created with earlier prompt assets; callers must select them explicitly.
 
 Planner and adapter are roles in one persisted orchestrator, not separate long-lived
@@ -187,7 +191,7 @@ agents. Each role is a separate stateless OpenAI request with its own versioned 
 prompt. The planner receives the objective, allowlisted tools, and bounded prior call outcomes;
 the adapter receives the original objective, active plan's ordered persisted action/results,
 and current observation. Successful
-intermediate actions continue by deterministic orchestration policy, avoiding an
+intermediate stages continue by deterministic orchestration policy, avoiding an
 unnecessary adapter inference while preserving an auditable ADAPT step.
 
 Tool-name and argument mistakes are returned to the model as schema-informed bounded repairs

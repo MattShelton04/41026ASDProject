@@ -138,12 +138,13 @@ class PromptBuilder(Protocol):
     def build_adaptation_request(
         self,
         run: AgentRun,
+        definitions: tuple[ToolDefinition, ...],
         plan: Plan,
         tool_result: ToolResult,
         observation: Observation,
         tool_results: tuple[ToolResult, ...],
     ) -> StructuredModelRequest:
-        """Build an adaptation request with ordered evidence from the active plan."""
+        """Build an adaptation request with a stable catalogue and ordered evidence."""
         ...
 
 

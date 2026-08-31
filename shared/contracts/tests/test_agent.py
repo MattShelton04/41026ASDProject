@@ -122,6 +122,42 @@ def test_plan_requires_unambiguous_contiguous_action_order() -> None:
         )
 
 
+def test_plan_allows_ordered_actions_in_the_same_contiguous_stage() -> None:
+    plan = Plan(
+        goal="Gather independent evidence",
+        actions=(
+            PlanAction(sequence=1, tool_name="records.a.v1", purpose="Read A"),
+            PlanAction(sequence=1, tool_name="records.b.v1", purpose="Read B"),
+            PlanAction(sequence=2, tool_name="records.c.v1", purpose="Read C later"),
+        ),
+        success_criteria=("All evidence is returned",),
+        risk_level="low",
+    )
+
+    assert [action.sequence for action in plan.actions] == [1, 1, 2]
+    with pytest.raises(ValidationError, match="and ordered"):
+        plan.evolve(
+            actions=(
+                PlanAction(sequence=1, tool_name="records.a.v1", purpose="Read A"),
+                PlanAction(sequence=2, tool_name="records.c.v1", purpose="Read C"),
+                PlanAction(sequence=1, tool_name="records.b.v1", purpose="Read B"),
+            )
+        )
+
+
+def test_expanded_run_limit_defaults_and_bounds_are_contractual() -> None:
+    limits = RunLimits()
+
+    assert limits.max_tool_calls == 30
+    assert limits.max_iterations == 10
+    assert limits.time_budget_ms == 180_000
+    assert limits.max_parallel_tools == 10
+    with pytest.raises(ValidationError):
+        RunLimits(max_parallel_tools=26)
+    with pytest.raises(ValidationError):
+        RunLimits(max_tool_calls=101)
+
+
 def test_tool_result_requires_error_only_for_unsuccessful_outcome() -> None:
     call_id = uuid4()
     with pytest.raises(ValidationError, match="unsuccessful tool results must contain an error"):

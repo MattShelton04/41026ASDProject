@@ -167,7 +167,7 @@
     },
     "AgentStep": {
       "additionalProperties": false,
-      "description": "Safe persisted summary of one run phase.",
+      "description": "Safe phase summary; ACT input/output may contain ordered tool call/result batches.",
       "properties": {
         "completed_at": {
           "anyOf": [
@@ -342,8 +342,8 @@
       "description": "Hard execution limits controlled by deterministic code.",
       "properties": {
         "max_iterations": {
-          "default": 6,
-          "maximum": 20,
+          "default": 10,
+          "maximum": 30,
           "minimum": 1,
           "title": "Max Iterations",
           "type": "integer"
@@ -355,15 +355,22 @@
           "title": "Max Model Repairs",
           "type": "integer"
         },
+        "max_parallel_tools": {
+          "default": 10,
+          "maximum": 25,
+          "minimum": 1,
+          "title": "Max Parallel Tools",
+          "type": "integer"
+        },
         "max_tool_calls": {
-          "default": 12,
-          "maximum": 50,
+          "default": 30,
+          "maximum": 100,
           "minimum": 1,
           "title": "Max Tool Calls",
           "type": "integer"
         },
         "time_budget_ms": {
-          "default": 120000,
+          "default": 180000,
           "maximum": 900000,
           "minimum": 1000,
           "title": "Time Budget Ms",

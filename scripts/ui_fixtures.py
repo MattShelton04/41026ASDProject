@@ -1010,9 +1010,10 @@ def _agent_event_page(run_id: str) -> dict[str, Any]:
 
 def _limits() -> dict[str, int]:
     return {
-        "max_iterations": 6,
-        "max_tool_calls": 12,
-        "time_budget_ms": 120_000,
+        "max_iterations": 10,
+        "max_tool_calls": 30,
+        "time_budget_ms": 180_000,
+        "max_parallel_tools": 10,
         "max_model_repairs": 1,
     }
 
@@ -1063,6 +1064,7 @@ def _created_agent_run(scenario: str) -> dict[str, Any]:
             "max_iterations": 6,
             "max_tool_calls": 12,
             "time_budget_ms": 300_000,
+            "max_parallel_tools": 10,
             "max_model_repairs": 2,
         },
         "iteration_count": 0,

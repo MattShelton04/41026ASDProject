@@ -20,6 +20,7 @@ PromptSet = Literal[
     "default.v4",
     "default.v5",
     "default.v6",
+    "default.v7",
 ]
 SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = (
     "default.v1",
@@ -28,8 +29,9 @@ SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = (
     "default.v4",
     "default.v5",
     "default.v6",
+    "default.v7",
 )
-DEFAULT_PROMPT_SET: PromptSet = "default.v6"
+DEFAULT_PROMPT_SET: PromptSet = "default.v7"
 DEFAULT_EVENT_PAGE_SIZE = 100
 MAX_EVENT_PAGE_SIZE = 200
 MAX_EVENT_CURSOR = 2**63 - 1
@@ -115,9 +117,10 @@ class ReviewDecision(StrEnum):
 class RunLimits(ContractModel):
     """Hard execution limits controlled by deterministic code."""
 
-    max_iterations: int = Field(default=6, ge=1, le=20)
-    max_tool_calls: int = Field(default=12, ge=1, le=50)
-    time_budget_ms: int = Field(default=120_000, ge=1_000, le=900_000)
+    max_iterations: int = Field(default=10, ge=1, le=30)
+    max_tool_calls: int = Field(default=30, ge=1, le=100)
+    time_budget_ms: int = Field(default=180_000, ge=1_000, le=900_000)
+    max_parallel_tools: int = Field(default=10, ge=1, le=25)
     max_model_repairs: int = Field(default=1, ge=0, le=2)
 
 
@@ -160,7 +163,7 @@ class AgentRunRequest(ContractModel):
 
 
 class PlanAction(ContractModel):
-    """One allowlisted, typed action proposed by the planner."""
+    """One allowlisted action; equal sequence values form an execution stage."""
 
     sequence: int = Field(ge=1, le=50)
     tool_name: Identifier
@@ -179,11 +182,11 @@ class Plan(ContractModel):
 
     @model_validator(mode="after")
     def actions_have_contiguous_sequences(self) -> Plan:
-        """Reject ambiguous action ordering before any effect can execute."""
-        expected = list(range(1, len(self.actions) + 1))
+        """Require deterministic, ordered, gap-free stages while allowing batching."""
         actual = [action.sequence for action in self.actions]
-        if actual != expected:
-            raise ValueError("action sequences must be contiguous and start at 1")
+        expected_stages = list(range(1, max(actual) + 1))
+        if actual != sorted(actual) or sorted(set(actual)) != expected_stages:
+            raise ValueError("action sequences must be contiguous stages starting at 1 and ordered")
         return self
 
 
@@ -224,7 +227,7 @@ class ToolError(ContractModel):
 
 
 class ToolResult(ContractModel):
-    """Bounded, structured observation source from one tool invocation."""
+    """Bounded result for one invocation, including an invocation within a batch."""
 
     call_id: UUID
     outcome: ToolOutcome
@@ -272,7 +275,7 @@ class Adaptation(ContractModel):
 
 
 class AgentStep(ContractModel):
-    """Safe persisted summary of one run phase."""
+    """Safe phase summary; ACT input/output may contain ordered tool call/result batches."""
 
     id: UUID
     run_id: UUID

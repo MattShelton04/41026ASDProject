@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from threading import Barrier, Lock
 from uuid import UUID, uuid4
 
 import pytest
@@ -147,6 +148,7 @@ class TestPromptBuilder:
     def build_adaptation_request(
         self,
         run: AgentRun,
+        definitions: tuple[ToolDefinition, ...],
         plan: Plan,
         tool_result: ToolResult,
         observation: Observation,
@@ -186,6 +188,7 @@ class InvalidPromptBuilder(TestPromptBuilder):
     def build_adaptation_request(
         self,
         run: AgentRun,
+        definitions: tuple[ToolDefinition, ...],
         plan: Plan,
         tool_result: ToolResult,
         observation: Observation,
@@ -193,7 +196,9 @@ class InvalidPromptBuilder(TestPromptBuilder):
     ) -> StructuredModelRequest:
         if self.fail_role is ModelRole.ADAPTER:
             raise ValueError("private prompt validation detail")
-        return super().build_adaptation_request(run, plan, tool_result, observation, tool_results)
+        return super().build_adaptation_request(
+            run, definitions, plan, tool_result, observation, tool_results
+        )
 
 
 class RecordingToolExecutor:
@@ -321,6 +326,26 @@ def _two_action_plan() -> dict[str, object]:
     return plan
 
 
+def _parallel_tools(count: int) -> tuple[ToolDefinition, ...]:
+    return tuple(
+        _tool().evolve(name=f"student_1.records.search_{index}.v1") for index in range(1, count + 1)
+    )
+
+
+def _parallel_plan(tools: tuple[ToolDefinition, ...]) -> dict[str, object]:
+    plan = _plan()
+    plan["actions"] = [
+        {
+            "sequence": 1,
+            "tool_name": definition.name,
+            "arguments": {"query": f"query-{index}"},
+            "purpose": f"Gather independent evidence {index}",
+        }
+        for index, definition in enumerate(tools, start=1)
+    ]
+    return plan
+
+
 def _runner(
     outcomes: list[StructuredModelResult | Exception],
     *,
@@ -399,6 +424,155 @@ def test_runner_persists_a_complete_four_phase_success() -> None:
     assert [step.phase.value for step in store.steps] == ["plan", "act", "observe", "adapt"]
     assert all(step.status.value == "succeeded" for step in store.steps)
     assert len(executor.calls) == 1
+
+
+def test_parallel_read_only_stage_dispatches_concurrently_and_persists_ordered_results() -> None:
+    tools = _parallel_tools(3)
+    runner, store, _ = _runner(
+        [_model_result(_parallel_plan(tools)), _model_result(_adaptation("complete"))],
+        tools=tools,
+    )
+    barrier = Barrier(3)
+    lock = Lock()
+    active = 0
+    maximum_active = 0
+    calls: list[ToolCall] = []
+
+    class ConcurrentExecutor:
+        def execute(
+            self,
+            call: ToolCall,
+            definition: ToolDefinition,
+            *,
+            timeout_ms: int,
+        ) -> ToolResult:
+            nonlocal active, maximum_active
+            with lock:
+                active += 1
+                maximum_active = max(maximum_active, active)
+                calls.append(call)
+            barrier.wait(timeout=2)
+            with lock:
+                active -= 1
+            return ToolResult(
+                call_id=call.id,
+                outcome=ToolOutcome.SUCCEEDED,
+                content={"count": 1},
+                duration_ms=2,
+            )
+
+    runner._tool_executor = ConcurrentExecutor()  # type: ignore[assignment]
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert result.tool_call_count == 3
+    assert maximum_active == 3
+    act_steps = [step for step in store.steps if step.phase is StepPhase.ACT]
+    assert len(act_steps) == 1
+    assert [call["tool_name"] for call in act_steps[0].input["tool_calls"]] == [
+        definition.name for definition in tools
+    ]
+    assert len(act_steps[0].output["tool_results"]) == 3
+    assert len(calls) == 3
+
+
+def test_parallel_stage_is_chunked_by_max_parallel_tools() -> None:
+    tools = _parallel_tools(4)
+    runner, store, executor = _runner(
+        [_model_result(_parallel_plan(tools)), _model_result(_adaptation("complete"))],
+        tools=tools,
+        limits=RunLimits(max_parallel_tools=2),
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert result.tool_call_count == 4
+    assert len(executor.calls) == 4
+    act_steps = [step for step in store.steps if step.phase is StepPhase.ACT]
+    assert [len(step.output["tool_results"]) for step in act_steps] == [2, 2]
+
+
+def test_parallel_batch_mixed_outcomes_are_observed_together() -> None:
+    tools = _parallel_tools(2)
+    runner, store, _ = _runner(
+        [_model_result(_parallel_plan(tools)), _model_result(_adaptation("fail"))],
+        tools=tools,
+    )
+
+    class MixedExecutor:
+        def execute(
+            self,
+            call: ToolCall,
+            definition: ToolDefinition,
+            *,
+            timeout_ms: int,
+        ) -> ToolResult:
+            if definition.name == tools[1].name:
+                return ToolResult(
+                    call_id=call.id,
+                    outcome=ToolOutcome.TIMED_OUT,
+                    error=ToolError(code="tool_timeout", message="Timed out"),
+                    duration_ms=timeout_ms,
+                    retryable=True,
+                )
+            return ToolResult(
+                call_id=call.id,
+                outcome=ToolOutcome.SUCCEEDED,
+                content={"count": 1},
+                duration_ms=1,
+            )
+
+    runner._tool_executor = MixedExecutor()  # type: ignore[assignment]
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    act_step = next(step for step in store.steps if step.phase is StepPhase.ACT)
+    assert [item["outcome"] for item in act_step.output["tool_results"]] == [
+        "succeeded",
+        "timed_out",
+    ]
+    observe = next(step for step in store.steps if step.phase is StepPhase.OBSERVE)
+    facts = observe.output["observation"]["facts"]
+    assert any("succeeded" in fact for fact in facts)
+    assert any("tool_timeout" in fact for fact in facts)
+
+
+def test_parallel_batch_cannot_exceed_remaining_tool_call_budget() -> None:
+    tools = _parallel_tools(3)
+    runner, store, executor = _runner(
+        [_model_result(_parallel_plan(tools))],
+        tools=tools,
+        limits=RunLimits(max_tool_calls=2, max_parallel_tools=3),
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "run_limit_reached"
+    assert result.tool_call_count == 0
+    assert executor.calls == []
+
+
+def test_planner_rejects_mutating_actions_in_a_parallel_stage() -> None:
+    read, write = _parallel_tools(2)
+    write = write.evolve(side_effect=SideEffectClass.REVERSIBLE_WRITE)
+    tools = (read, write)
+    invalid = _parallel_plan(tools)
+    runner, store, executor = _runner(
+        [_model_result(invalid), _model_result(invalid)],
+        tools=tools,
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "invalid_model_or_tool_data"
+    assert executor.calls == []
 
 
 def test_prompt_construction_validation_failure_terminalizes_without_recovery_loop() -> None:
@@ -1680,3 +1854,52 @@ def test_interrupted_action_recovery_is_effect_aware(
         assert recovered_call.approval_status is ApprovalStatus.NOT_REQUIRED
     else:
         assert recovered_call.approval_status is ApprovalStatus.PENDING
+
+
+def test_interrupted_parallel_read_only_batch_replays_the_full_original_batch() -> None:
+    tools = _parallel_tools(2)
+    runner, store, executor = _runner(
+        [_model_result(_parallel_plan(tools)), _model_result(_adaptation("complete"))],
+        tools=tools,
+    )
+    ready = runner.advance(store.get(store.run.id))  # type: ignore[arg-type]
+    step_id = uuid4()
+    calls = tuple(
+        ToolCall(
+            id=uuid4(),
+            run_id=ready.id,
+            step_id=step_id,
+            tool_name=definition.name,
+            tool_version=definition.version,
+            arguments={"query": f"query-{index}"},
+            approval_status=ApprovalStatus.NOT_REQUIRED,
+        )
+        for index, definition in enumerate(tools, start=1)
+    )
+    step = AgentStep(
+        id=step_id,
+        run_id=ready.id,
+        sequence=2,
+        phase=StepPhase.ACT,
+        status=StepStatus.RUNNING,
+        started_at=NOW,
+        input={"stage": 1, "tool_calls": [call.model_dump(mode="json") for call in calls]},
+    )
+    dispatching = ready.evolve(tool_call_count=2)
+    acting = transition_run(dispatching, RunStatus.ACTING, now=NOW)
+    store.save(acting, expected_version=ready.version, step=step)
+
+    detail = store.get(store.run.id)
+    assert detail is not None
+    decision = runner.recover_interrupted(detail)
+
+    assert decision.disposition is RecoveryDisposition.REENQUEUE
+    assert store.run.status is RunStatus.READY
+    assert store.steps[-1].status is StepStatus.PENDING
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert result.tool_call_count == 4
+    assert {call.id for call in executor.calls} == {call.id for call in calls}
+    assert store.steps[-3].output["recovery"]["code"] == "action_outcome_unknown"

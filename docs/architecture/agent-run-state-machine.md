@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Status | Implemented Release 0 core baseline |
-| Last verified | 9 August 2026 |
+| Last verified | 31 August 2026 |
 | Scope | `agent-core` lifecycle, persistence boundaries, tool turns, and restart recovery |
 | Decision record | [ADR-010](decisions/ADR-010-deterministic-persisted-agent-state-machine.md) |
 
@@ -20,7 +20,7 @@ broader service boundaries and release roadmap remain in
 - Every model call and tool dispatch has a persisted `running` step before external I/O.
 - A run snapshot and its associated step or review update commit in one SQLite
   transaction with optimistic version checking.
-- Model calls and read-only actions may be repeated after interruption. A mutation with
+- Model calls and complete read-only stages may be repeated after interruption. A mutation with
   an unknown outcome is never silently repeated.
 - Mutation replay reuses the original call ID and idempotency key. Feature-owned tool
   endpoints must enforce that key atomically with their business write.
@@ -98,10 +98,15 @@ sequenceDiagram
     M-->>W: structured response
     W->>S: ready + succeeded PLAN step (atomic)
 
-    W->>S: acting + running ACT step/call (atomic)
-    W->>T: validated allowlisted call
-    T-->>W: typed result
-    W->>S: observing + succeeded ACT result (atomic)
+    W->>S: acting + running ACT step/ordered calls (atomic)
+    par bounded independent read-only calls
+        W->>T: validated allowlisted call A
+        T-->>W: typed result A
+    and
+        W->>T: validated allowlisted call B
+        T-->>W: typed result B
+    end
+    W->>S: observing + ordered ACT results (atomic)
 
     W->>S: adapting + succeeded OBSERVE step (atomic)
     W->>S: adapting + running ADAPT step (atomic)
@@ -114,8 +119,11 @@ sequenceDiagram
     W->>S: next run state + succeeded ADAPT step (atomic)
 ```
 
-The runner executes one plan action per iteration. An adaptation can continue to the
-next action, request a new plan, request review, complete, or fail. Iteration count,
+The runner executes one plan stage per iteration. Repeated, ordered action sequence values define
+a stage; only independent `read_only` actions may share a stage, and the worker pool is capped by
+`max_parallel_tools`. Oversized read-only stages are split into deterministic chunks. Every
+mutation has its own stage and protected actions retain the exact single-call review flow. An
+adaptation can continue to the next stage, request a new plan, request review, complete, or fail. Iteration count,
 tool-call count, wall-time budget, and the single optional model repair are enforced by
 code rather than prompts. A validated successful result deterministically continues
 when the active plan still has another action; this decision is persisted as an ADAPT
@@ -140,14 +148,17 @@ external call begins after expiry.
 
 1. The planner may reference only immutable, allowlisted `ToolDefinition` entries.
 2. Input is JSON Schema validated before authorization and again before dispatch.
-3. `read_only` calls need no idempotency key. All other side-effect classes receive the
+3. Independent `read_only` calls may execute concurrently only when they share a planner stage.
+   All other side-effect classes execute sequentially and receive the
    stable key `<run-id>:call:<call-id>`. The persisted call ID makes the key unique
    across replans while exact recovery continues to reuse the same key.
 4. `destructive_write`, `external_effect`, and definitions explicitly marked as
    protected stop in `review_required` before dispatch.
 5. Approval updates the existing pending call. It does not create a replacement call,
    arguments, call ID, or idempotency key.
-6. Successful output is schema validated before it becomes an observation. Adapter
+6. Before a stage dispatch, code verifies `tool_call_count + batch_size <= max_tool_calls` and
+   increments the counter by the exact dispatched size in the atomic checkpoint.
+7. Successful output is schema validated before it becomes an observation. Adapter
    failures become bounded `ToolError` values and never expose a traceback through the
    run API.
 
@@ -184,7 +195,7 @@ process restart. Recovery applies the following policy before a run is executed:
 | `planning` | No running PLAN step yet | Re-enqueue the stable boundary unchanged |
 | `planning` | Running PLAN step, no accepted response | Mark that attempt failed with `execution_interrupted`; retry planning |
 | `ready` | Valid plan, no action in flight | Re-enqueue unchanged |
-| `acting`, read-only | Exact persisted call, result absent | Return the same step to pending, transition to `ready`, and replay the same call |
+| `acting`, read-only | Exact persisted call or all-read-only ordered batch, result absent | Return the same step to pending, transition to `ready`, and replay the complete call/batch |
 | `acting`, effectful | Exact persisted call and idempotency key, result absent | Return the same step to pending and transition to `review_required` |
 | `observing` | Tool result is already durable | Re-enqueue and derive the deterministic observation |
 | `adapting` | No running ADAPT step yet | Re-enqueue the stable boundary unchanged |

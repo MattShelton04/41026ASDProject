@@ -8,6 +8,7 @@ import pytest
 from agent_core import (
     RunLimitExceededError,
     create_run,
+    ensure_tool_calls_available,
     ensure_within_limits,
     request_cancellation,
     transition_run,
@@ -43,6 +44,16 @@ def test_each_budget_is_a_hard_stop(updates: dict[str, int], now: datetime, mess
 
     with pytest.raises(RunLimitExceededError, match=message):
         ensure_within_limits(run, now=now)
+
+
+def test_batch_budget_checks_the_complete_dispatch_before_execution() -> None:
+    run = _run().evolve(tool_call_count=1)
+
+    ensure_tool_calls_available(run, 2)
+    with pytest.raises(RunLimitExceededError, match="tool_calls limit reached"):
+        ensure_tool_calls_available(run, 3)
+    with pytest.raises(ValueError, match="batch size must be positive"):
+        ensure_tool_calls_available(run, 0)
 
 
 def test_queued_cancellation_is_immediate_and_idempotent() -> None:
