@@ -14,9 +14,13 @@ from scripts import dev
 
 
 @pytest.fixture(autouse=True)
-def skip_real_port_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
+def isolate_local_development_state(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     monkeypatch.setattr(dev, "_host_port_is_available", lambda _port: True)
     monkeypatch.setattr(dev, "_validate_deployment_inputs", lambda: None)
+    monkeypatch.setattr(dev, "DEFAULT_ENV_FILE", tmp_path / ".env")
 
 
 @pytest.fixture
@@ -73,6 +77,82 @@ def test_explicit_env_file_loads_gemini_without_overriding_shell(tmp_path: Path)
             os.environ.pop("GEMINI_API_KEY", None)
         else:
             os.environ["GEMINI_API_KEY"] = original_key
+
+
+def test_root_env_is_the_optional_default_for_stack_commands(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    default_env = tmp_path / ".env"
+    default_env.write_text(
+        "AI_MODE_LLM_PROVIDER=openai\n"
+        "OPENAI_API_KEY=local-key\n"
+        "AI_MODE_DEFAULT_MODEL_PROFILE=remote-standard.v1\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dev, "DEFAULT_ENV_FILE", default_env)
+    monkeypatch.delenv("AI_MODE_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("AI_MODE_DEFAULT_MODEL_PROFILE", raising=False)
+
+    loaded = dev._load_development_environment(None)
+
+    assert loaded == default_env
+    assert os.environ["AI_MODE_LLM_PROVIDER"] == "openai"
+    assert os.environ["OPENAI_API_KEY"] == "local-key"
+    assert os.environ["AI_MODE_DEFAULT_MODEL_PROFILE"] == "remote-standard.v1"
+
+
+def test_explicit_env_file_is_selected_instead_of_root_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    default_env = tmp_path / ".env"
+    default_env.write_text(
+        "AI_MODE_LLM_PROVIDER=openai\nOPENAI_API_KEY=openai-key\n",
+        encoding="utf-8",
+    )
+    gemini_env = tmp_path / ".env.gemini"
+    gemini_env.write_text(
+        "AI_MODE_LLM_PROVIDER=gemini\nGEMINI_API_KEY=gemini-key\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dev, "DEFAULT_ENV_FILE", default_env)
+    monkeypatch.delenv("AI_MODE_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    loaded = dev._load_development_environment(gemini_env)
+
+    assert loaded == gemini_env
+    assert os.environ["AI_MODE_LLM_PROVIDER"] == "gemini"
+    assert os.environ["GEMINI_API_KEY"] == "gemini-key"
+    assert "OPENAI_API_KEY" not in os.environ
+
+
+def test_missing_optional_root_env_keeps_shell_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(dev, "DEFAULT_ENV_FILE", tmp_path / ".env")
+    monkeypatch.setenv("OPENAI_API_KEY", "shell-key")
+
+    assert dev._load_development_environment(None) is None
+    assert os.environ["OPENAI_API_KEY"] == "shell-key"
+
+
+def test_root_env_example_selects_the_production_openai_profile() -> None:
+    settings = dict(
+        line.split("=", 1)
+        for raw_line in (dev.REPOSITORY_ROOT / ".env.example")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if (line := raw_line.strip()) and not line.startswith("#")
+    )
+
+    assert settings["AI_MODE_LLM_PROVIDER"] == "openai"
+    assert settings["AI_MODE_DEFAULT_MODEL_PROFILE"] == "remote-standard.v1"
+    assert settings["OPENAI_API_KEY"] == ""
 
 
 def test_gemini_up_materialises_only_file_credentials(monkeypatch: pytest.MonkeyPatch) -> None:

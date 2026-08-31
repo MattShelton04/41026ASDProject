@@ -28,7 +28,7 @@ def _add_env_file_option(command: argparse.ArgumentParser) -> None:
     command.add_argument(
         "--env-file",
         type=Path,
-        help="Load provider settings from an explicit Git-ignored dotenv file",
+        help="Load provider settings from this dotenv file instead of the optional root .env",
     )
 
 

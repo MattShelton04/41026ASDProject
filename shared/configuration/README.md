@@ -1,7 +1,8 @@
 # Shared configuration
 
-Keep non-secret configuration templates here. Copy `.env.example` to a local
-untracked environment file; never commit credentials or cloud secrets.
+Keep non-secret service configuration templates here. For the complete development stack, copy the
+repository-root `.env.example` to the Git-ignored root `.env`; stack commands load it automatically.
+Never commit credentials or cloud secrets.
 
 `ai-mode` uses the OpenAI Responses API for JSON-Schema-guided output, reasoning controls,
 and token usage metadata. `OPENAI_API_KEY` is a secret: inject it through the host process

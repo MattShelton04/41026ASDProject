@@ -28,7 +28,7 @@ The authoritative design and migration rationale are recorded in
 
 Create an API key in the provider account with the narrowest practical project permissions and
 make sure that project can access both routed models. Export the key only in the process environment
-that launches AI-mode or Compose:
+that launches AI-mode or place it in the Git-ignored root `.env` used by the development command:
 
 ```text
 # macOS/Linux (run in your shell; do not paste the resulting value into logs)
@@ -38,8 +38,8 @@ export OPENAI_API_KEY="..."
 $env:OPENAI_API_KEY="..."
 ```
 
-Never place a real value in `shared/configuration/.env.example`, source code, Compose YAML,
-terminal transcripts, screenshots, tickets, or committed `.env` files. Root `.gitignore`
+Never place a real value in any `.env.example`, source code, Compose YAML, terminal transcripts,
+screenshots, tickets, or committed `.env` files. Root `.gitignore`
 excludes `.env` and `.env.*` except templates, but ignore rules are not a substitute for secret
 review. Use the deployment platform's secret manager outside local development, rotate any key
 that may have been exposed, and do not print the settings object or authorization headers.
@@ -77,16 +77,20 @@ settings field, newline-bounded, never logged, and sent only as an authorization
 For the complete reloadable stack:
 
 ```text
+Copy-Item .env.example .env  # Windows PowerShell; first setup only
+# cp .env.example .env       # macOS/Linux; first setup only
+# Add OPENAI_API_KEY to .env.
 uv run scripts/dev.py stack up
 uv run scripts/dev.py stack status
 uv run scripts/dev.py stack logs shared-ai-mode
 ```
 
-The helper copies the shell credential into `.propertyscope-runtime/`, which is Git-ignored, and
-passes only that file path to Compose. This file-backed secret is compatible with the read-only
-AI-mode container on Compose implementations that cannot materialise environment-backed secrets
-there. `down` removes the corresponding runtime file. Use `up --offline` for deterministic data
-work without live model readiness.
+Stack commands automatically load the optional root `.env`; shell variables retain precedence, and
+`--env-file` selects a different dotenv file instead. The helper copies the selected credential into
+`.propertyscope-runtime/`, which is Git-ignored, and passes only that file path to Compose. This
+file-backed secret is compatible with the read-only AI-mode container on Compose implementations
+that cannot materialise environment-backed secrets there. `down` removes the corresponding runtime
+file. Use `up --offline` for deterministic data work without live model readiness.
 
 For Gemini, create a Git-ignored `.env.gemini`:
 

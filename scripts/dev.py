@@ -52,6 +52,15 @@ from scripts.devtools.config import (
 from scripts.devtools.operator_report import collect_operator_report, render_operator_report
 
 FEATURE_1_KEY = "student-1-propertyscope-data-platform"
+DEFAULT_ENV_FILE = REPOSITORY_ROOT / ".env"
+ENVIRONMENT_FILE_COMMANDS = frozenset(
+    {
+        ("stack", "up"),
+        ("stack", "rebuild"),
+        ("stack", "restart"),
+        ("stack", "doctor"),
+    }
+)
 
 
 def _compose_command(*arguments: str) -> tuple[str, ...]:
@@ -265,6 +274,15 @@ def _load_environment_file(path: Path) -> None:
         if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
             value = value[1:-1]
         os.environ.setdefault(name, value)
+
+
+def _load_development_environment(explicit_path: Path | None) -> Path | None:
+    """Load the selected dotenv file, defaulting to the optional root .env."""
+    path = explicit_path if explicit_path is not None else DEFAULT_ENV_FILE
+    if explicit_path is None and not path.is_file():
+        return None
+    _load_environment_file(path)
+    return path
 
 
 def _runtime_secret_path() -> Path:
@@ -715,9 +733,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Execute one documented development action."""
     arguments = build_parser().parse_args(argv)
     try:
-        if arguments.env_file is not None:
-            _load_environment_file(arguments.env_file)
         command = (arguments.group, arguments.action)
+        if command in ENVIRONMENT_FILE_COMMANDS:
+            _load_development_environment(arguments.env_file)
         if command == ("stack", "up"):
             _up(offline=arguments.offline)
         elif command == ("stack", "build"):

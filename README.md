@@ -96,13 +96,19 @@ hooks, dependency changes, ownership boundaries, and the complete developer/agen
 For day-to-day work on the assignment-aligned integration stack, start Docker Desktop and run:
 
 ```text
+Copy-Item .env.example .env  # Windows PowerShell; first setup only
+# cp .env.example .env       # macOS/Linux; first setup only
+# Add your OPENAI_API_KEY to .env, then:
 uv run scripts/dev.py stack up
 ```
 
-Export `OPENAI_API_KEY` in the launching shell before starting the complete stack. The development
-command atomically materialises it into a Git-ignored runtime file and Compose mounts that file only
-into AI-mode as a service-scoped secret. The value never enters rendered configuration, the
-container environment, or an image. To work on deterministic data flows without an API key, use
+The development command automatically loads the Git-ignored root `.env` when present. The checked-in
+`.env.example` selects the production-intended OpenAI provider and `remote-standard.v1` profile,
+which routes planning to Luna and adaptation/review to Terra. Shell variables take precedence over
+dotenv values. The command atomically materialises the selected credential into a Git-ignored
+runtime file, and Compose mounts that file only into AI-mode as a service-scoped secret. The value
+never enters rendered configuration, the container environment, or an image. You may instead export
+`OPENAI_API_KEY` in the launching shell. To work on deterministic data flows without an API key, use
 `uv run scripts/dev.py stack up --offline`; AI calls are unavailable, but Feature 1 remains operational.
 
 For Gemini development, create a Git-ignored `.env.gemini` with `AI_MODE_LLM_PROVIDER=gemini`,
