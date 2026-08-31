@@ -56,7 +56,10 @@ Command Prompt, Bash, and zsh.
 6. Request review from affected owners when shared contracts or infrastructure change.
 
 Never commit `.env`, SQLite files, credentials, logs, or generated runtime data.
-Use the checked-in `.env.example` files for documented, non-secret defaults.
+Copy the root `.env.example` to the Git-ignored root `.env` for the default local OpenAI setup.
+Stack commands load it automatically when present; an explicit `--env-file` selects an alternative
+such as `.env.gemini`, and shell variables retain precedence. Use checked-in `.env.example` files
+only for documented, non-secret defaults.
 
 ## Commands
 
