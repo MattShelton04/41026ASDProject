@@ -1,39 +1,29 @@
 # 41026 Advanced Software Development Group Project
 
-Shared repository for the Spring 2026 group project.
+Shared repository for the Spring 2026 PropertyScope NSW group project.
 
-The project is the tutor-approved PropertyScope NSW application. Feature 1, owned by Matthew
-Shelton, provides its data operations and property-discovery platform. Features 2–5 are allocated
-and approved, but remain planned and unimplemented until their owners deliver them. The repository
-contains a reproducible Python
-workspace, strict shared contracts/test utilities, a
-framework-independent bounded agent state machine, and an AI-mode foundation with
-SQLite workflow persistence, versioned prompts, OpenAI Responses API integration, an opt-in
-Gemini OpenAI-compatible development provider, health and
-agent-run APIs, a serial background worker, feature-scoped HTTP tools, resumable safe
-events, request idempotency, and human-review gating. Feature 1 is integrated through
-independently deployed frontend,
-backend, runner, database API/loader and PostgreSQL/PostGIS containers; Features 2–5 remain
-disabled product placeholders rather than implemented capabilities.
+PropertyScope is a tutor-approved NSW property-research application. The repository currently
+contains the Shared platform and an implemented Feature 1 vertical slice: Data Platform and
+Property Discovery. Features 2–5 are approved and allocated but remain disabled placeholders until
+their owners deliver independently deployable frontend, backend/API, and database services.
+
+The implemented baseline includes a reproducible Python workspace, strict shared contracts,
+manifest-driven feature onboarding, a shared HTMX product shell, bounded AI-mode orchestration over
+the OpenAI Responses API, and a containerised Feature 1 data platform using PostgreSQL/PostGIS.
 
 ## Team
 
-This scaffold contains the standard five-student workspace structure aligned with the
-published course specification and registration requirements.
-
 | Student | Name | Student ID | UTS email | Feature |
-|---|---|---|---|---|
+|---|---|---:|---|---|
 | 1 | Matthew Shelton | 24763373 | matthew.n.shelton@student.uts.edu.au | Data Platform and Property Discovery |
 | 2 | Burhan Naeem | 24764134 | Burhan.Naeem@wisetechglobal.com | Property Sales Explorer and Market Cases |
 | 3 | James Huang | 24970865 | Zihuang.huang@student.uts.edu.au | Suburb, Crime, and Liveability Analytics |
 | 4 | Michael White | 24846267 | Michael.h.white@student.uts.edu.au | Site, Planning, and Building Due Diligence |
 | 5 | Derek Song | 24833978 | Derek.song@student.uts.edu.au | Buyer Journey and Agent Workspace |
 
-Each student has an equivalent `student-N/` workspace for their frontend,
-backend/API, database, tests, Dockerfile, and ownership notes.
-The approved purposes, frontend/backend responsibilities and persistence boundaries are recorded in
-[`docs/architecture/registered-feature-scope.md`](docs/architecture/registered-feature-scope.md).
-That allocation record does not claim that the planned Features 2–5 are already implemented.
+The approved feature purposes and ownership boundaries are recorded in the
+[registered feature scope](docs/architecture/registered-feature-scope.md). Allocation does not imply
+implementation; the application exposes only manifest-enabled features.
 
 ## Release path
 
@@ -43,45 +33,28 @@ That allocation record does not claim that the planned Features 2–5 are alread
 | Release 1 | Release 0 plus MCP, RAG, and grounded AI responses |
 | Release 2 | Release 1 plus multi-agent orchestration, advanced testing, and Azure deployment |
 
-MCP, RAG, and multi-agent services are intended for local execution. The course
-specification requires these services to remain disabled in the Release 2 cloud
-deployment.
+MCP, RAG, and multi-agent services are intended for local execution. The course specification
+requires them to remain disabled in the Release 2 cloud deployment.
 
 ## Repository guide
 
-- `.github/workflows/`: executable integration CI plus student and cloud workflow placeholders
-- `docs/`: architecture, reports, and release-specific evidence
-- `shared/`: contracts, test utilities, the integrated product home/status/evidence surfaces,
-  shared agent activity, design assets, and configuration templates
-- `student-1/` to `student-5/`: individual feature workspaces
-- `ai-services/`: agent-core and AI-mode projects plus later-release service locations
-- `scripts/`: source-quality, Compose development, data-acquisition, fixture, and UI-audit automation
-- `docker-compose.yml`: Release 0 AI-mode, remote provider configuration, the bounded PropertyScope Feature
-  1 stack, and its exclusive PostgreSQL/PostGIS and artifact-volume boundaries
-- `CONTRIBUTING.md`: environment setup, commands, ownership, and pull request workflow
-- `AGENTS.md`: durable repository instructions for coding agents
-- `docs/architecture/repository-architecture.md`: scaffold plan, architectural
-  decisions, AI-assisted process record, and validation evidence
-- `docs/architecture/feature-integration-and-experience-contract.md`: canonical feature routes,
-  cross-feature data/API flows, shared UI contract, onboarding gates, and integration tests
+- `.github/workflows/`: canonical integration CI and student workflow files
+- `ai-services/`: the deterministic agent core and shared AI-mode service
+- `deployment/`: validated feature selection and generated runtime projections
+- `docs/`: living architecture, release evidence, reports, and dated historical records
+- `shared/`: contracts, consumer protocol, testkit, product shell, and shared browser capabilities
+- `student-1/` to `student-5/`: independently owned feature workspaces
+- `scripts/`: quality, development, acquisition, fixture, and UI-audit commands
+- `docker-compose.yml`: base service definitions; enabled feature profiles are generated from manifests
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the developer workflow,
+[docs/README.md](docs/README.md) for maintained documentation, and [AGENTS.md](AGENTS.md) for coding-agent
+rules.
 
 ## Developer quick start
 
-Install `uv` using Astral's official installer.
-
-Windows PowerShell:
-
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-macOS or Linux:
-
-```sh
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-Restart the terminal if prompted, verify the installation with `uv --version`, then run:
+Install `uv` using the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/),
+then run from the repository root:
 
 ```text
 uv python install
@@ -89,145 +62,73 @@ uv sync --locked --all-packages --all-groups
 uv run python scripts/check.py
 ```
 
-See the official [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/)
-for alternative installation methods. See [CONTRIBUTING.md](CONTRIBUTING.md) for editor setup,
-hooks, dependency changes, ownership boundaries, and the complete developer/agent workflow.
-
-For day-to-day work on the assignment-aligned integration stack, start Docker Desktop and run:
+For the complete local application, start Docker Desktop and create the Git-ignored environment
+file once:
 
 ```text
-Copy-Item .env.example .env  # Windows PowerShell; first setup only
-# cp .env.example .env       # macOS/Linux; first setup only
-# Add your OPENAI_API_KEY to .env, then:
+Copy-Item .env.example .env  # Windows PowerShell
+# cp .env.example .env       # macOS/Linux
+# Add OPENAI_API_KEY to .env, then:
 uv run scripts/dev.py stack up
 ```
 
-The development command automatically loads the Git-ignored root `.env` when present. The checked-in
-`.env.example` selects the production-intended OpenAI provider and `remote-standard.v1` profile,
-which routes planning to Luna and adaptation/review to Terra. Shell variables take precedence over
-dotenv values. The command atomically materialises the selected credential into a Git-ignored
-runtime file, and Compose mounts that file only into AI-mode as a service-scoped secret. The value
-never enters rendered configuration, the container environment, or an image. You may instead export
-`OPENAI_API_KEY` in the launching shell. To work on deterministic data flows without an API key, use
-`uv run scripts/dev.py stack up --offline`; AI calls are unavailable, but Feature 1 remains operational.
-
-For Gemini development, create a Git-ignored `.env.gemini` with `AI_MODE_LLM_PROVIDER=gemini`,
-`GEMINI_API_KEY`, and `AI_MODE_DEFAULT_MODEL_PROFILE=gemini-development.v1`, then run:
+Open the shared home at <http://localhost:5100> or Feature 1 at <http://localhost:5200>. To exercise
+deterministic data flows without a model credential, use:
 
 ```text
-uv run scripts/dev.py stack up --env-file .env.gemini
-```
-
-The helper still converts the credential to a service-scoped Compose file secret. Select
-`gemini-quality.v1` only for an intentional Gemini 3.7 quality/cost comparison.
-
-Then open the unified PropertyScope home at <http://localhost:5100> or Feature 1 at
-<http://localhost:5200>.
-The shared AI chat is available at <http://localhost:5100/#assistant>; Feature 1 also exposes the
-same reusable interface at <http://localhost:5200/#assistant>. See
-[`docs/ui/shared-ai-chat.md`](docs/ui/shared-ai-chat.md) for scopes, page context, durable run
-evidence, Gemini setup and current limitations.
-The shared home also exposes live implemented-service status at
-<http://localhost:5100/#system-status>, bounded evidence references at
-<http://localhost:5100/#evidence>, and the honest deployment capability roadmap at
-<http://localhost:5100/#release-roadmap>.
-Python services reload when source changes and the frontends are bind-mounted. Each `stack up` asks
-BuildKit to reconcile images, so a newly pulled lockfile or Dockerfile cannot leave stale local
-images; unchanged layers remain cached. Use `stack rebuild [service ...]` for an explicit targeted
-rebuild. The `stack` group owns lifecycle and diagnostics; `ui` owns fixture/browser work; `data`
-owns acquisition. Source checks remain under `uv run python scripts/check.py`. `stack down`
-preserves AI-mode run history and PropertyScope data/artifacts, while `stack reset` deletes only
-volumes labelled for the selected Compose project.
-
-Inspect the running data/publication workflow without changing it:
-
-```text
-uv run scripts/dev.py operator report
-```
-
-The report shows registered products, accepted releases, review/publication prerequisites, durable
-consumer imports, activations and optional dependency degradation. It does not approve or publish.
-
-The local stack is named `ps-dev`. Its generated containers group shared services as
-`ps-dev-shared-*` and Feature 1 services as `ps-dev-f1-*`. Compose owns the final replica suffix so
-parallel projects and scaling remain available.
-
-For browser/UI work that does not need Docker, databases or a model credential, start Shared and
-Feature 1 against deterministic same-origin fixtures:
-
-```text
-uv run scripts/dev.py ui serve
-```
-
-The loopback-only host defaults to <http://127.0.0.1:5300> and prints the Shared, Property Discovery
-and Data Operations URLs after its health check passes. Scenario selection, alternate ports and the
-Playwright smoke command are documented in
-[`docs/ui/feature-1-fixture-mode.md`](docs/ui/feature-1-fixture-mode.md).
-Run `uv run scripts/dev.py ui audit quick` for the deterministic laptop/mobile interaction gate or
-`uv run scripts/dev.py ui audit full` for the explicit route/state/four-viewport matrix. Resume,
-shard, severity and artifact details are in
-[`docs/ui/feature-1-audit.md`](docs/ui/feature-1-audit.md).
-
-The default PropertyScope stack connects official schools, BOCSAR, G-NAF and PSI acquisition.
-Every data update imports the complete registered source; deterministic tests stay small because
-their checked-in fixture source is finite, not because the import is capped. Starting the stack
-does not contact a publisher; acquisition begins only after an operator previews and starts a job
-in the browser or CLI. PSI uses optional unmodified annual archives under
-`.propertyscope-source-cache/psi/` and acquires missing annual/current-weekly partitions with
-validated requests. Complete history streams every record from 1990 onward and never substitutes
-synthetic data:
-
-```text
-uv run scripts/dev.py data sync-psi --all
-uv run scripts/dev.py stack up
-uv run scripts/dev.py stack down
-```
-
-To reproduce a clean deployment without deleting items in Docker Desktop manually:
-
-```text
-uv run scripts/dev.py stack reset
 uv run scripts/dev.py stack up --offline
 ```
 
-Collection does not require browser interaction. For example, the following command validates the
-registered plan, queues the official schools acquisition, waits for the durable runner/loader
-pipeline, and reports its candidate release:
+`stack up` validates the enabled feature manifests, generates the Compose/route projections,
+reconciles images, and starts only approved enabled services. Credentials are materialised as a
+Git-ignored file secret for AI-mode; they are not embedded in images or rendered Compose config.
+OpenAI configuration, the opt-in Gemini compatibility profile, and provider diagnostics are in the
+[OpenAI API operations guide](docs/release-0/openai-api-operations.md).
+
+Common lifecycle commands:
+
+| Purpose | Command |
+|---|---|
+| Inspect prerequisites | `uv run scripts/dev.py stack doctor` |
+| Show service state | `uv run scripts/dev.py stack status` |
+| Follow logs | `uv run scripts/dev.py stack logs` |
+| Read release/publication readiness | `uv run scripts/dev.py operator report` |
+| Stop while preserving data | `uv run scripts/dev.py stack down` |
+| Rebuild selected services | `uv run scripts/dev.py stack rebuild [service ...]` |
+| Delete this stack's labelled volumes | `uv run scripts/dev.py stack reset` |
+
+## UI-only workflow
+
+Shared and Feature 1 can run against deterministic same-origin fixtures without Docker, databases,
+or a model credential:
 
 ```text
+uv run scripts/dev.py ui serve
+uv run scripts/dev.py ui audit quick
+```
+
+Use `ui audit full` for the explicit route/state/four-viewport matrix. Scenarios, ports, sharding,
+and generated evidence are documented in the [UI fixture guide](docs/ui/feature-1-fixture-mode.md)
+and [UI audit guide](docs/ui/feature-1-audit.md).
+
+## Feature 1 data operations
+
+Starting the stack does not contact a data publisher. An operator explicitly previews and starts
+each complete registered-source acquisition through the browser or CLI:
+
+```text
+uv run scripts/dev.py data collect fixture-property
 uv run scripts/dev.py data collect schools-master
 ```
 
-Acquisition and candidate generation are automatic. Publication is deliberately not automatic:
-the accepted-data pointer changes only after explicit human review and approval.
-
-See [student-1/README.md](student-1/README.md) for the operator workflow, release-scoped dataset
-preview, optional local G-NAF cache, real-source status and shared AI-mode boundary.
-
-For the production-like Release 0 container runtime without development bind mounts, run:
-
-```text
-OPENAI_API_KEY=<set-in-your-shell>
-OPENAI_API_KEY_FILE=<path-to-a-local-file-containing-that-key>
-docker compose --profile release-0 up --detach --build --wait --wait-timeout 120 shared-ai-mode
-uv run ai-mode-provider-smoke
-```
-
-Compose starts AI-mode without a local model runtime; the installed diagnostic performs a
-real structured-output and model-access check against OpenAI. Secret handling, configuration,
-lifecycle commands, and troubleshooting are documented in
-[`docs/release-0/openai-api-operations.md`](docs/release-0/openai-api-operations.md).
-
-For the shared read-only AI-mode operations dashboard, set
-`AI_MODE_OPERATIONS_ENABLED=true` in the local environment or `.env`, start AI-mode, and open
-<http://localhost:5005/operations/ai-mode/>. The feature flag is false by default and removes
-the dashboard plus its list/evidence API routes when disabled. The implementation and
-remaining remote-access decisions are documented in
-[`docs/release-0/ai-mode-operations-interface-plan.md`](docs/release-0/ai-mode-operations-interface-plan.md).
+Acquisition and candidate creation are automatic; publication is not. A candidate becomes current
+only after explicit human review and approval. Full official-source workflows, PSI cache preparation,
+provenance, and recovery are documented in the [Feature 1 README](student-1/README.md).
 
 ## Remaining delivery decisions
 
-The topic, team, five-feature split, Azure target and Feature 1 PostgreSQL/PostGIS exception are
-approved. Feature owners must still finalise their bounded Release 0 datasets, route/schema details,
-authentication approach where required, source licensing and integration evidence. Features 2–5
-retain independent stores and never receive Feature 1 database credentials.
+The topic, team, five-feature split, Azure target, OpenAI profiles, and Feature 1
+PostgreSQL/PostGIS exception are approved. The final submission must retain durable approval
+evidence. Feature owners must still finalise their bounded datasets, routes/schemas, authentication
+where required, source licensing, tests, workflows, and integration evidence. Features 2–5 retain
+independent stores and never receive Feature 1 database credentials.
