@@ -100,6 +100,20 @@ def _create_minimal_import_schema(connection: psycopg.Connection[Any]) -> None:
             ingestion_run_id UUID NOT NULL, created_at TIMESTAMPTZ NOT NULL,
             PRIMARY KEY (dataset_release_id, source_business_key, source_revision)
         );
+        CREATE TABLE warehouse.gnaf_address (
+            dataset_release_id UUID NOT NULL,
+            gnaf_pid TEXT NOT NULL,
+            property_ref UUID,
+            postcode TEXT NOT NULL,
+            locality TEXT NOT NULL,
+            street_name TEXT,
+            street_type TEXT,
+            street_number_first INTEGER,
+            street_number_last INTEGER,
+            street_number_suffix TEXT,
+            unit_number TEXT,
+            published BOOLEAN NOT NULL
+        );
         CREATE TABLE warehouse.bocsar_observation (
             dataset_release_id UUID NOT NULL, geography_kind TEXT NOT NULL,
             geography_value TEXT NOT NULL, source_category_key TEXT NOT NULL,
@@ -782,24 +796,6 @@ def test_psi_ignores_unregistered_accepted_gnaf_identity_and_uses_registry_fallb
     connection = isolated_postgres
     accepted_gnaf_release = uuid.uuid4()
     registry_ref = uuid.uuid4()
-    connection.execute(
-        """
-        CREATE TABLE warehouse.gnaf_address (
-            dataset_release_id UUID NOT NULL,
-            gnaf_pid TEXT NOT NULL,
-            property_ref UUID,
-            postcode TEXT NOT NULL,
-            locality TEXT NOT NULL,
-            street_name TEXT,
-            street_type TEXT,
-            street_number_first INTEGER,
-            street_number_last INTEGER,
-            street_number_suffix TEXT,
-            unit_number TEXT,
-            published BOOLEAN NOT NULL
-        )
-        """
-    )
     connection.execute(
         "INSERT INTO serving.accepted_generation VALUES ('gnaf-nsw',%s)",
         (accepted_gnaf_release,),

@@ -632,15 +632,21 @@ def test_psi_source_scale_path_casts_once_and_avoids_a_final_wide_sort() -> None
     assert "SELECT DISTINCT source.postcode" in PSI_ADDRESS_RESOLUTION_SQL
     assert "FROM propertyscope_psi_identity_stage identity" in PSI_ADDRESS_RESOLUTION_SQL
     assert "ON source.ordinal=identity.first_ordinal" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "accepted_gnaf_candidates AS MATERIALIZED" in PSI_ADDRESS_RESOLUTION_SQL
+    assert PSI_ADDRESS_RESOLUTION_SQL.count("CROSS JOIN LATERAL") == 2
+    assert "accepted_gnaf_candidates AS MATERIALIZED" not in PSI_ADDRESS_RESOLUTION_SQL
+    assert "registry_fallback_candidates" not in PSI_ADDRESS_RESOLUTION_SQL
+    assert "property_candidates" not in PSI_ADDRESS_RESOLUTION_SQL
+    assert "WHERE accepted.dataset_id='gnaf-nsw'" in PSI_ADDRESS_RESOLUTION_SQL
     assert "JOIN registry.property registered_property" in PSI_ADDRESS_RESOLUTION_SQL
     assert "registered_property.property_ref=COALESCE(" in PSI_ADDRESS_RESOLUTION_SQL
     assert (
         "address.property_ref,md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)"
         in PSI_ADDRESS_RESOLUTION_SQL
     )
-    assert "registry_fallback_candidates" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "JOIN registry.property" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "WHERE gnaf_match.match_count=0" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "address.dataset_release_id=(" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "address.postcode=eligible.postcode" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "property.postcode=eligible.postcode" in PSI_ADDRESS_RESOLUTION_SQL
     assert "match_count" in PSI_ADDRESS_RESOLUTION_SQL
     assert "COALESCE(source.property_ref,resolution.exact_property_ref)" in source
     assert "JOIN propertyscope_psi_import_stage source" in PSI_TARGET_INSERT_SQL
