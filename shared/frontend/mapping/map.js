@@ -9,9 +9,6 @@ import { loadMapLibreRenderer } from "./renderer.js";
 
 const EMPTY_COLLECTION = Object.freeze(featureCollection([]));
 const LAYER_ORDER = Object.freeze({ polygon: 0, line: 1, point: 2 });
-const MODIFIED_DRAG_ROTATE_SPEED = 0.8;
-const MODIFIED_DRAG_PITCH_SPEED = 0.5;
-const MODIFIED_DRAG_CLICK_TOLERANCE = 3;
 
 /**
  * Create a MapLibre-backed map while keeping provider, data, and interaction details behind
@@ -65,7 +62,6 @@ export async function createMap({
   let disconnectObserver;
   let controller;
   let destroyed = false;
-  let disconnectModifiedDrag = () => {};
   const abortForDisconnect = () => {
     if (controller) controller.destroy();
     else startupAbort.abort();
@@ -94,7 +90,6 @@ export async function createMap({
   }
   if (controls && renderer.NavigationControl) map.addControl(new renderer.NavigationControl(), "top-right");
   if (controls && renderer.ScaleControl) map.addControl(new renderer.ScaleControl({ unit: "metric" }), "bottom-right");
-  disconnectModifiedDrag = wireModifiedDragRotation(map, container);
   const baseMapState = await waitForStyle(map, provider, styleTimeoutMs, onStatus, startupAbort.signal);
 
   const layerState = new Map();
@@ -208,7 +203,6 @@ export async function createMap({
       clearTimeout(refreshTimer);
       for (const abort of pending.values()) abort.abort();
       pending.clear();
-      disconnectModifiedDrag();
       disconnectObserver?.disconnect();
       signal?.removeEventListener("abort", abortForSignal);
       map.remove();
@@ -233,7 +227,6 @@ export async function createMap({
   });
   return controller;
   } catch (error) {
-    disconnectModifiedDrag();
     disconnectObserver?.disconnect();
     signal?.removeEventListener("abort", abortForSignal);
     if (!destroyed) {
@@ -242,56 +235,6 @@ export async function createMap({
     }
     throw error;
   }
-}
-
-function wireModifiedDragRotation(map, container) {
-  const eventTarget = container.ownerDocument?.defaultView;
-  if (!eventTarget?.addEventListener || typeof map.getBearing !== "function" || typeof map.setBearing !== "function") {
-    return () => {};
-  }
-  let startPoint = null;
-  let previousPoint = null;
-  let active = false;
-  const mouseDown = (event) => {
-    const original = event.originalEvent;
-    if (!original || original.button !== 0 || (!original.ctrlKey && !original.metaKey)) return;
-    event.preventDefault();
-    startPoint = previousPoint = [original.clientX, original.clientY];
-    active = false;
-  };
-  const mouseMove = (event) => {
-    if (!previousPoint) return;
-    const nextPoint = [event.clientX, event.clientY];
-    const distance = Math.hypot(nextPoint[0] - startPoint[0], nextPoint[1] - startPoint[1]);
-    if (!active && distance <= MODIFIED_DRAG_CLICK_TOLERANCE) {
-      return;
-    }
-    active = true;
-    const delta = [nextPoint[0] - previousPoint[0], nextPoint[1] - previousPoint[1]];
-    previousPoint = nextPoint;
-    event.preventDefault();
-    const eventData = { originalEvent: event };
-    if (delta[0]) map.setBearing(map.getBearing() - delta[0] * MODIFIED_DRAG_ROTATE_SPEED, eventData);
-    if (delta[1] && typeof map.getPitch === "function" && typeof map.setPitch === "function") {
-      map.setPitch(map.getPitch() + delta[1] * MODIFIED_DRAG_PITCH_SPEED, eventData);
-    }
-  };
-  const mouseUp = () => {
-    startPoint = null;
-    previousPoint = null;
-    active = false;
-  };
-  map.on("mousedown", mouseDown);
-  eventTarget.addEventListener("mousemove", mouseMove);
-  eventTarget.addEventListener("mouseup", mouseUp);
-  eventTarget.addEventListener("blur", mouseUp);
-  return () => {
-    mouseUp();
-    map.off?.("mousedown", mouseDown);
-    eventTarget.removeEventListener("mousemove", mouseMove);
-    eventTarget.removeEventListener("mouseup", mouseUp);
-    eventTarget.removeEventListener("blur", mouseUp);
-  };
 }
 
 export function validateLayerDefinition(layer) {
