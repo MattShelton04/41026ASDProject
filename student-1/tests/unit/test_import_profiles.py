@@ -630,12 +630,16 @@ def test_psi_source_scale_path_casts_once_and_avoids_a_final_wide_sort() -> None
     assert "min(ordinal) AS first_ordinal" in PSI_IDENTITY_SQL
     assert "ORDER BY first_ordinal" in PSI_IDENTITY_SQL
     assert "SELECT DISTINCT source.postcode" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "propertyscope_psi_identity_stage" not in PSI_ADDRESS_RESOLUTION_SQL
     assert "accepted_gnaf_candidates AS MATERIALIZED" in PSI_ADDRESS_RESOLUTION_SQL
     assert "registry_fallback_candidates" in PSI_ADDRESS_RESOLUTION_SQL
     assert "JOIN registry.property" in PSI_ADDRESS_RESOLUTION_SQL
     assert "match_count" in PSI_ADDRESS_RESOLUTION_SQL
     assert "COALESCE(source.property_ref,resolution.exact_property_ref)" in source
     assert "JOIN propertyscope_psi_import_stage source" in PSI_TARGET_INSERT_SQL
+    assert "ON source.ordinal=identity.first_ordinal" in PSI_TARGET_INSERT_SQL
+    assert "source.source_business_key=identity.source_business_key" not in PSI_TARGET_INSERT_SQL
+    assert "source.source_row_sha256=identity.source_row_sha256" not in PSI_TARGET_INSERT_SQL
     assert PSI_TARGET_INSERT_SQL.count("source.house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'") == 1
     assert "payload" not in source
     assert "ORDER BY identity.source_business_key" not in PSI_TARGET_INSERT_SQL

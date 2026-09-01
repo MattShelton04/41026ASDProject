@@ -127,11 +127,7 @@ PSI_ADDRESS_RESOLUTION_SQL = """
         SELECT DISTINCT source.postcode,source.locality,source.street_name_normalised,
             source.street_type,source.street_number_first,source.street_number_last,
             source.street_number_suffix,source.unit_number
-        FROM propertyscope_psi_identity_stage identity
-        JOIN propertyscope_psi_import_stage source
-          ON source.ordinal=identity.first_ordinal
-         AND source.source_business_key=identity.source_business_key
-         AND source.source_row_sha256=identity.source_row_sha256
+        FROM propertyscope_psi_import_stage source
         WHERE source.postcode IS NOT NULL
           AND source.locality IS NOT NULL
           AND source.street_name_normalised IS NOT NULL
@@ -244,8 +240,6 @@ PSI_TARGET_INSERT_SQL = """
     FROM propertyscope_psi_identity_stage identity
     JOIN propertyscope_psi_import_stage source
       ON source.ordinal=identity.first_ordinal
-     AND source.source_business_key=identity.source_business_key
-     AND source.source_row_sha256=identity.source_row_sha256
     LEFT JOIN propertyscope_psi_address_resolution resolution
       ON resolution.postcode=source.postcode
      AND resolution.locality=source.locality
