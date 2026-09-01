@@ -19,6 +19,20 @@ services:
   f1-runner:
     profiles:
     - release-0
+  f4-backend:
+    profiles:
+    - release-0
+  f4-db-api:
+    profiles:
+    - release-0
+  f4-frontend:
+    ports:
+    - 127.0.0.1:${PROPERTYSCOPE_DUE_DILIGENCE_PORT:-5400}:8080
+    profiles:
+    - release-0
+  f4-postgres:
+    profiles:
+    - release-0
   shared-ai-mode:
     environment:
       AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml

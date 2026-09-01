@@ -53,6 +53,55 @@
           "service": "f1-backend"
         }
       ]
+    },
+    {
+      "ai": null,
+      "databases": [
+        {
+          "database_service": "f4-postgres",
+          "volumes": [
+            "f4-postgres-data"
+          ]
+        }
+      ],
+      "enabled": true,
+      "evidence_adapter": null,
+      "feature_key": "student-4-due-diligence",
+      "frontend": {
+        "asset_root": "student-4/frontend",
+        "host_port_default": 5400,
+        "host_port_variable": "PROPERTYSCOPE_DUE_DILIGENCE_PORT",
+        "internal_port": 8080,
+        "route_fragment": "student-4/frontend/integration/research-area.html",
+        "service": "f4-frontend"
+      },
+      "health_path": "/health/ready",
+      "owner": "student-4",
+      "quality": {
+        "coverage_fail_under": 85,
+        "coverage_packages": [
+          "propertyscope_due_diligence",
+          "propertyscope_due_diligence_store"
+        ],
+        "node_test_files": [
+          "student-4/tests/frontend/core.test.mjs"
+        ],
+        "python_test_paths": [
+          "student-4/tests"
+        ]
+      },
+      "routes": [
+        {
+          "kind": "frontend",
+          "path": "/features/due-diligence/",
+          "service": "f4-frontend"
+        },
+        {
+          "kind": "backend",
+          "path": "/api/due-diligence/v1",
+          "service": "f4-backend"
+        }
+      ]
     }
   ],
   "schema_version": 1

@@ -4,7 +4,10 @@
     "f1-db-api",
     "f1-db-loader",
     "f1-frontend",
-    "f1-runner"
+    "f1-runner",
+    "f4-backend",
+    "f4-db-api",
+    "f4-frontend"
   ],
   "disabled_services": [],
   "schema_version": 1,
@@ -14,6 +17,10 @@
     "f1-db-loader",
     "f1-frontend",
     "f1-postgres",
-    "f1-runner"
+    "f1-runner",
+    "f4-backend",
+    "f4-db-api",
+    "f4-frontend",
+    "f4-postgres"
   ]
 }

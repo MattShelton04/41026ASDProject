@@ -252,6 +252,105 @@ services:
       timeout: 3s
       retries: 20
 
+  f4-postgres:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-4-due-diligence
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PROPERTYSCOPE_DUE_DILIGENCE_DB:-due_diligence}
+      POSTGRES_USER: ${PROPERTYSCOPE_DUE_DILIGENCE_USER:-due_diligence}
+      POSTGRES_PASSWORD: ${PROPERTYSCOPE_DUE_DILIGENCE_PASSWORD:-due-diligence-local-only}
+    volumes:
+      - f4-postgres-data:/var/lib/postgresql/data
+    networks: [shared-platform]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    stop_grace_period: 60s
+
+  f4-db-api:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-4-due-diligence
+    build:
+      context: .
+      dockerfile: student-4/Dockerfile
+      target: database-api
+    image: propertyscope/f4-db-api:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      PROPERTYSCOPE_DUE_DILIGENCE_DATABASE_URL: postgresql://${PROPERTYSCOPE_DUE_DILIGENCE_USER:-due_diligence}:${PROPERTYSCOPE_DUE_DILIGENCE_PASSWORD:-due-diligence-local-only}@f4-postgres:5432/${PROPERTYSCOPE_DUE_DILIGENCE_DB:-due_diligence}
+      PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
+      PROPERTYSCOPE_AUTO_MIGRATE: "true"
+    depends_on:
+      f4-postgres:
+        condition: service_healthy
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5402/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    stop_grace_period: 35s
+
+  f4-backend:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-4-due-diligence
+    build:
+      context: .
+      dockerfile: student-4/Dockerfile
+      target: backend
+    image: propertyscope/f4-backend:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      PROPERTYSCOPE_DATABASE_API_URL: http://f4-db-api:5402
+      PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
+      PROPERTYSCOPE_DATA_PLATFORM_URL: http://f1-backend:5201
+      AI_MODE_BASE_URL: http://shared-ai-mode:5005
+    depends_on:
+      f4-db-api:
+        condition: service_healthy
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5401/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    stop_grace_period: 35s
+
+  f4-frontend:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-4-due-diligence
+    build:
+      context: .
+      dockerfile: student-4/Dockerfile
+      target: frontend
+    image: propertyscope/f4-frontend:dev
+    init: true
+    restart: unless-stopped
+    depends_on:
+      f4-backend:
+        condition: service_healthy
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, wget, --quiet, --tries=1, --spider, http://127.0.0.1:8080/]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 networks:
   shared-platform:
 
@@ -265,3 +364,4 @@ volumes:
   shared-ai-mode-state:
   f1-artifacts:
   f1-postgres-data:
+  f4-postgres-data:
