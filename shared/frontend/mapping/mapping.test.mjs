@@ -295,35 +295,43 @@ test("map controller keeps polygons below points and supports data, visibility, 
   assert.equal(map.removed, true);
 });
 
-test("Ctrl primary-button drag performs direct pan while ordinary drag remains renderer-native", async () => {
+test("Ctrl primary-button drag reverses horizontal rotation while ordinary and right drag remain renderer-native", async () => {
   const renderer = fakeRenderer();
   const { container, defaultView } = fakeDomContainer();
   const controller = await createMap({ container, renderer, controls: false });
   const map = renderer.instances[0];
+  map.bearing = 10;
+  map.pitch = 20;
   let prevented = false;
   map.emit("mousedown", {
     originalEvent: { button: 0, ctrlKey: true, clientX: 100, clientY: 80 },
     preventDefault() { prevented = true; },
   });
+  defaultView.emitDom("mousemove", { clientX: 102, clientY: 81, preventDefault() {} });
+  assert.equal(map.bearingCalls.length, 0);
   defaultView.emitDom("mousemove", {
     clientX: 128,
     clientY: 74,
     preventDefault() { prevented = true; },
   });
   assert.equal(prevented, true);
-  assert.deepEqual(map.panCalls[0], {
-    offset: [28, -6],
-    options: { duration: 0 },
-  });
+  assert.ok(Math.abs(map.bearing - (-12.4)) < Number.EPSILON * 16);
+  assert.equal(map.pitch, 23);
+  assert.equal(map.bearingCalls.length, 1);
+  assert.equal(map.pitchCalls.length, 1);
 
   defaultView.emitDom("mouseup");
   defaultView.emitDom("mousemove", { clientX: 150, clientY: 74, preventDefault() {} });
-  assert.equal(map.panCalls.length, 1);
+  assert.equal(map.bearingCalls.length, 1);
   map.emit("mousedown", {
     originalEvent: { button: 0, ctrlKey: false, clientX: 100, clientY: 80 },
     preventDefault() { throw new Error("ordinary drag must stay renderer-native"); },
   });
-  assert.equal(map.panCalls.length, 1);
+  map.emit("mousedown", {
+    originalEvent: { button: 2, ctrlKey: false, clientX: 100, clientY: 80 },
+    preventDefault() { throw new Error("right drag must stay renderer-native"); },
+  });
+  assert.equal(map.bearingCalls.length, 1);
 
   controller.destroy();
   assert.equal(defaultView.listenerCount("mousemove"), 0);
@@ -436,7 +444,10 @@ function fakeRenderer({ failInitialStyle = false, autoLoad = true } = {}) {
         ? flatBounds(options.bounds)
         : [options.center[0] - 0.1, options.center[1] - 0.1, options.center[0] + 0.1, options.center[1] + 0.1];
       this.canvas = { style: {} };
-      this.panCalls = [];
+      this.bearing = 0;
+      this.pitch = 0;
+      this.bearingCalls = [];
+      this.pitchCalls = [];
       this.resizeCount = 0;
       instances.push(this);
       if (autoLoad) queueMicrotask(() => this.emit(failInitialStyle ? "error" : "load", {}));
@@ -474,7 +485,10 @@ function fakeRenderer({ failInitialStyle = false, autoLoad = true } = {}) {
     getZoom() { return this.zoom; }
     fitBounds(bounds, options) { this.lastFitBounds = { bounds, options }; }
     flyTo(options) { this.lastFlyTo = options; }
-    panBy(offset, options) { this.panCalls.push({ offset, options }); }
+    getBearing() { return this.bearing; }
+    setBearing(bearing, eventData) { this.bearing = bearing; this.bearingCalls.push({ bearing, eventData }); }
+    getPitch() { return this.pitch; }
+    setPitch(pitch, eventData) { this.pitch = pitch; this.pitchCalls.push({ pitch, eventData }); }
     easeTo(options) { this.lastEaseTo = options; }
     getCanvas() { return this.canvas; }
     resize() { this.resizeCount += 1; }

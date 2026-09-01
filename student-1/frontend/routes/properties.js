@@ -518,7 +518,7 @@ function propertyMap({ property, latitude, longitude, announce, routeEpoch }) {
   status.dataset.state = "loading";
   append(host, canvas, status);
   mountMapHelp(host, {
-    text: `Latitude ${latitude ?? "unknown"}, longitude ${longitude ?? "unknown"}. Drag to pan; Ctrl + drag also pans. Scroll or use the controls to zoom.`,
+    text: `Latitude ${latitude ?? "unknown"}, longitude ${longitude ?? "unknown"}. Drag to pan; Ctrl/Command + drag rotates. Scroll or use the controls to zoom.`,
   });
   const numericLatitude = Number(latitude);
   const numericLongitude = Number(longitude);

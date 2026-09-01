@@ -241,9 +241,10 @@ feature legend can use the same controller instead. `mountMapHelp(container, {te
 bottom-left information button whose text opens on hover or focus and can be pinned with click,
 tap, Enter or Space without covering the map permanently.
 
-Primary-button drag pans the map normally. Ctrl/Command + primary-button drag is also normalised to
-the same direct, grab-style pan rather than MapLibre's default bearing rotation; right-button drag
-continues to provide rotation, and wheel, touch, keyboard and navigation-control interactions remain
+Primary-button drag pans the map normally. Ctrl/Command + primary-button drag rotates the map, with
+the horizontal bearing direction reversed from MapLibre's default so the gesture follows this
+product's expected direction. Its vertical pitch remains native in direction and sensitivity.
+Right-button rotation, wheel, touch, keyboard and navigation-control interactions remain
 renderer-native.
 
 Hiding a viewport-loaded layer aborts its request and clears its data. Moving outside its zoom gate
