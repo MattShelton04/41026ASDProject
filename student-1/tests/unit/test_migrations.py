@@ -114,7 +114,10 @@ def test_showcase_evidence_migration_uses_registered_contracts_and_real_counts()
     assert "'synthetic',true" in sql
     assert "Synthetic showcase baseline; not complete publisher coverage." in sql
     assert "'propertyscope.crime-series.v2','crime-series','3.0.0','bocsar-sparse',10" in sql
-    assert "'propertyscope.property-snapshot.v2','property-snapshot','3.0.0','property-fixture',3" in sql
+    assert (
+        "'propertyscope.property-snapshot.v2','property-snapshot','3.0.0','property-fixture',3"
+        in sql
+    )
 
 
 class SchemaConnection:

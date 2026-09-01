@@ -607,9 +607,7 @@ def test_release_inspection_response_matches_its_closed_tool_schema() -> None:
         ),
         ai_mode_client=AiModeClient(
             "http://ai",
-            client=httpx.Client(
-                transport=httpx.MockTransport(lambda _: httpx.Response(503))
-            ),
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
         ),
     )
     response = app.test_client().post(
