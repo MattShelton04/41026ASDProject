@@ -467,7 +467,7 @@ def _record_quality(
         results.append(
             (
                 "import.psi-sales.property-linkage",
-                "referential-integrity",
+                "referential",
                 "blocking",
                 "pass" if linked_property_rows > 0 else "fail",
                 {

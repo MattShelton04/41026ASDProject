@@ -564,6 +564,7 @@ def test_zero_psi_property_linkage_is_a_blocking_quality_failure() -> None:
         if parameters[3] == "import.psi-sales.property-linkage"
     )
     assert checks == 3
+    assert linkage[4] == "referential"
     assert linkage[5:7] == ("blocking", "fail")
     assert cast(Any, linkage[7]).obj == {"linked": 0, "unmatched": 10}
 
