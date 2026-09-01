@@ -250,15 +250,22 @@ def test_projection_includes_only_explicitly_enabled_features_in_stable_order() 
 
 
 def test_repository_deployment_selection_builds_the_real_enabled_projection() -> None:
-    manifest = load_feature_manifest(ROOT / "student-1/feature.yaml")
+    manifests = (
+        load_feature_manifest(ROOT / "student-1/feature.yaml"),
+        load_feature_manifest(ROOT / "student-4/feature.yaml"),
+    )
     selection = DeploymentSelectionV1.model_validate(
         yaml.safe_load((ROOT / "deployment/features.yaml").read_text("utf-8"))
     )
 
-    projection = build_deployment_projection((manifest,), selection)
+    projection = build_deployment_projection(manifests, selection)
 
-    assert len(projection.features) == 1
-    feature = projection.features[0]
+    assert len(projection.features) == 2
+    feature = next(
+        item
+        for item in projection.features
+        if item.feature_key == "student-1-propertyscope-data-platform"
+    )
     assert feature.feature_key == "student-1-propertyscope-data-platform"
     assert {route.path for route in feature.routes} == {
         "/features/data-platform/",

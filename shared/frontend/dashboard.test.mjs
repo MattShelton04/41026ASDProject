@@ -43,7 +43,7 @@ test("shared assistant wrapper owns product and feature vocabulary", () => {
 test("feature registry is the bounded source for shell routes and availability", () => {
   const features = featureRegistry();
   assert.equal(features.length, 5);
-  assert.equal(features.filter((item) => item.href).length, 1);
+  assert.equal(features.filter((item) => item.href).length, 2);
   assert.equal(findFeature("data-platform").href, "/features/data-platform/#properties");
   assert.equal(findFeature("student-4-due-diligence").frontendBase, "/features/due-diligence/");
   assert.equal(findFeature("market-intelligence").href, undefined);
@@ -96,6 +96,10 @@ test("research-area fragment stays in exact parity with the feature registry", (
   );
   const rows = fragmentRows(fragment);
   const features = featureRegistry();
+  const renderedOrder = [
+    ...features.filter((feature) => feature.enabled),
+    ...features.filter((feature) => !feature.enabled),
+  ];
 
   assert.match(html, /hx-get="\/fragments\/research-areas\.html"/);
   assert.match(html, /hx-trigger="load"/);
@@ -109,10 +113,10 @@ test("research-area fragment stays in exact parity with the feature registry", (
   assert.equal(rows.length, 5);
   assert.deepEqual(
     rows.map((row) => row.attributes["data-feature-id"]),
-    features.map((feature) => feature.id),
+    renderedOrder.map((feature) => feature.id),
   );
 
-  for (const [index, feature] of features.entries()) {
+  for (const [index, feature] of renderedOrder.entries()) {
     const row = rows[index];
     assert.equal(row.attributes["data-feature-label"], feature.label);
     assert.equal(row.attributes["data-feature-owner"], feature.owner);
@@ -137,7 +141,7 @@ test("research-area fragment stays in exact parity with the feature registry", (
 test("capability manifest separates implemented, enabled and planned states", () => {
   const manifest = capabilityManifest({ featureHrefs: { "property-records": "/properties" }, agentRuns: "/runs" });
   assert.equal(manifest.release, "release-0");
-  assert.equal(manifest.features.filter((item) => item.enabled).length, 1);
+  assert.equal(manifest.features.filter((item) => item.enabled).length, 2);
   assert.equal(manifest.features.find((item) => item.id === "property-records").href, "/properties");
   assert.equal(manifest.features.find((item) => item.id === "sales-market").href, undefined);
   assert.deepEqual(capabilityState(manifest.services.find((item) => item.id === "rag")), { label: "Planned", tone: "planned" });
