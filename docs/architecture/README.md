@@ -1,55 +1,44 @@
 # Architecture
 
-The current cross-feature data and Shared AI/chat adoption work is tracked in
-[`feature-data-and-shared-adoption-plan.md`](feature-data-and-shared-adoption-plan.md). It records the
-verified running-stack gaps, independent client ownership decision and implementation slices for
-the Feature 1 sales v2 contract and reusable assistant adapter.
+This directory contains living architecture, durable decisions, proposals, and dated review
+evidence. Use the document status and date: a historical plan can explain why a decision was made,
+but it is not automatically the current implementation contract.
 
-Architecture sources, decisions, and exported diagrams belong here.
+## Current authorities
 
-- `registered-feature-scope.md` is the approved ownership and minimum feature-boundary authority.
-  Detailed plans may refine implementation but must not silently expand or reallocate that scope.
-- `repository-architecture.md` is the historical initial-scaffold record. Its point-in-time
-  status is evidence, not the current implementation summary.
-- `shared-platform-design.md` is the living shared-service, agentic-harness, contract,
-  testing, caching, portability, and deployment architecture for Releases 0-2.
-- `propertyscope-product-and-feature-plan.md` is the earlier detailed PropertyScope NSW product,
-  data, UI, API, AI, and delivery proposal. It is a planning reference subordinate to the approved
-  scope record and does not turn optional stretch concepts into commitments.
-- `feature-integration-and-experience-contract.md` is the implementable cross-feature baseline for
-  edge routes, browser context hand-off, HTTP dependencies, publication/composition flows, common
-  styling, failure behaviour, onboarding and group integration tests.
-- `agent-run-state-machine.md` is the implemented operational specification for run
-  transitions, durable phase checkpoints, tool turns, idempotency, and restart recovery.
-- `shared-run-observability-proposal.md` records the implemented local read-only baseline
-  and the remaining remote observability proposal. Its concrete Release 0 delivery plan is
-  [`../release-0/ai-mode-operations-interface-plan.md`](../release-0/ai-mode-operations-interface-plan.md).
-- `openai-remote-provider-migration-plan.md` records the investigated problem, current API fit,
-  implementation scope, acceptance criteria, and validation plan for replacing the local model
-  runtime.
-- `feature-1-conversational-assistant-plan.md` records the August 2026 real-Gemini audit of the
-  implemented Feature 1 Data review flow and a phased proposal for a contextual Feature 1 assistant,
-  later shared chat, and curated project/documentation retrieval.
-- `decisions/ADR-014-append-only-safe-agent-run-events.md` records the resumable event
-  persistence and cursor-polling decision.
-- `decisions/ADR-015-validated-model-registry.md` records supported-model metadata,
-  logical profiles, operational limits, and readiness selection.
-- `decisions/ADR-017-openai-responses-provider.md` supersedes the Ollama runtime decision and
-  selects the OpenAI Responses API with GPT-5.6 Luna as the default provider/model boundary.
-- `decisions/ADR-016-propertyscope-feature-1-postgresql-postgis.md` records the implemented
-  Feature 1-only PostgreSQL/PostGIS exception for PropertyScope's verified statewide data
-  scale. Tutor/team approval of that exception is confirmed in the approved scope baseline.
-- `decisions/ADR-020-shared-browser-mapping-provider.md` records the domain-neutral MapLibre,
-  provider, GeoJSON safety and viewport-loading seam while preserving feature-owned map layers.
-- `decisions/ADR-032-typed-source-materialisation.md` records typed PSI/BOCSAR staging, narrow
-  deterministic phases, loader-local resource limits and the disposable benchmark gate.
-- `reviews/` retains external/adversarial review inputs. Findings are not
-  authoritative until verified and dispositioned in the architecture record.
-- Future artefacts should cover individual microservices, the integrated application,
-  and Docker Compose.
-- Release 1 should add MCP, RAG, retrieval, and grounded-response architecture.
-- Release 2 should add multi-agent, DevOps pipeline, and cloud-deployment
-  architecture.
+- [`registered-feature-scope.md`](registered-feature-scope.md): approved team ownership, feature
+  purposes, and minimum frontend/backend/database boundaries
+- [`shared-platform-design.md`](shared-platform-design.md): living Shared services, AI-mode,
+  contracts, persistence, testing, and deployment design
+- [`feature-integration-and-experience-contract.md`](feature-integration-and-experience-contract.md):
+  canonical routes, cross-feature HTTP/publication flows, shared UI behavior, onboarding, and
+  integration tests
+- [`agent-run-state-machine.md`](agent-run-state-machine.md): normative run transitions, durable
+  checkpoints, tool turns, idempotency, cancellation, review, and recovery
+- [`feature-1-schema-fingerprint-policy.md`](feature-1-schema-fingerprint-policy.md): reproducible
+  Feature 1 PostgreSQL/PostGIS schema-drift evidence
 
-Keep editable diagram sources alongside exported images or PDFs so the
-architecture can be updated throughout the project.
+## Detailed plans and proposals
+
+- [`propertyscope-product-and-feature-plan.md`](propertyscope-product-and-feature-plan.md) is the
+  detailed product/data/UI/API proposal. It is subordinate to the approved scope and does not turn
+  optional concepts into commitments.
+- [`feature-data-and-shared-adoption-plan.md`](feature-data-and-shared-adoption-plan.md) records the
+  independent consumer-client and Shared assistant adoption path for Features 2–5.
+- [`shared-run-observability-proposal.md`](shared-run-observability-proposal.md) separates the
+  implemented local read-only baseline from proposed remote observability.
+- [`repository-architecture.md`](repository-architecture.md) preserves the initial scaffold and its
+  point-in-time validation; it is not the current implementation summary.
+
+## Decisions and evidence
+
+`decisions/` contains architecture decision records. Important current boundaries include the
+Feature 1-only PostgreSQL/PostGIS exception (ADR-016), OpenAI Responses provider (ADR-017), shared
+mapping seam (ADR-020), typed source materialisation (ADR-032), supported consumer publication
+(ADR-033), and manifest-driven onboarding/health (ADR-034).
+
+`reviews/` retains external or adversarial review inputs. Findings become authoritative only after
+they are verified and incorporated into a living design or ADR.
+
+Keep editable Mermaid or other diagram sources beside exported images/PDFs. Release-specific
+architecture and evidence belong under `../release-0/`, `../release-1/`, or `../release-2/`.

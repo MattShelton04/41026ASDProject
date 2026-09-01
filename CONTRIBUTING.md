@@ -48,7 +48,7 @@ Command Prompt, Bash, and zsh.
 
 ## Day-to-day workflow
 
-1. Create a short-lived branch from the team's integration branch.
+1. Create a short-lived branch from `main`.
 2. Confirm the directory owner and read its README before editing.
 3. Keep changes within one feature or shared concern where practical.
 4. Add or update deterministic tests alongside the change.
@@ -76,6 +76,7 @@ only for documented, non-secret defaults.
 | Run deterministic Python and frontend tests | `uv run python scripts/check.py test` |
 | Run tests with enforced coverage | `uv run python scripts/check.py` (90% core branch coverage; 60% Feature 1 ratchet) |
 | Generate contract artefacts | `uv run python scripts/generate_contracts.py` |
+| Generate or drift-check deployment projections | `uv run python scripts/generate_deployment.py` / `uv run python scripts/generate_deployment.py --check` |
 | Validate repository boundaries | `uv run python scripts/validate_architecture.py` |
 | Validate the model registry | `uv run python scripts/validate_model_registry.py` |
 | Validate feature tool catalogues | `uv run python scripts/validate_tool_catalogs.py` |
@@ -85,6 +86,8 @@ only for documented, non-secret defaults.
 | Check Docker and Compose prerequisites | `uv run scripts/dev.py stack doctor` |
 | Run a code-driven fixture acquisition | `uv run scripts/dev.py data collect fixture-property` |
 | Follow local stack logs | `uv run scripts/dev.py stack logs` |
+| Show generated runtime/service state | `uv run scripts/dev.py stack status` |
+| Inspect release/publication readiness | `uv run scripts/dev.py operator report` |
 | Rebuild changed container images | `uv run scripts/dev.py stack rebuild` |
 | Stop the stack and preserve data | `uv run scripts/dev.py stack down` |
 | Delete only this stack's durable data | `uv run scripts/dev.py stack reset` |
@@ -119,20 +122,16 @@ command used by that check. Compose readiness and a deterministic fixture collec
 service pipeline; a short inline smoke then checks the shared Feature 1 route/proxy and migrated
 database schema fingerprint.
 
-The local service exposes health endpoints and the versioned `/api/v1/agent-runs`
-create/read/cancel/review surface. Its default feature-tool registry remains empty until
-approved feature backends publish their allowlisted tool contracts.
+AI-mode exposes health endpoints and the versioned `/api/v1/agent-runs`
+create/read/cancel/review surface. Enabled feature manifests contribute only their validated,
+allowlisted HTTP tool catalogues; disabled placeholders do not enter the runtime registry.
 
-The development command composes `docker-compose.yml` and `docker-compose.dev.yml`. The root model
-includes the independently built shared shell, and the
-final overlay bind-mounts frontend/source files and enables Gunicorn reload
-for a short edit-refresh loop while retaining the same service-to-service HTTP and exclusive
-database-ownership boundaries used by the production-like stack. The default runtime connects
-official PropertyScope sources but never starts acquisition during service startup. Every job
-imports its complete registered source through the same PostgreSQL and review path. `up`
-performs a cache-backed build reconciliation so dependency changes from a pull cannot silently reuse
-stale images. `reset` is intentionally destructive but label-scoped; it does not delete the
-host-side source cache.
+The development command composes the base model, generated enabled-feature projection, and
+`docker-compose.dev.yml`. The final overlay bind-mounts source and enables reload without changing
+the production-like HTTP or database-ownership boundaries. Starting the stack does not acquire
+official data; each job explicitly imports its complete registered source through the same durable
+review path. `up` reconciles images, and the label-scoped `reset` removes stack volumes but preserves
+the host source cache.
 
 ## Dependencies and workspace projects
 
