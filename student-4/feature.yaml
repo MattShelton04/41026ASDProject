@@ -1,0 +1,35 @@
+schema_version: 1
+feature_key: student-4-due-diligence
+display_name: PropertyScope Site, Planning and Building Due Diligence
+owner: student-4
+frontend_base_path: /features/due-diligence/
+backend_base_path: /api/due-diligence/v1
+health_path: /health/ready
+# AI-mode tool integration (a bounded Plan -> Act -> Observe -> Adapt question pack)
+# is intentionally deferred to a later branch; add an `ai:` onboarding block and a
+# student-4/tool-catalog.yaml when it lands.
+ai_capabilities: []
+onboarding:
+  frontend:
+    asset_root: student-4/frontend
+    service: f4-frontend
+    internal_port: 8080
+    host_port_variable: PROPERTYSCOPE_DUE_DILIGENCE_PORT
+    host_port_default: 5400
+    route_fragment: student-4/frontend/integration/research-area.html
+  backend:
+    service: f4-backend
+    internal_port: 5401
+  quality:
+    python_test_paths:
+      - student-4/tests
+    node_test_files:
+      - student-4/tests/frontend/core.test.mjs
+    coverage_packages:
+      - propertyscope_due_diligence
+      - propertyscope_due_diligence_store
+    coverage_fail_under: 85
+  databases:
+    - database_service: f4-postgres
+      volumes:
+        - f4-postgres-data
