@@ -413,6 +413,8 @@ def test_claim_reconciles_expiry_and_only_claims_the_first_eligible_stage() -> N
     interruption = next(
         query for query in connection.queries if "SET status='interrupted'" in query
     )
+    assert "UPDATE ops.run_task task SET status='interrupted'" in interruption
+    assert "UPDATE ops.ingestion_run run SET status='interrupted'" in interruption
     assert "task.lease_expires_at<=%s" in interruption
     assert "run.cancel_requested_at IS NULL" in interruption
     assert connection.committed is True
@@ -645,6 +647,7 @@ def test_resume_requeues_cancelled_unfinished_task_from_interrupted_run() -> Non
 
     assert run["status"] == "queued"
     assert "'cancelled'" in connection.queries[0]
+    assert "'interrupted'" in connection.queries[0]
 
 
 def test_run_projection_truthfully_describes_retry_execution() -> None:

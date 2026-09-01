@@ -67,7 +67,9 @@ import {
   publicationSuccessMessage,
   reconcilePublicationTimeout,
 } from "../../frontend/routes/release-publication.js";
-import { runFailureSummary } from "../../frontend/core/run-failure.js";
+import {
+  failureExplanationDraft, reconcileTimelineTask, runFailureSummary,
+} from "../../frontend/core/run-failure.js";
 
 function response(body, { status = 200, headers = {} } = {}) {
   return {
@@ -349,6 +351,41 @@ test("cached replay guidance is limited to the proven PSI postcode compatibility
   });
 
   assert.equal(summary.cachedReplayRecommended, true);
+});
+
+test("terminal parent state closes a stale active timeline task", () => {
+  const runError = { code: "task_lease_expired", message: "The worker lease expired." };
+  const task = reconcileTimelineTask(
+    {
+      status: "interrupted",
+      last_activity_at: "2026-09-01T00:20:20+10:00",
+      error_json: runError,
+    },
+    {
+      status: "running",
+      lease_expires_at: "2026-09-01T00:25:20+10:00",
+      stage: "import",
+    },
+  );
+
+  assert.equal(task.status, "interrupted");
+  assert.equal(task.finished_at, "2026-09-01T00:25:20+10:00");
+  assert.equal(task.error_json, runError);
+});
+
+test("failure explanation draft carries classified evidence and a read-only instruction", () => {
+  const draft = failureExplanationDraft(
+    { error_json: { code: "stage_execution_failed" } },
+    [{
+      stage: "quality",
+      status: "failed",
+      error_json: { code: "blocking_quality_failure", message: "A blocking check failed." },
+    }],
+  );
+
+  assert.match(draft, /quality could not continue/i);
+  assert.match(draft, /blocking_quality_failure/);
+  assert.match(draft, /Do not retry, change, or publish data/);
 });
 
 test("JSON form fields reject arrays and invalid input", () => {

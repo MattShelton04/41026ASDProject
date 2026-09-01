@@ -80,6 +80,20 @@ def test_supported_contract_migration_aligns_every_registered_builder() -> None:
     assert "ops.ingestion_run" not in sql
 
 
+def test_interrupted_task_migration_repairs_existing_active_children() -> None:
+    sql = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("046_reconcile_interrupted_run_tasks.sql")
+        .read_text(encoding="utf-8")
+    )
+
+    assert "'interrupted','skipped'" in sql
+    assert "UPDATE ops.run_task task" in sql
+    assert "run.status = 'interrupted'" in sql
+    assert "task.status IN ('claimed', 'running')" in sql
+    assert "lease_expires_at = NULL" in sql
+
+
 class SchemaConnection:
     def __init__(
         self,
