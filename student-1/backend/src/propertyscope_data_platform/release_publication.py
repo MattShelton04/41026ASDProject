@@ -83,6 +83,20 @@ def publish_release(
         return forward(current_response)
     envelope = current_response.json()
     release = envelope["release"]
+    coverage = release.get("coverage_json")
+    if isinstance(coverage, Mapping) and (
+        coverage.get("complete") is False or coverage.get("profile") == "psi-year-range"
+    ):
+        if tool_output:
+            return _catalog_publication_output(
+                "failed", receipt_id=None, replayed=False, status_code=409
+            )
+        return problem(
+            409,
+            "partial_release_not_publishable",
+            "A scoped PSI archive-year candidate cannot replace the accepted complete "
+            "sales-history generation",
+        )
     prior_receipt = next(
         (
             item

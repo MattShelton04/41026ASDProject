@@ -18,7 +18,7 @@ from typing import Any
 
 import httpx
 
-from propertyscope_data_platform.acquisition_scope import complete_scope_error
+from propertyscope_data_platform.acquisition_scope import acquisition_scope_error
 from propertyscope_data_platform.adapters.bocsar import (
     CrimeCoverage,
     CrimeObservation,
@@ -241,9 +241,9 @@ class AcquisitionRunner:
             )
         if stage in {"discover", "acquire"}:
             profile = str(task.get("import_profile_key", "property-fixture"))
-            scope_error = complete_scope_error(profile, scope)
+            scope_error = acquisition_scope_error(profile, scope)
             if scope_error is not None:
-                raise RuntimeError(f"Incomplete acquisition scope: {scope_error}")
+                raise RuntimeError(f"Invalid acquisition scope: {scope_error}")
             if profile in {"psi-sales", "gnaf-nsw", "bocsar-sparse"} and stage == "acquire":
                 scope = task.get("partition_json") or {}
                 if not isinstance(scope, dict):
@@ -691,7 +691,7 @@ class AcquisitionRunner:
             for week in _psi_weeks(scope)
         )
         if not sources:
-            raise RuntimeError("PSI full-data scope contains no annual or weekly partitions")
+            raise RuntimeError("PSI acquisition scope contains no annual or weekly partitions")
         for source_year, url, cached in sources:
             source: AbstractContextManager[Path]
             if cached is not None:

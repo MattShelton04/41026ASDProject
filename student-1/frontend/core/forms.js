@@ -132,7 +132,7 @@ export function createSubmissionGuard(operation, onPending = () => {}) {
   };
 }
 
-export function psiYearRange(startValue, endValue, { minimum = 1990, maximum = new Date().getFullYear() + 1 } = {}) {
+export function psiYearRange(startValue, endValue, { minimum = 1990, maximum = new Date().getFullYear() - 1 } = {}) {
   const start = Number(startValue);
   const end = Number(endValue);
   if (!Number.isInteger(start) || !Number.isInteger(end) || start < minimum || end > maximum || start > end) {

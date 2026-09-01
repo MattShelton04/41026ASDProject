@@ -212,6 +212,52 @@ def test_web_accepted_receipt_replay_includes_completed_publication_status() -> 
     assert response.get_json()["receipt"]["consumer_operation_id"] == "consumer-owned-42"
 
 
+def test_partial_psi_candidate_cannot_replace_the_complete_accepted_generation() -> None:
+    release = {
+        "id": RELEASE_ID,
+        "dataset_id": "nsw-psi-sales",
+        "target_feature": "feature-2",
+        "schema_version": "propertyscope.property-sales.v3",
+        "content_sha256": DIGEST,
+        "record_count": 3,
+        "coverage_json": {
+            "profile": "psi-year-range",
+            "start_year": 2023,
+            "end_year": 2024,
+            "complete": False,
+        },
+        "manifest_json": {"target_feature": "feature-2"},
+        "status": "awaiting_review",
+        "version": 2,
+    }
+    requested_methods: list[str] = []
+
+    def database(request: httpx.Request) -> httpx.Response:
+        requested_methods.append(request.method)
+        return httpx.Response(
+            200,
+            json={"release": release, "receipts": [], "consumer_imports": []},
+        )
+
+    app = Flask("partial-publication-test")
+    with app.test_request_context():
+        response = publish_release(
+            DataStoreClient(
+                "http://database",
+                "secret",
+                client=httpx.Client(transport=httpx.MockTransport(database)),
+            ),
+            ConsumerImportClient({}),
+            uuid.UUID(RELEASE_ID),
+            {"comment": "Reviewed"},
+            "partial-publication-key",
+        )
+
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "partial_release_not_publishable"
+    assert requested_methods == ["GET"]
+
+
 def test_connect_retains_genuine_async_operation_reference_with_short_timeout() -> None:
     def consumer(request: httpx.Request) -> httpx.Response:
         assert request.extensions["timeout"]["connect"] == 5.0

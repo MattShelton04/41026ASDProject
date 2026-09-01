@@ -22,6 +22,7 @@ from scripts.ui_fixtures import (
     JOB_ID,
     PRODUCT_SCHEMA,
     PROPERTY_ID,
+    PSI_JOB_ID,
     RELEASE_ID,
     REPORT_SCHEMA,
     REVIEW_RELEASE_ID,
@@ -471,6 +472,8 @@ def test_capabilities_plan_manifest_and_release_inspection_match_production_shap
         "profile_key",
         "refresh_strategy",
         "supported_modes",
+        "supported_scope_profiles",
+        "scope_constraints",
         "registered",
     }
     assert set(plan.body) == {
@@ -502,6 +505,26 @@ def test_capabilities_plan_manifest_and_release_inspection_match_production_shap
         "release_contract",
     }
     ReleaseDetailContract.model_validate(inspection.body["release_contract"])
+
+
+def test_psi_fixture_exposes_bounded_archive_year_capability() -> None:
+    capabilities = fixture_response(
+        "GET", f"/api/data-platform/v1/jobs/{PSI_JOB_ID}/capabilities", "", "populated"
+    )
+
+    assert capabilities.status == 200
+    assert capabilities.body["supported_scope_profiles"] == [
+        "full-data",
+        "psi-year-range",
+    ]
+    constraint = capabilities.body["scope_constraints"]["psi-year-range"]
+    assert constraint == {
+        "partition_kind": "publisher_archive_year",
+        "minimum_year": 1990,
+        "maximum_year": 2025,
+        "complete": False,
+        "publishable_as_complete": False,
+    }
 
 
 def test_projection_values_match_report_preview_overview_and_uuid_contracts() -> None:

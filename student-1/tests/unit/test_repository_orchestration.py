@@ -20,12 +20,25 @@ from propertyscope_data_store.repository import (
     PROPERTY_SEARCH_CANDIDATE_LIMIT,
     PropertyScopeStore,
     PropertySearchResults,
+    _is_supported_acquisition_scope,
     _normalise_property_query,
 )
 from propertyscope_data_store.runtime_registry import RuntimeRegistry, load_runtime_registry
 
 FEATURE_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_REGISTRY = load_runtime_registry(FEATURE_ROOT / "config" / "job-profiles")
+
+
+def test_complete_psi_scope_remains_supported_alongside_bounded_year_ranges() -> None:
+    assert _is_supported_acquisition_scope(
+        {
+            "profile": "full-data",
+            "all_records": True,
+            "all_history": True,
+            "include_current_weekly": True,
+        },
+        import_profile="psi-sales",
+    )
 
 
 class ScriptedConnection:
@@ -1728,6 +1741,36 @@ def test_activation_queue_validates_receipt_without_switching_accepted_pointer()
     assert not any("status='accepted'" in query for query in connection.queries)
     assert not any("serving.accepted_generation" in query for query in connection.queries)
     assert connection.committed is True
+
+
+def test_activation_queue_rejects_partial_release_coverage() -> None:
+    release_id = uuid.uuid4()
+    receipt_id = uuid.uuid4()
+    connection = ScriptedConnection(
+        [
+            None,
+            {
+                "id": release_id,
+                "status": "awaiting_review",
+                "version": 4,
+                "coverage_json": {"profile": "psi-year-range", "complete": False},
+                "receipt_id": receipt_id,
+            },
+        ]
+    )
+
+    with pytest.raises(ConflictError, match="partial release"):
+        ConnectedStore(connection).create_release_activation(
+            release_id,
+            {
+                "publication_receipt_id": receipt_id,
+                "expected_release_version": 4,
+                "comment": "Reviewed partial source",
+                "idempotency_key": "publish-partial-psi",
+            },
+        )
+
+    assert not any("INSERT INTO ops.release_activation" in query for query in connection.queries)
 
 
 def test_activation_queue_coalesces_a_second_nonterminal_release_version() -> None:

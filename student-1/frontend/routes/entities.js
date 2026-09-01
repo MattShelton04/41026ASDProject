@@ -1,6 +1,7 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, humanise, researchAreaLabel } from "../core/formats.js";
+import { isPsiJob } from "../core/forms.js";
 import { routeQuery } from "../core/router.js";
 import { filterToolbar } from "../components/forms.js";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
@@ -23,6 +24,17 @@ export function jobLifecycleMessage(status) {
 }
 
 export function createEntityRoutes({ view, request, openEntityDialog, openPlanDialog, confirmAction, mutate, generationGuard, rerender }) {
+  async function openPlannerFromList(item, intent) {
+    let capabilities = null;
+    let capabilitiesError = null;
+    try {
+      capabilities = (await request(`jobs/${encodeURIComponent(item.id)}/capabilities`)).body;
+    } catch (error) {
+      capabilitiesError = error;
+    }
+    return openPlanDialog(item, capabilities, { intent, capabilitiesError });
+  }
+
   async function renderEntityList() {
     const routeEpoch = generationGuard.capture();
     const params = routeQuery(location.hash);
@@ -97,8 +109,8 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
             if (!confirmed) return;
             await rerender();
           });
-          const runNow = button("Start update", "button primary small", () => openPlanDialog(item, null, { intent: "run" }));
-          const backfill = button("Load earlier data", "button secondary small", () => openPlanDialog(item, null, { intent: "backfill" }));
+          const runNow = button("Start update", "button primary small", () => openPlannerFromList(item, "run"));
+          const backfill = button("Load earlier data", "button secondary small", () => openPlannerFromList(item, "backfill"));
           runNow.disabled = item.status !== "active";
           backfill.disabled = item.status !== "active";
           append(
@@ -125,7 +137,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
               ),
             ),
             cell(humanise(item.refresh_strategy)),
-            cell("Complete source"),
+            cell(isPsiJob(item) ? "Complete default · selected archive years optional" : "Complete source"),
             cell(badge(item.status)),
             cell(actions, "actions-cell"),
           );
@@ -157,8 +169,8 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
       }
       if (!routeEpoch.isCurrent()) return;
       view.replaceChildren();
-      const runNow = button("Start update", "button primary", () => openPlanDialog(item, capabilities, { intent: "run" }));
-      const backfill = button("Load earlier data", "button secondary", () => openPlanDialog(item, capabilities, { intent: "backfill" }));
+      const runNow = button("Start update", "button primary", () => openPlanDialog(item, capabilities, { intent: "run", capabilitiesError }));
+      const backfill = button("Load earlier data", "button secondary", () => openPlanDialog(item, capabilities, { intent: "backfill", capabilitiesError }));
       runNow.disabled = item.status !== "active";
       backfill.disabled = item.status !== "active";
       const actions = [
@@ -206,7 +218,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
       const workflow = el("div", "operation-guide");
       append(
         workflow,
-        operationStep("1", "Import the complete source", "Every registered source record or partition is included automatically."),
+        operationStep("1", "Choose update coverage", "Complete source data is the default. PSI also supports selected completed publisher archive years as a partial candidate."),
         operationStep("2", "Preview update", "Check the source and proposed work before starting."),
         operationStep("3", "Review the result", "Follow progress, then retry a failed update if needed."),
       );

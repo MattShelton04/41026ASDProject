@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Status | Living architecture; approved five-feature allocation, Release 0 shared baseline and Feature 1 integrated |
-| Last verified | 30 August 2026 |
+| Last verified | 1 September 2026 |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related records | `docs/architecture/registered-feature-scope.md`, `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
@@ -25,8 +25,9 @@ through the root Compose model. ADR-016 is implemented as a narrow exception: on
 database API/loader receive the PostgreSQL URL; only PostgreSQL mounts its database volume;
 the runner writes the Feature 1 artifact volume and the loader reads it. Architecture checks
 enforce those imports, credentials and mounts. Deterministic CI uses a finite checked-in fixture;
-the default development runtime connects official sources and every Feature 1 update imports its
-complete registered source under ADR-029. Tutor approval of the narrow
+the default development runtime connects official sources. Feature 1 updates default to the
+complete registered source; ADR-035 additionally permits explicit completed PSI publisher-year
+candidates that remain partial and non-publishable. Tutor approval of the narrow
 exception has been confirmed; preserving a durable copy/link remains a submission-evidence task.
 
 The first Release 0 foundation increment implemented the strict shared agent
@@ -434,7 +435,9 @@ adaptive polling, charts, run timelines and other state-heavy routes deliberatel
 
 Compose names expose ownership before implementation detail. The production-like base project is
 `ps`, and the reloadable local overlay is `ps-dev`. Official and finite-fixture acquisitions share
-this runtime and always consume their complete registered source under ADR-029.
+this runtime and consume their complete registered source by default. ADR-035 permits only PSI to
+select completed annual publisher partitions; that scope remains explicit, partial and unable to
+replace the accepted complete generation.
 Shared services use `shared-<role>`; student-owned services use `f<number>-<role>`. Images mirror
 the service key below the descriptive `propertyscope/` namespace, and
 durable volumes use the same ownership prefix.

@@ -37,6 +37,30 @@ def test_run_request_rejects_partial_scope() -> None:
         )
 
 
+def test_run_request_accepts_explicit_partial_psi_archive_year_evidence() -> None:
+    request = RunRequest(
+        mode=RunMode.FULL_REFRESH,
+        scope={
+            "profile": "psi-year-range",
+            "all_records": True,
+            "start_year": 2023,
+            "end_year": 2024,
+            "years": [2023, 2024],
+            "all_history": False,
+            "include_current_weekly": False,
+            "complete": False,
+            "coverage_status": "partial",
+            "limitations": [
+                "This candidate contains only the selected completed PSI annual partitions and "
+                "cannot replace the accepted complete sales-history generation."
+            ],
+        },
+        idempotency_key="partial-psi-001",
+    )
+
+    assert request.scope["complete"] is False
+
+
 def test_terminal_run_has_no_transition() -> None:
     with pytest.raises(InvalidTransitionError):
         transition_run(RunStatus.SUCCEEDED, RunStatus.QUEUED)

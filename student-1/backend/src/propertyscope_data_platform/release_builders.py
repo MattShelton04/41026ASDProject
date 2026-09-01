@@ -759,18 +759,25 @@ class RegisteredReleaseBuilder:
                 item["contract_date"] for item in records if item.get("contract_date") is not None
             )
             temporal = {"from": dates[0], "to": dates[-1]} if dates else None
+            limitations = [
+                "Source-aligned sales include unusual and unmatched records; "
+                "consumers own analytical exclusions.",
+                "This product is not a valuation, forecast, comparable set, "
+                "or investment recommendation.",
+            ]
+            if context.scope.get("complete") is False:
+                limitations.append(
+                    "This candidate covers selected PSI publisher archive years only; archive "
+                    "years are not an exact contract-date range, and the candidate cannot replace "
+                    "the accepted complete sales-history generation."
+                )
             return (
                 {"NSW"},
                 temporal,
                 {"price_aud", "area_square_metres"},
                 {"property_sale"},
                 "number of unique source business-key and revision pairs in records",
-                (
-                    "Source-aligned sales include unusual and unmatched records; "
-                    "consumers own analytical exclusions.",
-                    "This product is not a valuation, forecast, comparable set, "
-                    "or investment recommendation.",
-                ),
+                tuple(limitations),
             )
         if self.spec.key == "crime-series":
             months = sorted(month for item in records for month in item["observed_months"])
@@ -1229,7 +1236,11 @@ def data_product_catalogue(feature_root: Path) -> tuple[DataProductCatalogueEntr
                 product_schema_version=job.target.contract,
                 builder_key=builder.spec.key,
                 builder_version=builder.spec.version,
-                supported_scope_profiles=("full-data",),
+                supported_scope_profiles=(
+                    ("full-data", "psi-year-range")
+                    if job.import_profile.key == "psi-sales"
+                    else ("full-data",)
+                ),
                 redistribution_decision=source.redistribution_policy,
                 download_permitted=source.redistribution_policy in PUBLIC_REDISTRIBUTION_POLICIES,
                 capability_state=source.catalogue_status,

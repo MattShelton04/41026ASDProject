@@ -103,7 +103,7 @@ def test_runner_rejects_legacy_partial_official_task_before_acquisition(tmp_path
         RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30)
     )
 
-    with pytest.raises(RuntimeError, match="Incomplete acquisition scope"):
+    with pytest.raises(RuntimeError, match="Invalid acquisition scope"):
         runner._execute(
             {
                 "id": "task-legacy",
@@ -755,7 +755,21 @@ def test_live_psi_reuses_bounded_official_archive_cache(tmp_path: Path) -> None:
         {
             "max_bytes": 1_000_000,
             "max_rows": 10,
-            "partition_json": {"profile": "full-data", "years": [2025]},
+            "partition_json": {
+                "profile": "psi-year-range",
+                "all_records": True,
+                "start_year": 2025,
+                "end_year": 2025,
+                "years": [2025],
+                "all_history": False,
+                "include_current_weekly": False,
+                "complete": False,
+                "coverage_status": "partial",
+                "limitations": [
+                    "This candidate contains only the selected completed PSI annual partitions "
+                    "and cannot replace the accepted complete sales-history generation."
+                ],
+            },
         },
         stage="acquire",
         profile="psi-sales",

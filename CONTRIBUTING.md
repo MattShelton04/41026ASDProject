@@ -129,8 +129,9 @@ allowlisted HTTP tool catalogues; disabled placeholders do not enter the runtime
 The development command composes the base model, generated enabled-feature projection, and
 `docker-compose.dev.yml`. The final overlay bind-mounts source and enables reload without changing
 the production-like HTTP or database-ownership boundaries. Starting the stack does not acquire
-official data; each job explicitly imports its complete registered source through the same durable
-review path. `up` reconciles images, and the label-scoped `reset` removes stack volumes but preserves
+official data; each job imports its complete registered source by default through the same durable
+review path. PSI can instead create an explicitly partial candidate from completed publisher archive
+years; that candidate cannot replace accepted complete history. `up` reconciles images, and the label-scoped `reset` removes stack volumes but preserves
 the host source cache.
 
 ## Dependencies and workspace projects

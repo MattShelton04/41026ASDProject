@@ -50,9 +50,11 @@ licensed; live and licensed source artifacts remain outside Git.
 
 The default stack connects the official NSW schools CSV, BOCSAR archives, Geoscape G-NAF bulk
 archive and PSI sales sources. Starting services never starts a download. When an operator starts
-an update, Feature 1 imports every record or registered partition through the same durable run,
+an update, Feature 1 imports every record in the selected registered scope through the same durable run,
 content-addressed artifact, serial loader, candidate generation, quality and human publication
-path. There is no smaller acquisition mode and no operator data-volume ceiling.
+path. Complete source remains the default and there is no operator row ceiling. PSI also offers an
+inclusive completed publisher archive-year range; this is explicitly partial, is not an exact
+contract-date filter, and cannot replace the accepted complete sales-history generation.
 
 The PSI adapter is verified against real publisher archives and parses every annual archive from
 1990 onward plus current Monday weekly updates. Archives download into temporary files and
@@ -150,6 +152,13 @@ source, and add `--no-wait` for a long job. These commands automate discovery,
 acquisition, validation, import, normalisation, quality checks, and candidate construction. They do
 not bypass the separate human decision to submit, accept, or reject a candidate.
 
+The browser and public plan/run API additionally support selected completed annual archives for the
+PSI job. Choose **Selected publisher archive years**, then an inclusive first and last year. The
+backend expands that choice to a contiguous partition list and persists it through run and release
+evidence. Archive years are source packaging, not guaranteed contract-date bounds. Scoped results
+remain partial candidates and the publication boundary refuses to replace complete accepted history
+with them. The data CLI intentionally continues to request the complete registered scope.
+
 Run `uv run scripts/dev.py stack down` when finished. Named AI history, PostgreSQL and artifact
 volumes are preserved.
 
@@ -198,12 +207,12 @@ issue the Cloudflare Linux-container challenge. It writes atomically into the Gi
 the application mounts read-only. Targeted alternatives are `--year 2025`, `--week 2026-08-10`, and
 `--current-weekly`; rerunning retains already verified archives.
 
-Every completed release contains the complete immutable generation as a deterministic gzip NDJSON
+Every publishable full-data release contains the complete immutable generation as a deterministic gzip NDJSON
 artifact. Every release detail page also includes a separately labelled, release-scoped dataset
 preview. Preview queries use fixed registered projections, cap pages at 100 records and never mix
 candidate and accepted generations; that browser bound does not truncate the release. Official
-sources are connected in the default stack and complete acquisition/release construction is the
-only update scope. Licence and redistribution policy still controls whether the complete artifact
+sources are connected in the default stack. Complete acquisition/release construction remains the
+default; selected-year PSI runs create clearly partial, non-publishable candidates. Licence and redistribution policy still controls whether the complete artifact
 may be downloaded or retained as metadata-only evidence.
 
 ## Shared integration boundary

@@ -14,7 +14,7 @@ import socket
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 from urllib.request import urlopen
 
@@ -546,11 +546,11 @@ def test_planner_release_decisions_and_ai_retry_in_the_open_form(
 ) -> None:
     _open(page, fixture_origin, "jobs")
     page.get_by_role("button", name="Start update Example property records update").click()
-    expect(page.get_by_text("imports every record available", exact=False)).to_be_visible()
+    expect(page.get_by_text("Complete source history is the default", exact=False)).to_be_visible()
     run_writes = _fail_first_write(page, f"**/api/data-platform/v1/jobs/{JOB_ID}/runs")
     page.locator("#action-confirm").click()
     expect(page.locator("#action-error")).to_contain_text("values are still here")
-    expect(page.get_by_text("imports every record available", exact=False)).to_be_visible()
+    expect(page.get_by_text("Complete source history is the default", exact=False)).to_be_visible()
     page.locator("#action-confirm").click()
     page.wait_for_function("() => location.hash.startsWith('#runs/')")
     assert len(run_writes) == 2
@@ -691,37 +691,56 @@ def test_guarded_confirmations_dirty_navigation_and_controller_generation(
     assert generation_result == {"navigationBlocked": True, "replacementStayedOpen": True}
 
 
-def test_planner_exposes_no_year_or_address_reduction_controls(
+def test_planner_exposes_psi_archive_year_scope_and_keeps_other_jobs_full_only(
     page: Page, fixture_origin: str
 ) -> None:
-    pattern = "**/api/data-platform/v1/jobs?*"
+    observed_plans: list[dict[str, object]] = []
 
-    def rewrite(profile: str) -> Callable[[Route], None]:
-        def handler(route: Route) -> None:
-            response = route.fetch()
-            payload = response.json()
-            job = payload["items"][0]
-            job["profile_key"] = profile
-            job["import_profile_key"] = profile
-            job["scope_json"] = {"profile": "full-data", "all_records": True}
-            route.fulfill(response=response, json=payload)
+    def capture_scoped_plan(route: Route) -> None:
+        request_body = route.request.post_data_json
+        assert isinstance(request_body, dict)
+        observed_plans.append(request_body)
+        response = route.fetch()
+        payload = response.json()
+        payload["scope"] = {
+            "profile": "psi-year-range",
+            "start_year": request_body["scope"]["start_year"],
+            "end_year": request_body["scope"]["end_year"],
+            "years": [2023, 2024],
+            "all_records": True,
+            "all_history": False,
+            "include_current_weekly": False,
+            "complete": False,
+            "coverage_status": "partial",
+        }
+        route.fulfill(response=response, json=payload)
 
-        return handler
-
-    psi_handler = rewrite("psi-sales")
-    page.route(pattern, psi_handler)
+    page.route("**/api/data-platform/v1/jobs/*/plans", capture_scoped_plan)
     _open(page, fixture_origin, "jobs")
-    page.get_by_role("button", name="Start update Example property records update").click()
-    expect(page.locator("#scope-profile")).to_have_count(0)
-    expect(page.locator("#psi-start-year")).to_have_count(0)
-    expect(page.locator("#psi-end-year")).to_have_count(0)
+    page.get_by_role("button", name="Start update NSW PSI sales history update").click()
+    expect(page.locator("#scope-profile")).to_be_visible()
+    expect(page.locator("#scope-profile")).to_have_value("full-data")
+    expect(page.locator("#psi-start-year")).to_be_hidden()
+    page.locator("#scope-profile").select_option("psi-year-range")
+    expect(page.locator("#psi-start-year")).to_be_visible()
+    expect(page.get_by_text("not an exact contract-date range", exact=False)).to_be_visible()
+    page.locator("#psi-start-year").fill("2023")
+    page.locator("#psi-end-year").fill("2024")
+    page.get_by_role("button", name="Preview update").click()
+    scoped_summary = page.get_by_text("Partial PSI candidate", exact=False)
+    expect(scoped_summary).to_contain_text("2023")
+    expect(scoped_summary).to_contain_text("2024")
+
+    assert observed_plans[-1]["scope"] == {
+        "profile": "psi-year-range",
+        "start_year": 2023,
+        "end_year": 2024,
+    }
+
     page.get_by_role("button", name="Go back").click()
+    expect(page.locator("#discard-dialog")).to_be_visible()
+    page.get_by_role("button", name="Discard changes").click()
     expect(page.locator("#action-dialog")).not_to_be_visible()
-    page.unroute(pattern, psi_handler)
-
-    gnaf_handler = rewrite("gnaf-nsw")
-    page.route(pattern, gnaf_handler)
-    _open(page, fixture_origin, "jobs")
     page.get_by_role("button", name="Start update Example property records update").click()
     expect(page.locator("#scope-profile")).to_have_count(0)
     expect(page.locator("#maximum-records")).to_have_count(0)
@@ -759,7 +778,7 @@ def test_complete_official_profile_is_default_without_visible_row_cap(
 
     expect(page.locator("#scope-profile")).to_have_count(0)
     expect(page.locator("#maximum-records")).to_have_count(0)
-    expect(page.get_by_text("imports every record available", exact=False)).to_be_visible()
+    expect(page.get_by_text("Complete source history is the default", exact=False)).to_be_visible()
     page.get_by_role("button", name="Preview update").click()
     expect(
         page.get_by_text("Complete dataset: all available source records", exact=False)

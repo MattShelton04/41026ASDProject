@@ -1523,7 +1523,7 @@ def test_default_runtime_reports_and_allows_official_acquisition() -> None:
     assert plan.status_code == 200
 
 
-def test_job_plan_requires_the_complete_psi_history_even_when_one_archive_is_cached() -> None:
+def test_job_plan_accepts_a_cached_partial_psi_archive_year_range() -> None:
     job_id = "20000000-0000-0000-0000-000000000001"
 
     def database(_: httpx.Request) -> httpx.Response:
@@ -1555,17 +1555,62 @@ def test_job_plan_requires_the_complete_psi_history_even_when_one_archive_is_cac
         f"/api/data-platform/v1/jobs/{job_id}/plans",
         json={
             "run_mode": "full_refresh",
-            "scope": {"profile": "full-data", "years": [2025]},
+            "scope": {
+                "profile": "psi-year-range",
+                "start_year": 2025,
+                "end_year": 2025,
+            },
         },
     )
 
     assert "psi-sales" in capabilities.get_json()["connected_live_profiles"]
     assert capabilities.get_json()["cached_live_profiles"] == ["psi-sales"]
     assert response.status_code == 200
-    assert response.get_json()["network_required"] is True
-    assert response.get_json()["source_cache_required"] is False
+    assert response.get_json()["scope"]["years"] == [2025]
+    assert response.get_json()["scope"]["complete"] is False
+    assert response.get_json()["network_required"] is False
+    assert response.get_json()["source_cache_required"] is True
     assert capabilities.get_json()["cached_source_years"] == {"psi-sales": [2025]}
     assert capabilities.get_json()["cached_source_weeks"] == {"psi-sales": ["2026-08-10"]}
+
+
+def test_psi_capabilities_describe_partial_archive_year_scope() -> None:
+    job_id = "20000000-0000-0000-0000-000000000001"
+
+    def database(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "job": {
+                    "id": job_id,
+                    "profile_key": "nsw-psi-sales-year",
+                    "refresh_strategy": "append_only_partitioned",
+                    "adapter_key": "psi-bulk",
+                    "release_builder_key": "property-sales",
+                    "import_profile_key": "psi-sales",
+                    "quality_policy_key": "psi-sales.v1",
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().get(f"/api/data-platform/v1/jobs/{job_id}/capabilities")
+
+    assert response.status_code == 200
+    assert response.get_json()["supported_scope_profiles"] == [
+        "full-data",
+        "psi-year-range",
+    ]
+    constraint = response.get_json()["scope_constraints"]["psi-year-range"]
+    assert constraint["partition_kind"] == "publisher_archive_year"
+    assert constraint["publishable_as_complete"] is False
 
 
 def test_job_plan_ignores_attempts_to_reduce_the_registered_complete_scope() -> None:
@@ -1612,7 +1657,7 @@ def test_job_plan_ignores_attempts_to_reduce_the_registered_complete_scope() -> 
     assert "maximum_records" not in overflow.get_json()["scope"]
 
 
-def test_retry_of_legacy_partial_run_reacquires_the_complete_registered_source() -> None:
+def test_retry_of_unsupported_legacy_partial_run_is_blocked() -> None:
     run_id = "30000000-0000-0000-0000-000000000031"
     job_id = "20000000-0000-0000-0000-000000000004"
     created_body: dict[str, object] = {}
@@ -1659,11 +1704,75 @@ def test_retry_of_legacy_partial_run_reacquires_the_complete_registered_source()
         headers={"Idempotency-Key": "retry-complete-001"},
     )
 
-    assert response.status_code == 201
-    assert created_body["scope"] == {
-        "profile": "full-data",
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "incomplete_legacy_run"
+    assert created_body == {}
+
+
+def test_retry_preserves_the_exact_supported_psi_year_range() -> None:
+    run_id = "30000000-0000-0000-0000-000000000039"
+    job_id = "20000000-0000-0000-0000-000000000001"
+    requested_scope = {
+        "profile": "psi-year-range",
+        "start_year": 2022,
+        "end_year": 2024,
+        "years": [2022, 2023, 2024],
         "all_records": True,
+        "all_history": False,
+        "include_current_weekly": False,
+        "complete": False,
+        "coverage_status": "partial",
+        "limitations": [
+            "This candidate contains only the selected completed PSI annual partitions and "
+            "cannot replace the accepted complete sales-history generation."
+        ],
     }
+    created_body: dict[str, object] = {}
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path.endswith(f"/runs/{run_id}"):
+            return httpx.Response(
+                200,
+                json={
+                    "run": {
+                        "job_definition_id": job_id,
+                        "run_mode": "full_refresh",
+                        "requested_scope_json": requested_scope,
+                    }
+                },
+            )
+        if request.method == "GET" and request.url.path.endswith(f"/jobs/{job_id}"):
+            return httpx.Response(
+                200,
+                json={
+                    "job": {
+                        "id": job_id,
+                        "profile_key": "nsw-psi-sales-year",
+                        "import_profile_key": "psi-sales",
+                        "release_builder_key": "property-sales",
+                    }
+                },
+            )
+        if request.method == "POST" and request.url.path.endswith(f"/jobs/{job_id}/runs"):
+            created_body.update(json.loads(request.content))
+            return httpx.Response(201, json={"run": {"id": "new-scoped-run"}})
+        raise AssertionError(f"unexpected store request: {request.method} {request.url.path}")
+
+    transport = httpx.MockTransport(database)
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+    )
+
+    response = app.test_client().post(
+        f"/api/data-platform/v1/ingestion-runs/{run_id}/retry",
+        headers={"Idempotency-Key": "retry-scoped-001"},
+    )
+
+    assert response.status_code == 201
+    assert created_body["scope"] == requested_scope
 
 
 @pytest.mark.parametrize("action", ["resume", "reprocess-cached"])

@@ -42,6 +42,7 @@ FIXTURE_REVISION = 3
 TIMESTAMP = "2026-08-23T00:00:00Z"
 SOURCE_ID = "10000000-0000-0000-0000-000000000001"
 JOB_ID = "20000000-0000-0000-0000-000000000001"
+PSI_JOB_ID = "20000000-0000-0000-0000-000000000002"
 RUN_ID = "30000000-0000-0000-0000-000000000001"
 TASK_ID = "40000000-0000-0000-0000-000000000001"
 ARTIFACT_ID = "50000000-0000-0000-0000-000000000001"
@@ -171,7 +172,35 @@ def _records(scenario: str) -> dict[str, list[dict[str, Any]]]:
             "schedule_text": "On demand",
             "created_at": TIMESTAMP,
             "updated_at": TIMESTAMP,
-        }
+        },
+        {
+            "id": PSI_JOB_ID,
+            "version": 1,
+            "source_definition_id": SOURCE_ID,
+            "name": "NSW PSI sales history update",
+            "profile_key": "nsw-psi-sales-year",
+            "profile_version": "1.0.0",
+            "adapter_key": "psi-bulk",
+            "release_builder_key": "property-sales",
+            "import_profile_key": "psi-sales",
+            "import_profile_version": "1.0.0",
+            "target_feature": "feature-2",
+            "dataset_id": "nsw-psi-sales",
+            "refresh_strategy": "append_only_partitioned",
+            "default_run_mode": "full_refresh",
+            "scope_json": {
+                "profile": "full-data",
+                "all_records": True,
+                "all_history": True,
+                "include_current_weekly": True,
+            },
+            "quality_policy_key": "psi-sales.v1",
+            "quality_policy_version": "1.0.0",
+            "status": "active",
+            "schedule_text": "On demand",
+            "created_at": TIMESTAMP,
+            "updated_at": TIMESTAMP,
+        },
     ]
     runs = [
         {
@@ -570,9 +599,9 @@ def fixture_response(
         if job is None:
             return _not_found("Job", route.split("/")[1], "job_not_found")
         if route.endswith("/capabilities"):
-            return FixtureResponse(200, _job_capabilities(), delay_seconds=delay)
+            return FixtureResponse(200, _job_capabilities(job), delay_seconds=delay)
         if route.endswith("/plans"):
-            return FixtureResponse(200, _job_plan(), delay_seconds=delay)
+            return FixtureResponse(200, _job_plan(job), delay_seconds=delay)
         if route.endswith("/runs"):
             return FixtureResponse(201, {"run": runs[0]}, delay_seconds=delay)
         if method == "DELETE":
@@ -771,22 +800,35 @@ def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[
     }
 
 
-def _job_capabilities() -> dict[str, Any]:
+def _job_capabilities(job: dict[str, Any]) -> dict[str, Any]:
+    is_psi = job["import_profile_key"] == "psi-sales"
     return {
-        "job_id": JOB_ID,
-        "profile_key": "fixture-property-full",
-        "refresh_strategy": "full_snapshot",
+        "job_id": job["id"],
+        "profile_key": job["profile_key"],
+        "refresh_strategy": job["refresh_strategy"],
         "supported_modes": ["full_refresh", "reprocess_cached"],
+        "supported_scope_profiles": ["full-data", "psi-year-range"] if is_psi else ["full-data"],
+        "scope_constraints": {
+            "psi-year-range": {
+                "partition_kind": "publisher_archive_year",
+                "minimum_year": 1990,
+                "maximum_year": 2025,
+                "complete": False,
+                "publishable_as_complete": False,
+            }
+        }
+        if is_psi
+        else {},
         "registered": {
-            "adapter": "fixture-snapshot",
-            "release_builder": "property-snapshot",
-            "import_profile": "fixture-property",
-            "quality_policy": "property-fixture.v1",
+            "adapter": job["adapter_key"],
+            "release_builder": job["release_builder_key"],
+            "import_profile": job["import_profile_key"],
+            "quality_policy": job["quality_policy_key"],
         },
     }
 
 
-def _job_plan() -> dict[str, Any]:
+def _job_plan(job: dict[str, Any]) -> dict[str, Any]:
     stages = (
         "discover",
         "acquire",
@@ -798,13 +840,10 @@ def _job_plan() -> dict[str, Any]:
     )
     return {
         "valid": True,
-        "job_id": JOB_ID,
+        "job_id": job["id"],
         "run_mode": "full_refresh",
-        "scope": {
-            "profile": "full-data",
-            "all_records": True,
-        },
-        "network_required": False,
+        "scope": job["scope_json"],
+        "network_required": job["import_profile_key"] != "fixture-property",
         "source_cache_required": False,
         "tasks": [
             {"sequence": index + 1, "stage": stage, "logical_key": f"{index:02d}/{stage}"}

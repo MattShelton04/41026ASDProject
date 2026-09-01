@@ -1025,14 +1025,17 @@ test("production frontend imports focused core and component modules", async () 
   assert.match(source, /\.\/routes\/ai-diagnosis\.js/);
 });
 
-test("live acquisition controls always use the complete registered source", async () => {
+test("live acquisition controls default to full data and offer bounded PSI archive years", async () => {
   const app = [
     await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8"),
     await readFile(new URL("../../frontend/routes/run-plan.js", import.meta.url), "utf8"),
   ].join("\n");
   assert.match(app, /profile: "full-data", all_records: true/);
   assert.match(app, /Complete dataset: all available source records/);
-  assert.doesNotMatch(app, /scope-profile|Maximum addresses|maximum-records/);
+  assert.match(app, /profile: "psi-year-range"/);
+  assert.match(app, /First archive year/);
+  assert.match(app, /not an exact contract-date range/);
+  assert.doesNotMatch(app, /Maximum addresses|maximum-records/);
   assert.doesNotMatch(app, /request\("runtime-capabilities"\)/);
 });
 
