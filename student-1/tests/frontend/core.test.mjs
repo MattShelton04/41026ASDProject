@@ -53,7 +53,8 @@ import {
   createFeature1ShellAdapter,
 } from "../../frontend/integration/shell.js";
 import {
-  assistantContextFromHash, FEATURE_ASSISTANT_CONTEXTS, FEATURE_ASSISTANT_SCOPES,
+  assistantContextFromHash, assistantDraftFromHash, FEATURE_ASSISTANT_CONTEXTS,
+  FEATURE_ASSISTANT_SCOPES,
 } from "../../frontend/integration/assistant.js";
 import {
   activePublicationOperation,
@@ -319,6 +320,11 @@ test("Feature 1 assistant wrapper projects only allowlisted typed page context",
   ]);
   assert.deepEqual(assistantContextFromHash("#assistant?route=runs/detail&release_id=10000000-0000-4000-8000-000000000004"), {});
   assert.deepEqual(assistantContextFromHash("#assistant?route=made-up&ingestion_run_id=10000000-0000-4000-8000-000000000004"), {});
+  assert.equal(
+    assistantDraftFromHash("#assistant?draft=Explain+the+recorded+failure."),
+    "Explain the recorded failure.",
+  );
+  assert.equal(assistantDraftFromHash(`#assistant?draft=${"x".repeat(2100)}`).length, 2000);
 });
 
 test("failed update summary prefers specific step evidence over a generic run error", () => {
@@ -383,7 +389,7 @@ test("failure explanation draft carries classified evidence and a read-only inst
     }],
   );
 
-  assert.match(draft, /quality could not continue/i);
+  assert.match(draft, /quality stage/i);
   assert.match(draft, /blocking_quality_failure/);
   assert.match(draft, /Do not retry, change, or publish data/);
 });
@@ -1036,4 +1042,15 @@ test("Feature 1 exports the manifest-declared domain-neutral evidence hook", asy
     "utf8",
   );
   assert.match(adapter, /export function createShellEvidenceAdapter/);
+});
+
+test("overview problem notice uses a labelled responsive list", async () => {
+  const source = await readFile(new URL("../../frontend/routes/overview.js", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../../frontend/styles.css", import.meta.url), "utf8");
+
+  assert.match(source, /aria-labelledby.*overview-problems-heading/);
+  assert.match(source, /el\("ul", "problem-links"\)/);
+  assert.match(source, /append\(item, link/);
+  assert.match(styles, /\.overview-problems \{ display: grid;/);
+  assert.match(styles, /\.problem-links \{ display: grid;/);
 });

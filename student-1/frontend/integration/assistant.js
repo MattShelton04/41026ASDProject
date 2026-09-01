@@ -78,3 +78,8 @@ export function assistantContextFromHash(hash = "") {
     ? { route, [parameter]: value }
     : {};
 }
+
+export function assistantDraftFromHash(hash = "") {
+  const query = new URLSearchParams(String(hash).split("?")[1] || "");
+  return String(query.get("draft") || "").trim().slice(0, 2000);
+}

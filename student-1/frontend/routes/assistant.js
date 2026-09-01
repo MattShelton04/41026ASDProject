@@ -3,6 +3,7 @@ import {
   FEATURE_ASSISTANT_SCOPES,
   FEATURE_ASSISTANT_CONTEXTS,
   assistantContextFromHash,
+  assistantDraftFromHash,
   featureAssistantSuggestions,
 } from "../integration/assistant.js";
 
@@ -31,6 +32,7 @@ export function createFeatureAssistantRoute({ view, announce = () => {} }) {
         contextOptions: FEATURE_ASSISTANT_CONTEXTS,
         suggestions: featureAssistantSuggestions,
         context: assistantContextFromHash(location.hash),
+        initialMessage: assistantDraftFromHash(location.hash),
         activityHref,
         announce,
         title: "Ask about Property data",

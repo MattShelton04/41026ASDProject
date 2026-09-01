@@ -144,6 +144,7 @@ test("component source preserves disclosure/focus state and surfaces polling war
   assert.match(components, /Cancellation could not be requested/);
   assert.match(components, /turn\.run\?\.error\?\.message/);
   assert.match(components, /ps-ai-chat__typing-dots/);
+  assert.match(source, /initialMessage\.trim\(\)\.slice\(0, 2000\)/);
 });
 
 test("destroying an assistant client aborts its in-flight requests", async () => {

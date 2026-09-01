@@ -14,14 +14,13 @@ SET status = 'interrupted',
         task.finished_at,
         task.lease_expires_at,
         task.heartbeat_at,
-        run.last_activity_at,
         run.heartbeat_at,
         run.started_at,
         run.requested_at
     ),
     updated_at = GREATEST(
         task.updated_at,
-        COALESCE(task.lease_expires_at, task.heartbeat_at, run.last_activity_at, run.requested_at)
+        COALESCE(task.lease_expires_at, task.heartbeat_at, run.heartbeat_at, run.requested_at)
     ),
     error_json = COALESCE(task.error_json, run.error_json, jsonb_build_object(
         'code', 'task_lease_expired',

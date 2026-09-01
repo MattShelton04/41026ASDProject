@@ -36,6 +36,7 @@ export function createAiChat({
   welcomeMessage = "I can inspect available feature data through recorded, allowlisted tools. I will show the durable run and evidence for each answer.",
   composerLabel = "Message PropertyScope assistant",
   placeholder = "Ask about this research area, its evidence or an available record…",
+  initialMessage = "",
 } = {}) {
   if (!root || !client) throw new TypeError("createAiChat requires root and client");
   const scopeDefinitions = normalizeAssistantScopes(scopes);
@@ -90,6 +91,7 @@ export function createAiChat({
   textarea.maxLength = 2000;
   textarea.required = true;
   textarea.placeholder = placeholder;
+  textarea.value = typeof initialMessage === "string" ? initialMessage.trim().slice(0, 2000) : "";
   const composerFooter = el("div", "ps-ai-chat__composer-footer");
   const helper = el("p", "", "Enter sends · Shift+Enter adds a line · completed replies provide bounded follow-up context");
   const submit = el("button", "ps-button ps-button--primary", "Send message");

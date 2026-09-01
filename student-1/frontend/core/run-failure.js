@@ -40,7 +40,8 @@ export function reconcileTimelineTask(run, task) {
 export function failureExplanationDraft(run, tasks = []) {
   const failure = runFailureSummary(run, tasks);
   if (!failure) return "Explain this data update and recommend the safest next step.";
-  return `Explain why this data update failed at the ${failure.title.toLowerCase()}. `
+  const stage = failure.title.toLowerCase().replace(" could not continue", " stage");
+  return `Explain why this data update failed at the ${stage}. `
     + `Use the recorded ${failure.code} evidence to explain the cause in plain language and recommend `
     + "the safest next step. Do not retry, change, or publish data.";
 }
