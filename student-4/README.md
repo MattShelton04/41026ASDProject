@@ -35,5 +35,40 @@ safety or legal suitability.
   deterministic records.
 
 The approved allocation and complete minimum boundary are maintained in the
-[approved feature scope](../docs/architecture/registered-feature-scope.md). This README records
-ownership and planned scope only; no Feature 4 implementation is claimed yet.
+[approved feature scope](../docs/architecture/registered-feature-scope.md).
+
+## Scaffold status
+
+A runnable vertical-slice scaffold is now in place (frontend + backend/API + database
+microservices), registered and **enabled** in the shared application. It is a **starting
+point**, not the finished feature — expand it to the full approved boundary above.
+
+Implemented so far:
+
+- **Database** (`propertyscope_due_diligence_store`): PostGIS service with `site_review`,
+  `constraint_observation` and `building_observation` tables, ordered SQL migrations, and at
+  least ten deterministic seed rows per table.
+- **Backend/API** (`propertyscope_due_diligence`): credential-free Flask service exposing
+  `/health/live`, `/health/ready` and the `/api/due-diligence/v1` site-review CRUD, evidence
+  retrieval, and Feature 1 property validation over HTTP. Direct CRUD keeps working when
+  Feature 1 is unavailable.
+- **Frontend**: dependency-free page that lists site reviews, integrated into the unified home
+  page and served on `PROPERTYSCOPE_DUE_DILIGENCE_PORT` (default 5400).
+- **Wiring**: `feature.yaml`, a multi-stage `Dockerfile`, Compose services (`f4-postgres`,
+  `f4-db-api`, `f4-backend`, `f4-frontend`), and deterministic Python + Node tests discovered
+  by the repository quality gate.
+
+Not yet built (your next branches): the AI-generated Plan -> Act -> Observe -> Adapt
+verification-question pack (add an `onboarding.ai` block plus `tool-catalog.yaml`), versioned
+evidence-release import, bounded GeoJSON layers, and the richer planning/environmental/strata
+and building-order UI.
+
+### Run it locally
+
+```
+uv run scripts/dev.py stack up --offline
+```
+
+Open the unified home page at <http://localhost:5100> (Feature 4 appears under "Site and
+planning") or the feature directly at <http://localhost:5400>. Stop with
+`uv run scripts/dev.py stack down`.

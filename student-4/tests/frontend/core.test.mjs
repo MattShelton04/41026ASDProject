@@ -1,0 +1,40 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import {
+  API_BASE,
+  dispositionLabel,
+  evidenceStateLabel,
+  statusLabel,
+  summariseReview,
+} from "../../frontend/app.js";
+
+test("status labels map known and unknown values", () => {
+  assert.equal(statusLabel("draft"), "Draft");
+  assert.equal(statusLabel("in_review"), "In review");
+  assert.equal(statusLabel("mystery"), "Unknown");
+});
+
+test("disposition labels map known and unknown values", () => {
+  assert.equal(dispositionLabel("do_not_proceed"), "Do not proceed");
+  assert.equal(dispositionLabel("mystery"), "Unknown");
+});
+
+test("evidence state labels map the four supported states", () => {
+  assert.equal(evidenceStateLabel("confirmed"), "Confirmed");
+  assert.equal(evidenceStateLabel("partial_coverage"), "Partial coverage");
+  assert.equal(evidenceStateLabel("mystery"), "Unknown");
+});
+
+test("summariseReview composes a readable single line", () => {
+  const line = summariseReview({
+    title: "Review 1",
+    address_display: "11 Example Street, Sydney NSW 2000",
+    status: "completed",
+  });
+  assert.equal(line, "Review 1 - 11 Example Street, Sydney NSW 2000 (Completed)");
+});
+
+test("API base is a same-origin versioned path", () => {
+  assert.equal(API_BASE, "/api/due-diligence/v1");
+});

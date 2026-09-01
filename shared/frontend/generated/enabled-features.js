@@ -9,6 +9,16 @@ const VALUES = [
     "healthPath": "/health/ready",
     "owner": "student-1",
     "publicHealthPath": "/api/shared-health/data-platform"
+  },
+  {
+    "backendBase": "/api/due-diligence/v1",
+    "displayName": "PropertyScope Site, Planning and Building Due Diligence",
+    "evidenceAdapterPath": null,
+    "featureKey": "student-4-due-diligence",
+    "frontendBase": "/features/due-diligence/",
+    "healthPath": "/health/ready",
+    "owner": "student-4",
+    "publicHealthPath": "/api/shared-health/due-diligence"
   }
 ];
 

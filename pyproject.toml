@@ -83,6 +83,8 @@ src = [
     "ai-services/ai-mode/src",
     "student-1/backend/src",
     "student-1/database/src",
+    "student-4/backend/src",
+    "student-4/database/src",
 ]
 
 [tool.ruff.lint]
@@ -94,6 +96,8 @@ known-first-party = [
     "ai_mode",
     "propertyscope_data_platform",
     "propertyscope_data_store",
+    "propertyscope_due_diligence",
+    "propertyscope_due_diligence_store",
     "shared_consumer_protocol",
     "shared_contracts",
     "shared_testkit",

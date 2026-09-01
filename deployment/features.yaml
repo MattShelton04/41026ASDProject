@@ -2,3 +2,5 @@ schema_version: 1
 features:
   - feature_key: student-1-propertyscope-data-platform
     enabled: true
+  - feature_key: student-4-due-diligence
+    enabled: true

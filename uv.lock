@@ -978,13 +978,25 @@ requires-dist = [{ name = "shared-contracts", editable = "shared/contracts" }]
 [[package]]
 name = "student-4-feature"
 version = "0.1.0"
-source = { virtual = "student-4" }
+source = { editable = "student-4" }
 dependencies = [
+    { name = "flask" },
+    { name = "gunicorn" },
+    { name = "httpx" },
+    { name = "psycopg", extra = ["binary", "pool"] },
+    { name = "pydantic" },
     { name = "shared-contracts" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "shared-contracts", editable = "shared/contracts" }]
+requires-dist = [
+    { name = "flask", specifier = ">=3.1,<4" },
+    { name = "gunicorn", specifier = ">=23,<24" },
+    { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2,<4" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
+    { name = "shared-contracts", editable = "shared/contracts" },
+]
 
 [[package]]
 name = "student-5-feature"
