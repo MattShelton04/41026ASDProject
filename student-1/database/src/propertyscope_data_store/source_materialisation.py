@@ -127,7 +127,9 @@ PSI_ADDRESS_RESOLUTION_SQL = """
         SELECT DISTINCT source.postcode,source.locality,source.street_name_normalised,
             source.street_type,source.street_number_first,source.street_number_last,
             source.street_number_suffix,source.unit_number
-        FROM propertyscope_psi_import_stage source
+        FROM propertyscope_psi_identity_stage identity
+        JOIN propertyscope_psi_import_stage source
+          ON source.ordinal=identity.first_ordinal
         WHERE source.postcode IS NOT NULL
           AND source.locality IS NOT NULL
           AND source.street_name_normalised IS NOT NULL
@@ -153,6 +155,9 @@ PSI_ADDRESS_RESOLUTION_SQL = """
          AND COALESCE(address.street_number_suffix,'')=COALESCE(
              eligible.street_number_suffix,'')
          AND COALESCE(address.unit_number,'')=COALESCE(eligible.unit_number,'')
+        JOIN registry.property registered_property
+          ON registered_property.property_ref=COALESCE(
+              address.property_ref,md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)
         WHERE address.published
     ), registry_fallback_candidates AS (
         SELECT eligible.postcode,eligible.locality,eligible.street_name_normalised,

@@ -776,6 +776,66 @@ def test_address_resolution_does_not_leak_from_eligible_to_ineligible_row(
     ]
 
 
+def test_psi_ignores_unregistered_accepted_gnaf_identity_and_uses_registry_fallback(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    accepted_gnaf_release = uuid.uuid4()
+    registry_ref = uuid.uuid4()
+    connection.execute(
+        """
+        CREATE TABLE warehouse.gnaf_address (
+            dataset_release_id UUID NOT NULL,
+            gnaf_pid TEXT NOT NULL,
+            property_ref UUID,
+            postcode TEXT NOT NULL,
+            locality TEXT NOT NULL,
+            street_name TEXT,
+            street_type TEXT,
+            street_number_first INTEGER,
+            street_number_last INTEGER,
+            street_number_suffix TEXT,
+            unit_number TEXT,
+            published BOOLEAN NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        "INSERT INTO serving.accepted_generation VALUES ('gnaf-nsw',%s)",
+        (accepted_gnaf_release,),
+    )
+    connection.execute(
+        "INSERT INTO registry.property "
+        "VALUES (%s,'2000','SYDNEY','EXAMPLE','ST',10,NULL,NULL,NULL)",
+        (registry_ref,),
+    )
+    connection.execute(
+        "INSERT INTO warehouse.gnaf_address VALUES "
+        "(%s,'unregistered-gnaf',NULL,'2000','SYDNEY','EXAMPLE','ST',10,NULL,NULL,NULL,TRUE)",
+        (accepted_gnaf_release,),
+    )
+    _stage_typed_psi_rows(connection, [_psi_row(key="registry-fallback")])
+
+    accepted = import_profiles._insert_psi_rows(
+        connection.cursor(),
+        release_id=uuid.uuid4(),
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        phase_rows=1,
+        phase_callback=None,
+    )
+
+    row = connection.execute(
+        "SELECT property_ref,match_tier,geographic_precision FROM warehouse.psi_sale"
+    ).fetchone()
+    assert accepted == 1
+    assert row == {
+        "property_ref": registry_ref,
+        "match_tier": "A",
+        "geographic_precision": "exact_address",
+    }
+
+
 def test_psi_retransmissions_revisions_and_exact_address_cardinality(
     isolated_postgres: psycopg.Connection[dict[str, object]],
 ) -> None:
