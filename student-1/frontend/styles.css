@@ -191,8 +191,8 @@ tbody tr:focus-within { background: var(--ps-ocean-50); }
 .overview-problems__description { margin: 0; }
 .overview-problems__action { align-self: center; white-space: nowrap; }
 .problem-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: var(--ps-space-2); margin: var(--ps-space-1) 0 0; padding: 0; list-style: none; }
-.problem-links a { display: block; min-height: var(--ps-control-height-compact); padding: var(--ps-space-2) var(--ps-space-3); border: var(--ps-border-width) solid var(--ps-red-100); border-radius: var(--ps-radius-sm); background: rgb(255 255 255 / 58%); color: inherit; font-weight: var(--ps-weight-bold); line-height: 1.35; text-underline-offset: .18em; }
-.problem-links a:hover { border-color: currentColor; background: rgb(255 255 255 / 82%); }
+.problem-links a { display: block; min-height: var(--ps-control-height-compact); padding: var(--ps-space-2) var(--ps-space-3); border: var(--ps-border-width) solid var(--ps-red-100); border-radius: var(--ps-radius-sm); background: var(--ps-color-surface); color: inherit; font-weight: var(--ps-weight-bold); line-height: 1.35; text-underline-offset: .18em; }
+.problem-links a:hover { border-color: currentColor; background: var(--ps-color-surface-elevated); }
 
 .badge { min-height: 26px; display: inline-flex; align-items: center; gap: .34rem; max-width: 15rem; padding: .25rem .52rem; border-radius: var(--ps-radius-pill); background: var(--ps-color-disabled-surface); color: var(--ps-color-text-muted); font-size: .72rem; font-weight: 780; line-height: 1.2; white-space: nowrap; }
 .badge.positive { background: var(--positive-bg); color: var(--positive); }
