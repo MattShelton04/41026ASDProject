@@ -11,6 +11,7 @@ import {
   featureBounds,
   featureCollection,
   loadMapLibreRenderer,
+  mountMapHelp,
   pointFeature,
   validateFeatureCollection,
   validateLayerDefinition,
@@ -22,6 +23,34 @@ test("the map host remains full-size after the renderer stylesheet loads", async
   const stylesheet = await readFile(new URL("./mapping.css", import.meta.url), "utf8");
   assert.match(stylesheet, /\.ps-map__canvas\.maplibregl-map\s*\{[^}]*position:\s*absolute/s);
   assert.match(stylesheet, /\.ps-map__canvas\.maplibregl-map\s*\{[^}]*inset:\s*0/s);
+  assert.match(stylesheet, /\.ps-map-help\s*\{[^}]*bottom:\s*var\(--ps-space-3[^}]*left:\s*var\(--ps-space-3/s);
+  assert.match(stylesheet, /\.ps-map \.maplibregl-ctrl-bottom-left\s*\{[^}]*left:\s*calc\(/s);
+});
+
+test("map help reveals compact guidance on hover, focus, click, and keyboard input", () => {
+  const { container } = fakeDomContainer();
+  const help = mountMapHelp(container, { text: "Latitude -33.8, longitude 151.2. Drag to pan." });
+  assert.equal(help.button.getAttribute("aria-label"), "Map information");
+  assert.equal(help.button.getAttribute("aria-controls"), help.panel.id);
+  assert.equal(help.panel.getAttribute("role"), "tooltip");
+  assert.equal(help.panel.hidden, true);
+
+  help.element.emitDom("mouseenter");
+  assert.equal(help.panel.hidden, false);
+  help.element.emitDom("mouseleave");
+  assert.equal(help.panel.hidden, true);
+  help.element.emitDom("focusin");
+  assert.equal(help.panel.hidden, false);
+  help.button.emitDom("click");
+  help.button.emitDom("click");
+  assert.equal(help.panel.hidden, true);
+  help.element.emitDom("focusout", { relatedTarget: null });
+  help.element.emitDom("focusin");
+  help.element.emitDom("keydown", { key: "Escape" });
+  assert.equal(help.panel.hidden, true);
+
+  help.destroy();
+  assert.equal(container.children.length, 0);
 });
 
 test("the vendored renderer is loaded once on first map use", async () => {
@@ -266,6 +295,42 @@ test("map controller keeps polygons below points and supports data, visibility, 
   assert.equal(map.removed, true);
 });
 
+test("Ctrl primary-button drag performs direct pan while ordinary drag remains renderer-native", async () => {
+  const renderer = fakeRenderer();
+  const { container, defaultView } = fakeDomContainer();
+  const controller = await createMap({ container, renderer, controls: false });
+  const map = renderer.instances[0];
+  let prevented = false;
+  map.emit("mousedown", {
+    originalEvent: { button: 0, ctrlKey: true, clientX: 100, clientY: 80 },
+    preventDefault() { prevented = true; },
+  });
+  defaultView.emitDom("mousemove", {
+    clientX: 128,
+    clientY: 74,
+    preventDefault() { prevented = true; },
+  });
+  assert.equal(prevented, true);
+  assert.deepEqual(map.panCalls[0], {
+    offset: [28, -6],
+    options: { duration: 0 },
+  });
+
+  defaultView.emitDom("mouseup");
+  defaultView.emitDom("mousemove", { clientX: 150, clientY: 74, preventDefault() {} });
+  assert.equal(map.panCalls.length, 1);
+  map.emit("mousedown", {
+    originalEvent: { button: 0, ctrlKey: false, clientX: 100, clientY: 80 },
+    preventDefault() { throw new Error("ordinary drag must stay renderer-native"); },
+  });
+  assert.equal(map.panCalls.length, 1);
+
+  controller.destroy();
+  assert.equal(defaultView.listenerCount("mousemove"), 0);
+  assert.equal(defaultView.listenerCount("mouseup"), 0);
+  assert.equal(defaultView.listenerCount("blur"), 0);
+});
+
 test("a basemap load error activates the neutral fallback without losing layers", async () => {
   const renderer = fakeRenderer({ failInitialStyle: true });
   const statuses = [];
@@ -352,8 +417,8 @@ test("aborting startup removes a map that has not loaded its style", async () =>
   assert.equal(renderer.instances[0].removed, true);
 });
 
-function fakeContainer() {
-  return { isConnected: true, ownerDocument: null };
+function fakeContainer(ownerDocument = null) {
+  return { isConnected: true, ownerDocument };
 }
 
 function fakeRenderer({ failInitialStyle = false, autoLoad = true } = {}) {
@@ -371,6 +436,7 @@ function fakeRenderer({ failInitialStyle = false, autoLoad = true } = {}) {
         ? flatBounds(options.bounds)
         : [options.center[0] - 0.1, options.center[1] - 0.1, options.center[0] + 0.1, options.center[1] + 0.1];
       this.canvas = { style: {} };
+      this.panCalls = [];
       this.resizeCount = 0;
       instances.push(this);
       if (autoLoad) queueMicrotask(() => this.emit(failInitialStyle ? "error" : "load", {}));
@@ -408,12 +474,69 @@ function fakeRenderer({ failInitialStyle = false, autoLoad = true } = {}) {
     getZoom() { return this.zoom; }
     fitBounds(bounds, options) { this.lastFitBounds = { bounds, options }; }
     flyTo(options) { this.lastFlyTo = options; }
+    panBy(offset, options) { this.panCalls.push({ offset, options }); }
     easeTo(options) { this.lastEaseTo = options; }
     getCanvas() { return this.canvas; }
     resize() { this.resizeCount += 1; }
     remove() { this.removed = true; }
   }
   return { Map: FakeMap, instances };
+}
+
+function fakeDomContainer() {
+  const defaultView = fakeEventTarget();
+  const documentRef = { defaultView };
+  documentRef.createElement = (tagName) => fakeElement(tagName, documentRef);
+  const container = fakeElement("div", documentRef);
+  container.isConnected = true;
+  return { container, defaultView, documentRef };
+}
+
+function fakeElement(tagName, ownerDocument) {
+  const attributes = new Map();
+  const element = fakeEventTarget({
+    tagName: tagName.toUpperCase(),
+    ownerDocument,
+    parentNode: null,
+    children: [],
+    dataset: {},
+    hidden: false,
+    append(...children) {
+      for (const child of children) {
+        child.parentNode = this;
+        this.children.push(child);
+      }
+    },
+    contains(candidate) {
+      if (!candidate) return false;
+      if (candidate === this) return true;
+      return this.children.some((child) => child.contains?.(candidate));
+    },
+    setAttribute(name, value) { attributes.set(name, String(value)); },
+    getAttribute(name) { return attributes.get(name) ?? null; },
+    remove() {
+      if (!this.parentNode) return;
+      this.parentNode.children = this.parentNode.children.filter((child) => child !== this);
+      this.parentNode = null;
+    },
+  });
+  return element;
+}
+
+function fakeEventTarget(properties = {}) {
+  const listeners = new Map();
+  return Object.assign(properties, {
+    addEventListener(name, handler) {
+      listeners.set(name, [...(listeners.get(name) ?? []), handler]);
+    },
+    removeEventListener(name, handler) {
+      listeners.set(name, (listeners.get(name) ?? []).filter((candidate) => candidate !== handler));
+    },
+    emitDom(name, event = {}) {
+      for (const handler of listeners.get(name) ?? []) handler(event);
+    },
+    listenerCount(name) { return (listeners.get(name) ?? []).length; },
+  });
 }
 
 function flatBounds(bounds) {

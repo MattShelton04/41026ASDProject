@@ -62,6 +62,7 @@ export async function createMap({
   let disconnectObserver;
   let controller;
   let destroyed = false;
+  let disconnectCtrlDragPan = () => {};
   const abortForDisconnect = () => {
     if (controller) controller.destroy();
     else startupAbort.abort();
@@ -90,6 +91,7 @@ export async function createMap({
   }
   if (controls && renderer.NavigationControl) map.addControl(new renderer.NavigationControl(), "top-right");
   if (controls && renderer.ScaleControl) map.addControl(new renderer.ScaleControl({ unit: "metric" }), "bottom-right");
+  disconnectCtrlDragPan = wireCtrlDragPan(map, container);
   const baseMapState = await waitForStyle(map, provider, styleTimeoutMs, onStatus, startupAbort.signal);
 
   const layerState = new Map();
@@ -203,6 +205,7 @@ export async function createMap({
       clearTimeout(refreshTimer);
       for (const abort of pending.values()) abort.abort();
       pending.clear();
+      disconnectCtrlDragPan();
       disconnectObserver?.disconnect();
       signal?.removeEventListener("abort", abortForSignal);
       map.remove();
@@ -227,6 +230,7 @@ export async function createMap({
   });
   return controller;
   } catch (error) {
+    disconnectCtrlDragPan();
     disconnectObserver?.disconnect();
     signal?.removeEventListener("abort", abortForSignal);
     if (!destroyed) {
@@ -235,6 +239,38 @@ export async function createMap({
     }
     throw error;
   }
+}
+
+function wireCtrlDragPan(map, container) {
+  const eventTarget = container.ownerDocument?.defaultView;
+  if (!eventTarget?.addEventListener || typeof map.panBy !== "function") return () => {};
+  let previousPoint = null;
+  const mouseDown = (event) => {
+    const original = event.originalEvent;
+    if (!original || original.button !== 0 || (!original.ctrlKey && !original.metaKey)) return;
+    event.preventDefault();
+    previousPoint = [original.clientX, original.clientY];
+  };
+  const mouseMove = (event) => {
+    if (!previousPoint) return;
+    const nextPoint = [event.clientX, event.clientY];
+    const offset = [nextPoint[0] - previousPoint[0], nextPoint[1] - previousPoint[1]];
+    previousPoint = nextPoint;
+    event.preventDefault();
+    map.panBy(offset, { duration: 0 }, { originalEvent: event });
+  };
+  const mouseUp = () => { previousPoint = null; };
+  map.on("mousedown", mouseDown);
+  eventTarget.addEventListener("mousemove", mouseMove);
+  eventTarget.addEventListener("mouseup", mouseUp);
+  eventTarget.addEventListener("blur", mouseUp);
+  return () => {
+    previousPoint = null;
+    map.off?.("mousedown", mouseDown);
+    eventTarget.removeEventListener("mousemove", mouseMove);
+    eventTarget.removeEventListener("mouseup", mouseUp);
+    eventTarget.removeEventListener("blur", mouseUp);
+  };
 }
 
 export function validateLayerDefinition(layer) {
