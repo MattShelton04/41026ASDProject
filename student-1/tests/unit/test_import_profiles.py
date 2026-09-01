@@ -24,6 +24,7 @@ from propertyscope_data_store.import_profiles import (
     ImportProfileError,
     ImportResult,
     _insert_profile_rows,
+    _record_quality,
     execute_stream_import,
     iter_ndjson_import,
     prepare_import,
@@ -525,7 +526,8 @@ def test_unusable_final_psi_address_number_is_retained_with_quality_warning() ->
     )
     assert result.rows_accepted == 1
     assert result.rows_rejected == 0
-    assert result.quality_checks == 3
+    assert result.quality_checks == 4
+    assert any("property_ref IS NOT NULL" in sql for sql in connection.stream_cursor.statements)
     assert any(
         "INSERT INTO warehouse.psi_sale" in sql for sql in connection.stream_cursor.statements
     )
@@ -534,6 +536,36 @@ def test_unusable_final_psi_address_number_is_retained_with_quality_warning() ->
         or "INSERT INTO serving.accepted_generation" in sql
         for sql in connection.stream_cursor.statements
     )
+
+
+def test_zero_psi_property_linkage_is_a_blocking_quality_failure() -> None:
+    class QualityCursor:
+        def __init__(self) -> None:
+            self.parameters: list[tuple[object, ...]] = []
+
+        def execute(self, _statement: str, parameters: tuple[object, ...]) -> None:
+            self.parameters.append(parameters)
+
+    cursor = QualityCursor()
+
+    checks = _record_quality(
+        cursor,
+        profile="psi-sales",
+        run_id=uuid.uuid4(),
+        release_id=uuid.uuid4(),
+        expected=10,
+        accepted=10,
+        linked_property_rows=0,
+    )
+
+    linkage = next(
+        parameters
+        for parameters in cursor.parameters
+        if parameters[3] == "import.psi-sales.property-linkage"
+    )
+    assert checks == 3
+    assert linkage[5:7] == ("blocking", "fail")
+    assert cast(Any, linkage[7]).obj == {"linked": 0, "unmatched": 10}
 
 
 def test_import_phase_registry_has_stable_indeterminate_set_sql_boundaries() -> None:
