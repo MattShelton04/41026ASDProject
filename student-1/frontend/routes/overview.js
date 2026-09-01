@@ -79,18 +79,23 @@ export async function renderOverview({ view, request, generationGuard, rerender 
 
   const problemRuns = latestByJob.filter((run) => ["failed", "interrupted"].includes(String(run.status).toLowerCase()));
   if (problemRuns.length) {
-    const alert = el("div", "notice negative notice-actions");
-    const copy = el("div");
+    const alert = el("section", "notice negative overview-problems");
+    alert.setAttribute("aria-labelledby", "overview-problems-heading");
+    const copy = el("div", "overview-problems__copy");
+    const heading = el("strong", "overview-problems__heading", `${problemRuns.length} data ${problemRuns.length === 1 ? "update needs" : "updates need"} attention`);
+    heading.id = "overview-problems-heading";
     append(copy,
-      el("strong", "", `${problemRuns.length} data ${problemRuns.length === 1 ? "update needs" : "updates need"} attention`),
-      el("div", "", "These updates did not finish successfully. The current published versions remain in use."),
+      heading,
+      el("p", "overview-problems__description", "These updates did not finish successfully. The current published versions remain in use."),
     );
-    const problemLinks = el("div", "problem-links");
+    const problemLinks = el("ul", "problem-links");
     for (const run of problemRuns.slice(0, 3)) {
-      append(problemLinks, link(`${displayName(run.job_name || "Data update")} · ${humanise(run.status)}`, `#runs/${run.id}`));
+      const item = el("li");
+      append(item, link(`${displayName(run.job_name || "Data update")} · ${humanise(run.status)}`, `#runs/${run.id}`));
+      append(problemLinks, item);
     }
     append(copy, problemLinks);
-    append(alert, copy, link(problemRuns.length === 1 ? "Review problem" : "Review problems", "#runs", "button secondary small"));
+    append(alert, copy, link(problemRuns.length === 1 ? "Review problem" : "Review problems", "#runs", "button secondary small overview-problems__action"));
     append(view, alert);
   }
 

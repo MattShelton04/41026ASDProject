@@ -144,6 +144,7 @@ tools:
             additionalProperties: false
           receipts: {type: array, maxItems: 100, items: {type: object}}
           activations: {type: array, maxItems: 100, items: {type: object}}
+          consumer_imports: {type: array, maxItems: 100, items: {type: object}}
           accepted_predecessor:
             type: [object, "null"]
             properties:
@@ -155,6 +156,7 @@ tools:
           - quality_summary
           - receipts
           - activations
+          - consumer_imports
           - accepted_predecessor
           - release_contract
         additionalProperties: false

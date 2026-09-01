@@ -80,6 +80,46 @@ def test_supported_contract_migration_aligns_every_registered_builder() -> None:
     assert "ops.ingestion_run" not in sql
 
 
+def test_interrupted_task_migration_repairs_existing_active_children() -> None:
+    sql = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("046_reconcile_interrupted_run_tasks.sql")
+        .read_text(encoding="utf-8")
+    )
+
+    assert "'interrupted','skipped'" in sql
+    assert "UPDATE ops.run_task task" in sql
+    assert "run.status = 'interrupted'" in sql
+    assert "task.status IN ('claimed', 'running')" in sql
+    assert "lease_expires_at = NULL" in sql
+
+
+def test_showcase_evidence_migration_uses_registered_contracts_and_real_counts() -> None:
+    sql = (
+        files(MIGRATION_PACKAGE)
+        .joinpath("047_realistic_showcase_evidence.sql")
+        .read_text(encoding="utf-8")
+    )
+
+    for schema in (
+        "propertyscope.property-snapshot.v2",
+        "propertyscope.property-sales.v3",
+        "propertyscope.crime-series.v2",
+        "propertyscope.school-points.v2",
+    ):
+        assert schema in sql
+    assert "propertyscope.release-manifest.v2" in sql
+    assert "'media_type','application/x-ndjson'" in sql
+    assert "'content_encoding','gzip'" in sql
+    assert "'synthetic',true" in sql
+    assert "Synthetic showcase baseline; not complete publisher coverage." in sql
+    assert "'propertyscope.crime-series.v2','crime-series','3.0.0','bocsar-sparse',10" in sql
+    assert (
+        "'propertyscope.property-snapshot.v2','property-snapshot','3.0.0','property-fixture',3"
+        in sql
+    )
+
+
 class SchemaConnection:
     def __init__(
         self,

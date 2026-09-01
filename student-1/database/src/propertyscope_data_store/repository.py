@@ -847,7 +847,7 @@ class PropertyScopeStore:
                 lease_expires_at=NULL,heartbeat_at=NULL,attempt_number=attempt_number+1,
                 version=version+1,updated_at=%s
                 WHERE ingestion_run_id=%s
-                AND status IN ('claimed','running','retry_wait','cancelled')""",
+                AND status IN ('claimed','running','retry_wait','cancelled','interrupted')""",
                 (now, run_id),
             )
             row = connection.execute(
@@ -894,14 +894,23 @@ class PropertyScopeStore:
             )
             # Lease expiry is a durable interruption, never implicit work stealing. The
             # operator must explicitly resume so retained checkpoints remain inspectable.
+            lease_error = _json(_lease_expired_error())
             connection.execute(
-                """UPDATE ops.ingestion_run run SET status='interrupted',finished_at=NULL,
+                """WITH interrupted_task AS (
+                    UPDATE ops.run_task task SET status='interrupted',
+                    finished_at=COALESCE(task.finished_at,task.lease_expires_at,%s),updated_at=%s,
+                    error_json=COALESCE(task.error_json,%s),lease_owner=NULL,lease_token=NULL,
+                    lease_expires_at=NULL,heartbeat_at=NULL,version=task.version+1
+                    FROM ops.ingestion_run run WHERE run.id=task.ingestion_run_id
+                    AND task.status IN ('claimed','running') AND task.lease_expires_at<=%s
+                    AND run.cancel_requested_at IS NULL
+                    AND run.status NOT IN ('succeeded','failed','cancelled','interrupted')
+                    RETURNING task.ingestion_run_id
+                )
+                UPDATE ops.ingestion_run run SET status='interrupted',finished_at=NULL,
                 error_json=%s,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL
-                FROM ops.run_task task WHERE task.ingestion_run_id=run.id
-                AND task.status IN ('claimed','running') AND task.lease_expires_at<=%s
-                AND run.cancel_requested_at IS NULL
-                AND run.status NOT IN ('succeeded','failed','cancelled','interrupted')""",
-                (_json(_lease_expired_error()), now),
+                FROM interrupted_task task WHERE task.ingestion_run_id=run.id""",
+                (now, now, lease_error, now, lease_error),
             )
             row = connection.execute(
                 """

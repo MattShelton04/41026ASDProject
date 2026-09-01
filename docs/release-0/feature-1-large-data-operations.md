@@ -158,6 +158,13 @@ Numeric-only searches do not use trigram matching: short values such as `11` use
 bounded. On the accepted 5,190,134-row generation, the public `11` search fell from about 29 seconds
 to about 29 ms and returned a bounded first page of real NSW addresses.
 
+PSI address resolution deduplicates eligible address components directly from its typed import
+stage. It does not join the multi-million-row identity ledger back to the same stage before exact
+matching. Final materialisation uses the generated first-row ordinal as its single join key; the
+business key and row hash remain immutable evidence in the selected row rather than duplicate join
+work. Keep the accepted-generation exact-address index from migration 044 in place when measuring
+this phase.
+
 Search intentionally returns a bounded result page plus `total_is_lower_bound`; it does not run an
 exact count across every fuzzy match. On the retained 5,190,134-row G-NAF generation, the exact
 multi-token `11 example street` plan used the trigram index and executed in about 3.5 ms after the

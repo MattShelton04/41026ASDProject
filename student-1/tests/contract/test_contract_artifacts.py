@@ -546,6 +546,7 @@ def test_release_inspection_tool_declares_all_composed_evidence() -> None:
         "quality_summary",
         "receipts",
         "activations",
+        "consumer_imports",
         "accepted_predecessor",
         "release_contract",
     }
@@ -557,6 +558,75 @@ def test_release_inspection_tool_declares_all_composed_evidence() -> None:
     assert len(required_names) == len(required)
     assert set(properties) == expected
     assert required_names == expected
+
+
+def test_release_inspection_response_matches_its_closed_tool_schema() -> None:
+    release_id = "60000000-0000-4000-8000-000000000011"
+    release = {
+        "id": release_id,
+        "dataset_id": "fixture-property",
+        "target_feature": "feature-1",
+        "ingestion_run_id": "30000000-0000-4000-8000-000000000011",
+        "release_version": "fixture-2026-09",
+        "schema_version": "propertyscope.property-snapshot.v2",
+        "record_count": 3,
+        "content_sha256": "a" * 64,
+        "manifest_json": {},
+        "status": "accepted",
+        "supersedes_release_id": None,
+        "version": 2,
+    }
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/quality-results"):
+            return httpx.Response(200, json={"items": []})
+        return httpx.Response(
+            200,
+            json={
+                "release": release,
+                "receipts": [],
+                "activations": [],
+                "consumer_imports": [
+                    {
+                        "id": "70000000-0000-4000-8000-000000000011",
+                        "dataset_release_id": release_id,
+                        "status": "polling",
+                        "phase_key": "status",
+                        "attempt_number": 1,
+                        "version": 2,
+                    }
+                ],
+            },
+        )
+
+    app = create_app(
+        store_client=DataStoreClient(
+            "http://database",
+            "secret",
+            client=httpx.Client(transport=httpx.MockTransport(database)),
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai",
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
+        ),
+    )
+    response = app.test_client().post(
+        "/api/data-platform/v1/tools/releases.inspect.v1",
+        json={"release_id": release_id},
+    )
+    payload = response.get_json()
+    catalog = load_tool_catalog(ROOT / "tool-catalog.yaml")
+    registration = next(
+        item for item in catalog.tools if item.definition.name == "data.release_inspect.v1"
+    )
+
+    assert response.status_code == 200
+    jsonschema.validate(payload, registration.definition.output_schema)
+    assert payload["consumer_imports"][0]["budgets"] == {
+        "connect_timeout_seconds": 5,
+        "status_timeout_seconds": 5,
+        "maximum_response_bytes": 65536,
+    }
 
 
 def test_release_publication_tool_outputs_match_the_closed_catalog() -> None:

@@ -3,7 +3,7 @@ import { append, button, el, link } from "../core/dom.js";
 import { displayName, durationMilliseconds, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js";
 import { actionAvailability, createLatestRequestGuard, nextRunDetailPollDelay, retainRecent } from "../core/polling.js";
 import { parseRoute, routeQuery } from "../core/router.js";
-import { runFailureSummary } from "../core/run-failure.js";
+import { failureExplanationDraft, reconcileTimelineTask, runFailureSummary } from "../core/run-failure.js";
 import { filterToolbar } from "../components/forms.js";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
@@ -29,12 +29,13 @@ function runFailureNotice(run, tasks) {
   return notice;
 }
 
-function runTimeline(tasks, { available = true } = {}) {
+function runTimeline(run, tasks, { available = true } = {}) {
   const list = el("ol", "timeline");
   if (!tasks.length) append(list, el("li", "", available
     ? "No task ledger is available yet."
     : "No update-step details can be shown until this feed recovers."));
-  for (const task of tasks) {
+  for (const rawTask of tasks) {
+    const task = reconcileTimelineTask(run, rawTask);
     const item = el("li");
     const tone = statusTone(task.status);
     const marker = el("span", `timeline-marker ${tone}`, stateLabel(task.status).symbol);
@@ -263,7 +264,10 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
         actions.push(button(
           failed ? "Explain this failure" : "Ask AI about update",
           `button ${failed ? "primary" : "secondary"}`,
-          () => { location.hash = `#assistant?route=runs/detail&ingestion_run_id=${encodeURIComponent(id)}`; },
+          () => {
+            const draft = failed ? `&draft=${encodeURIComponent(failureExplanationDraft(run, tasks))}` : "";
+            location.hash = `#assistant?route=runs/detail&ingestion_run_id=${encodeURIComponent(id)}${draft}`;
+          },
         ));
         if (linkedRelease) {
           actions.push(button("Review candidate data", "button secondary", () => {
@@ -301,7 +305,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       const runBody = el("div");
       const tasksWarning = feedWarning("Update steps", tasksFeed);
       if (tasksWarning) append(runBody, tasksWarning);
-      append(runBody, runTimeline(tasks, { available: tasksFeed.available || tasksFeed.cached }));
+      append(runBody, runTimeline(run, tasks, { available: tasksFeed.available || tasksFeed.cached }));
       const evidence = el("div", "stack");
       const evidenceAvailability = el("div");
       const qualityWarning = feedWarning("Data checks", qualityFeed);

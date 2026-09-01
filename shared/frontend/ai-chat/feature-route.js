@@ -53,6 +53,7 @@ export function createFeatureAssistant({
   welcomeMessage,
   composerLabel,
   placeholder,
+  initialMessage = "",
 } = {}) {
   if (!root) throw new TypeError("createFeatureAssistant requires root");
   const resolvedApiRoot = required(apiRoot, "apiRoot");
@@ -80,6 +81,7 @@ export function createFeatureAssistant({
     welcomeMessage,
     composerLabel,
     placeholder,
+    initialMessage,
   });
   return Object.freeze({ client, controller });
 }
