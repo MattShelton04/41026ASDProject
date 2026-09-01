@@ -18,7 +18,7 @@ from pydantic import (
     model_validator,
 )
 
-from propertyscope_data_platform.acquisition_scope import complete_scope_error
+from propertyscope_data_platform.acquisition_scope import acquisition_scope_error
 
 Identifier = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9._-]*$", max_length=100)]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
@@ -181,7 +181,8 @@ class RunRequest(DomainModel):
             raise ValueError("scope cannot contain more than 20 fields")
         if self.mode is RunMode.REPROCESS_CACHED and self.force_reacquire:
             raise ValueError("reprocess_cached cannot force reacquisition")
-        scope_error = complete_scope_error("", self.scope)
+        import_profile = "psi-sales" if self.scope.get("profile") == "psi-year-range" else ""
+        scope_error = acquisition_scope_error(import_profile, self.scope)
         if scope_error is not None:
             raise ValueError(scope_error)
         return self

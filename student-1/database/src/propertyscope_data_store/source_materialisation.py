@@ -127,85 +127,72 @@ PSI_ADDRESS_RESOLUTION_SQL = """
         SELECT DISTINCT source.postcode,source.locality,source.street_name_normalised,
             source.street_type,source.street_number_first,source.street_number_last,
             source.street_number_suffix,source.unit_number
-        FROM propertyscope_psi_import_stage source
+        FROM propertyscope_psi_identity_stage identity
+        JOIN propertyscope_psi_import_stage source
+          ON source.ordinal=identity.first_ordinal
         WHERE source.postcode IS NOT NULL
           AND source.locality IS NOT NULL
           AND source.street_name_normalised IS NOT NULL
           AND source.street_type IS NOT NULL
           AND source.street_number_first IS NOT NULL
           AND source.house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
-    ), accepted_gnaf_candidates AS MATERIALIZED (
-        SELECT eligible.postcode,eligible.locality,eligible.street_name_normalised,
-            eligible.street_type,eligible.street_number_first,eligible.street_number_last,
-            eligible.street_number_suffix,eligible.unit_number,
-            COALESCE(address.property_ref,
-                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref
-        FROM eligible_addresses eligible
-        JOIN serving.accepted_generation accepted ON accepted.dataset_id='gnaf-nsw'
-        JOIN warehouse.gnaf_address address
-          ON address.dataset_release_id=accepted.dataset_release_id
-         AND address.postcode=eligible.postcode
-         AND address.locality=eligible.locality
-         AND address.street_name=eligible.street_name_normalised
-         AND address.street_type=eligible.street_type
-         AND address.street_number_first=eligible.street_number_first
-         AND COALESCE(address.street_number_last,-1)=COALESCE(eligible.street_number_last,-1)
-         AND COALESCE(address.street_number_suffix,'')=COALESCE(
-             eligible.street_number_suffix,'')
-         AND COALESCE(address.unit_number,'')=COALESCE(eligible.unit_number,'')
-        WHERE address.published
-    ), registry_fallback_candidates AS (
-        SELECT eligible.postcode,eligible.locality,eligible.street_name_normalised,
-            eligible.street_type,eligible.street_number_first,eligible.street_number_last,
-            eligible.street_number_suffix,eligible.unit_number,property.property_ref
-        FROM eligible_addresses eligible
-        JOIN registry.property property
-          ON property.postcode=eligible.postcode
-         AND property.locality=eligible.locality
-         AND property.street_name=eligible.street_name_normalised
-         AND property.street_type=eligible.street_type
-         AND property.street_number_first=eligible.street_number_first
-         AND COALESCE(property.street_number_last,-1)=COALESCE(eligible.street_number_last,-1)
-         AND COALESCE(property.street_number_suffix,'')=COALESCE(
-             eligible.street_number_suffix,'')
-         AND COALESCE(property.unit_number,'')=COALESCE(eligible.unit_number,'')
-        WHERE NOT EXISTS (
-            SELECT 1 FROM accepted_gnaf_candidates accepted
-            WHERE accepted.postcode=eligible.postcode
-              AND accepted.locality=eligible.locality
-              AND accepted.street_name_normalised=eligible.street_name_normalised
-              AND accepted.street_type=eligible.street_type
-              AND accepted.street_number_first=eligible.street_number_first
-              AND COALESCE(accepted.street_number_last,-1)=COALESCE(
-                  eligible.street_number_last,-1)
-              AND COALESCE(accepted.street_number_suffix,'')=COALESCE(
-                  eligible.street_number_suffix,'')
-              AND COALESCE(accepted.unit_number,'')=COALESCE(eligible.unit_number,'')
-        )
-    ), property_candidates AS (
-        SELECT * FROM accepted_gnaf_candidates
-        UNION ALL
-        SELECT * FROM registry_fallback_candidates
     )
     SELECT eligible.postcode,eligible.locality,eligible.street_name_normalised,
         eligible.street_type,eligible.street_number_first,eligible.street_number_last,
         eligible.street_number_suffix,eligible.unit_number,
-        count(DISTINCT property.property_ref)::integer AS match_count,
-        CASE WHEN count(DISTINCT property.property_ref)=1
-            THEN min(property.property_ref::text)::uuid ELSE NULL END AS exact_property_ref
+        CASE WHEN gnaf_match.match_count>0
+            THEN gnaf_match.match_count ELSE registry_match.match_count END AS match_count,
+        CASE WHEN gnaf_match.match_count>0
+            THEN gnaf_match.exact_property_ref ELSE registry_match.exact_property_ref
+        END AS exact_property_ref
     FROM eligible_addresses eligible
-    LEFT JOIN property_candidates property
-      ON property.postcode=eligible.postcode
-     AND property.locality=eligible.locality
-     AND property.street_name_normalised=eligible.street_name_normalised
-     AND property.street_type=eligible.street_type
-     AND property.street_number_first=eligible.street_number_first
-     AND COALESCE(property.street_number_last,-1)=COALESCE(eligible.street_number_last,-1)
-     AND COALESCE(property.street_number_suffix,'')=COALESCE(eligible.street_number_suffix,'')
-     AND COALESCE(property.unit_number,'')=COALESCE(eligible.unit_number,'')
-    GROUP BY eligible.postcode,eligible.locality,eligible.street_name_normalised,
-        eligible.street_type,eligible.street_number_first,eligible.street_number_last,
-        eligible.street_number_suffix,eligible.unit_number
+    CROSS JOIN LATERAL (
+        SELECT count(DISTINCT registered_property.property_ref)::integer AS match_count,
+            CASE WHEN count(DISTINCT registered_property.property_ref)=1
+                THEN min(registered_property.property_ref::text)::uuid ELSE NULL
+            END AS exact_property_ref
+        FROM warehouse.gnaf_address address
+        JOIN registry.property registered_property
+          ON registered_property.property_ref=COALESCE(
+              address.property_ref,md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)
+        WHERE address.dataset_release_id=(
+                SELECT accepted.dataset_release_id
+                FROM serving.accepted_generation accepted
+                WHERE accepted.dataset_id='gnaf-nsw'
+            )
+          AND address.published
+          AND address.street_name IS NOT NULL
+          AND address.street_type IS NOT NULL
+          AND address.street_number_first IS NOT NULL
+          AND address.postcode=eligible.postcode
+          AND address.locality=eligible.locality
+          AND address.street_name=eligible.street_name_normalised
+          AND address.street_type=eligible.street_type
+          AND address.street_number_first=eligible.street_number_first
+          AND COALESCE(address.street_number_last,-1)=COALESCE(
+              eligible.street_number_last,-1)
+          AND COALESCE(address.street_number_suffix,'')=COALESCE(
+              eligible.street_number_suffix,'')
+          AND COALESCE(address.unit_number,'')=COALESCE(eligible.unit_number,'')
+    ) gnaf_match
+    CROSS JOIN LATERAL (
+        SELECT count(DISTINCT property.property_ref)::integer AS match_count,
+            CASE WHEN count(DISTINCT property.property_ref)=1
+                THEN min(property.property_ref::text)::uuid ELSE NULL
+            END AS exact_property_ref
+        FROM registry.property property
+        WHERE gnaf_match.match_count=0
+          AND property.postcode=eligible.postcode
+          AND property.locality=eligible.locality
+          AND property.street_name=eligible.street_name_normalised
+          AND property.street_type=eligible.street_type
+          AND property.street_number_first=eligible.street_number_first
+          AND COALESCE(property.street_number_last,-1)=COALESCE(
+              eligible.street_number_last,-1)
+          AND COALESCE(property.street_number_suffix,'')=COALESCE(
+              eligible.street_number_suffix,'')
+          AND COALESCE(property.unit_number,'')=COALESCE(eligible.unit_number,'')
+    ) registry_match
 """
 
 PSI_TARGET_INSERT_SQL = """

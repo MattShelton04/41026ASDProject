@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 29 August 2026
 - Owner: PropertyScope Feature 1
-- Extends: ADR-029
+- Extends: ADR-029; preserved for complete generations by ADR-035
 
 ## Context
 
@@ -17,9 +17,11 @@ warehouse generation exceeded the old projection bound. That did not meet the pr
 
 ## Decision
 
-- A completed Feature 1 release consists of the complete immutable warehouse generation and one
+- A completed, publishable `full-data` Feature 1 release consists of the complete immutable warehouse generation and one
   complete, deterministic exported artifact. No `release_scope.maximum_records` or year subset is
   permitted in a complete-release job.
+- ADR-035 scoped PSI runs can build explicitly partial candidate artifacts for inspection, but those
+  candidates are not publishable and never replace the accepted complete-generation pointer.
 - Export artifacts use gzip-compressed NDJSON. Each line is one record conforming to the existing
   product record schema; the manifest declares `application/x-ndjson`, `content_encoding: gzip`,
   exact rows, compressed bytes, content SHA-256, ordering, lineage, licence and redistribution

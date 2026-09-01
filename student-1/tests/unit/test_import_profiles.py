@@ -24,6 +24,7 @@ from propertyscope_data_store.import_profiles import (
     ImportProfileError,
     ImportResult,
     _insert_profile_rows,
+    _record_quality,
     execute_stream_import,
     iter_ndjson_import,
     prepare_import,
@@ -525,7 +526,8 @@ def test_unusable_final_psi_address_number_is_retained_with_quality_warning() ->
     )
     assert result.rows_accepted == 1
     assert result.rows_rejected == 0
-    assert result.quality_checks == 3
+    assert result.quality_checks == 4
+    assert any("property_ref IS NOT NULL" in sql for sql in connection.stream_cursor.statements)
     assert any(
         "INSERT INTO warehouse.psi_sale" in sql for sql in connection.stream_cursor.statements
     )
@@ -534,6 +536,37 @@ def test_unusable_final_psi_address_number_is_retained_with_quality_warning() ->
         or "INSERT INTO serving.accepted_generation" in sql
         for sql in connection.stream_cursor.statements
     )
+
+
+def test_zero_psi_property_linkage_is_a_blocking_quality_failure() -> None:
+    class QualityCursor:
+        def __init__(self) -> None:
+            self.parameters: list[tuple[object, ...]] = []
+
+        def execute(self, _statement: str, parameters: tuple[object, ...]) -> None:
+            self.parameters.append(parameters)
+
+    cursor = QualityCursor()
+
+    checks = _record_quality(
+        cursor,
+        profile="psi-sales",
+        run_id=uuid.uuid4(),
+        release_id=uuid.uuid4(),
+        expected=10,
+        accepted=10,
+        linked_property_rows=0,
+    )
+
+    linkage = next(
+        parameters
+        for parameters in cursor.parameters
+        if parameters[3] == "import.psi-sales.property-linkage"
+    )
+    assert checks == 3
+    assert linkage[4] == "referential"
+    assert linkage[5:7] == ("blocking", "fail")
+    assert cast(Any, linkage[7]).obj == {"linked": 0, "unmatched": 10}
 
 
 def test_import_phase_registry_has_stable_indeterminate_set_sql_boundaries() -> None:
@@ -630,10 +663,23 @@ def test_psi_source_scale_path_casts_once_and_avoids_a_final_wide_sort() -> None
     assert "min(ordinal) AS first_ordinal" in PSI_IDENTITY_SQL
     assert "ORDER BY first_ordinal" in PSI_IDENTITY_SQL
     assert "SELECT DISTINCT source.postcode" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "propertyscope_psi_identity_stage" not in PSI_ADDRESS_RESOLUTION_SQL
-    assert "accepted_gnaf_candidates AS MATERIALIZED" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "registry_fallback_candidates" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "JOIN registry.property" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "FROM propertyscope_psi_identity_stage identity" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "ON source.ordinal=identity.first_ordinal" in PSI_ADDRESS_RESOLUTION_SQL
+    assert PSI_ADDRESS_RESOLUTION_SQL.count("CROSS JOIN LATERAL") == 2
+    assert "accepted_gnaf_candidates AS MATERIALIZED" not in PSI_ADDRESS_RESOLUTION_SQL
+    assert "registry_fallback_candidates" not in PSI_ADDRESS_RESOLUTION_SQL
+    assert "property_candidates" not in PSI_ADDRESS_RESOLUTION_SQL
+    assert "WHERE accepted.dataset_id='gnaf-nsw'" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "JOIN registry.property registered_property" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "registered_property.property_ref=COALESCE(" in PSI_ADDRESS_RESOLUTION_SQL
+    assert (
+        "address.property_ref,md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)"
+        in PSI_ADDRESS_RESOLUTION_SQL
+    )
+    assert "WHERE gnaf_match.match_count=0" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "address.dataset_release_id=(" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "address.postcode=eligible.postcode" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "property.postcode=eligible.postcode" in PSI_ADDRESS_RESOLUTION_SQL
     assert "match_count" in PSI_ADDRESS_RESOLUTION_SQL
     assert "COALESCE(source.property_ref,resolution.exact_property_ref)" in source
     assert "JOIN propertyscope_psi_import_stage source" in PSI_TARGET_INSERT_SQL

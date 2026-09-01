@@ -114,7 +114,9 @@ and [UI audit guide](docs/ui/feature-1-audit.md).
 ## Feature 1 data operations
 
 Starting the stack does not contact a data publisher. An operator explicitly previews and starts
-each complete registered-source acquisition through the browser or CLI:
+each registered-source acquisition through the browser or CLI. Complete source is the default; the
+PSI browser/API workflow can instead select completed publisher archive years as a partial,
+non-publishable candidate:
 
 ```text
 uv run scripts/dev.py data collect fixture-property

@@ -14,8 +14,7 @@
   inset: 0;
 }
 
-.ps-map__status,
-.ps-map__caption {
+.ps-map__status {
   position: absolute;
   z-index: 2;
   right: .65rem;
@@ -30,8 +29,54 @@
 }
 
 .ps-map__status { top: .65rem; right: auto; width: auto; }
-.ps-map__caption { bottom: .65rem; }
 .ps-map__status[data-state="ready"] { display: none; }
+
+.ps-map-help {
+  position: absolute;
+  z-index: 4;
+  bottom: var(--ps-space-3, .75rem);
+  left: var(--ps-space-3, .75rem);
+}
+
+.ps-map-help__button {
+  display: grid;
+  width: var(--ps-space-8, 2rem);
+  height: var(--ps-space-8, 2rem);
+  place-items: center;
+  padding: 0;
+  border: var(--ps-border-width, 1px) solid var(--ps-color-border-strong);
+  border-radius: var(--ps-radius-pill, 999px);
+  background: var(--ps-color-surface);
+  box-shadow: var(--ps-shadow-xs);
+  color: var(--ps-color-text-muted);
+  font-family: var(--ps-font-sans);
+  font-size: var(--ps-text-caption);
+  font-weight: var(--ps-weight-heavy);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ps-map-help__button:hover { background: var(--ps-color-surface-elevated); color: var(--ps-color-accent-hover); }
+
+.ps-map-help__panel {
+  position: absolute;
+  bottom: calc(100% + var(--ps-space-2, .5rem));
+  left: 0;
+  width: max-content;
+  max-width: min(20rem, calc(100vw - var(--ps-space-12, 3rem)));
+  padding: var(--ps-space-2, .5rem) var(--ps-space-3, .75rem);
+  border: var(--ps-border-width, 1px) solid var(--ps-color-border);
+  border-radius: var(--ps-radius-sm, 8px);
+  background: var(--ps-color-surface);
+  box-shadow: var(--ps-shadow-sm);
+  color: var(--ps-color-text-muted);
+  font-size: var(--ps-text-caption);
+  line-height: 1.45;
+  backdrop-filter: blur(4px);
+}
+
+/* Keep MapLibre's logo/controls out of the help button's reserved bottom-left corner. */
+.ps-map .maplibregl-ctrl-bottom-left { left: calc(var(--ps-space-8, 2rem) + var(--ps-space-3, .75rem)); }
 
 .ps-map-layers {
   position: absolute;

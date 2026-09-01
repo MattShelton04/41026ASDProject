@@ -547,8 +547,10 @@ class PropertyScopeStore:
         job = self.get_job(job_id)
         if job["status"] != "active":
             raise ConflictError("job is not active")
-        if not _is_complete_acquisition_scope(scope):
-            raise ConflictError("runs must request the complete registered source")
+        if not _is_supported_acquisition_scope(
+            scope, import_profile=str(job["import_profile_key"])
+        ):
+            raise ConflictError("run scope is not supported by the registered source")
         existing = self._fetch_one(
             "SELECT * FROM ops.ingestion_run WHERE job_definition_id=%s AND idempotency_key=%s",
             (job_id, idempotency_key),
@@ -838,8 +840,8 @@ class PropertyScopeStore:
         run = self.get_run(run_id)
         if run["status"] != "interrupted":
             raise ConflictError("only interrupted runs can resume")
-        if not _is_complete_acquisition_scope(run["requested_scope_json"]):
-            raise ConflictError("historical partial runs cannot resume")
+        if not _is_supported_acquisition_scope(run["requested_scope_json"]):
+            raise ConflictError("historical run scope is no longer supported")
         now = datetime.now(UTC)
         with self.connection() as connection:
             connection.execute(
@@ -1412,6 +1414,10 @@ class PropertyScopeStore:
                 raise NotFoundError("release or publication receipt does not exist")
             if evidence["status"] != "awaiting_review":
                 raise ConflictError("only a release awaiting review can be activated")
+            if _is_partial_release_coverage(evidence.get("coverage_json")):
+                raise ConflictError(
+                    "partial release cannot replace the accepted complete generation"
+                )
             if int(evidence["version"]) != expected_version:
                 raise ConflictError("release version does not match")
             if not _activation_receipt_matches(evidence):
@@ -1691,6 +1697,7 @@ class PropertyScopeStore:
             operation = connection.execute(
                 """SELECT operation.*,release.dataset_id,release.target_feature,
                 release.status AS release_status,release.version AS release_version,
+                release.coverage_json,
                 receipt.status AS receipt_status,receipt.schema_version AS receipt_schema_version,
                 receipt.content_sha256 AS receipt_content_sha256,receipt.rows_received,
                 receipt.rows_accepted,receipt.rows_rejected,release.schema_version,
@@ -1728,6 +1735,10 @@ class PropertyScopeStore:
                 operation["release_version"]
             ) != int(operation["expected_release_version"]):
                 raise ConflictError("release changed while publication was queued")
+            if _is_partial_release_coverage(operation.get("coverage_json")):
+                raise ConflictError(
+                    "partial release cannot replace the accepted complete generation"
+                )
             if not _activation_receipt_matches(operation):
                 raise ConflictError("matching accepted consumer receipt is required")
 
@@ -2481,7 +2492,9 @@ class PropertyScopeStore:
         return _rows(rows)
 
 
-def _is_complete_acquisition_scope(scope: Mapping[str, Any]) -> bool:
+def _is_supported_acquisition_scope(
+    scope: Mapping[str, Any], *, import_profile: str | None = None
+) -> bool:
     subset_fields = {
         "geography_kind",
         "geography_values",
@@ -2489,13 +2502,63 @@ def _is_complete_acquisition_scope(scope: Mapping[str, Any]) -> bool:
         "maximum_records",
         "scenario",
         "source_year",
+        "start_year",
+        "end_year",
         "start_month",
         "end_month",
         "years",
         "weeks",
+        "complete",
+        "coverage_status",
+        "limitations",
     }
-    return (
+    complete = (
         scope.get("profile") == "full-data"
         and scope.get("all_records") is True
         and not subset_fields.intersection(scope)
+    )
+    if complete:
+        return True
+    start_year = scope.get("start_year")
+    end_year = scope.get("end_year")
+    years = scope.get("years")
+    scoped_fields = {
+        "profile",
+        "all_records",
+        "start_year",
+        "end_year",
+        "years",
+        "all_history",
+        "include_current_weekly",
+        "complete",
+        "coverage_status",
+        "limitations",
+    }
+    limitations = scope.get("limitations")
+    return (
+        (import_profile in {None, "psi-sales"})
+        and set(scope) == scoped_fields
+        and scope.get("profile") == "psi-year-range"
+        and scope.get("all_records") is True
+        and isinstance(start_year, int)
+        and not isinstance(start_year, bool)
+        and isinstance(end_year, int)
+        and not isinstance(end_year, bool)
+        and 1990 <= start_year <= end_year
+        and isinstance(years, list)
+        and years == list(range(start_year, end_year + 1))
+        and scope.get("all_history") is False
+        and scope.get("include_current_weekly") is False
+        and scope.get("complete") is False
+        and scope.get("coverage_status") == "partial"
+        and isinstance(limitations, list)
+        and len(limitations) == 1
+        and isinstance(limitations[0], str)
+        and bool(limitations[0].strip())
+    )
+
+
+def _is_partial_release_coverage(value: Any) -> bool:
+    return isinstance(value, Mapping) and (
+        value.get("complete") is False or value.get("profile") == "psi-year-range"
     )

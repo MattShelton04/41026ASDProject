@@ -43,6 +43,65 @@ def test_registered_scope_ignores_operator_attempts_to_reduce_the_import() -> No
     assert defaults["all_history"] is True
 
 
+def test_psi_year_range_resolves_to_exact_completed_publisher_partitions() -> None:
+    profiles = load_job_profiles(ROOT / "config" / "job-profiles")
+
+    resolved = resolve_registered_scope(
+        PSI_JOB,
+        {"profile": "psi-year-range", "start_year": 2022, "end_year": 2024},
+        profiles,
+    )
+    validated, error = validate_job_scope(
+        PSI_JOB,
+        resolved,
+        run_mode="full_refresh",
+        as_of=date(2025, 8, 1),
+    )
+
+    assert error is None
+    assert validated == {
+        "profile": "psi-year-range",
+        "start_year": 2022,
+        "end_year": 2024,
+        "years": [2022, 2023, 2024],
+        "all_records": True,
+        "all_history": False,
+        "include_current_weekly": False,
+        "complete": False,
+        "coverage_status": "partial",
+        "limitations": [
+            "This candidate contains only the selected completed PSI annual partitions and "
+            "cannot replace the accepted complete sales-history generation."
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "requested",
+    (
+        {"profile": "psi-year-range", "start_year": 1989, "end_year": 2024},
+        {"profile": "psi-year-range", "start_year": 2024, "end_year": 2025},
+        {"profile": "psi-year-range", "start_year": 2024, "end_year": 2023},
+        {"profile": "psi-year-range", "start_year": True, "end_year": 2024},
+    ),
+)
+def test_psi_year_range_rejects_invalid_or_unfinished_archive_years(
+    requested: dict[str, object],
+) -> None:
+    profiles = load_job_profiles(ROOT / "config" / "job-profiles")
+    resolved = resolve_registered_scope(PSI_JOB, requested, profiles)
+
+    value, error = validate_job_scope(
+        PSI_JOB,
+        resolved,
+        run_mode="full_refresh",
+        as_of=date(2025, 8, 1),
+    )
+
+    assert value is None
+    assert error is not None and error.code == "invalid_scope"
+
+
 @pytest.mark.parametrize(
     ("scope", "detail"),
     [
@@ -131,5 +190,21 @@ def test_psi_cache_policy_accounts_for_current_weekly_partitions() -> None:
         scope,
         cached_years=(2024,),
         cached_weeks=("2025-01-06",),
+        as_of=date(2025, 1, 15),
+    )
+
+
+def test_psi_cache_policy_supports_a_partial_archive_year_range() -> None:
+    scope = {
+        "profile": "psi-year-range",
+        "years": [2022, 2023],
+        "include_current_weekly": False,
+    }
+
+    assert psi_scope_is_cached(
+        PSI_JOB,
+        scope,
+        cached_years=(2022, 2023),
+        cached_weeks=(),
         as_of=date(2025, 1, 15),
     )

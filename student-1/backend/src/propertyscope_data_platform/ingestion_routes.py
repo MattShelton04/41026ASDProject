@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 from flask import Blueprint, Response, jsonify, request
@@ -37,7 +38,7 @@ def register_ingestion_routes(
 ) -> None:
     """Register source definitions, jobs, and ingestion-run lifecycle routes."""
 
-    def complete_lineage_scope(
+    def lineage_scope(
         run_data: Mapping[str, Any], *, run_mode: str
     ) -> tuple[dict[str, Any] | None, Response | None]:
         job_id = run_data["job_definition_id"]
@@ -47,7 +48,11 @@ def register_ingestion_routes(
         job_data = job_response.json()["job"]
         scope, scope_error = validate_job_scope(
             job_data,
-            resolve_registered_scope(job_data, {}, job_profiles),
+            resolve_registered_scope(
+                job_data,
+                run_data.get("requested_scope_json"),
+                job_profiles,
+            ),
             run_mode=run_mode,
         )
         if scope_error is not None:
@@ -98,12 +103,30 @@ def register_ingestion_routes(
         if response.status_code >= 400:
             return forward(response)
         job_data = response.json()["job"]
+        is_psi = job_data.get("import_profile_key") == "psi-sales"
+        latest_completed_year = datetime.now(UTC).year - 1
         return jsonify(
             {
                 "job_id": str(job_id),
                 "profile_key": job_data["profile_key"],
                 "refresh_strategy": job_data["refresh_strategy"],
                 "supported_modes": ["full_refresh", "reprocess_cached"],
+                "supported_scope_profiles": (
+                    ["full-data", "psi-year-range"] if is_psi else ["full-data"]
+                ),
+                "scope_constraints": (
+                    {
+                        "psi-year-range": {
+                            "partition_kind": "publisher_archive_year",
+                            "minimum_year": 1990,
+                            "maximum_year": latest_completed_year,
+                            "complete": False,
+                            "publishable_as_complete": False,
+                        }
+                    }
+                    if is_psi
+                    else {}
+                ),
                 "registered": {
                     "adapter": job_data["adapter_key"],
                     "release_builder": job_data["release_builder_key"],
@@ -273,15 +296,14 @@ def register_ingestion_routes(
         key = request.headers.get("Idempotency-Key", "").strip()
         if not key:
             return problem(422, "idempotency_key_required", "Idempotency-Key is required")
-        scope, scope_response = complete_lineage_scope(run_data, run_mode=run_mode)
+        scope, scope_response = lineage_scope(run_data, run_mode=run_mode)
         if scope_response is not None:
             return scope_response
-        if run_mode == "reprocess_cached" and run_data.get("requested_scope_json") != scope:
+        if run_data.get("requested_scope_json") != scope:
             return problem(
                 409,
                 "incomplete_legacy_run",
-                "Cached artifacts from a historical partial run cannot be reprocessed; "
-                "start a new complete update",
+                "This historical run does not match a currently supported acquisition scope",
             )
         body = {
             "run_mode": run_mode,
@@ -305,14 +327,14 @@ def register_ingestion_routes(
         if original.status_code >= 400:
             return forward(original)
         run_data = original.json()["run"]
-        scope, scope_response = complete_lineage_scope(run_data, run_mode=str(run_data["run_mode"]))
+        scope, scope_response = lineage_scope(run_data, run_mode=str(run_data["run_mode"]))
         if scope_response is not None:
             return scope_response
         if run_data.get("requested_scope_json") != scope:
             return problem(
                 409,
                 "incomplete_legacy_run",
-                "This historical partial run cannot resume; start a new complete update",
+                "This historical run does not match a currently supported acquisition scope",
             )
         return forward(
             store.request(

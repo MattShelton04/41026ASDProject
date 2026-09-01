@@ -237,7 +237,13 @@ The promise returned by `createMap()` resolves to:
 | `destroy()` | Abort loads, disconnect observers and release WebGL resources. |
 
 `mountLayerControls(controller, container)` provides a small accessible checkbox legend. A custom
-feature legend can use the same controller instead.
+feature legend can use the same controller instead. `mountMapHelp(container, {text})` adds a compact
+bottom-left information button whose text opens on hover or focus and can be pinned with click,
+tap, Enter or Space without covering the map permanently.
+
+Primary-button drag pans the map normally. Ctrl/Command + primary-button drag rotates and pitches
+the map using MapLibre's native directions and sensitivity. Right-button rotation, wheel, touch,
+keyboard and navigation-control interactions also remain renderer-native.
 
 Hiding a viewport-loaded layer aborts its request and clears its data. Moving outside its zoom gate
 does the same, preventing stale features from remaining visible; showing it or returning to its zoom

@@ -210,6 +210,17 @@ def execute_stream_import(
             phase_rows=staged,
             phase_callback=phase_callback,
         )
+        linked_property_rows: int | None = None
+        if profile == "psi-sales":
+            cursor.execute(
+                "SELECT count(*) AS count FROM warehouse.psi_sale "
+                "WHERE dataset_release_id=%s AND property_ref IS NOT NULL",
+                (release_id,),
+            )
+            linked = cursor.fetchone()
+            if linked is None:
+                raise ImportProfileError("PSI property-linkage count is unavailable")
+            linked_property_rows = int(linked["count"])
         if phase_callback is not None:
             phase_callback("verification", accepted)
         quality_checks = _record_quality(
@@ -221,6 +232,7 @@ def execute_stream_import(
             accepted=accepted,
             quality_warning_rows=quality_warning_rows,
             quality_warning_counts=quality_warning_counts,
+            linked_property_rows=linked_property_rows,
         )
         cursor.execute(
             """UPDATE ops.dataset_release SET record_count=%s,
@@ -425,6 +437,7 @@ def _record_quality(
     accepted: int,
     quality_warning_rows: int = 0,
     quality_warning_counts: Mapping[str, int] | None = None,
+    linked_property_rows: int | None = None,
 ) -> int:
     # BOCSAR has two candidate tables, so accepted rows can exceed source envelope rows.
     load_complete = accepted >= expected
@@ -450,6 +463,26 @@ def _record_quality(
             else "Candidate generation lost validated rows.",
         ),
     ]
+    if linked_property_rows is not None:
+        results.append(
+            (
+                "import.psi-sales.property-linkage",
+                "referential",
+                "blocking",
+                "pass" if linked_property_rows > 0 else "fail",
+                {
+                    "linked": linked_property_rows,
+                    "unmatched": max(0, accepted - linked_property_rows),
+                },
+                {"minimum_linked": 1},
+                "At least one sale is linked to a registered property."
+                if linked_property_rows > 0
+                else (
+                    "No sales are linked to registered properties; publish or repair the "
+                    "accepted address registry before publishing this sales generation."
+                ),
+            )
+        )
     if quality_warning_rows:
         results.append(
             (

@@ -1,6 +1,6 @@
 # ADR-029: Make complete-source acquisition the only Feature 1 update scope
 
-- Status: Accepted
+- Status: Superseded by ADR-035 for PSI acquisition-scope selection; complete-source default retained
 - Date: 28 August 2026
 - Owner: PropertyScope Feature 1
 - Supersedes: ADR-021 and ADR-022 acquisition-scope and job-capacity decisions

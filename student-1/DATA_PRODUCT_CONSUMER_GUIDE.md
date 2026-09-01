@@ -101,7 +101,7 @@ does not import Feature 1 implementation modules in the consumer boundary.
 
 All routes below are relative to `/api/data-platform/v1` and are described in OpenAPI 3.1.
 
-- `GET /data-products` lists every registration, builder/schema version, complete acquisition
+- `GET /data-products` lists every registration, builder/schema version, supported acquisition
   scope, downstream product projection, redistribution decision, limitations, and latest accepted
   release.
 - `GET /data-products/{dataset_id}` returns one definition.
@@ -300,7 +300,9 @@ A future owner must complete all of these before startup accepts a registration:
 6. Add the dataset-specific quality policy and document source semantics and limitations.
 
 Unknown builders/versions, mismatched import/target/contract, absent schemas, unsafe policies,
-unsupported media, or incomplete acquisition scopes fail startup. The generic catalogue, release, review,
+unsupported media, or invalid acquisition scopes fail startup. Complete source remains the default;
+the only bounded source profile is the explicit, non-publishable PSI completed-archive-year
+candidate defined by ADR-035. The generic catalogue, release, review,
 artifact, receipt, and accepted-lookup APIs do not change.
 
 ## Deterministic demonstration

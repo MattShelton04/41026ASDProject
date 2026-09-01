@@ -6,7 +6,7 @@ import { parseRoute, routeQuery } from "../core/router.js";
 import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
-import { createMap, createOpenFreeMapProvider, featureCollection, pointFeature } from "../mapping/index.js";
+import { createMap, createOpenFreeMapProvider, featureCollection, mountMapHelp, pointFeature } from "../mapping/index.js";
 
 const PROPERTY_SEARCH_PAGE_SIZE = 25;
 
@@ -516,12 +516,10 @@ function propertyMap({ property, latitude, longitude, announce, routeEpoch }) {
   const status = el("div", "ps-map__status", "Loading interactive map…");
   status.setAttribute("role", "status");
   status.dataset.state = "loading";
-  const caption = el(
-    "div",
-    "ps-map__caption",
-    `${latitude ?? "Unknown latitude"}, ${longitude ?? "unknown longitude"} · Drag to pan, scroll or use the controls to zoom.`,
-  );
-  append(host, canvas, status, caption);
+  append(host, canvas, status);
+  mountMapHelp(host, {
+    text: `Latitude ${latitude ?? "unknown"}, longitude ${longitude ?? "unknown"}. Drag to pan; Ctrl/Command + drag rotates. Scroll or use the controls to zoom.`,
+  });
   const numericLatitude = Number(latitude);
   const numericLongitude = Number(longitude);
   if (!Number.isFinite(numericLatitude) || !Number.isFinite(numericLongitude)) {
