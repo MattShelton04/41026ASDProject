@@ -185,7 +185,7 @@ tbody tr:focus-within { background: var(--ps-ocean-50); }
 .state-tab strong { color: var(--ps-color-text-strong); font-variant-numeric: tabular-nums; }
 .state-tab:hover { background: var(--ps-color-surface-subtle); }
 .state-tab[aria-current="page"] { background: var(--sky); color: var(--ocean-dark); box-shadow: inset 0 -3px var(--ocean); }
-.overview-problems { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ps-space-5); padding: var(--ps-space-4); }
+.overview-problems { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ps-space-5); margin-top: var(--ps-space-4); padding: var(--ps-space-4); }
 .overview-problems__copy { display: grid; gap: var(--ps-space-2); min-width: 0; }
 .overview-problems__heading { font-size: .84rem; }
 .overview-problems__description { margin: 0; }

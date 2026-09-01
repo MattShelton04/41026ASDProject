@@ -1055,5 +1055,6 @@ test("overview problem notice uses a labelled responsive list", async () => {
   assert.match(source, /el\("ul", "problem-links"\)/);
   assert.match(source, /append\(item, link/);
   assert.match(styles, /\.overview-problems \{ display: grid;/);
+  assert.match(styles, /\.overview-problems \{[^}]*margin-top: var\(--ps-space-4\);/);
   assert.match(styles, /\.problem-links \{ display: grid;/);
 });
