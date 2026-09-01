@@ -9,7 +9,7 @@ import uuid
 import pytest
 
 from propertyscope_due_diligence_store.configuration import StoreSettings
-from propertyscope_due_diligence_store.migrations import iter_migrations
+from propertyscope_due_diligence_store.migrations import iter_migrations, migrate
 from propertyscope_due_diligence_store.repository import _json_safe, _row
 
 
@@ -57,3 +57,48 @@ def test_settings_requires_database_url(monkeypatch):
     monkeypatch.delenv("PROPERTYSCOPE_DUE_DILIGENCE_DATABASE_URL", raising=False)
     with pytest.raises(RuntimeError):
         StoreSettings.from_environment()
+
+
+class _FakeTransaction:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _FakeConnection:
+    """Minimal stand-in that returns dict rows, matching the psycopg dict_row factory."""
+
+    def __init__(self, applied_versions):
+        self._applied = [{"version": version} for version in applied_versions]
+        self.statements: list[str] = []
+
+    def execute(self, sql, params=None):
+        self.statements.append(sql)
+        if "SELECT version FROM due_diligence.schema_migration" in sql:
+            return self._applied
+        return []
+
+    def transaction(self):
+        return _FakeTransaction()
+
+
+def _recorded_inserts(connection):
+    return sum(
+        1 for sql in connection.statements if "INSERT INTO due_diligence.schema_migration" in sql
+    )
+
+
+def test_migrate_applies_pending_migrations_on_a_fresh_database():
+    connection = _FakeConnection([])
+    migrate(connection)
+    assert _recorded_inserts(connection) == 2
+
+
+def test_migrate_skips_already_applied_migrations_using_dict_rows():
+    # Regression guard: rows come back as dicts, so version access must be by key, not
+    # index. An index access (row[0]) raises KeyError once the ledger has rows.
+    connection = _FakeConnection(["001_initial.sql", "002_seed.sql"])
+    migrate(connection)
+    assert _recorded_inserts(connection) == 0

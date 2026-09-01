@@ -23,7 +23,7 @@ def iter_migrations() -> Iterator[tuple[str, str]]:
         yield entry.name, entry.read_text(encoding="utf-8")
 
 
-def migrate(connection: Connection[Any]) -> None:  # pragma: no cover - requires PostgreSQL
+def migrate(connection: Connection[Any]) -> None:
     """Create the migration ledger then apply any unapplied migrations once each."""
     connection.execute("CREATE SCHEMA IF NOT EXISTS due_diligence")
     connection.execute(
@@ -32,7 +32,8 @@ def migrate(connection: Connection[Any]) -> None:  # pragma: no cover - requires
         "applied_at timestamptz NOT NULL DEFAULT now())"
     )
     applied = {
-        row[0] for row in connection.execute("SELECT version FROM due_diligence.schema_migration")
+        row["version"]
+        for row in connection.execute("SELECT version FROM due_diligence.schema_migration")
     }
     for name, sql in iter_migrations():
         if name in applied:
