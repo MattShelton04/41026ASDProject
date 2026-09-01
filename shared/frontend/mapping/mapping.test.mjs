@@ -295,7 +295,7 @@ test("map controller keeps polygons below points and supports data, visibility, 
   assert.equal(map.removed, true);
 });
 
-test("Ctrl primary-button drag reverses horizontal rotation while ordinary and right drag remain renderer-native", async () => {
+test("Ctrl primary-button drag reverses horizontal and vertical rotation while ordinary and right drag remain renderer-native", async () => {
   const renderer = fakeRenderer();
   const { container, defaultView } = fakeDomContainer();
   const controller = await createMap({ container, renderer, controls: false });
@@ -316,7 +316,7 @@ test("Ctrl primary-button drag reverses horizontal rotation while ordinary and r
   });
   assert.equal(prevented, true);
   assert.ok(Math.abs(map.bearing - (-12.4)) < Number.EPSILON * 16);
-  assert.equal(map.pitch, 23);
+  assert.equal(map.pitch, 17);
   assert.equal(map.bearingCalls.length, 1);
   assert.equal(map.pitchCalls.length, 1);
 

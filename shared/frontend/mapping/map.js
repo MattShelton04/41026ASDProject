@@ -10,7 +10,7 @@ import { loadMapLibreRenderer } from "./renderer.js";
 const EMPTY_COLLECTION = Object.freeze(featureCollection([]));
 const LAYER_ORDER = Object.freeze({ polygon: 0, line: 1, point: 2 });
 const MODIFIED_DRAG_ROTATE_SPEED = 0.8;
-const MODIFIED_DRAG_PITCH_SPEED = -0.5;
+const MODIFIED_DRAG_PITCH_SPEED = 0.5;
 const MODIFIED_DRAG_CLICK_TOLERANCE = 3;
 
 /**

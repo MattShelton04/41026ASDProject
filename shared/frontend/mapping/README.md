@@ -242,8 +242,8 @@ bottom-left information button whose text opens on hover or focus and can be pin
 tap, Enter or Space without covering the map permanently.
 
 Primary-button drag pans the map normally. Ctrl/Command + primary-button drag rotates the map, with
-the horizontal bearing direction reversed from MapLibre's default so the gesture follows this
-product's expected direction. Its vertical pitch remains native in direction and sensitivity.
+the horizontal bearing and vertical pitch directions reversed from MapLibre's defaults so the
+gesture follows this product's expected direction. Pitch retains MapLibre's native sensitivity.
 Right-button rotation, wheel, touch, keyboard and navigation-control interactions remain
 renderer-native.
 
