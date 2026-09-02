@@ -18,6 +18,7 @@ def test_iter_migrations_is_sorted_and_complete():
     assert names == sorted(names)
     assert "001_initial.sql" in names
     assert "002_seed.sql" in names
+    assert "003_richer_evidence.sql" in names
     for _, sql in iter_migrations():
         assert sql.strip()
 
@@ -25,6 +26,16 @@ def test_iter_migrations_is_sorted_and_complete():
 def test_seed_migration_declares_ten_rows_per_table():
     seed = dict(iter_migrations())["002_seed.sql"]
     assert seed.count("generate_series(1, 10)") == 3
+
+
+def test_richer_evidence_migration_adds_all_evidence_states():
+    sql = dict(iter_migrations())["003_richer_evidence.sql"]
+    assert "INSERT INTO due_diligence.constraint_observation" in sql
+    assert "INSERT INTO due_diligence.building_observation" in sql
+    for state in ("confirmed", "partial_coverage", "non_intersection", "unavailable"):
+        assert state in sql
+    for constraint_type in ("zoning", "heritage", "flood", "bushfire"):
+        assert constraint_type in sql
 
 
 def test_json_safe_converts_scalar_types():
@@ -93,12 +104,13 @@ def _recorded_inserts(connection):
 def test_migrate_applies_pending_migrations_on_a_fresh_database():
     connection = _FakeConnection([])
     migrate(connection)
-    assert _recorded_inserts(connection) == 2
+    assert _recorded_inserts(connection) == len(list(iter_migrations()))
 
 
 def test_migrate_skips_already_applied_migrations_using_dict_rows():
     # Regression guard: rows come back as dicts, so version access must be by key, not
     # index. An index access (row[0]) raises KeyError once the ledger has rows.
-    connection = _FakeConnection(["001_initial.sql", "002_seed.sql"])
+    applied = [name for name, _ in iter_migrations()]
+    connection = _FakeConnection(applied)
     migrate(connection)
     assert _recorded_inserts(connection) == 0
