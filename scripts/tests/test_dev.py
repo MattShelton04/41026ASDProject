@@ -182,14 +182,19 @@ def test_up_starts_complete_stack(
 
     assert captured_commands[0][:2] == ("docker", "info")
     assert captured_commands[1][-len(dev.APPLICATION_SERVICES) :] == dev.APPLICATION_SERVICES
-    assert "--build" in captured_commands[1]
+    assert "--build" not in captured_commands[1]
     assert "--force-recreate" not in captured_commands[1]
     for filename in dev.COMPOSE_FILES:
         assert filename in captured_commands[1]
     assert "shared-frontend" in captured_commands[1]
-    assert captured_commands[2][-1] == "shared-frontend"
-    assert "--force-recreate" in captured_commands[2]
-    assert "--no-deps" in captured_commands[2]
+    assert captured_commands[2][-4:] == (
+        "shared-frontend",
+        "nginx",
+        "-s",
+        "reload",
+    )
+    assert "exec" in captured_commands[2]
+    assert "--no-TTY" in captured_commands[2]
     assert "shared-ai-mode" in captured_commands[1]
     assert "f1-backend" in captured_commands[1]
     assert "f1-postgres" in dev.APPLICATION_SERVICES
@@ -218,6 +223,25 @@ def test_up_preflights_before_materialising_secret_or_starting_compose(
     dev._up(offline=False)
 
     assert calls[:4] == ["docker", "preflight", "secret", "compose"]
+
+
+def test_up_build_is_explicit(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["stack", "up", "--build"]) == 0
+
+    assert "--build" in captured_commands[1]
+
+
+def test_restart_can_target_one_service(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["stack", "restart", "f1-runner"]) == 0
+
+    restart = captured_commands[-1]
+    assert "--force-recreate" in restart
+    assert restart[-1] == "f1-runner"
+    assert "f1-db-loader" not in restart
 
 
 def test_disabled_feature_reconciliation_stops_only_generated_owned_services(

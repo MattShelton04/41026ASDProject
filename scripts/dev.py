@@ -99,18 +99,16 @@ def _stop_disabled_feature_services() -> None:
         _run(_compose_command("stop", *DISABLED_FEATURE_SERVICES))
 
 
-def _recreate_shared_edge(*, environment: Mapping[str, str]) -> None:
-    """Reparse generated route projections without interrupting feature workers/databases."""
+def _reload_shared_edge(*, environment: Mapping[str, str]) -> None:
+    """Reparse bind-mounted route projections without recreating the edge container."""
     _run(
         _compose_command(
-            "up",
-            "--detach",
-            "--no-deps",
-            "--force-recreate",
-            "--wait",
-            "--wait-timeout",
-            "60",
+            "exec",
+            "--no-TTY",
             "shared-frontend",
+            "nginx",
+            "-s",
+            "reload",
         ),
         environment=environment,
     )
@@ -456,7 +454,7 @@ def _compose_environment(*, offline: bool) -> Mapping[str, str]:
     return environment
 
 
-def _up(*, offline: bool) -> None:
+def _up(*, offline: bool, build: bool = False) -> None:
     _openai_credential(offline=offline)
     _validate_deployment_inputs()
     _ensure_docker()
@@ -466,19 +464,20 @@ def _up(*, offline: bool) -> None:
     feature_1_enabled = FEATURE_1_KEY in ENABLED_FEATURE_KEYS
     if feature_1_enabled:
         print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
-    _run(
-        _compose_command(
-            "up",
-            "--build",
+    up_arguments = ["up"]
+    if build:
+        up_arguments.append("--build")
+    up_arguments.extend(
+        (
             "--detach",
             "--wait",
             "--wait-timeout",
             "180",
             *APPLICATION_SERVICES,
-        ),
-        environment=compose_environment,
+        )
     )
-    _recreate_shared_edge(environment=compose_environment)
+    _run(_compose_command(*up_arguments), environment=compose_environment)
+    _reload_shared_edge(environment=compose_environment)
     ports = _resolved_host_ports(APPLICATION_SERVICES)
     print(f"\nAI-mode health:     http://localhost:{ports['shared-ai-mode'][1]}/health/ready")
     print(f"PropertyScope home: http://localhost:{ports['shared-frontend'][1]}")
@@ -737,7 +736,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if command in ENVIRONMENT_FILE_COMMANDS:
             _load_development_environment(arguments.env_file)
         if command == ("stack", "up"):
-            _up(offline=arguments.offline)
+            _up(offline=arguments.offline, build=arguments.build)
         elif command == ("stack", "build"):
             _production_build(arguments.services)
         elif command == ("stack", "rebuild"):
@@ -750,7 +749,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _validate_deployment_inputs()
             _ensure_docker()
             _stop_disabled_feature_services()
-            _preflight_compose_host_ports(services=APPLICATION_SERVICES)
+            selected = tuple(arguments.services) or APPLICATION_SERVICES
+            _preflight_compose_host_ports(services=selected)
             compose_environment = _compose_environment(
                 offline=arguments.offline,
             )
@@ -762,7 +762,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "--wait",
                     "--wait-timeout",
                     "180",
-                    *APPLICATION_SERVICES,
+                    *selected,
                 ),
                 environment=compose_environment,
             )
