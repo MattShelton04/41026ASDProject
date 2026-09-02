@@ -109,12 +109,84 @@
       </form>
     </dialog>
 
+    <dialog id="property-dialog" class="case-dialog" aria-labelledby="property-dialog-title">
+      <form id="property-form" novalidate>
+        <header class="dialog-heading">
+          <h2 id="property-dialog-title">Add shortlisted property</h2>
+          <button class="icon-button" type="button" data-close-property aria-label="Close property form">&times;</button>
+        </header>
+        <div class="dialog-body">
+          <div id="property-form-error" class="form-message" role="alert" tabindex="-1" hidden></div>
+          <div class="field">
+            <label for="property-ref">Property reference</label>
+            <input id="property-ref" type="text" required autocomplete="off" aria-describedby="property-help property-error" />
+            <p id="property-help" class="field-help">Enter the PropertyScope UUID. Until Feature 1 validation is connected, it remains pending.</p>
+          </div>
+          <div class="field">
+            <label for="property-label">Personal display label (optional)</label>
+            <input id="property-label" type="text" maxlength="500" autocomplete="off" aria-describedby="property-label-help property-error" />
+            <p id="property-label-help" class="field-help">A convenience label only, not a verified address or evidence.</p>
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <label for="journey-stage">Journey stage</label>
+              <select id="journey-stage" aria-describedby="property-error">
+                <option>Shortlisted</option><option>Inspecting</option><option>Reviewing</option>
+                <option>Offer Considered</option><option>Closed</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="property-rating">Rating</label>
+              <select id="property-rating" aria-describedby="property-error"><option value="">Not rated</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="property-priority">Priority</label>
+            <select id="property-priority" aria-describedby="property-error"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+          </div>
+          <p id="property-error" class="field-error" hidden></p>
+        </div>
+        <footer class="dialog-actions">
+          <button class="ps-button" type="button" data-close-property>Cancel</button>
+          <button id="save-property" class="ps-button ps-button--primary" type="submit">Save property</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="note-dialog" class="case-dialog" aria-labelledby="note-dialog-title">
+      <form id="note-form" novalidate>
+        <header class="dialog-heading"><h2 id="note-dialog-title">Add note</h2><button class="icon-button" type="button" data-close-note aria-label="Close note form">&times;</button></header>
+        <div class="dialog-body">
+          <div id="note-form-error" class="form-message" role="alert" tabindex="-1" hidden></div>
+          <div class="field"><label for="note-property">Related property (optional)</label><select id="note-property"><option value="">Whole buyer case</option></select></div>
+          <div class="field"><label for="note-content">Note</label><textarea id="note-content" rows="7" required maxlength="4000" aria-describedby="note-error"></textarea><p id="note-error" class="field-error" hidden></p></div>
+        </div>
+        <footer class="dialog-actions"><button class="ps-button" type="button" data-close-note>Cancel</button><button id="save-note" class="ps-button ps-button--primary" type="submit">Save note</button></footer>
+      </form>
+    </dialog>
+
+    <dialog id="task-dialog" class="case-dialog" aria-labelledby="task-dialog-title">
+      <form id="task-form" novalidate>
+        <header class="dialog-heading"><h2 id="task-dialog-title">Add task</h2><button class="icon-button" type="button" data-close-task aria-label="Close task form">&times;</button></header>
+        <div class="dialog-body">
+          <div id="task-form-error" class="form-message" role="alert" tabindex="-1" hidden></div>
+          <div class="field"><label for="task-title">Task title</label><input id="task-title" type="text" required maxlength="300" aria-describedby="task-error" /><p id="task-error" class="field-error" hidden></p></div>
+          <div class="field-grid">
+            <div class="field"><label for="task-due-date">Due date (optional)</label><input id="task-due-date" type="date" aria-describedby="task-error" /></div>
+            <div class="field"><label for="task-property">Related property (optional)</label><select id="task-property"><option value="">Whole buyer case</option></select></div>
+          </div>
+          <label class="check-field"><input id="task-completed" type="checkbox" /> Completed</label>
+        </div>
+        <footer class="dialog-actions"><button class="ps-button" type="button" data-close-task>Cancel</button><button id="save-task" class="ps-button ps-button--primary" type="submit">Save task</button></footer>
+      </form>
+    </dialog>
+
     <dialog id="delete-dialog" class="confirm-dialog" aria-labelledby="delete-title">
-      <h2 id="delete-title">Delete buyer case?</h2>
+      <h2 id="delete-title">Delete record?</h2>
       <p id="delete-copy">This action cannot be undone.</p>
       <div class="dialog-actions">
         <button class="ps-button" type="button" data-close-delete>Cancel</button>
-        <button id="confirm-delete" class="ps-button ps-button--danger" type="button">Delete buyer case</button>
+        <button id="confirm-delete" class="ps-button ps-button--danger" type="button">Delete</button>
       </div>
     </dialog>
 

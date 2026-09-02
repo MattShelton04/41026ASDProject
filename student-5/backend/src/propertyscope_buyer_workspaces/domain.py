@@ -226,9 +226,7 @@ def validate_property_create(body: object) -> dict[str, Any]:
     label = value.get("property_label")
     return {
         "property_ref": _uuid_text(value.get("property_ref"), "property_ref"),
-        "property_label": (
-            None if label is None else _text(label, "property_label", maximum=500)
-        ),
+        "property_label": (None if label is None else _text(label, "property_label", maximum=500)),
         "property_validation_state": "pending",
         "journey_stage": _choice(
             value.get("journey_stage", "Shortlisted"), "journey_stage", JOURNEY_STAGES
@@ -239,9 +237,7 @@ def validate_property_create(body: object) -> dict[str, Any]:
 
 
 def validate_property_update(body: object) -> dict[str, Any]:
-    version, value = _versioned(
-        body, {"property_label", "journey_stage", "rating", "priority"}
-    )
+    version, value = _versioned(body, {"property_label", "journey_stage", "rating", "priority"})
     changes: dict[str, Any] = {"version": version}
     if "property_label" in value:
         label = value["property_label"]
@@ -249,9 +245,7 @@ def validate_property_update(body: object) -> dict[str, Any]:
             None if label is None else _text(label, "property_label", maximum=500)
         )
     if "journey_stage" in value:
-        changes["journey_stage"] = _choice(
-            value["journey_stage"], "journey_stage", JOURNEY_STAGES
-        )
+        changes["journey_stage"] = _choice(value["journey_stage"], "journey_stage", JOURNEY_STAGES)
     if "rating" in value:
         rating = value["rating"]
         if rating is not None and (

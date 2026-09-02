@@ -8,7 +8,13 @@ from propertyscope_buyer_workspaces.domain import (
     PublicInputError,
     validate_case_create,
     validate_case_update,
+    validate_note_create,
+    validate_note_update,
     validate_pagination,
+    validate_property_create,
+    validate_property_update,
+    validate_task_create,
+    validate_task_update,
 )
 
 
@@ -97,3 +103,68 @@ def test_pagination_is_bounded() -> None:
     assert validate_pagination("2", "25") == {"page": 2, "page_size": 25}
     with pytest.raises(PublicInputError):
         validate_pagination("0", "101")
+
+
+def test_property_commands_cover_journey_rating_priority_and_reopening() -> None:
+    created = validate_property_create(
+        {
+            "property_ref": "f1000000-0000-4000-8000-000000000001",
+            "property_label": "  Personal shortlist label  ",
+            "journey_stage": "Closed",
+            "rating": 5,
+            "priority": "high",
+        }
+    )
+    assert created["property_validation_state"] == "pending"
+    assert created["property_label"] == "Personal shortlist label"
+    assert validate_property_update(
+        {"version": 2, "journey_stage": "Shortlisted", "rating": None, "priority": "low"}
+    ) == {"version": 2, "journey_stage": "Shortlisted", "rating": None, "priority": "low"}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"property_ref": "not-a-uuid"},
+        {"property_ref": "f1000000-0000-4000-8000-000000000001", "journey_stage": "Offer"},
+        {"property_ref": "f1000000-0000-4000-8000-000000000001", "rating": 6},
+        {"property_ref": "f1000000-0000-4000-8000-000000000001", "priority": "urgent"},
+        {
+            "property_ref": "f1000000-0000-4000-8000-000000000001",
+            "property_validation_state": "validated",
+        },
+    ],
+)
+def test_invalid_property_commands_are_rejected(body: object) -> None:
+    with pytest.raises(PublicInputError):
+        validate_property_create(body)
+
+
+def test_note_commands_trim_content_and_support_property_association() -> None:
+    property_id = "f5000000-0000-4000-8000-000000000010"
+    assert validate_note_create(
+        {"case_property_id": property_id, "content": "  Inspect again  "}
+    ) == {
+        "case_property_id": property_id,
+        "content": "Inspect again",
+    }
+    assert validate_note_update({"version": 2, "case_property_id": None}) == {
+        "version": 2,
+        "case_property_id": None,
+    }
+    with pytest.raises(PublicInputError):
+        validate_note_create({"content": " "})
+
+
+def test_task_commands_validate_due_date_completion_and_updates() -> None:
+    created = validate_task_create({"title": "  Book inspection  ", "due_date": "2026-09-10"})
+    assert created["title"] == "Book inspection"
+    assert created["completed"] is False
+    assert validate_task_update({"version": 4, "completed": True}) == {
+        "version": 4,
+        "completed": True,
+    }
+    with pytest.raises(PublicInputError, match="ISO date"):
+        validate_task_create({"title": "Task", "due_date": "10/09/2026"})
+    with pytest.raises(PublicInputError, match="boolean"):
+        validate_task_update({"version": 1, "completed": "yes"})

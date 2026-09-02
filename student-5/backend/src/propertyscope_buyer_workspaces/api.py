@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from typing import Any
 
 from flask import Flask, Response, g, jsonify, request
@@ -17,12 +18,20 @@ from propertyscope_buyer_workspaces.clients import (
 from propertyscope_buyer_workspaces.configuration import BackendSettings
 from propertyscope_buyer_workspaces.domain import (
     CASE_STATUSES,
+    JOURNEY_STAGES,
     PREFERENCE_ARRAY_FIELDS,
+    PRIORITIES,
     PublicInputError,
     normalize_preferences,
     validate_case_create,
     validate_case_update,
+    validate_note_create,
+    validate_note_update,
     validate_pagination,
+    validate_property_create,
+    validate_property_update,
+    validate_task_create,
+    validate_task_update,
 )
 from shared_contracts import (
     PROBLEM_DETAIL_MEDIA_TYPE,
@@ -87,6 +96,8 @@ def _upstream_problem(response: ClientResponse) -> tuple[Response, int]:
         "version_conflict": "Refresh the buyer case before saving again",
         "validation_failed": "The submitted buyer case is invalid",
         "integrity_constraint_failed": "The submitted buyer case violates a constraint",
+        "duplicate_case_property": "That property is already shortlisted in this case",
+        "property_case_mismatch": "The selected property does not belong to this buyer case",
     }.get(safe_code, "The database API could not complete the request")
     return _problem(response.status_code, safe_code, safe_detail)
 
@@ -177,6 +188,135 @@ def _positive_integer(value: object, field: str, *, allow_zero: bool = False) ->
     if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
         raise DatabaseProtocolError(f"Database API returned an invalid {field}")
     return value
+
+
+def _uuid_field(value: object, field: str) -> str:
+    if not isinstance(value, str):
+        raise DatabaseProtocolError(f"Database API returned an invalid {field}")
+    try:
+        return str(uuid.UUID(value))
+    except ValueError as exc:
+        raise DatabaseProtocolError(f"Database API returned an invalid {field}") from exc
+
+
+def _child_base(value: object, case_id: str, fields: set[str]) -> dict[str, Any]:
+    if not isinstance(value, dict) or not fields.issubset(value):
+        raise DatabaseProtocolError("Database API returned an incomplete child resource")
+    result = dict(value)
+    result["id"] = _uuid_field(result["id"], "resource id")
+    if result["buyer_case_id"] != case_id:
+        raise DatabaseProtocolError("Database API returned a resource outside the buyer case")
+    result["buyer_case_id"] = _uuid_field(result["buyer_case_id"], "buyer case id")
+    if not isinstance(result["created_at"], str) or not isinstance(result["updated_at"], str):
+        raise DatabaseProtocolError("Database API returned invalid resource timestamps")
+    result["version"] = _positive_integer(result["version"], "resource version")
+    return result
+
+
+def _optional_child_property(value: object) -> str | None:
+    return None if value is None else _uuid_field(value, "case property id")
+
+
+def _public_property(value: object, case_id: str) -> dict[str, Any]:
+    fields = {
+        "id",
+        "buyer_case_id",
+        "property_ref",
+        "property_label",
+        "property_validation_state",
+        "journey_stage",
+        "rating",
+        "priority",
+        "created_at",
+        "updated_at",
+        "version",
+    }
+    item = _child_base(value, case_id, fields)
+    item["property_ref"] = _uuid_field(item["property_ref"], "property reference")
+    if item["property_label"] is not None and (
+        not isinstance(item["property_label"], str) or not item["property_label"].strip()
+    ):
+        raise DatabaseProtocolError("Database API returned an invalid property label")
+    if item["property_validation_state"] not in {"validated", "pending", "unavailable"}:
+        raise DatabaseProtocolError("Database API returned an invalid property validation state")
+    if item["journey_stage"] not in JOURNEY_STAGES:
+        raise DatabaseProtocolError("Database API returned an invalid journey stage")
+    rating = item["rating"]
+    if rating is not None and (
+        isinstance(rating, bool) or not isinstance(rating, int) or not 1 <= rating <= 5
+    ):
+        raise DatabaseProtocolError("Database API returned an invalid property rating")
+    if item["priority"] not in PRIORITIES:
+        raise DatabaseProtocolError("Database API returned an invalid property priority")
+    return {field: item[field] for field in fields}
+
+
+def _public_note(value: object, case_id: str) -> dict[str, Any]:
+    fields = {
+        "id",
+        "buyer_case_id",
+        "case_property_id",
+        "content",
+        "created_at",
+        "updated_at",
+        "version",
+    }
+    item = _child_base(value, case_id, fields)
+    item["case_property_id"] = _optional_child_property(item["case_property_id"])
+    if not isinstance(item["content"], str) or not item["content"].strip():
+        raise DatabaseProtocolError("Database API returned invalid note content")
+    return {field: item[field] for field in fields}
+
+
+def _public_task(value: object, case_id: str) -> dict[str, Any]:
+    fields = {
+        "id",
+        "buyer_case_id",
+        "case_property_id",
+        "title",
+        "due_date",
+        "completed",
+        "created_at",
+        "updated_at",
+        "version",
+    }
+    item = _child_base(value, case_id, fields)
+    item["case_property_id"] = _optional_child_property(item["case_property_id"])
+    if not isinstance(item["title"], str) or not item["title"].strip():
+        raise DatabaseProtocolError("Database API returned an invalid task title")
+    if item["due_date"] is not None:
+        if not isinstance(item["due_date"], str):
+            raise DatabaseProtocolError("Database API returned an invalid task due date")
+        try:
+            date.fromisoformat(item["due_date"])
+        except ValueError as exc:
+            raise DatabaseProtocolError("Database API returned an invalid task due date") from exc
+    if not isinstance(item["completed"], bool):
+        raise DatabaseProtocolError("Database API returned an invalid task completion state")
+    return {field: item[field] for field in fields}
+
+
+def _list_envelope(payload: object) -> tuple[list[object], int, int, int]:
+    if not isinstance(payload, dict):
+        raise DatabaseProtocolError("Database API returned an invalid list envelope")
+    items = payload.get("items")
+    if not isinstance(items, list):
+        raise DatabaseProtocolError("Database API list is missing items")
+    page = _positive_integer(payload.get("page"), "page")
+    page_size = _positive_integer(payload.get("page_size"), "page_size")
+    if page_size > 100:
+        raise DatabaseProtocolError("Database API returned an invalid page_size")
+    total = _positive_integer(payload.get("total"), "total", allow_zero=True)
+    if len(items) > page_size or total < len(items):
+        raise DatabaseProtocolError("Database API returned an inconsistent list envelope")
+    return items, page, page_size, total
+
+
+def _delete_confirmation(response: ClientResponse, expected_id: str) -> dict[str, str]:
+    payload = _mapping(response)
+    if payload.get("deleted") != expected_id or set(payload) != {"deleted"}:
+        raise DatabaseProtocolError("Database API returned an invalid deletion confirmation")
+    return {"deleted": expected_id}
 
 
 def _request_body() -> object:
@@ -275,17 +415,7 @@ def register_api(
         upstream = store.list_cases(**pagination, request_id=g.request_id)
         if upstream.status_code >= 400:
             return _upstream_problem(upstream)
-        payload = _mapping(upstream)
-        items = payload.get("items")
-        if not isinstance(items, list):
-            raise DatabaseProtocolError("Database API list is missing items")
-        page = _positive_integer(payload.get("page"), "page")
-        page_size = _positive_integer(payload.get("page_size"), "page_size")
-        if page_size > 100:
-            raise DatabaseProtocolError("Database API returned an invalid page_size")
-        total = _positive_integer(payload.get("total"), "total", allow_zero=True)
-        if len(items) > page_size or total < len(items):
-            raise DatabaseProtocolError("Database API returned an inconsistent list envelope")
+        items, page, page_size, total = _list_envelope(_mapping(upstream))
         return jsonify(
             {
                 "items": [_public_case(item, settings.demo_owner_ref) for item in items],
@@ -323,7 +453,166 @@ def register_api(
         upstream = store.delete_case(str(case_id), request_id=g.request_id)
         if upstream.status_code >= 400:
             return _upstream_problem(upstream)
-        payload = _mapping(upstream)
-        if payload.get("deleted") != str(case_id) or set(payload) != {"deleted"}:
-            raise DatabaseProtocolError("Database API returned an invalid deletion confirmation")
-        return jsonify({"deleted": str(case_id)})
+        return jsonify(_delete_confirmation(upstream, str(case_id)))
+
+    @app.get(f"{_API}/buyer-cases/<uuid:case_id>/properties")
+    def list_properties(case_id: uuid.UUID) -> Response | tuple[Response, int]:
+        pagination = validate_pagination(request.args.get("page"), request.args.get("page_size"))
+        upstream = store.list_children(
+            str(case_id), "properties", **pagination, request_id=g.request_id
+        )
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        items, page, page_size, total = _list_envelope(_mapping(upstream))
+        return jsonify(
+            {
+                "items": [_public_property(item, str(case_id)) for item in items],
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+            }
+        )
+
+    @app.post(f"{_API}/buyer-cases/<uuid:case_id>/properties")
+    def create_property(case_id: uuid.UUID) -> Response | tuple[Response, int]:
+        command = validate_property_create(_request_body())
+        upstream = store.create_child(str(case_id), "properties", command, request_id=g.request_id)
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_public_property(_mapping(upstream), str(case_id))), 201
+
+    @app.get(f"{_API}/buyer-cases/<uuid:case_id>/properties/<uuid:property_id>")
+    def get_property(case_id: uuid.UUID, property_id: uuid.UUID) -> Response | tuple[Response, int]:
+        upstream = store.get_child(
+            str(case_id), "properties", str(property_id), request_id=g.request_id
+        )
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_public_property(_mapping(upstream), str(case_id)))
+
+    @app.put(f"{_API}/buyer-cases/<uuid:case_id>/properties/<uuid:property_id>")
+    def update_property(
+        case_id: uuid.UUID, property_id: uuid.UUID
+    ) -> Response | tuple[Response, int]:
+        command = validate_property_update(_request_body())
+        upstream = store.update_child(
+            str(case_id), "properties", str(property_id), command, request_id=g.request_id
+        )
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_public_property(_mapping(upstream), str(case_id)))
+
+    @app.delete(f"{_API}/buyer-cases/<uuid:case_id>/properties/<uuid:property_id>")
+    def delete_property(
+        case_id: uuid.UUID, property_id: uuid.UUID
+    ) -> Response | tuple[Response, int]:
+        upstream = store.delete_child(
+            str(case_id), "properties", str(property_id), request_id=g.request_id
+        )
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_delete_confirmation(upstream, str(property_id)))
+
+    @app.get(f"{_API}/buyer-cases/<uuid:case_id>/notes")
+    def list_notes(case_id: uuid.UUID) -> Response | tuple[Response, int]:
+        pagination = validate_pagination(request.args.get("page"), request.args.get("page_size"))
+        upstream = store.list_children(str(case_id), "notes", **pagination, request_id=g.request_id)
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        items, page, page_size, total = _list_envelope(_mapping(upstream))
+        return jsonify(
+            {
+                "items": [_public_note(item, str(case_id)) for item in items],
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+            }
+        )
+
+    @app.post(f"{_API}/buyer-cases/<uuid:case_id>/notes")
+    def create_note(case_id: uuid.UUID) -> Response | tuple[Response, int]:
+        upstream = store.create_child(
+            str(case_id), "notes", validate_note_create(_request_body()), request_id=g.request_id
+        )
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_public_note(_mapping(upstream), str(case_id))), 201
+
+    @app.get(f"{_API}/buyer-cases/<uuid:case_id>/notes/<uuid:note_id>")
+    def get_note(case_id: uuid.UUID, note_id: uuid.UUID) -> Response | tuple[Response, int]:
+        upstream = store.get_child(str(case_id), "notes", str(note_id), request_id=g.request_id)
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_public_note(_mapping(upstream), str(case_id)))
+
+    @app.put(f"{_API}/buyer-cases/<uuid:case_id>/notes/<uuid:note_id>")
+    def update_note(case_id: uuid.UUID, note_id: uuid.UUID) -> Response | tuple[Response, int]:
+        upstream = store.update_child(
+            str(case_id),
+            "notes",
+            str(note_id),
+            validate_note_update(_request_body()),
+            request_id=g.request_id,
+        )
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_public_note(_mapping(upstream), str(case_id)))
+
+    @app.delete(f"{_API}/buyer-cases/<uuid:case_id>/notes/<uuid:note_id>")
+    def delete_note(case_id: uuid.UUID, note_id: uuid.UUID) -> Response | tuple[Response, int]:
+        upstream = store.delete_child(str(case_id), "notes", str(note_id), request_id=g.request_id)
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_delete_confirmation(upstream, str(note_id)))
+
+    @app.get(f"{_API}/buyer-cases/<uuid:case_id>/tasks")
+    def list_tasks(case_id: uuid.UUID) -> Response | tuple[Response, int]:
+        pagination = validate_pagination(request.args.get("page"), request.args.get("page_size"))
+        upstream = store.list_children(str(case_id), "tasks", **pagination, request_id=g.request_id)
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        items, page, page_size, total = _list_envelope(_mapping(upstream))
+        return jsonify(
+            {
+                "items": [_public_task(item, str(case_id)) for item in items],
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+            }
+        )
+
+    @app.post(f"{_API}/buyer-cases/<uuid:case_id>/tasks")
+    def create_task(case_id: uuid.UUID) -> Response | tuple[Response, int]:
+        upstream = store.create_child(
+            str(case_id), "tasks", validate_task_create(_request_body()), request_id=g.request_id
+        )
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_public_task(_mapping(upstream), str(case_id))), 201
+
+    @app.get(f"{_API}/buyer-cases/<uuid:case_id>/tasks/<uuid:task_id>")
+    def get_task(case_id: uuid.UUID, task_id: uuid.UUID) -> Response | tuple[Response, int]:
+        upstream = store.get_child(str(case_id), "tasks", str(task_id), request_id=g.request_id)
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_public_task(_mapping(upstream), str(case_id)))
+
+    @app.put(f"{_API}/buyer-cases/<uuid:case_id>/tasks/<uuid:task_id>")
+    def update_task(case_id: uuid.UUID, task_id: uuid.UUID) -> Response | tuple[Response, int]:
+        upstream = store.update_child(
+            str(case_id),
+            "tasks",
+            str(task_id),
+            validate_task_update(_request_body()),
+            request_id=g.request_id,
+        )
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_public_task(_mapping(upstream), str(case_id)))
+
+    @app.delete(f"{_API}/buyer-cases/<uuid:case_id>/tasks/<uuid:task_id>")
+    def delete_task(case_id: uuid.UUID, task_id: uuid.UUID) -> Response | tuple[Response, int]:
+        upstream = store.delete_child(str(case_id), "tasks", str(task_id), request_id=g.request_id)
+        if upstream.status_code >= 400:
+            return _upstream_problem(upstream)
+        return jsonify(_delete_confirmation(upstream, str(task_id)))

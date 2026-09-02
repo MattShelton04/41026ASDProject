@@ -43,6 +43,11 @@ class FakeStore:
                 "version": 1,
             }
         }
+        self.children: dict[str, dict[str, dict[str, Any]]] = {
+            "properties": {},
+            "notes": {},
+            "tasks": {},
+        }
 
     def ready(self) -> bool:
         return self.is_ready
@@ -112,6 +117,66 @@ class FakeStore:
         if self.cases.pop(case_id, None) is None:
             return response(404, {"status": 404, "code": "resource_not_found"})
         return response(200, {"deleted": case_id})
+
+    def list_children(
+        self, case_id: str, resource: str, *, page: int, page_size: int, request_id: str
+    ) -> ClientResponse:
+        self.request_ids.append(request_id)
+        values = list(self.children[resource].values())
+        return response(
+            200, {"items": values, "page": page, "page_size": page_size, "total": len(values)}
+        )
+
+    def create_child(
+        self, case_id: str, resource: str, values: Mapping[str, Any], *, request_id: str
+    ) -> ClientResponse:
+        self.request_ids.append(request_id)
+        child_id = "b5000000-0000-4000-8000-000000000098"
+        item = {
+            "id": child_id,
+            "buyer_case_id": case_id,
+            **values,
+            "created_at": "2026-09-03T10:00:00Z",
+            "updated_at": "2026-09-03T10:00:00Z",
+            "version": 1,
+        }
+        self.children[resource][child_id] = item
+        return response(201, item)
+
+    def get_child(
+        self, case_id: str, resource: str, child_id: str, *, request_id: str
+    ) -> ClientResponse:
+        self.request_ids.append(request_id)
+        item = self.children[resource].get(child_id)
+        return response(200, item) if item else response(404, {"code": "resource_not_found"})
+
+    def update_child(
+        self,
+        case_id: str,
+        resource: str,
+        child_id: str,
+        values: Mapping[str, Any],
+        *,
+        request_id: str,
+    ) -> ClientResponse:
+        self.request_ids.append(request_id)
+        item = self.children[resource].get(child_id)
+        if item is None:
+            return response(404, {"code": "resource_not_found"})
+        if values.get("version") != item["version"]:
+            return response(409, {"code": "version_conflict"})
+        item.update({key: value for key, value in values.items() if key != "version"})
+        item["version"] += 1
+        item["updated_at"] = "2026-09-03T11:00:00Z"
+        return response(200, item)
+
+    def delete_child(
+        self, case_id: str, resource: str, child_id: str, *, request_id: str
+    ) -> ClientResponse:
+        self.request_ids.append(request_id)
+        if self.children[resource].pop(child_id, None) is None:
+            return response(404, {"code": "resource_not_found"})
+        return response(200, {"deleted": child_id})
 
 
 class UnavailableStore(FakeStore):
@@ -328,3 +393,83 @@ def test_invalid_delete_confirmation_returns_safe_502(confirmation: object) -> N
     value = backend_client(DeleteConfirmationStore(confirmation)).delete(f"{API}/{CASE_ID}")
     assert value.status_code == 502
     assert value.get_json()["code"] == "database_protocol_error"
+
+
+def test_public_property_note_and_task_crud_and_conflicts() -> None:
+    client = backend_client()
+    property_response = client.post(
+        f"{API}/{CASE_ID}/properties",
+        json={
+            "property_ref": "f1000000-0000-4000-8000-000000000001",
+            "property_label": "Candidate",
+            "journey_stage": "Inspecting",
+            "rating": 4,
+            "priority": "high",
+        },
+    )
+    property_item = property_response.get_json()
+    assert property_response.status_code == 201
+    assert property_item["property_validation_state"] == "pending"
+    property_id = property_item["id"]
+    assert client.get(f"{API}/{CASE_ID}/properties/{property_id}").status_code == 200
+    updated_property = client.put(
+        f"{API}/{CASE_ID}/properties/{property_id}",
+        json={"version": 1, "journey_stage": "Closed", "rating": 5, "priority": "low"},
+    ).get_json()
+    assert updated_property["journey_stage"] == "Closed"
+    assert (
+        client.put(
+            f"{API}/{CASE_ID}/properties/{property_id}",
+            json={"version": 1, "journey_stage": "Shortlisted"},
+        ).status_code
+        == 409
+    )
+
+    note_response = client.post(
+        f"{API}/{CASE_ID}/notes",
+        json={"case_property_id": property_id, "content": "Inspect again"},
+    )
+    note = note_response.get_json()
+    assert note_response.status_code == 201
+    assert (
+        client.put(
+            f"{API}/{CASE_ID}/notes/{note['id']}",
+            json={"version": 1, "content": "Review contract"},
+        ).get_json()["version"]
+        == 2
+    )
+
+    task_response = client.post(
+        f"{API}/{CASE_ID}/tasks",
+        json={"case_property_id": property_id, "title": "Call agent", "due_date": "2026-09-10"},
+    )
+    task = task_response.get_json()
+    assert task_response.status_code == 201
+    completed = client.put(
+        f"{API}/{CASE_ID}/tasks/{task['id']}",
+        json={"version": 1, "completed": True},
+    ).get_json()
+    assert completed["completed"] is True
+    assert client.get(f"{API}/{CASE_ID}/notes").get_json()["total"] == 1
+    assert client.get(f"{API}/{CASE_ID}/tasks").get_json()["total"] == 1
+    assert client.delete(f"{API}/{CASE_ID}/notes/{note['id']}").status_code == 200
+    assert client.delete(f"{API}/{CASE_ID}/tasks/{task['id']}").status_code == 200
+    assert client.delete(f"{API}/{CASE_ID}/properties/{property_id}").status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("properties", {"property_ref": "not-a-uuid"}),
+        (
+            "properties",
+            {"property_ref": "f1000000-0000-4000-8000-000000000001", "rating": 6},
+        ),
+        ("notes", {"content": " "}),
+        ("tasks", {"title": "Task", "due_date": "invalid"}),
+    ],
+)
+def test_invalid_child_commands_return_problem_details(path: str, body: object) -> None:
+    value = backend_client().post(f"{API}/{CASE_ID}/{path}", json=body)
+    assert value.status_code == 422
+    assert value.content_type == "application/problem+json"

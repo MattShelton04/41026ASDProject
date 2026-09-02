@@ -87,6 +87,23 @@ def test_crud_methods_use_only_internal_database_routes() -> None:
     )
 
 
+def test_child_crud_methods_use_scoped_internal_routes() -> None:
+    transport = RecordingTransport()
+    client = BuyerStoreClient("http://buyer-db", "secret", transport=transport)
+    case_id = "b5000000-0000-4000-8000-000000000001"
+    child_id = "b5000000-0000-4000-8000-000000000002"
+    client.list_children(case_id, "properties", page=1, page_size=50, request_id="r1")
+    client.create_child(case_id, "notes", {"content": "Note"}, request_id="r2")
+    client.get_child(case_id, "tasks", child_id, request_id="r3")
+    client.update_child(
+        case_id, "tasks", child_id, {"version": 1, "completed": True}, request_id="r4"
+    )
+    client.delete_child(case_id, "properties", child_id, request_id="r5")
+    assert [call["method"] for call in transport.calls] == ["GET", "POST", "GET", "PUT", "DELETE"]
+    assert str(transport.calls[0]["url"]).endswith(f"/{case_id}/properties")
+    assert str(transport.calls[3]["url"]).endswith(f"/{case_id}/tasks/{child_id}")
+
+
 def test_readiness_does_not_send_internal_credentials() -> None:
     transport = RecordingTransport(response_json(200, {"status": "healthy"}))
     client = BuyerStoreClient("http://buyer-db", "secret", transport=transport)

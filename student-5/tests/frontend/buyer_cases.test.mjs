@@ -5,6 +5,9 @@ import {
   API_BASE,
   ApiProblem,
   buildCasePayload,
+  buildNotePayload,
+  buildPropertyPayload,
+  buildTaskPayload,
   createBuyerCaseApi,
   escapeHtml,
   formatBudget,
@@ -13,6 +16,9 @@ import {
   parseRoute,
   preferenceStringsFromText,
   projectPreferenceLists,
+  renderNoteItems,
+  renderPropertyItems,
+  renderTaskItems,
   statusLabel,
   targetSuburbsFromText,
   uiStateForError,
@@ -196,4 +202,60 @@ test("mutation follow-up navigation performs exactly one read", async () => {
     reads: 1,
     navigations: 1,
   });
+});
+
+test("property, note and task payloads validate Release 0 fields", () => {
+  const property = buildPropertyPayload({
+    propertyRef: "a0000000-0000-0000-0000-000000000001",
+    propertyLabel: " Candidate ", journeyStage: "Offer Considered", rating: "5", priority: "high",
+  });
+  assert.deepEqual(property.payload, {
+    property_ref: "a0000000-0000-0000-0000-000000000001",
+    property_label: "Candidate", journey_stage: "Offer Considered", rating: 5, priority: "high",
+  });
+  assert.equal(buildPropertyPayload({ propertyRef: "bad", rating: "6" }).payload, null);
+  assert.deepEqual(buildNotePayload({ content: "  Check strata  ", propertyId: "property-1" }, 2).payload, {
+    case_property_id: "property-1", content: "Check strata", version: 2,
+  });
+  assert.equal(buildNotePayload({ content: " " }).payload, null);
+  assert.deepEqual(buildTaskPayload({ title: " Inspect ", dueDate: "2026-09-10", completed: true }, 3).payload, {
+    case_property_id: null, title: "Inspect", due_date: "2026-09-10", completed: true, version: 3,
+  });
+  assert.equal(buildTaskPayload({ title: "" }).payload, null);
+});
+
+test("child resource API covers CRUD through public routes", async () => {
+  const calls = [];
+  const api = createBuyerCaseApi(async (url, options) => {
+    calls.push({ url, method: options.method });
+    return jsonResponse(options.method === "POST" ? 201 : 200, options.method === "GET" && url.includes("?") ? { items: [] } : {});
+  });
+  for (const resource of [api.properties, api.notes, api.tasks]) {
+    await resource.list("case-1");
+    await resource.create("case-1", {});
+    await resource.read("case-1", "item-1");
+    await resource.update("case-1", "item-1", { version: 1 });
+    await resource.delete("case-1", "item-1");
+  }
+  assert.deepEqual(calls.map((call) => call.method), [
+    "GET", "POST", "GET", "PUT", "DELETE",
+    "GET", "POST", "GET", "PUT", "DELETE",
+    "GET", "POST", "GET", "PUT", "DELETE",
+  ]);
+  assert.equal(calls.every((call) => call.url.startsWith(`${API_BASE}/buyer-cases/case-1/`)), true);
+});
+
+test("workspace renderers show journey, ratings, associations and completion controls safely", () => {
+  const propertyHtml = renderPropertyItems([{
+    id: "property-1", property_ref: "f1000000-0000-4000-8000-000000000001",
+    property_label: "<Candidate>", journey_stage: "Reviewing", priority: "high", rating: 4,
+    property_validation_state: "pending",
+  }]);
+  assert.match(propertyHtml, /Reviewing/);
+  assert.match(propertyHtml, /4\/5/);
+  assert.match(propertyHtml, /&lt;Candidate&gt;/);
+  assert.match(renderNoteItems([{ id: "note-1", content: "Observe", case_property_id: "property-1" }], () => "Candidate"), /Related to: Candidate/);
+  const taskHtml = renderTaskItems([{ id: "task-1", title: "Call agent", due_date: "2026-09-10", completed: true, case_property_id: null }]);
+  assert.match(taskHtml, /Mark incomplete/);
+  assert.match(taskHtml, /is-complete/);
 });

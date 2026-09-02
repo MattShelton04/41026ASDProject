@@ -123,6 +123,75 @@ def test_real_in_process_buyer_case_vertical_slice(tmp_path: Path) -> None:
     assert updated.get_json()["version"] == 2
     assert updated.get_json()["status"] == "paused"
 
+    property_response = browser.post(
+        f"{API}/{case_id}/properties",
+        headers=headers,
+        json={
+            "property_ref": "f1000000-0000-4000-8000-000000000001",
+            "property_label": "Inspection candidate (unverified)",
+            "journey_stage": "Inspecting",
+            "rating": 4,
+            "priority": "high",
+        },
+    )
+    property_item = property_response.get_json()
+    property_id = property_item["id"]
+    assert property_response.status_code == 201
+    assert property_item["property_validation_state"] == "pending"
+    assert browser.get(f"{API}/{case_id}/properties", headers=headers).get_json()["total"] == 1
+    closed_property = browser.put(
+        f"{API}/{case_id}/properties/{property_id}",
+        headers=headers,
+        json={"version": 1, "journey_stage": "Closed", "rating": 5, "priority": "low"},
+    ).get_json()
+    reopened_property = browser.put(
+        f"{API}/{case_id}/properties/{property_id}",
+        headers=headers,
+        json={"version": closed_property["version"], "journey_stage": "Shortlisted"},
+    ).get_json()
+    assert reopened_property["journey_stage"] == "Shortlisted"
+
+    note_response = browser.post(
+        f"{API}/{case_id}/notes",
+        headers=headers,
+        json={"case_property_id": property_id, "content": "  Check strata records.  "},
+    )
+    note = note_response.get_json()
+    assert note_response.status_code == 201
+    assert note["content"] == "Check strata records."
+    updated_note = browser.put(
+        f"{API}/{case_id}/notes/{note['id']}",
+        headers=headers,
+        json={"version": note["version"], "content": "Confirm strata meeting history."},
+    ).get_json()
+    assert updated_note["version"] == 2
+    assert browser.get(f"{API}/{case_id}/notes", headers=headers).get_json()["total"] == 1
+
+    task_response = browser.post(
+        f"{API}/{case_id}/tasks",
+        headers=headers,
+        json={
+            "case_property_id": property_id,
+            "title": "Book inspection",
+            "due_date": "2026-09-10",
+        },
+    )
+    task = task_response.get_json()
+    assert task_response.status_code == 201
+    completed_task = browser.put(
+        f"{API}/{case_id}/tasks/{task['id']}",
+        headers=headers,
+        json={"version": task["version"], "completed": True},
+    ).get_json()
+    assert completed_task["completed"] is True
+    assert browser.get(f"{API}/{case_id}/tasks", headers=headers).get_json()["total"] == 1
+    assert browser.delete(f"{API}/{case_id}/notes/{note['id']}", headers=headers).status_code == 200
+    assert browser.delete(f"{API}/{case_id}/tasks/{task['id']}", headers=headers).status_code == 200
+    assert (
+        browser.delete(f"{API}/{case_id}/properties/{property_id}", headers=headers).status_code
+        == 200
+    )
+
     deleted = browser.delete(f"{API}/{case_id}", headers=headers)
     assert deleted.status_code == 200
     assert deleted.get_json() == {"deleted": case_id}

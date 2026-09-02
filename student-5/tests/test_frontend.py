@@ -29,6 +29,21 @@ def test_frontend_contains_accessible_crud_controls_and_confirm_dialog() -> None
     assert 'aria-describedby="case-name-error"' in html
     assert 'id="delete-dialog"' in html
     assert 'id="confirm-delete"' in html
+    for form in ("property-form", "note-form", "task-form"):
+        assert f'id="{form}"' in html
+    for control in (
+        "property-ref",
+        "journey-stage",
+        "property-rating",
+        "property-priority",
+        "note-content",
+        "note-property",
+        "task-title",
+        "task-due-date",
+        "task-property",
+        "task-completed",
+    ):
+        assert f'id="{control}"' in html
     assert 'aria-live="polite"' in html
     assert 'type="module"' in html
 
