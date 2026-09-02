@@ -1055,13 +1055,19 @@ requires-dist = [
 [[package]]
 name = "student-5-feature"
 version = "0.1.0"
-source = { virtual = "student-5" }
+source = { editable = "student-5" }
 dependencies = [
+    { name = "flask" },
+    { name = "gunicorn" },
     { name = "shared-contracts" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "shared-contracts", editable = "shared/contracts" }]
+requires-dist = [
+    { name = "flask", specifier = ">=3.1,<4" },
+    { name = "gunicorn", specifier = ">=23,<24" },
+    { name = "shared-contracts", editable = "shared/contracts" },
+]
 
 [[package]]
 name = "tqdm"
