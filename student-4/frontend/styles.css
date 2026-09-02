@@ -357,6 +357,133 @@ main {
   font-weight: 650;
 }
 
+/* Clickable review cards (list -> detail) */
+a.review-card {
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform var(--ps-duration) var(--ps-ease),
+    box-shadow var(--ps-duration),
+    border-color var(--ps-duration);
+}
+a.review-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--ps-ocean-300);
+  box-shadow: var(--ps-shadow-sm);
+}
+
+/* Detail view */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: var(--ps-space-4);
+  color: var(--ocean-dark);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.back-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.card-title {
+  margin: 0 0 var(--ps-space-3);
+  font-size: var(--ps-text-heading-small);
+  line-height: 1.25;
+}
+.detail-stack {
+  display: grid;
+  gap: var(--ps-layout-gap);
+  margin-bottom: clamp(1.4rem, 3vw, 2.2rem);
+}
+.notes-text {
+  margin: 0;
+  color: var(--muted);
+}
+.checklist {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.checklist__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  color: var(--ps-ink-700);
+}
+.checklist__mark {
+  color: var(--ps-ink-400);
+  font-weight: 700;
+}
+.checklist__item.is-done .checklist__mark {
+  color: var(--ps-color-success);
+}
+.checklist__item.is-done .checklist__text {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.question-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ps-ink-700);
+}
+.evidence-section {
+  margin-bottom: clamp(1.4rem, 3vw, 2.2rem);
+}
+.evidence-grid {
+  display: grid;
+  gap: var(--ps-layout-gap);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+.evidence-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.evidence-head .review-card__eyebrow {
+  margin: 0;
+}
+.evidence-summary {
+  margin: 0 0 0.5rem;
+  color: var(--ps-ink-700);
+}
+.evidence-observed {
+  margin: 0 0 0.5rem;
+  color: var(--navy);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+.evidence-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.8rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.78rem;
+}
+.evidence-source {
+  color: var(--ocean-dark);
+  font-weight: 650;
+  text-decoration: none;
+}
+.evidence-source:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.evidence-confidence {
+  margin-left: auto;
+  color: var(--muted);
+}
+
 /* Responsive */
 @media (max-width: 860px) {
   .app-shell {

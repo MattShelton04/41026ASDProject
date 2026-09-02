@@ -1,8 +1,14 @@
 // Student 4 - Site, Planning & Building Due Diligence frontend.
-// Dependency-free ES module. Pure helpers are exported for the Node test gate;
+// Dependency-free ES module with a tiny hash router (#site-reviews list,
+// #site-reviews/<id> detail). Pure helpers are exported for the Node test gate;
 // the DOM bootstrap only runs inside a browser.
 
 export const API_BASE = "/api/due-diligence/v1";
+
+const LIST_INTRO =
+  "Review available planning, environmental, strata and building evidence for a property, " +
+  "and record a due-diligence disposition. Confirmed observations, non-intersections, partial " +
+  "coverage and unavailable coverage are shown distinctly.";
 
 const STATUS_LABELS = {
   draft: "Draft",
@@ -32,6 +38,13 @@ const STATUS_BADGE = {
   draft: "ps-badge--planned",
 };
 
+// Map an evidence state to a shared badge modifier (or "" for the neutral badge).
+const EVIDENCE_STATE_BADGE = {
+  confirmed: "ps-badge--confirmed",
+  partial_coverage: "ps-badge--partial",
+  non_intersection: "ps-badge--info",
+};
+
 export function statusLabel(status) {
   return STATUS_LABELS[status] || "Unknown";
 }
@@ -48,62 +61,43 @@ export function statusBadgeClass(status) {
   return STATUS_BADGE[status] || "";
 }
 
+export function evidenceBadgeClass(state) {
+  return EVIDENCE_STATE_BADGE[state] || "";
+}
+
 export function summariseReview(review) {
   return `${review.title} - ${review.address_display} (${statusLabel(review.status)})`;
 }
 
-function renderReview(review) {
-  const card = document.createElement("article");
-  card.className = "ps-card review-card";
+// Turn a snake_case identifier (e.g. floor_space_ratio) into a readable label.
+export function formatType(value) {
+  if (!value) return "";
+  const spaced = String(value).replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
 
-  const body = document.createElement("div");
-  body.className = "ps-card__body";
+// Parse the location hash into a route: the list, or a review detail with its id.
+export function parseRoute(hash) {
+  const clean = String(hash || "").replace(/^#/, "");
+  const match = clean.match(/^site-reviews\/(.+)$/);
+  if (match) return { name: "detail", id: decodeURIComponent(match[1]) };
+  return { name: "list" };
+}
 
-  const eyebrow = document.createElement("p");
-  eyebrow.className = "review-card__eyebrow";
-  eyebrow.textContent = "Site review";
-  body.append(eyebrow);
+// --- DOM helpers (browser only) ---
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
 
-  const heading = document.createElement("h3");
-  heading.textContent = review.title;
-  body.append(heading);
-
-  const address = document.createElement("p");
-  address.className = "review-address";
-  address.textContent = review.address_display;
-  body.append(address);
-
-  const meta = document.createElement("div");
-  meta.className = "review-meta";
-
-  const badge = document.createElement("span");
-  badge.className = ["ps-badge", statusBadgeClass(review.status)].filter(Boolean).join(" ");
-  badge.textContent = statusLabel(review.status);
-  meta.append(badge);
-
-  const disposition = document.createElement("span");
-  disposition.className = "review-disposition";
-  disposition.textContent = `Disposition: ${dispositionLabel(review.disposition)}`;
-  meta.append(disposition);
-
-  body.append(meta);
-  card.append(body);
-  return card;
+function badge(modifier, text) {
+  return el("span", ["ps-badge", modifier].filter(Boolean).join(" "), text);
 }
 
 function renderMessage(container, text) {
-  const message = document.createElement("p");
-  message.className = "empty";
-  message.textContent = text;
-  container.replaceChildren(message);
-}
-
-function renderList(container, reviews) {
-  if (reviews.length === 0) {
-    renderMessage(container, "No site reviews match your filter.");
-    return;
-  }
-  container.replaceChildren(...reviews.map(renderReview));
+  container.replaceChildren(el("p", "empty", text));
 }
 
 function setServiceState(state, label) {
@@ -115,40 +109,268 @@ function setServiceState(state, label) {
   if (text) text.textContent = label;
 }
 
+// --- list view ---
 let allReviews = [];
+let reviewsLoaded = false;
+let filterQuery = "";
 
-function applyFilter(container, query) {
-  const needle = query.trim().toLowerCase();
+function reviewCard(review) {
+  const card = el("a", "ps-card review-card");
+  card.href = `#site-reviews/${encodeURIComponent(review.id)}`;
+  const body = el("div", "ps-card__body");
+  body.append(el("p", "review-card__eyebrow", "Site review"));
+  body.append(el("h3", null, review.title));
+  body.append(el("p", "review-address", review.address_display));
+  const meta = el("div", "review-meta");
+  meta.append(badge(statusBadgeClass(review.status), statusLabel(review.status)));
+  meta.append(el("span", "review-disposition", `Disposition: ${dispositionLabel(review.disposition)}`));
+  body.append(meta);
+  card.append(body);
+  return card;
+}
+
+function renderListView(view) {
+  view.replaceChildren();
+  const heading = el("div", "page-heading");
+  heading.append(el("p", "ps-eyebrow", "Site, planning & building due diligence"));
+  heading.append(el("h1", null, "Site reviews"));
+  heading.append(el("p", "page-intro", LIST_INTRO));
+  view.append(heading);
+
+  const grid = el("div", "review-grid");
+  view.append(grid);
+  if (allReviews.length === 0) {
+    renderMessage(grid, "No site reviews yet.");
+    return;
+  }
+  const needle = filterQuery.trim().toLowerCase();
   const matches = needle
     ? allReviews.filter((review) =>
         `${review.title} ${review.address_display}`.toLowerCase().includes(needle),
       )
     : allReviews;
-  renderList(container, matches);
+  if (matches.length === 0) {
+    renderMessage(grid, "No site reviews match your filter.");
+    return;
+  }
+  matches.forEach((review) => grid.append(reviewCard(review)));
 }
 
-async function loadReviews(container) {
+async function ensureReviews(view) {
+  if (reviewsLoaded) return true;
+  renderMessage(view, "Loading site reviews\u2026");
   try {
     const response = await fetch(`${API_BASE}/site-reviews`);
     if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
     const payload = await response.json();
     allReviews = Array.isArray(payload.items) ? payload.items : [];
-    renderList(container, allReviews);
+    reviewsLoaded = true;
     setServiceState("online", "Evidence service available");
+    return true;
   } catch (error) {
-    renderMessage(container, "Could not load site reviews. Is the due-diligence service running?");
+    renderMessage(view, "Could not load site reviews. Is the due-diligence service running?");
     setServiceState("offline", "Service unavailable");
+    return false;
   }
 }
 
+// --- detail view ---
+function backLink() {
+  const link = el("a", "back-link", "\u2190 Back to site reviews");
+  link.href = "#site-reviews";
+  return link;
+}
+
+function evidenceCard(item, kind) {
+  const card = el("article", "ps-card evidence-card");
+  const body = el("div", "ps-card__body");
+
+  const head = el("div", "evidence-head");
+  const typeText = kind === "constraint" ? item.constraint_type : item.record_type;
+  head.append(el("p", "review-card__eyebrow", formatType(typeText)));
+  head.append(badge(evidenceBadgeClass(item.evidence_state), evidenceStateLabel(item.evidence_state)));
+  body.append(head);
+
+  body.append(el("p", "evidence-summary", item.summary || ""));
+
+  const observed =
+    kind === "constraint"
+      ? item.observed_value
+      : item.reference_code
+        ? `Ref ${item.reference_code}`
+        : null;
+  if (observed) body.append(el("p", "evidence-observed", observed));
+
+  const footer = el("div", "evidence-footer");
+  if (item.source_url) {
+    const source = el("a", "evidence-source", item.source_name || "Source");
+    source.href = item.source_url;
+    source.target = "_blank";
+    source.rel = "noreferrer noopener";
+    footer.append(source);
+  } else if (item.source_name) {
+    footer.append(el("span", "evidence-source", item.source_name));
+  }
+  if (item.confidence != null) {
+    footer.append(
+      el("span", "evidence-confidence", `${Math.round(Number(item.confidence) * 100)}% match confidence`),
+    );
+  }
+  if (footer.childNodes.length) body.append(footer);
+
+  card.append(body);
+  return card;
+}
+
+function evidenceSection(title, items, kind) {
+  const section = el("section", "evidence-section");
+  section.append(el("h2", "card-title", title));
+  const rows = Array.isArray(items) ? items : [];
+  if (rows.length === 0) {
+    section.append(el("p", "empty", "No records available for this property."));
+    return section;
+  }
+  const grid = el("div", "evidence-grid");
+  rows.forEach((item) => grid.append(evidenceCard(item, kind)));
+  section.append(grid);
+  return section;
+}
+
+function checklistCard(checklist) {
+  const card = el("article", "ps-card");
+  const body = el("div", "ps-card__body");
+  body.append(el("h2", "card-title", "Checklist"));
+  const items = Array.isArray(checklist) ? checklist : [];
+  if (items.length === 0) {
+    body.append(el("p", "empty", "No checklist items yet."));
+  } else {
+    const list = el("ul", "checklist");
+    items.forEach((entry) => {
+      const done = Boolean(entry && entry.done);
+      const li = el("li", done ? "checklist__item is-done" : "checklist__item");
+      li.append(el("span", "checklist__mark", done ? "\u2713" : "\u25CB"));
+      li.append(el("span", "checklist__text", (entry && entry.item) || ""));
+      list.append(li);
+    });
+    body.append(list);
+  }
+  card.append(body);
+  return card;
+}
+
+function questionsCard(questions) {
+  const card = el("article", "ps-card");
+  const body = el("div", "ps-card__body");
+  body.append(el("h2", "card-title", "Professional-verification questions"));
+  const items = Array.isArray(questions) ? questions : [];
+  if (items.length === 0) {
+    body.append(
+      el(
+        "p",
+        "empty",
+        "No questions yet. The AI-generated question pack will appear here in a later release.",
+      ),
+    );
+  } else {
+    const list = el("ol", "question-list");
+    items.forEach((question) =>
+      list.append(el("li", null, typeof question === "string" ? question : (question && question.question) || "")),
+    );
+    body.append(list);
+  }
+  card.append(body);
+  return card;
+}
+
+function notesCard(notes) {
+  const card = el("article", "ps-card");
+  const body = el("div", "ps-card__body");
+  body.append(el("h2", "card-title", "Notes"));
+  body.append(el("p", "notes-text", notes));
+  card.append(body);
+  return card;
+}
+
+async function renderDetailView(view, id) {
+  renderMessage(view, "Loading review\u2026");
+  let data;
+  try {
+    const response = await fetch(`${API_BASE}/site-reviews/${encodeURIComponent(id)}/evidence`);
+    if (response.status === 404) {
+      view.replaceChildren(backLink(), el("p", "empty", "That site review was not found."));
+      setServiceState("online", "Evidence service available");
+      return;
+    }
+    if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
+    data = await response.json();
+    setServiceState("online", "Evidence service available");
+  } catch (error) {
+    view.replaceChildren(
+      backLink(),
+      el("p", "empty", "Could not load this review. Is the due-diligence service running?"),
+    );
+    setServiceState("offline", "Service unavailable");
+    return;
+  }
+
+  const review = data.site_review || {};
+  view.replaceChildren();
+  view.append(backLink());
+
+  const heading = el("div", "page-heading");
+  heading.append(el("p", "ps-eyebrow", "Site review"));
+  heading.append(el("h1", null, review.title || "Site review"));
+  heading.append(el("p", "review-address", review.address_display || ""));
+  const meta = el("div", "review-meta");
+  meta.append(badge(statusBadgeClass(review.status), statusLabel(review.status)));
+  meta.append(el("span", "review-disposition", `Disposition: ${dispositionLabel(review.disposition)}`));
+  heading.append(meta);
+  view.append(heading);
+
+  const stack = el("div", "detail-stack");
+  if (review.notes) stack.append(notesCard(review.notes));
+  stack.append(checklistCard(review.checklist));
+  stack.append(questionsCard(review.verification_questions));
+  view.append(stack);
+
+  view.append(evidenceSection("Planning & environmental constraints", data.constraints, "constraint"));
+  view.append(evidenceSection("Strata & building records", data.buildings, "building"));
+}
+
+// --- router ---
+function focusMain() {
+  const main = document.querySelector("#main-content");
+  if (main) main.focus();
+}
+
+async function route(options) {
+  const view = document.querySelector("#view");
+  if (!view) return;
+  const parsed = parseRoute(location.hash);
+  if (parsed.name === "detail") {
+    await renderDetailView(view, parsed.id);
+  } else {
+    const ready = await ensureReviews(view);
+    if (ready) renderListView(view);
+  }
+  if (options && options.focus) focusMain();
+}
+
 function initialise() {
-  const container = document.querySelector("#site-reviews");
-  if (!container) return;
   const form = document.querySelector("#review-filter-form");
   const input = document.querySelector("#review-filter");
   if (form) form.addEventListener("submit", (event) => event.preventDefault());
-  if (input) input.addEventListener("input", () => applyFilter(container, input.value));
-  loadReviews(container);
+  if (input) {
+    input.addEventListener("input", () => {
+      filterQuery = input.value;
+      if (parseRoute(location.hash).name === "list" && reviewsLoaded) {
+        const view = document.querySelector("#view");
+        if (view) renderListView(view);
+      }
+    });
+  }
+  window.addEventListener("hashchange", () => route({ focus: true }));
+  route({ focus: false });
 }
 
 if (typeof document !== "undefined") {
