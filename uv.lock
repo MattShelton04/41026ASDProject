@@ -1000,13 +1000,23 @@ dev = [
 [[package]]
 name = "student-2-feature"
 version = "0.1.0"
-source = { virtual = "student-2" }
+source = { editable = "student-2" }
 dependencies = [
+    { name = "flask" },
+    { name = "gunicorn" },
+    { name = "httpx" },
+    { name = "pydantic" },
     { name = "shared-contracts" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "shared-contracts", editable = "shared/contracts" }]
+requires-dist = [
+    { name = "flask", specifier = ">=3.1,<4" },
+    { name = "gunicorn", specifier = ">=23,<24" },
+    { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
+    { name = "shared-contracts", editable = "shared/contracts" },
+]
 
 [[package]]
 name = "student-3-feature"
