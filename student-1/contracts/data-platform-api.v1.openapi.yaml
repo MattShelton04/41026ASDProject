@@ -383,6 +383,14 @@ paths:
         '200': {description: Accepted sale history, content: {application/json: {schema: {$ref: '#/components/schemas/PropertySaleHistory'}}}}
         '404': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/Problem'}
+  /properties/{property_ref}/seifa:
+    get:
+      operationId: getPropertySeifa
+      description: Returns accepted ABS SEIFA 2021 locality-area evidence matched by exact normalised NSW locality name. Candidate and superseded generations are never exposed.
+      parameters: [{$ref: '#/components/parameters/PropertyRef'}]
+      responses:
+        '200': {description: Accepted SEIFA area evidence or typed availability, content: {application/json: {schema: {$ref: '#/components/schemas/PropertySeifa'}}}}
+        '404': {$ref: '#/components/responses/Problem'}
   /properties/{property_ref}/report-section:
     get:
       operationId: getPropertyReportSection
@@ -565,6 +573,36 @@ components:
               release_version: {type: string, minLength: 1}
               schema_version: {type: string, minLength: 1}
               accepted_at: {type: string, format: date-time}
+    PropertySeifa:
+      type: object
+      required: [supported, availability, property_ref, locality]
+      properties:
+        supported: {type: boolean}
+        availability: {enum: [available, no_accepted_release, locality_not_matched, ambiguous_locality_match]}
+        property_ref: {type: string, format: uuid}
+        locality: {type: string}
+        message: {type: string}
+        match_method: {const: exact-normalised-locality-and-state}
+        attribution: {const: Based on Australian Bureau of Statistics data}
+        limitations: {type: array, items: {type: string}}
+        area:
+          type: object
+          properties:
+            sal_code: {type: string, pattern: '^1[0-9]{4}$'}
+            sal_name: {type: string}
+            locality_name: {type: string}
+            state: {const: NSW}
+            reference_year: {const: 2021}
+            irsd_score: {type: [string, 'null']}
+            irsd_australia_decile: {type: [integer, 'null'], minimum: 1, maximum: 10}
+            irsad_score: {type: [string, 'null']}
+            irsad_australia_decile: {type: [integer, 'null'], minimum: 1, maximum: 10}
+            ier_score: {type: [string, 'null']}
+            ier_australia_decile: {type: [integer, 'null'], minimum: 1, maximum: 10}
+            ieo_score: {type: [string, 'null']}
+            ieo_australia_decile: {type: [integer, 'null'], minimum: 1, maximum: 10}
+            usual_resident_population: {type: integer, minimum: 0}
+        release: {type: object}
         count: {type: integer, minimum: 0, maximum: 100}
         limit: {type: integer, minimum: 1, maximum: 100}
         has_more: {type: boolean}

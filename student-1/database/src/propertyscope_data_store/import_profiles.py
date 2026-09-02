@@ -42,7 +42,14 @@ IMPORT_PHASE_LABELS: Mapping[str, str] = {
     "verification": "Verifying candidate generation",
 }
 REGISTERED_PROFILES = frozenset(
-    {"property-fixture", "gnaf-nsw", "psi-sales", "bocsar-sparse", "schools-master"}
+    {
+        "property-fixture",
+        "gnaf-nsw",
+        "psi-sales",
+        "bocsar-sparse",
+        "schools-master",
+        "seifa-2021-sal-nsw",
+    }
 )
 _PSI_QUALITY_WARNINGS_KEY = "_propertyscope_import_quality_warnings"
 _PSI_ADDRESS_NUMBER_OUT_OF_RANGE = "address_number_out_of_range"
@@ -441,6 +448,7 @@ def _record_quality(
 ) -> int:
     # BOCSAR has two candidate tables, so accepted rows can exceed source envelope rows.
     load_complete = accepted >= expected
+    blocking_checks_passed = load_complete
     results: list[tuple[str, str, str, str, object, object, str]] = [
         (
             f"import.{profile}.schema",
@@ -483,6 +491,36 @@ def _record_quality(
                 ),
             )
         )
+    if profile == "seifa-2021-sal-nsw":
+        cursor.execute(
+            """SELECT count(*) AS count,count(DISTINCT sal_code) AS distinct_codes,
+            count(*) FILTER (WHERE state='NSW' AND reference_year=2021) AS scoped,
+            count(*) FILTER (WHERE usual_resident_population IS NOT NULL) AS populated
+            FROM warehouse.seifa_sal WHERE dataset_release_id=%s""",
+            (release_id,),
+        )
+        evidence = cursor.fetchone()
+        coherent = bool(
+            evidence
+            and int(evidence["count"]) == accepted
+            and int(evidence["distinct_codes"]) == accepted
+            and int(evidence["scoped"]) == accepted
+            and int(evidence["populated"]) == accepted
+        )
+        blocking_checks_passed = blocking_checks_passed and coherent
+        results.append(
+            (
+                "import.seifa-2021-sal-nsw.nsw-scope",
+                "coverage",
+                "blocking",
+                "pass" if coherent else "fail",
+                dict(evidence or {}),
+                {"rows": accepted, "state": "NSW", "reference_year": 2021},
+                "Every accepted row is a unique NSW 2021 SAL with population evidence."
+                if coherent
+                else "SEIFA candidate scope or uniqueness evidence is inconsistent.",
+            )
+        )
     if quality_warning_rows:
         results.append(
             (
@@ -520,8 +558,8 @@ def _record_quality(
                 message,
             ),
         )
-    if not load_complete:
-        raise ImportProfileError("candidate generation row-count quality gate failed")
+    if not blocking_checks_passed:
+        raise ImportProfileError("candidate generation blocking quality gate failed")
     return len(results)
 
 
@@ -538,6 +576,7 @@ def _validate_natural_keys(profile: str, rows: tuple[dict[str, Any], ...]) -> No
             "month_or_coverage",
         ),
         "schools-master": ("school_code",),
+        "seifa-2021-sal-nsw": ("sal_code",),
     }[profile]
     keys = [tuple(row[field] for field in key_fields) for row in rows]
     if len(keys) != len(set(keys)):
@@ -604,6 +643,41 @@ def _school(row: object, index: int) -> dict[str, Any]:
         "latitude": latitude,
         "longitude": longitude,
     }
+    return _with_hash(result)
+
+
+def _seifa(row: object, index: int) -> dict[str, Any]:
+    source = _object(row, index)
+    sal_code = _text(source, "sal_code", index)
+    if len(sal_code) != 5 or not sal_code.isdigit() or not sal_code.startswith("1"):
+        raise ImportProfileError(f"record {index} sal_code must be a five-digit NSW SAL code")
+    if _choice(source, "state", index, {"NSW"}) != "NSW":
+        raise AssertionError("unreachable")
+    result: dict[str, Any] = {
+        "sal_code": sal_code,
+        "sal_name": _text(source, "sal_name", index),
+        "locality_name": _text(source, "locality_name", index).upper(),
+        "state": "NSW",
+        "reference_year": _integer(source, "reference_year", index, allowed={2021}),
+        "usual_resident_population": _integer(
+            source,
+            "usual_resident_population",
+            index,
+            minimum=0,
+            maximum=POSTGRES_BIGINT_MAX,
+        ),
+    }
+    for key in ("irsd", "irsad", "ier", "ieo"):
+        score_field = f"{key}_score"
+        decile_field = f"{key}_australia_decile"
+        score = _optional_decimal(source, score_field, index)
+        decile = _optional_integer(source, decile_field, index, minimum=1, maximum=10)
+        if (score is None) != (decile is None):
+            raise ImportProfileError(
+                f"record {index} {key.upper()} score and Australia decile must both be present"
+            )
+        result[score_field] = score
+        result[decile_field] = decile
     return _with_hash(result)
 
 
@@ -997,6 +1071,7 @@ _VALIDATORS = {
     "psi-sales": _psi,
     "bocsar-sparse": _bocsar,
     "schools-master": _school,
+    "seifa-2021-sal-nsw": _seifa,
 }
 
 _PROFILE_INSERT_SQL = {
@@ -1033,6 +1108,28 @@ _PROFILE_INSERT_SQL = {
             payload->>'source_row_sha256','1.0.0',%s,%s,now()
         FROM propertyscope_import_stage ORDER BY ordinal
         ON CONFLICT (dataset_release_id,school_code) DO NOTHING
+    """,
+    "seifa-2021-sal-nsw": """
+        INSERT INTO warehouse.seifa_sal (
+            dataset_release_id,sal_code,sal_name,locality_name,state,reference_year,
+            irsd_score,irsd_australia_decile,irsad_score,irsad_australia_decile,
+            ier_score,ier_australia_decile,ieo_score,ieo_australia_decile,
+            usual_resident_population,source_row_sha256,normalisation_version,
+            artifact_record_id,ingestion_run_id,created_at
+        ) SELECT %s,payload->>'sal_code',payload->>'sal_name',payload->>'locality_name',
+            payload->>'state',(payload->>'reference_year')::smallint,
+            NULLIF(payload->>'irsd_score','')::numeric,
+            NULLIF(payload->>'irsd_australia_decile','')::smallint,
+            NULLIF(payload->>'irsad_score','')::numeric,
+            NULLIF(payload->>'irsad_australia_decile','')::smallint,
+            NULLIF(payload->>'ier_score','')::numeric,
+            NULLIF(payload->>'ier_australia_decile','')::smallint,
+            NULLIF(payload->>'ieo_score','')::numeric,
+            NULLIF(payload->>'ieo_australia_decile','')::smallint,
+            (payload->>'usual_resident_population')::bigint,
+            payload->>'source_row_sha256','1.0.0',%s,%s,now()
+        FROM propertyscope_import_stage ORDER BY ordinal
+        ON CONFLICT (dataset_release_id,sal_code) DO NOTHING
     """,
     "gnaf-nsw": """
         INSERT INTO warehouse.gnaf_address (
@@ -1209,6 +1306,10 @@ _PROFILE_COUNT_SQL = {
     """,
     "schools-master": """
         SELECT count(*) AS count FROM warehouse.school
+        WHERE dataset_release_id=%s AND artifact_record_id=%s AND ingestion_run_id=%s
+    """,
+    "seifa-2021-sal-nsw": """
+        SELECT count(*) AS count FROM warehouse.seifa_sal
         WHERE dataset_release_id=%s AND artifact_record_id=%s AND ingestion_run_id=%s
     """,
 }

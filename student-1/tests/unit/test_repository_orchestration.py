@@ -1183,6 +1183,84 @@ def test_property_sale_history_distinguishes_an_incompatible_accepted_contract()
     assert result["items"] == []
 
 
+def test_property_seifa_uses_only_the_accepted_release_and_exact_nsw_locality() -> None:
+    release_id = uuid.uuid4()
+    property_ref = uuid.uuid4()
+
+    class SeifaStore(PropertyQueryStore):
+        def __init__(self) -> None:
+            super().__init__()
+            self.queries: list[str] = []
+
+        def _fetch_one(self, query: str, params: Sequence[Any]) -> dict[str, Any] | None:
+            normalised = " ".join(query.split())
+            self.queries.append(normalised)
+            if "SELECT address.locality" in normalised:
+                assert params == (property_ref, property_ref)
+                return {"locality": " Abbotsford "}
+            assert params == ()
+            return {
+                "dataset_release_id": release_id,
+                "release_version": "2021",
+                "schema_version": "propertyscope.seifa-area.v1",
+                "accepted_at": datetime(2026, 9, 2, tzinfo=UTC),
+                "activated_at": datetime(2026, 9, 2, tzinfo=UTC),
+                "source_name": "ABS SEIFA 2021",
+                "publisher": "Australian Bureau of Statistics",
+                "source_url": "https://www.abs.gov.au/",
+                "licence_id": "cc-by-4.0",
+                "licence_url": "https://www.abs.gov.au/website-privacy-copyright-and-disclaimer",
+            }
+
+        def _fetch_all(self, query: str, params: Sequence[Any]) -> list[dict[str, Any]]:
+            self.queries.append(" ".join(query.split()))
+            assert params == (release_id, "ABBOTSFORD")
+            return [
+                {
+                    "sal_code": "10003",
+                    "sal_name": "Abbotsford (NSW)",
+                    "locality_name": "ABBOTSFORD",
+                    "state": "NSW",
+                    "reference_year": 2021,
+                    "irsd_score": "1062.49",
+                    "irsd_australia_decile": 9,
+                    "irsad_score": "1108.08",
+                    "irsad_australia_decile": 10,
+                    "ier_score": "1013.12",
+                    "ier_australia_decile": 5,
+                    "ieo_score": "1120.99",
+                    "ieo_australia_decile": 10,
+                    "usual_resident_population": 5431,
+                }
+            ]
+
+    result = SeifaStore().property_seifa(property_ref)
+
+    assert result["supported"] is True
+    assert result["area"]["sal_code"] == "10003"
+    assert result["area"]["irsad_australia_decile"] == 10
+    assert result["attribution"] == "Based on Australian Bureau of Statistics data"
+    assert result["match_method"] == "exact-normalised-locality-and-state"
+
+
+def test_property_seifa_reports_when_no_compatible_release_is_accepted() -> None:
+    property_ref = uuid.uuid4()
+
+    class UnavailableSeifaStore(PropertyQueryStore):
+        def _fetch_one(self, query: str, params: Sequence[Any]) -> dict[str, Any] | None:
+            if "SELECT address.locality" in query:
+                return {"locality": "Sydney"}
+            self.query = " ".join(query.split())
+            return None
+
+    store = UnavailableSeifaStore()
+    result = store.property_seifa(property_ref)
+
+    assert result["supported"] is False
+    assert result["availability"] == "no_accepted_release"
+    assert "serving.accepted_generation" in store.query
+
+
 class PropertySearchApiStore:
     def __init__(self) -> None:
         self.page: tuple[str, int, int] | None = None
@@ -1214,6 +1292,14 @@ class PropertySearchApiStore:
                 "accepted_release_id": str(uuid.uuid4()),
             },
             "release": {"dataset_release_id": str(uuid.uuid4())},
+        }
+
+    def property_seifa(self, property_ref: uuid.UUID) -> dict[str, Any]:
+        return {
+            "supported": True,
+            "availability": "available",
+            "property_ref": str(property_ref),
+            "area": {"sal_code": "10003", "irsad_australia_decile": 10},
         }
 
 
@@ -1262,6 +1348,27 @@ def test_property_sale_history_api_applies_its_small_read_bound() -> None:
     assert response.status_code == 200
     assert response.get_json()["limit"] == 7
     assert response.get_json()["count"] == 1
+
+
+def test_property_seifa_api_returns_the_area_evidence() -> None:
+    app = Flask(__name__)
+    app.register_blueprint(
+        create_blueprint(
+            cast(PropertyScopeStore, PropertySearchApiStore()), internal_token="secret"
+        )
+    )
+    register_error_handlers(app)
+
+    response = app.test_client().get(
+        f"/internal/data-platform/v1/properties/{uuid.uuid4()}/seifa",
+        headers={"X-PropertyScope-Internal-Token": "secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["area"] == {
+        "sal_code": "10003",
+        "irsad_australia_decile": 10,
+    }
 
 
 def test_property_search_api_does_not_inflate_total_for_out_of_range_offset() -> None:

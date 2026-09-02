@@ -202,6 +202,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     const mapResult = settled(request(`properties/${encodedRef}/map-context`));
     const coverageResult = settled(request(`properties/${encodedRef}/coverage`));
     const saleHistoryResult = settled(request(`properties/${encodedRef}/sale-history?limit=50`));
+    const seifaResult = settled(request(`properties/${encodedRef}/seifa`));
     const reportResult = settled(request(`properties/${encodedRef}/report-section`));
     try {
       const detailResult = await request(`properties/${encodedRef}`);
@@ -226,6 +227,8 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
       append(contentColumn, panel("Location", "Verified property point and surrounding street context", mapHost));
       const coverageHost = pendingSection("Loading available research coverage…");
       append(contentColumn, panel("Research available", "Published datasets currently linked to this property", coverageHost));
+      const seifaHost = pendingSection("Loading accepted ABS SEIFA area evidence…");
+      append(contentColumn, panel("Socio-economic area context", "ABS SEIFA 2021 evidence for the matched Suburb and Locality area", seifaHost));
       const saleHistoryHost = pendingSection("Loading accepted sale history…");
       const saleHistoryPanel = panel("Sale history", "Recorded transactions from the current published NSW sales release", saleHistoryHost);
       append(contentColumn, saleHistoryPanel);
@@ -280,6 +283,15 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
         }
         resolvePendingSection(saleHistoryHost);
         saleHistoryHost.replaceChildren(saleHistorySection(result.value.body, items));
+      });
+      void seifaResult.then((result) => {
+        if (!canHydrate(routeEpoch, seifaHost, propertyRef)) return;
+        resolvePendingSection(seifaHost);
+        if (result.status === "rejected") {
+          seifaHost.replaceChildren(el("div", "notice warning", `SEIFA area evidence is temporarily unavailable.${problemSuffix(result.reason)}`));
+          return;
+        }
+        seifaHost.replaceChildren(seifaSection(result.value.body));
       });
       void reportResult.then((result) => {
         if (!canHydrate(routeEpoch, reportHost, propertyRef)) return;
@@ -484,6 +496,53 @@ function saleHistorySection(payload, items) {
     },
     "Accepted NSW property sale history",
   ));
+  return section;
+}
+
+function seifaSection(payload) {
+  const section = el("section", "stack property-seifa");
+  if (!payload?.supported) {
+    append(section, emptyState("SEIFA area evidence is not published", payload?.message || "No accepted ABS SEIFA 2021 release is available for this locality."));
+    return section;
+  }
+  const area = payload.area || {};
+  const release = payload.release || {};
+  append(
+    section,
+    el("div", "notice info", "SEIFA describes the surrounding 2021 Suburb and Locality area. It is not a score for this property, household, or its residents."),
+    el("p", "field-help", `${area.sal_name || payload.locality} · SAL ${area.sal_code || "not recorded"} · usual resident population ${formatNumber(area.usual_resident_population)}.`),
+  );
+  const indexes = [
+    ["IRSAD", "Relative advantage and disadvantage", area.irsad_australia_decile, area.irsad_score],
+    ["IRSD", "Relative disadvantage", area.irsd_australia_decile, area.irsd_score],
+    ["IER", "Economic resources", area.ier_australia_decile, area.ier_score],
+    ["IEO", "Education and occupation", area.ieo_australia_decile, area.ieo_score],
+  ];
+  append(section, makeTable(
+    [{ label: "Index" }, { label: "Australia decile" }, { label: "Score" }],
+    indexes,
+    ([code, label, decile, score]) => {
+      const row = el("tr");
+      append(row, cell(`${code} — ${label}`, "primary-cell"), cell(decile == null ? "Not calculated" : `${decile} of 10`, "numeric"), cell(score == null ? "Not calculated" : formatNumber(score), "numeric"));
+      return row;
+    },
+    "ABS SEIFA 2021 national deciles and scores",
+  ));
+  append(
+    section,
+    el("p", "field-help", "Decile 1 represents the lowest-scoring 10% of areas and decile 10 the highest-scoring 10% for that index. Scores are relative area measures; larger-area SAL values are population-weighted from SA1 scores."),
+    detailList([
+      ["Source", payload.attribution || "Based on Australian Bureau of Statistics data"],
+      ["Reference year", area.reference_year || 2021],
+      ["Published release", release.release_version || release.dataset_release_id || "Not recorded"],
+      ["Area match", humanise(payload.match_method || "exact-normalised-locality-and-state")],
+    ]),
+  );
+  if (Array.isArray(payload.limitations) && payload.limitations.length) {
+    const limitations = el("ul", "evidence-list");
+    for (const limitation of payload.limitations) append(limitations, el("li", "", limitation));
+    append(section, disclosurePanel("How to interpret this evidence", "Area matching and interpretation limits", limitations));
+  }
   return section;
 }
 

@@ -36,6 +36,7 @@ PUBLIC_REDISTRIBUTION_POLICIES = frozenset(
         "committed-synthetic-fixture",
         "bounded-derived-release",
         "approved-bounded-extract",
+        "attributed-derived-release",
     }
 )
 RESTRICTED_REDISTRIBUTION_POLICIES = frozenset({"licence-controlled"})
@@ -178,6 +179,33 @@ class SchoolPointRecord(ProductModel):
     latitude: float = Field(ge=-38, le=-27)
     longitude: float = Field(ge=140, le=160)
     provenance: ProductProvenance
+
+
+class SeifaAreaRecord(ProductModel):
+    sal_code: str = Field(pattern=r"^1\d{4}$")
+    sal_name: str = Field(min_length=1, max_length=200)
+    locality_name: str = Field(min_length=1, max_length=200)
+    state: Literal["NSW"]
+    reference_year: Literal[2021]
+    irsd_score: Decimal | None = None
+    irsd_australia_decile: int | None = Field(default=None, ge=1, le=10)
+    irsad_score: Decimal | None = None
+    irsad_australia_decile: int | None = Field(default=None, ge=1, le=10)
+    ier_score: Decimal | None = None
+    ier_australia_decile: int | None = Field(default=None, ge=1, le=10)
+    ieo_score: Decimal | None = None
+    ieo_australia_decile: int | None = Field(default=None, ge=1, le=10)
+    usual_resident_population: int = Field(ge=0)
+    provenance: ProductProvenance
+
+    @model_validator(mode="after")
+    def paired_indexes(self) -> SeifaAreaRecord:
+        for key in ("irsd", "irsad", "ier", "ieo"):
+            if (getattr(self, f"{key}_score") is None) != (
+                getattr(self, f"{key}_australia_decile") is None
+            ):
+                raise ValueError(f"{key} score and Australia decile must both be present")
+        return self
 
 
 class PropertySnapshotProduct(ProductModel):
@@ -516,6 +544,8 @@ class RegisteredReleaseBuilder:
             return self._crime_records(context, rows)
         if self.spec.key == "school-points":
             return self._school_records(context, rows)
+        if self.spec.key == "seifa-area":
+            return self._seifa_records(context, rows)
         raise AssertionError("unreachable registered release builder")
 
     def _property_records(
@@ -739,6 +769,34 @@ class RegisteredReleaseBuilder:
             raise ValueError("release product contains duplicate school codes")
         return result
 
+    def _seifa_records(
+        self, context: BuildContext, rows: Iterable[Mapping[str, Any]]
+    ) -> list[dict[str, Any]]:
+        result = []
+        for row in rows:
+            record = SeifaAreaRecord(
+                sal_code=str(row["sal_code"]),
+                sal_name=str(row["sal_name"]),
+                locality_name=str(row["locality_name"]),
+                state="NSW",
+                reference_year=2021,
+                irsd_score=row.get("irsd_score"),
+                irsd_australia_decile=row.get("irsd_australia_decile"),
+                irsad_score=row.get("irsad_score"),
+                irsad_australia_decile=row.get("irsad_australia_decile"),
+                ier_score=row.get("ier_score"),
+                ier_australia_decile=row.get("ier_australia_decile"),
+                ieo_score=row.get("ieo_score"),
+                ieo_australia_decile=row.get("ieo_australia_decile"),
+                usual_resident_population=int(row["usual_resident_population"]),
+                provenance=ProductProvenance.model_validate(_provenance(context, row)),
+            )
+            result.append(record.model_dump(mode="json"))
+        result.sort(key=lambda item: item["sal_code"])
+        if len({item["sal_code"] for item in result}) != len(result):
+            raise ValueError("release product contains duplicate SAL codes")
+        return result
+
     def _summary(
         self, context: BuildContext, records: list[dict[str, Any]]
     ) -> tuple[set[str], dict[str, str] | None, set[str], set[str], str, tuple[str, ...]]:
@@ -792,6 +850,20 @@ class RegisteredReleaseBuilder:
                     "Missing is zero only inside observed_months when "
                     "blank_means_observed_zero is true.",
                     "Counts do not establish rates, causes, predictions, safety, or desirability.",
+                ),
+            )
+        if self.spec.key == "seifa-area":
+            return (
+                {f"NSW:SAL:{item['sal_code']}" for item in records},
+                {"from": "2021-01-01", "to": "2021-12-31"},
+                {"irsd", "irsad", "ier", "ieo", "usual_resident_population"},
+                {"suburb_and_locality_area"},
+                "number of complete NSW Suburbs and Localities records in the ABS 2021 workbook",
+                (
+                    "SEIFA describes an area, not an individual property, household, or resident.",
+                    "Property matching uses exact normalised locality name and state, "
+                    "not a spatial boundary.",
+                    "Small-population SAL scores and comparisons require caution.",
                 ),
             )
         return (
@@ -990,6 +1062,20 @@ def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
             frozenset({"approved-bounded-extract"}),
             TypeAdapter(SchoolPointRecord),
         ),
+        ReleaseBuilderSpec(
+            "seifa-area",
+            "1.0.0",
+            frozenset({"seifa-2021-sal-nsw"}),
+            "propertyscope.seifa-area.v1",
+            "feature-1",
+            "application/x-ndjson",
+            "gzip",
+            "sal_code",
+            None,
+            None,
+            frozenset({"attributed-derived-release"}),
+            TypeAdapter(SeifaAreaRecord),
+        ),
     )
     return MappingProxyType({item.key: RegisteredReleaseBuilder(item) for item in definitions})
 
@@ -1042,6 +1128,7 @@ def validate_product_record(schema_version: str, payload: Mapping[str, Any]) -> 
         "propertyscope.property-sales.v3": TypeAdapter(PropertySaleRecord),
         "propertyscope.crime-series.v2": TypeAdapter(CrimeSeriesRecord),
         "propertyscope.school-points.v2": TypeAdapter(SchoolPointRecord),
+        "propertyscope.seifa-area.v1": TypeAdapter(SeifaAreaRecord),
     }
     adapter = adapters.get(schema_version)
     if adapter is None:
@@ -1063,6 +1150,7 @@ def product_schema_documents() -> dict[str, dict[str, Any]]:
         "crime-series.v2.schema.json": CrimeSeriesRecord,
         "school-points.v1.schema.json": SchoolPointsProduct,
         "school-points.v2.schema.json": SchoolPointRecord,
+        "seifa-area.v1.schema.json": SeifaAreaRecord,
         "product-contract-set.v1.schema.json": ProductContractSetV1,
         "release-manifest.v1.schema.json": ReleaseManifestV1,
         "release-manifest.v2.schema.json": ReleaseManifestV2,
@@ -1121,6 +1209,7 @@ def product_contract_set_document() -> dict[str, Any]:
         "propertyscope.property-sales.v3": "property-sales.v3.schema.json",
         "propertyscope.crime-series.v2": "crime-series.v2.schema.json",
         "propertyscope.school-points.v2": "school-points.v2.schema.json",
+        "propertyscope.seifa-area.v1": "seifa-area.v1.schema.json",
     }
     contracts = tuple(
         ProductContractEntry(
@@ -1219,6 +1308,11 @@ def data_product_catalogue(feature_root: Path) -> tuple[DataProductCatalogueEntr
         "school-points": (
             "School proximity does not establish catchment, eligibility, quality, "
             "or recommendation.",
+        ),
+        "seifa-area": (
+            "SEIFA describes an area, not an individual property, household, or resident.",
+            "Exact normalised locality matching is not a point-in-polygon boundary match.",
+            "Small-population SAL scores and comparisons require caution.",
         ),
     }
     for key in jobs:

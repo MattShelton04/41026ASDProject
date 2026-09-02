@@ -151,6 +151,31 @@ PREVIEW_SPECS: dict[str, ReleasePreviewSpec] = {
             "geometry",
         ),
     ),
+    "seifa-2021-sal-nsw": ReleasePreviewSpec(
+        """SELECT sal_code,sal_name,locality_name,state,reference_year,
+        irsd_score::text,irsd_australia_decile,irsad_score::text,
+        irsad_australia_decile,ier_score::text,ier_australia_decile,
+        ieo_score::text,ieo_australia_decile,usual_resident_population
+        FROM warehouse.seifa_sal WHERE dataset_release_id=%s
+        ORDER BY sal_code LIMIT %s OFFSET %s""",
+        "SELECT count(*) AS count FROM warehouse.seifa_sal WHERE dataset_release_id=%s",
+        (
+            "sal_code",
+            "sal_name",
+            "locality_name",
+            "state",
+            "reference_year",
+            "irsd_score",
+            "irsd_australia_decile",
+            "irsad_score",
+            "irsad_australia_decile",
+            "ier_score",
+            "ier_australia_decile",
+            "ieo_score",
+            "ieo_australia_decile",
+            "usual_resident_population",
+        ),
+    ),
     "property-fixture": PROPERTY_RECORD_SPEC,
 }
 
@@ -259,6 +284,23 @@ def release_export_query(
             (release_id,),
             columns,
         )
+    if profile == "seifa-2021-sal-nsw":
+        columns = ("sal_code",)
+        values = decode_export_cursor(cursor, columns)
+        predicate = " AND sal_code>%s" if values else ""
+        params = (release_id, *(values or ()), limit)
+        return ReleaseExportQuery(
+            f"""SELECT sal_code,sal_name,locality_name,state,reference_year,
+                irsd_score::text,irsd_australia_decile,irsad_score::text,
+                irsad_australia_decile,ier_score::text,ier_australia_decile,
+                ieo_score::text,ieo_australia_decile,usual_resident_population,
+                source_row_sha256,normalisation_version FROM warehouse.seifa_sal
+                WHERE dataset_release_id=%s{predicate} ORDER BY sal_code LIMIT %s""",
+            params,
+            "SELECT count(*) AS count FROM warehouse.seifa_sal WHERE dataset_release_id=%s",
+            (release_id,),
+            columns,
+        )
     if profile == "bocsar-sparse":
         columns = ("geography_kind", "geography_value", "source_category_key")
         values = decode_export_cursor(cursor, columns)
@@ -323,6 +365,7 @@ def release_product_query(
         "psi-sales",
         "bocsar-sparse",
         "schools-master",
+        "seifa-2021-sal-nsw",
     }:
         raise ConflictError("release import profile has no registered product projection")
     release_scope = coverage.get("release_scope", coverage)
@@ -416,6 +459,18 @@ def release_product_query(
                 WHERE dataset_release_id=%s ORDER BY school_code LIMIT %s OFFSET %s""",
             (release_id, page_limit, offset),
             "SELECT count(*) AS count FROM warehouse.school WHERE dataset_release_id=%s",
+            (release_id,),
+        )
+    if profile == "seifa-2021-sal-nsw":
+        return ReleaseProductQuery(
+            """SELECT sal_code,sal_name,locality_name,state,reference_year,
+                irsd_score::text,irsd_australia_decile,irsad_score::text,
+                irsad_australia_decile,ier_score::text,ier_australia_decile,
+                ieo_score::text,ieo_australia_decile,usual_resident_population,
+                source_row_sha256,normalisation_version FROM warehouse.seifa_sal
+                WHERE dataset_release_id=%s ORDER BY sal_code LIMIT %s OFFSET %s""",
+            (release_id, page_limit, offset),
+            "SELECT count(*) AS count FROM warehouse.seifa_sal WHERE dataset_release_id=%s",
             (release_id,),
         )
     raise AssertionError("unreachable registered product projection")

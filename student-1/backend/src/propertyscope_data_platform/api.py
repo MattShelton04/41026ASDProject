@@ -142,7 +142,13 @@ def create_blueprint(
 
     @api.get(f"{BASE}/runtime-capabilities")
     def runtime_capabilities() -> Response:
-        connected = ["schools-master", "bocsar-sparse", "gnaf-nsw", "psi-sales"]
+        connected = [
+            "schools-master",
+            "bocsar-sparse",
+            "gnaf-nsw",
+            "psi-sales",
+            "seifa-2021-sal-nsw",
+        ]
         return jsonify(
             {
                 "implemented_live_profiles": [
@@ -150,6 +156,7 @@ def create_blueprint(
                     "bocsar-sparse",
                     "gnaf-nsw",
                     "psi-sales",
+                    "seifa-2021-sal-nsw",
                 ],
                 "host_verified_profiles": ["psi-sales"],
                 "connected_live_profiles": connected,

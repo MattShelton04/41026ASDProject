@@ -96,6 +96,7 @@ def test_preview_registry_has_fixed_generation_scoped_queries() -> None:
         "psi-sales",
         "bocsar-sparse",
         "schools-master",
+        "seifa-2021-sal-nsw",
     }
     for spec in PREVIEW_SPECS.values():
         assert "dataset_release_id=%s" in spec.select_sql
@@ -111,6 +112,7 @@ def test_preview_registry_has_fixed_generation_scoped_queries() -> None:
         ("gnaf-nsw", "warehouse.gnaf_address"),
         ("bocsar-sparse", "warehouse.bocsar_observation"),
         ("schools-master", "warehouse.school"),
+        ("seifa-2021-sal-nsw", "warehouse.seifa_sal"),
     ],
 )
 def test_release_product_queries_are_fixed_and_generation_scoped(profile: str, table: str) -> None:
