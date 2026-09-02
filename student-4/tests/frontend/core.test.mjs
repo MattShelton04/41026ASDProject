@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   API_BASE,
   buildReviewPayload,
+  buildUpdatePayload,
   dispositionLabel,
   evidenceBadgeClass,
   evidenceStateLabel,
@@ -13,6 +14,7 @@ import {
   statusBadgeClass,
   statusLabel,
   summariseReview,
+  toggleChecklist,
 } from "../../frontend/app.js";
 
 test("status labels map known and unknown values", () => {
@@ -114,4 +116,30 @@ test("problemMessage maps known error codes", () => {
   );
   assert.equal(problemMessage({ code: "invalid_site_review", detail: "bad title" }, 422), "bad title");
   assert.match(problemMessage({}, 500), /status 500/);
+});
+
+test("buildUpdatePayload trims text and defaults status/disposition", () => {
+  const payload = buildUpdatePayload({
+    title: "  Edited ",
+    status: "completed",
+    disposition: "hold",
+    notes: " n ",
+  });
+  assert.deepEqual(payload, { title: "Edited", status: "completed", disposition: "hold", notes: "n" });
+  const defaults = buildUpdatePayload({ title: "t" });
+  assert.equal(defaults.status, "draft");
+  assert.equal(defaults.disposition, "undecided");
+  assert.equal(defaults.notes, "");
+});
+
+test("toggleChecklist flips one item without mutating the input", () => {
+  const original = [
+    { item: "a", done: false },
+    { item: "b", done: false },
+  ];
+  const updated = toggleChecklist(original, 1, true);
+  assert.equal(updated[1].done, true);
+  assert.equal(updated[0].done, false);
+  assert.equal(original[1].done, false);
+  assert.deepEqual(toggleChecklist(null, 0, true), []);
 });

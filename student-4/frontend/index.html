@@ -75,7 +75,7 @@
           <button type="button" class="dialog-close" data-close aria-label="Close dialog">&times;</button>
         </div>
         <div class="dialog-body">
-          <div class="field">
+          <div class="field" id="property-field">
             <label for="property-search">Verified property</label>
             <input id="property-search" type="search" autocomplete="off" placeholder="Search a NSW address, e.g. 11 Example Street Sydney" />
             <div id="property-results" class="property-results"></div>
@@ -114,6 +114,17 @@
         <div class="dialog-actions">
           <button type="button" class="ps-button" data-close>Cancel</button>
           <button type="submit" id="review-submit" class="ps-button ps-button--primary">Create review</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title">
+      <form method="dialog">
+        <h2 id="confirm-title" class="card-title">Delete site review</h2>
+        <p id="confirm-text" class="dialog-copy"></p>
+        <div class="dialog-actions">
+          <button type="button" class="ps-button" data-confirm-close>Cancel</button>
+          <button type="button" id="confirm-delete" class="ps-button ps-button--danger">Delete</button>
         </div>
       </form>
     </dialog>
