@@ -12,6 +12,7 @@ from typing import Any
 
 from flask import Blueprint, Flask, Response, jsonify, request
 
+from propertyscope_due_diligence.map_layers import build_map
 from shared_contracts import HealthStatus, ReadinessCheckProjection, project_readiness
 
 _SERVICE = "propertyscope-due-diligence"
@@ -151,6 +152,29 @@ def create_blueprint(store: Any, feature1: Any) -> Blueprint:
             limit = 8
         limit = min(max(limit, 1), 20)
         return jsonify(feature1.search(query, limit))
+
+    @blueprint.get(f"{_API}/site-reviews/<review_id>/map")
+    def site_review_map(review_id: str) -> Response:
+        review_response = store.request("GET", f"{_INTERNAL}/site-reviews/{review_id}")
+        if review_response.status_code != 200:
+            return _relay(review_response)
+        review = review_response.json()
+        reference = review["property_ref"]
+        coordinates = feature1.coordinates(reference)
+        if coordinates is None:
+            return jsonify(
+                {
+                    "available": False,
+                    "detail": "No verified coordinate is available for this property.",
+                }
+            )
+        longitude, latitude = coordinates
+        constraints = (
+            store.request("GET", f"{_INTERNAL}/properties/{reference}/constraints")
+            .json()
+            .get("items", [])
+        )
+        return jsonify(build_map(longitude, latitude, review, constraints))
 
     return blueprint
 

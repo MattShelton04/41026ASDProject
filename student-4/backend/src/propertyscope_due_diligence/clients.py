@@ -104,3 +104,27 @@ class Feature1Client:
             and isinstance(item.get("address_display"), str)
         ]
         return {"available": True, "items": items[:limit]}
+
+    def coordinates(self, property_ref: str) -> tuple[float, float] | None:
+        """Return ``(longitude, latitude)`` for a verified property, or ``None`` if unavailable.
+
+        Resolves the canonical property record from Feature 1 by reference, so Feature 4 never
+        persists a coordinate and does not depend on address text matching a search index.
+        """
+        try:
+            response = self._client.get(
+                f"{self._origin}/api/data-platform/v1/properties/{property_ref}"
+            )
+        except httpx.TransportError:
+            return None
+        if response.status_code != 200:
+            return None
+        payload = response.json()
+        prop = payload.get("property") if isinstance(payload, dict) else None
+        if not isinstance(prop, dict):
+            return None
+        longitude = prop.get("longitude")
+        latitude = prop.get("latitude")
+        if isinstance(longitude, (int, float)) and isinstance(latitude, (int, float)):
+            return (float(longitude), float(latitude))
+        return None
