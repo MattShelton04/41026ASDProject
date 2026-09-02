@@ -16,6 +16,7 @@ function featureCard(feature) {
   const actions = el("div", "feature-directory-card__actions");
   append(actions, badge(state.label, state.tone));
   if (feature.href) append(actions, link(`Open ${feature.label}`, feature.href, "ps-button ps-button--primary"));
+  else if (feature.id === "suburb-context") append(actions, link("Open Suburb context", "http://localhost:5300/#suburbs", "ps-button ps-button--primary"));
   else append(actions, el("span", "feature-directory-card__unavailable", "Coming later"));
   append(body, actions);
   append(card, body);

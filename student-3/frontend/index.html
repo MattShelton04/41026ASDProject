@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10262e">
+  <meta name="description" content="PropertyScope suburb, crime and liveability analytics">
+  <title>PropertyScope | Suburb analytics</title>
+  <link rel="stylesheet" href="./design-system/tokens.css">
+  <link rel="stylesheet" href="./design-system/base.css">
+  <link rel="stylesheet" href="./design-system/components.css">
+  <link rel="stylesheet" href="./mapping/mapping.css">
+  <link rel="stylesheet" href="./ai-chat/styles.css">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js?v=feature3-functional"></script>
+</head>
+<body>
+  <a class="ps-skip-link" href="#main">Skip to suburb analytics</a>
+  <header class="topbar">
+    <a class="brand" href="http://localhost:5100/" aria-label="PropertyScope product home">
+      <span class="brand-mark" aria-hidden="true">⌂</span>
+      <span><strong>PropertyScope NSW</strong><small>Property research workspace</small></span>
+    </a>
+    <nav aria-label="Product"><a href="http://localhost:5100/#features">Research areas</a><a href="http://localhost:5100/#evidence">Sources &amp; history</a></nav>
+    <span id="service-state" class="ps-badge ps-badge--planned" role="status">Checking service</span>
+  </header>
+  <div class="workspace-strip"><strong>Suburb context</strong><span>NSW demonstration coverage</span><span>Sources and limitations visible</span></div>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Suburb analytics navigation">
+      <p class="nav-label">Explore</p>
+      <a href="#explore" data-route="explore" aria-current="page">Overview &amp; map</a>
+      <a href="#trends" data-route="trends">Crime trends</a>
+      <p class="nav-label">Your research</p>
+      <a href="#comparisons" data-route="comparisons">Saved comparisons</a>
+      <a href="#assistant" data-route="assistant">Ask AI about trends</a>
+      <div class="sidebar-note"><strong>Responsible context</strong><span>This feature reports recorded evidence. It does not label suburbs safe, unsafe, good or bad.</span></div>
+    </aside>
+    <main id="main" tabindex="-1">
+      <div id="live" class="ps-sr-only" aria-live="polite"></div>
+      <section class="hero">
+        <div><p class="ps-eyebrow">Suburb, crime &amp; liveability analytics</p><h1>Understand a suburb through evidence, not a score.</h1><p>Compare recorded trends over the same period, explore nearby places and keep source coverage in view.</p></div>
+        <form id="search-form" class="ps-input-shell" role="search">
+          <span aria-hidden="true">⌕</span><label class="ps-sr-only" for="search">Search suburb or postcode</label>
+          <input id="search" name="q" type="search" placeholder="Try Parramatta or 2150" minlength="2" maxlength="80">
+          <button class="ps-button ps-button--primary" type="submit">Search</button>
+        </form>
+      </section>
+      <section id="explore-view" class="view" data-view="explore">
+        <div class="section-heading"><div><p class="ps-eyebrow">Supported localities</p><h2>Explore the current demonstration footprint</h2></div><p id="result-count">Loading suburbs…</p></div>
+        <div class="explore-grid">
+          <section class="ps-card filters" aria-labelledby="filter-title"><div class="ps-card__body">
+            <h3 id="filter-title">Map filters</h3>
+            <label>Local government area<select id="lga-filter"><option value="">All areas</option></select></label>
+            <label>Required amenity<select id="amenity-filter"><option value="">Any amenity</option><option value="school">School observation</option><option value="transport">Transport observation</option><option value="park">Park observation</option></select></label>
+            <label>Sort suburbs<select id="sort-filter"><option value="locality">Name</option><option value="postcode">Postcode</option><option value="lga">Local government area</option></select></label>
+            <fieldset><legend>Places to show</legend><label><input type="checkbox" value="school" checked> Schools</label><label><input type="checkbox" value="transport" checked> Transport</label><label><input type="checkbox" value="park" checked> Parks</label></fieldset>
+            <p class="fine-print">Place proximity is straight-line context only. Nearby schools do not imply catchment eligibility.</p>
+          </div></section>
+          <div class="map-stack">
+            <div id="map" class="map" role="region" aria-label="Map of supported suburbs and places"></div>
+            <div id="map-fallback" class="map-fallback" hidden></div>
+            <div id="map-legend" class="map-legend" aria-label="Map legend"></div>
+          </div>
+        </div>
+        <section id="suburb-detail" class="suburb-detail ps-card" aria-live="polite" hidden></section>
+        <div id="suburb-cards" class="suburb-grid" aria-live="polite"></div>
+      </section>
+      <section id="trends-view" class="view" data-view="trends" hidden>
+        <div class="section-heading"><div><p class="ps-eyebrow">Recorded evidence</p><h2>Crime trend comparison</h2><p>Controls enforce one period and one measure across every selected suburb.</p></div></div>
+        <form id="trend-form" class="ps-card control-bar"><div class="ps-card__body trend-controls">
+          <label>Suburb A<select id="locality-a" required></select></label><label>Suburb B<select id="locality-b" required></select></label>
+          <label>From<input id="from-month" type="month" value="2026-01" min="2026-01" max="2026-06"></label><label>To<input id="to-month" type="month" value="2026-06" min="2026-01" max="2026-06"></label>
+          <label>Measure<select id="measure"><option value="count">Recorded count</option><option value="rate">Calculated rate per 100,000</option></select></label>
+          <label>Category<select id="offence"><option value="all_recorded">All recorded fixture offences</option><option value="property">Property category</option><option value="person">Person category</option></select></label>
+          <button class="ps-button ps-button--primary" type="submit">Compare trends</button>
+        </div></form>
+        <div id="trend-notice" class="notice" role="status">Choose two suburbs to compare the same period and measure.</div>
+        <section class="ps-card chart-card"><div class="ps-card__body"><div id="summary-cards" class="summary-grid"></div><div id="chart" class="chart" aria-label="Trend chart"></div><div class="ps-table-region" tabindex="0"><table><caption>Accessible trend data. A dash means missing evidence, never zero.</caption><thead id="trend-head"></thead><tbody id="trend-body"></tbody></table></div></div></section>
+      </section>
+      <section id="comparisons-view" class="view" data-view="comparisons" hidden>
+        <div class="section-heading"><div><p class="ps-eyebrow">Your research</p><h2>Saved suburb comparisons</h2><p>Create, edit and remove transparent comparison scopes.</p></div><button id="new-comparison" class="ps-button ps-button--primary">New comparison</button></div>
+        <div id="comparison-list" class="comparison-list"></div>
+      </section>
+      <section id="assistant-view" class="view" data-view="assistant" hidden>
+        <div id="assistant-root"></div>
+      </section>
+    </main>
+  </div>
+  <dialog id="comparison-dialog"><form id="comparison-form" method="dialog"><div class="dialog-heading"><div><p class="ps-eyebrow">Saved research</p><h2 id="dialog-title">New comparison</h2></div><button value="cancel" aria-label="Close">×</button></div><input id="comparison-id" type="hidden"><input id="comparison-version" type="hidden"><label>Name<input id="comparison-name" required maxlength="100"></label><div class="form-grid"><label>Suburb A<select id="comparison-a" required></select></label><label>Suburb B<select id="comparison-b" required></select></label><label>From<input id="comparison-from" type="month" value="2026-01" required></label><label>To<input id="comparison-to" type="month" value="2026-06" required></label><label>Measure<select id="comparison-measure"><option value="count">Count</option><option value="rate">Rate</option></select></label><label>Status<select id="comparison-status"><option value="saved">Saved</option><option value="reviewing">Reviewing</option><option value="complete">Complete</option></select></label></div><label>Notes<textarea id="comparison-notes" rows="4" maxlength="1000"></textarea></label><p id="form-error" role="alert"></p><div class="dialog-actions"><button class="ps-button" value="cancel">Cancel</button><button id="save-comparison" class="ps-button ps-button--primary" value="save">Save comparison</button></div></form></dialog>
+  <div id="toast" class="ps-toast" role="status" aria-live="polite"></div>
+</body>
+</html>
