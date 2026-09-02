@@ -94,6 +94,19 @@ class BuyerStoreGateway(Protocol):
 class UrllibTransport:
     """Small default transport; tests inject a deterministic implementation."""
 
+    def __init__(self, *, max_response_bytes: int = 1_048_576) -> None:
+        if max_response_bytes < 1:
+            raise ValueError("max_response_bytes must be positive")
+        self._max_response_bytes = max_response_bytes
+
+    def _read_bounded(self, response: Any) -> bytes:
+        body = response.read(self._max_response_bytes + 1)
+        if not isinstance(body, bytes):
+            raise DatabaseProtocolError("HTTP dependency returned a non-bytes response")
+        if len(body) > self._max_response_bytes:
+            raise DatabaseProtocolError("HTTP dependency response exceeded the size limit")
+        return body
+
     def request(
         self,
         method: str,
@@ -116,14 +129,14 @@ class UrllibTransport:
             with urlopen(outbound, timeout=timeout_seconds) as response:
                 return ClientResponse(
                     status_code=response.status,
-                    body=response.read(),
+                    body=self._read_bounded(response),
                     headers=dict(response.headers.items()),
                 )
         except HTTPError as error:
             try:
                 return ClientResponse(
                     status_code=error.code,
-                    body=error.read(),
+                    body=self._read_bounded(error),
                     headers=dict(error.headers.items()),
                 )
             finally:

@@ -14,8 +14,8 @@ export class ApiProblem extends Error {
 }
 
 export function createBuyerCaseApi(fetchImpl = globalThis.fetch) {
-  async function request(method, path, body) {
-    const options = { method, headers: { Accept: "application/json" } };
+  async function request(method, path, body, extraHeaders = {}) {
+    const options = { method, headers: { Accept: "application/json", ...extraHeaders } };
     if (body !== undefined) {
       options.headers["Content-Type"] = "application/json";
       options.body = JSON.stringify(body);
@@ -52,6 +52,19 @@ export function createBuyerCaseApi(fetchImpl = globalThis.fetch) {
     properties: childApi("properties"),
     notes: childApi("notes"),
     tasks: childApi("tasks"),
+    evidence: (caseId) => request("GET", `/buyer-cases/${encodeURIComponent(caseId)}/evidence`),
+    summaries: {
+      create: (caseId, idempotencyKey) => request(
+        "POST",
+        `/buyer-cases/${encodeURIComponent(caseId)}/case-summary-runs`,
+        {},
+        { "Idempotency-Key": idempotencyKey },
+      ),
+      read: (caseId, runId) => request(
+        "GET",
+        `/buyer-cases/${encodeURIComponent(caseId)}/case-summary-runs/${encodeURIComponent(runId)}`,
+      ),
+    },
   };
 }
 
@@ -390,6 +403,47 @@ export function renderTaskItems(items, propertyLabel = () => "Whole buyer case")
   </article>`).join("");
 }
 
+export function evidenceStateLabel(state) {
+  return {
+    complete: "Complete", partial: "Partial", unavailable: "Unavailable",
+    needs_verification: "Needs verification", conflicting: "Conflicting",
+  }[state] || "Unavailable";
+}
+
+export function renderEvidence(value) {
+  const sections = value?.sections && typeof value.sections === "object" ? value.sections : {};
+  const titles = {
+    feature_1: "Property identity and source releases",
+    feature_2: "Market evidence",
+    feature_3: "Feature 3 evidence",
+    feature_4: "Due diligence evidence",
+  };
+  const cards = Object.entries(titles).map(([key, title]) => {
+    const section = sections[key] || { state: "unavailable", items: [], limitations: [] };
+    const items = Array.isArray(section.items) ? section.items : [];
+    const limitations = Array.isArray(section.limitations) ? section.limitations : [];
+    return `<article class="evidence-card"><header><h4>${escapeHtml(title)}</h4><span class="ps-badge evidence-${escapeHtml(section.state)}">${escapeHtml(evidenceStateLabel(section.state))}</span></header>
+      ${items.length ? `<ul>${items.map((item) => `<li><code>${escapeHtml(item.property_ref || "Unknown property")}</code> — ${escapeHtml(evidenceStateLabel(item.state))}${item.address_display ? `: ${escapeHtml(item.address_display)}` : ""}</li>`).join("")}</ul>` : "<p>No evidence records returned.</p>"}
+      ${limitations.map((item) => `<p class="item-reference">${escapeHtml(item)}</p>`).join("")}</article>`;
+  }).join("");
+  const limitations = Array.isArray(value?.limitations) ? value.limitations : [];
+  const references = Array.isArray(value?.evidence_references) ? value.evidence_references : [];
+  return `${cards}<div class="evidence-references"><h4>Evidence references</h4>${references.length ? `<ul>${references.map((item) => `<li><code>${escapeHtml(item)}</code></li>`).join("")}</ul>` : "<p>No evidence references available.</p>"}</div>
+    <div class="evidence-limitations"><h4>Evidence limitations</h4><ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+}
+
+export function renderSummaryRun(run) {
+  const phases = Array.isArray(run?.phases) ? run.phases : [];
+  const actions = Array.isArray(run?.suggested_next_actions) ? run.suggested_next_actions : [];
+  const references = Array.isArray(run?.evidence_references) ? run.evidence_references : [];
+  const limitations = Array.isArray(run?.limitations) ? run.limitations : [];
+  return `<ol class="run-phases" aria-label="Plan Act Observe Adapt progress">${phases.map((phase) => `<li data-phase="${escapeHtml(phase.name)}"><strong>${escapeHtml(phase.name)}</strong><span>${escapeHtml(phase.status)}</span></li>`).join("")}</ol>
+    ${run?.summary ? `<h4>Case summary</h4><p>${escapeHtml(run.summary)}</p>` : `<p>${run?.error ? escapeHtml(run.error) : "Summary generation is in progress."}</p>`}
+    <h4>Suggested next actions</h4>${actions.length ? `<ol>${actions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : "<p>No suggested actions yet.</p>"}
+    <h4>Evidence references</h4>${references.length ? `<ul>${references.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "<p>No AI evidence references yet. Review the bounded evidence above.</p>"}
+    <h4>Limitations</h4>${limitations.length ? `<ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "<p>No additional AI limitations reported.</p>"}`;
+}
+
 function renderDetail(item) {
   const view = document.querySelector("#case-view");
   if (!view) return;
@@ -417,12 +471,16 @@ function renderDetail(item) {
     </article>
     <section class="workspace-section" aria-labelledby="properties-heading"><header><div><p class="ps-eyebrow">SHORTLIST</p><h3 id="properties-heading">Properties</h3></div><button class="ps-button ps-button--primary" type="button" data-add-property>Add property</button></header><div class="workspace-items">${renderPropertyItems(properties)}</div></section>
     <section class="workspace-section" aria-labelledby="notes-heading"><header><div><p class="ps-eyebrow">OBSERVATIONS</p><h3 id="notes-heading">Notes</h3></div><button class="ps-button ps-button--primary" type="button" data-add-note>Add note</button></header><div class="workspace-items">${renderNoteItems(notes, propertyName)}</div></section>
-    <section class="workspace-section" aria-labelledby="tasks-heading"><header><div><p class="ps-eyebrow">NEXT STEPS</p><h3 id="tasks-heading">Tasks</h3></div><button class="ps-button ps-button--primary" type="button" data-add-task>Add task</button></header><div class="workspace-items">${renderTaskItems(tasks, propertyName)}</div></section>`;
+    <section class="workspace-section" aria-labelledby="tasks-heading"><header><div><p class="ps-eyebrow">NEXT STEPS</p><h3 id="tasks-heading">Tasks</h3></div><button class="ps-button ps-button--primary" type="button" data-add-task>Add task</button></header><div class="workspace-items">${renderTaskItems(tasks, propertyName)}</div></section>
+    <section class="workspace-section" aria-labelledby="evidence-heading"><header><div><p class="ps-eyebrow">CROSS-FEATURE EVIDENCE</p><h3 id="evidence-heading">Bounded evidence</h3></div><button class="ps-button" type="button" data-refresh-evidence>Refresh evidence</button></header><div data-evidence aria-live="polite"><p>Loading evidence…</p></div></section>
+    <section class="workspace-section" aria-labelledby="summary-heading"><header><div><p class="ps-eyebrow">AI ASSISTANCE</p><h3 id="summary-heading">Buyer case summary</h3></div><button class="ps-button ps-button--primary" type="button" data-generate-summary>Generate case summary</button></header><p class="item-reference">AI output is advisory. Confirm evidence and important decisions yourself.</p><div data-summary-run aria-live="polite"><p>No AI summary has been generated.</p></div></section>`;
   view.querySelector("[data-edit]")?.addEventListener("click", () => openCaseForm(item));
   view.querySelector("[data-delete]")?.addEventListener("click", () => openDeleteDialog(`buyer case “${item.name}”`, () => api.delete(item.id), "#buyer-cases"));
   view.querySelector("[data-add-property]")?.addEventListener("click", () => openPropertyForm());
   view.querySelector("[data-add-note]")?.addEventListener("click", () => openNoteForm());
   view.querySelector("[data-add-task]")?.addEventListener("click", () => openTaskForm());
+  view.querySelector("[data-refresh-evidence]")?.addEventListener("click", () => loadEvidence(item.id));
+  view.querySelector("[data-generate-summary]")?.addEventListener("click", () => generateSummary(item.id));
   view.querySelectorAll("[data-edit-property]").forEach((button) => button.addEventListener("click", () => openPropertyForm(properties.find((value) => value.id === button.dataset.editProperty))));
   view.querySelectorAll("[data-delete-property]").forEach((button) => button.addEventListener("click", () => {
     const property = properties.find((value) => value.id === button.dataset.deleteProperty);
@@ -439,6 +497,50 @@ function renderDetail(item) {
     const task = tasks.find((value) => value.id === button.dataset.deleteTask);
     if (task) openDeleteDialog("task", () => api.tasks.delete(item.id, task.id));
   }));
+}
+
+async function loadEvidence(caseId) {
+  const target = document.querySelector("[data-evidence]");
+  if (!target) return;
+  target.innerHTML = "<p>Loading bounded evidence…</p>";
+  try {
+    const value = await api.evidence(caseId);
+    if (currentCase?.id === caseId) target.innerHTML = renderEvidence(value);
+  } catch (error) {
+    if (currentCase?.id === caseId) target.innerHTML = '<div data-state="unavailable"><p>Evidence services are unavailable. Buyer-case editing is still available.</p></div>';
+  }
+}
+
+async function pollSummary(caseId, runId) {
+  const target = document.querySelector("[data-summary-run]");
+  if (!target || currentCase?.id !== caseId) return;
+  try {
+    const run = await api.summaries.read(caseId, runId);
+    target.innerHTML = renderSummaryRun(run);
+    if (!["succeeded", "failed", "cancelled"].includes(run.status)) {
+      globalThis.setTimeout(() => pollSummary(caseId, runId), 1000);
+    }
+  } catch (error) {
+    target.innerHTML = '<div data-state="unavailable"><p>AI summary service is unavailable. Your buyer case is unchanged.</p></div>';
+  }
+}
+
+async function generateSummary(caseId) {
+  const target = document.querySelector("[data-summary-run]");
+  const button = document.querySelector("[data-generate-summary]");
+  if (!target || !button) return;
+  button.disabled = true;
+  target.innerHTML = "<p>Starting the Plan → Act → Observe → Adapt workflow…</p>";
+  try {
+    const key = `buyer-summary-${caseId}-${Date.now()}`;
+    const run = await api.summaries.create(caseId, key);
+    target.innerHTML = renderSummaryRun(run);
+    if (!["succeeded", "failed", "cancelled"].includes(run.status)) await pollSummary(caseId, run.id);
+  } catch (error) {
+    target.innerHTML = '<div data-state="unavailable"><p>AI summary service is unavailable. Ordinary case, property, note and task controls remain available.</p></div>';
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function loadList() {
@@ -466,6 +568,7 @@ async function loadDetail(caseId) {
     tasks = taskPage.items;
     renderDetail(item);
     setServiceState(true);
+    void loadEvidence(caseId);
   } catch (error) {
     setServiceState(false);
     const missing = error instanceof ApiProblem && error.status === 404;

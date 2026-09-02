@@ -17,7 +17,9 @@ import {
   preferenceStringsFromText,
   projectPreferenceLists,
   renderNoteItems,
+  renderEvidence,
   renderPropertyItems,
+  renderSummaryRun,
   renderTaskItems,
   statusLabel,
   targetSuburbsFromText,
@@ -243,6 +245,54 @@ test("child resource API covers CRUD through public routes", async () => {
     "GET", "POST", "GET", "PUT", "DELETE",
   ]);
   assert.equal(calls.every((call) => call.url.startsWith(`${API_BASE}/buyer-cases/case-1/`)), true);
+});
+
+test("evidence and summary APIs stay behind the Student 5 public boundary", async () => {
+  const calls = [];
+  const api = createBuyerCaseApi(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(options.method === "POST" ? 202 : 200, {});
+  });
+  await api.evidence("case-1");
+  await api.summaries.create("case-1", "summary-key-123");
+  await api.summaries.read("case-1", "run-1");
+  assert.deepEqual(calls.map((item) => item.options.method), ["GET", "POST", "GET"]);
+  assert.equal(calls[1].options.headers["Idempotency-Key"], "summary-key-123");
+  assert.equal(calls.every((item) => item.url.startsWith(`${API_BASE}/buyer-cases/case-1/`)), true);
+});
+
+test("bounded evidence renderer exposes all states and limitations safely", () => {
+  const html = renderEvidence({
+    sections: {
+      feature_1: { state: "complete", items: [{ property_ref: "property-1", state: "complete", address_display: "<Address>" }] },
+      feature_2: { state: "partial", items: [] },
+      feature_3: { state: "unavailable", items: [], limitations: ["No public API"] },
+      feature_4: { state: "conflicting", items: [{ property_ref: "property-1", state: "needs_verification" }] },
+    },
+    evidence_references: ["feature_1:property_ref:property-1"],
+    limitations: ["Bounded to 10 properties"],
+  });
+  for (const label of ["Complete", "Partial", "Unavailable", "Conflicting", "Needs verification"]) {
+    assert.match(html, new RegExp(label));
+  }
+  assert.match(html, /&lt;Address&gt;/);
+  assert.match(html, /Bounded to 10 properties/);
+  assert.match(html, /feature_1:property_ref:property-1/);
+});
+
+test("AI summary renderer shows Plan Act Observe Adapt, references and limitations", () => {
+  const html = renderSummaryRun({
+    status: "succeeded",
+    phases: ["plan", "act", "observe", "adapt"].map((name) => ({ name, status: "succeeded" })),
+    summary: "Review <evidence>",
+    suggested_next_actions: ["Book inspection"],
+    evidence_references: ["feature_1:property"],
+    limitations: ["Feature 3 unavailable"],
+  });
+  for (const phase of ["plan", "act", "observe", "adapt"]) assert.match(html, new RegExp(phase));
+  assert.match(html, /Review &lt;evidence&gt;/);
+  assert.match(html, /feature_1:property/);
+  assert.match(html, /Feature 3 unavailable/);
 });
 
 test("workspace renderers show journey, ratings, associations and completion controls safely", () => {

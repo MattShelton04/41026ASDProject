@@ -56,6 +56,16 @@ class FlaskTransport:
         )
 
 
+class PendingPropertyEvidence:
+    """Keep this database vertical slice isolated from cross-feature services."""
+
+    def validate_property(self, property_ref: str, *, request_id: str) -> dict[str, str]:
+        return {"state": "pending"}
+
+    def collect(self, property_refs: list[str], *, request_id: str) -> dict[str, Any]:
+        return {"state": "partial", "sections": {}, "limitations": []}
+
+
 def test_real_in_process_buyer_case_vertical_slice(tmp_path: Path) -> None:
     database_store = BuyerStore(
         tmp_path / "buyer-workspaces.sqlite3",
@@ -75,7 +85,9 @@ def test_real_in_process_buyer_case_vertical_slice(tmp_path: Path) -> None:
     database_client = BuyerStoreClient("http://buyer-db", TOKEN, transport=transport)
 
     backend_settings = BackendSettings("http://buyer-db", TOKEN, OWNER)
-    backend_app = create_backend_app(backend_settings, store=database_client)
+    backend_app = create_backend_app(
+        backend_settings, store=database_client, evidence=PendingPropertyEvidence()
+    )
     backend_app.config.update(TESTING=True)
     browser = backend_app.test_client()
     headers = {"X-Request-ID": "vertical-slice-request"}
