@@ -106,3 +106,28 @@ def test_feature1_search_degrades_when_unavailable_or_rejected():
 
     rejected = Feature1Client("http://f1", client=_mock_client(lambda r: httpx.Response(422)))
     assert rejected.search("anything") == {"available": True, "items": []}
+
+
+def test_feature1_coordinates_reads_the_property_record():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url).endswith("/properties/a0")
+        return httpx.Response(200, json={"property": {"longitude": 151.0, "latitude": -33.9}})
+
+    client = Feature1Client("http://f1", client=_mock_client(handler))
+    assert client.coordinates("a0") == (151.0, -33.9)
+
+
+def test_feature1_coordinates_none_when_missing_or_unavailable():
+    missing = Feature1Client("http://f1", client=_mock_client(lambda r: httpx.Response(404)))
+    assert missing.coordinates("a0") is None
+
+    no_coords = Feature1Client(
+        "http://f1", client=_mock_client(lambda r: httpx.Response(200, json={"property": {}}))
+    )
+    assert no_coords.coordinates("a0") is None
+
+    def boom(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down")
+
+    down = Feature1Client("http://f1", client=_mock_client(boom))
+    assert down.coordinates("a0") is None

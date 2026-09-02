@@ -1,0 +1,2 @@
+# Placeholder so the shared mapping module mounts here in dev and is copied here in the image.
+# The real module lives in shared/frontend/mapping.

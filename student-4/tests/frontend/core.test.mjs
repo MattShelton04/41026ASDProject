@@ -9,6 +9,7 @@ import {
   evidenceBadgeClass,
   evidenceStateLabel,
   formatType,
+  mapLayerDefinitions,
   parseRoute,
   problemMessage,
   statusBadgeClass,
@@ -142,4 +143,24 @@ test("toggleChecklist flips one item without mutating the input", () => {
   assert.equal(updated[0].done, false);
   assert.equal(original[1].done, false);
   assert.deepEqual(toggleChecklist(null, 0, true), []);
+});
+
+test("mapLayerDefinitions builds a point layer plus a polygon layer per hazard", () => {
+  const mapData = {
+    property: { type: "FeatureCollection", features: [{ type: "Feature" }] },
+    layers: [
+      {
+        id: "flood",
+        label: "Flood planning area",
+        data: { type: "FeatureCollection", features: [] },
+      },
+    ],
+  };
+  const defs = mapLayerDefinitions(mapData);
+  assert.equal(defs.length, 2);
+  assert.equal(defs[0].id, "property");
+  assert.equal(defs[0].kind, "point");
+  assert.equal(defs[1].id, "flood");
+  assert.equal(defs[1].kind, "polygon");
+  assert.deepEqual(mapLayerDefinitions({}), []);
 });
