@@ -26,6 +26,7 @@ from propertyscope_data_platform.adapters.gnaf import (
     select_geocode,
 )
 from propertyscope_data_platform.adapters.psi import (
+    PsiSale,
     iter_psi_archive,
     iter_psi_archive_path,
     parse_psi_archive,
@@ -38,6 +39,10 @@ from propertyscope_data_platform.artifacts import ArtifactRef
 from propertyscope_data_platform.bocsar_parquet import (
     BOCSAR_PARQUET_MEDIA_TYPE,
     BOCSAR_PARQUET_SCHEMA_VERSION,
+)
+from propertyscope_data_platform.psi_parquet import (
+    PSI_PARQUET_MEDIA_TYPE,
+    PSI_PARQUET_SCHEMA_VERSION,
 )
 from propertyscope_data_platform.runner import (
     AcquisitionRunner,
@@ -976,6 +981,71 @@ def test_bocsar_acquisition_registers_typed_sparse_parquet(
     assert schema_version == BOCSAR_PARQUET_SCHEMA_VERSION
     parquet = pq.ParquetFile(tmp_path / artifact.storage_key)
     assert parquet.metadata.num_rows == 4
+
+
+def test_psi_acquisition_registers_partition_aware_parquet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30)
+    )
+    sale = PsiSale(
+        "001:P1:1",
+        "post-2001",
+        "001",
+        "P1",
+        "1",
+        date(2025, 1, 1),
+        date(2025, 2, 1),
+        800_000,
+        Decimal("500"),
+        "M",
+        Decimal("500"),
+        "D1",
+    )
+    monkeypatch.setattr(
+        runner,
+        "_live_psi_partitions",
+        lambda *_args: ((2025, (sale,)), (2026, (sale,))),
+    )
+    registered: list[tuple[ArtifactRef, str]] = []
+
+    def register(
+        _task: dict[str, object],
+        *,
+        stage: str,
+        artifact: ArtifactRef,
+        schema_version: str,
+        **_options: object,
+    ) -> None:
+        assert stage == "acquire"
+        registered.append((artifact, schema_version))
+
+    monkeypatch.setattr(runner, "_register_stage_artifact", register)
+
+    rows_in, rows_out = runner._execute(
+        {
+            "id": "task-psi",
+            "ingestion_run_id": "run-psi",
+            "lease_token": "lease-psi",
+            "stage": "acquire",
+            "import_profile_key": "psi-sales",
+            "partition_json": {
+                "profile": "full-data",
+                "all_records": True,
+                "all_history": True,
+                "include_current_weekly": True,
+            },
+        }
+    )
+
+    assert (rows_in, rows_out) == (2, 2)
+    artifact, schema_version = registered[0]
+    assert artifact.media_type == PSI_PARQUET_MEDIA_TYPE
+    assert schema_version == PSI_PARQUET_SCHEMA_VERSION
+    parquet = pq.ParquetFile(tmp_path / artifact.storage_key)
+    assert parquet.metadata.num_rows == 2
+    assert parquet.metadata.num_row_groups == 2
 
 
 def test_gnaf_requires_members_and_selects_preferred_geocode() -> None:

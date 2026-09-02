@@ -34,9 +34,13 @@ from propertyscope_data_store.source_materialisation import (
 _PSI_PHASE_SQL = PSI_PHASE_SQL
 
 CANONICAL_SCHEMA_VERSION = "propertyscope.canonical-import.v1"
+CANONICAL_PARQUET_MEDIA_TYPE = "application/vnd.apache.parquet"
 BOCSAR_PARQUET_SCHEMA_VERSION = "propertyscope.canonical-bocsar-parquet.v1"
-BOCSAR_PARQUET_MEDIA_TYPE = "application/vnd.apache.parquet"
+BOCSAR_PARQUET_MEDIA_TYPE = CANONICAL_PARQUET_MEDIA_TYPE
 BOCSAR_PARQUET_BATCH_ROWS = 65_536
+PSI_PARQUET_SCHEMA_VERSION = "propertyscope.canonical-psi-parquet.v1"
+PSI_PARQUET_MEDIA_TYPE = CANONICAL_PARQUET_MEDIA_TYPE
+PSI_PARQUET_BATCH_ROWS = 65_536
 POSTGRES_INTEGER_MAX = 2_147_483_647
 POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807
 IMPORT_PHASE_LABELS: Mapping[str, str] = {
@@ -177,6 +181,182 @@ def iter_bocsar_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str
         raise ImportProfileError("canonical BOCSAR Parquet artifact is unreadable") from exc
 
 
+def iter_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str, Any]]:
+    """Dispatch a registered profile to its exact typed Parquet contract."""
+    if profile == "bocsar-sparse":
+        yield from iter_bocsar_parquet_import(path, profile=profile)
+        return
+    if profile == "psi-sales":
+        yield from iter_psi_parquet_import(path, profile=profile)
+        return
+    raise ImportProfileError("canonical Parquet is not registered for this import profile")
+
+
+def iter_psi_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str, Any]]:
+    """Validate and stream the registered partition-aware PSI Parquet contract."""
+    if profile != "psi-sales":
+        raise ImportProfileError("canonical PSI Parquet requires the psi-sales profile")
+    try:
+        parquet = pq.ParquetFile(path)
+    except (OSError, pa.ArrowException) as exc:
+        raise ImportProfileError("canonical PSI Parquet artifact is unreadable") from exc
+    actual_schema = parquet.schema_arrow
+    expected_schema = _psi_parquet_schema()
+    if not actual_schema.remove_metadata().equals(expected_schema.remove_metadata()):
+        raise ImportProfileError("canonical PSI Parquet schema is not registered")
+    metadata = actual_schema.metadata or {}
+    for key, expected in (expected_schema.metadata or {}).items():
+        if metadata.get(key) != expected:
+            raise ImportProfileError("canonical PSI Parquet metadata is not registered")
+    if parquet.metadata.num_rows == 0:
+        raise ImportProfileError("canonical import artifact must not be empty")
+    index = 0
+    try:
+        for batch in parquet.iter_batches(batch_size=PSI_PARQUET_BATCH_ROWS):
+            for source in batch.to_pylist():
+                index += 1
+                yield _psi_parquet_row(source, index)
+    except (OSError, pa.ArrowException) as exc:
+        raise ImportProfileError("canonical PSI Parquet artifact is unreadable") from exc
+
+
+def _psi_parquet_schema() -> pa.Schema:
+    return pa.schema(
+        [
+            pa.field("source_business_key", pa.string(), nullable=False),
+            pa.field("source_revision", pa.int32(), nullable=False),
+            pa.field("source_era", pa.string(), nullable=False),
+            pa.field("source_partition_year", pa.int32(), nullable=False),
+            pa.field("district_code", pa.string()),
+            pa.field("property_id", pa.string()),
+            pa.field("dealing_id", pa.string()),
+            pa.field("source_system", pa.string()),
+            pa.field("valuation_number", pa.string()),
+            pa.field("source_downloaded_at", pa.timestamp("us")),
+            pa.field("property_name", pa.string()),
+            pa.field("unit_number", pa.string()),
+            pa.field("house_number", pa.string()),
+            pa.field("street_number_first", pa.int32()),
+            pa.field("street_number_last", pa.int32()),
+            pa.field("street_number_suffix", pa.string()),
+            pa.field("street_name", pa.string()),
+            pa.field("street_name_normalised", pa.string()),
+            pa.field("street_type", pa.string()),
+            pa.field("locality", pa.string()),
+            pa.field("postcode", pa.string()),
+            pa.field("land_description", pa.string()),
+            pa.field("dimensions", pa.string()),
+            pa.field("zoning_code", pa.string()),
+            pa.field("nature_code", pa.string()),
+            pa.field("primary_purpose", pa.string()),
+            pa.field("strata_lot_number", pa.string()),
+            pa.field("component_code", pa.string()),
+            pa.field("sale_code", pa.string()),
+            pa.field("interest_of_sale", pa.string()),
+            pa.field("contract_date", pa.date32()),
+            pa.field("settlement_date", pa.date32()),
+            pa.field("price_aud", pa.int64()),
+            pa.field("area_original", pa.string()),
+            pa.field("area_unit", pa.string()),
+            pa.field("area_square_metres", pa.string()),
+            pa.field("property_ref", pa.string()),
+            pa.field("match_tier", pa.string(), nullable=False),
+            pa.field("match_confidence", pa.string(), nullable=False),
+            pa.field("geographic_precision", pa.string(), nullable=False),
+            pa.field("source_row_sha256", pa.binary(32), nullable=False),
+            pa.field("quality_warnings", pa.list_(pa.string())),
+        ],
+        metadata={
+            b"propertyscope.schema_version": PSI_PARQUET_SCHEMA_VERSION.encode(),
+            b"propertyscope.import_profile": b"psi-sales",
+            b"propertyscope.partition_semantics": b"source-archive-order",
+            b"propertyscope.retransmission_semantics": b"business-key-and-row-sha256",
+            b"propertyscope.sha256_encoding": b"fixed-size-binary-32",
+        },
+    )
+
+
+def _psi_parquet_row(source: dict[str, Any], index: int) -> dict[str, Any]:
+    source_revision = _parquet_integer(
+        source, "source_revision", index, minimum=1, maximum=POSTGRES_INTEGER_MAX
+    )
+    source_partition_year = _parquet_integer(
+        source, "source_partition_year", index, minimum=1990, maximum=POSTGRES_INTEGER_MAX
+    )
+    postcode = _parquet_optional_text(source, "postcode", index)
+    if postcode is not None and not _postcode_value(postcode):
+        raise ImportProfileError(f"record {index} postcode must contain four digits")
+    confidence = _parquet_decimal(source, "match_confidence", index, required=True)
+    if confidence is None or not Decimal("0") <= confidence <= Decimal("1"):
+        raise ImportProfileError(f"record {index} match_confidence is outside 0..1")
+    warnings = source.get("quality_warnings")
+    if warnings is None:
+        parsed_warnings: tuple[str, ...] = ()
+    elif (
+        not isinstance(warnings, list)
+        or any(not isinstance(value, str) for value in warnings)
+        or warnings != sorted(set(warnings))
+        or set(warnings) - {_PSI_ADDRESS_NUMBER_OUT_OF_RANGE}
+    ):
+        raise ImportProfileError(f"record {index} quality_warnings are not registered")
+    else:
+        parsed_warnings = tuple(warnings)
+    result: dict[str, Any] = {
+        "source_business_key": _parquet_text(source, "source_business_key", index),
+        "source_revision": source_revision,
+        "source_era": _parquet_text(source, "source_era", index),
+        "source_partition_year": source_partition_year,
+        "district_code": _parquet_optional_text(source, "district_code", index),
+        "property_id": _parquet_optional_text(source, "property_id", index),
+        "dealing_id": _parquet_optional_text(source, "dealing_id", index),
+        "source_system": _parquet_optional_text(source, "source_system", index),
+        "valuation_number": _parquet_optional_text(source, "valuation_number", index),
+        "source_downloaded_at": _parquet_optional_datetime(source, "source_downloaded_at", index),
+        "property_name": _parquet_optional_text(source, "property_name", index),
+        "unit_number": _parquet_optional_text(source, "unit_number", index),
+        "house_number": _parquet_optional_text(source, "house_number", index),
+        "street_number_first": _parquet_optional_integer(
+            source, "street_number_first", index, minimum=0, maximum=POSTGRES_INTEGER_MAX
+        ),
+        "street_number_last": _parquet_optional_integer(
+            source, "street_number_last", index, minimum=0, maximum=POSTGRES_INTEGER_MAX
+        ),
+        "street_number_suffix": _parquet_optional_text(source, "street_number_suffix", index),
+        "street_name": _parquet_optional_text(source, "street_name", index),
+        "street_name_normalised": _parquet_optional_text(source, "street_name_normalised", index),
+        "street_type": _parquet_optional_text(source, "street_type", index),
+        "locality": _parquet_optional_text(source, "locality", index),
+        "postcode": postcode,
+        "land_description": _parquet_optional_text(
+            source, "land_description", index, maximum_length=1_000
+        ),
+        "dimensions": _parquet_optional_text(source, "dimensions", index),
+        "zoning_code": _parquet_optional_text(source, "zoning_code", index),
+        "nature_code": _parquet_optional_text(source, "nature_code", index),
+        "primary_purpose": _parquet_optional_text(source, "primary_purpose", index),
+        "strata_lot_number": _parquet_optional_text(source, "strata_lot_number", index),
+        "component_code": _parquet_optional_text(source, "component_code", index),
+        "sale_code": _parquet_optional_text(source, "sale_code", index),
+        "interest_of_sale": _parquet_optional_text(source, "interest_of_sale", index),
+        "contract_date": _parquet_optional_date(source, "contract_date", index),
+        "settlement_date": _parquet_optional_date(source, "settlement_date", index),
+        "price_aud": _parquet_optional_integer(
+            source, "price_aud", index, minimum=0, maximum=POSTGRES_BIGINT_MAX
+        ),
+        "area_original": _parquet_decimal_text(source, "area_original", index),
+        "area_unit": _parquet_optional_text(source, "area_unit", index),
+        "area_square_metres": _parquet_decimal_text(source, "area_square_metres", index),
+        "property_ref": _parquet_optional_uuid(source, "property_ref", index),
+        "match_tier": _parquet_choice(source, "match_tier", index, {"A", "B", "C", "D", "MISS"}),
+        "match_confidence": str(confidence),
+        "geographic_precision": _parquet_text(source, "geographic_precision", index),
+        "source_row_sha256": _parquet_sha256(source, "source_row_sha256", index),
+    }
+    if parsed_warnings:
+        result[_PSI_QUALITY_WARNINGS_KEY] = parsed_warnings
+    return result
+
+
 def _bocsar_parquet_schema() -> pa.Schema:
     return pa.schema(
         [
@@ -292,6 +472,23 @@ def _parquet_text(source: Mapping[str, Any], field: str, index: int) -> str:
     return value.strip()
 
 
+def _parquet_optional_text(
+    source: Mapping[str, Any],
+    field: str,
+    index: int,
+    *,
+    maximum_length: int = 500,
+) -> str | None:
+    value = source.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > maximum_length:
+        raise ImportProfileError(
+            f"record {index} {field} must contain at most {maximum_length} characters"
+        )
+    return value.strip()
+
+
 def _parquet_choice(source: Mapping[str, Any], field: str, index: int, allowed: set[str]) -> str:
     value = _parquet_text(source, field, index)
     if value not in allowed:
@@ -301,6 +498,21 @@ def _parquet_choice(source: Mapping[str, Any], field: str, index: int, allowed: 
 
 def _parquet_date(source: Mapping[str, Any], field: str, index: int) -> str:
     return _parquet_date_value(source.get(field), field, index)
+
+
+def _parquet_optional_date(source: Mapping[str, Any], field: str, index: int) -> str | None:
+    return (
+        None if source.get(field) is None else _parquet_date_value(source.get(field), field, index)
+    )
+
+
+def _parquet_optional_datetime(source: Mapping[str, Any], field: str, index: int) -> str | None:
+    value = source.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, datetime):
+        raise ImportProfileError(f"record {index} {field} must be an ISO date-time")
+    return value.isoformat()
 
 
 def _parquet_date_value(value: object, field: str, index: int) -> str:
@@ -314,6 +526,69 @@ def _parquet_sha256(source: Mapping[str, Any], field: str, index: int) -> str:
     if not isinstance(value, bytes) or len(value) != 32:
         raise ImportProfileError(f"record {index} {field} must be a SHA-256 value")
     return value.hex()
+
+
+def _parquet_integer(
+    source: Mapping[str, Any],
+    field: str,
+    index: int,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int:
+    value = source.get(field)
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum or value > maximum:
+        raise ImportProfileError(f"record {index} {field} is outside its registered range")
+    return value
+
+
+def _parquet_optional_integer(
+    source: Mapping[str, Any],
+    field: str,
+    index: int,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int | None:
+    return (
+        None
+        if source.get(field) is None
+        else _parquet_integer(source, field, index, minimum=minimum, maximum=maximum)
+    )
+
+
+def _parquet_decimal(
+    source: Mapping[str, Any], field: str, index: int, *, required: bool
+) -> Decimal | None:
+    value = source.get(field)
+    if value is None and not required:
+        return None
+    if not isinstance(value, str):
+        raise ImportProfileError(f"record {index} {field} must be decimal")
+    try:
+        result = Decimal(value)
+    except InvalidOperation as exc:
+        raise ImportProfileError(f"record {index} {field} must be decimal") from exc
+    if not result.is_finite():
+        raise ImportProfileError(f"record {index} {field} must be finite")
+    return result
+
+
+def _parquet_decimal_text(source: Mapping[str, Any], field: str, index: int) -> str | None:
+    value = _parquet_decimal(source, field, index, required=False)
+    return None if value is None else str(value)
+
+
+def _parquet_optional_uuid(source: Mapping[str, Any], field: str, index: int) -> str | None:
+    value = source.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ImportProfileError(f"record {index} {field} must be a UUID")
+    try:
+        return str(uuid.UUID(value))
+    except ValueError as exc:
+        raise ImportProfileError(f"record {index} {field} must be a UUID") from exc
 
 
 def _require_parquet_nulls(source: Mapping[str, Any], index: int, fields: tuple[str, ...]) -> None:

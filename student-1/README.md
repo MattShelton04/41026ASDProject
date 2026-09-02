@@ -63,6 +63,14 @@ loader retains JSON/NDJSON compatibility for historical registered artifacts. Th
 canonical optimisation does not change the complete gzip-NDJSON release export or consumer
 contract, and it never reads unregistered developer/prototype caches.
 
+New PSI acquisitions use the partition-aware
+`propertyscope.canonical-psi-parquet.v1` handoff. Annual and weekly archives remain in registered
+source order, with typed, bounded, Zstandard-compressed row groups and the same retransmission row
+hashes as legacy NDJSON. The loader verifies the complete file and exact contract before feeding
+the unchanged PostgreSQL typed staging, identity/revision, address-resolution and candidate path.
+PostgreSQL remains authoritative, historical JSON/NDJSON stays replayable and complete consumer
+release exports remain gzip NDJSON.
+
 The PSI adapter is verified against real publisher archives and parses every annual archive from
 1990 onward plus current Monday weekly updates. Archives download into temporary files and
 DAT members are consumed as streams, so the archive and expanded records are not duplicated in

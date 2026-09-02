@@ -135,6 +135,19 @@ Legacy JSON/NDJSON remains readable for replay. This optimisation removes the mu
 canonical text expansion and JSON parsing, but it does not remove PostgreSQL row/index/WAL work; use
 the durable phase timings from an official run rather than assuming an end-to-end duration.
 
+New PSI runs likewise hand off source-ordered annual and weekly partitions as
+`propertyscope.canonical-psi-parquet.v1`. A partition boundary starts a new bounded row group, with
+large partitions split at 65,536 rows. The stored partition year remains provenance, while the row
+hash deliberately excludes partition year and revision so exact retransmissions preserve the
+legacy identity/revision behavior. Dates, timestamps and integers are typed; publisher decimal text
+remains exact for PostgreSQL `NUMERIC`. The loader performs the same complete checksum and strict
+schema/metadata/row validation before the unchanged PostgreSQL typed staging, identity derivation,
+address resolution and candidate materialisation. Legacy PSI JSON/NDJSON remains replayable.
+
+Parquet is intentionally limited to the measured high-volume BOCSAR and PSI handoffs. Schools and
+ABS SEIFA remain JSON because their source sizes do not justify another internal contract. G-NAF
+requires a separate source-scale benchmark and ADR before any equivalent change.
+
 The local Compose default declares a conservative 64 GiB Feature 1 PostgreSQL capacity budget,
 16 GiB of transaction-local temporary files and a 4 GiB reserve. PSI additionally reserves 6 GiB
 for relation/index growth and 16 GiB for WAL; BOCSAR reserves 8 GiB and 20 GiB respectively. These

@@ -39,6 +39,11 @@ from propertyscope_data_platform.bocsar_parquet import (
     BOCSAR_PARQUET_SCHEMA_VERSION,
     write_bocsar_parquet,
 )
+from propertyscope_data_platform.psi_parquet import (
+    PSI_PARQUET_MEDIA_TYPE,
+    PSI_PARQUET_SCHEMA_VERSION,
+    write_psi_parquet,
+)
 from propertyscope_data_platform.release_builders import (
     BuildContext,
     resolve_release_builder,
@@ -269,12 +274,13 @@ class AcquisitionRunner:
                     )
                     schema_version = BOCSAR_PARQUET_SCHEMA_VERSION
                 elif profile == "psi-sales":
-                    canonical_chunks = self._live_psi_chunks(task, scope, counter)
-                    artifact = self.artifacts.put(
-                        canonical_chunks,
-                        media_type="application/x-ndjson",
+                    artifact = self.artifacts.put_generated(
+                        lambda destination: self._write_live_psi_parquet(
+                            destination, task, scope, counter
+                        ),
+                        media_type=PSI_PARQUET_MEDIA_TYPE,
                     )
-                    schema_version = "propertyscope.canonical-import.v1"
+                    schema_version = PSI_PARQUET_SCHEMA_VERSION
                 else:
                     canonical_chunks = self._live_gnaf_chunks(task, scope, counter)
                     artifact = self.artifacts.put(
@@ -769,6 +775,34 @@ class AcquisitionRunner:
         self, task: dict[str, Any], scope: dict[str, object], counter: list[int]
     ) -> Iterable[bytes]:
         """Stream complete PSI partitions as canonical NDJSON without retaining history in RAM."""
+        for source_year, sales in self._live_psi_partitions(task, scope):
+            for sale in sales:
+                self._note_psi_record(task, counter)
+                yield (
+                    json.dumps(
+                        _psi_record(sale, source_year=source_year),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                    + b"\n"
+                )
+
+    def _write_live_psi_parquet(
+        self,
+        destination: Path,
+        task: dict[str, Any],
+        scope: dict[str, object],
+        counter: list[int],
+    ) -> None:
+        write_psi_parquet(
+            destination,
+            self._live_psi_partitions(task, scope),
+            on_record=lambda: self._note_psi_record(task, counter),
+        )
+
+    def _live_psi_partitions(
+        self, task: dict[str, Any], scope: dict[str, object]
+    ) -> Iterable[tuple[int, Iterable[PsiSale]]]:
         years = _psi_years(scope)
         sources = [
             (year, PSI_YEARLY_URL.format(year=year), self._psi_archive(year)) for year in years
@@ -794,25 +828,19 @@ class AcquisitionRunner:
                     progress=self._heartbeat_progress(task),
                 )
             with source as path:
-                for sale in iter_psi_archive_path(path, source_year=source_year):
-                    counter[0] += 1
-                    if counter[0] % 25_000 == 0:
-                        self._heartbeat(
-                            str(task["id"]),
-                            str(task["lease_token"]),
-                            progress={
-                                "phase": "canonicalising sales records",
-                                "rows_processed": counter[0],
-                            },
-                        )
-                    yield (
-                        json.dumps(
-                            _psi_record(sale, source_year=source_year),
-                            sort_keys=True,
-                            separators=(",", ":"),
-                        ).encode()
-                        + b"\n"
-                    )
+                yield source_year, iter_psi_archive_path(path, source_year=source_year)
+
+    def _note_psi_record(self, task: dict[str, Any], counter: list[int]) -> None:
+        counter[0] += 1
+        if counter[0] % 25_000 == 0:
+            self._heartbeat(
+                str(task["id"]),
+                str(task["lease_token"]),
+                progress={
+                    "phase": "canonicalising sales records",
+                    "rows_processed": counter[0],
+                },
+            )
 
     def _psi_archive(self, year: int) -> Path | None:
         root = self.settings.psi_archive_root

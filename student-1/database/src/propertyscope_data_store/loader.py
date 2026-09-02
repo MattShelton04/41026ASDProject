@@ -16,12 +16,12 @@ from typing import Any
 
 from propertyscope_data_store.configuration import StoreSettings
 from propertyscope_data_store.import_profiles import (
-    BOCSAR_PARQUET_MEDIA_TYPE,
+    CANONICAL_PARQUET_MEDIA_TYPE,
     IMPORT_PHASE_LABELS,
     REGISTERED_PROFILES,
     ImportProfileError,
-    iter_bocsar_parquet_import,
     iter_ndjson_import,
+    iter_parquet_import,
     prepare_import,
 )
 from propertyscope_data_store.repository import PropertyScopeStore
@@ -385,7 +385,7 @@ class DatabaseLoader:
             total_bytes=total_bytes,
         )
         raise_if_cancelled(force=True)
-        if work["media_type"] == BOCSAR_PARQUET_MEDIA_TYPE:
+        if work["media_type"] == CANONICAL_PARQUET_MEDIA_TYPE:
             _verify_registered_file(
                 path,
                 expected_sha256=str(work["content_sha256"]),
@@ -406,7 +406,7 @@ class DatabaseLoader:
                 bytes_processed=0,
                 total_bytes=total_bytes,
             )
-            rows = iter_bocsar_parquet_import(path, profile=profile)
+            rows = iter_parquet_import(path, profile=profile)
             cancellable_rows = _raise_between_rows(rows, raise_if_cancelled)
             imported = self.store.execute_stream_import_profile(
                 work,

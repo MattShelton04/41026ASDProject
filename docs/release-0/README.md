@@ -18,6 +18,8 @@ submission.
   Feature 1 service, data, API, AI, testing, and evidence design
 - [`bocsar-parquet-adoption.md`](bocsar-parquet-adoption.md): reusable implementation prompt,
   rollout plan and rollback constraints for the sparse BOCSAR canonical artifact
+- [`psi-parquet-adoption.md`](psi-parquet-adoption.md): implementation prompt, rollout and
+  measurement plan for the partition-aware PSI canonical artifact
 - [`ai-mode-operations-interface-plan.md`](ai-mode-operations-interface-plan.md): implemented local
   read-only operations view and remaining remote-access decisions
 
