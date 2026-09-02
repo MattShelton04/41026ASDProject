@@ -397,6 +397,28 @@ a.review-card:hover {
   gap: var(--ps-layout-gap);
   margin-bottom: clamp(1.4rem, 3vw, 2.2rem);
 }
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: var(--ps-space-4);
+}
+.confirm-dialog {
+  width: min(420px, calc(100vw - 2rem));
+  padding: var(--ps-space-6);
+  border: 1px solid var(--line);
+  border-radius: var(--ps-radius-lg);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--ps-shadow-lg);
+}
+.confirm-dialog::backdrop {
+  background: var(--ps-color-overlay);
+}
+.dialog-copy {
+  margin: 0 0 var(--ps-space-5);
+  color: var(--muted);
+}
 .notes-text {
   margin: 0;
   color: var(--muted);
@@ -409,17 +431,20 @@ a.review-card:hover {
   list-style: none;
 }
 .checklist__item {
+  color: var(--ps-ink-700);
+}
+.checklist__label {
   display: flex;
   align-items: flex-start;
   gap: 0.55rem;
-  color: var(--ps-ink-700);
+  cursor: pointer;
 }
-.checklist__mark {
-  color: var(--ps-ink-400);
-  font-weight: 700;
-}
-.checklist__item.is-done .checklist__mark {
-  color: var(--ps-color-success);
+.checklist__checkbox {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.15rem;
+  accent-color: var(--ps-color-accent);
 }
 .checklist__item.is-done .checklist__text {
   color: var(--muted);

@@ -113,6 +113,22 @@ export function problemMessage(problem, status) {
   return `Could not save the review (status ${status}).`;
 }
 
+// Build an update payload for an existing review (property is not editable).
+export function buildUpdatePayload(values) {
+  return {
+    title: String(values.title || "").trim(),
+    status: values.status || "draft",
+    disposition: values.disposition || "undecided",
+    notes: String(values.notes || "").trim(),
+  };
+}
+
+// Return a new checklist with one item's done-state changed (pure).
+export function toggleChecklist(checklist, index, done) {
+  const items = Array.isArray(checklist) ? checklist : [];
+  return items.map((item, position) => (position === index ? { ...item, done } : item));
+}
+
 // --- DOM helpers (browser only) ---
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -271,26 +287,54 @@ function evidenceSection(title, items, kind) {
   return section;
 }
 
-function checklistCard(checklist) {
+function checklistCard(review) {
   const card = el("article", "ps-card");
   const body = el("div", "ps-card__body");
   body.append(el("h2", "card-title", "Checklist"));
-  const items = Array.isArray(checklist) ? checklist : [];
+  const items = Array.isArray(review.checklist) ? review.checklist : [];
   if (items.length === 0) {
     body.append(el("p", "empty", "No checklist items yet."));
   } else {
     const list = el("ul", "checklist");
-    items.forEach((entry) => {
+    items.forEach((entry, index) => {
       const done = Boolean(entry && entry.done);
       const li = el("li", done ? "checklist__item is-done" : "checklist__item");
-      li.append(el("span", "checklist__mark", done ? "\u2713" : "\u25CB"));
-      li.append(el("span", "checklist__text", (entry && entry.item) || ""));
+      const label = el("label", "checklist__label");
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "checklist__checkbox";
+      checkbox.checked = done;
+      checkbox.addEventListener("change", () => toggleChecklistItem(review, index, checkbox, li));
+      label.append(checkbox, el("span", "checklist__text", (entry && entry.item) || ""));
+      li.append(label);
       list.append(li);
     });
     body.append(list);
   }
   card.append(body);
   return card;
+}
+
+async function toggleChecklistItem(review, index, checkbox, li) {
+  const desired = checkbox.checked;
+  const updated = toggleChecklist(review.checklist, index, desired);
+  checkbox.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/site-reviews/${encodeURIComponent(review.id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checklist: updated }),
+    });
+    if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
+    review.checklist = updated;
+    reviewsLoaded = false;
+    if (li) li.classList.toggle("is-done", desired);
+  } catch (networkError) {
+    checkbox.checked = !desired;
+    showToast("Could not update the checklist item.");
+  } finally {
+    checkbox.disabled = false;
+  }
 }
 
 function questionsCard(questions) {
@@ -360,11 +404,20 @@ async function renderDetailView(view, id) {
   meta.append(badge(statusBadgeClass(review.status), statusLabel(review.status)));
   meta.append(el("span", "review-disposition", `Disposition: ${dispositionLabel(review.disposition)}`));
   heading.append(meta);
+  const actions = el("div", "detail-actions");
+  const editButton = el("button", "ps-button", "Edit");
+  editButton.type = "button";
+  editButton.addEventListener("click", () => openEditDialog(review));
+  const deleteButton = el("button", "ps-button ps-button--danger", "Delete");
+  deleteButton.type = "button";
+  deleteButton.addEventListener("click", () => openDeleteConfirm(review));
+  actions.append(editButton, deleteButton);
+  heading.append(actions);
   view.append(heading);
 
   const stack = el("div", "detail-stack");
   if (review.notes) stack.append(notesCard(review.notes));
-  stack.append(checklistCard(review.checklist));
+  stack.append(checklistCard(review));
   stack.append(questionsCard(review.verification_questions));
   view.append(stack);
 
@@ -372,10 +425,13 @@ async function renderDetailView(view, id) {
   view.append(evidenceSection("Strata & building records", data.buildings, "building"));
 }
 
-// --- create dialog ---
+// --- create / edit / delete dialogs ---
 let selectedProperty = null;
 let searchTimer;
 let toastTimer;
+let dialogMode = "create";
+let editingReviewId = null;
+let deletingReviewId = null;
 
 function showToast(message) {
   const toast = document.querySelector("#toast");
@@ -470,6 +526,8 @@ function initPropertySearch() {
 function openCreateDialog() {
   const dialog = document.querySelector("#review-dialog");
   if (!dialog) return;
+  dialogMode = "create";
+  editingReviewId = null;
   selectedProperty = null;
   const form = document.querySelector("#review-form");
   if (form) form.reset();
@@ -480,10 +538,33 @@ function openCreateDialog() {
     selected.hidden = true;
     selected.textContent = "";
   }
+  const propertyField = document.querySelector("#property-field");
+  if (propertyField) propertyField.hidden = false;
+  document.querySelector("#review-dialog-title").textContent = "New site review";
+  document.querySelector("#review-submit").textContent = "Create review";
   clearError(document.querySelector("#review-error"));
   dialog.showModal();
   const input = document.querySelector("#property-search");
   if (input) input.focus();
+}
+
+function openEditDialog(review) {
+  const dialog = document.querySelector("#review-dialog");
+  if (!dialog) return;
+  dialogMode = "edit";
+  editingReviewId = review.id;
+  selectedProperty = { property_ref: review.property_ref, address_display: review.address_display };
+  document.querySelector("#review-title").value = review.title || "";
+  document.querySelector("#review-status").value = review.status || "draft";
+  document.querySelector("#review-disposition").value = review.disposition || "undecided";
+  document.querySelector("#review-notes").value = review.notes || "";
+  const propertyField = document.querySelector("#property-field");
+  if (propertyField) propertyField.hidden = true;
+  document.querySelector("#review-dialog-title").textContent = "Edit site review";
+  document.querySelector("#review-submit").textContent = "Save changes";
+  clearError(document.querySelector("#review-error"));
+  dialog.showModal();
+  document.querySelector("#review-title").focus();
 }
 
 function closeDialog() {
@@ -491,36 +572,62 @@ function closeDialog() {
   if (dialog && dialog.open) dialog.close();
 }
 
+function currentFormValues() {
+  return {
+    title: document.querySelector("#review-title").value,
+    status: document.querySelector("#review-status").value,
+    disposition: document.querySelector("#review-disposition").value,
+    notes: document.querySelector("#review-notes").value,
+  };
+}
+
+function saveCreate() {
+  const payload = buildReviewPayload({
+    propertyRef: selectedProperty.property_ref,
+    addressDisplay: selectedProperty.address_display,
+    ...currentFormValues(),
+  });
+  return fetch(`${API_BASE}/site-reviews`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+function saveEdit() {
+  const payload = buildUpdatePayload(currentFormValues());
+  return fetch(`${API_BASE}/site-reviews/${encodeURIComponent(editingReviewId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 async function submitReview(event) {
   event.preventDefault();
   const error = document.querySelector("#review-error");
   const title = document.querySelector("#review-title");
   clearError(error);
-  if (!selectedProperty) {
-    showError(error, "Search for and select a verified property first.");
-    return;
-  }
   if (!title || !title.value.trim()) {
     showError(error, "Enter a title for the review.");
     return;
   }
-  const payload = buildReviewPayload({
-    propertyRef: selectedProperty.property_ref,
-    addressDisplay: selectedProperty.address_display,
-    title: title.value,
-    status: document.querySelector("#review-status").value,
-    disposition: document.querySelector("#review-disposition").value,
-    notes: document.querySelector("#review-notes").value,
-  });
+  if (dialogMode === "create" && !selectedProperty) {
+    showError(error, "Search for and select a verified property first.");
+    return;
+  }
   const submit = document.querySelector("#review-submit");
   if (submit) submit.disabled = true;
   try {
-    const response = await fetch(`${API_BASE}/site-reviews`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (response.status === 201) {
+    const response = dialogMode === "edit" ? await saveEdit() : await saveCreate();
+    if (dialogMode === "edit" && response.ok) {
+      closeDialog();
+      reviewsLoaded = false;
+      showToast("Site review updated.");
+      route({ focus: false });
+      return;
+    }
+    if (dialogMode === "create" && response.status === 201) {
       const created = await response.json();
       closeDialog();
       reviewsLoaded = false;
@@ -534,6 +641,44 @@ async function submitReview(event) {
     showError(error, "Could not save the review. Is the due-diligence service running?");
   } finally {
     if (submit) submit.disabled = false;
+  }
+}
+
+function openDeleteConfirm(review) {
+  const dialog = document.querySelector("#confirm-dialog");
+  if (!dialog) return;
+  deletingReviewId = review.id;
+  const text = document.querySelector("#confirm-text");
+  if (text) text.textContent = `Delete "${review.title}"? This cannot be undone.`;
+  dialog.showModal();
+}
+
+function closeConfirm() {
+  const dialog = document.querySelector("#confirm-dialog");
+  if (dialog && dialog.open) dialog.close();
+}
+
+async function confirmDelete() {
+  if (!deletingReviewId) return;
+  const button = document.querySelector("#confirm-delete");
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/site-reviews/${encodeURIComponent(deletingReviewId)}`, {
+      method: "DELETE",
+    });
+    closeConfirm();
+    if (response.ok) {
+      reviewsLoaded = false;
+      showToast("Site review deleted.");
+      location.hash = "#site-reviews";
+    } else {
+      showToast("Could not delete the review.");
+    }
+  } catch (networkError) {
+    closeConfirm();
+    showToast("Could not delete the review. Is the service running?");
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -579,6 +724,15 @@ function initialise() {
       .querySelectorAll("[data-close]")
       .forEach((button) => button.addEventListener("click", closeDialog));
     initPropertySearch();
+  }
+
+  const confirmDialog = document.querySelector("#confirm-dialog");
+  if (confirmDialog) {
+    const confirmButton = document.querySelector("#confirm-delete");
+    if (confirmButton) confirmButton.addEventListener("click", confirmDelete);
+    confirmDialog
+      .querySelectorAll("[data-confirm-close]")
+      .forEach((button) => button.addEventListener("click", closeConfirm));
   }
 
   route({ focus: false });
