@@ -36,6 +36,29 @@ implementation; the application exposes only manifest-enabled features.
 MCP, RAG, and multi-agent services are intended for local execution. The course specification
 requires them to remain disabled in the Release 2 cloud deployment.
 
+## Application preview
+
+The shared research workspace keeps property evidence, source coverage, and uncertainty visible
+from the start.
+
+![PropertyScope NSW research workspace](docs/images/readme/propertyscope-home.png)
+
+Property Discovery resolves a NSW address against the current published property register.
+
+![Property search results for a deterministic NSW fixture address](docs/images/readme/property-search.png)
+
+The data overview summarises publication readiness, recent updates, and current coverage.
+
+![Property data operations overview](docs/images/readme/data-overview.png)
+
+These images use the deterministic populated UI fixture at a 1440x1000 viewport, so they contain no
+live credentials or machine-specific data. After a UI change, refresh all three consistently with:
+
+```text
+uv run playwright install chromium
+uv run scripts/dev.py ui readme-screenshots
+```
+
 ## Repository guide
 
 - `.github/workflows/`: canonical integration CI and student workflow files
