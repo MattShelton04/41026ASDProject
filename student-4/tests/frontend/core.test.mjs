@@ -3,11 +3,13 @@ import { test } from "node:test";
 
 import {
   API_BASE,
+  buildReviewPayload,
   dispositionLabel,
   evidenceBadgeClass,
   evidenceStateLabel,
   formatType,
   parseRoute,
+  problemMessage,
   statusBadgeClass,
   statusLabel,
   summariseReview,
@@ -74,4 +76,42 @@ test("parseRoute distinguishes the list and detail routes", () => {
     name: "detail",
     id: "a0000000-0000-0000-0000-000000000001",
   });
+});
+
+test("buildReviewPayload trims fields and keeps a checklist", () => {
+  const payload = buildReviewPayload({
+    propertyRef: " a0 ",
+    addressDisplay: " 11 Example Street ",
+    title: "  My review ",
+    status: "in_review",
+    disposition: "proceed",
+    notes: "  note ",
+  });
+  assert.equal(payload.property_ref, "a0");
+  assert.equal(payload.address_display, "11 Example Street");
+  assert.equal(payload.title, "My review");
+  assert.equal(payload.status, "in_review");
+  assert.equal(payload.disposition, "proceed");
+  assert.equal(payload.notes, "note");
+  assert.ok(Array.isArray(payload.checklist) && payload.checklist.length >= 1);
+});
+
+test("buildReviewPayload applies safe defaults", () => {
+  const payload = buildReviewPayload({ propertyRef: "a0", addressDisplay: "x", title: "t" });
+  assert.equal(payload.status, "draft");
+  assert.equal(payload.disposition, "undecided");
+  assert.equal(payload.notes, "");
+  assert.deepEqual(payload.checklist[0], {
+    item: "Confirm zoning permits the intended use",
+    done: false,
+  });
+});
+
+test("problemMessage maps known error codes", () => {
+  assert.equal(
+    problemMessage({ code: "unknown_property" }, 422),
+    "That property is not verified in Feature 1.",
+  );
+  assert.equal(problemMessage({ code: "invalid_site_review", detail: "bad title" }, 422), "bad title");
+  assert.match(problemMessage({}, 500), /status 500/);
 });
