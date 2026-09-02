@@ -46,18 +46,22 @@ INSERT INTO ops.source_definition (
 ) ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO ops.job_definition (
-    id,source_definition_id,name,profile_key,profile_version,adapter_key,
+    id,source_definition_id,name,profile_key,profile_version,adapter_key,adapter_version,
     release_builder_key,release_builder_version,import_profile_key,import_profile_version,
-    target_feature,dataset_id,refresh_strategy,default_run_mode,scope_json,
-    quality_policy_key,quality_policy_version,max_parallelism,timeout_seconds,max_objects,
-    max_bytes,max_rows,status,schedule_text,created_at,updated_at,version
+    target_feature,dataset_id,refresh_strategy,default_run_mode,
+    quality_policy_key,quality_policy_version,status,schedule_text,created_at,updated_at,version
 ) VALUES (
     '20000000-0000-0000-0000-000000000011',
     '10000000-0000-0000-0000-000000000011',
     'ABS SEIFA 2021 NSW suburb and locality indexes','abs-seifa-2021-sal-nsw','1.0.0',
-    'abs-seifa-xlsx','seifa-area','1.0.0','seifa-2021-sal-nsw','1.0.0',
+    'abs-seifa-xlsx','1.0.0','seifa-area','1.0.0','seifa-2021-sal-nsw','1.0.0',
     'feature-1','abs-seifa-2021','full_snapshot','full_refresh',
-    '{"profile":"full-data","state":"NSW","all_records":true}'::jsonb,
-    'abs-seifa-2021-sal-nsw','1.0.0',1,1800,1,25000000,10000,'active',NULL,
+    'abs-seifa-2021-sal-nsw','1.0.0','active',NULL,
     now(),now(),1
 ) ON CONFLICT (id) DO NOTHING;
+
+-- Keep the new registration aligned if an operator created the stable job ID manually before
+-- this migration. Earlier migration files remain immutable because deployed checksums are durable.
+UPDATE ops.job_definition
+SET release_builder_version = '1.0.0', updated_at = now(), version = version + 1
+WHERE release_builder_key = 'seifa-area' AND release_builder_version <> '1.0.0';
