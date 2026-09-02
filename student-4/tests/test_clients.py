@@ -67,3 +67,42 @@ def test_feature1_validate_maps_all_states():
 
     down = Feature1Client("http://f1", client=_mock_client(boom))
     assert down.validate("a0") == "unavailable"
+
+
+def test_feature1_search_projects_and_bounds_results():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "q=11+Example" in str(request.url) or "q=11%20Example" in str(request.url)
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "property_ref": "a0",
+                        "address_display": "11 Example Street, Sydney NSW 2000",
+                        "resolution_status": "verified",
+                        "locality": "SYDNEY",
+                        "postcode": "2000",
+                    },
+                    {"address_display": "missing ref"},
+                    "not-a-dict",
+                ]
+            },
+        )
+
+    client = Feature1Client("http://f1", client=_mock_client(handler))
+    result = client.search("11 Example Street", limit=5)
+    assert result["available"] is True
+    assert len(result["items"]) == 1
+    assert result["items"][0]["property_ref"] == "a0"
+    assert result["items"][0]["resolution_status"] == "verified"
+
+
+def test_feature1_search_degrades_when_unavailable_or_rejected():
+    def boom(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down")
+
+    down = Feature1Client("http://f1", client=_mock_client(boom))
+    assert down.search("anything") == {"available": False, "items": []}
+
+    rejected = Feature1Client("http://f1", client=_mock_client(lambda r: httpx.Response(422)))
+    assert rejected.search("anything") == {"available": True, "items": []}
