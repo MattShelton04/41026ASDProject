@@ -72,3 +72,35 @@ class Feature1Client:
         if response.status_code == 404:
             return "not_found"
         return "unavailable"
+
+    def search(self, query: str, limit: int = 8) -> dict[str, Any]:
+        """Return ``{"available": bool, "items": [...]}`` of verified-property matches.
+
+        Mirrors ``validate``: transport failures degrade to ``available: False`` rather than
+        raising, so the create form can fall back gracefully when Feature 1 is unreachable.
+        """
+        try:
+            response = self._client.get(
+                f"{self._origin}/api/data-platform/v1/properties/search",
+                params={"q": query, "state": "NSW", "limit": limit},
+            )
+        except httpx.TransportError:
+            return {"available": False, "items": []}
+        if response.status_code != 200:
+            return {"available": True, "items": []}
+        payload = response.json()
+        raw_items = payload.get("items", []) if isinstance(payload, dict) else []
+        items = [
+            {
+                "property_ref": item["property_ref"],
+                "address_display": item["address_display"],
+                "resolution_status": item.get("resolution_status"),
+                "locality": item.get("locality"),
+                "postcode": item.get("postcode"),
+            }
+            for item in raw_items
+            if isinstance(item, dict)
+            and isinstance(item.get("property_ref"), str)
+            and isinstance(item.get("address_display"), str)
+        ]
+        return {"available": True, "items": items[:limit]}
