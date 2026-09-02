@@ -129,6 +129,37 @@ export function toggleChecklist(checklist, index, done) {
   return items.map((item, position) => (position === index ? { ...item, done } : item));
 }
 
+// Build shared-map layer definitions from the backend /map payload (pure).
+export function mapLayerDefinitions(mapData) {
+  const layers = [];
+  if (mapData && mapData.property) {
+    layers.push({
+      id: "property",
+      label: "Property",
+      kind: "point",
+      data: mapData.property,
+      popup: { title: "address", fields: [] },
+    });
+  }
+  const hazards = Array.isArray(mapData && mapData.layers) ? mapData.layers : [];
+  for (const layer of hazards) {
+    layers.push({
+      id: layer.id,
+      label: layer.label,
+      kind: "polygon",
+      data: layer.data,
+      popup: {
+        title: "hazard",
+        fields: [
+          { label: "Evidence", property: "evidence_state" },
+          { label: "Note", property: "summary" },
+        ],
+      },
+    });
+  }
+  return layers;
+}
+
 // --- DOM helpers (browser only) ---
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -370,6 +401,63 @@ function notesCard(notes) {
   return card;
 }
 
+function mapCard(review) {
+  const card = el("article", "ps-card");
+  const body = el("div", "ps-card__body");
+  body.append(el("h2", "card-title", "Environmental map"));
+  body.append(
+    el(
+      "p",
+      "map-intro",
+      "Flood and bushfire layers are drawn only where the evidence intersects the property.",
+    ),
+  );
+  const host = el("div", "ps-map");
+  const canvas = el("div", "ps-map__canvas");
+  const statusNode = el("div", "ps-map__status", "Loading map\u2026");
+  statusNode.setAttribute("role", "status");
+  statusNode.dataset.state = "loading";
+  host.append(canvas, statusNode);
+  body.append(host);
+  card.append(body);
+  loadMap(review.id, canvas, statusNode);
+  return card;
+}
+
+async function loadMap(reviewId, canvas, statusNode) {
+  let mapData;
+  try {
+    const response = await fetch(`${API_BASE}/site-reviews/${encodeURIComponent(reviewId)}/map`);
+    if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
+    mapData = await response.json();
+  } catch (networkError) {
+    statusNode.dataset.state = "error";
+    statusNode.textContent = "The map could not be loaded.";
+    return;
+  }
+  if (!mapData.available) {
+    statusNode.dataset.state = "error";
+    statusNode.textContent = "No verified coordinate is available, so the map cannot be shown.";
+    return;
+  }
+  try {
+    const mapping = await import("./mapping/index.js");
+    await mapping.createMap({
+      container: canvas,
+      provider: mapping.createOpenFreeMapProvider(),
+      layers: mapLayerDefinitions(mapData),
+      view: { center: mapData.center, zoom: 15 },
+      onStatus(event) {
+        statusNode.dataset.state = event.state;
+        statusNode.textContent = event.message;
+      },
+    });
+  } catch (mapError) {
+    statusNode.dataset.state = "error";
+    statusNode.textContent = "The interactive map could not start; the evidence below remains available.";
+  }
+}
+
 async function renderDetailView(view, id) {
   renderMessage(view, "Loading review\u2026");
   let data;
@@ -420,6 +508,8 @@ async function renderDetailView(view, id) {
   stack.append(checklistCard(review));
   stack.append(questionsCard(review.verification_questions));
   view.append(stack);
+
+  view.append(mapCard(review));
 
   view.append(evidenceSection("Planning & environmental constraints", data.constraints, "constraint"));
   view.append(evidenceSection("Strata & building records", data.buildings, "building"));
