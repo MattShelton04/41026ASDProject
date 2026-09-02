@@ -10,8 +10,11 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any
 
+import pyarrow as pa  # type: ignore[import-untyped]
+import pyarrow.parquet as pq  # type: ignore[import-untyped]
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
@@ -31,6 +34,9 @@ from propertyscope_data_store.source_materialisation import (
 _PSI_PHASE_SQL = PSI_PHASE_SQL
 
 CANONICAL_SCHEMA_VERSION = "propertyscope.canonical-import.v1"
+BOCSAR_PARQUET_SCHEMA_VERSION = "propertyscope.canonical-bocsar-parquet.v1"
+BOCSAR_PARQUET_MEDIA_TYPE = "application/vnd.apache.parquet"
+BOCSAR_PARQUET_BATCH_ROWS = 65_536
 POSTGRES_INTEGER_MAX = 2_147_483_647
 POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807
 IMPORT_PHASE_LABELS: Mapping[str, str] = {
@@ -134,6 +140,178 @@ def iter_ndjson_import(lines: Iterable[bytes], *, profile: str) -> Iterable[dict
         yield validator(row, index)
     if not found:
         raise ImportProfileError("canonical import artifact must not be empty")
+
+
+def iter_bocsar_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str, Any]]:
+    """Validate and stream the registered typed BOCSAR Parquet contract."""
+    if profile != "bocsar-sparse":
+        raise ImportProfileError("canonical BOCSAR Parquet requires the bocsar-sparse profile")
+    try:
+        parquet = pq.ParquetFile(path)
+    except (OSError, pa.ArrowException) as exc:
+        raise ImportProfileError("canonical BOCSAR Parquet artifact is unreadable") from exc
+    actual_schema = parquet.schema_arrow
+    expected_schema = _bocsar_parquet_schema()
+    if not actual_schema.remove_metadata().equals(expected_schema.remove_metadata()):
+        raise ImportProfileError("canonical BOCSAR Parquet schema is not registered")
+    metadata = actual_schema.metadata or {}
+    for key, expected in (expected_schema.metadata or {}).items():
+        if metadata.get(key) != expected:
+            raise ImportProfileError("canonical BOCSAR Parquet metadata is not registered")
+    if parquet.metadata.num_rows == 0:
+        raise ImportProfileError("canonical import artifact must not be empty")
+    index = 0
+    try:
+        for batch in parquet.iter_batches(batch_size=BOCSAR_PARQUET_BATCH_ROWS):
+            for source in batch.to_pylist():
+                index += 1
+                yield _bocsar_parquet_row(source, index)
+    except (OSError, pa.ArrowException) as exc:
+        raise ImportProfileError("canonical BOCSAR Parquet artifact is unreadable") from exc
+
+
+def _bocsar_parquet_schema() -> pa.Schema:
+    return pa.schema(
+        [
+            pa.field("record_kind", pa.string(), nullable=False),
+            pa.field("geography_kind", pa.string(), nullable=False),
+            pa.field("geography_value", pa.string(), nullable=False),
+            pa.field("source_category_key", pa.string(), nullable=False),
+            pa.field("offence_label", pa.string()),
+            pa.field("subcategory_label", pa.string()),
+            pa.field("month", pa.date32()),
+            pa.field("count", pa.int32()),
+            pa.field("observed_months", pa.list_(pa.date32())),
+            pa.field("first_month", pa.date32()),
+            pa.field("last_month", pa.date32()),
+            pa.field("month_count", pa.int32()),
+            pa.field("blank_means_observed_zero", pa.bool_()),
+            pa.field("completeness_sha256", pa.binary(32)),
+            pa.field("source_row_sha256", pa.binary(32), nullable=False),
+        ],
+        metadata={
+            b"propertyscope.schema_version": BOCSAR_PARQUET_SCHEMA_VERSION.encode(),
+            b"propertyscope.import_profile": b"bocsar-sparse",
+            b"propertyscope.zero_semantics": b"coverage-evidence-required",
+            b"propertyscope.sha256_encoding": b"fixed-size-binary-32",
+        },
+    )
+
+
+def _bocsar_parquet_row(source: dict[str, Any], index: int) -> dict[str, Any]:
+    kind = _parquet_choice(source, "record_kind", index, {"observation", "coverage"})
+    geography_kind = _parquet_choice(source, "geography_kind", index, {"postcode", "suburb"})
+    geography_value = _parquet_text(source, "geography_value", index)
+    if geography_kind == "postcode" and not _postcode_value(geography_value):
+        raise ImportProfileError(f"record {index} geography_value must preserve four digits")
+    common: dict[str, Any] = {
+        "record_kind": kind,
+        "geography_kind": geography_kind,
+        "geography_value": geography_value,
+        "source_category_key": _parquet_text(source, "source_category_key", index),
+    }
+    source_hash = _parquet_sha256(source, "source_row_sha256", index)
+    if kind == "observation":
+        _require_parquet_nulls(
+            source,
+            index,
+            (
+                "observed_months",
+                "first_month",
+                "last_month",
+                "month_count",
+                "blank_means_observed_zero",
+                "completeness_sha256",
+            ),
+        )
+        month = _parquet_date(source, "month", index)
+        count = source.get("count")
+        if (
+            isinstance(count, bool)
+            or not isinstance(count, int)
+            or not 1 <= count <= POSTGRES_INTEGER_MAX
+        ):
+            raise ImportProfileError(f"record {index} count is outside its registered range")
+        return {
+            **common,
+            "offence_label": _parquet_text(source, "offence_label", index),
+            "subcategory_label": _parquet_text(source, "subcategory_label", index),
+            "month": month,
+            "count": count,
+            "month_or_coverage": month,
+            "source_row_sha256": source_hash,
+        }
+
+    _require_parquet_nulls(source, index, ("offence_label", "subcategory_label", "month", "count"))
+    raw_months = source.get("observed_months")
+    if not isinstance(raw_months, list) or not raw_months:
+        raise ImportProfileError(f"record {index} observed_months must be non-empty")
+    months = tuple(_parquet_date_value(value, "observed_months", index) for value in raw_months)
+    if months != tuple(sorted(set(months))):
+        raise ImportProfileError(f"record {index} observed_months must be sorted and unique")
+    first_month = _parquet_date(source, "first_month", index)
+    last_month = _parquet_date(source, "last_month", index)
+    if first_month != months[0] or last_month != months[-1]:
+        raise ImportProfileError(f"record {index} coverage bounds do not match observed_months")
+    month_count = source.get("month_count")
+    if month_count != len(months):
+        raise ImportProfileError(f"record {index} month_count does not match observed_months")
+    zero_semantics = source.get("blank_means_observed_zero")
+    if not isinstance(zero_semantics, bool):
+        raise ImportProfileError(f"record {index} zero semantics must be boolean")
+    completeness = _parquet_sha256(source, "completeness_sha256", index)
+    expected_completeness = hashlib.sha256(
+        json.dumps(months, separators=(",", ":")).encode()
+    ).hexdigest()
+    if completeness != expected_completeness:
+        raise ImportProfileError(f"record {index} completeness checksum does not match coverage")
+    return {
+        **common,
+        "observed_months": months,
+        "first_month": first_month,
+        "last_month": last_month,
+        "month_count": month_count,
+        "blank_means_observed_zero": zero_semantics,
+        "completeness_sha256": completeness,
+        "month_or_coverage": "coverage",
+        "source_row_sha256": source_hash,
+    }
+
+
+def _parquet_text(source: Mapping[str, Any], field: str, index: int) -> str:
+    value = source.get(field)
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 500:
+        raise ImportProfileError(f"record {index} {field} must be non-empty text")
+    return value.strip()
+
+
+def _parquet_choice(source: Mapping[str, Any], field: str, index: int, allowed: set[str]) -> str:
+    value = _parquet_text(source, field, index)
+    if value not in allowed:
+        raise ImportProfileError(f"record {index} {field} is not registered")
+    return value
+
+
+def _parquet_date(source: Mapping[str, Any], field: str, index: int) -> str:
+    return _parquet_date_value(source.get(field), field, index)
+
+
+def _parquet_date_value(value: object, field: str, index: int) -> str:
+    if not isinstance(value, date):
+        raise ImportProfileError(f"record {index} {field} must be an ISO date")
+    return value.isoformat()
+
+
+def _parquet_sha256(source: Mapping[str, Any], field: str, index: int) -> str:
+    value = source.get(field)
+    if not isinstance(value, bytes) or len(value) != 32:
+        raise ImportProfileError(f"record {index} {field} must be a SHA-256 value")
+    return value.hex()
+
+
+def _require_parquet_nulls(source: Mapping[str, Any], index: int, fields: tuple[str, ...]) -> None:
+    if any(source.get(field) is not None for field in fields):
+        raise ImportProfileError(f"record {index} contains fields for the wrong record kind")
 
 
 def execute_stream_import(

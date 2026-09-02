@@ -126,6 +126,15 @@ lacks it, the command fails, preflight reports
 Operators must correct the role or server observation rather than substituting artifact-filesystem
 free space or a declared-capacity estimate.
 
+New BOCSAR runs hand off sparse observations and coverage as
+`propertyscope.canonical-bocsar-parquet.v1` (`application/vnd.apache.parquet`). The runner writes
+bounded Zstandard-compressed row groups directly into the content-addressed artifact store. The
+loader scans the complete file for its registered byte count and SHA-256 before COPY, then validates
+the exact Arrow schema, embedded contract metadata and record-kind semantics in bounded batches.
+Legacy JSON/NDJSON remains readable for replay. This optimisation removes the multi-gigabyte
+canonical text expansion and JSON parsing, but it does not remove PostgreSQL row/index/WAL work; use
+the durable phase timings from an official run rather than assuming an end-to-end duration.
+
 The local Compose default declares a conservative 64 GiB Feature 1 PostgreSQL capacity budget,
 16 GiB of transaction-local temporary files and a 4 GiB reserve. PSI additionally reserves 6 GiB
 for relation/index growth and 16 GiB for WAL; BOCSAR reserves 8 GiB and 20 GiB respectively. These

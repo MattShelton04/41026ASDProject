@@ -33,6 +33,11 @@ from propertyscope_data_platform.adapters.psi import (
 )
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
 from propertyscope_data_platform.artifacts import LocalArtifactStore
+from propertyscope_data_platform.bocsar_parquet import (
+    BOCSAR_PARQUET_MEDIA_TYPE,
+    BOCSAR_PARQUET_SCHEMA_VERSION,
+    write_bocsar_parquet,
+)
 from propertyscope_data_platform.release_builders import (
     BuildContext,
     resolve_release_builder,
@@ -249,21 +254,33 @@ class AcquisitionRunner:
                 if not isinstance(scope, dict):
                     raise RuntimeError("Registered live scope is invalid")
                 counter = [0]
-                if profile == "psi-sales":
+                if profile == "bocsar-sparse":
+                    artifact = self.artifacts.put_generated(
+                        lambda destination: self._write_live_bocsar_parquet(
+                            destination, task, scope, counter
+                        ),
+                        media_type=BOCSAR_PARQUET_MEDIA_TYPE,
+                    )
+                    schema_version = BOCSAR_PARQUET_SCHEMA_VERSION
+                elif profile == "psi-sales":
                     canonical_chunks = self._live_psi_chunks(task, scope, counter)
-                elif profile == "gnaf-nsw":
-                    canonical_chunks = self._live_gnaf_chunks(task, scope, counter)
+                    artifact = self.artifacts.put(
+                        canonical_chunks,
+                        media_type="application/x-ndjson",
+                    )
+                    schema_version = "propertyscope.canonical-import.v1"
                 else:
-                    canonical_chunks = self._live_bocsar_chunks(task, scope, counter)
-                artifact = self.artifacts.put(
-                    canonical_chunks,
-                    media_type="application/x-ndjson",
-                )
+                    canonical_chunks = self._live_gnaf_chunks(task, scope, counter)
+                    artifact = self.artifacts.put(
+                        canonical_chunks,
+                        media_type="application/x-ndjson",
+                    )
+                    schema_version = "propertyscope.canonical-import.v1"
                 self._register_stage_artifact(
                     task,
                     stage=stage,
                     artifact=artifact,
-                    schema_version="propertyscope.canonical-import.v1",
+                    schema_version=schema_version,
                 )
                 return counter[0], counter[0]
             if profile != "property-fixture":
@@ -602,6 +619,24 @@ class AcquisitionRunner:
     def _live_bocsar_chunks(
         self, task: dict[str, Any], scope: dict[str, object], counter: list[int]
     ) -> Iterable[bytes]:
+        for item in self._live_bocsar_records(task, scope, counter):
+            yield (
+                json.dumps(_bocsar_record(item), sort_keys=True, separators=(",", ":")).encode()
+                + b"\n"
+            )
+
+    def _write_live_bocsar_parquet(
+        self,
+        destination: Path,
+        task: dict[str, Any],
+        scope: dict[str, object],
+        counter: list[int],
+    ) -> None:
+        write_bocsar_parquet(destination, self._live_bocsar_records(task, scope, counter))
+
+    def _live_bocsar_records(
+        self, task: dict[str, Any], scope: dict[str, object], counter: list[int]
+    ) -> Iterable[CrimeObservation | CrimeCoverage]:
         raw_values = scope.get("geography_values")
         geography_values = (
             frozenset(str(value).strip() for value in raw_values)
@@ -631,10 +666,7 @@ class AcquisitionRunner:
                             "rows_processed": counter[0],
                         },
                     )
-                yield (
-                    json.dumps(_bocsar_record(item), sort_keys=True, separators=(",", ":")).encode()
-                    + b"\n"
-                )
+                yield item
 
     def _live_psi(
         self, task: dict[str, Any], scope: dict[str, object]

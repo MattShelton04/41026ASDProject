@@ -16,6 +16,8 @@ submission.
   handling, live diagnostic, and troubleshooting
 - [`propertyscope-feature-1-implementation-plan.md`](propertyscope-feature-1-implementation-plan.md):
   Feature 1 service, data, API, AI, testing, and evidence design
+- [`bocsar-parquet-adoption.md`](bocsar-parquet-adoption.md): reusable implementation prompt,
+  rollout plan and rollback constraints for the sparse BOCSAR canonical artifact
 - [`ai-mode-operations-interface-plan.md`](ai-mode-operations-interface-plan.md): implemented local
   read-only operations view and remaining remote-access decisions
 

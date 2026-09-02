@@ -9,6 +9,7 @@ from typing import cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import httpx
+import pyarrow.parquet as pq  # type: ignore[import-untyped]
 import pytest
 
 from propertyscope_data_platform.adapters.bocsar import (
@@ -30,6 +31,11 @@ from propertyscope_data_platform.adapters.psi import (
     parse_psi_b_record,
 )
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
+from propertyscope_data_platform.artifacts import ArtifactRef
+from propertyscope_data_platform.bocsar_parquet import (
+    BOCSAR_PARQUET_MEDIA_TYPE,
+    BOCSAR_PARQUET_SCHEMA_VERSION,
+)
 from propertyscope_data_platform.runner import (
     AcquisitionRunner,
     RegisteredImportError,
@@ -814,6 +820,57 @@ def test_live_bocsar_runner_emits_real_canonical_records(tmp_path: Path) -> None
     )
     assert cast(dict[str, object], document["source"])["real_source"] is True
     assert {record["record_kind"] for record in records} == {"observation", "coverage"}
+
+
+def test_bocsar_acquisition_registers_typed_sparse_parquet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr(
+            "PostcodeData26Q2.csv",
+            "Postcode,Offence,Subcategory,Jan 2025,Feb 2025\n0200,Theft,Other,3,\n",
+        )
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30)
+    )
+    monkeypatch.setattr(runner, "_download_registered", lambda *_args: stream.getvalue())
+    registered: list[tuple[ArtifactRef, str]] = []
+
+    def register(
+        _task: dict[str, object],
+        *,
+        stage: str,
+        artifact: ArtifactRef,
+        schema_version: str,
+        **_options: object,
+    ) -> None:
+        assert stage == "acquire"
+        registered.append((artifact, schema_version))
+
+    monkeypatch.setattr(runner, "_register_stage_artifact", register)
+
+    rows_in, rows_out = runner._execute(
+        {
+            "id": "task-1",
+            "ingestion_run_id": "run-1",
+            "lease_token": "lease-1",
+            "stage": "acquire",
+            "import_profile_key": "bocsar-sparse",
+            "partition_json": {
+                "profile": "full-data",
+                "all_records": True,
+                "geography_kinds": ["postcode", "suburb"],
+            },
+        }
+    )
+
+    assert (rows_in, rows_out) == (4, 4)
+    artifact, schema_version = registered[0]
+    assert artifact.media_type == BOCSAR_PARQUET_MEDIA_TYPE
+    assert schema_version == BOCSAR_PARQUET_SCHEMA_VERSION
+    parquet = pq.ParquetFile(tmp_path / artifact.storage_key)
+    assert parquet.metadata.num_rows == 4
 
 
 def test_gnaf_requires_members_and_selects_preferred_geocode() -> None:
