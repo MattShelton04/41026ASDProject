@@ -43,10 +43,13 @@ test("shared assistant wrapper owns product and feature vocabulary", () => {
 test("feature registry is the bounded source for shell routes and availability", () => {
   const features = featureRegistry();
   assert.equal(features.length, 5);
-  assert.equal(features.filter((item) => item.href).length, 2);
+  assert.equal(features.filter((item) => item.href).length, 3);
   assert.equal(findFeature("data-platform").href, "/features/data-platform/#properties");
   assert.equal(findFeature("student-4-due-diligence").frontendBase, "/features/due-diligence/");
-  assert.equal(findFeature("market-intelligence").href, undefined);
+  assert.equal(
+    findFeature("market-intelligence").href,
+    "/features/market-intelligence/#market-cases",
+  );
   assert.ok(features.every((item) => item.healthPath?.startsWith("/api/shared-health/")));
   assert.equal(featureRegistry({ featureHrefs: { "property-records": "/custom/#properties" } })[0].href, "/custom/#properties");
   assert.equal(features[0].label, "Property data");
@@ -141,9 +144,12 @@ test("research-area fragment stays in exact parity with the feature registry", (
 test("capability manifest separates implemented, enabled and planned states", () => {
   const manifest = capabilityManifest({ featureHrefs: { "property-records": "/properties" }, agentRuns: "/runs" });
   assert.equal(manifest.release, "release-0");
-  assert.equal(manifest.features.filter((item) => item.enabled).length, 2);
+  assert.equal(manifest.features.filter((item) => item.enabled).length, 3);
   assert.equal(manifest.features.find((item) => item.id === "property-records").href, "/properties");
-  assert.equal(manifest.features.find((item) => item.id === "sales-market").href, undefined);
+  assert.equal(
+    manifest.features.find((item) => item.id === "sales-market").href,
+    "/features/market-intelligence/#market-cases",
+  );
   assert.deepEqual(capabilityState(manifest.services.find((item) => item.id === "rag")), { label: "Planned", tone: "planned" });
 });
 

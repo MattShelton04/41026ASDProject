@@ -1,0 +1,52 @@
+schema_version: 1
+services:
+  - service: propertyscope-market-intelligence-backend
+    base_url: http://f2-backend:5301
+tools:
+  - definition:
+      name: market.cases.inspect.v1
+      version: v1
+      feature_key: student-2-market-intelligence
+      description: Inspect one saved market research case, including its verified property reference, date window, status, filters, and notes.
+      input_schema:
+        type: object
+        properties:
+          market_case_id: {type: string, format: uuid, x-identifier-kind: market_case_id}
+        required: [market_case_id]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          market_case: {type: object}
+        required: [market_case]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-market-intelligence-backend
+    method: POST
+    path: /api/market-intelligence/v1/tools/market.cases.inspect.v1
+  - definition:
+      name: market.sales.summary.v1
+      version: v1
+      feature_key: student-2-market-intelligence
+      description: Calculate the deterministic sale count, median price, period transaction volume, exclusions, sources, and limitations for one saved market case. It does not estimate property value or recommend a purchase.
+      input_schema:
+        type: object
+        properties:
+          market_case_id: {type: string, format: uuid, x-identifier-kind: market_case_id}
+        required: [market_case_id]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          summary: {type: object}
+          sales: {type: array, maxItems: 100, items: {type: object}}
+        required: [summary, sales]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-market-intelligence-backend
+    method: POST
+    path: /api/market-intelligence/v1/tools/market.sales.summary.v1

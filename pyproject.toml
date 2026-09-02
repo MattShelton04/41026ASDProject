@@ -55,6 +55,7 @@ testpaths = [
     "ai-services/agent-core/tests",
     "ai-services/ai-mode/tests",
     "student-1/tests",
+    "student-2/tests",
     "scripts/tests",
 ]
 
@@ -83,6 +84,8 @@ src = [
     "ai-services/ai-mode/src",
     "student-1/backend/src",
     "student-1/database/src",
+    "student-2/backend/src",
+    "student-2/database/src",
     "student-4/backend/src",
     "student-4/database/src",
 ]
@@ -96,6 +99,8 @@ known-first-party = [
     "ai_mode",
     "propertyscope_data_platform",
     "propertyscope_data_store",
+    "propertyscope_market_intelligence",
+    "propertyscope_market_store",
     "propertyscope_due_diligence",
     "propertyscope_due_diligence_store",
     "shared_consumer_protocol",

@@ -67,6 +67,7 @@ docker-compose.override.yml
 compose.override.yml
 
 # IDEs and editors
+.vs/
 .idea/
 .vscode/*
 !.vscode/extensions.json

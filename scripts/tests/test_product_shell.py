@@ -47,9 +47,9 @@ def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
     assert "Build the picture around a property" in page
     assert registry.count('featureKey: "') == 5
     assert registry.count("implemented: false") == 4
-    assert enabled_registry.count('"featureKey"') == 2
+    assert enabled_registry.count('"featureKey"') == 3
     assert 'id="feature-area-list"' in page
-    assert fragment.count("Not available yet") == 3
+    assert fragment.count("Not available yet") == 2
     assert "renderHomeFeatures" not in script
     assert "The remaining research areas will appear here as their data becomes available." in page
     assert "Start a property review" in page
