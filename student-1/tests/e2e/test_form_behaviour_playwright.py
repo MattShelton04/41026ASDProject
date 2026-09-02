@@ -271,7 +271,7 @@ def test_property_identity_renders_before_optional_calls_settle(
           window.fetch = (input, options) => {
             const url = String(input);
             if (
-              /\/properties\/[^/]+\/(map-context|coverage|sale-history|report-section)(\?.*)?$/.test(url)
+              /\/properties\/[^/]+\/(map-context|coverage|sale-history|seifa|report-section)(\?.*)?$/.test(url)
             ) {
               return new Promise((resolve, reject) => {
                 pending.push(() => originalFetch(input, options).then(resolve, reject));
@@ -291,12 +291,15 @@ def test_property_identity_renders_before_optional_calls_settle(
     expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
     expect(page.get_by_text("Identity status")).to_be_visible()
     expect(page.get_by_text("Loading spatial context…")).to_be_visible()
-    assert page.evaluate("window.__pendingPropertyOptionalCount()") == 4
+    assert page.evaluate("window.__pendingPropertyOptionalCount()") == 5
 
     page.evaluate("window.__releasePropertyOptional()")
     expect(page.get_by_role("heading", name="Research available")).to_be_visible()
     expect(page.get_by_role("heading", name="Sale history")).to_be_visible()
     expect(page.get_by_text("$760,000", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="Socio-economic area context")).to_be_visible()
+    expect(page.get_by_text("10 of 10", exact=True).first).to_be_visible()
+    expect(page.get_by_text("Based on Australian Bureau of Statistics data")).to_be_visible()
     expect(page.locator(".map-context")).to_be_visible()
     page.get_by_text("Sources and identifiers", exact=True).click()
     expect(page.get_by_role("heading", name="Source summary")).to_be_visible()

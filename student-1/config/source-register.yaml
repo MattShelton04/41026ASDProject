@@ -55,3 +55,14 @@ sources:
     redistribution_policy: approved-bounded-extract
     catalogue_status: executable_live
     target_features: [feature-3]
+  - key: abs-seifa-2021
+    display_name: ABS SEIFA 2021 NSW Suburbs and Localities
+    publisher: Australian Bureau of Statistics
+    adapter_key: abs-seifa-xlsx
+    source_url: https://www.abs.gov.au/statistics/people/people-and-communities/socio-economic-indexes-areas-seifa-australia/2021
+    cadence: census-release-driven
+    licence_id: cc-by-4-0
+    licence_url: https://www.abs.gov.au/website-privacy-copyright-and-disclaimer
+    redistribution_policy: attributed-derived-release
+    catalogue_status: executable_live
+    target_features: [feature-1]

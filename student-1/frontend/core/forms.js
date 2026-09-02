@@ -156,6 +156,7 @@ export function liveProfileLabel(importProfile) {
     "bocsar-sparse": "Complete official BOCSAR postcode + suburb datasets",
     "gnaf-nsw": "Complete official NSW G-NAF address registry",
     "psi-sales": "Complete NSW sales history + current weekly updates",
+    "seifa-2021-sal-nsw": "Complete ABS SEIFA 2021 NSW suburb and locality indexes",
   };
   return labels[String(importProfile || "")] || "Live registered source";
 }

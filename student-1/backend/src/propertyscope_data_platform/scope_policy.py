@@ -82,6 +82,7 @@ def validate_job_scope(
         "gnaf-nsw",
         "property-fixture",
         "psi-sales",
+        "seifa-2021-sal-nsw",
     }
     if run_mode == "full_refresh" and not connected:
         return None, ScopeProblem(

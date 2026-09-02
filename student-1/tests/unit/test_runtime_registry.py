@@ -36,6 +36,7 @@ def test_checked_in_profiles_form_one_stable_runtime_registry() -> None:
     registry = load_runtime_registry(FEATURE_ROOT / "config" / "job-profiles")
 
     assert registry.keys() == (
+        "abs-seifa-2021-sal-nsw",
         "bocsar-crime-quarterly",
         "fixture-property-full",
         "gnaf-nsw-address-registry",
@@ -49,6 +50,7 @@ def test_checked_in_profiles_form_one_stable_runtime_registry() -> None:
     assert fixture.quality_policy.key == "property-fixture.v1"
     assert fixture.quality_policy.version == "1.0.0"
     assert registry.component_version("release_builder", "property-sales") == "4.0.0"
+    assert registry.component_version("release_builder", "seifa-area") == "1.0.0"
 
 
 def test_backend_and_datastore_project_the_same_declarative_runtime_boundary() -> None:

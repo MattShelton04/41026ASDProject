@@ -1,0 +1,215 @@
+{
+  "$defs": {
+    "ProductProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_generation_id": {
+          "format": "uuid",
+          "title": "Candidate Generation Id",
+          "type": "string"
+        },
+        "normalisation_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Normalisation Version",
+          "type": "string"
+        },
+        "release_id": {
+          "format": "uuid",
+          "title": "Release Id",
+          "type": "string"
+        },
+        "release_version": {
+          "maxLength": 150,
+          "minLength": 1,
+          "title": "Release Version",
+          "type": "string"
+        },
+        "source_record_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Record Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "release_id",
+        "release_version",
+        "candidate_generation_id",
+        "source_record_sha256",
+        "normalisation_version"
+      ],
+      "title": "ProductProvenance",
+      "type": "object"
+    }
+  },
+  "$id": "https://propertyscope.local/contracts/seifa-area.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "ieo_australia_decile": {
+      "anyOf": [
+        {
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ieo Australia Decile"
+    },
+    "ieo_score": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ieo Score"
+    },
+    "ier_australia_decile": {
+      "anyOf": [
+        {
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ier Australia Decile"
+    },
+    "ier_score": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ier Score"
+    },
+    "irsad_australia_decile": {
+      "anyOf": [
+        {
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Irsad Australia Decile"
+    },
+    "irsad_score": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Irsad Score"
+    },
+    "irsd_australia_decile": {
+      "anyOf": [
+        {
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Irsd Australia Decile"
+    },
+    "irsd_score": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Irsd Score"
+    },
+    "locality_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Locality Name",
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/ProductProvenance"
+    },
+    "reference_year": {
+      "const": 2021,
+      "title": "Reference Year",
+      "type": "integer"
+    },
+    "sal_code": {
+      "pattern": "^1\\d{4}$",
+      "title": "Sal Code",
+      "type": "string"
+    },
+    "sal_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Sal Name",
+      "type": "string"
+    },
+    "state": {
+      "const": "NSW",
+      "title": "State",
+      "type": "string"
+    },
+    "usual_resident_population": {
+      "minimum": 0,
+      "title": "Usual Resident Population",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "sal_code",
+    "sal_name",
+    "locality_name",
+    "state",
+    "reference_year",
+    "usual_resident_population",
+    "provenance"
+  ],
+  "title": "SeifaAreaRecord",
+  "type": "object"
+}

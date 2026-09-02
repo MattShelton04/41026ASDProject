@@ -5,12 +5,14 @@ import json
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import httpx
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 import pytest
+from openpyxl import Workbook
+from openpyxl.worksheet.worksheet import Worksheet
 
 from propertyscope_data_platform.adapters.bocsar import (
     CrimeCoverage,
@@ -31,6 +33,7 @@ from propertyscope_data_platform.adapters.psi import (
     parse_psi_b_record,
 )
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
+from propertyscope_data_platform.adapters.seifa import SeifaWorkbookError, parse_seifa_sal_xlsx
 from propertyscope_data_platform.artifacts import ArtifactRef
 from propertyscope_data_platform.bocsar_parquet import (
     BOCSAR_PARQUET_MEDIA_TYPE,
@@ -102,6 +105,108 @@ def test_full_data_never_silently_substitutes_unconnected_sources(tmp_path: Path
     )
     with pytest.raises(RuntimeError, match="no connected live transport"):
         runner._live_document({}, stage="acquire", profile="spatial-features")
+
+
+def _seifa_workbook(*rows: tuple[object, ...]) -> bytes:
+    workbook = Workbook()
+    sheet = cast(Worksheet, workbook.active)
+    sheet.title = "Table 1"
+    sheet.append(["Australian Bureau of Statistics"])
+    sheet.append(["Socio-Economic Indexes for Australia (SEIFA), 2021"])
+    sheet.append(["Released 27 April 2023"])
+    sheet.append(["Table 1 Suburbs and Localities (SAL) SEIFA Summary, 2021"])
+    sheet.append(
+        [
+            None,
+            None,
+            "Index of Relative Socio-economic Disadvantage",
+            None,
+            "Index of Relative Socio-economic Advantage and Disadvantage",
+            None,
+            "Index of Economic Resources",
+            None,
+            "Index of Education and Occupation",
+            None,
+            None,
+        ]
+    )
+    sheet.append(
+        [
+            "2021 Suburbs and Localities (SAL) Code",
+            "2021 Suburbs and Localities (SAL) Name",
+            "Score",
+            "Decile",
+            "Score",
+            "Decile",
+            "Score",
+            "Decile",
+            "Score",
+            "Decile",
+            "Usual Resident Population",
+        ]
+    )
+    for row in rows:
+        sheet.append(cast(tuple[Any, ...], row))
+    output = io.BytesIO()
+    workbook.save(output)
+    workbook.close()
+    return output.getvalue()
+
+
+def test_seifa_parser_validates_headers_filters_nsw_and_preserves_sal_code() -> None:
+    content = _seifa_workbook(
+        (10003, "Abbotsford (NSW)", 1062.49, 9, 1108.08, 10, 1013.12, 5, 1120.99, 10, 5431),
+        (20001, "Abbotsford (Vic.)", 1000, 5, 1000, 5, 1000, 5, 1000, 5, 999),
+    )
+
+    records = parse_seifa_sal_xlsx(content)
+
+    assert len(records) == 1
+    assert records[0].sal_code == "10003"
+    assert records[0].sal_name == "Abbotsford (NSW)"
+    assert records[0].locality_name == "ABBOTSFORD"
+    assert records[0].irsad_australia_decile == 10
+
+
+def test_seifa_parser_rejects_drift_and_duplicate_nsw_codes() -> None:
+    valid = (10003, "Abbotsford (NSW)", 1062, 9, 1108, 10, 1013, 5, 1120, 10, 5431)
+    with pytest.raises(SeifaWorkbookError, match="duplicates SAL code"):
+        parse_seifa_sal_xlsx(_seifa_workbook(valid, valid))
+
+    content = bytearray(_seifa_workbook(valid))
+    assert content.startswith(b"PK")
+    with pytest.raises(SeifaWorkbookError):
+        parse_seifa_sal_xlsx(b"not-a-workbook")
+
+
+def test_full_data_seifa_download_imports_registered_nsw_subset(tmp_path: Path) -> None:
+    payload = _seifa_workbook(
+        (10003, "Abbotsford (NSW)", 1062.49, 9, 1108.08, 10, 1013.12, 5, 1120.99, 10, 5431)
+    )
+
+    def source(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "www.abs.gov.au"
+        return httpx.Response(
+            200,
+            content=payload,
+            headers={
+                "Content-Type": (
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            },
+        )
+
+    runner = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30),
+        client=httpx.Client(transport=httpx.MockTransport(source)),
+    )
+    document, records = runner._live_document(
+        {"partition_json": {"state": "NSW"}},
+        stage="acquire",
+        profile="seifa-2021-sal-nsw",
+    )
+    assert cast(dict[str, object], document["source"])["real_source"] is True
+    assert records[0]["sal_code"] == "10003"
 
 
 def test_runner_rejects_legacy_partial_official_task_before_acquisition(tmp_path: Path) -> None:

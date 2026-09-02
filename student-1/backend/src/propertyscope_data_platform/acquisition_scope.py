@@ -10,6 +10,7 @@ _COMMON_FIELDS = frozenset({"profile", "all_records"})
 _PROFILE_FIELDS = {
     "bocsar-sparse": frozenset({"geography_kinds"}),
     "gnaf-nsw": frozenset({"state"}),
+    "seifa-2021-sal-nsw": frozenset({"state"}),
     "psi-sales": frozenset({"all_history", "include_current_weekly"}),
 }
 _PSI_YEAR_RANGE_FIELDS = frozenset(
@@ -47,8 +48,8 @@ def complete_scope_error(import_profile: str, scope: Mapping[str, Any]) -> str |
         "suburb",
     ):
         return "BOCSAR complete acquisition must include postcode and suburb geography series"
-    if import_profile == "gnaf-nsw" and scope.get("state") != "NSW":
-        return "G-NAF complete acquisition must select the registered NSW source"
+    if import_profile in {"gnaf-nsw", "seifa-2021-sal-nsw"} and scope.get("state") != "NSW":
+        return f"{import_profile} complete acquisition must select the registered NSW source"
     if import_profile == "psi-sales" and (
         scope.get("all_history") is not True or scope.get("include_current_weekly") is not True
     ):

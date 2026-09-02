@@ -90,6 +90,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/properties/{property_ref}/map-context",
         "/properties/{property_ref}/coverage",
         "/properties/{property_ref}/sale-history",
+        "/properties/{property_ref}/seifa",
         "/properties/{property_ref}/report-section",
         "/agent-runs",
         "/agent-runs/{run_id}",
@@ -292,6 +293,11 @@ def test_publication_request_accepts_legacy_evidence_but_fixture_uses_current_ma
             "school-points.v2.valid.json",
             "school-points.v2.invalid-coordinate.json",
         ),
+        (
+            "seifa-area.v1.schema.json",
+            "seifa-area.v1.valid.json",
+            "seifa-area.v1.invalid-decile.json",
+        ),
     ],
 )
 def test_data_product_contracts_have_valid_and_invalid_redistributable_fixtures(
@@ -379,6 +385,7 @@ def test_consumer_import_acknowledgement_rejects_incoherent_nonterminal_evidence
         ("crime-series.v2.schema.json", "crime-series.v2.valid.json"),
         ("school-points.v1.schema.json", "school-points.valid.json"),
         ("school-points.v2.schema.json", "school-points.v2.valid.json"),
+        ("seifa-area.v1.schema.json", "seifa-area.v1.valid.json"),
         (
             "data-product-catalogue-entry.v1.schema.json",
             "data-product-catalogue-entry.valid.json",

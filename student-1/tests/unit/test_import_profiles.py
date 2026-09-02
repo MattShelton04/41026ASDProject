@@ -81,6 +81,26 @@ def _contract_records(profile: str) -> list[dict[str, object]]:
             }
             for index in range(1, 11)
         ]
+    if profile == "seifa-2021-sal-nsw":
+        return [
+            {
+                "sal_code": f"1{index:04d}",
+                "sal_name": f"Example {index}",
+                "locality_name": f"EXAMPLE {index}",
+                "state": "NSW",
+                "reference_year": 2021,
+                "irsd_score": 900.0 + index,
+                "irsd_australia_decile": 3,
+                "irsad_score": 950.0 + index,
+                "irsad_australia_decile": 4,
+                "ier_score": 1000.0 + index,
+                "ier_australia_decile": 5,
+                "ieo_score": 1050.0 + index,
+                "ieo_australia_decile": 6,
+                "usual_resident_population": 100 + index,
+            }
+            for index in range(1, 11)
+        ]
     if profile == "gnaf-nsw":
         return [
             {
@@ -146,6 +166,26 @@ def _contract_records(profile: str) -> list[dict[str, object]]:
             )
         ]
     raise AssertionError(f"missing test records for {profile}")
+
+
+def test_seifa_import_requires_paired_scores_deciles_and_nsw_sal_identity() -> None:
+    record = _contract_records("seifa-2021-sal-nsw")[0]
+    prepared = prepare_import(
+        _artifact("seifa-2021-sal-nsw", [record]), profile="seifa-2021-sal-nsw"
+    )
+    assert prepared.rows[0]["sal_code"] == "10001"
+    assert prepared.rows[0]["source_row_sha256"]
+
+    with pytest.raises(ImportProfileError, match="both be present"):
+        prepare_import(
+            _artifact("seifa-2021-sal-nsw", [{**record, "irsd_australia_decile": None}]),
+            profile="seifa-2021-sal-nsw",
+        )
+    with pytest.raises(ImportProfileError, match="NSW SAL code"):
+        prepare_import(
+            _artifact("seifa-2021-sal-nsw", [{**record, "sal_code": "20001"}]),
+            profile="seifa-2021-sal-nsw",
+        )
 
 
 @pytest.mark.parametrize(
@@ -1112,7 +1152,14 @@ def test_source_scale_stream_observes_cancellation_during_copy(
 
 @pytest.mark.parametrize(
     "profile",
-    ["property-fixture", "gnaf-nsw", "psi-sales", "bocsar-sparse", "schools-master"],
+    [
+        "property-fixture",
+        "gnaf-nsw",
+        "psi-sales",
+        "bocsar-sparse",
+        "schools-master",
+        "seifa-2021-sal-nsw",
+    ],
 )
 def test_deterministic_canonical_samples_use_the_database_contract(profile: str) -> None:
     records = _contract_records(profile)

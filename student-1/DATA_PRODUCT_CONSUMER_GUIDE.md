@@ -17,6 +17,7 @@ connect to its PostgreSQL/PostGIS database.
 | --- | --- | --- | --- | --- | --- |
 | `fixture-property` | `property-snapshot 3.0.0` | `propertyscope.property-snapshot.v2` | Feature 1 | Executable offline | Download permitted, synthetic fixture |
 | `gnaf-nsw` | `property-snapshot 3.0.0` | `propertyscope.property-snapshot.v2` | Feature 1 | Executable fixture and optional official archive | Licence-controlled; public artifact returns 403 |
+| `abs-seifa-2021` | `seifa-area 1.0.0` | `propertyscope.seifa-area.v1` | Feature 1 | Complete live transport | CC BY 4.0 attributed derived release |
 | `nsw-psi-sales` | `property-sales 4.0.0` | `propertyscope.property-sales.v3` | Feature 2 | Complete cached/live transport | Bounded derived artifact |
 | `bocsar-crime` | `crime-series 3.0.0` | `propertyscope.crime-series.v2` | Feature 3 | Complete live transport | Approved bounded extract |
 | `nsw-government-schools` | `school-points 3.0.0` | `propertyscope.school-points.v2` | Feature 3 | Complete live transport | Approved bounded extract |
@@ -123,8 +124,24 @@ All routes below are relative to `/api/data-platform/v1` and are described in Op
   approval. A valid publish returns `202` with a durable consumer import or accepted-version
   activation; the prior accepted version remains live until the complete workflow succeeds.
 - Property identity consumers use `GET /properties/search`, `/properties/{property_ref}`,
-  `/properties/{property_ref}/map-context`, `/properties/{property_ref}/coverage`, and
-  `/properties/{property_ref}/report-section`.
+  `/properties/{property_ref}/map-context`, `/properties/{property_ref}/coverage`,
+  `/properties/{property_ref}/seifa`, and `/properties/{property_ref}/report-section`. The SEIFA
+  projection resolves only the accepted `propertyscope.seifa-area.v1` generation and reports a
+  typed unavailable or ambiguous state instead of falling back to another generation.
+
+### ABS SEIFA 2021 area semantics
+
+`propertyscope.seifa-area.v1` contains the complete NSW Suburbs and Localities (SAL) subset of the
+official 2021 workbook. It preserves the five-digit SAL code, ABS name, normalised locality key,
+usual resident population, and the score/Australian-decile pair for IRSD, IRSAD, IER and IEO. A
+publisher `-` is retained as a null pair; it is never converted to zero. The property projection
+uses an exact whitespace-normalised locality plus NSW-state match and refuses ambiguous matches.
+
+SEIFA measures relative socio-economic conditions for an area. It must not be represented as a
+measure of a particular property, household, or person. Decile 1 is the lowest-scoring 10% of areas
+for that index and decile 10 is the highest-scoring 10%; each index has distinct meaning. Derived
+outputs and UI views carry “Based on Australian Bureau of Statistics data” attribution and the ABS
+copyright/licensing link registered with the source.
 
 Unknown dangerous query fields are rejected. Errors use RFC 9457-style Problem Details and carry
 request correlation. Consumer destinations are code-owned origins plus fixed `/api/` paths;
