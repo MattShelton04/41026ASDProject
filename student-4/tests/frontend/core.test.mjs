@@ -5,6 +5,7 @@ import {
   API_BASE,
   dispositionLabel,
   evidenceStateLabel,
+  statusBadgeClass,
   statusLabel,
   summariseReview,
 } from "../../frontend/app.js";
@@ -37,4 +38,12 @@ test("summariseReview composes a readable single line", () => {
 
 test("API base is a same-origin versioned path", () => {
   assert.equal(API_BASE, "/api/due-diligence/v1");
+});
+
+test("status badge class maps to shared evidence modifiers", () => {
+  assert.equal(statusBadgeClass("completed"), "ps-badge--confirmed");
+  assert.equal(statusBadgeClass("in_review"), "ps-badge--info");
+  assert.equal(statusBadgeClass("draft"), "ps-badge--planned");
+  assert.equal(statusBadgeClass("archived"), "");
+  assert.equal(statusBadgeClass("mystery"), "");
 });
