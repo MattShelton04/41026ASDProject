@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10262e" />
+    <meta name="description" content="PropertyScope buyer cases" />
+    <title>PropertyScope | Buyer workspace</title>
+    <link rel="stylesheet" href="./design-system/tokens.css" />
+    <link rel="stylesheet" href="./design-system/base.css" />
+    <link rel="stylesheet" href="./design-system/components.css" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <a class="ps-skip-link" href="#main-content">Skip to main content</a>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="PropertyScope product home">
+        <span class="brand-mark" aria-hidden="true">PS</span>
+        <span><strong>PropertyScope NSW</strong><small>Buyer workspace</small></span>
+      </a>
+      <nav aria-label="PropertyScope navigation">
+        <a href="/">Home</a>
+        <a href="#buyer-cases" aria-current="page">Buyer cases</a>
+      </nav>
+      <div id="service-state" class="service-state" role="status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span data-service-label>Checking service</span>
+      </div>
+    </header>
+
+    <main id="main-content" tabindex="-1">
+      <div class="ps-container workspace">
+        <header class="page-heading">
+          <div>
+            <p class="ps-eyebrow">BUYER JOURNEY</p>
+            <h1>Buyer cases</h1>
+            <p>Keep each property search organised around a budget, NSW suburbs and its current status.</p>
+          </div>
+          <button id="new-case" class="ps-button ps-button--primary" type="button">Create buyer case</button>
+        </header>
+
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+        <section id="case-view" aria-live="polite" aria-busy="true">
+          <div class="state-panel" data-state="loading">
+            <p class="ps-eyebrow">LOADING</p>
+            <h2>Loading buyer cases&hellip;</h2>
+            <p>Please wait while the workspace checks your saved cases.</p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <dialog id="case-dialog" class="case-dialog" aria-labelledby="case-dialog-title">
+      <form id="case-form" novalidate>
+        <header class="dialog-heading">
+          <h2 id="case-dialog-title">Create buyer case</h2>
+          <button class="icon-button" type="button" data-close-case aria-label="Close form">&times;</button>
+        </header>
+        <div class="dialog-body">
+          <div id="form-error" class="form-message" role="alert" aria-live="assertive" tabindex="-1" hidden></div>
+          <div class="field">
+            <label for="case-name">Case name</label>
+            <input id="case-name" name="name" type="text" required maxlength="120" autocomplete="off" aria-describedby="case-name-error" />
+            <p id="case-name-error" class="field-error" hidden></p>
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <label for="budget-min">Minimum budget (AUD)</label>
+              <input id="budget-min" name="budget_min_aud" type="number" min="0" step="1" inputmode="numeric" aria-describedby="budget-error" />
+            </div>
+            <div class="field">
+              <label for="budget-max">Maximum budget (AUD)</label>
+              <input id="budget-max" name="budget_max_aud" type="number" min="0" step="1" inputmode="numeric" aria-describedby="budget-error" />
+            </div>
+          </div>
+          <p id="budget-error" class="field-error" hidden></p>
+          <div class="field">
+            <label for="target-suburbs">Target NSW suburbs</label>
+            <textarea id="target-suburbs" name="target_suburbs" rows="4" placeholder="MASCOT&#10;NEWTOWN" aria-describedby="suburb-help suburb-error"></textarea>
+            <p id="suburb-help" class="field-help">Enter one NSW locality per line. Each is saved with state NSW.</p>
+            <p id="suburb-error" class="field-error" hidden></p>
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <label for="dwelling-types">Preferred dwelling types</label>
+              <textarea id="dwelling-types" name="dwelling_types" rows="3" placeholder="apartment&#10;terrace" aria-describedby="preference-help preference-error"></textarea>
+            </div>
+            <div class="field">
+              <label for="practical-priorities">Practical priorities</label>
+              <textarea id="practical-priorities" name="priorities" rows="3" placeholder="transport&#10;planning evidence" aria-describedby="preference-help preference-error"></textarea>
+            </div>
+          </div>
+          <p id="preference-help" class="field-help">Optional. Enter one preference per line, up to 20 in each list.</p>
+          <p id="preference-error" class="field-error" hidden></p>
+          <div class="field">
+            <label for="case-status">Status</label>
+            <select id="case-status" name="status">
+              <option value="active">Active</option>
+              <option value="paused">Paused</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+        </div>
+        <footer class="dialog-actions">
+          <button class="ps-button" type="button" data-close-case>Cancel</button>
+          <button id="save-case" class="ps-button ps-button--primary" type="submit">Save buyer case</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="delete-dialog" class="confirm-dialog" aria-labelledby="delete-title">
+      <h2 id="delete-title">Delete buyer case?</h2>
+      <p id="delete-copy">This action cannot be undone.</p>
+      <div class="dialog-actions">
+        <button class="ps-button" type="button" data-close-delete>Cancel</button>
+        <button id="confirm-delete" class="ps-button ps-button--danger" type="button">Delete buyer case</button>
+      </div>
+    </dialog>
+
+    <div id="toast" class="ps-toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

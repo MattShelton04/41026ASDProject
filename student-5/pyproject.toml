@@ -14,7 +14,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["database/src"]
+where = ["backend/src", "database/src"]
 
 [tool.setuptools.package-data]
 propertyscope_buyer_store = ["sql/*.sql"]
