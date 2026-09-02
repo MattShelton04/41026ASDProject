@@ -52,3 +52,14 @@ adapters:
     expected_media_types: [application/zip]
     allowed_hosts: [www.valuergeneral.nsw.gov.au, valuation.property.nsw.gov.au]
     required_secrets: []
+  - schema_version: propertyscope.adapter-descriptor.v1
+    key: abs-seifa-xlsx
+    version: 1.0.0
+    publisher: Australian Bureau of Statistics
+    supported_refresh_strategies: [full_snapshot]
+    supported_modes: [full_refresh, reprocess_cached]
+    partition_dimensions: [state]
+    expected_media_types:
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+    allowed_hosts: [www.abs.gov.au]
+    required_secrets: []

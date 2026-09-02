@@ -1,14 +1,75 @@
-name: Student 2 CI (scaffold)
+name: Student 2 CI
 
 on:
+  pull_request:
+    paths:
+      - "student-2/**"
+      - "shared/contracts/**"
+      - "deployment/**"
+      - "docker-compose*.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/**"
+      - ".github/workflows/student-2.yml"
+  push:
+    branches: [main]
+    paths:
+      - "student-2/**"
+      - "shared/contracts/**"
+      - "deployment/**"
+      - "docker-compose*.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  placeholder:
-    if: ${{ false }}
+  feature-2-quality:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Define Student 2 build, test, and validation steps."
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install locked workspace
+        run: uv sync --locked --all-packages --all-groups
+      - name: Lint and format Feature 2
+        run: |
+          uv run ruff format --check student-2
+          uv run ruff check student-2
+      - name: Validate architecture and generated deployment
+        run: |
+          uv run python scripts/generate_deployment.py --check
+          uv run python scripts/validate_architecture.py
+          uv run python scripts/validate_tool_catalogs.py
+          uv run python scripts/validate_workspace_packaging.py
+      - name: Type-check Feature 2
+        run: uv run mypy student-2/backend/src/propertyscope_market_intelligence student-2/database/src/propertyscope_market_store student-2/tests
+      - name: Run Feature 2 tests
+        run: uv run pytest --cov=propertyscope_market_intelligence --cov=propertyscope_market_store --cov-report=term-missing --cov-fail-under=70 student-2/tests
+      - name: Check browser JavaScript
+        run: |
+          node --check student-2/frontend/app.js
+          node --test student-2/tests/frontend/core.test.mjs
+      - name: Build Feature 2 containers
+        run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml build f2-db-api f2-backend f2-frontend
+      - name: Start Feature 2 fixture stack
+        run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 up --detach --wait --wait-timeout 120 f2-db-api f2-backend f2-frontend
+      - name: Smoke CRUD, seed and frontend boundaries
+        run: |
+          curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5300/
+          curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5300/api/market-intelligence/v1/market-cases --output /tmp/cases.json
+          python -c "import json; value=json.load(open('/tmp/cases.json', encoding='utf-8')); assert len(value['items']) >= 10, value"
+          docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml exec -T f2-db-api python -c "import json,os,urllib.request; request=urllib.request.Request('http://127.0.0.1:5302/internal/market-intelligence/v1/seed-report',headers={'X-PropertyScope-Internal-Token':os.environ['PROPERTYSCOPE_INTERNAL_TOKEN']}); value=json.load(urllib.request.urlopen(request,timeout=2)); assert min(value['tables'].values()) >= 10, value"
+      - name: Capture service logs
+        if: failure()
+        run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 logs --no-color --tail 200 f2-db-api f2-backend f2-frontend
+      - name: Stop containers and delete ephemeral CI data
+        if: always()
+        run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 down --remove-orphans --volumes

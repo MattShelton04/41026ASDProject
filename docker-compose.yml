@@ -184,6 +184,7 @@ services:
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
       PROPERTYSCOPE_PSI_CACHED_YEARS: ${PROPERTYSCOPE_PSI_CACHED_YEARS:-}
       PROPERTYSCOPE_PSI_CACHED_WEEKS: ${PROPERTYSCOPE_PSI_CACHED_WEEKS:-}
+      PROPERTYSCOPE_FEATURE_2_URL: http://f2-backend:5301
     depends_on:
       f1-db-api:
         condition: service_healthy
@@ -244,6 +245,81 @@ services:
     restart: unless-stopped
     depends_on:
       f1-backend:
+        condition: service_healthy
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, wget, --quiet, --tries=1, --spider, http://127.0.0.1:8080/]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  f2-db-api:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-2-market-intelligence
+    build:
+      context: .
+      dockerfile: student-2/Dockerfile
+      target: database-api
+    image: propertyscope/f2-db-api:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      PROPERTYSCOPE_MARKET_DATABASE_PATH: /var/lib/propertyscope-market/market.sqlite3
+      PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
+      PROPERTYSCOPE_AUTO_MIGRATE: "true"
+    volumes:
+      - f2-sqlite-data:/var/lib/propertyscope-market
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5302/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    stop_grace_period: 20s
+
+  f2-backend:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-2-market-intelligence
+    build:
+      context: .
+      dockerfile: student-2/Dockerfile
+      target: backend
+    image: propertyscope/f2-backend:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      PROPERTYSCOPE_DATABASE_API_URL: http://f2-db-api:5302
+      PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
+      PROPERTYSCOPE_DATA_PLATFORM_URL: http://f1-backend:5201
+      AI_MODE_BASE_URL: http://shared-ai-mode:5005
+    depends_on:
+      f2-db-api:
+        condition: service_healthy
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5301/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    stop_grace_period: 35s
+
+  f2-frontend:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-2-market-intelligence
+    build:
+      context: .
+      dockerfile: student-2/Dockerfile
+      target: frontend
+    image: propertyscope/f2-frontend:dev
+    init: true
+    restart: unless-stopped
+    depends_on:
+      f2-backend:
         condition: service_healthy
     networks: [shared-platform]
     healthcheck:
@@ -364,4 +440,5 @@ volumes:
   shared-ai-mode-state:
   f1-artifacts:
   f1-postgres-data:
+  f2-sqlite-data:
   f4-postgres-data:

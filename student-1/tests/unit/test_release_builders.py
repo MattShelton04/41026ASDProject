@@ -96,6 +96,47 @@ def _built_records(product: Any) -> list[dict[str, Any]]:
     return [json.loads(line) for line in gzip.decompress(product.content).splitlines()]
 
 
+def test_seifa_area_builder_preserves_national_deciles_and_area_limitations() -> None:
+    row = {
+        "sal_code": "10003",
+        "sal_name": "Abbotsford (NSW)",
+        "locality_name": "ABBOTSFORD",
+        "state": "NSW",
+        "reference_year": 2021,
+        "irsd_score": "1062.494934",
+        "irsd_australia_decile": 9,
+        "irsad_score": "1108.085415",
+        "irsad_australia_decile": 10,
+        "ier_score": "1013.120725",
+        "ier_australia_decile": 5,
+        "ieo_score": "1120.994652",
+        "ieo_australia_decile": 10,
+        "usual_resident_population": 5431,
+        "source_row_sha256": hashlib.sha256(b"abs-seifa-10003").hexdigest(),
+        "normalisation_version": "1.0.0",
+    }
+    context = _context(
+        dataset_id="abs-seifa-2021",
+        import_profile="seifa-2021-sal-nsw",
+        publisher="Australian Bureau of Statistics",
+        source="ABS SEIFA 2021 NSW Suburbs and Localities",
+        source_release="2021",
+        source_licence="cc-by-4-0",
+        licence_url="https://www.abs.gov.au/website-privacy-copyright-and-disclaimer",
+        redistribution_policy="attributed-derived-release",
+    )
+
+    product = resolve_release_builder("seifa-area", "1.0.0").build(
+        context, [row], created_at=FIXED_TIME
+    )
+    record = _built_records(product)[0]
+
+    assert record["sal_code"] == "10003"
+    assert record["irsad_australia_decile"] == 10
+    assert product.manifest.download_permitted is True
+    assert any("not an individual property" in item for item in product.manifest.known_limitations)
+
+
 def test_release_cancellation_removes_partial_stream_artifact(tmp_path: Path) -> None:
     def cancelled_rows() -> Any:
         yield _property_row()

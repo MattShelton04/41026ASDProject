@@ -252,6 +252,7 @@ class PropertyScopeStore:
             "warehouse.bocsar_observation",
             "warehouse.bocsar_coverage",
             "warehouse.school",
+            "warehouse.seifa_sal",
             "warehouse.spatial_feature",
             "serving.accepted_generation",
             "serving.property_coverage",
@@ -2034,6 +2035,9 @@ class PropertyScopeStore:
 
     def property_sale_history(self, property_ref: uuid.UUID, *, limit: int) -> JsonObject:
         return self._properties().property_sale_history(property_ref, limit=limit)
+
+    def property_seifa(self, property_ref: uuid.UUID) -> JsonObject:
+        return self._properties().property_seifa(property_ref)
 
     def overview(self) -> JsonObject:
         with self.connection() as connection:

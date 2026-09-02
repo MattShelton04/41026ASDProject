@@ -448,6 +448,7 @@ def fixture_response(
                 "/map-context",
                 "/coverage",
                 "/sale-history",
+                "/seifa",
                 "/report-section",
                 "/artifacts",
                 "/events",
@@ -760,6 +761,41 @@ def _property_response(route: str, prop: dict[str, Any], scenario: str) -> dict[
                 "schema_version": "propertyscope.property-sales.v3",
                 "accepted_at": TIMESTAMP,
             },
+        }
+    if route.endswith("/seifa"):
+        return {
+            "supported": True,
+            "availability": "available",
+            "property_ref": prop["property_ref"],
+            "locality": "SYDNEY",
+            "match_method": "exact-normalised-locality-and-state",
+            "area": {
+                "sal_code": "13730",
+                "sal_name": "Sydney (NSW)",
+                "locality_name": "SYDNEY",
+                "state": "NSW",
+                "reference_year": 2021,
+                "irsd_score": "1036.19",
+                "irsd_australia_decile": 8,
+                "irsad_score": "1121.57",
+                "irsad_australia_decile": 10,
+                "ier_score": "1051.20",
+                "ier_australia_decile": 8,
+                "ieo_score": "1204.48",
+                "ieo_australia_decile": 10,
+                "usual_resident_population": 16966,
+            },
+            "release": {
+                "dataset_release_id": "60000000-0000-0000-0000-000000000021",
+                "release_version": "2021",
+                "schema_version": "propertyscope.seifa-area.v1",
+                "accepted_at": TIMESTAMP,
+            },
+            "attribution": "Based on Australian Bureau of Statistics data",
+            "limitations": [
+                "SEIFA describes the 2021 Suburb and Locality area, not this property, "
+                "household, or its residents."
+            ],
         }
     if route.endswith("/report-section"):
         return {

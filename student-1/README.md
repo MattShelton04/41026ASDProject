@@ -49,12 +49,27 @@ Version-controlled source/job configuration lives in `config/`, HTTP and release
 licensed; live and licensed source artifacts remain outside Git.
 
 The default stack connects the official NSW schools CSV, BOCSAR archives, Geoscape G-NAF bulk
-archive and PSI sales sources. Starting services never starts a download. When an operator starts
+archive, PSI sales sources, and the ABS SEIFA 2021 Suburbs and Localities workbook. Starting services never starts a download. When an operator starts
 an update, Feature 1 imports every record in the selected registered scope through the same durable run,
 content-addressed artifact, serial loader, candidate generation, quality and human publication
 path. Complete source remains the default and there is no operator row ceiling. PSI also offers an
 inclusive completed publisher archive-year range; this is explicitly partial, is not an exact
 contract-date filter, and cannot replace the accepted complete sales-history generation.
+
+New BOCSAR acquisitions use the versioned sparse
+`propertyscope.canonical-bocsar-parquet.v1` handoff: positive observations and explicit coverage are
+written as typed, Zstandard-compressed Parquet and completely checksum-verified before COPY. The
+loader retains JSON/NDJSON compatibility for historical registered artifacts. This internal
+canonical optimisation does not change the complete gzip-NDJSON release export or consumer
+contract, and it never reads unregistered developer/prototype caches.
+
+New PSI acquisitions use the partition-aware
+`propertyscope.canonical-psi-parquet.v1` handoff. Annual and weekly archives remain in registered
+source order, with typed, bounded, Zstandard-compressed row groups and the same retransmission row
+hashes as legacy NDJSON. The loader verifies the complete file and exact contract before feeding
+the unchanged PostgreSQL typed staging, identity/revision, address-resolution and candidate path.
+PostgreSQL remains authoritative, historical JSON/NDJSON stays replayable and complete consumer
+release exports remain gzip NDJSON.
 
 The PSI adapter is verified against real publisher archives and parses every annual archive from
 1990 onward plus current Monday weekly updates. Archives download into temporary files and
@@ -86,9 +101,11 @@ Playwright smoke command. This audit host is separate from the production-like s
 Open <http://localhost:5200>. The main product path is:
 
 1. Use **Property search** to find a NSW address, review the sources available for it and, when a
-   compatible NSW PSI generation has been accepted, inspect its matched sale history. The page
-   loads identity first and hydrates the bounded latest-revision sale timeline separately. Candidate
-   or unpublished PSI rows never appear in buyer-facing property results.
+   compatible NSW PSI generation has been accepted, inspect its matched sale history. Once an ABS
+   SEIFA generation is accepted, the same page shows the four 2021 SAL indexes and Australian
+   deciles for an exact normalised NSW locality match. SEIFA is labelled as area context—not a
+   property, household, or resident score. The page loads identity first and hydrates each optional
+   evidence panel separately. Candidate or unpublished rows never appear in buyer-facing results.
 2. Use **Data overview** to check whether published property data is current or needs attention.
 3. Open **Data updates**, choose an update, then select **Start update** or **Load earlier data**.
 4. Preview the source and proposed work, then follow progress in **Update history**.
@@ -147,7 +164,7 @@ fixture, waits for all runner and loader stages, and reports the retained candid
 uv run scripts/dev.py data collect fixture-property
 ```
 
-Use `schools-master`, `bocsar-crime`, `gnaf-nsw`, or `psi-sales` to request the complete registered
+Use `schools-master`, `bocsar-crime`, `gnaf-nsw`, `psi-sales`, or `abs-seifa-2021` to request the complete registered
 source, and add `--no-wait` for a long job. These commands automate discovery,
 acquisition, validation, import, normalisation, quality checks, and candidate construction. They do
 not bypass the separate human decision to submit, accept, or reject a candidate.
@@ -181,6 +198,13 @@ and restores the deterministic operator baseline automatically.
 | `bocsar-sparse` | Connected | Streams the complete official postcode and suburb ZIPs into sparse observations plus explicit coverage rows; the downstream consumer release remains separately bounded. |
 | `gnaf-nsw` | Connected | Discovers the latest registered PSV ZIP from Data.gov.au, or uses the optional local source cache below; preserves unit identity and transforms declared GDA94/GDA2020 coordinates to WGS84 at import. |
 | `psi-sales` | Connected | Streams complete annual history and current weekly packages, including the pre-2001 root-DAT format. Stable source keys collapse identical retransmissions. |
+| `seifa-2021-sal-nsw` | Connected | Downloads the official national ABS 2021 SAL workbook, validates its fixed Table 1 headings, and imports every NSW SAL row with the four scores, Australian deciles, population, and source provenance. |
+
+SEIFA refreshes are census-release-driven rather than periodic. The registered `full-data` scope
+means the complete NSW subset of the official national SAL workbook; it is not a sample or an
+operator-selected row cap. ABS `-` values remain explicit null score/decile pairs. Published output
+uses the `propertyscope.seifa-area.v1` gzip-NDJSON contract under CC BY 4.0 and the UI carries the
+required “Based on Australian Bureau of Statistics data” attribution.
 
 G-NAF is about 1.7 GB. To avoid downloading it again after a local reset, place an official
 PSV archive at `.propertyscope-source-cache/gnaf.zip` and declare its CRS before startup:

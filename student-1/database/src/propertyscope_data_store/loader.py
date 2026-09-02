@@ -16,10 +16,12 @@ from typing import Any
 
 from propertyscope_data_store.configuration import StoreSettings
 from propertyscope_data_store.import_profiles import (
+    CANONICAL_PARQUET_MEDIA_TYPE,
     IMPORT_PHASE_LABELS,
     REGISTERED_PROFILES,
     ImportProfileError,
     iter_ndjson_import,
+    iter_parquet_import,
     prepare_import,
 )
 from propertyscope_data_store.repository import PropertyScopeStore
@@ -383,7 +385,46 @@ class DatabaseLoader:
             total_bytes=total_bytes,
         )
         raise_if_cancelled(force=True)
-        if work["media_type"] == "application/x-ndjson":
+        if work["media_type"] == CANONICAL_PARQUET_MEDIA_TYPE:
+            _verify_registered_file(
+                path,
+                expected_sha256=str(work["content_sha256"]),
+                expected_bytes=total_bytes,
+                progress=lambda bytes_: self._update_import_progress(
+                    operation_id,
+                    phase_key="artifact_verification",
+                    rows_processed=0,
+                    bytes_processed=bytes_,
+                    total_bytes=total_bytes,
+                ),
+                raise_if_cancelled=raise_if_cancelled,
+            )
+            self._update_import_progress(
+                operation_id,
+                phase_key="typed_staging",
+                rows_processed=0,
+                bytes_processed=0,
+                total_bytes=total_bytes,
+            )
+            rows = iter_parquet_import(path, profile=profile)
+            cancellable_rows = _raise_between_rows(rows, raise_if_cancelled)
+            imported = self.store.execute_stream_import_profile(
+                work,
+                profile=profile,
+                rows=cancellable_rows,
+                verify_complete=lambda: None,
+                phase_callback=lambda phase_key, count: self._update_import_progress(
+                    operation_id,
+                    phase_key=phase_key,
+                    rows_processed=count,
+                    bytes_processed=0,
+                    total_rows=count if phase_key == "verification" else None,
+                    total_bytes=None,
+                ),
+                lease_failed_event=lease_failed_event,
+                stop_event=self.stop_event,
+            )
+        elif work["media_type"] == "application/x-ndjson":
             self._update_import_progress(
                 operation_id,
                 phase_key="typed_staging",
@@ -459,7 +500,9 @@ class DatabaseLoader:
                 stop_event=self.stop_event,
             )
         else:
-            raise RuntimeError("registered import requires canonical JSON or NDJSON")
+            raise RuntimeError(
+                "registered import requires canonical JSON, NDJSON, or BOCSAR Parquet"
+            )
         counts = {
             "rows_in": imported.rows_in,
             "rows_staged": imported.rows_staged,
@@ -701,6 +744,37 @@ def _raise_between_rows(
     for row in rows:
         raise_if_cancelled()
         yield row
+
+
+def _verify_registered_file(
+    path: Path,
+    *,
+    expected_sha256: str,
+    expected_bytes: int,
+    progress: Callable[[int], None],
+    raise_if_cancelled: Callable[[], None],
+) -> None:
+    """Verify a seekable canonical artifact completely before database COPY begins."""
+    if path.stat().st_size != expected_bytes:
+        raise RuntimeError("artifact size does not match registered metadata")
+    digest = hashlib.sha256()
+    bytes_processed = 0
+    last_report = time.monotonic()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(ARTIFACT_HASH_CHUNK_BYTES), b""):
+            digest.update(chunk)
+            bytes_processed += len(chunk)
+            now = time.monotonic()
+            if now - last_report >= 1.0:
+                progress(bytes_processed)
+                raise_if_cancelled()
+                last_report = now
+    progress(bytes_processed)
+    raise_if_cancelled()
+    if bytes_processed != expected_bytes:
+        raise RuntimeError("artifact size does not match registered metadata")
+    if digest.hexdigest() != expected_sha256:
+        raise RuntimeError("artifact checksum does not match registered metadata")
 
 
 class _VerifiedLineStream:

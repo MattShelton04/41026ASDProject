@@ -32,7 +32,18 @@ from propertyscope_data_platform.adapters.psi import (
     parse_psi_archive_path,
 )
 from propertyscope_data_platform.adapters.schools import parse_schools_csv
+from propertyscope_data_platform.adapters.seifa import parse_seifa_sal_xlsx
 from propertyscope_data_platform.artifacts import LocalArtifactStore
+from propertyscope_data_platform.bocsar_parquet import (
+    BOCSAR_PARQUET_MEDIA_TYPE,
+    BOCSAR_PARQUET_SCHEMA_VERSION,
+    write_bocsar_parquet,
+)
+from propertyscope_data_platform.psi_parquet import (
+    PSI_PARQUET_MEDIA_TYPE,
+    PSI_PARQUET_SCHEMA_VERSION,
+    write_psi_parquet,
+)
 from propertyscope_data_platform.release_builders import (
     BuildContext,
     resolve_release_builder,
@@ -53,6 +64,11 @@ PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip"
 PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{date}.zip"
 GNAF_CKAN_URL = (
     "https://data.gov.au/data/api/3/action/package_show?id=19432f89-dc3a-4ef3-b943-5326ef1dbecc"
+)
+SEIFA_SAL_URL = (
+    "https://www.abs.gov.au/statistics/people/people-and-communities/"
+    "socio-economic-indexes-areas-seifa-australia/2021/"
+    "Suburbs%20and%20Localities%2C%20Indexes%2C%20SEIFA%202021.xlsx"
 )
 IMPORT_TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled", "interrupted"})
 logger = logging.getLogger(__name__)
@@ -249,21 +265,34 @@ class AcquisitionRunner:
                 if not isinstance(scope, dict):
                     raise RuntimeError("Registered live scope is invalid")
                 counter = [0]
-                if profile == "psi-sales":
-                    canonical_chunks = self._live_psi_chunks(task, scope, counter)
-                elif profile == "gnaf-nsw":
-                    canonical_chunks = self._live_gnaf_chunks(task, scope, counter)
+                if profile == "bocsar-sparse":
+                    artifact = self.artifacts.put_generated(
+                        lambda destination: self._write_live_bocsar_parquet(
+                            destination, task, scope, counter
+                        ),
+                        media_type=BOCSAR_PARQUET_MEDIA_TYPE,
+                    )
+                    schema_version = BOCSAR_PARQUET_SCHEMA_VERSION
+                elif profile == "psi-sales":
+                    artifact = self.artifacts.put_generated(
+                        lambda destination: self._write_live_psi_parquet(
+                            destination, task, scope, counter
+                        ),
+                        media_type=PSI_PARQUET_MEDIA_TYPE,
+                    )
+                    schema_version = PSI_PARQUET_SCHEMA_VERSION
                 else:
-                    canonical_chunks = self._live_bocsar_chunks(task, scope, counter)
-                artifact = self.artifacts.put(
-                    canonical_chunks,
-                    media_type="application/x-ndjson",
-                )
+                    canonical_chunks = self._live_gnaf_chunks(task, scope, counter)
+                    artifact = self.artifacts.put(
+                        canonical_chunks,
+                        media_type="application/x-ndjson",
+                    )
+                    schema_version = "propertyscope.canonical-import.v1"
                 self._register_stage_artifact(
                     task,
                     stage=stage,
                     artifact=artifact,
-                    schema_version="propertyscope.canonical-import.v1",
+                    schema_version=schema_version,
                 )
                 return counter[0], counter[0]
             if profile != "property-fixture":
@@ -455,7 +484,13 @@ class AcquisitionRunner:
         self, task: dict[str, Any], *, stage: str, profile: str
     ) -> tuple[dict[str, object], list[dict[str, object]]]:
         """Acquire a registered real source or fail instead of substituting fixtures."""
-        if profile not in {"schools-master", "bocsar-sparse", "psi-sales", "gnaf-nsw"}:
+        if profile not in {
+            "schools-master",
+            "bocsar-sparse",
+            "psi-sales",
+            "gnaf-nsw",
+            "seifa-2021-sal-nsw",
+        }:
             raise RuntimeError("This registered profile has no connected live transport")
         scope = task.get("partition_json") or {}
         if not isinstance(scope, dict):
@@ -478,7 +513,46 @@ class AcquisitionRunner:
             return self._live_psi(task, scope)
         if profile == "gnaf-nsw":
             raise RuntimeError("G-NAF live acquisition is available through the run worker")
-        content = self._download_registered(SCHOOLS_MASTER_URL)
+        source_url = SEIFA_SAL_URL if profile == "seifa-2021-sal-nsw" else SCHOOLS_MASTER_URL
+        content = self._download_registered(source_url)
+        if profile == "seifa-2021-sal-nsw":
+            parsed_seifa = parse_seifa_sal_xlsx(content, state=str(scope.get("state", "NSW")))
+            seifa_records: list[dict[str, object]] = [
+                {
+                    "sal_code": record.sal_code,
+                    "sal_name": record.sal_name,
+                    "locality_name": record.locality_name,
+                    "state": record.state,
+                    "reference_year": record.reference_year,
+                    "irsd_score": record.irsd_score,
+                    "irsd_australia_decile": record.irsd_australia_decile,
+                    "irsad_score": record.irsad_score,
+                    "irsad_australia_decile": record.irsad_australia_decile,
+                    "ier_score": record.ier_score,
+                    "ier_australia_decile": record.ier_australia_decile,
+                    "ieo_score": record.ieo_score,
+                    "ieo_australia_decile": record.ieo_australia_decile,
+                    "usual_resident_population": record.usual_resident_population,
+                }
+                for record in parsed_seifa
+            ]
+            source: dict[str, object] = {
+                "publisher": "Australian Bureau of Statistics",
+                "source_url": SEIFA_SAL_URL,
+                "media_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "reference_year": 2021,
+                "released_at": "2023-04-27",
+                "real_source": True,
+            }
+            return (
+                {
+                    "schema_version": "propertyscope.canonical-import.v1",
+                    "profile": profile,
+                    "source": source,
+                    "records": seifa_records,
+                },
+                seifa_records,
+            )
         parsed = parse_schools_csv(content)
         records: list[dict[str, object]] = [
             {
@@ -512,6 +586,14 @@ class AcquisitionRunner:
     def _live_objects(self, profile: str, scope: dict[str, object]) -> list[dict[str, object]]:
         if profile == "schools-master":
             return [_source_object("nsw-government-schools-master", SCHOOLS_MASTER_URL, "text/csv")]
+        if profile == "seifa-2021-sal-nsw":
+            return [
+                _source_object(
+                    "abs-seifa-2021-sal",
+                    SEIFA_SAL_URL,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            ]
         if profile == "bocsar-sparse":
             kinds = _bocsar_kinds(scope)
             return [
@@ -602,6 +684,24 @@ class AcquisitionRunner:
     def _live_bocsar_chunks(
         self, task: dict[str, Any], scope: dict[str, object], counter: list[int]
     ) -> Iterable[bytes]:
+        for item in self._live_bocsar_records(task, scope, counter):
+            yield (
+                json.dumps(_bocsar_record(item), sort_keys=True, separators=(",", ":")).encode()
+                + b"\n"
+            )
+
+    def _write_live_bocsar_parquet(
+        self,
+        destination: Path,
+        task: dict[str, Any],
+        scope: dict[str, object],
+        counter: list[int],
+    ) -> None:
+        write_bocsar_parquet(destination, self._live_bocsar_records(task, scope, counter))
+
+    def _live_bocsar_records(
+        self, task: dict[str, Any], scope: dict[str, object], counter: list[int]
+    ) -> Iterable[CrimeObservation | CrimeCoverage]:
         raw_values = scope.get("geography_values")
         geography_values = (
             frozenset(str(value).strip() for value in raw_values)
@@ -631,10 +731,7 @@ class AcquisitionRunner:
                             "rows_processed": counter[0],
                         },
                     )
-                yield (
-                    json.dumps(_bocsar_record(item), sort_keys=True, separators=(",", ":")).encode()
-                    + b"\n"
-                )
+                yield item
 
     def _live_psi(
         self, task: dict[str, Any], scope: dict[str, object]
@@ -678,6 +775,34 @@ class AcquisitionRunner:
         self, task: dict[str, Any], scope: dict[str, object], counter: list[int]
     ) -> Iterable[bytes]:
         """Stream complete PSI partitions as canonical NDJSON without retaining history in RAM."""
+        for source_year, sales in self._live_psi_partitions(task, scope):
+            for sale in sales:
+                self._note_psi_record(task, counter)
+                yield (
+                    json.dumps(
+                        _psi_record(sale, source_year=source_year),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                    + b"\n"
+                )
+
+    def _write_live_psi_parquet(
+        self,
+        destination: Path,
+        task: dict[str, Any],
+        scope: dict[str, object],
+        counter: list[int],
+    ) -> None:
+        write_psi_parquet(
+            destination,
+            self._live_psi_partitions(task, scope),
+            on_record=lambda: self._note_psi_record(task, counter),
+        )
+
+    def _live_psi_partitions(
+        self, task: dict[str, Any], scope: dict[str, object]
+    ) -> Iterable[tuple[int, Iterable[PsiSale]]]:
         years = _psi_years(scope)
         sources = [
             (year, PSI_YEARLY_URL.format(year=year), self._psi_archive(year)) for year in years
@@ -703,25 +828,19 @@ class AcquisitionRunner:
                     progress=self._heartbeat_progress(task),
                 )
             with source as path:
-                for sale in iter_psi_archive_path(path, source_year=source_year):
-                    counter[0] += 1
-                    if counter[0] % 25_000 == 0:
-                        self._heartbeat(
-                            str(task["id"]),
-                            str(task["lease_token"]),
-                            progress={
-                                "phase": "canonicalising sales records",
-                                "rows_processed": counter[0],
-                            },
-                        )
-                    yield (
-                        json.dumps(
-                            _psi_record(sale, source_year=source_year),
-                            sort_keys=True,
-                            separators=(",", ":"),
-                        ).encode()
-                        + b"\n"
-                    )
+                yield source_year, iter_psi_archive_path(path, source_year=source_year)
+
+    def _note_psi_record(self, task: dict[str, Any], counter: list[int]) -> None:
+        counter[0] += 1
+        if counter[0] % 25_000 == 0:
+            self._heartbeat(
+                str(task["id"]),
+                str(task["lease_token"]),
+                progress={
+                    "phase": "canonicalising sales records",
+                    "rows_processed": counter[0],
+                },
+            )
 
     def _psi_archive(self, year: int) -> Path | None:
         root = self.settings.psi_archive_root

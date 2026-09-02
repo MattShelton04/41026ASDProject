@@ -55,6 +55,58 @@
       ]
     },
     {
+      "ai": {
+        "runtime_path": "/etc/ai-mode/market-intelligence-tools.yaml",
+        "tool_catalog": "student-2/tool-catalog.yaml"
+      },
+      "databases": [
+        {
+          "database_service": "f2-db-api",
+          "volumes": [
+            "f2-sqlite-data"
+          ]
+        }
+      ],
+      "enabled": true,
+      "evidence_adapter": null,
+      "feature_key": "student-2-market-intelligence",
+      "frontend": {
+        "asset_root": "student-2/frontend",
+        "host_port_default": 5300,
+        "host_port_variable": "PROPERTYSCOPE_MARKET_INTELLIGENCE_PORT",
+        "internal_port": 8080,
+        "route_fragment": "student-2/frontend/integration/research-area.html",
+        "service": "f2-frontend"
+      },
+      "health_path": "/health/ready",
+      "owner": "student-2",
+      "quality": {
+        "coverage_fail_under": 70,
+        "coverage_packages": [
+          "propertyscope_market_intelligence",
+          "propertyscope_market_store"
+        ],
+        "node_test_files": [
+          "student-2/tests/frontend/core.test.mjs"
+        ],
+        "python_test_paths": [
+          "student-2/tests"
+        ]
+      },
+      "routes": [
+        {
+          "kind": "frontend",
+          "path": "/features/market-intelligence/",
+          "service": "f2-frontend"
+        },
+        {
+          "kind": "backend",
+          "path": "/api/market-intelligence/v1",
+          "service": "f2-backend"
+        }
+      ]
+    },
+    {
       "ai": null,
       "databases": [
         {

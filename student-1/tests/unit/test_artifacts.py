@@ -74,3 +74,25 @@ def test_content_reuse_repairs_a_corrupt_existing_object(tmp_path: Path) -> None
 
     assert retransmission.storage_key == original.storage_key
     assert (tmp_path / original.storage_key).read_bytes() == payload
+
+
+def test_generated_seekable_artifact_is_finalised_and_generator_failure_is_cleaned(
+    tmp_path: Path,
+) -> None:
+    store = LocalArtifactStore(tmp_path)
+    payload = b"seekable-format-with-footer"
+
+    artifact = store.put_generated(
+        lambda path: path.write_bytes(payload), media_type="application/vnd.apache.parquet"
+    )
+
+    assert (tmp_path / artifact.storage_key).read_bytes() == payload
+    assert artifact.sha256 == hashlib.sha256(payload).hexdigest()
+
+    def fail(path: Path) -> None:
+        path.write_bytes(b"partial")
+        raise RuntimeError("writer failed")
+
+    with pytest.raises(RuntimeError, match="writer failed"):
+        store.put_generated(fail, media_type="application/vnd.apache.parquet")
+    assert not list(tmp_path.glob("artifact-*"))

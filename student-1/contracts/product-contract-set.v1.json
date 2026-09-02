@@ -41,6 +41,16 @@
       "schema_path": "school-points.v2.schema.json",
       "schema_version": "propertyscope.school-points.v2",
       "target_feature": "feature-3"
+    },
+    {
+      "builder_key": "seifa-area",
+      "builder_version": "1.0.0",
+      "content_encoding": "gzip",
+      "media_type": "application/x-ndjson",
+      "record_framing": "one-json-object-per-line",
+      "schema_path": "seifa-area.v1.schema.json",
+      "schema_version": "propertyscope.seifa-area.v1",
+      "target_feature": "feature-1"
     }
   ],
   "legacy_contracts": [

@@ -1,0 +1,17 @@
+schema_version: propertyscope.job-profile.v1
+key: abs-seifa-2021-sal-nsw
+version: 1.0.0
+display_name: ABS SEIFA 2021 NSW suburb and locality indexes
+source_key: abs-seifa-2021
+adapter: {key: abs-seifa-xlsx, version: 1.0.0}
+refresh_strategy: full_snapshot
+supported_modes: [full_refresh, reprocess_cached]
+release_builder: {key: seifa-area, version: 1.0.0}
+import_profile: {key: seifa-2021-sal-nsw, version: 1.0.0}
+target: {feature: feature-1, contract: propertyscope.seifa-area.v1}
+scope:
+  profile: full-data
+  state: NSW
+  all_records: true
+quality_policy: abs-seifa-2021-sal-nsw.v1
+publication: human_review

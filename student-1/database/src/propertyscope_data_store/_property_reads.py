@@ -471,7 +471,7 @@ class _CanonicalPropertyReads:
         )
         if exists is None:
             raise NotFoundError("record does not exist")
-        return self._owner._fetch_all(
+        coverage = self._owner._fetch_all(
             """WITH accepted_identity AS (
                 SELECT COALESCE(address.property_ref,
                            md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
@@ -501,6 +501,123 @@ class _CanonicalPropertyReads:
             ORDER BY target_feature,dataset_id""",
             (property_ref, property_ref),
         )
+        seifa = self._seifa_coverage(property_ref)
+        if seifa is not None and seifa.get("dataset_id") == "abs-seifa-2021":
+            coverage.append(seifa)
+        return sorted(coverage, key=lambda item: (item["target_feature"], item["dataset_id"]))
+
+    def _seifa_coverage(self, property_ref: uuid.UUID) -> JsonObject | None:
+        return self._owner._fetch_one(
+            """WITH property_locality AS (
+                SELECT address.locality
+                FROM warehouse.gnaf_address address
+                JOIN serving.accepted_generation identity
+                  ON identity.dataset_release_id=address.dataset_release_id
+                WHERE address.published AND COALESCE(address.property_ref,
+                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
+                UNION ALL SELECT property.locality FROM registry.property property
+                WHERE property.property_ref=%s LIMIT 1
+            )
+            SELECT release.dataset_id,release.target_feature,release.id AS dataset_release_id,
+                   'supported' AS coverage_status,
+                   release.coverage_json || jsonb_build_object(
+                       'matched_sal_code',area.sal_code,'matched_sal_name',area.sal_name,
+                       'match_method','exact-normalised-locality-and-state') AS coverage_scope,
+                   accepted.activated_at AS checked_at,release.release_version,
+                   release.schema_version,release.accepted_at
+            FROM property_locality property
+            JOIN serving.accepted_generation accepted
+              ON accepted.dataset_id='abs-seifa-2021'
+             AND accepted.target_feature='feature-1'
+            JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+             AND release.status='accepted' AND release.schema_version='propertyscope.seifa-area.v1'
+            JOIN warehouse.seifa_sal area ON area.dataset_release_id=release.id
+             AND area.state='NSW'
+             AND area.locality_name=upper(regexp_replace(trim(property.locality),'\\s+',' ','g'))
+            LIMIT 1""",
+            (property_ref, property_ref),
+        )
+
+    def property_seifa(self, property_ref: uuid.UUID) -> JsonObject:
+        property_item = self._owner._fetch_one(
+            """SELECT address.locality
+            FROM warehouse.gnaf_address address
+            JOIN serving.accepted_generation accepted
+              ON accepted.dataset_release_id=address.dataset_release_id
+            WHERE address.published AND COALESCE(address.property_ref,
+                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
+            UNION ALL SELECT property.locality FROM registry.property property
+            WHERE property.property_ref=%s LIMIT 1""",
+            (property_ref, property_ref),
+        )
+        if property_item is None:
+            raise NotFoundError("record does not exist")
+        locality = " ".join(str(property_item["locality"]).upper().split())
+        accepted = self._owner._fetch_one(
+            """SELECT release.id AS dataset_release_id,release.release_version,
+               release.schema_version,release.accepted_at,accepted.activated_at,
+               source.name AS source_name,source.publisher,source.source_url,
+               source.licence_id,source.licence_url
+            FROM serving.accepted_generation accepted
+            JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+            JOIN ops.source_definition source ON source.id=release.source_definition_id
+            WHERE accepted.dataset_id='abs-seifa-2021'
+              AND accepted.target_feature='feature-1'
+              AND release.status='accepted'
+              AND release.schema_version='propertyscope.seifa-area.v1'
+            LIMIT 1""",
+            (),
+        )
+        if accepted is None:
+            return {
+                "supported": False,
+                "availability": "no_accepted_release",
+                "property_ref": str(property_ref),
+                "locality": locality,
+                "message": "No accepted ABS SEIFA 2021 release is available.",
+            }
+        matches = self._owner._fetch_all(
+            """SELECT sal_code,sal_name,locality_name,state,reference_year,
+               irsd_score::text,irsd_australia_decile,irsad_score::text,
+               irsad_australia_decile,ier_score::text,ier_australia_decile,
+               ieo_score::text,ieo_australia_decile,usual_resident_population
+            FROM warehouse.seifa_sal
+            WHERE dataset_release_id=%s AND state='NSW' AND locality_name=%s
+            ORDER BY usual_resident_population DESC,sal_code LIMIT 2""",
+            (accepted["dataset_release_id"], locality),
+        )
+        if len(matches) != 1:
+            availability = "locality_not_matched" if not matches else "ambiguous_locality_match"
+            return {
+                "supported": False,
+                "availability": availability,
+                "property_ref": str(property_ref),
+                "locality": locality,
+                "message": (
+                    "The accepted SEIFA release has no exact NSW locality match."
+                    if not matches
+                    else "The accepted SEIFA release has more than one exact locality match."
+                ),
+                "release": accepted,
+            }
+        area = matches[0]
+        return {
+            "supported": True,
+            "availability": "available",
+            "property_ref": str(property_ref),
+            "locality": locality,
+            "match_method": "exact-normalised-locality-and-state",
+            "area": area,
+            "release": accepted,
+            "attribution": "Based on Australian Bureau of Statistics data",
+            "limitations": [
+                "SEIFA describes the 2021 Suburb and Locality area, not this property, "
+                "household, or its residents.",
+                "The match uses exact normalised locality name and NSW state, "
+                "not a spatial boundary.",
+                "Small-population SAL scores and comparisons require caution.",
+            ],
+        }
 
     def property_sale_history(self, property_ref: uuid.UUID, *, limit: int) -> JsonObject:
         """Return latest accepted PSI revisions for one canonical property.

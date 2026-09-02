@@ -458,6 +458,36 @@ def test_ui_command_launches_fixture_server_as_repository_module(
     ]
 
 
+def test_readme_screenshot_command_forwards_port_and_output(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert (
+        dev.main(
+            [
+                "ui",
+                "readme-screenshots",
+                "--port",
+                "5333",
+                "--output",
+                "docs/example-images",
+            ]
+        )
+        == 0
+    )
+
+    assert captured_commands == [
+        (
+            dev.sys.executable,
+            "-m",
+            "scripts.readme_screenshots",
+            "--port",
+            "5333",
+            "--output",
+            str(Path("docs/example-images")),
+        )
+    ]
+
+
 def test_default_stack_connects_official_sources_without_a_second_project(
     captured_commands: list[tuple[str, ...]],
 ) -> None:

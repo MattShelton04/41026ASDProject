@@ -20,6 +20,8 @@ const PRODUCT_LABELS = Object.freeze({
   "bocsar-crime": "NSW recorded crime",
   "nsw-government-schools": "NSW government schools",
   "gnaf-nsw": "NSW address records",
+  "abs-seifa-2021": "ABS SEIFA 2021",
+  "abs-seifa-2021-sal-nsw": "ABS SEIFA 2021 NSW areas",
 });
 
 export function displayName(value) {

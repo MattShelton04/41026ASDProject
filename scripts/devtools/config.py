@@ -59,6 +59,7 @@ COLLECTION_JOBS = (
     "bocsar-crime",
     "gnaf-nsw",
     "psi-sales",
+    "abs-seifa-2021",
 )
 TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
 HOST_PORTS: dict[str, tuple[str, int]] = {

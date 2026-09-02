@@ -7,7 +7,9 @@ dependencies = [
     "flask>=3.1,<4",
     "gunicorn>=23,<24",
     "httpx>=0.28,<1",
+    "openpyxl>=3.1,<4",
     "psycopg[binary,pool]>=3.2,<4",
+    "pyarrow>=21,<24",
     "pydantic>=2.12,<3",
     "pyyaml>=6,<7",
     "shared-contracts",
@@ -26,4 +28,5 @@ shared-consumer-protocol = { workspace = true }
 [dependency-groups]
 dev = [
     "shared-consumer-protocol",
+    "types-openpyxl>=3.1,<4",
 ]

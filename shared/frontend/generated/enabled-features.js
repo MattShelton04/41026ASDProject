@@ -11,6 +11,16 @@ const VALUES = [
     "publicHealthPath": "/api/shared-health/data-platform"
   },
   {
+    "backendBase": "/api/market-intelligence/v1",
+    "displayName": "PropertyScope Property Sales Explorer and Market Cases",
+    "evidenceAdapterPath": null,
+    "featureKey": "student-2-market-intelligence",
+    "frontendBase": "/features/market-intelligence/",
+    "healthPath": "/health/ready",
+    "owner": "student-2",
+    "publicHealthPath": "/api/shared-health/market-intelligence"
+  },
+  {
     "backendBase": "/api/due-diligence/v1",
     "displayName": "PropertyScope Site, Planning and Building Due Diligence",
     "evidenceAdapterPath": null,

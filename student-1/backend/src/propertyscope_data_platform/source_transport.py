@@ -18,6 +18,7 @@ ALLOWED_SOURCE_HOSTS = frozenset(
         "data.nsw.gov.au",
         "bocsarblob.blob.core.windows.net",
         "www.valuergeneral.nsw.gov.au",
+        "www.abs.gov.au",
     }
 )
 ALLOWED_MEDIA_TYPES = frozenset(
@@ -27,6 +28,7 @@ ALLOWED_MEDIA_TYPES = frozenset(
         "application/octet-stream",
         "application/zip",
         "application/x-zip-compressed",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }
 )
 

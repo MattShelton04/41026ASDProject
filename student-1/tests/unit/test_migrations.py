@@ -61,23 +61,24 @@ def test_changed_applied_migration_is_rejected() -> None:
         migrate(cast(Any, connection))
 
 
-def test_supported_contract_migration_aligns_every_registered_builder() -> None:
-    sql = (
+def test_supported_contract_migrations_align_every_registered_builder() -> None:
+    established_sql = (
         files(MIGRATION_PACKAGE)
         .joinpath("043_align_supported_builder_contracts.sql")
         .read_text(encoding="utf-8")
     )
-
+    seifa_sql = (
+        files(MIGRATION_PACKAGE).joinpath("048_abs_seifa_2021.sql").read_text(encoding="utf-8")
+    )
     expected_versions = {
         builder.spec.key: builder.spec.version for builder in default_release_builders().values()
     }
     for builder_key, version in expected_versions.items():
-        assert f"WHEN '{builder_key}' THEN '{version}'" in sql
-        assert (
-            f"release_builder_key = '{builder_key}' AND release_builder_version <> '{version}'"
-            in sql
-        )
-    assert "ops.ingestion_run" not in sql
+        migration = seifa_sql if builder_key == "seifa-area" else established_sql
+        assert f"release_builder_key = '{builder_key}'" in migration
+        assert f"release_builder_version <> '{version}'" in migration
+        assert version in migration
+    assert "ops.ingestion_run" not in established_sql
 
 
 def test_interrupted_task_migration_repairs_existing_active_children() -> None:

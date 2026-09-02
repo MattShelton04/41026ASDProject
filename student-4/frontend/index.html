@@ -1,25 +1,136 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-AU">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PropertyScope - Site, Planning &amp; Building Due Diligence</title>
-    <link rel="stylesheet" href="styles.css" />
+    <meta name="theme-color" content="#10262e" />
+    <meta name="description" content="PropertyScope site, planning and building due diligence" />
+    <title>PropertyScope | Site and planning</title>
+    <link rel="stylesheet" href="./design-system/tokens.css" />
+    <link rel="stylesheet" href="./design-system/base.css" />
+    <link rel="stylesheet" href="./design-system/components.css" />
+    <link rel="stylesheet" href="./mapping/mapping.css" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.js"></script>
   </head>
   <body>
-    <header class="ps-header">
-      <h1>Site, Planning &amp; Building Due Diligence</h1>
-      <p>
-        Feature 4 scaffold - review available planning, environmental, strata and building
-        evidence for a property, and record a due-diligence disposition.
-      </p>
+    <a class="ps-skip-link" href="#main-content">Skip to main content</a>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="PropertyScope product home">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m12 3-8 4 8 4 8-4-8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg></span>
+        <span><strong>PropertyScope NSW</strong><small>Site &amp; planning workspace</small></span>
+      </a>
+      <form class="topbar-search" id="review-filter-form" role="search">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <label class="ps-sr-only" for="review-filter">Filter site reviews</label>
+        <input id="review-filter" name="q" type="search" placeholder="Filter site reviews by address" autocomplete="off" maxlength="200" />
+      </form>
+      <nav class="global-nav" aria-label="PropertyScope navigation">
+        <a href="/">Home</a>
+        <a href="/#features">Research areas</a>
+        <a href="/#system-status">Data status</a>
+        <a href="/#evidence">Sources &amp; history</a>
+      </nav>
+      <div class="topbar-actions">
+        <div id="service-state" class="service-state checking" role="status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span data-service-label>Checking service</span>
+        </div>
+      </div>
     </header>
-    <main class="ps-main">
-      <section>
-        <h2>Site reviews</h2>
-        <div id="site-reviews" class="review-list">Loading site reviews...</div>
-      </section>
-    </main>
-    <script type="module" src="app.js"></script>
+
+    <div class="workspace-strip" aria-label="Current research area and evidence status">
+      <span class="workspace-strip__area"><b>Current research area</b> Site &amp; planning</span>
+      <span><i aria-hidden="true"></i> Evidence workspace available</span>
+      <span>Planning, environmental, strata &amp; building</span>
+      <span>Evidence states shown</span>
+    </div>
+
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Primary navigation">
+        <a class="context-card" href="#site-reviews">
+          <span class="context-icon" aria-hidden="true">&#x2317;</span>
+          <div><small>Current research area</small><strong>Site &amp; planning</strong></div>
+        </a>
+        <nav aria-label="Site and planning navigation">
+          <p class="nav-label">Due diligence</p>
+          <a href="#site-reviews" aria-current="page"><span class="nav-icon" aria-hidden="true">&#x25A4;</span>Site reviews</a>
+        </nav>
+        <div class="sidebar-note">
+          <a href="/">&larr; Back to research workspace</a>
+          <span>Planning, environmental, strata and building evidence for a verified property, with gaps made explicit.</span>
+        </div>
+      </aside>
+
+      <main id="main-content" tabindex="-1">
+        <div id="view" class="ps-container page">
+          <p class="empty">Loading site reviews&hellip;</p>
+        </div>
+      </main>
+    </div>
+
+    <dialog id="review-dialog" class="review-dialog" aria-labelledby="review-dialog-title">
+      <form id="review-form" method="dialog">
+        <div class="dialog-head">
+          <h2 id="review-dialog-title">New site review</h2>
+          <button type="button" class="dialog-close" data-close aria-label="Close dialog">&times;</button>
+        </div>
+        <div class="dialog-body">
+          <div class="field" id="property-field">
+            <label for="property-search">Verified property</label>
+            <input id="property-search" type="search" autocomplete="off" placeholder="Search a NSW address, e.g. 11 Example Street Sydney" />
+            <div id="property-results" class="property-results"></div>
+            <p id="selected-property" class="selected-property" hidden></p>
+          </div>
+          <div class="field">
+            <label for="review-title">Title</label>
+            <input id="review-title" type="text" maxlength="200" placeholder="Due-diligence review" />
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="review-status">Status</label>
+              <select id="review-status">
+                <option value="draft">Draft</option>
+                <option value="in_review">In review</option>
+                <option value="completed">Completed</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="review-disposition">Disposition</label>
+              <select id="review-disposition">
+                <option value="undecided">Undecided</option>
+                <option value="proceed">Proceed</option>
+                <option value="hold">Hold</option>
+                <option value="do_not_proceed">Do not proceed</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="review-notes">Notes</label>
+            <textarea id="review-notes" rows="3" maxlength="2000" placeholder="Optional notes"></textarea>
+          </div>
+          <p id="review-error" class="form-error" role="alert" hidden></p>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="ps-button" data-close>Cancel</button>
+          <button type="submit" id="review-submit" class="ps-button ps-button--primary">Create review</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title">
+      <form method="dialog">
+        <h2 id="confirm-title" class="card-title">Delete site review</h2>
+        <p id="confirm-text" class="dialog-copy"></p>
+        <div class="dialog-actions">
+          <button type="button" class="ps-button" data-confirm-close>Cancel</button>
+          <button type="button" id="confirm-delete" class="ps-button ps-button--danger">Delete</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="ps-toast" role="status" aria-live="polite" aria-atomic="true"></div>
+    <noscript><p class="noscript">Site reviews load through the due-diligence API and require JavaScript.</p></noscript>
   </body>
 </html>

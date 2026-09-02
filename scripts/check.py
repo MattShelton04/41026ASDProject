@@ -32,6 +32,7 @@ FRONTEND_TEST_PATHS = (
 JAVASCRIPT_SOURCE_ROOTS = (
     REPOSITORY_ROOT / "shared" / "frontend",
     REPOSITORY_ROOT / "student-1" / "frontend",
+    REPOSITORY_ROOT / "student-2" / "frontend",
 )
 
 Command = tuple[str, ...]
@@ -63,6 +64,9 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "student-1/backend/src/propertyscope_data_platform",
         "student-1/database/src/propertyscope_data_store",
         "student-1/tests",
+        "student-2/backend/src/propertyscope_market_intelligence",
+        "student-2/database/src/propertyscope_market_store",
+        "student-2/tests",
         "scripts/ui_audit",
         "scripts/devtools",
         "scripts/check.py",

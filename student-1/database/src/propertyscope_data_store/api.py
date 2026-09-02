@@ -557,6 +557,10 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         limit = query_integer("limit", minimum=1, maximum=100, default=50)
         return jsonify(store.property_sale_history(property_ref, limit=limit))
 
+    @api.get("/internal/data-platform/v1/properties/<uuid:property_ref>/seifa")
+    def property_seifa(property_ref: uuid.UUID) -> Response:
+        return jsonify(store.property_seifa(property_ref))
+
     @api.post("/internal/data-platform/v1/imports")
     def imports_create() -> tuple[Response, int]:
         operation, created = store.create_import(payload())
