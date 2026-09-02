@@ -1,0 +1,85 @@
+schema_version: 1
+services:
+  - service: suburb-analytics-backend
+    base_url: http://f3-backend:5301
+tools:
+  - definition:
+      name: suburb.snapshot.v1
+      version: v1
+      feature_key: student-3-suburb-analytics
+      description: Inspect one supported suburb and its bounded nearby-place fixture evidence without making desirability or catchment claims.
+      input_schema:
+        type: object
+        properties:
+          locality: {type: string, minLength: 2, maxLength: 80}
+        required: [locality]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          suburb: {type: object}
+          places: {type: array, maxItems: 20, items: {type: object}}
+          limitations: {type: array, maxItems: 10, items: {type: string}}
+        required: [suburb, places, limitations]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: suburb-analytics-backend
+    method: POST
+    path: /api/suburb-analytics/v1/tools/suburb.snapshot.v1
+  - definition:
+      name: crime.compare.v1
+      version: v1
+      feature_key: student-3-suburb-analytics
+      description: Compare bounded recorded fixture series over one common period and measure; never infer causes, predictions or safety rankings.
+      input_schema:
+        type: object
+        properties:
+          localities: {type: array, minItems: 2, maxItems: 5, items: {type: string, minLength: 2, maxLength: 80}}
+          from_month: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}
+          to_month: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}
+          measure: {enum: [count, rate]}
+          offence: {enum: [all_recorded, property, person], default: all_recorded}
+        required: [localities, from_month, to_month, measure]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          series: {type: array, minItems: 2, maxItems: 5, items: {type: object}}
+          measure: {enum: [count, rate]}
+          offence: {enum: [all_recorded, property, person]}
+          source_release: {type: string}
+          limitations: {type: array, maxItems: 10, items: {type: string}}
+        required: [series, measure, offence, source_release, limitations]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 4000
+      requires_approval: false
+    service: suburb-analytics-backend
+    method: POST
+    path: /api/suburb-analytics/v1/tools/crime.compare.v1
+  - definition:
+      name: crime.methodology.v1
+      version: v1
+      feature_key: student-3-suburb-analytics
+      description: Return measure, rate, zero-versus-missing, source release and responsible-use methodology.
+      input_schema: {type: object, properties: {}, additionalProperties: false}
+      output_schema:
+        type: object
+        properties:
+          geography: {type: string}
+          measures: {type: array, maxItems: 5, items: {type: string}}
+          offence_categories: {type: array, maxItems: 10, items: {type: string}}
+          zero_missing_rule: {type: string}
+          rate_method: {type: string}
+          responsible_use: {type: string}
+          source_release: {type: string}
+        required: [geography, measures, offence_categories, zero_missing_rule, rate_method, responsible_use, source_release]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 2000
+      requires_approval: false
+    service: suburb-analytics-backend
+    method: POST
+    path: /api/suburb-analytics/v1/tools/crime.methodology.v1

@@ -1,0 +1,38 @@
+schema_version: 1
+feature_key: student-3-suburb-analytics
+display_name: PropertyScope Suburb, Crime and Liveability Analytics
+owner: student-3
+frontend_base_path: /features/suburb-analytics/
+backend_base_path: /api/suburb-analytics/v1
+health_path: /health/ready
+ai_capabilities:
+  - suburb.snapshot.v1
+  - crime.compare.v1
+  - crime.methodology.v1
+onboarding:
+  frontend:
+    asset_root: student-3/frontend
+    service: f3-frontend
+    internal_port: 8080
+    host_port_variable: PROPERTYSCOPE_SUBURB_ANALYTICS_PORT
+    host_port_default: 5300
+    route_fragment: student-3/frontend/integration/research-area.html
+  backend:
+    service: f3-backend
+    internal_port: 5301
+  ai:
+    tool_catalog: student-3/tool-catalog.yaml
+    runtime_path: /etc/ai-mode/suburb-analytics-tools.yaml
+  quality:
+    python_test_paths:
+      - student-3/tests
+    node_test_files:
+      - student-3/tests/frontend.test.mjs
+    coverage_packages:
+      - propertyscope_suburb_analytics
+      - propertyscope_suburb_store
+    coverage_fail_under: 80
+  databases:
+    - database_service: f3-database
+      volumes:
+        - f3-suburb-data
