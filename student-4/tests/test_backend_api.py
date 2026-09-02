@@ -64,9 +64,14 @@ class FakeStore:
 
 class FakeFeature1:
     def __init__(
-        self, state: str = "valid", *, search_result: dict[str, Any] | None = None
+        self,
+        state: str = "valid",
+        *,
+        search_result: dict[str, Any] | None = None,
+        coordinates: tuple[float, float] | None = (151.0, -33.9),
     ) -> None:
         self.state = state
+        self._coordinates = coordinates
         self.search_result = (
             search_result
             if search_result is not None
@@ -87,6 +92,9 @@ class FakeFeature1:
 
     def search(self, query: str, limit: int = 8) -> dict[str, Any]:
         return self.search_result
+
+    def coordinates(self, property_ref: str) -> tuple[float, float] | None:
+        return self._coordinates
 
 
 def _client(store: FakeStore | None = None, feature1: FakeFeature1 | None = None):
@@ -199,6 +207,36 @@ def test_property_search_reports_unavailable():
     body = client.get(f"{_API}/properties/search?q=Example").get_json()
     assert body["available"] is False
     assert body["items"] == []
+
+
+def test_map_returns_bounded_geojson():
+    store = FakeStore()
+    client = create_app(
+        store=store, feature1=FakeFeature1(coordinates=(151.0, -33.9))
+    ).test_client()
+    review_id = client.post(
+        f"{_API}/site-reviews",
+        json={"property_ref": "a0", "address_display": "11 Example Street", "title": "t"},
+    ).get_json()["id"]
+    body = client.get(f"{_API}/site-reviews/{review_id}/map").get_json()
+    assert body["available"] is True
+    assert body["center"] == [151.0, -33.9]
+    assert body["property"]["features"][0]["geometry"]["type"] == "Point"
+
+
+def test_map_unavailable_when_no_coordinates():
+    store = FakeStore()
+    client = create_app(store=store, feature1=FakeFeature1(coordinates=None)).test_client()
+    review_id = client.post(
+        f"{_API}/site-reviews",
+        json={"property_ref": "a0", "address_display": "x", "title": "t"},
+    ).get_json()["id"]
+    body = client.get(f"{_API}/site-reviews/{review_id}/map").get_json()
+    assert body["available"] is False
+
+
+def test_map_missing_review_relays_not_found():
+    assert _client().get(f"{_API}/site-reviews/nope/map").status_code == 404
 
 
 def test_unknown_route_returns_problem():
