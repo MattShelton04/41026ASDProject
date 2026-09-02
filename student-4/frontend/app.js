@@ -84,6 +84,35 @@ export function parseRoute(hash) {
   return { name: "list" };
 }
 
+const DEFAULT_CHECKLIST = [
+  { item: "Confirm zoning permits the intended use", done: false },
+  { item: "Check flood and bushfire exposure", done: false },
+  { item: "Review strata and building orders", done: false },
+];
+
+// Build a create payload from raw form values, trimming text and defaulting safely.
+export function buildReviewPayload(values) {
+  return {
+    property_ref: String(values.propertyRef || "").trim(),
+    address_display: String(values.addressDisplay || "").trim(),
+    title: String(values.title || "").trim(),
+    status: values.status || "draft",
+    disposition: values.disposition || "undecided",
+    notes: String(values.notes || "").trim(),
+    checklist: Array.isArray(values.checklist) ? values.checklist : DEFAULT_CHECKLIST,
+  };
+}
+
+// Map a create/update Problem Details response to a friendly message.
+export function problemMessage(problem, status) {
+  const code = problem && problem.code;
+  if (code === "unknown_property") return "That property is not verified in Feature 1.";
+  if (code === "invalid_site_review") {
+    return (problem && problem.detail) || "Please check the review details and try again.";
+  }
+  return `Could not save the review (status ${status}).`;
+}
+
 // --- DOM helpers (browser only) ---
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -133,7 +162,13 @@ function renderListView(view) {
   view.replaceChildren();
   const heading = el("div", "page-heading");
   heading.append(el("p", "ps-eyebrow", "Site, planning & building due diligence"));
-  heading.append(el("h1", null, "Site reviews"));
+  const titleRow = el("div", "page-title-row");
+  titleRow.append(el("h1", null, "Site reviews"));
+  const newButton = el("button", "ps-button ps-button--primary", "New site review");
+  newButton.type = "button";
+  newButton.addEventListener("click", openCreateDialog);
+  titleRow.append(newButton);
+  heading.append(titleRow);
   heading.append(el("p", "page-intro", LIST_INTRO));
   view.append(heading);
 
@@ -337,6 +372,171 @@ async function renderDetailView(view, id) {
   view.append(evidenceSection("Strata & building records", data.buildings, "building"));
 }
 
+// --- create dialog ---
+let selectedProperty = null;
+let searchTimer;
+let toastTimer;
+
+function showToast(message) {
+  const toast = document.querySelector("#toast");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.dataset.visible = "true";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.dataset.visible = "false";
+  }, 4000);
+}
+
+function showError(node, message) {
+  if (!node) return;
+  node.textContent = message;
+  node.hidden = false;
+}
+
+function clearError(node) {
+  if (!node) return;
+  node.textContent = "";
+  node.hidden = true;
+}
+
+function propertyOption(item) {
+  const option = el("button", "property-option");
+  option.type = "button";
+  option.append(el("span", "property-option__address", item.address_display));
+  if (item.resolution_status) {
+    option.append(el("span", "property-option__status", item.resolution_status));
+  }
+  option.addEventListener("click", () => selectProperty(item));
+  return option;
+}
+
+async function runPropertySearch(query, results) {
+  try {
+    const response = await fetch(`${API_BASE}/properties/search?q=${encodeURIComponent(query)}`);
+    if (!response.ok) {
+      results.replaceChildren(el("p", "search-hint", "Enter at least three characters to search."));
+      return;
+    }
+    const payload = await response.json();
+    if (!payload.available) {
+      results.replaceChildren(el("p", "search-hint", "Property search is unavailable right now."));
+      return;
+    }
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    if (items.length === 0) {
+      results.replaceChildren(el("p", "search-hint", "No verified properties matched."));
+      return;
+    }
+    results.replaceChildren(...items.map((item) => propertyOption(item)));
+  } catch (error) {
+    results.replaceChildren(el("p", "search-hint", "Property search is unavailable right now."));
+  }
+}
+
+function selectProperty(item) {
+  selectedProperty = { property_ref: item.property_ref, address_display: item.address_display };
+  const results = document.querySelector("#property-results");
+  const input = document.querySelector("#property-search");
+  const selected = document.querySelector("#selected-property");
+  const title = document.querySelector("#review-title");
+  if (results) results.replaceChildren();
+  if (input) input.value = item.address_display;
+  if (selected) {
+    selected.hidden = false;
+    selected.textContent = `Selected: ${item.address_display}`;
+  }
+  if (title && !title.value.trim()) title.value = `Due-diligence review - ${item.address_display}`;
+}
+
+function initPropertySearch() {
+  const input = document.querySelector("#property-search");
+  const results = document.querySelector("#property-results");
+  if (!input || !results) return;
+  input.addEventListener("input", () => {
+    selectedProperty = null;
+    const selected = document.querySelector("#selected-property");
+    if (selected) selected.hidden = true;
+    clearTimeout(searchTimer);
+    const query = input.value.trim();
+    if (query.length < 3) {
+      results.replaceChildren();
+      return;
+    }
+    searchTimer = setTimeout(() => runPropertySearch(query, results), 250);
+  });
+}
+
+function openCreateDialog() {
+  const dialog = document.querySelector("#review-dialog");
+  if (!dialog) return;
+  selectedProperty = null;
+  const form = document.querySelector("#review-form");
+  if (form) form.reset();
+  const results = document.querySelector("#property-results");
+  if (results) results.replaceChildren();
+  const selected = document.querySelector("#selected-property");
+  if (selected) {
+    selected.hidden = true;
+    selected.textContent = "";
+  }
+  clearError(document.querySelector("#review-error"));
+  dialog.showModal();
+  const input = document.querySelector("#property-search");
+  if (input) input.focus();
+}
+
+function closeDialog() {
+  const dialog = document.querySelector("#review-dialog");
+  if (dialog && dialog.open) dialog.close();
+}
+
+async function submitReview(event) {
+  event.preventDefault();
+  const error = document.querySelector("#review-error");
+  const title = document.querySelector("#review-title");
+  clearError(error);
+  if (!selectedProperty) {
+    showError(error, "Search for and select a verified property first.");
+    return;
+  }
+  if (!title || !title.value.trim()) {
+    showError(error, "Enter a title for the review.");
+    return;
+  }
+  const payload = buildReviewPayload({
+    propertyRef: selectedProperty.property_ref,
+    addressDisplay: selectedProperty.address_display,
+    title: title.value,
+    status: document.querySelector("#review-status").value,
+    disposition: document.querySelector("#review-disposition").value,
+    notes: document.querySelector("#review-notes").value,
+  });
+  const submit = document.querySelector("#review-submit");
+  if (submit) submit.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/site-reviews`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (response.status === 201) {
+      const created = await response.json();
+      closeDialog();
+      reviewsLoaded = false;
+      showToast("Site review created.");
+      location.hash = `#site-reviews/${encodeURIComponent(created.id)}`;
+      return;
+    }
+    const problem = await response.json().catch(() => ({}));
+    showError(error, problemMessage(problem, response.status));
+  } catch (networkError) {
+    showError(error, "Could not save the review. Is the due-diligence service running?");
+  } finally {
+    if (submit) submit.disabled = false;
+  }
+}
+
 // --- router ---
 function focusMain() {
   const main = document.querySelector("#main-content");
@@ -370,6 +570,17 @@ function initialise() {
     });
   }
   window.addEventListener("hashchange", () => route({ focus: true }));
+
+  const dialog = document.querySelector("#review-dialog");
+  if (dialog) {
+    const reviewForm = document.querySelector("#review-form");
+    if (reviewForm) reviewForm.addEventListener("submit", submitReview);
+    dialog
+      .querySelectorAll("[data-close]")
+      .forEach((button) => button.addEventListener("click", closeDialog));
+    initPropertySearch();
+  }
+
   route({ focus: false });
 }
 

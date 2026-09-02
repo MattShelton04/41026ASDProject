@@ -68,6 +68,56 @@
       </main>
     </div>
 
+    <dialog id="review-dialog" class="review-dialog" aria-labelledby="review-dialog-title">
+      <form id="review-form" method="dialog">
+        <div class="dialog-head">
+          <h2 id="review-dialog-title">New site review</h2>
+          <button type="button" class="dialog-close" data-close aria-label="Close dialog">&times;</button>
+        </div>
+        <div class="dialog-body">
+          <div class="field">
+            <label for="property-search">Verified property</label>
+            <input id="property-search" type="search" autocomplete="off" placeholder="Search a NSW address, e.g. 11 Example Street Sydney" />
+            <div id="property-results" class="property-results"></div>
+            <p id="selected-property" class="selected-property" hidden></p>
+          </div>
+          <div class="field">
+            <label for="review-title">Title</label>
+            <input id="review-title" type="text" maxlength="200" placeholder="Due-diligence review" />
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="review-status">Status</label>
+              <select id="review-status">
+                <option value="draft">Draft</option>
+                <option value="in_review">In review</option>
+                <option value="completed">Completed</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="review-disposition">Disposition</label>
+              <select id="review-disposition">
+                <option value="undecided">Undecided</option>
+                <option value="proceed">Proceed</option>
+                <option value="hold">Hold</option>
+                <option value="do_not_proceed">Do not proceed</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="review-notes">Notes</label>
+            <textarea id="review-notes" rows="3" maxlength="2000" placeholder="Optional notes"></textarea>
+          </div>
+          <p id="review-error" class="form-error" role="alert" hidden></p>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="ps-button" data-close>Cancel</button>
+          <button type="submit" id="review-submit" class="ps-button ps-button--primary">Create review</button>
+        </div>
+      </form>
+    </dialog>
+
     <div id="toast" class="ps-toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <noscript><p class="noscript">Site reviews load through the due-diligence API and require JavaScript.</p></noscript>
   </body>
