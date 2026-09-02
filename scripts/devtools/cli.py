@@ -96,6 +96,18 @@ def _ui_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     smoke.add_argument("--scenario", choices=UI_FIXTURE_SCENARIOS, default="populated")
     smoke.add_argument("--all-routes", action="store_true")
 
+    screenshots = commands.add_parser(
+        "readme-screenshots",
+        help="Refresh the deterministic screenshots embedded in the root README",
+    )
+    screenshots.add_argument("--port", type=int, default=None, help="Loopback fixture port")
+    screenshots.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Screenshot directory (default: docs/images/readme)",
+    )
+
     audit = commands.add_parser("audit", help="Run a resumable browser interaction audit")
     audit.add_argument("profile", choices=("quick", "full"))
     audit.add_argument("--port", type=int, default=None, help="Loopback fixture port")

@@ -17,6 +17,7 @@
 - `ui_fixture_server.py` and `ui_fixtures.py`: deterministic same-origin Shared/Feature 1 browser
   fixtures used by local UI work, audits, and Playwright tests
 - `ui_smoke.py`: the minimal browser render/console smoke
+- `readme_screenshots.py`: deterministic 1440x1000 captures embedded in the root README
 - `ui_audit/`: the resumable route, state, control, and viewport interaction audit
 
 Scripts should validate and operate the integrated application rather than
@@ -33,7 +34,7 @@ Use `uv run python scripts/check.py` for source quality; `dev.py` does not proxy
 | Workflow | Actions | Responsibility |
 |---|---|---|
 | `dev.py stack` | `up`, `build`, `rebuild`, `restart`, `down`, `reset`, `status`, `config`, `doctor`, `logs` | Compose lifecycle, reload, images, diagnostics, and labelled volumes |
-| `dev.py ui` | `serve`, `smoke`, `audit {quick,full}` | Deterministic same-origin fixtures and browser validation |
+| `dev.py ui` | `serve`, `smoke`, `readme-screenshots`, `audit {quick,full}` | Deterministic same-origin fixtures, README captures, and browser validation |
 | `dev.py data` | `collect`, `sync-psi` | Registered Feature 1 acquisition and source-cache preparation |
 | `dev.py operator` | `report` | Read-only release, publication, activation, and dependency evidence |
 | `check.py` | `format`, `lint`, `architecture`, `styles`, `typecheck`, `compile`, `test` | Deterministic source-quality stages and the aggregate pre-PR gate |
@@ -51,6 +52,11 @@ loopback origin with deterministic API fixtures and stops cleanly on Ctrl+C. Run
 `uv run scripts/dev.py ui smoke` for the minimal Playwright render/console smoke after installing
 Chromium once with `uv run playwright install chromium`. Scenario and port controls are documented
 in [`docs/ui/feature-1-fixture-mode.md`](../docs/ui/feature-1-fixture-mode.md).
+
+Refresh the three committed root README images with
+`uv run scripts/dev.py ui readme-screenshots`. The command owns or reuses the loopback fixture host,
+waits for each populated route's readiness marker, and captures every image at the same 1440x1000
+light-theme viewport.
 
 The resumable interaction audit uses `uv run scripts/dev.py ui audit quick` for the three core
 Shared/Property Discovery/Data Operations routes at laptop-wide and mobile widths. Run

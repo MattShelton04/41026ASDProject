@@ -845,6 +845,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                     *(("--all-routes",) if arguments.all_routes else ()),
                 )
             )
+        elif command == ("ui", "readme-screenshots"):
+            _run(
+                (
+                    sys.executable,
+                    "-m",
+                    "scripts.readme_screenshots",
+                    "--port",
+                    str(_ui_fixture_port(arguments.port)),
+                    *(("--output", str(arguments.output)) if arguments.output else ()),
+                )
+            )
         elif command == ("ui", "audit"):
             _run(
                 (
