@@ -252,6 +252,7 @@ def test_projection_includes_only_explicitly_enabled_features_in_stable_order() 
 def test_repository_deployment_selection_builds_the_real_enabled_projection() -> None:
     manifests = (
         load_feature_manifest(ROOT / "student-1/feature.yaml"),
+        load_feature_manifest(ROOT / "student-2/feature.yaml"),
         load_feature_manifest(ROOT / "student-4/feature.yaml"),
     )
     selection = DeploymentSelectionV1.model_validate(
@@ -260,7 +261,7 @@ def test_repository_deployment_selection_builds_the_real_enabled_projection() ->
 
     projection = build_deployment_projection(manifests, selection)
 
-    assert len(projection.features) == 2
+    assert len(projection.features) == 3
     feature = next(
         item
         for item in projection.features
