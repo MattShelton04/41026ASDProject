@@ -65,3 +65,32 @@ services:
       - ./shared/frontend/mapping:/usr/share/nginx/html/mapping:ro
       - ./shared/frontend/vendor:/usr/share/nginx/html/vendor:ro
       - ./student-1/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  f4-db-api:
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:5402
+      - --workers=1
+      - --threads=4
+      - --reload
+      - propertyscope_due_diligence_store.app:create_app()
+    volumes:
+      - ./student-4/database/src:/app/student-4/database/src:ro
+      - ./shared/contracts/python:/app/shared/contracts/python:ro
+
+  f4-backend:
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:5401
+      - --workers=1
+      - --threads=4
+      - --reload
+      - propertyscope_due_diligence.app:create_app()
+    volumes:
+      - ./student-4/backend/src:/app/student-4/backend/src:ro
+      - ./shared/contracts/python:/app/shared/contracts/python:ro
+
+  f4-frontend:
+    volumes:
+      - ./student-4/frontend:/usr/share/nginx/html:ro
+      - ./student-4/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro

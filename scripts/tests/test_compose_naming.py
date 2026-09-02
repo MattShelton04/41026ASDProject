@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,30 @@ def test_overlays_and_resources_reuse_the_same_ownership_vocabulary() -> None:
 
     assert set(base["networks"]) == {"shared-platform"}
     assert all(SERVICE_NAME.fullmatch(name) for name in base["volumes"])
+
+
+def test_enabled_build_services_have_a_live_development_source_policy() -> None:
+    enabled = json.loads(
+        (REPOSITORY_ROOT / "deployment/enabled-services.v1.json").read_text(encoding="utf-8")
+    )
+    expected = {"shared-frontend", "shared-ai-mode", *enabled["build_services"]}
+    development = _compose("docker-compose.dev.yml")["services"]
+
+    assert expected <= set(development)
+    assert all(development[service].get("volumes") for service in expected)
+
+    python_http_services = {
+        service
+        for service in expected
+        if service == "shared-ai-mode" or service.endswith(("-backend", "-db-api"))
+    }
+    for service in python_http_services:
+        assert "--reload" in development[service].get("command", [])
+
+    frontend_services = {service for service in expected if service.endswith("-frontend")}
+    for service in frontend_services:
+        volumes = development[service]["volumes"]
+        assert any("/usr/share/nginx/html" in mount for mount in volumes)
 
 
 def test_source_scale_resource_defaults_fit_two_cpu_hosts() -> None:
