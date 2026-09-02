@@ -25,13 +25,14 @@ kept here; add an owned executable only when a release needs it.
 
 Run `uv run scripts/dev.py --help` for the workflow groups. The common container loop is
 `stack doctor`, `stack up`, edit source with automatic reload, and `stack down`. `stack up`
-performs a cache-backed image reconciliation, while `stack rebuild` remains available for explicit
-targeted rebuilds. `stack up --offline` keeps data workflows available without an OpenAI credential.
+reuses healthy containers and builds only missing images. Use `stack up --build` or targeted
+`stack rebuild` after Docker or dependency inputs change. `stack up --offline` keeps data workflows
+available without an OpenAI credential.
 Use `uv run python scripts/check.py` for source quality; `dev.py` does not proxy that command.
 
 | Workflow | Actions | Responsibility |
 |---|---|---|
-| `dev.py stack` | `up`, `build`, `rebuild`, `restart`, `down`, `reset`, `status`, `config`, `doctor`, `logs` | Compose lifecycle, images, diagnostics, and labelled volumes |
+| `dev.py stack` | `up`, `build`, `rebuild`, `restart`, `down`, `reset`, `status`, `config`, `doctor`, `logs` | Compose lifecycle, reload, images, diagnostics, and labelled volumes |
 | `dev.py ui` | `serve`, `smoke`, `audit {quick,full}` | Deterministic same-origin fixtures and browser validation |
 | `dev.py data` | `collect`, `sync-psi` | Registered Feature 1 acquisition and source-cache preparation |
 | `dev.py operator` | `report` | Read-only release, publication, activation, and dependency evidence |

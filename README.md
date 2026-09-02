@@ -79,8 +79,9 @@ deterministic data flows without a model credential, use:
 uv run scripts/dev.py stack up --offline
 ```
 
-`stack up` validates the enabled feature manifests, generates the Compose/route projections,
-reconciles images, and starts only approved enabled services. Credentials are materialised as a
+`stack up` validates the enabled feature manifests and Compose/route projections, then starts or
+reuses only approved enabled services. Missing images are built automatically; pass `--build` only
+when Docker or dependency inputs changed. Credentials are materialised as a
 Git-ignored file secret for AI-mode; they are not embedded in images or rendered Compose config.
 OpenAI configuration, the opt-in Gemini compatibility profile, and provider diagnostics are in the
 [OpenAI API operations guide](docs/release-0/openai-api-operations.md).
@@ -94,6 +95,7 @@ Common lifecycle commands:
 | Follow logs | `uv run scripts/dev.py stack logs` |
 | Read release/publication readiness | `uv run scripts/dev.py operator report` |
 | Stop while preserving data | `uv run scripts/dev.py stack down` |
+| Restart selected containers | `uv run scripts/dev.py stack restart [service ...]` |
 | Rebuild selected services | `uv run scripts/dev.py stack rebuild [service ...]` |
 | Delete this stack's labelled volumes | `uv run scripts/dev.py stack reset` |
 

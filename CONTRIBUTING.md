@@ -88,6 +88,7 @@ only for documented, non-secret defaults.
 | Follow local stack logs | `uv run scripts/dev.py stack logs` |
 | Show generated runtime/service state | `uv run scripts/dev.py stack status` |
 | Inspect release/publication readiness | `uv run scripts/dev.py operator report` |
+| Restart changed workers or runtime configuration | `uv run scripts/dev.py stack restart [service ...]` |
 | Rebuild changed container images | `uv run scripts/dev.py stack rebuild` |
 | Stop the stack and preserve data | `uv run scripts/dev.py stack down` |
 | Delete only this stack's durable data | `uv run scripts/dev.py stack reset` |
@@ -128,11 +129,15 @@ allowlisted HTTP tool catalogues; disabled placeholders do not enter the runtime
 
 The development command composes the base model, generated enabled-feature projection, and
 `docker-compose.dev.yml`. The final overlay bind-mounts source and enables reload without changing
-the production-like HTTP or database-ownership boundaries. Starting the stack does not acquire
+the production-like HTTP or database-ownership boundaries. Frontend edits need only a browser
+refresh, and Python HTTP services reload automatically. Long-running workers do not auto-restart
+because that could interrupt an active durable job; use targeted `stack restart <service>` when a
+worker is idle. Use `stack rebuild <service>` after dependency, lockfile or Dockerfile changes.
+Starting the stack does not acquire
 official data; each job imports its complete registered source by default through the same durable
 review path. PSI can instead create an explicitly partial candidate from completed publisher archive
-years; that candidate cannot replace accepted complete history. `up` reconciles images, and the label-scoped `reset` removes stack volumes but preserves
-the host source cache.
+years; that candidate cannot replace accepted complete history. The label-scoped `reset` removes
+stack volumes but preserves the host source cache.
 
 ## Dependencies and workspace projects
 
