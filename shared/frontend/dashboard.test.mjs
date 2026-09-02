@@ -132,11 +132,6 @@ test("research-area fragment stays in exact parity with the feature registry", (
     if (feature.implemented && feature.enabled) {
       assert.equal(row.attributes["data-feature-state"], "available");
       assert.match(row.body, new RegExp(`href="${feature.frontendBase}${feature.defaultHash}"`));
-    } else if (feature.id === "suburb-context") {
-      assert.equal(row.attributes["data-feature-state"], "planned");
-      assert.match(row.body, />Local demo</);
-      assert.match(row.body, /<a class="ps-button ps-button--primary" href="http:\/\/localhost:5300\/#suburbs">Open Suburb context<\/a>/);
-      assert.doesNotMatch(row.body, />Not available yet</);
     } else {
       assert.equal(row.attributes["data-feature-state"], "planned");
       assert.match(row.body, />Planned</);
