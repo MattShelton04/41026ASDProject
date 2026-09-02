@@ -450,7 +450,11 @@ prefixes, overlay membership, image alignment, and the absence of hard-coded con
 The developer entry point mirrors those boundaries: `scripts/dev.py stack` owns container
 lifecycle, `scripts/dev.py ui` owns deterministic browser fixtures, and `scripts/dev.py data` owns
 source acquisition. `scripts/check.py` remains the single source-quality runner instead of being
-proxied through the lifecycle command.
+proxied through the lifecycle command. The development overlay bind-mounts every enabled built
+service. Static frontend source is visible on refresh and request-serving Python processes reload
+workers in place. Durable background workers require an explicit targeted restart so an edit cannot
+silently interrupt an active job. Ordinary `stack up` reuses images and containers; image rebuilds
+remain explicit after dependency or Docker input changes.
 
 ## 7. Shared contracts
 

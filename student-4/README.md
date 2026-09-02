@@ -72,3 +72,8 @@ uv run scripts/dev.py stack up --offline
 Open the unified home page at <http://localhost:5100> (Feature 4 appears under "Site and
 planning") or the feature directly at <http://localhost:5400>. Stop with
 `uv run scripts/dev.py stack down`.
+
+The development stack bind-mounts Feature 4 source. Backend and database API edits reload their
+Gunicorn workers automatically; frontend edits appear on browser refresh. Use
+`uv run scripts/dev.py stack rebuild f4-backend f4-db-api f4-frontend --offline` only after changing
+dependencies or Docker build inputs.

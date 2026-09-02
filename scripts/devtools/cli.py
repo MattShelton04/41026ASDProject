@@ -36,7 +36,12 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
     stack = root.add_parser("stack", help="Build and operate Compose stacks")
     commands = stack.add_subparsers(dest="action", required=True)
 
-    up = commands.add_parser("up", help="Build and start the reloadable development stack")
+    up = commands.add_parser("up", help="Start the reloadable development stack")
+    up.add_argument(
+        "--build",
+        action="store_true",
+        help="Rebuild application images before starting the stack",
+    )
     _add_offline_option(up)
     _add_env_file_option(up)
 
@@ -55,6 +60,7 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
     restart = commands.add_parser(
         "restart", help="Recreate application containers without rebuilding images"
     )
+    restart.add_argument("services", nargs="*", choices=APPLICATION_SERVICES)
     _add_offline_option(restart)
     _add_env_file_option(restart)
 
