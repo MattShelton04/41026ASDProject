@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sales and market · PropertyScope NSW</title>
+  <link rel="stylesheet" href="design-system/tokens.css">
+  <link rel="stylesheet" href="design-system/base.css">
+  <link rel="stylesheet" href="design-system/components.css">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <a class="ps-skip-link" href="#main-content">Skip to content</a>
+  <header class="topbar">
+    <a class="brand" href="/">PropertyScope NSW <span>Property research workspace</span></a>
+    <nav aria-label="Product navigation">
+      <a href="/">Home</a>
+      <a href="/features/data-platform/#properties">Property data</a>
+      <a aria-current="page" href="#market-cases">Sales and market</a>
+    </nav>
+  </header>
+
+  <main id="main-content">
+    <section class="hero" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">NSW PROPERTY SALES</p>
+        <h1 id="page-title">Recorded sales.<br>Clear limitations.</h1>
+        <p class="hero-copy">Build a traceable research case around one verified property. The figures below are deterministic evidence summaries, not a valuation or buying recommendation.</p>
+      </div>
+      <div class="hero-facts" aria-label="Feature principles">
+        <p><strong>1</strong><span>Choose a Feature 1 property reference</span></p>
+        <p><strong>2</strong><span>Review attributed sales and exclusions</span></p>
+        <p><strong>3</strong><span>Ask AI to explain verified facts</span></p>
+      </div>
+    </section>
+
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+    <section id="market-cases" class="workspace" aria-label="Market cases workspace">
+      <aside class="case-panel">
+        <div class="section-heading">
+          <div><p class="eyebrow">SAVED RESEARCH</p><h2>Market cases</h2></div>
+          <button id="new-case" class="button button-primary" type="button">New case</button>
+        </div>
+        <div id="case-list" class="case-list" aria-live="polite"></div>
+      </aside>
+
+      <section class="detail-panel">
+        <div id="empty-state" class="empty-state" hidden>
+          <h2>Create your first market case</h2>
+          <p>Save a property reference and date range to inspect available sales evidence.</p>
+        </div>
+
+        <div id="case-detail">
+          <div class="detail-heading">
+            <div>
+              <p class="eyebrow">SELECTED CASE</p>
+              <h2 id="case-title">Loading cases…</h2>
+              <p id="case-address"></p>
+            </div>
+            <div class="actions">
+              <button id="edit-case" class="button" type="button">Edit</button>
+              <button id="delete-case" class="button button-danger" type="button">Delete</button>
+            </div>
+          </div>
+
+          <div class="badges">
+            <span id="case-status" class="badge">Status</span>
+            <span id="validation-state" class="badge">Property check</span>
+            <span class="badge badge-info">Source-attributed</span>
+          </div>
+
+          <dl class="metrics" aria-label="Deterministic market summary">
+            <div><dt>Eligible sales</dt><dd id="sale-count">Not available</dd></div>
+            <div><dt>Median recorded price</dt><dd id="median-price">Not available</dd></div>
+            <div><dt>Excluded records</dt><dd id="excluded-count">Not available</dd></div>
+            <div><dt>Source releases</dt><dd id="source-count">Not available</dd></div>
+          </dl>
+
+          <section class="card" aria-labelledby="volume-title">
+            <div class="card-heading"><div><p class="eyebrow">TRANSACTION HISTORY</p><h3 id="volume-title">Volume by contract year</h3></div><span id="case-window" class="muted"></span></div>
+            <div id="volume-chart" class="volume-chart"></div>
+          </section>
+
+          <section class="two-column">
+            <div class="card">
+              <p class="eyebrow">QUALITY NOTES</p>
+              <h3>What this summary excludes</h3>
+              <ul id="limitations" class="limitations"></ul>
+              <details><summary>Exclusion counts</summary><dl id="exclusion-reasons" class="reason-list"></dl></details>
+            </div>
+            <div class="card ai-card">
+              <p class="eyebrow">AGENTIC AI EXPLANATION</p>
+              <h3>Ask about this evidence</h3>
+              <p>The shared AI service can inspect this case through two read-only tools. It cannot alter records or calculate the median.</p>
+              <form id="assistant-form">
+                <label for="assistant-message">Question</label>
+                <textarea id="assistant-message" rows="3" maxlength="2000">Explain the recorded sales, exclusions and limitations in this market case.</textarea>
+                <button class="button button-primary" type="submit">Ask AI</button>
+              </form>
+              <div id="assistant-answer" class="assistant-answer" aria-live="polite">No AI run started. CRUD and summaries work without an API key.</div>
+            </div>
+          </section>
+
+          <section class="card sales-card" aria-labelledby="sales-title">
+            <div class="card-heading"><div><p class="eyebrow">ATTRIBUTED EVIDENCE</p><h3 id="sales-title">Recorded sale observations</h3></div><span id="sales-label" class="muted"></span></div>
+            <div class="table-wrap"><table><thead><tr><th>Contract date</th><th>Price</th><th>Match</th><th>Source release</th><th>Data kind</th></tr></thead><tbody id="sales-body"></tbody></table></div>
+          </section>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="case-dialog">
+    <form id="case-form">
+      <div class="dialog-heading"><div><p class="eyebrow">MARKET CASE</p><h2 id="form-title">New case</h2></div><button id="close-dialog" class="icon-button" type="button" aria-label="Close">×</button></div>
+      <input id="form-version" type="hidden">
+      <label for="form-name">Case name</label><input id="form-name" maxlength="120" required>
+      <label for="form-property">Feature 1 property reference</label><input id="form-property" required pattern="[0-9a-fA-F-]{36}" aria-describedby="property-help"><small id="property-help">Use the stable UUID shown in Property data. The showcase UUID is pre-filled.</small>
+      <label for="form-address">Display address</label><input id="form-address" maxlength="500" required>
+      <div class="form-grid"><div><label for="form-from">From</label><input id="form-from" type="date" required></div><div><label for="form-to">To</label><input id="form-to" type="date" required></div></div>
+      <label for="form-status">Status</label><select id="form-status"><option value="draft">Draft</option><option value="active">Active</option><option value="complete">Complete</option><option value="archived">Archived</option></select>
+      <label for="form-tier">Minimum match tier</label><select id="form-tier"><option value="A">A: exact only</option><option value="B" selected>B: strong or exact</option><option value="C">C: include lower-confidence matches</option></select>
+      <label for="form-notes">Research notes</label><textarea id="form-notes" rows="4" maxlength="4000"></textarea>
+      <div class="dialog-actions"><button id="cancel-dialog" class="button" type="button">Cancel</button><button class="button button-primary" type="submit">Save case</button></div>
+    </form>
+  </dialog>
+</body>
+</html>
