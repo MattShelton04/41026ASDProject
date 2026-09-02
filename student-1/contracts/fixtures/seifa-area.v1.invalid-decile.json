@@ -1,0 +1,17 @@
+{
+  "sal_code": "10003",
+  "sal_name": "Abbotsford (NSW)",
+  "locality_name": "ABBOTSFORD",
+  "state": "NSW",
+  "reference_year": 2021,
+  "irsd_score": "1062.49",
+  "irsd_australia_decile": 11,
+  "usual_resident_population": 5431,
+  "provenance": {
+    "release_id": "60000000-0000-0000-0000-000000000021",
+    "release_version": "2021",
+    "candidate_generation_id": "60000000-0000-0000-0000-000000000021",
+    "source_record_sha256": "abababababababababababababababababababababababababababababababab",
+    "normalisation_version": "1.0.0"
+  }
+}

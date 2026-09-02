@@ -3,6 +3,16 @@
     "ProductProvenance": {
       "additionalProperties": false,
       "properties": {
+        "candidate_generation_id": {
+          "format": "uuid",
+          "title": "Candidate Generation Id",
+          "type": "string"
+        },
+        "normalisation_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Normalisation Version",
+          "type": "string"
+        },
         "release_id": {
           "format": "uuid",
           "title": "Release Id",
@@ -14,19 +24,9 @@
           "title": "Release Version",
           "type": "string"
         },
-        "candidate_generation_id": {
-          "format": "uuid",
-          "title": "Candidate Generation Id",
-          "type": "string"
-        },
         "source_record_sha256": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Source Record Sha256",
-          "type": "string"
-        },
-        "normalisation_version": {
-          "pattern": "^\\d+\\.\\d+\\.\\d+$",
-          "title": "Normalisation Version",
           "type": "string"
         }
       },
@@ -43,24 +43,7 @@
     "PropertySaleRecord": {
       "additionalProperties": false,
       "properties": {
-        "source_business_key": {
-          "maxLength": 300,
-          "minLength": 1,
-          "title": "Source Business Key",
-          "type": "string"
-        },
-        "source_revision": {
-          "minimum": 1,
-          "title": "Source Revision",
-          "type": "integer"
-        },
-        "source_era": {
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Source Era",
-          "type": "string"
-        },
-        "district_code": {
+        "area_original": {
           "anyOf": [
             {
               "type": "string"
@@ -70,9 +53,9 @@
             }
           ],
           "default": null,
-          "title": "District Code"
+          "title": "Area Original"
         },
-        "source_property_id": {
+        "area_square_metres": {
           "anyOf": [
             {
               "type": "string"
@@ -82,9 +65,9 @@
             }
           ],
           "default": null,
-          "title": "Source Property Id"
+          "title": "Area Square Metres"
         },
-        "dealing_id": {
+        "area_unit": {
           "anyOf": [
             {
               "type": "string"
@@ -94,7 +77,19 @@
             }
           ],
           "default": null,
-          "title": "Dealing Id"
+          "title": "Area Unit"
+        },
+        "component_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Component Code"
         },
         "contract_date": {
           "anyOf": [
@@ -109,10 +104,9 @@
           "default": null,
           "title": "Contract Date"
         },
-        "settlement_date": {
+        "dealing_id": {
           "anyOf": [
             {
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
               "type": "string"
             },
             {
@@ -120,7 +114,121 @@
             }
           ],
           "default": null,
-          "title": "Settlement Date"
+          "title": "Dealing Id"
+        },
+        "dimensions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dimensions"
+        },
+        "district_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "District Code"
+        },
+        "geographic_precision": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Geographic Precision",
+          "type": "string"
+        },
+        "house_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "House Number"
+        },
+        "interest_of_sale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interest Of Sale"
+        },
+        "land_description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Land Description"
+        },
+        "locality": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locality"
+        },
+        "match_confidence": {
+          "pattern": "^(0(\\.\\d{1,4})?|1(\\.0{1,4})?)$",
+          "title": "Match Confidence",
+          "type": "string"
+        },
+        "match_tier": {
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Match Tier",
+          "type": "string"
+        },
+        "nature_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nature Code"
+        },
+        "postcode": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Postcode"
         },
         "price_aud": {
           "anyOf": [
@@ -135,7 +243,7 @@
           "default": null,
           "title": "Price Aud"
         },
-        "area_original": {
+        "primary_purpose": {
           "anyOf": [
             {
               "type": "string"
@@ -145,9 +253,9 @@
             }
           ],
           "default": null,
-          "title": "Area Original"
+          "title": "Primary Purpose"
         },
-        "area_unit": {
+        "property_name": {
           "anyOf": [
             {
               "type": "string"
@@ -157,19 +265,7 @@
             }
           ],
           "default": null,
-          "title": "Area Unit"
-        },
-        "area_square_metres": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Area Square Metres"
+          "title": "Property Name"
         },
         "property_ref": {
           "anyOf": [
@@ -184,24 +280,10 @@
           "default": null,
           "title": "Property Ref"
         },
-        "match_tier": {
-          "maxLength": 20,
-          "minLength": 1,
-          "title": "Match Tier",
-          "type": "string"
+        "provenance": {
+          "$ref": "#/$defs/ProductProvenance"
         },
-        "match_confidence": {
-          "pattern": "^(0(\\.\\d{1,4})?|1(\\.0{1,4})?)$",
-          "title": "Match Confidence",
-          "type": "string"
-        },
-        "geographic_precision": {
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Geographic Precision",
-          "type": "string"
-        },
-        "source_system": {
+        "sale_code": {
           "anyOf": [
             {
               "type": "string"
@@ -211,11 +293,12 @@
             }
           ],
           "default": null,
-          "title": "Source System"
+          "title": "Sale Code"
         },
-        "valuation_number": {
+        "settlement_date": {
           "anyOf": [
             {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
               "type": "string"
             },
             {
@@ -223,7 +306,13 @@
             }
           ],
           "default": null,
-          "title": "Valuation Number"
+          "title": "Settlement Date"
+        },
+        "source_business_key": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Source Business Key",
+          "type": "string"
         },
         "source_downloaded_at": {
           "anyOf": [
@@ -237,19 +326,13 @@
           "default": null,
           "title": "Source Downloaded At"
         },
-        "property_name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Property Name"
+        "source_era": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Source Era",
+          "type": "string"
         },
-        "unit_number": {
+        "source_property_id": {
           "anyOf": [
             {
               "type": "string"
@@ -259,9 +342,14 @@
             }
           ],
           "default": null,
-          "title": "Unit Number"
+          "title": "Source Property Id"
         },
-        "house_number": {
+        "source_revision": {
+          "minimum": 1,
+          "title": "Source Revision",
+          "type": "integer"
+        },
+        "source_system": {
           "anyOf": [
             {
               "type": "string"
@@ -271,7 +359,43 @@
             }
           ],
           "default": null,
-          "title": "House Number"
+          "title": "Source System"
+        },
+        "strata_lot_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strata Lot Number"
+        },
+        "street_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Street Name"
+        },
+        "street_name_normalised": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Street Name Normalised"
         },
         "street_number_first": {
           "anyOf": [
@@ -311,30 +435,6 @@
           "default": null,
           "title": "Street Number Suffix"
         },
-        "street_name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Street Name"
-        },
-        "street_name_normalised": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Street Name Normalised"
-        },
         "street_type": {
           "anyOf": [
             {
@@ -347,7 +447,7 @@
           "default": null,
           "title": "Street Type"
         },
-        "locality": {
+        "unit_number": {
           "anyOf": [
             {
               "type": "string"
@@ -357,22 +457,9 @@
             }
           ],
           "default": null,
-          "title": "Locality"
+          "title": "Unit Number"
         },
-        "postcode": {
-          "anyOf": [
-            {
-              "pattern": "^\\d{4}$",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Postcode"
-        },
-        "land_description": {
+        "valuation_number": {
           "anyOf": [
             {
               "type": "string"
@@ -382,19 +469,7 @@
             }
           ],
           "default": null,
-          "title": "Land Description"
-        },
-        "dimensions": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Dimensions"
+          "title": "Valuation Number"
         },
         "zoning_code": {
           "anyOf": [
@@ -407,81 +482,6 @@
           ],
           "default": null,
           "title": "Zoning Code"
-        },
-        "nature_code": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Nature Code"
-        },
-        "primary_purpose": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Primary Purpose"
-        },
-        "strata_lot_number": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Strata Lot Number"
-        },
-        "component_code": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Component Code"
-        },
-        "sale_code": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Sale Code"
-        },
-        "interest_of_sale": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Interest Of Sale"
-        },
-        "provenance": {
-          "$ref": "#/$defs/ProductProvenance"
         }
       },
       "required": [
@@ -497,12 +497,25 @@
       "type": "object"
     }
   },
+  "$id": "https://propertyscope.local/contracts/property-sales.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "pattern": "^propertyscope\\.property-sales\\.v2$",
-      "title": "Schema Version",
+    "candidate_generation_id": {
+      "format": "uuid",
+      "title": "Candidate Generation Id",
       "type": "string"
+    },
+    "dataset_id": {
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "records": {
+      "items": {
+        "$ref": "#/$defs/PropertySaleRecord"
+      },
+      "title": "Records",
+      "type": "array"
     },
     "release_id": {
       "format": "uuid",
@@ -513,26 +526,15 @@
       "title": "Release Version",
       "type": "string"
     },
-    "dataset_id": {
-      "title": "Dataset Id",
+    "schema_version": {
+      "pattern": "^propertyscope\\.property-sales\\.v2$",
+      "title": "Schema Version",
       "type": "string"
     },
     "target_feature": {
       "pattern": "^feature-2$",
       "title": "Target Feature",
       "type": "string"
-    },
-    "candidate_generation_id": {
-      "format": "uuid",
-      "title": "Candidate Generation Id",
-      "type": "string"
-    },
-    "records": {
-      "items": {
-        "$ref": "#/$defs/PropertySaleRecord"
-      },
-      "title": "Records",
-      "type": "array"
     }
   },
   "required": [
@@ -545,7 +547,5 @@
     "records"
   ],
   "title": "PropertySalesProduct",
-  "type": "object",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://propertyscope.local/contracts/property-sales.v2.schema.json"
+  "type": "object"
 }

@@ -38,6 +38,7 @@ _IMPORT_TARGET_RELATIONS: Mapping[str, tuple[str, ...]] = {
         "warehouse.bocsar_coverage",
     ),
     "schools-master": ("warehouse.school",),
+    "seifa-2021-sal-nsw": ("warehouse.seifa_sal",),
 }
 SPACE_RECOVERY_STATEMENT_TIMEOUT_SECONDS = 10 * 60
 SPACE_RECOVERY_REINDEX_TIMEOUT_SECONDS = 10 * 60
@@ -326,6 +327,7 @@ class _RegisteredImportOperations:
                         WHEN 'bocsar-sparse' THEN ARRAY[
                             'warehouse.bocsar_observation','warehouse.bocsar_coverage']::text[]
                         WHEN 'schools-master' THEN ARRAY['warehouse.school']::text[]
+                        WHEN 'seifa-2021-sal-nsw' THEN ARRAY['warehouse.seifa_sal']::text[]
                         ELSE ARRAY['warehouse.gnaf_address']::text[] END),
                     'destination_may_have_been_touched',COALESCE(
                         operation.progress_phase_key IN ('target_materialisation','verification'),
