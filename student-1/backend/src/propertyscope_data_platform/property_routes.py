@@ -81,6 +81,14 @@ def register_property_routes(
             )
         )
 
+    @api.get(f"{base}/properties/<uuid:property_ref>/seifa")
+    def property_seifa(property_ref: uuid.UUID) -> Response:
+        return forward(
+            store.request(
+                "GET", f"{internal}/properties/{property_ref}/seifa", headers=request.headers
+            )
+        )
+
     @api.get(f"{base}/properties/<uuid:property_ref>/report-section")
     def property_report_section(property_ref: uuid.UUID) -> Response:
         """Return bounded canonical evidence for the Feature 5 report composer."""
