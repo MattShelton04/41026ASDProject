@@ -56,6 +56,21 @@ path. Complete source remains the default and there is no operator row ceiling. 
 inclusive completed publisher archive-year range; this is explicitly partial, is not an exact
 contract-date filter, and cannot replace the accepted complete sales-history generation.
 
+New BOCSAR acquisitions use the versioned sparse
+`propertyscope.canonical-bocsar-parquet.v1` handoff: positive observations and explicit coverage are
+written as typed, Zstandard-compressed Parquet and completely checksum-verified before COPY. The
+loader retains JSON/NDJSON compatibility for historical registered artifacts. This internal
+canonical optimisation does not change the complete gzip-NDJSON release export or consumer
+contract, and it never reads unregistered developer/prototype caches.
+
+New PSI acquisitions use the partition-aware
+`propertyscope.canonical-psi-parquet.v1` handoff. Annual and weekly archives remain in registered
+source order, with typed, bounded, Zstandard-compressed row groups and the same retransmission row
+hashes as legacy NDJSON. The loader verifies the complete file and exact contract before feeding
+the unchanged PostgreSQL typed staging, identity/revision, address-resolution and candidate path.
+PostgreSQL remains authoritative, historical JSON/NDJSON stays replayable and complete consumer
+release exports remain gzip NDJSON.
+
 The PSI adapter is verified against real publisher archives and parses every annual archive from
 1990 onward plus current Monday weekly updates. Archives download into temporary files and
 DAT members are consumed as streams, so the archive and expanded records are not duplicated in

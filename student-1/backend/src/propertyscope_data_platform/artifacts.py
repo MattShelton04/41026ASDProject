@@ -6,7 +6,7 @@ import hashlib
 import os
 import tempfile
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -69,6 +69,42 @@ class LocalArtifactStore:
             return ArtifactRef(checksum, storage_key, byte_count, media_type)
         except BaseException:
             Path(temporary_name).unlink(missing_ok=True)
+            raise
+
+    def put_generated(
+        self,
+        generate: Callable[[Path], object],
+        *,
+        media_type: str,
+        max_bytes: int | None = None,
+    ) -> ArtifactRef:
+        """Let a seekable-format writer populate a managed temporary artifact atomically."""
+        descriptor, temporary_name = tempfile.mkstemp(prefix="artifact-", dir=self._root)
+        os.close(descriptor)
+        temporary = Path(temporary_name)
+        try:
+            generate(temporary)
+            if not temporary.is_file():
+                raise ArtifactError("artifact generator did not create an artifact")
+            byte_count = temporary.stat().st_size
+            if max_bytes is not None and byte_count > max_bytes:
+                raise ArtifactError("artifact exceeds registered byte limit")
+            digest = hashlib.sha256()
+            with temporary.open("r+b") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+                os.fsync(stream.fileno())
+            checksum = digest.hexdigest()
+            storage_key = f"sha256/{checksum[:2]}/{checksum}"
+            destination = self._resolve(storage_key)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if destination.exists() and self._matches(destination, byte_count, checksum):
+                temporary.unlink()
+            else:
+                os.replace(temporary, destination)
+            return ArtifactRef(checksum, storage_key, byte_count, media_type)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
             raise
 
     def read_verified(self, storage_key: str, expected_sha256: str, *, max_bytes: int) -> bytes:
@@ -148,3 +184,13 @@ class LocalArtifactStore:
         if path == self._root or self._root not in path.parents:
             raise ArtifactError("storage key escapes artifact root")
         return path
+
+    @staticmethod
+    def _matches(path: Path, expected_bytes: int, expected_sha256: str) -> bool:
+        if path.stat().st_size != expected_bytes:
+            return False
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest() == expected_sha256
