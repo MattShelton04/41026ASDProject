@@ -49,7 +49,11 @@ def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
     assert registry.count("implemented: false") == 4
     assert enabled_registry.count('"featureKey"') == 2
     assert 'id="feature-area-list"' in page
-    assert fragment.count("Not available yet") == 3
+    assert fragment.count("Not available yet") == 2
+    assert (
+        '<a class="ps-button ps-button--primary" href="http://localhost:5300/#suburbs">'
+        "Open Suburb context</a>"
+    ) in fragment
     assert "renderHomeFeatures" not in script
     assert "The remaining research areas will appear here as their data becomes available." in page
     assert "Start a property review" in page
