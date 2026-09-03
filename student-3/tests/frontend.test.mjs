@@ -5,6 +5,15 @@ import test from "node:test";
 const html = readFileSync(new URL("../frontend/index.html", import.meta.url), "utf8");
 const js = readFileSync(new URL("../frontend/app.js", import.meta.url), "utf8");
 
+test("readiness follows the feature ingress on both direct and shared hosts", () => {
+  assert.match(js, /fetch\(new URL\("\.\/health\/ready", import\.meta\.url\)\)/);
+  assert.doesNotMatch(js, /fetch\("\/health\/ready"\)/);
+  assert.equal(new URL("./health/ready", "http://localhost:5600/app.js").href,
+    "http://localhost:5600/health/ready");
+  assert.equal(new URL("./health/ready", "http://localhost:5100/features/suburb-analytics/app.js").href,
+    "http://localhost:5100/features/suburb-analytics/health/ready");
+});
+
 test("frontend exposes map, chart table, CRUD and responsible-use language", () => {
   assert.match(html, /id="map"/);
   assert.match(html, /id="suburb-detail"/);

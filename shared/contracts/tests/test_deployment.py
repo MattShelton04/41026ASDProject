@@ -254,6 +254,7 @@ def test_repository_deployment_selection_builds_the_real_enabled_projection() ->
     manifests = (
         load_feature_manifest(ROOT / "student-1/feature.yaml"),
         load_feature_manifest(ROOT / "student-2/feature.yaml"),
+        load_feature_manifest(ROOT / "student-3/feature.yaml"),
         load_feature_manifest(ROOT / "student-4/feature.yaml"),
         buyer_manifest,
     )
@@ -263,7 +264,7 @@ def test_repository_deployment_selection_builds_the_real_enabled_projection() ->
 
     projection = build_deployment_projection(manifests, selection)
 
-    assert len(projection.features) == 4
+    assert len(projection.features) == 5
     feature = next(
         item
         for item in projection.features

@@ -477,6 +477,7 @@ def fixture_response(
         return FixtureResponse(200, _database_health(), delay_seconds=delay)
     feature_health_services = {
         "/api/shared-health/market-intelligence": "propertyscope-market-intelligence",
+        "/api/shared-health/suburb-analytics": "propertyscope-suburb-analytics",
         "/api/shared-health/due-diligence": "propertyscope-due-diligence",
         "/api/shared-health/buyer-workspaces": "propertyscope-buyer-workspaces",
     }

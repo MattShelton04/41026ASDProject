@@ -30,6 +30,17 @@ services:
     - 127.0.0.1:${PROPERTYSCOPE_MARKET_INTELLIGENCE_PORT:-5300}:8080
     profiles:
     - release-0
+  f3-backend:
+    profiles:
+    - release-0
+  f3-database:
+    profiles:
+    - release-0
+  f3-frontend:
+    ports:
+    - 127.0.0.1:${PROPERTYSCOPE_SUBURB_ANALYTICS_PORT:-5600}:8080
+    profiles:
+    - release-0
   f4-backend:
     profiles:
     - release-0
@@ -57,8 +68,9 @@ services:
     - release-0
   shared-ai-mode:
     environment:
-      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/market-intelligence-tools.yaml,/etc/ai-mode/buyer-workspace-tools.yaml
+      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/market-intelligence-tools.yaml,/etc/ai-mode/suburb-analytics-tools.yaml,/etc/ai-mode/buyer-workspace-tools.yaml
     volumes:
     - ./student-1/tool-catalog.yaml:/etc/ai-mode/propertyscope-tools.yaml:ro
     - ./student-2/tool-catalog.yaml:/etc/ai-mode/market-intelligence-tools.yaml:ro
+    - ./student-3/tool-catalog.yaml:/etc/ai-mode/suburb-analytics-tools.yaml:ro
     - ./student-5/tool-catalog.yaml:/etc/ai-mode/buyer-workspace-tools.yaml:ro

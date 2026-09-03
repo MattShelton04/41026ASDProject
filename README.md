@@ -4,8 +4,9 @@ Shared repository for the Spring 2026 PropertyScope NSW group project.
 
 PropertyScope is a tutor-approved NSW property-research application. The repository currently
 contains the Shared platform plus enabled independently deployable slices for Property Discovery,
-Market Intelligence, Due Diligence and the Buyer Journey workspace. Feature 3 remains an approved,
-disabled placeholder until its owner completes that slice.
+Market Intelligence, Suburb Analytics, Due Diligence and the Buyer Journey workspace. Suburb
+Analytics is available through the shared home or directly at `http://localhost:5600`; its data
+is explicitly a deterministic demonstration fixture, not current official evidence.
 
 The implemented baseline includes a reproducible Python workspace, strict shared contracts,
 manifest-driven feature onboarding, a shared HTMX product shell, bounded AI-mode orchestration over
