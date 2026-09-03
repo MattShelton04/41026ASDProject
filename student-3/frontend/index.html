@@ -69,10 +69,7 @@
         <div class="bookmark-toolbar"><button id="show-bookmarks" class="ps-button" type="button" aria-haspopup="dialog" aria-controls="bookmark-dialog">Bookmarked suburbs (0)</button></div>
         <div class="explore-grid">
           <section class="ps-card filters" aria-labelledby="filter-title"><div class="ps-card__body">
-            <h3 id="filter-title">Map filters</h3>
-            <label>Local government area<select id="lga-filter"><option value="">All areas</option></select></label>
-            <label>Required amenity<select id="amenity-filter"><option value="">Any amenity</option><option value="school">School observation</option><option value="transport">Transport observation</option><option value="park">Park observation</option></select></label>
-            <label>Sort suburbs<select id="sort-filter"><option value="locality">Name</option><option value="postcode">Postcode</option><option value="lga">Local government area</option></select></label>
+            <h3 id="filter-title">Map places</h3>
             <fieldset><legend>Places to show</legend><label><input type="checkbox" value="school" checked> Schools</label><label><input type="checkbox" value="transport" checked> Transport</label><label><input type="checkbox" value="park" checked> Parks</label></fieldset>
             <p class="fine-print">Place proximity is straight-line context only. Nearby schools do not imply catchment eligibility.</p>
           </div></section>
@@ -89,7 +86,13 @@
           <datalist id="suburb-search-options"></datalist>
           <button class="ps-button ps-button--primary" type="submit">Search</button>
         </form>
-        <p id="search-status" class="fine-print" role="status">Results update as you type. Clear the search to show all suburbs matching your map filters.</p>
+        <section class="list-filter-bar" aria-labelledby="list-filter-title">
+          <h3 id="list-filter-title">Filter suburb list</h3>
+          <label>Local government area<select id="lga-filter"><option value="">All areas</option></select></label>
+          <label>Required amenity<select id="amenity-filter"><option value="">Any amenity</option><option value="school">School observation</option><option value="transport">Transport observation</option><option value="park">Park observation</option></select></label>
+          <label>Sort suburbs<select id="sort-filter"><option value="locality">Name</option><option value="postcode">Postcode</option><option value="lga">Local government area</option></select></label>
+        </section>
+        <p id="search-status" class="fine-print" role="status">Results update as you type. Clear the search to show all suburbs matching your list filters.</p>
         <div id="suburb-cards" class="suburb-grid" aria-live="polite"></div>
       </section>
       <section id="trends-view" class="view" data-view="trends" hidden>
