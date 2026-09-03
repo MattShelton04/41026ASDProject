@@ -159,7 +159,10 @@
       ]
     },
     {
-      "ai": null,
+      "ai": {
+        "runtime_path": "/etc/ai-mode/due-diligence-tools.yaml",
+        "tool_catalog": "student-4/tool-catalog.yaml"
+      },
       "databases": [
         {
           "database_service": "f4-postgres",
