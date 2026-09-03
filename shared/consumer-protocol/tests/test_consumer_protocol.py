@@ -10,6 +10,7 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
+import shared_consumer_protocol.consumer as consumer_module
 from shared_consumer_protocol import (
     ArtifactAccessPolicy,
     ConsumerProtocolError,
@@ -155,6 +156,52 @@ def test_real_http_import_verifies_then_atomically_commits() -> None:
     assert state.requests[0][1]["X-Request-ID"] == "request-19"
     assert state.requests[0][1]["Idempotency-Key"] == "delivery-attempt-1"
     assert state.requests[0][1]["Accept-Encoding"] == "identity"
+
+
+def test_large_expansion_ceiling_does_not_become_a_zlib_allocation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body = artifact([{"sequence": 1}, {"sequence": 2}])
+    sink = RecordingSink()
+    allocation_requests: list[int] = []
+    real_decompressobj = consumer_module.zlib.decompressobj
+
+    class ObservedDecompressor:
+        def __init__(self, wbits: int = consumer_module.zlib.MAX_WBITS) -> None:
+            self.inner = real_decompressobj(wbits)
+
+        @property
+        def unconsumed_tail(self) -> bytes:
+            return self.inner.unconsumed_tail
+
+        @property
+        def eof(self) -> bool:
+            return self.inner.eof
+
+        @property
+        def unused_data(self) -> bytes:
+            return self.inner.unused_data
+
+        def decompress(self, data: bytes, max_length: int = 0) -> bytes:
+            allocation_requests.append(max_length)
+            return self.inner.decompress(data, max_length)
+
+        def flush(self, length: int) -> bytes:
+            allocation_requests.append(length)
+            return self.inner.flush(length)
+
+    monkeypatch.setattr(consumer_module.zlib, "decompressobj", ObservedDecompressor)
+    with serve({PATH: FixtureResponse(200, body)}) as (origin, _):
+        consume(
+            publication(body),
+            origin,
+            sink,
+            access_policy=policy(origin, max_uncompressed_bytes=12_000_000_000),
+        )
+
+    assert sink.committed is True
+    assert allocation_requests
+    assert max(allocation_requests) <= 65_536
 
 
 @pytest.mark.parametrize(
