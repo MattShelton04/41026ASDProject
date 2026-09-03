@@ -53,8 +53,8 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
-def _row(record: dict[str, Any]) -> dict[str, Any]:
-    """Return a JSON-safe copy of one database row."""
+def _row(record: Any) -> dict[str, Any]:
+    """Return a JSON-safe copy of one database row (psycopg dict_row mapping)."""
     return {key: _json_safe(value) for key, value in record.items()}
 
 

@@ -257,7 +257,7 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
         return response, owned
 
     @blueprint.get(f"{_API}/assistant/turns/<run_id>")
-    def assistant_detail(run_id: str) -> Response:
+    def assistant_detail(run_id: str) -> Response | tuple[Response, int]:
         try:
             upstream, owned = _owned_run(run_id)
         except DependencyUnavailableError as exc:
@@ -267,7 +267,7 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
         return _relay(upstream)
 
     @blueprint.get(f"{_API}/assistant/turns/<run_id>/events")
-    def assistant_events(run_id: str) -> Response:
+    def assistant_events(run_id: str) -> Response | tuple[Response, int]:
         try:
             detail, owned = _owned_run(run_id)
             if detail.status_code >= 400:
@@ -280,7 +280,7 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
             return _problem(503, "ai_mode_unavailable", str(exc))
 
     @blueprint.post(f"{_API}/assistant/turns/<run_id>/cancel")
-    def assistant_cancel(run_id: str) -> Response:
+    def assistant_cancel(run_id: str) -> Response | tuple[Response, int]:
         try:
             detail, owned = _owned_run(run_id)
             if detail.status_code >= 400:
