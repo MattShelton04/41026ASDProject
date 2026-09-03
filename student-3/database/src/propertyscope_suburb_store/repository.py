@@ -103,6 +103,7 @@ class Repository:
             connection.executescript(SCHEMA)
             if connection.execute("SELECT COUNT(*) FROM suburb_info").fetchone()[0] == 0:
                 self._seed(connection)
+            self._upgrade_fixture_comparisons(connection)
             self._vary_fixture_amenities(connection)
             self._ensure_fixture_revision(connection)
 
@@ -200,20 +201,52 @@ class Repository:
                     ),
                 )
         for index, (_, locality, *_rest) in enumerate(SUBURBS):
+            paired_locality = SUBURBS[(index + 1) % len(SUBURBS)][1]
+            measure = "count" if index % 2 == 0 else "rate"
             now = _now()
             connection.execute(
                 "INSERT INTO user_suburbs VALUES "
-                "(?, ?, ?, '2026-01', '2026-06', 'rate', ?, ?, ?, 'saved', "
+                "(?, ?, ?, '2026-01', '2026-06', ?, ?, ?, ?, 'saved', "
                 "NULL, ?, ?, 1)",
                 (
                     f"comparison-{index + 1}",
-                    f"{locality} research",
-                    json.dumps([locality]),
-                    json.dumps(["offence_rate"]),
+                    f"{locality} and {paired_locality}",
+                    json.dumps([locality, paired_locality]),
+                    measure,
+                    json.dumps(["recorded_offences" if measure == "count" else "offence_rate"]),
                     json.dumps(["transport", "parks"]),
                     "Seeded comparison for demonstration.",
                     now,
                     now,
+                ),
+            )
+
+    def _upgrade_fixture_comparisons(self, connection: sqlite3.Connection) -> None:
+        """Repair the original one-suburb demo comparisons without changing user records."""
+        for index, (_, locality, *_rest) in enumerate(SUBURBS):
+            comparison_id = f"comparison-{index + 1}"
+            row = connection.execute(
+                "SELECT localities_json, notes FROM user_suburbs WHERE id=?",
+                (comparison_id,),
+            ).fetchone()
+            if (
+                row is None
+                or row["notes"] != "Seeded comparison for demonstration."
+                or json.loads(row["localities_json"]) != [locality]
+            ):
+                continue
+            paired_locality = SUBURBS[(index + 1) % len(SUBURBS)][1]
+            measure = "count" if index % 2 == 0 else "rate"
+            connection.execute(
+                "UPDATE user_suburbs SET name=?, localities_json=?, measure=?, "
+                "selected_indicators_json=?, updated_at=?, version=version+1 WHERE id=?",
+                (
+                    f"{locality} and {paired_locality}",
+                    json.dumps([locality, paired_locality]),
+                    measure,
+                    json.dumps(["recorded_offences" if measure == "count" else "offence_rate"]),
+                    _now(),
+                    comparison_id,
                 ),
             )
 
