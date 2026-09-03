@@ -202,8 +202,13 @@ def producer(payload: dict[str, Any], artifact: bytes, mutate: Any = None) -> ht
             return httpx.Response(200, json={"release": {"manifest": payload["manifest"]}})
         assert path == payload["artifact_path"]
         assert request.headers["X-Request-ID"] == CORRELATION["request_id"]
-        # iter_raw requires an unconsumed stream, as on a real HTTP connection.
-        return httpx.Response(200, stream=httpx.ByteStream(artifact))
+
+        class ArtifactStream(httpx.SyncByteStream):
+            def __iter__(self) -> Iterator[bytes]:
+                yield artifact
+
+        # Model an unconsumed network response through HTTPX's streaming interface.
+        return httpx.Response(200, stream=ArtifactStream())
 
     return httpx.MockTransport(respond)
 
@@ -231,7 +236,7 @@ def test_stream_commit_and_replay_through_real_database_http(
         assert consumer.run_once(client)
         assert not consumer.run_once(client)
         terminal = database.status(ack["consumer_operation_id"])
-        assert terminal["status"] == "accepted"
+        assert terminal["status"] == "accepted", terminal
         assert terminal["rows_accepted"] == 2
         assert (
             consumer.enqueue(payload, CORRELATION, payload["idempotency_key"], callback=False)
