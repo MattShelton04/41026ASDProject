@@ -710,13 +710,11 @@ def test_psi_source_scale_path_casts_once_and_avoids_a_final_wide_sort() -> None
     assert "registry_fallback_candidates" not in PSI_ADDRESS_RESOLUTION_SQL
     assert "property_candidates" not in PSI_ADDRESS_RESOLUTION_SQL
     assert "WHERE accepted.dataset_id='gnaf-nsw'" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "JOIN registry.property registered_property" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "registered_property.property_ref=COALESCE(" in PSI_ADDRESS_RESOLUTION_SQL
-    assert (
-        "address.property_ref,md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)"
-        in PSI_ADDRESS_RESOLUTION_SQL
-    )
+    assert "JOIN registry.property registered_property" not in PSI_ADDRESS_RESOLUTION_SQL
+    assert "md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)" in PSI_ADDRESS_RESOLUTION_SQL
     assert "WHERE gnaf_match.match_count=0" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "identifier.scheme='gnaf_pid'" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "address.street_type=ANY(ARRAY[eligible.street_type," in PSI_ADDRESS_RESOLUTION_SQL
     assert "address.dataset_release_id=(" in PSI_ADDRESS_RESOLUTION_SQL
     assert "address.postcode=eligible.postcode" in PSI_ADDRESS_RESOLUTION_SQL
     assert "property.postcode=eligible.postcode" in PSI_ADDRESS_RESOLUTION_SQL

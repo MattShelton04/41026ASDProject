@@ -1,0 +1,39 @@
+schema_version: 1
+feature_key: student-5-buyer-journey
+display_name: PropertyScope Buyer Journey Workspace
+owner: student-5
+frontend_base_path: /features/buyer-workspaces/
+backend_base_path: /api/buyer-workspaces/v1
+health_path: /health/ready
+ai_capabilities:
+  - buyer.cases.inspect.v1
+  - buyer.notes.list.v1
+  - buyer.tasks.list.v1
+  - buyer.evidence.collect.v1
+onboarding:
+  frontend:
+    asset_root: student-5/frontend
+    service: f5-frontend
+    internal_port: 8080
+    host_port_variable: PROPERTYSCOPE_BUYER_WORKSPACES_PORT
+    host_port_default: 5500
+    route_fragment: student-5/frontend/integration/research-area.html
+  backend:
+    service: f5-backend
+    internal_port: 5501
+  ai:
+    tool_catalog: student-5/tool-catalog.yaml
+    runtime_path: /etc/ai-mode/buyer-workspace-tools.yaml
+  quality:
+    python_test_paths:
+      - student-5/tests
+    node_test_files:
+      - student-5/tests/frontend/buyer_cases.test.mjs
+    coverage_packages:
+      - propertyscope_buyer_workspaces
+      - propertyscope_buyer_store
+    coverage_fail_under: 80
+  databases:
+    - database_service: f5-db-api
+      volumes:
+        - f5-sqlite-data

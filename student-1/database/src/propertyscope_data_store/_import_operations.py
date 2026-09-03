@@ -32,7 +32,11 @@ JsonObject = dict[str, Any]
 _IMPORT_TARGET_RELATIONS: Mapping[str, tuple[str, ...]] = {
     "property-fixture": ("warehouse.gnaf_address",),
     "gnaf-nsw": ("warehouse.gnaf_address",),
-    "psi-sales": ("warehouse.psi_sale",),
+    "psi-sales": (
+        "warehouse.psi_sale",
+        "registry.property",
+        "registry.property_identifier",
+    ),
     "bocsar-sparse": (
         "warehouse.bocsar_observation",
         "warehouse.bocsar_coverage",
@@ -323,7 +327,9 @@ class _RegisteredImportOperations:
                     'policy','measure_then_target_exact_relations',
                     'trigger','cancelled_import_lease_expired_after_possible_rollback',
                     'relations',to_jsonb(CASE operation.import_profile_key
-                        WHEN 'psi-sales' THEN ARRAY['warehouse.psi_sale']::text[]
+                        WHEN 'psi-sales' THEN ARRAY[
+                            'warehouse.psi_sale','registry.property',
+                            'registry.property_identifier']::text[]
                         WHEN 'bocsar-sparse' THEN ARRAY[
                             'warehouse.bocsar_observation','warehouse.bocsar_coverage']::text[]
                         WHEN 'schools-master' THEN ARRAY['warehouse.school']::text[]

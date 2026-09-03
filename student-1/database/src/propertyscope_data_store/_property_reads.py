@@ -14,6 +14,13 @@ from propertyscope_data_store.errors import NotFoundError, ValidationError
 
 JsonObject = dict[str, Any]
 PROPERTY_SEARCH_CANDIDATE_LIMIT = 500
+# G-NAF registry rows can anchor foreign keys, but canonical fields are owned by
+# the currently accepted warehouse generation, even after an address is withdrawn.
+_REGISTRY_COMPATIBILITY_PREDICATE = """NOT EXISTS (
+    SELECT 1 FROM registry.property_identifier warehouse_identifier
+    WHERE warehouse_identifier.property_ref=property.property_ref
+      AND warehouse_identifier.scheme='gnaf_pid'
+)"""
 PROPERTY_SEARCH_UNDERSPECIFIED_TERMS = frozenset(
     {
         "australia",
@@ -158,7 +165,7 @@ class _CanonicalPropertyReads:
                        property.address_search AS search_text,
                        property.address_display AS matched_address,'canonical' AS match_kind
                 FROM registry.property property
-                WHERE {legacy_match} AND EXISTS (
+                WHERE {legacy_match} AND {_REGISTRY_COMPATIBILITY_PREDICATE} AND EXISTS (
                     SELECT 1 FROM registry.property_identifier identifier
                     JOIN serving.accepted_generation accepted
                       ON accepted.dataset_release_id=identifier.source_release_id
@@ -181,6 +188,7 @@ class _CanonicalPropertyReads:
                   ON accepted.dataset_release_id=alias.source_release_id
                 WHERE alias.is_current
                   AND {alias_match}
+                  AND {_REGISTRY_COMPATIBILITY_PREDICATE}
                   AND NOT EXISTS (
                       SELECT 1 FROM warehouse.gnaf_address accepted_address
                       JOIN serving.accepted_generation accepted
@@ -439,8 +447,9 @@ class _CanonicalPropertyReads:
                 "coverage": self.property_coverage(property_ref),
             }
         property_row = self._owner._required(
-            """SELECT *,ST_X(geom) AS longitude,ST_Y(geom) AS latitude,
-            ST_AsGeoJSON(geom)::jsonb AS geometry FROM registry.property WHERE property_ref=%s""",
+            f"""SELECT property.*,ST_X(geom) AS longitude,ST_Y(geom) AS latitude,
+            ST_AsGeoJSON(geom)::jsonb AS geometry FROM registry.property property
+            WHERE property_ref=%s AND {_REGISTRY_COMPATIBILITY_PREDICATE}""",
             (property_ref,),
         )
         identifiers = self._owner._fetch_all(
@@ -461,12 +470,13 @@ class _CanonicalPropertyReads:
 
     def property_coverage(self, property_ref: uuid.UUID) -> list[JsonObject]:
         exists = self._owner._fetch_one(
-            """SELECT 1 AS present FROM warehouse.gnaf_address address
+            f"""SELECT 1 AS present FROM warehouse.gnaf_address address
             JOIN serving.accepted_generation accepted
               ON accepted.dataset_release_id=address.dataset_release_id
             WHERE address.published AND COALESCE(address.property_ref,
                 md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
-            UNION ALL SELECT 1 FROM registry.property WHERE property_ref=%s LIMIT 1""",
+            UNION ALL SELECT 1 FROM registry.property property
+            WHERE property_ref=%s AND {_REGISTRY_COMPATIBILITY_PREDICATE} LIMIT 1""",
             (property_ref, property_ref),
         )
         if exists is None:
@@ -508,7 +518,7 @@ class _CanonicalPropertyReads:
 
     def _seifa_coverage(self, property_ref: uuid.UUID) -> JsonObject | None:
         return self._owner._fetch_one(
-            """WITH property_locality AS (
+            f"""WITH property_locality AS (
                 SELECT address.locality
                 FROM warehouse.gnaf_address address
                 JOIN serving.accepted_generation identity
@@ -516,7 +526,7 @@ class _CanonicalPropertyReads:
                 WHERE address.published AND COALESCE(address.property_ref,
                     md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
                 UNION ALL SELECT property.locality FROM registry.property property
-                WHERE property.property_ref=%s LIMIT 1
+                WHERE property.property_ref=%s AND {_REGISTRY_COMPATIBILITY_PREDICATE} LIMIT 1
             )
             SELECT release.dataset_id,release.target_feature,release.id AS dataset_release_id,
                    'supported' AS coverage_status,
@@ -540,14 +550,14 @@ class _CanonicalPropertyReads:
 
     def property_seifa(self, property_ref: uuid.UUID) -> JsonObject:
         property_item = self._owner._fetch_one(
-            """SELECT address.locality
+            f"""SELECT address.locality
             FROM warehouse.gnaf_address address
             JOIN serving.accepted_generation accepted
               ON accepted.dataset_release_id=address.dataset_release_id
             WHERE address.published AND COALESCE(address.property_ref,
                 md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
             UNION ALL SELECT property.locality FROM registry.property property
-            WHERE property.property_ref=%s LIMIT 1""",
+            WHERE property.property_ref=%s AND {_REGISTRY_COMPATIBILITY_PREDICATE} LIMIT 1""",
             (property_ref, property_ref),
         )
         if property_item is None:
@@ -629,7 +639,7 @@ class _CanonicalPropertyReads:
         """
 
         rows = self._owner._fetch_all(
-            """WITH property_presence AS MATERIALIZED (
+            f"""WITH property_presence AS MATERIALIZED (
                 SELECT true AS present
                 FROM warehouse.gnaf_address address
                 JOIN serving.accepted_generation accepted
@@ -638,6 +648,7 @@ class _CanonicalPropertyReads:
                     md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
                 UNION ALL
                 SELECT true FROM registry.property property WHERE property.property_ref=%s
+                  AND {_REGISTRY_COMPATIBILITY_PREDICATE}
                 LIMIT 1
             ), accepted_pointer AS MATERIALIZED (
                 SELECT release.id AS dataset_release_id,release.release_version,

@@ -427,6 +427,85 @@ services:
       timeout: 3s
       retries: 20
 
+  f5-db-api:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-5-buyer-journey
+    build:
+      context: .
+      dockerfile: student-5/Dockerfile
+      target: database-api
+    image: propertyscope/f5-db-api:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      PROPERTYSCOPE_BUYER_DATABASE_PATH: /var/lib/propertyscope-buyer/buyer-workspaces.sqlite3
+      PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
+      PROPERTYSCOPE_DEMO_OWNER_REF: ${PROPERTYSCOPE_DEMO_OWNER_REF:-release0-demo-owner}
+      PROPERTYSCOPE_AUTO_MIGRATE: "true"
+    volumes:
+      - f5-sqlite-data:/var/lib/propertyscope-buyer
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5502/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    stop_grace_period: 20s
+
+  f5-backend:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-5-buyer-journey
+    build:
+      context: .
+      dockerfile: student-5/Dockerfile
+      target: backend
+    image: propertyscope/f5-backend:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      PROPERTYSCOPE_BUYER_DATABASE_API_URL: http://f5-db-api:5502
+      PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
+      PROPERTYSCOPE_DEMO_OWNER_REF: ${PROPERTYSCOPE_DEMO_OWNER_REF:-release0-demo-owner}
+      PROPERTYSCOPE_DATA_PLATFORM_URL: http://f1-backend:5201
+      PROPERTYSCOPE_MARKET_INTELLIGENCE_URL: http://f2-backend:5301
+      PROPERTYSCOPE_DUE_DILIGENCE_URL: http://f4-backend:5401
+      AI_MODE_BASE_URL: http://shared-ai-mode:5005
+    depends_on:
+      f5-db-api:
+        condition: service_healthy
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5501/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    stop_grace_period: 35s
+
+  f5-frontend:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-5-buyer-journey
+    build:
+      context: .
+      dockerfile: student-5/Dockerfile
+      target: frontend
+    image: propertyscope/f5-frontend:dev
+    init: true
+    restart: unless-stopped
+    depends_on:
+      f5-backend:
+        condition: service_healthy
+    networks: [shared-platform]
+    healthcheck:
+      test: [CMD, wget, --quiet, --tries=1, --spider, http://127.0.0.1:8080/healthz]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 networks:
   shared-platform:
 
@@ -442,3 +521,4 @@ volumes:
   f1-postgres-data:
   f2-sqlite-data:
   f4-postgres-data:
+  f5-sqlite-data:

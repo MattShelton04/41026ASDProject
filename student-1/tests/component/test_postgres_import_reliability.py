@@ -7,6 +7,7 @@ database must never be supplied here.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import threading
@@ -80,7 +81,16 @@ def _create_minimal_import_schema(connection: psycopg.Connection[Any]) -> None:
         CREATE TABLE registry.property (
             property_ref UUID PRIMARY KEY, postcode TEXT, locality TEXT, street_name TEXT,
             street_type TEXT, street_number_first INTEGER, street_number_last INTEGER,
-            street_number_suffix TEXT, unit_number TEXT
+            street_number_suffix TEXT, unit_number TEXT,
+            address_display TEXT, flat_type TEXT, state TEXT, address_search TEXT, geom TEXT,
+            resolution_status TEXT, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ, version INTEGER
+        );
+        CREATE TABLE registry.property_identifier (
+            id UUID PRIMARY KEY, property_ref UUID REFERENCES registry.property(property_ref),
+            scheme TEXT NOT NULL, identifier_value TEXT NOT NULL, source_release_id UUID NOT NULL,
+            is_current BOOLEAN, valid_from DATE, valid_to DATE, match_method TEXT,
+            match_confidence NUMERIC, evidence_json JSONB, created_at TIMESTAMPTZ,
+            UNIQUE (scheme,identifier_value,source_release_id)
         );
         CREATE TABLE warehouse.psi_sale (
             dataset_release_id UUID NOT NULL, source_business_key TEXT NOT NULL,
@@ -94,7 +104,8 @@ def _create_minimal_import_schema(connection: psycopg.Connection[Any]) -> None:
             nature_code TEXT, primary_purpose TEXT, strata_lot_number TEXT, component_code TEXT,
             sale_code TEXT, interest_of_sale TEXT, contract_date DATE, settlement_date DATE,
             price_aud BIGINT, area_original NUMERIC, area_unit TEXT, area_square_metres NUMERIC,
-            property_ref UUID, match_tier TEXT NOT NULL, match_confidence NUMERIC NOT NULL,
+            property_ref UUID REFERENCES registry.property(property_ref),
+            match_tier TEXT NOT NULL, match_confidence NUMERIC NOT NULL,
             geographic_precision TEXT NOT NULL, source_row_sha256 TEXT NOT NULL,
             normalisation_version TEXT NOT NULL, artifact_record_id UUID NOT NULL,
             ingestion_run_id UUID NOT NULL, created_at TIMESTAMPTZ NOT NULL,
@@ -112,7 +123,11 @@ def _create_minimal_import_schema(connection: psycopg.Connection[Any]) -> None:
             street_number_last INTEGER,
             street_number_suffix TEXT,
             unit_number TEXT,
-            published BOOLEAN NOT NULL
+            published BOOLEAN NOT NULL,
+            address_display TEXT DEFAULT '10 EXAMPLE STREET SYDNEY NSW 2000',
+            flat_type TEXT, geom TEXT DEFAULT 'POINT(151 -33)',
+            source_status TEXT DEFAULT 'CURRENT', geocode_type TEXT DEFAULT 'PC',
+            source_crs TEXT DEFAULT 'GDA2020'
         );
         CREATE TABLE warehouse.bocsar_observation (
             dataset_release_id UUID NOT NULL, geography_kind TEXT NOT NULL,
@@ -761,7 +776,8 @@ def test_address_resolution_does_not_leak_from_eligible_to_ineligible_row(
     connection = isolated_postgres
     property_ref = uuid.uuid4()
     connection.execute(
-        "INSERT INTO registry.property "
+        "INSERT INTO registry.property (property_ref,postcode,locality,street_name,street_type,"
+        "street_number_first,street_number_last,street_number_suffix,unit_number) "
         "VALUES (%s,'2000','SYDNEY','EXAMPLE','ST',10,NULL,NULL,NULL)",
         (property_ref,),
     )
@@ -790,7 +806,7 @@ def test_address_resolution_does_not_leak_from_eligible_to_ineligible_row(
     ]
 
 
-def test_psi_ignores_unregistered_accepted_gnaf_identity_and_uses_registry_fallback(
+def test_psi_links_accepted_gnaf_virtual_identity_and_retains_foreign_key(
     isolated_postgres: psycopg.Connection[dict[str, object]],
 ) -> None:
     connection = isolated_postgres
@@ -801,22 +817,26 @@ def test_psi_ignores_unregistered_accepted_gnaf_identity_and_uses_registry_fallb
         (accepted_gnaf_release,),
     )
     connection.execute(
-        "INSERT INTO registry.property "
+        "INSERT INTO registry.property (property_ref,postcode,locality,street_name,street_type,"
+        "street_number_first,street_number_last,street_number_suffix,unit_number) "
         "VALUES (%s,'2000','SYDNEY','EXAMPLE','ST',10,NULL,NULL,NULL)",
         (registry_ref,),
     )
     connection.execute(
-        "INSERT INTO warehouse.gnaf_address VALUES "
-        "(%s,'unregistered-gnaf',NULL,'2000','SYDNEY','EXAMPLE','ST',10,NULL,NULL,NULL,TRUE)",
+        "INSERT INTO warehouse.gnaf_address (dataset_release_id,gnaf_pid,property_ref,postcode,"
+        "locality,street_name,street_type,street_number_first,street_number_last,"
+        "street_number_suffix,unit_number,published) VALUES "
+        "(%s,'unregistered-gnaf',NULL,'2000','SYDNEY','EXAMPLE','STREET',10,NULL,NULL,NULL,TRUE)",
         (accepted_gnaf_release,),
     )
-    _stage_typed_psi_rows(connection, [_psi_row(key="registry-fallback")])
+    _stage_typed_psi_rows(connection, [_psi_row(key="accepted-gnaf")])
+    release_id, artifact_id, run_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
 
     accepted = import_profiles._insert_psi_rows(
         connection.cursor(),
-        release_id=uuid.uuid4(),
-        artifact_id=uuid.uuid4(),
-        run_id=uuid.uuid4(),
+        release_id=release_id,
+        artifact_id=artifact_id,
+        run_id=run_id,
         phase_rows=1,
         phase_callback=None,
     )
@@ -825,10 +845,298 @@ def test_psi_ignores_unregistered_accepted_gnaf_identity_and_uses_registry_fallb
         "SELECT property_ref,match_tier,geographic_precision FROM warehouse.psi_sale"
     ).fetchone()
     assert accepted == 1
+    expected_ref = uuid.UUID(hashlib.md5(b"propertyscope-gnaf:unregistered-gnaf").hexdigest())
     assert row == {
-        "property_ref": registry_ref,
+        "property_ref": expected_ref,
         "match_tier": "A",
         "geographic_precision": "exact_address",
+    }
+    identifier = connection.execute(
+        "SELECT scheme,identifier_value,source_release_id,evidence_json "
+        "FROM registry.property_identifier WHERE property_ref=%s",
+        (expected_ref,),
+    ).fetchone()
+    assert identifier is not None
+    assert identifier["scheme"] == "gnaf_pid"
+    assert identifier["identifier_value"] == "unregistered-gnaf"
+    assert identifier["source_release_id"] == accepted_gnaf_release
+    anchor_evidence = identifier["evidence_json"]
+    assert isinstance(anchor_evidence, dict)
+    assert anchor_evidence["identity_anchor"] == "psi-accepted-gnaf"
+    assert connection.execute("SELECT count(*) AS count FROM registry.property").fetchone() == {
+        "count": 2
+    }
+    connection.commit()
+    anchors_before = connection.execute(
+        "SELECT * FROM registry.property ORDER BY property_ref"
+    ).fetchall()
+    _stage_typed_psi_rows(connection, [_psi_row(key="accepted-gnaf")])
+    assert (
+        import_profiles._insert_psi_rows(
+            connection.cursor(),
+            release_id=release_id,
+            artifact_id=artifact_id,
+            run_id=run_id,
+            phase_rows=1,
+            phase_callback=None,
+        )
+        == 1
+    )
+    assert (
+        connection.execute("SELECT * FROM registry.property ORDER BY property_ref").fetchall()
+        == anchors_before
+    )
+    assert connection.execute(
+        "SELECT count(*) AS count FROM registry.property_identifier"
+    ).fetchone() == {"count": 1}
+
+
+def test_psi_anchor_and_provenance_roll_back_with_failed_sale_insert(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    accepted_release = uuid.uuid4()
+    connection.execute(
+        "INSERT INTO serving.accepted_generation VALUES ('gnaf-nsw',%s)",
+        (accepted_release,),
+    )
+    connection.execute(
+        "INSERT INTO warehouse.gnaf_address (dataset_release_id,gnaf_pid,postcode,locality,"
+        "street_name,street_type,street_number_first,published) "
+        "VALUES (%s,'rollback-anchor','2000','SYDNEY','EXAMPLE','STREET',10,TRUE)",
+        (accepted_release,),
+    )
+    connection.commit()
+    _stage_typed_psi_rows(
+        connection,
+        [
+            _psi_row(key="valid"),
+            {**_psi_row(key="invalid-reference"), "property_ref": uuid.uuid4()},
+        ],
+    )
+    with pytest.raises(psycopg.errors.ForeignKeyViolation):
+        import_profiles._insert_psi_rows(
+            connection.cursor(),
+            release_id=uuid.uuid4(),
+            artifact_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+            phase_rows=2,
+            phase_callback=None,
+        )
+    connection.rollback()
+    for table in ("registry.property", "registry.property_identifier", "warehouse.psi_sale"):
+        assert connection.execute(
+            sql.SQL("SELECT count(*) AS count FROM {}").format(sql.SQL(table))
+        ).fetchone() == {"count": 0}
+    assert connection.execute(
+        "SELECT dataset_release_id FROM serving.accepted_generation WHERE dataset_id='gnaf-nsw'"
+    ).fetchone() == {"dataset_release_id": accepted_release}
+
+
+def test_psi_materialises_anchors_only_for_rows_without_supplied_property_references(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    accepted_release, supplied_ref = uuid.uuid4(), uuid.uuid4()
+    connection.execute(
+        "INSERT INTO serving.accepted_generation VALUES ('gnaf-nsw',%s)",
+        (accepted_release,),
+    )
+    connection.execute("INSERT INTO registry.property (property_ref) VALUES (%s)", (supplied_ref,))
+    with connection.cursor() as cursor:
+        cursor.executemany(
+            "INSERT INTO warehouse.gnaf_address (dataset_release_id,gnaf_pid,postcode,"
+            "locality,street_name,street_type,street_number_first,published) "
+            "VALUES (%s,%s,'2000','SYDNEY','EXAMPLE','STREET',%s,TRUE)",
+            [(accepted_release, "supplied-only", 10), (accepted_release, "mixed", 20)],
+        )
+    rows = [
+        {**_psi_row(key="supplied-only"), "property_ref": supplied_ref},
+        {
+            **_psi_row(key="mixed-supplied", street_number_first=20, house_number="20"),
+            "property_ref": supplied_ref,
+        },
+        _psi_row(key="mixed-unresolved", street_number_first=20, house_number="20"),
+    ]
+    _stage_typed_psi_rows(connection, rows)
+    import_profiles._insert_psi_rows(
+        connection.cursor(),
+        release_id=uuid.uuid4(),
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        phase_rows=len(rows),
+        phase_callback=None,
+    )
+    expected_ref = uuid.UUID(hashlib.md5(b"propertyscope-gnaf:mixed").hexdigest())
+    persisted = connection.execute(
+        "SELECT source_business_key,property_ref FROM warehouse.psi_sale"
+    ).fetchall()
+    assert {row["source_business_key"]: row["property_ref"] for row in persisted} == {
+        "supplied-only": supplied_ref,
+        "mixed-supplied": supplied_ref,
+        "mixed-unresolved": expected_ref,
+    }
+    assert connection.execute(
+        "SELECT identifier_value FROM registry.property_identifier"
+    ).fetchall() == [{"identifier_value": "mixed"}]
+    assert connection.execute("SELECT count(*) AS count FROM registry.property").fetchone() == {
+        "count": 2
+    }
+
+
+def test_psi_matches_only_unambiguous_accepted_published_gnaf_addresses(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    accepted_release, prior_release = uuid.uuid4(), uuid.uuid4()
+    connection.execute(
+        "INSERT INTO serving.accepted_generation VALUES ('gnaf-nsw',%s)",
+        (accepted_release,),
+    )
+    with connection.cursor() as cursor:
+        cursor.executemany(
+            "INSERT INTO warehouse.gnaf_address (dataset_release_id,gnaf_pid,postcode,"
+            "locality,street_name,street_type,street_number_first,published) "
+            "VALUES (%s,%s,'2000','SYDNEY','EXAMPLE','STREET',%s,%s)",
+            [
+                (accepted_release, "current", 10, True),
+                (accepted_release, "ambiguous-a", 20, True),
+                (accepted_release, "ambiguous-b", 20, True),
+                (accepted_release, "unpublished", 30, False),
+                (prior_release, "superseded", 40, True),
+                (accepted_release, "ineligible-number", 50, True),
+            ],
+        )
+    registry_ref = uuid.uuid4()
+    connection.execute(
+        "INSERT INTO registry.property (property_ref,postcode,locality,street_name,"
+        "street_type,street_number_first) VALUES (%s,'2000','SYDNEY','EXAMPLE','ST',20)",
+        (registry_ref,),
+    )
+    rows = [
+        _psi_row(key=f"sale-{number}", street_number_first=number, house_number=str(number))
+        for number in (10, 20, 30, 40, 50)
+    ]
+    rows[-1]["house_number"] = "LOT 50"
+    _stage_typed_psi_rows(connection, rows)
+    import_profiles._insert_psi_rows(
+        connection.cursor(),
+        release_id=uuid.uuid4(),
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        phase_rows=len(rows),
+        phase_callback=None,
+    )
+
+    linked = connection.execute(
+        "SELECT source_business_key FROM warehouse.psi_sale WHERE property_ref IS NOT NULL"
+    ).fetchall()
+    assert linked == [{"source_business_key": "sale-10"}]
+    anchors = connection.execute(
+        "SELECT identifier_value FROM registry.property_identifier"
+    ).fetchall()
+    assert anchors == [{"identifier_value": "current"}]
+
+
+def test_psi_accepts_registered_street_type_equivalences_without_changing_source_facts(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    accepted_release = uuid.uuid4()
+    connection.execute(
+        "INSERT INTO serving.accepted_generation VALUES ('gnaf-nsw',%s)",
+        (accepted_release,),
+    )
+    street_types = {
+        "AV": "AVENUE",
+        "CL": "CLOSE",
+        "CT": "COURT",
+        "CR": "CRESCENT",
+        "DR": "DRIVE",
+        "HWY": "HIGHWAY",
+        "LANE": "LANE",
+        "PDE": "PARADE",
+        "PL": "PLACE",
+        "RD": "ROAD",
+        "ST": "STREET",
+        "TCE": "TERRACE",
+    }
+    rows = []
+    for number, (abbreviation, full_name) in enumerate(street_types.items(), start=10):
+        connection.execute(
+            "INSERT INTO warehouse.gnaf_address (dataset_release_id,gnaf_pid,postcode,"
+            "locality,street_name,street_type,street_number_first,published) "
+            "VALUES (%s,%s,'2000','SYDNEY','EXAMPLE',%s,%s,TRUE)",
+            (accepted_release, f"gnaf-{number}", full_name, number),
+        )
+        rows.append(
+            {
+                **_psi_row(key=abbreviation, street_number_first=number, house_number=str(number)),
+                "street_type": abbreviation,
+            }
+        )
+    _stage_typed_psi_rows(connection, rows)
+    import_profiles._insert_psi_rows(
+        connection.cursor(),
+        release_id=uuid.uuid4(),
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        phase_rows=len(rows),
+        phase_callback=None,
+    )
+    persisted = connection.execute(
+        "SELECT source_business_key,street_type FROM warehouse.psi_sale "
+        "WHERE property_ref IS NOT NULL"
+    ).fetchall()
+    assert {row["source_business_key"]: row["street_type"] for row in persisted} == {
+        abbreviation: abbreviation for abbreviation in street_types
+    }
+
+
+def test_psi_does_not_reuse_stale_gnaf_anchor_after_accepted_generation_changes(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    old_release, new_release = uuid.uuid4(), uuid.uuid4()
+    connection.execute(
+        "INSERT INTO serving.accepted_generation VALUES ('gnaf-nsw',%s)",
+        (old_release,),
+    )
+    connection.execute(
+        "INSERT INTO warehouse.gnaf_address (dataset_release_id,gnaf_pid,postcode,locality,"
+        "street_name,street_type,street_number_first,published) "
+        "VALUES (%s,'withdrawn','2000','SYDNEY','EXAMPLE','ST',10,TRUE)",
+        (old_release,),
+    )
+    _stage_typed_psi_rows(connection, [_psi_row(key="first-import")])
+    import_profiles._insert_psi_rows(
+        connection.cursor(),
+        release_id=uuid.uuid4(),
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        phase_rows=1,
+        phase_callback=None,
+    )
+    connection.commit()
+    connection.execute(
+        "UPDATE serving.accepted_generation SET dataset_release_id=%s WHERE dataset_id='gnaf-nsw'",
+        (new_release,),
+    )
+    _stage_typed_psi_rows(connection, [_psi_row(key="second-import")])
+    import_profiles._insert_psi_rows(
+        connection.cursor(),
+        release_id=uuid.uuid4(),
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        phase_rows=1,
+        phase_callback=None,
+    )
+    row = connection.execute(
+        "SELECT property_ref FROM warehouse.psi_sale WHERE source_business_key='second-import'"
+    ).fetchone()
+    assert row == {"property_ref": None}
+    assert connection.execute("SELECT count(*) AS count FROM registry.property").fetchone() == {
+        "count": 1
     }
 
 
@@ -844,11 +1152,14 @@ def test_psi_retransmissions_revisions_and_exact_address_cardinality(
     )
     with connection.cursor() as cursor:
         cursor.executemany(
-            "INSERT INTO registry.property VALUES (%s,%s,%s,%s,%s,%s,NULL,NULL,NULL)",
+            "INSERT INTO registry.property (property_ref,postcode,locality,street_name,"
+            "street_type,street_number_first,street_number_last,street_number_suffix,unit_number) "
+            "VALUES (%s,%s,%s,%s,%s,%s,NULL,NULL,NULL)",
             [
                 (single_ref, "2000", "SYDNEY", "EXAMPLE", "ST", 10),
                 (ambiguous_a, "2000", "SYDNEY", "MULTI", "ST", 20),
                 (ambiguous_b, "2000", "SYDNEY", "MULTI", "ST", 20),
+                (supplied_ref, "2000", "SYDNEY", "SUPPLIED", "ST", 30),
             ],
         )
     first = {**_psi_row(key="revision"), "price_aud": 100, "source_row_sha256": "1" * 64}

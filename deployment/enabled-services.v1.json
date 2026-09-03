@@ -10,7 +10,10 @@
     "f2-frontend",
     "f4-backend",
     "f4-db-api",
-    "f4-frontend"
+    "f4-frontend",
+    "f5-backend",
+    "f5-db-api",
+    "f5-frontend"
   ],
   "disabled_services": [],
   "schema_version": 1,
@@ -27,6 +30,9 @@
     "f4-backend",
     "f4-db-api",
     "f4-frontend",
-    "f4-postgres"
+    "f4-postgres",
+    "f5-backend",
+    "f5-db-api",
+    "f5-frontend"
   ]
 }

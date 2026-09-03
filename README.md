@@ -3,9 +3,9 @@
 Shared repository for the Spring 2026 PropertyScope NSW group project.
 
 PropertyScope is a tutor-approved NSW property-research application. The repository currently
-contains the Shared platform and an implemented Feature 1 vertical slice: Data Platform and
-Property Discovery. Features 2–5 are approved and allocated but remain disabled placeholders until
-their owners deliver independently deployable frontend, backend/API, and database services.
+contains the Shared platform plus enabled independently deployable slices for Property Discovery,
+Market Intelligence, Due Diligence and the Buyer Journey workspace. Feature 3 remains an approved,
+disabled placeholder until its owner completes that slice.
 
 The implemented baseline includes a reproducible Python workspace, strict shared contracts,
 manifest-driven feature onboarding, a shared HTMX product shell, bounded AI-mode orchestration over
@@ -95,7 +95,8 @@ Copy-Item .env.example .env  # Windows PowerShell
 uv run scripts/dev.py stack up
 ```
 
-Open the shared home at <http://localhost:5100> or Feature 1 at <http://localhost:5200>. To exercise
+Open the shared home at <http://localhost:5100>, Feature 1 at <http://localhost:5200>, or the Buyer
+Journey workspace at <http://localhost:5500>. To exercise
 deterministic data flows without a model credential, use:
 
 ```text

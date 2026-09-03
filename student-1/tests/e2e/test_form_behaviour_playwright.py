@@ -305,6 +305,99 @@ def test_property_identity_renders_before_optional_calls_settle(
     expect(page.get_by_role("heading", name="Source summary")).to_be_visible()
 
 
+@pytest.mark.parametrize("width", [1440, 1024, 768, 390])
+@pytest.mark.parametrize("long_records", [False, True], ids=["populated", "long-records"])
+def test_property_sources_stay_readable_when_expanded(
+    page: Page, fixture_origin: str, width: int, long_records: bool
+) -> None:
+    _abort_external_map(page)
+    page.set_viewport_size({"width": width, "height": 1000})
+    long_identifier = "GNAF-" + "0123456789" * 24
+    long_alias = "Former address <script>plain text</script> " * 8
+
+    if long_records:
+
+        def extend_records(route: Route) -> None:
+            response = route.fetch()
+            payload = response.json()
+            if route.request.url.endswith(f"/properties/{PROPERTY_ID}"):
+                original = payload["identifiers"][0]
+                payload["identifiers"].append(
+                    {
+                        **original,
+                        "identifier_value": long_identifier,
+                        "evidence_json": {"source_reference": long_identifier},
+                    }
+                )
+                payload["aliases"] = [
+                    {
+                        "alias_display": long_alias,
+                        "alias_kind": "historical",
+                        "source_identifier": long_identifier,
+                        "is_current": False,
+                    }
+                ]
+            elif route.request.url.endswith("/report-section"):
+                payload["release_evidence"][0]["release_version"] = long_identifier
+            route.fulfill(response=response, json=payload)
+
+        page.route(f"**/properties/{PROPERTY_ID}", extend_records)
+        page.route(f"**/properties/{PROPERTY_ID}/report-section", extend_records)
+
+    _open(page, fixture_origin, f"properties/{PROPERTY_ID}")
+    disclosure = page.locator(".property-summary-column > details")
+    toggle = disclosure.locator(":scope > summary")
+    toggle.focus()
+    toggle.press("Enter")
+    expect(disclosure).to_have_attribute("open", "")
+    expect(toggle).to_have_accessible_name(
+        "Sources and identifiers References, coordinates, aliases and report evidence"
+    )
+    expect(toggle.locator(".disclosure-hide")).to_be_visible()
+    expect(toggle.locator(".disclosure-show")).to_be_hidden()
+    expect(disclosure.get_by_role("heading", name="Source summary")).to_be_visible()
+    expect(disclosure.get_by_text("GNAF-FIXTURE-0001", exact=True)).to_have_count(2)
+    expect(disclosure.get_by_text("-33.8688", exact=True)).to_be_visible()
+    if long_records:
+        expect(disclosure.get_by_text(long_alias.strip(), exact=True)).to_be_visible()
+        expect(disclosure.get_by_text(long_identifier, exact=True)).to_have_count(3)
+        expect(disclosure.locator("script")).to_have_count(0)
+    else:
+        expect(
+            disclosure.get_by_text("No address aliases are recorded for this property.")
+        ).to_be_visible()
+
+    for summary in disclosure.locator("details.technical > summary").all():
+        summary.click()
+    expect(disclosure.locator("details.technical:not([open])")).to_have_count(0)
+    # Check local containment: body overflow clipping can conceal this regression from
+    # a document-width-only assertion while records paint under the adjacent panel.
+    overflow = disclosure.evaluate(
+        """root => {
+          const bounds = root.getBoundingClientRect();
+          return [...root.querySelectorAll('*')].filter(element => {
+            const rect = element.getBoundingClientRect();
+            return rect.width && rect.height && (
+              rect.left < bounds.left - 1 || rect.right > bounds.right + 1 ||
+              element.scrollWidth > element.clientWidth + 1
+            );
+          }).map(element => element.tagName + '.' + element.className);
+        }"""
+    )
+    assert overflow == []
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    assert disclosure.locator("h3").evaluate_all(
+        "elements => elements.every(element => "
+        "parseFloat(getComputedStyle(element).fontSize) <= 16)"
+    )
+    toggle.focus()
+    toggle.press("Enter")
+    expect(disclosure).not_to_have_attribute("open", "")
+    expect(toggle).to_be_focused()
+    expect(toggle.locator(".disclosure-show")).to_be_visible()
+    expect(toggle.locator(".disclosure-hide")).to_be_hidden()
+
+
 def test_property_partial_and_fatal_states_keep_local_recovery(
     page: Page, fixture_origin: str
 ) -> None:
@@ -429,6 +522,35 @@ def test_search_and_every_filter_use_native_keyboard_and_explicit_reset(
         page.get_by_role("button", name="Reset filters").click()
         expect(page.locator(".active-filters")).to_have_count(0)
     assert not [message for message in console_errors if "hx-disabled-elt" in message]
+
+
+def test_source_filter_reset_aborts_an_in_flight_search(page: Page, fixture_origin: str) -> None:
+    _open(page, fixture_origin, "sources")
+    search = page.get_by_label("Search (optional)")
+    expect(search).to_be_visible()
+    held: list[Route] = []
+
+    def hold_filtered_sources(route: Route) -> None:
+        if "q=fixture" in route.request.url:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/fragments/data-platform/v1/sources?*", hold_filtered_sources)
+    search.fill("fixture")
+    search.press("Enter")
+    expect(page.get_by_role("button", name="Apply filters")).to_be_disabled()
+    assert held, "the filtered source request must still be in flight"
+
+    with page.expect_event(
+        "requestfailed", predicate=lambda request: request.url == held[0].request.url, timeout=3000
+    ):
+        page.get_by_role("button", name="Reset filters").click()
+
+    expect(page.locator(".active-filters")).to_have_count(0)
+    expect(search).to_have_value("")
+    expect(page.get_by_label("Status (optional)")).to_have_value("all")
+    expect(page).to_have_url(f"{page.url.split('#')[0]}#sources?status=all")
 
 
 def test_source_job_and_release_create_edit_forms_retain_server_failures(

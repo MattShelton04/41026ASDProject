@@ -75,9 +75,9 @@ def _health_projection(
     ).model_dump(mode="json")
 
 
-def _database_health() -> dict[str, Any]:
+def _database_health(service: str = "propertyscope-data-platform") -> dict[str, Any]:
     return _health_projection(
-        service="propertyscope-data-platform",
+        service=service,
         checks={
             "database": ReadinessCheckProjection(
                 required=True,
@@ -475,6 +475,15 @@ def fixture_response(
 
     if path == "/api/shared-health/data-platform":
         return FixtureResponse(200, _database_health(), delay_seconds=delay)
+    feature_health_services = {
+        "/api/shared-health/market-intelligence": "propertyscope-market-intelligence",
+        "/api/shared-health/due-diligence": "propertyscope-due-diligence",
+        "/api/shared-health/buyer-workspaces": "propertyscope-buyer-workspaces",
+    }
+    if path in feature_health_services:
+        return FixtureResponse(
+            200, _database_health(feature_health_services[path]), delay_seconds=delay
+        )
     if path == "/api/shared-health/ai-mode":
         return FixtureResponse(200, _ai_health(), delay_seconds=delay)
     if path in {

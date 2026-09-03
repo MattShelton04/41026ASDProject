@@ -154,6 +154,58 @@
           "service": "f4-backend"
         }
       ]
+    },
+    {
+      "ai": {
+        "runtime_path": "/etc/ai-mode/buyer-workspace-tools.yaml",
+        "tool_catalog": "student-5/tool-catalog.yaml"
+      },
+      "databases": [
+        {
+          "database_service": "f5-db-api",
+          "volumes": [
+            "f5-sqlite-data"
+          ]
+        }
+      ],
+      "enabled": true,
+      "evidence_adapter": null,
+      "feature_key": "student-5-buyer-journey",
+      "frontend": {
+        "asset_root": "student-5/frontend",
+        "host_port_default": 5500,
+        "host_port_variable": "PROPERTYSCOPE_BUYER_WORKSPACES_PORT",
+        "internal_port": 8080,
+        "route_fragment": "student-5/frontend/integration/research-area.html",
+        "service": "f5-frontend"
+      },
+      "health_path": "/health/ready",
+      "owner": "student-5",
+      "quality": {
+        "coverage_fail_under": 80,
+        "coverage_packages": [
+          "propertyscope_buyer_workspaces",
+          "propertyscope_buyer_store"
+        ],
+        "node_test_files": [
+          "student-5/tests/frontend/buyer_cases.test.mjs"
+        ],
+        "python_test_paths": [
+          "student-5/tests"
+        ]
+      },
+      "routes": [
+        {
+          "kind": "frontend",
+          "path": "/features/buyer-workspaces/",
+          "service": "f5-frontend"
+        },
+        {
+          "kind": "backend",
+          "path": "/api/buyer-workspaces/v1",
+          "service": "f5-backend"
+        }
+      ]
     }
   ],
   "schema_version": 1
