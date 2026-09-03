@@ -1,14 +1,107 @@
-name: Student 3 CI (scaffold)
+name: Student 3 CI
 
 on:
+  pull_request:
+    paths:
+      - ".dockerignore"
+      - ".github/workflows/student-3.yml"
+      - ".python-version"
+      - "deployment/**"
+      - "docker-compose.yml"
+      - "docker-compose.dev.yml"
+      - "pyproject.toml"
+      - "scripts/**"
+      - "shared/consumer-protocol/**"
+      - "shared/contracts/**"
+      - "student-1/contracts/**"
+      - "student-3/**"
+      - "uv.lock"
+  push:
+    branches: [main]
+    paths:
+      - ".dockerignore"
+      - ".github/workflows/student-3.yml"
+      - ".python-version"
+      - "deployment/**"
+      - "docker-compose.yml"
+      - "docker-compose.dev.yml"
+      - "pyproject.toml"
+      - "scripts/**"
+      - "shared/consumer-protocol/**"
+      - "shared/contracts/**"
+      - "student-1/contracts/**"
+      - "student-3/**"
+      - "uv.lock"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: student-3-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  placeholder:
-    if: ${{ false }}
+  feature-quality:
+    name: Feature 3 quality
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - run: echo "Define Student 3 build, test, and validation steps."
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version-file: .python-version
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.1"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20"
+      - name: Reproduce locked workspace
+        run: uv sync --locked --all-packages --all-groups
+      - name: Check Feature 3 formatting and lint
+        run: |
+          uv run --locked ruff format --check student-3
+          uv run --locked ruff check student-3
+      - name: Type-check Feature 3 production code
+        run: uv run --locked mypy student-3/backend/src/propertyscope_suburb_analytics student-3/database/src/propertyscope_suburb_store
+      - name: Run Feature 3 Python tests with coverage
+        run: uv run --locked pytest --cov=propertyscope_suburb_analytics --cov=propertyscope_suburb_store --cov-branch --cov-report=term-missing --cov-fail-under=80 student-3/tests
+      - name: Run Feature 3 frontend behavior tests
+        run: node --test student-3/tests/frontend.test.mjs
+
+  feature-stack:
+    name: Feature 3 integrated stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate the Feature 3 Compose plan
+        run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 config --quiet
+      - name: Build Feature 3 containers
+        run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml build f3-database f3-backend f3-frontend
+      - name: Start the Feature 3 fixture stack
+        run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 up --detach --wait --wait-timeout 120 f3-database f3-backend f3-frontend
+      - name: Smoke frontend, API, and seeded database boundaries
+        run: |
+          curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5600/
+          curl --fail --silent --show-error --max-time 5 'http://127.0.0.1:5600/api/suburb-analytics/v1/suburbs?limit=10' --output /tmp/suburbs.json
+          python -c "import json; value=json.load(open('/tmp/suburbs.json', encoding='utf-8')); assert len(value['items']) >= 10, value"
+          docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml exec -T f3-database python -c "import json,urllib.request; value=json.load(urllib.request.urlopen('http://127.0.0.1:5302/health/ready',timeout=2)); assert min(value['tables'].values()) >= 10, value"
+      - name: Capture Feature 3 service logs
+        if: failure()
+        run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 logs --no-color --tail 250 f3-database f3-backend f3-frontend
+      - name: Stop containers and delete ephemeral CI data
+        if: always()
+        run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 down --remove-orphans --volumes
