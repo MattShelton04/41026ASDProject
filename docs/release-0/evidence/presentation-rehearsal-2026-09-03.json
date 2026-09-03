@@ -1,0 +1,329 @@
+{
+  "captured_at": "2026-09-03T20:07:23.8919428+10:00",
+  "preparation_baseline": "6fbe1b723ee127a27daeafbf35037f69c8939cdb",
+  "runtime_note": "Observed existing ps-dev stack. It is source-mounted from the concurrently edited primary checkout; this is not proof of the presentation branch runtime or final submission SHA.",
+  "ai_note": "Submitted from integrated browser UI. Only public final responses and execution/model metadata retained; no raw prompts, internal plans, model reasoning or credentials.",
+  "ai_runs": [
+    {
+      "run": {
+        "id": "0b4bd24c-8b14-43bc-9e0d-867df603381d",
+        "status": "succeeded",
+        "feature_key": "student-1-propertyscope-data-platform",
+        "created_at": "2026-09-03T10:04:05.897429Z",
+        "updated_at": "2026-09-03T10:04:13.952336Z",
+        "prompt_set": "default.v7",
+        "model_profile": "remote-standard.v1",
+        "iteration_count": 1,
+        "tool_call_count": 1,
+        "final_result": {
+          "evidence": [
+            "platform.capabilities.v1 — status:200; revision: 2026-08-31.v3; application.summary"
+          ],
+          "findings": [
+            "The platform guide describes PropertyScope NSW as a property research workspace that keeps source coverage, uncertainty, dataset operations and recorded AI activity visible."
+          ],
+          "recommended_next_step": "Search for the NSW property address you want to investigate, then review its available evidence.",
+          "safety_note": "It remains research support rather than professional advice; protected data actions remain separate and human-reviewed.",
+          "summary": "PropertyScope NSW helps you research NSW properties with traceable data, showing where information comes from, how complete it is and where uncertainty remains. Start by searching a property address, then review the supporting evidence before relying on it."
+        }
+      },
+      "phases": [
+        {
+          "phase": "plan",
+          "status": "succeeded",
+          "tool_name": null,
+          "provider": "openai",
+          "model": "gpt-5.6-luna",
+          "prompt_id": "planner",
+          "prompt_version": "v7"
+        },
+        {
+          "phase": "act",
+          "status": "succeeded",
+          "tool_name": "platform.capabilities.v1",
+          "provider": null,
+          "model": null,
+          "prompt_id": null,
+          "prompt_version": null
+        },
+        {
+          "phase": "observe",
+          "status": "succeeded",
+          "tool_name": null,
+          "provider": null,
+          "model": null,
+          "prompt_id": null,
+          "prompt_version": null
+        },
+        {
+          "phase": "adapt",
+          "status": "succeeded",
+          "tool_name": null,
+          "provider": "openai",
+          "model": "gpt-5.6-terra",
+          "prompt_id": "adapter",
+          "prompt_version": "v7"
+        }
+      ]
+    },
+    {
+      "run": {
+        "id": "5a436835-e8e3-41f1-a00a-4c9a29b2454e",
+        "status": "succeeded",
+        "feature_key": "student-1-propertyscope-data-platform",
+        "created_at": "2026-09-03T10:06:21.40739Z",
+        "updated_at": "2026-09-03T10:06:37.971502Z",
+        "prompt_set": "default.v7",
+        "model_profile": "remote-standard.v1",
+        "iteration_count": 2,
+        "tool_call_count": 2,
+        "final_result": {
+          "evidence": [
+            "property.inspect.v1 call 2fa536b6-15e6-4198-99fa-4c69582156ef: status 200; resolution_status verified; sales_history availability available; count 0; accepted release 2026.08.2."
+          ],
+          "findings": [
+            "The address is verified with a current authoritative GNAF identifier; accepted NSW sales release 2026.08.2 supports this property, with 0 history rows."
+          ],
+          "recommended_next_step": "Human-review the zero returned sale-history result against another authorised sales source if transaction evidence is needed.",
+          "safety_note": "No value, suitability, ownership or transaction inference has been made.",
+          "summary": "Verified record: 20 Heysen Street, Abbotsbury NSW 2176. Accepted sale-history coverage is available, but no sale records were returned."
+        }
+      },
+      "phases": [
+        {
+          "phase": "plan",
+          "status": "succeeded",
+          "tool_name": null,
+          "provider": "openai",
+          "model": "gpt-5.6-luna",
+          "prompt_id": "planner",
+          "prompt_version": "v7"
+        },
+        {
+          "phase": "act",
+          "status": "succeeded",
+          "tool_name": "property.search.v1",
+          "provider": null,
+          "model": null,
+          "prompt_id": null,
+          "prompt_version": null
+        },
+        {
+          "phase": "observe",
+          "status": "succeeded",
+          "tool_name": null,
+          "provider": null,
+          "model": null,
+          "prompt_id": null,
+          "prompt_version": null
+        },
+        {
+          "phase": "adapt",
+          "status": "succeeded",
+          "tool_name": null,
+          "provider": "openai",
+          "model": "gpt-5.6-terra",
+          "prompt_id": "adapter",
+          "prompt_version": "v7"
+        },
+        {
+          "phase": "plan",
+          "status": "succeeded",
+          "tool_name": null,
+          "provider": "openai",
+          "model": "gpt-5.6-luna",
+          "prompt_id": "planner",
+          "prompt_version": "v7"
+        },
+        {
+          "phase": "act",
+          "status": "succeeded",
+          "tool_name": "property.inspect.v1",
+          "provider": null,
+          "model": null,
+          "prompt_id": null,
+          "prompt_version": null
+        },
+        {
+          "phase": "observe",
+          "status": "succeeded",
+          "tool_name": null,
+          "provider": null,
+          "model": null,
+          "prompt_id": null,
+          "prompt_version": null
+        },
+        {
+          "phase": "adapt",
+          "status": "succeeded",
+          "tool_name": null,
+          "provider": "openai",
+          "model": "gpt-5.6-terra",
+          "prompt_id": "adapter",
+          "prompt_version": "v7"
+        }
+      ]
+    }
+  ],
+  "property": {
+    "aliases": [],
+    "coverage": [
+      {
+        "accepted_at": "2026-09-02T20:30:05.126864+10:00",
+        "checked_at": "2026-09-02T20:30:05.126864+10:00",
+        "coverage_scope": {
+          "all_records": true,
+          "match_method": "exact-normalised-locality-and-state",
+          "matched_sal_code": "10002",
+          "matched_sal_name": "Abbotsbury",
+          "profile": "full-data",
+          "source_record_count": 4320,
+          "state": "NSW"
+        },
+        "coverage_status": "supported",
+        "dataset_id": "abs-seifa-2021",
+        "dataset_release_id": "1672de46-b88e-400d-9e12-7e9fecad1b0a",
+        "release_version": "release-39d9c3b47565d7ee-c362a746",
+        "schema_version": "propertyscope.seifa-area.v1",
+        "target_feature": "feature-1"
+      },
+      {
+        "accepted_at": "2026-08-31T21:09:44.608281+10:00",
+        "checked_at": "2026-08-31T21:09:44.608281+10:00",
+        "coverage_scope": {
+          "all_records": true,
+          "profile": "full-data",
+          "source_record_count": 5190134,
+          "state": "NSW"
+        },
+        "coverage_status": "supported",
+        "dataset_id": "gnaf-nsw",
+        "dataset_release_id": "d6bf46ef-1e44-497d-9ab6-4338eb1447ab",
+        "property_ref": "8060a0b4-96a2-6de3-be6b-00f6e844141f",
+        "release_version": "release-acc859eed2a8bc86-96ee7f24",
+        "schema_version": "propertyscope.property-snapshot.v2",
+        "target_feature": "feature-1"
+      }
+    ],
+    "identifiers": [
+      {
+        "created_at": "2026-08-31T20:17:13.589182+10:00",
+        "evidence_json": {
+          "geocode_type": "GG",
+          "source_crs": 4283
+        },
+        "id": "9e4db6ab-7b52-c244-39cd-828dc42be190",
+        "identifier_value": "GANSW711351856",
+        "is_current": true,
+        "match_confidence": 1,
+        "match_method": "source-authoritative",
+        "property_ref": "8060a0b4-96a2-6de3-be6b-00f6e844141f",
+        "scheme": "gnaf_pid",
+        "source_release_id": "d6bf46ef-1e44-497d-9ab6-4338eb1447ab",
+        "valid_from": null,
+        "valid_to": null
+      }
+    ],
+    "property": {
+      "address_display": "20 HEYSEN STREET, ABBOTSBURY NSW 2176",
+      "address_search": "20 heysen street abbotsbury nsw 2176",
+      "created_at": "2026-08-31T20:17:13.589182+10:00",
+      "flat_type": null,
+      "geometry": {
+        "coordinates": [
+          150.86966825,
+          -33.86735306
+        ],
+        "type": "Point"
+      },
+      "latitude": -33.86735306,
+      "locality": "ABBOTSBURY",
+      "longitude": 150.86966825,
+      "postcode": "2176",
+      "property_ref": "8060a0b4-96a2-6de3-be6b-00f6e844141f",
+      "resolution_status": "verified",
+      "state": "NSW",
+      "street_name": "HEYSEN",
+      "street_number_first": 20,
+      "street_number_last": null,
+      "street_number_suffix": null,
+      "street_type": "STREET",
+      "unit_number": null,
+      "updated_at": "2026-08-31T20:17:13.589182+10:00",
+      "version": 1
+    }
+  },
+  "seifa": {
+    "area": {
+      "ieo_australia_decile": 8,
+      "ieo_score": "1028.051229",
+      "ier_australia_decile": 10,
+      "ier_score": "1118.264611",
+      "irsad_australia_decile": 9,
+      "irsad_score": "1060.161482",
+      "irsd_australia_decile": 8,
+      "irsd_score": "1047.136105",
+      "locality_name": "ABBOTSBURY",
+      "reference_year": 2021,
+      "sal_code": "10002",
+      "sal_name": "Abbotsbury",
+      "state": "NSW",
+      "usual_resident_population": 4200
+    },
+    "attribution": "Based on Australian Bureau of Statistics data",
+    "availability": "available",
+    "limitations": [
+      "SEIFA describes the 2021 Suburb and Locality area, not this property, household, or its residents.",
+      "The match uses exact normalised locality name and NSW state, not a spatial boundary.",
+      "Small-population SAL scores and comparisons require caution."
+    ],
+    "locality": "ABBOTSBURY",
+    "match_method": "exact-normalised-locality-and-state",
+    "property_ref": "8060a0b4-96a2-6de3-be6b-00f6e844141f",
+    "release": {
+      "accepted_at": "2026-09-02T20:30:05.126864+10:00",
+      "activated_at": "2026-09-02T20:30:05.126864+10:00",
+      "dataset_release_id": "1672de46-b88e-400d-9e12-7e9fecad1b0a",
+      "licence_id": "cc-by-4-0",
+      "licence_url": "https://www.abs.gov.au/website-privacy-copyright-and-disclaimer",
+      "publisher": "Australian Bureau of Statistics",
+      "release_version": "release-39d9c3b47565d7ee-c362a746",
+      "schema_version": "propertyscope.seifa-area.v1",
+      "source_name": "ABS SEIFA 2021 NSW Suburbs and Localities",
+      "source_url": "https://www.abs.gov.au/statistics/people/people-and-communities/socio-economic-indexes-areas-seifa-australia/2021"
+    },
+    "supported": true
+  },
+  "sale_history": {
+    "availability": {
+      "accepted_release_id": "60000000-0000-0000-0000-000000000002",
+      "reason": "Sale history uses the compatible accepted NSW PSI generation.",
+      "status": "available"
+    },
+    "count": 0,
+    "has_more": false,
+    "items": [],
+    "limit": 50,
+    "release": {
+      "accepted_at": "2026-08-03T10:00:00+10:00",
+      "dataset_release_id": "60000000-0000-0000-0000-000000000002",
+      "release_version": "2026.08.2",
+      "schema_version": "propertyscope.property-sales.v3"
+    },
+    "supported": true
+  },
+  "prior_ci": [
+    {
+      "workflow": "Student 1 CI",
+      "head_sha": "f787250098abccfc279b9d814ee5f9e7a0e013dc",
+      "conclusion": "success",
+      "url": "https://github.com/MattShelton04/41026ASDProject/actions/runs/33741678659"
+    },
+    {
+      "workflow": "Integration CI",
+      "head_sha": "f787250098abccfc279b9d814ee5f9e7a0e013dc",
+      "conclusion": "success",
+      "url": "https://github.com/MattShelton04/41026ASDProject/actions/runs/33741678658"
+    }
+  ]
+}
