@@ -17,6 +17,7 @@ from wsgiref.simple_server import make_server
 from zipfile import ZipFile
 
 import httpx
+import propertyscope_suburb_analytics.ingestion as ingestion_module
 import pytest
 from propertyscope_suburb_analytics.app import create_app as create_backend
 from propertyscope_suburb_analytics.clients import HttpClient, ServiceError
@@ -58,6 +59,38 @@ def serve(app: Any) -> Iterator[HttpClient]:
 ORIGIN = "http://producer.test"
 BASE = "/api/data-platform/v1"
 CORRELATION = {"request_id": "test-request", "traceparent": None}
+
+
+def capture_consumer_errors(monkeypatch: pytest.MonkeyPatch) -> list[BaseException]:
+    """Retain the private exception chain only long enough for a failing test to report it."""
+    errors: list[BaseException] = []
+    consume = ingestion_module.consume_publication
+
+    def capture(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return consume(*args, **kwargs)
+        except BaseException as exc:
+            errors.append(exc)
+            raise
+
+    monkeypatch.setattr(ingestion_module, "consume_publication", capture)
+    return errors
+
+
+def exception_chain(errors: list[BaseException]) -> str:
+    if not errors:
+        return "consumer did not expose an exception"
+    chain: list[str] = []
+    current: BaseException | None = errors[-1]
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        code = getattr(current, "code", None)
+        label = type(current).__name__ + (f"[{code}]" if code else "")
+        chain.append(f"{label}: {current}")
+        original = getattr(current, "original_error", None)
+        current = original if isinstance(original, BaseException) else current.__cause__
+    return " <- ".join(chain)
 
 
 def fixture(
@@ -231,8 +264,9 @@ def database(tmp_path: Path) -> Imports:
 
 @pytest.mark.parametrize("dataset", PRODUCTS)
 def test_stream_commit_and_replay_through_real_database_http(
-    database: Imports, dataset: str
+    database: Imports, dataset: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    errors = capture_consumer_errors(monkeypatch)
     payload, records, artifact = fixture(dataset, 2)
     with (
         serve(create_app(database.repository)) as store,
@@ -246,7 +280,7 @@ def test_stream_commit_and_replay_through_real_database_http(
         assert consumer.run_once(client)
         assert not consumer.run_once(client)
         terminal = database.status(ack["consumer_operation_id"])
-        assert terminal["status"] == "accepted", terminal.get("error")
+        assert terminal["status"] == "accepted", exception_chain(errors)
         assert terminal["rows_accepted"] == 2
         assert (
             consumer.enqueue(payload, CORRELATION, payload["idempotency_key"], callback=False)
@@ -276,7 +310,10 @@ def test_stream_commit_and_replay_through_real_database_http(
         "duplicate_key",
     ],
 )
-def test_failed_replacement_never_exposes_staging(database: Imports, fault: str) -> None:
+def test_failed_replacement_never_exposes_staging(
+    database: Imports, fault: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    errors = capture_consumer_errors(monkeypatch)
     payload, records, artifact = fixture()
     with serve(create_app(database.repository)) as store:
         with serve_origin(producer_app(payload, artifact)) as origin, httpx.Client() as client:
@@ -284,7 +321,7 @@ def test_failed_replacement_never_exposes_staging(database: Imports, fault: str)
             baseline = consumer.enqueue(payload, CORRELATION, payload["idempotency_key"])
             consumer.run_once(client)
         baseline_status = database.status(baseline["consumer_operation_id"])
-        assert baseline_status["status"] == "accepted", baseline_status.get("error")
+        assert baseline_status["status"] == "accepted", exception_chain(errors)
         next_payload, next_records, next_artifact = fixture()
         row = next_records[0]
         if fault == "schema":
