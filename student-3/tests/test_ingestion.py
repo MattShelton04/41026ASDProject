@@ -246,7 +246,7 @@ def test_stream_commit_and_replay_through_real_database_http(
         assert consumer.run_once(client)
         assert not consumer.run_once(client)
         terminal = database.status(ack["consumer_operation_id"])
-        assert terminal["status"] == "accepted", terminal
+        assert terminal["status"] == "accepted", terminal.get("error")
         assert terminal["rows_accepted"] == 2
         assert (
             consumer.enqueue(payload, CORRELATION, payload["idempotency_key"], callback=False)
@@ -281,8 +281,10 @@ def test_failed_replacement_never_exposes_staging(database: Imports, fault: str)
     with serve(create_app(database.repository)) as store:
         with serve_origin(producer_app(payload, artifact)) as origin, httpx.Client() as client:
             consumer = Ingestion(store, origin)
-            consumer.enqueue(payload, CORRELATION, payload["idempotency_key"])
+            baseline = consumer.enqueue(payload, CORRELATION, payload["idempotency_key"])
             consumer.run_once(client)
+        baseline_status = database.status(baseline["consumer_operation_id"])
+        assert baseline_status["status"] == "accepted", baseline_status.get("error")
         next_payload, next_records, next_artifact = fixture()
         row = next_records[0]
         if fault == "schema":
