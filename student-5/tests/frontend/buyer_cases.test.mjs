@@ -267,7 +267,11 @@ test("bounded evidence renderer exposes all states and limitations safely", () =
     sections: {
       feature_1: { state: "complete", items: [{ property_ref: "property-1", state: "complete", address_display: "<Address>" }] },
       feature_2: { state: "partial", items: [] },
-      feature_3: { state: "unavailable", items: [], limitations: ["No public API"] },
+      feature_3: {
+        state: "unavailable",
+        items: [],
+        limitations: ["Feature 3 has no available Release 0 public API."],
+      },
       feature_4: { state: "conflicting", items: [{ property_ref: "property-1", state: "needs_verification" }] },
     },
     evidence_references: ["feature_1:property_ref:property-1"],
@@ -280,6 +284,11 @@ test("bounded evidence renderer exposes all states and limitations safely", () =
   assert.match(html, /Bounded to 10 properties/);
   assert.match(html, /feature_1:property_ref:property-1/);
   assert.match(html, /<code>property-1<\/code>: Complete/);
+  assert.match(html, /Suburb analytics evidence/);
+  assert.match(html, /Suburb analytics evidence<\/h4><span class="ps-badge evidence-unavailable">Unavailable/);
+  assert.doesNotMatch(html, /Feature 3 evidence/);
+  assert.match(html, /No evidence records returned\./);
+  assert.doesNotMatch(html, /Feature 3 has no available Release 0 public API\./);
   for (const mojibake of ["â", "€", "�"]) assert.doesNotMatch(html, new RegExp(mojibake));
 });
 

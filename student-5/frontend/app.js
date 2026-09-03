@@ -415,16 +415,19 @@ export function renderEvidence(value) {
   const titles = {
     feature_1: "Property identity and source releases",
     feature_2: "Market evidence",
-    feature_3: "Feature 3 evidence",
+    feature_3: "Suburb analytics evidence",
     feature_4: "Due diligence evidence",
   };
   const cards = Object.entries(titles).map(([key, title]) => {
     const section = sections[key] || { state: "unavailable", items: [], limitations: [] };
     const items = Array.isArray(section.items) ? section.items : [];
     const limitations = Array.isArray(section.limitations) ? section.limitations : [];
+    const visibleLimitations = limitations.filter((item) => !(
+      key === "feature_3" && item === "Feature 3 has no available Release 0 public API."
+    ));
     return `<article class="evidence-card"><header><h4>${escapeHtml(title)}</h4><span class="ps-badge evidence-${escapeHtml(section.state)}">${escapeHtml(evidenceStateLabel(section.state))}</span></header>
       ${items.length ? `<ul>${items.map((item) => `<li><code>${escapeHtml(item.property_ref || "Unknown property")}</code>: ${escapeHtml(evidenceStateLabel(item.state))}${item.address_display ? `: ${escapeHtml(item.address_display)}` : ""}</li>`).join("")}</ul>` : "<p>No evidence records returned.</p>"}
-      ${limitations.map((item) => `<p class="item-reference">${escapeHtml(item)}</p>`).join("")}</article>`;
+      ${visibleLimitations.map((item) => `<p class="item-reference">${escapeHtml(item)}</p>`).join("")}</article>`;
   }).join("");
   const limitations = Array.isArray(value?.limitations) ? value.limitations : [];
   const references = Array.isArray(value?.evidence_references) ? value.evidence_references : [];
