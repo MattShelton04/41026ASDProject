@@ -250,10 +250,12 @@ def test_projection_includes_only_explicitly_enabled_features_in_stable_order() 
 
 
 def test_repository_deployment_selection_builds_the_real_enabled_projection() -> None:
+    buyer_manifest = load_feature_manifest(ROOT / "student-5/feature.yaml")
     manifests = (
         load_feature_manifest(ROOT / "student-1/feature.yaml"),
         load_feature_manifest(ROOT / "student-2/feature.yaml"),
         load_feature_manifest(ROOT / "student-4/feature.yaml"),
+        buyer_manifest,
     )
     selection = DeploymentSelectionV1.model_validate(
         yaml.safe_load((ROOT / "deployment/features.yaml").read_text("utf-8"))
@@ -261,7 +263,7 @@ def test_repository_deployment_selection_builds_the_real_enabled_projection() ->
 
     projection = build_deployment_projection(manifests, selection)
 
-    assert len(projection.features) == 3
+    assert len(projection.features) == 4
     feature = next(
         item
         for item in projection.features
@@ -280,6 +282,14 @@ def test_repository_deployment_selection_builds_the_real_enabled_projection() ->
         "propertyscope_data_platform",
         "propertyscope_data_store",
     )
+    buyer_feature = next(
+        item for item in projection.features if item.feature_key == "student-5-buyer-journey"
+    )
+    assert buyer_feature.feature_key == buyer_manifest.feature_key
+    assert {route.path for route in buyer_feature.routes} == {
+        buyer_manifest.frontend_base_path,
+        buyer_manifest.backend_base_path,
+    }
 
 
 def test_quality_coverage_policy_is_generic_and_closed() -> None:

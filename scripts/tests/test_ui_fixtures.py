@@ -111,7 +111,12 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
         fragment = response.read()
         assert response.headers.get_content_type() == "text/html"
         assert fragment.count(b"data-feature-id=") == 5
-        assert fragment.count(b'data-feature-state="planned"') == 2
+        assert fragment.count(b'data-feature-state="planned"') == 1
+        buyer_start = fragment.index(b'data-feature-id="buyer-workspace"')
+        buyer_entry = fragment[buyer_start : fragment.index(b"</article>", buyer_start)]
+        assert b"Buyer workspace" in buyer_entry
+        assert b'data-feature-state="available"' in buyer_entry
+        assert b'data-feature-state="planned"' not in buyer_entry
     with urlopen(f"{fixture_origin}/vendor/htmx-2.0.10.min.js", timeout=2) as response:
         htmx = response.read()
         assert response.headers.get_content_type() in {"text/javascript", "application/javascript"}
