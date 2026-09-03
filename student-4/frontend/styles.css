@@ -428,6 +428,25 @@ a.review-card:hover {
   color: var(--muted);
   font-size: 0.85rem;
 }
+.questions-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: var(--ps-space-3);
+}
+.questions-head .card-title {
+  margin: 0;
+}
+.questions-status {
+  margin: 0 0 var(--ps-space-3);
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--ps-radius-sm);
+  background: var(--ps-color-surface-subtle);
+  color: var(--ps-ink-700);
+  font-size: 0.82rem;
+}
 .checklist {
   display: grid;
   gap: 0.5rem;

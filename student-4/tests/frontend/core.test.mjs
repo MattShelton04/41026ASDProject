@@ -8,6 +8,7 @@ import {
   dispositionLabel,
   evidenceBadgeClass,
   evidenceStateLabel,
+  extractQuestions,
   formatType,
   mapLayerDefinitions,
   parseRoute,
@@ -163,4 +164,34 @@ test("mapLayerDefinitions builds a point layer plus a polygon layer per hazard",
   assert.equal(defs[1].id, "flood");
   assert.equal(defs[1].kind, "polygon");
   assert.deepEqual(mapLayerDefinitions({}), []);
+});
+
+test("extractQuestions prefers an explicit questions array", () => {
+  assert.deepEqual(
+    extractQuestions({ questions: ["Confirm zoning?", { question: "Check flood?" }, "  "] }),
+    ["Confirm zoning?", "Check flood?"],
+  );
+});
+
+test("extractQuestions uses default.v7 findings plus the recommended next step", () => {
+  const result = {
+    findings: ["Verify the unavailable bushfire mapping.", "Confirm the partial building height."],
+    recommended_next_step: "Engage a qualified planner before proceeding.",
+  };
+  assert.deepEqual(extractQuestions(result), [
+    "Verify the unavailable bushfire mapping.",
+    "Confirm the partial building height.",
+    "Engage a qualified planner before proceeding.",
+  ]);
+});
+
+test("extractQuestions falls back to question-like lines in text", () => {
+  const result = {
+    summary: "1. Confirm the zoning permits your use?\n- Is the property flood affected?\nNot a question.",
+  };
+  assert.deepEqual(extractQuestions(result), [
+    "Confirm the zoning permits your use?",
+    "Is the property flood affected?",
+  ]);
+  assert.deepEqual(extractQuestions(null), []);
 });

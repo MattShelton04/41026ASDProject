@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from propertyscope_due_diligence.clients import (
+    AiModeClient,
     DependencyUnavailableError,
     DueDiligenceStoreClient,
     Feature1Client,
@@ -131,3 +132,27 @@ def test_feature1_coordinates_none_when_missing_or_unavailable():
 
     down = Feature1Client("http://f1", client=_mock_client(boom))
     assert down.coordinates("a0") is None
+
+
+def test_ai_mode_client_create_get_cancel():
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["method"] = request.method
+        seen["url"] = str(request.url)
+        return httpx.Response(202, json={"id": "run-1"})
+
+    ai = AiModeClient("http://ai:5005", client=_mock_client(handler))
+    assert ai.create_run({"feature_key": "student-4-due-diligence"}).status_code == 202
+    assert seen["url"].endswith("/api/v1/agent-runs")
+    assert ai.get("/api/v1/agent-runs/run-1").status_code == 202
+    assert ai.cancel("run-1").status_code == 202
+
+
+def test_ai_mode_client_transport_error_raises():
+    def boom(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down")
+
+    ai = AiModeClient("http://ai:5005", client=_mock_client(boom))
+    with pytest.raises(DependencyUnavailableError):
+        ai.create_run({})

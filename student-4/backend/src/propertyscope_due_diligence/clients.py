@@ -128,3 +128,34 @@ class Feature1Client:
         if isinstance(longitude, (int, float)) and isinstance(latitude, (int, float)):
             return (float(longitude), float(latitude))
         return None
+
+
+class AiModeClient:
+    """Feature-safe projection over the shared AI-mode agent-run API.
+
+    The feature never selects a model or provider: it creates a bounded agent run and
+    the shared AI-mode service applies its configured model profile (OpenAI or Gemini).
+    Transport failures degrade to ``DependencyUnavailableError`` so direct CRUD and
+    deterministic evidence keep working when AI-mode is unavailable.
+    """
+
+    def __init__(self, base_url: str, *, client: httpx.Client | None = None) -> None:
+        self._origin = base_url.rstrip("/")
+        self._client = client or httpx.Client(timeout=10, follow_redirects=False)
+
+    def create_run(self, payload: Mapping[str, Any]) -> httpx.Response:
+        return self._request("POST", "/api/v1/agent-runs", json=payload)
+
+    def get(self, path: str, *, params: Mapping[str, Any] | None = None) -> httpx.Response:
+        return self._request("GET", path, params=params)
+
+    def cancel(self, run_id: str) -> httpx.Response:
+        return self._request("POST", f"/api/v1/agent-runs/{run_id}/cancel")
+
+    def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        try:
+            return self._client.request(method, f"{self._origin}{path}", **kwargs)
+        except httpx.TransportError as exc:
+            raise DependencyUnavailableError(
+                "AI mode is unavailable; direct CRUD and evidence remain usable"
+            ) from exc

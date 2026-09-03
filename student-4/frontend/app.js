@@ -129,6 +129,36 @@ export function toggleChecklist(checklist, index, done) {
   return items.map((item, position) => (position === index ? { ...item, done } : item));
 }
 
+// Extract a clean question / verification-point list from an AI-mode final_result (pure).
+// Prefers an explicit `questions` array; otherwise uses the default.v7 `findings` list
+// (plus the recommended next step); otherwise pulls question-like lines from the text.
+export function extractQuestions(finalResult) {
+  if (!finalResult || typeof finalResult !== "object") return [];
+  if (Array.isArray(finalResult.questions)) {
+    const questions = finalResult.questions
+      .map((q) => (typeof q === "string" ? q : q && q.question))
+      .filter((q) => typeof q === "string" && q.trim())
+      .map((q) => q.trim());
+    if (questions.length) return questions;
+  }
+  if (Array.isArray(finalResult.findings)) {
+    const points = finalResult.findings
+      .filter((f) => typeof f === "string" && f.trim())
+      .map((f) => f.trim());
+    if (typeof finalResult.recommended_next_step === "string" && finalResult.recommended_next_step.trim()) {
+      points.push(finalResult.recommended_next_step.trim());
+    }
+    if (points.length) return points;
+  }
+  const text = [finalResult.summary, finalResult.answer]
+    .filter((value) => typeof value === "string")
+    .join("\n");
+  return text
+    .split("\n")
+    .map((line) => line.replace(/^\s*(?:\d+[.)]|[-*\u2022])\s*/, "").trim())
+    .filter((line) => line.endsWith("?"));
+}
+
 // Build shared-map layer definitions from the backend /map payload (pure).
 export function mapLayerDefinitions(mapData) {
   const layers = [];
@@ -368,28 +398,111 @@ async function toggleChecklistItem(review, index, checkbox, li) {
   }
 }
 
-function questionsCard(questions) {
+function questionsCard(review) {
   const card = el("article", "ps-card");
   const body = el("div", "ps-card__body");
-  body.append(el("h2", "card-title", "Professional-verification questions"));
-  const items = Array.isArray(questions) ? questions : [];
-  if (items.length === 0) {
-    body.append(
-      el(
-        "p",
-        "empty",
-        "No questions yet. The AI-generated question pack will appear here in a later release.",
-      ),
-    );
-  } else {
-    const list = el("ol", "question-list");
-    items.forEach((question) =>
-      list.append(el("li", null, typeof question === "string" ? question : (question && question.question) || "")),
-    );
-    body.append(list);
-  }
+  const head = el("div", "questions-head");
+  head.append(el("h2", "card-title", "Professional-verification questions"));
+  const generate = el("button", "ps-button ps-button--primary ps-button--small", "Generate with AI");
+  generate.type = "button";
+  head.append(generate);
+  body.append(head);
+
+  const status = el("p", "questions-status");
+  status.hidden = true;
+  body.append(status);
+
+  const listHost = el("div", "questions-host");
+  body.append(listHost);
+  renderQuestionList(listHost, Array.isArray(review.verification_questions) ? review.verification_questions : []);
+
+  generate.addEventListener("click", () => generateQuestions(review, generate, status, listHost));
   card.append(body);
   return card;
+}
+
+function renderQuestionList(host, questions) {
+  if (!questions.length) {
+    host.replaceChildren(
+      el("p", "empty", "No questions yet. Generate a bounded AI question pack from the evidence."),
+    );
+    return;
+  }
+  const list = el("ol", "question-list");
+  questions.forEach((question) =>
+    list.append(el("li", null, typeof question === "string" ? question : (question && question.question) || "")),
+  );
+  host.replaceChildren(list);
+}
+
+async function generateQuestions(review, button, status, listHost) {
+  button.disabled = true;
+  status.hidden = false;
+  status.textContent = "Starting a bounded Plan \u2192 Act \u2192 Observe \u2192 Adapt run\u2026";
+  try {
+    const start = await fetch(`${API_BASE}/assistant/turns`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ review_id: review.id }),
+    });
+    if (!start.ok) {
+      const problem = await start.json().catch(() => ({}));
+      throw new Error(
+        problem.code === "ai_mode_unavailable"
+          ? "AI mode is unavailable. The evidence below remains usable."
+          : `Could not start the AI run (status ${start.status}).`,
+      );
+    }
+    const run = await start.json();
+    const questions = await pollAssistant(run.id, status);
+    if (questions.length === 0) {
+      status.textContent = "The AI run finished without a clear question list. Try again.";
+      return;
+    }
+    renderQuestionList(listHost, questions);
+    status.textContent = `Generated ${questions.length} question(s).`;
+    await saveQuestions(review, questions, status);
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function pollAssistant(runId, status) {
+  for (let attempt = 0; attempt < 90; attempt += 1) {
+    const response = await fetch(`${API_BASE}/assistant/turns/${encodeURIComponent(runId)}`);
+    if (!response.ok) throw new Error("Lost track of the AI run.");
+    const detail = await response.json();
+    const run = detail.run || detail;
+    status.textContent = `AI run: ${run.status}\u2026`;
+    if (run.status === "succeeded") return extractQuestions(run.final_result);
+    if (["failed", "cancelled", "timed_out"].includes(run.status)) {
+      throw new Error(
+        (run.error && run.error.message) ||
+          `AI run ${run.status}. Add an AI credential to enable generation; the evidence remains usable.`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }
+  throw new Error("The AI run is still active; check back shortly.");
+}
+
+async function saveQuestions(review, questions, status) {
+  try {
+    const response = await fetch(`${API_BASE}/site-reviews/${encodeURIComponent(review.id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ verification_questions: questions }),
+    });
+    if (response.ok) {
+      review.verification_questions = questions;
+      reviewsLoaded = false;
+      status.textContent = `Saved ${questions.length} question(s) to this review.`;
+    }
+  } catch (networkError) {
+    // Non-fatal: the generated questions are already displayed.
+  }
 }
 
 function notesCard(notes) {
@@ -506,7 +619,7 @@ async function renderDetailView(view, id) {
   const stack = el("div", "detail-stack");
   if (review.notes) stack.append(notesCard(review.notes));
   stack.append(checklistCard(review));
-  stack.append(questionsCard(review.verification_questions));
+  stack.append(questionsCard(review));
   view.append(stack);
 
   view.append(mapCard(review));

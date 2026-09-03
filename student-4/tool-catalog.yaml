@@ -1,0 +1,52 @@
+schema_version: 1
+services:
+  - service: propertyscope-due-diligence-backend
+    base_url: http://f4-backend:5401
+tools:
+  - definition:
+      name: duediligence.review.inspect.v1
+      version: v1
+      feature_key: student-4-due-diligence
+      description: Inspect one site review, including its verified property reference, address, status, disposition, checklist, notes and any existing verification questions.
+      input_schema:
+        type: object
+        properties:
+          site_review_id: {type: string, format: uuid, x-identifier-kind: site_review_id}
+        required: [site_review_id]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          site_review: {type: object}
+        required: [site_review]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-due-diligence-backend
+    method: POST
+    path: /api/due-diligence/v1/tools/duediligence.review.inspect.v1
+  - definition:
+      name: duediligence.evidence.summary.v1
+      version: v1
+      feature_key: student-4-due-diligence
+      description: Return the planning, environmental, strata and building evidence for a site review's property, including constraint and building record types, evidence states, sources and confidence. It does not certify compliance, safety or legal suitability.
+      input_schema:
+        type: object
+        properties:
+          site_review_id: {type: string, format: uuid, x-identifier-kind: site_review_id}
+        required: [site_review_id]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          constraints: {type: array, maxItems: 100, items: {type: object}}
+          buildings: {type: array, maxItems: 100, items: {type: object}}
+        required: [constraints, buildings]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-due-diligence-backend
+    method: POST
+    path: /api/due-diligence/v1/tools/duediligence.evidence.summary.v1
