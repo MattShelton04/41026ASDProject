@@ -37,43 +37,79 @@ safety or legal suitability.
 The approved allocation and complete minimum boundary are maintained in the
 [approved feature scope](../docs/architecture/registered-feature-scope.md).
 
-## Scaffold status
+## Implementation status
 
-A runnable vertical-slice scaffold is now in place (frontend + backend/API + database
-microservices), registered and **enabled** in the shared application. It is a **starting
-point**, not the finished feature — expand it to the full approved boundary above.
+Feature 4 is **implemented and integrated** — a complete frontend + backend/API + database
+microservice set, enabled in the shared application, the unified home page and the common visual
+system. Direct CRUD and deterministic evidence work with or without an AI credential.
 
-Implemented so far:
+### Delivered capabilities
 
-- **Database** (`propertyscope_due_diligence_store`): PostGIS service with `site_review`,
-  `constraint_observation` and `building_observation` tables, ordered SQL migrations, and at
-  least ten deterministic seed rows per table.
-- **Backend/API** (`propertyscope_due_diligence`): credential-free Flask service exposing
-  `/health/live`, `/health/ready` and the `/api/due-diligence/v1` site-review CRUD, evidence
-  retrieval, and Feature 1 property validation over HTTP. Direct CRUD keeps working when
-  Feature 1 is unavailable.
-- **Frontend**: dependency-free page that lists site reviews, integrated into the unified home
-  page and served on `PROPERTYSCOPE_DUE_DILIGENCE_PORT` (default 5400).
-- **Wiring**: `feature.yaml`, a multi-stage `Dockerfile`, Compose services (`f4-postgres`,
-  `f4-db-api`, `f4-backend`, `f4-frontend`), and deterministic Python + Node tests discovered
-  by the repository quality gate.
+- **Database** (`propertyscope_due_diligence_store`): a PostGIS service owning `site_review`,
+  `constraint_observation` and `building_observation`, with ordered SQL migrations and **≥ 10
+  deterministic seed rows per table** spanning all four evidence states (confirmed, partial
+  coverage, non-intersection, unavailable).
+- **Backend / API** (`propertyscope_due_diligence`): a credential-free Flask service exposing
+  `/health/live`, `/health/ready` and the `/api/due-diligence/v1` surface:
+  - Site-review **CRUD** (`site-reviews` list/create/read/update/delete).
+  - **Feature 1 property validation and search** over HTTP, with no shared database access.
+  - **Evidence retrieval** (`/site-reviews/<id>/evidence`) and **bounded GeoJSON** map layers
+    (`/site-reviews/<id>/map`) — a verified property point plus flood/bushfire polygons drawn only
+    where the evidence intersects.
+  - A **bounded Plan → Act → Observe → Adapt** assistant (`/assistant/turns`) that generates a
+    professional-verification question pack through the shared AI-mode service, plus two read-only
+    tools the model calls back into (`/tools/duediligence.review.inspect.v1`,
+    `/tools/duediligence.evidence.summary.v1`).
+- **Frontend**: a design-system UI (shared topbar, sidebar, cards, badges) with a site-review list
+  and filter, a **create dialog** with verified-property search, an **edit/delete** flow, an
+  **interactive checklist**, a **detail view** showing source-attributed zoning / heritage /
+  floor-space-ratio / building-height / flood / bushfire and strata / building-order / tribunal
+  evidence with explicit evidence-state badges, an **interactive flood/bushfire map**, and a
+  **"Generate with AI"** action that produces and saves the question pack. Served on
+  `PROPERTYSCOPE_DUE_DILIGENCE_PORT` (default 5400).
+- **Wiring & CI**: `feature.yaml` + `tool-catalog.yaml`, a multi-stage `Dockerfile`, Compose
+  services (`f4-postgres`, `f4-db-api`, `f4-backend`, `f4-frontend`), deterministic Python + Node
+  tests, and a dedicated `.github/workflows/student-4.yml` build/test/integration workflow.
 
-Not yet built (your next branches): the AI-generated Plan -> Act -> Observe -> Adapt
-verification-question pack (add an `onboarding.ai` block plus `tool-catalog.yaml`), versioned
-evidence-release import, bounded GeoJSON layers, and the richer planning/environmental/strata
-and building-order UI.
+See [`MARKING_EVIDENCE.md`](MARKING_EVIDENCE.md) for how each assessed requirement is satisfied and
+demonstrated.
 
-### Run it locally
+### Approved LLM
+
+The feature is **provider-neutral**: it never selects a model, and interacts with the approved LLM
+only through the shared AI-mode boundary. The registered production profile is OpenAI (GPT-5.6);
+an OpenAI-compatible API, including Gemini development profiles, is permitted for local testing.
+
+## Run it locally
+
+Deterministic mode (no AI credential — CRUD, evidence and the map all work):
 
 ```
 uv run scripts/dev.py stack up --offline
 ```
 
-Open the unified home page at <http://localhost:5100> (Feature 4 appears under "Site and
-planning") or the feature directly at <http://localhost:5400>. Stop with
-`uv run scripts/dev.py stack down`.
+With the AI question pack enabled (Gemini development profile). Create a Git-ignored `.env.gemini`
+with `AI_MODE_LLM_PROVIDER=gemini`, `AI_MODE_DEFAULT_MODEL_PROFILE=gemini-development.v1` and a
+`GEMINI_API_KEY` (free from <https://aistudio.google.com>), then:
+
+```
+uv run scripts/dev.py stack up --env-file .env.gemini
+```
+
+Open the unified home page at <http://localhost:5100> (Feature 4 appears under "Site and planning")
+or the feature directly at <http://localhost:5400>. Stop with `uv run scripts/dev.py stack down`.
 
 The development stack bind-mounts Feature 4 source. Backend and database API edits reload their
 Gunicorn workers automatically; frontend edits appear on browser refresh. Use
 `uv run scripts/dev.py stack rebuild f4-backend f4-db-api f4-frontend --offline` only after changing
 dependencies or Docker build inputs.
+
+## Design decision: evidence sourcing
+
+The approved backend boundary lists "versioned evidence-release import". Feature 1's published
+products are property, address, sales, crime and school data; it does not currently publish the
+planning, environmental, strata or building evidence this feature reasons over. Feature 4 therefore
+populates its owned tables with deterministic, source-attributed seed evidence (migrations `002`
+and `003`) rather than importing releases that do not yet exist. The import path can be added if and
+when Feature 1 publishes relevant evidence products; this remains an open coordination item for the
+team.
