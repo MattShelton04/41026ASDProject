@@ -1,14 +1,93 @@
-name: Student 5 CI (scaffold)
+name: Student 5 CI
 
 on:
+  pull_request:
+    paths:
+      - "student-5/**"
+      - "shared/contracts/**"
+      - "shared/frontend/**"
+      - "deployment/**"
+      - "docker-compose*.yml"
+      - ".env.example"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/**"
+      - ".github/workflows/student-5.yml"
+  push:
+    branches: [main]
+    paths:
+      - "student-5/**"
+      - "shared/contracts/**"
+      - "shared/frontend/**"
+      - "deployment/**"
+      - "docker-compose*.yml"
+      - ".env.example"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  placeholder:
-    if: ${{ false }}
+  feature-5-quality:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Define Student 5 build, test, and validation steps."
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install locked workspace
+        run: uv sync --locked --all-packages --all-groups
+      - name: Format and lint Student 5
+        run: |
+          uv run ruff format --check student-5/backend/src student-5/database/src student-5/tests student-5/scripts
+          uv run ruff check student-5/backend/src student-5/database/src student-5/tests student-5/scripts
+      - name: Strict type-check Student 5
+        run: uv run mypy --strict --config-file student-5/pyproject.toml student-5/backend/src student-5/database/src student-5/tests student-5/scripts
+      - name: Run Student 5 tests and coverage
+        run: uv run pytest student-5/tests --cov=propertyscope_buyer_workspaces --cov=propertyscope_buyer_store --cov-report=term-missing --cov-fail-under=80
+      - name: Check Student 5 browser code
+        run: |
+          node --check student-5/frontend/app.js
+          node --test student-5/tests/frontend/buyer_cases.test.mjs
+      - name: Validate deployment and boundaries
+        run: |
+          uv lock --check
+          uv run python scripts/generate_deployment.py --check
+          uv run python scripts/validate_tool_catalogs.py
+          uv run python scripts/validate_architecture.py
+          uv run python scripts/validate_workspace_packaging.py
+          uv run python scripts/validate_frontend_styles.py
+      - name: Build Student 5 containers
+        run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml build f5-db-api f5-backend f5-frontend
+      - name: Create isolated offline provider secret
+        run: |
+          mkdir -p .propertyscope-runtime
+          printf 'offline-student5-ci-only' > .propertyscope-runtime/openai_api_key
+      - name: Start isolated Student 5 stack
+        env:
+          OPENAI_BASE_URL: http://127.0.0.1:9/v1
+          OPENAI_ALLOW_INSECURE_HTTP: "true"
+          AI_MODE_REQUIRE_PROVIDER_READY: "false"
+        run: docker compose --project-name "ps-student5-${{ github.run_id }}" --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 up --detach --wait --wait-timeout 180 shared-frontend shared-ai-mode f5-db-api f5-backend f5-frontend
+      - name: Verify seed counts
+        run: |
+          docker compose --project-name "ps-student5-${{ github.run_id }}" --file docker-compose.yml --file deployment/enabled-features.compose.yml exec -T f5-db-api python -c "import json,os,urllib.request; request=urllib.request.Request('http://127.0.0.1:5502/internal/buyer-workspaces/v1/seed-report',headers={'X-PropertyScope-Internal-Token':os.environ['PROPERTYSCOPE_INTERNAL_TOKEN']}); value=json.load(urllib.request.urlopen(request,timeout=5)); assert all(value['tables'][name] >= 10 for name in ('buyer_case','case_property','case_note','case_task')), value; print(value)"
+      - name: Run public CRUD, evidence and AI degradation smoke
+        run: uv run python student-5/scripts/compose_smoke.py initial --state .propertyscope-runtime/student5-smoke.json
+      - name: Restart without deleting persistent data
+        run: |
+          docker compose --project-name "ps-student5-${{ github.run_id }}" --file docker-compose.yml --file deployment/enabled-features.compose.yml restart f5-db-api f5-backend f5-frontend
+          docker compose --project-name "ps-student5-${{ github.run_id }}" --file docker-compose.yml --file deployment/enabled-features.compose.yml up --detach --wait --wait-timeout 120 f5-db-api f5-backend f5-frontend
+          uv run python student-5/scripts/compose_smoke.py verify-restart --state .propertyscope-runtime/student5-smoke.json
+      - name: Capture service logs
+        if: failure()
+        run: docker compose --project-name "ps-student5-${{ github.run_id }}" --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 logs --no-color --tail 200 shared-frontend shared-ai-mode f5-db-api f5-backend f5-frontend
+      - name: Remove only isolated CI resources
+        if: always()
+        run: docker compose --project-name "ps-student5-${{ github.run_id }}" --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 down --remove-orphans --volumes

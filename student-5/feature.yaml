@@ -17,6 +17,7 @@ onboarding:
     internal_port: 8080
     host_port_variable: PROPERTYSCOPE_BUYER_WORKSPACES_PORT
     host_port_default: 5500
+    route_fragment: student-5/frontend/integration/research-area.html
   backend:
     service: f5-backend
     internal_port: 5501

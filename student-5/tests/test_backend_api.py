@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -217,7 +217,7 @@ class FakeEvidence:
         self.request_ids.append(request_id)
         return {"state": self.validation_state, "label": "1 Test Street, Mascot NSW 2020"}
 
-    def collect(self, property_refs: list[str], *, request_id: str) -> dict[str, Any]:
+    def collect(self, property_refs: Sequence[str], *, request_id: str) -> dict[str, Any]:
         self.request_ids.append(request_id)
         return {
             "state": "partial",
@@ -783,7 +783,7 @@ def test_evidence_failure_does_not_break_other_tools_crud_or_control_ai_objectiv
     }
 
     class FailedEvidence(FakeEvidence):
-        def collect(self, property_refs: list[str], *, request_id: str) -> dict[str, Any]:
+        def collect(self, property_refs: Sequence[str], *, request_id: str) -> dict[str, Any]:
             raise IntegrationUnavailableError("private evidence failure")
 
     ai_mode = FakeAiMode()

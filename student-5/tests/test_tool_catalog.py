@@ -51,7 +51,10 @@ def test_student_five_catalog_builds_real_owned_tool_runtime() -> None:
             assert definition.side_effect.value == "read_only"
             assert definition.requires_approval is False
             assert definition.input_schema["additionalProperties"] is False
-            buyer_case_id = definition.input_schema["properties"]["buyer_case_id"]
+            properties = definition.input_schema["properties"]
+            assert isinstance(properties, dict)
+            buyer_case_id = properties["buyer_case_id"]
+            assert isinstance(buyer_case_id, dict)
             assert buyer_case_id["format"] == "uuid"
             assert buyer_case_id["x-identifier-kind"] == "buyer_case_id"
     finally:

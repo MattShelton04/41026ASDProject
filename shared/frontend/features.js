@@ -70,7 +70,7 @@ const DEFINITIONS = [
   {
     id: "buyer-workspace",
     slug: "buyer-workspaces",
-    featureKey: "student-5-buyer-workspaces",
+    featureKey: "student-5-buyer-journey",
     label: "Buyer workspace",
     shortLabel: "Buyer workspace",
     owner: "student-5",
@@ -78,7 +78,7 @@ const DEFINITIONS = [
     detail: "Buyer cases, shortlisted properties, notes, tasks and evidence-aware next actions.",
     icon: "□",
     frontendBase: "/features/buyer-workspaces/",
-    defaultHash: "#workspace",
+    defaultHash: "#buyer-cases",
     healthPath: "/api/shared-health/buyer-workspaces",
     implemented: false,
     aliases: ["feature-5"],

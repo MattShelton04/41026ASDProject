@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode, urlsplit
@@ -62,7 +62,7 @@ class PendingPropertyEvidence:
     def validate_property(self, property_ref: str, *, request_id: str) -> dict[str, str]:
         return {"state": "pending"}
 
-    def collect(self, property_refs: list[str], *, request_id: str) -> dict[str, Any]:
+    def collect(self, property_refs: Sequence[str], *, request_id: str) -> dict[str, Any]:
         return {"state": "partial", "sections": {}, "limitations": []}
 
 
