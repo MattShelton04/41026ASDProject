@@ -148,17 +148,30 @@ Parquet is intentionally limited to the measured high-volume BOCSAR and PSI hand
 ABS SEIFA remain JSON because their source sizes do not justify another internal contract. G-NAF
 requires a separate source-scale benchmark and ADR before any equivalent change.
 
-The local Compose default declares a conservative 64 GiB Feature 1 PostgreSQL capacity budget,
-16 GiB of transaction-local temporary files and a 4 GiB reserve. PSI additionally reserves 6 GiB
-for relation/index growth and 16 GiB for WAL; BOCSAR reserves 8 GiB and 20 GiB respectively. These
-floors project the largest observed one-million-row counters to the known source counts with a 2.5
-safety factor and round upward. The 3x artifact growth allowance remains for other profiles and wins
-for PSI/BOCSAR only when it is larger than the measured floor. Preflight requires both the physical
-server observation and current database size against the declared ceiling to cover every applicable
-allowance. Override the corresponding `PROPERTYSCOPE_LOADER_*` or
-`PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES` variables only from measured evidence. The disposable
-benchmark sequence and evidence fields are specified in
+The local Compose default declares a 64 GiB Feature 1 PostgreSQL capacity budget, 16 GiB of
+transaction-local temporary files and a 4 GiB reserve. PSI reserves 24 GiB for relation/index growth
+and 64 GiB for WAL, including the accepted G-NAF identity anchors and provenance needed by linked
+sales. BOCSAR retains its 8 GiB and 20 GiB allowances. These floors project measured one-million-row
+counters to the known source counts with a 2.5 safety factor and round upward. The 3x artifact
+growth allowance wins only when it is larger than the measured floor. Preflight requires both the
+physical server observation and current database size against the declared ceiling to cover every
+applicable allowance.
+
+The default 64 GiB declaration therefore cannot admit PSI materialisation. After observing adequate
+physical data/WAL capacity, an operator can explicitly configure
+`PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES=137438953472` (128 GiB) in the ignored local `.env`, then
+recreate the idle loader with `uv run scripts/dev.py stack restart f1-db-loader`. This is a declared
+capacity ceiling, not disk provisioning; the independent physical-capacity gate still applies.
+The conservative PSI floors also apply to selected-year runs. Override resource settings only from
+measured evidence. The disposable benchmark sequence and evidence fields are specified in
 [`source-scale-benchmark-methodology.md`](source-scale-benchmark-methodology.md).
+
+The [3 September PSI attestation](evidence/psi-identity-materialisation-attestation-2026-09-03.md)
+records three 100k and three 1m executions of the actual materialisation SQL. It supports a
+six-minute materialisation budget for the retained 638,125-row recovery, excluding acquisition,
+verification and export compression. Its timing projection with the 2.5 margin exceeds the
+30-minute ceiling for complete 7.4m history, so the earlier full-history estimate is not applicable;
+further bounded performance work is required before a full-history attempt.
 
 With complete source generations retained, verify the public path rather than counting entire
 tables manually:
@@ -180,9 +193,9 @@ Numeric-only searches do not use trigram matching: short values such as `11` use
 bounded. On the accepted 5,190,134-row generation, the public `11` search fell from about 29 seconds
 to about 29 ms and returned a bounded first page of real NSW addresses.
 
-PSI address resolution deduplicates eligible address components directly from its typed import
-stage. It does not join the multi-million-row identity ledger back to the same stage before exact
-matching. Final materialisation uses the generated first-row ordinal as its single join key; the
+PSI address resolution deduplicates eligible components from the retained first transmissions,
+joining the identity ledger to typed staging by the first-row ordinal. Rows with supplied references
+do not require address resolution. Final materialisation uses that ordinal as its single join key; the
 business key and row hash remain immutable evidence in the selected row rather than duplicate join
 work. Keep the accepted-generation exact-address index from migration 044 in place when measuring
 this phase.
@@ -234,6 +247,12 @@ bounded failure evidence remains durable so the operator endpoint can safely ret
 lock/space condition is resolved. This makes aborted pages reusable without a
 blocking `VACUUM FULL`, table rewrite or broad-schema maintenance. Timeout or unavailable relation
 leaves the durable marker at `needed` for a later safe retry.
+
+PSI's exact recovery scope includes `warehouse.psi_sale`, `registry.property`, and
+`registry.property_identifier`, because the same failed transaction can leave allocated pages from
+rolled-back sales, reference anchors and provenance. It does not include the accepted G-NAF source
+table or unrelated registry/warehouse relations. Expired cancelled leases record the same scope;
+pending exact-table reindex evidence survives retries.
 
 The PR1 disposable PostgreSQL cancellation test proves transaction rollback and transaction-local
 table cleanup at every PSI materialisation boundary. Executor spill-file size and `pgsql_tmp`

@@ -105,6 +105,13 @@ is not CPU utilisation; it only records an active backend with no reported wait 
 
 ## Disposable validation result — 30 August 2026
 
+The PSI measurements in this historical section predate accepted G-NAF identity anchors. The
+registry-only comparison harness does not measure the added anchor/provenance inserts. Current PSI
+capacity allowances and the bounded 638,125-row recovery budget use the separate
+[3 September production-SQL attestation](evidence/psi-identity-materialisation-attestation-2026-09-03.md).
+The earlier four-minute full-history projection and 6/16 GiB PSI floors below do not apply to that
+path. BOCSAR's measurements and allowances remain unchanged.
+
 The corrected suite ran in an otherwise idle `postgis/postgis:16-3.4` disposable database. Every
 variant used three fresh schemas at each scale; all 24 successful-run schemas were dropped. Both
 100k forced-cancellation suites also completed three exact-backend cancellations, observed rollback

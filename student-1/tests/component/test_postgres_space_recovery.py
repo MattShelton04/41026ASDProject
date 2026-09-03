@@ -41,6 +41,15 @@ def recovery_database() -> Iterator[psycopg.Connection[dict[str, object]]]:
         admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database)))
     try:
         with psycopg.connect(_database_url(database), row_factory=dict_row) as connection:
+            connection.execute(
+                """CREATE SCHEMA registry;
+                CREATE TABLE registry.property (id BIGINT PRIMARY KEY,padding TEXT DEFAULT '')
+                    WITH (autovacuum_enabled=false);
+                CREATE TABLE registry.property_identifier (
+                    id BIGINT PRIMARY KEY,padding TEXT DEFAULT '')
+                    WITH (autovacuum_enabled=false);"""
+            )
+            connection.commit()
             yield connection
     finally:
         with psycopg.connect(ADMIN_URL, autocommit=True) as admin:
@@ -104,13 +113,24 @@ def test_failed_import_vacuums_only_registered_relations_and_records_measurement
     connection.execute(
         "INSERT INTO warehouse.unrelated SELECT i,repeat('x',200) FROM generate_series(1,2000) i"
     )
+    connection.execute(
+        "INSERT INTO registry.property SELECT i,repeat('x',200) FROM generate_series(1,2000) i"
+    )
+    connection.execute(
+        "INSERT INTO registry.property_identifier "
+        "SELECT i,repeat('x',200) FROM generate_series(1,2000) i"
+    )
     connection.commit()
     connection.execute("DELETE FROM warehouse.psi_sale")
     connection.execute("DELETE FROM warehouse.unrelated")
+    connection.execute("DELETE FROM registry.property_identifier")
+    connection.execute("DELETE FROM registry.property")
     connection.commit()
     connection.execute("SELECT pg_stat_force_next_flush()")
     connection.execute("ANALYZE warehouse.psi_sale")
     connection.execute("ANALYZE warehouse.unrelated")
+    connection.execute("ANALYZE registry.property_identifier")
+    connection.execute("ANALYZE registry.property")
     connection.execute(
         """INSERT INTO ops.import_operation
         (id,import_profile_key,status,space_recovery_status,space_recovery_policy_json)
@@ -120,7 +140,11 @@ def test_failed_import_vacuums_only_registered_relations_and_records_measurement
             Jsonb(
                 {
                     "policy": "measure_then_target_exact_relations",
-                    "relations": ["warehouse.psi_sale"],
+                    "relations": [
+                        "warehouse.psi_sale",
+                        "registry.property",
+                        "registry.property_identifier",
+                    ],
                 }
             ),
         ),
@@ -136,10 +160,11 @@ def test_failed_import_vacuums_only_registered_relations_and_records_measurement
     policy = result["space_recovery_policy_json"]
     assert result["space_recovery_status"] == "completed"
     assert policy["operation"] == "vacuum_and_atomic_reindex"
-    assert policy["relations_reindexed"] == ["warehouse.psi_sale"]
-    assert [item["relation"] for item in policy["measured_before"]] == ["warehouse.psi_sale"]
-    assert [item["relation"] for item in policy["measured_after"]] == ["warehouse.psi_sale"]
-    assert policy["measured_after"][0]["n_dead_tup"] == 0
+    expected_relations = ["warehouse.psi_sale", "registry.property", "registry.property_identifier"]
+    assert policy["relations_reindexed"] == expected_relations
+    assert [item["relation"] for item in policy["measured_before"]] == expected_relations
+    assert [item["relation"] for item in policy["measured_after"]] == expected_relations
+    assert all(item["n_dead_tup"] == 0 for item in policy["measured_after"])
     maintenance = connection.execute(
         "SELECT relname,last_vacuum FROM pg_stat_user_tables "
         "WHERE schemaname='warehouse' ORDER BY relname"
@@ -149,11 +174,66 @@ def test_failed_import_vacuums_only_registered_relations_and_records_measurement
         {"relname": "unrelated", "last_vacuum": None},
     ]
     assert maintenance[0]["last_vacuum"] is not None
+    anchor_maintenance = connection.execute(
+        "SELECT last_vacuum FROM pg_stat_user_tables WHERE schemaname='registry'"
+    ).fetchall()
+    assert len(anchor_maintenance) == 2
+    assert all(item["last_vacuum"] is not None for item in anchor_maintenance)
 
     replay = _RegisteredImportOperations(cast(Any, _Owner(connection))).recover_import_space(
         operation_id
     )
     assert replay["space_recovery_status"] == "completed"
+
+
+def test_rolled_back_psi_identity_allocations_are_recovered_with_sale_rows(
+    recovery_database: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = recovery_database
+    operation_id = uuid.uuid4()
+    connection.execute(
+        """CREATE SCHEMA ops;
+        CREATE SCHEMA warehouse;
+        CREATE TABLE warehouse.psi_sale (id BIGINT PRIMARY KEY,padding TEXT NOT NULL)
+            WITH (autovacuum_enabled=false);
+        CREATE TABLE ops.import_operation (
+            id UUID PRIMARY KEY,import_profile_key TEXT NOT NULL,status TEXT NOT NULL,
+            space_recovery_status TEXT NOT NULL,space_recovery_policy_json JSONB NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1
+        );"""
+    )
+    connection.commit()
+    relations = ["warehouse.psi_sale", "registry.property", "registry.property_identifier"]
+    for relation in relations:
+        connection.execute(
+            sql.SQL(
+                "INSERT INTO {} SELECT i,repeat('x',200) FROM generate_series(1,2000) i"
+            ).format(sql.Identifier(*relation.split(".")))
+        )
+    connection.rollback()
+    connection.execute("SELECT pg_stat_force_next_flush()")
+    for relation in relations:
+        connection.execute(sql.SQL("ANALYZE {}").format(sql.Identifier(*relation.split("."))))
+        assert connection.execute(
+            sql.SQL("SELECT count(*) AS count FROM {}").format(sql.Identifier(*relation.split(".")))
+        ).fetchone() == {"count": 0}
+    connection.execute(
+        """INSERT INTO ops.import_operation
+        (id,import_profile_key,status,space_recovery_status,space_recovery_policy_json)
+        VALUES (%s,'psi-sales','failed','needed',%s)""",
+        (operation_id, Jsonb({"destination_may_have_been_touched": True})),
+    )
+    connection.commit()
+
+    result = _RegisteredImportOperations(cast(Any, _Owner(connection))).recover_import_space(
+        operation_id
+    )
+    policy = result["space_recovery_policy_json"]
+    assert result["space_recovery_status"] == "completed"
+    assert policy["relations_recovered"] == relations
+    assert [item["relation"] for item in policy["measured_before"]] == relations
+    assert all(item["n_dead_tup"] == 0 for item in policy["measured_after"])
+    assert policy["relations_pending_reindex"] == []
 
 
 def test_failed_import_with_no_dead_tuples_skips_vacuum(

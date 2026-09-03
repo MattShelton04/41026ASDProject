@@ -41,12 +41,13 @@ ACTIVATION_PHASE_LABELS = {
 GIBIBYTE = 1024 * 1024 * 1024
 # Floors conservatively project the largest measured 1m relation and WAL growth to the
 # official-source record counts with the documented 2.5 safety factor, rounded upward.
+# PSI includes accepted G-NAF identity anchors and their provenance (ADR-038).
 SOURCE_SCALE_DATABASE_GROWTH_FLOORS_BYTES = {
-    "psi-sales": 6 * GIBIBYTE,
+    "psi-sales": 24 * GIBIBYTE,
     "bocsar-sparse": 8 * GIBIBYTE,
 }
 SOURCE_SCALE_WAL_FLOORS_BYTES = {
-    "psi-sales": 16 * GIBIBYTE,
+    "psi-sales": 64 * GIBIBYTE,
     "bocsar-sparse": 20 * GIBIBYTE,
 }
 

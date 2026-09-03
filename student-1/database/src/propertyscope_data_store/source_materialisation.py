@@ -130,7 +130,8 @@ PSI_ADDRESS_RESOLUTION_SQL = """
         FROM propertyscope_psi_identity_stage identity
         JOIN propertyscope_psi_import_stage source
           ON source.ordinal=identity.first_ordinal
-        WHERE source.postcode IS NOT NULL
+        WHERE source.property_ref IS NULL
+          AND source.postcode IS NOT NULL
           AND source.locality IS NOT NULL
           AND source.street_name_normalised IS NOT NULL
           AND source.street_type IS NOT NULL
@@ -144,17 +145,21 @@ PSI_ADDRESS_RESOLUTION_SQL = """
             THEN gnaf_match.match_count ELSE registry_match.match_count END AS match_count,
         CASE WHEN gnaf_match.match_count>0
             THEN gnaf_match.exact_property_ref ELSE registry_match.exact_property_ref
-        END AS exact_property_ref
+        END AS exact_property_ref,
+        gnaf_match.gnaf_pid,gnaf_match.gnaf_release_id
     FROM eligible_addresses eligible
     CROSS JOIN LATERAL (
-        SELECT count(DISTINCT registered_property.property_ref)::integer AS match_count,
-            CASE WHEN count(DISTINCT registered_property.property_ref)=1
-                THEN min(registered_property.property_ref::text)::uuid ELSE NULL
-            END AS exact_property_ref
+        SELECT count(DISTINCT COALESCE(address.property_ref,
+                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid))::integer AS match_count,
+            CASE WHEN count(DISTINCT COALESCE(address.property_ref,
+                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid))=1
+                THEN min(COALESCE(address.property_ref,
+                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)::text)::uuid
+                ELSE NULL
+            END AS exact_property_ref,
+            min(address.gnaf_pid) AS gnaf_pid,
+            min(address.dataset_release_id::text)::uuid AS gnaf_release_id
         FROM warehouse.gnaf_address address
-        JOIN registry.property registered_property
-          ON registered_property.property_ref=COALESCE(
-              address.property_ref,md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)
         WHERE address.dataset_release_id=(
                 SELECT accepted.dataset_release_id
                 FROM serving.accepted_generation accepted
@@ -167,7 +172,15 @@ PSI_ADDRESS_RESOLUTION_SQL = """
           AND address.postcode=eligible.postcode
           AND address.locality=eligible.locality
           AND address.street_name=eligible.street_name_normalised
-          AND address.street_type=eligible.street_type
+          AND address.street_type=ANY(ARRAY[eligible.street_type,
+              CASE eligible.street_type
+                  WHEN 'AV' THEN 'AVENUE' WHEN 'CL' THEN 'CLOSE'
+                  WHEN 'CT' THEN 'COURT' WHEN 'CR' THEN 'CRESCENT'
+                  WHEN 'DR' THEN 'DRIVE' WHEN 'HWY' THEN 'HIGHWAY'
+                  WHEN 'LANE' THEN 'LANE' WHEN 'PDE' THEN 'PARADE'
+                  WHEN 'PL' THEN 'PLACE' WHEN 'RD' THEN 'ROAD'
+                  WHEN 'ST' THEN 'STREET' WHEN 'TCE' THEN 'TERRACE'
+              END])
           AND address.street_number_first=eligible.street_number_first
           AND COALESCE(address.street_number_last,-1)=COALESCE(
               eligible.street_number_last,-1)
@@ -182,6 +195,10 @@ PSI_ADDRESS_RESOLUTION_SQL = """
             END AS exact_property_ref
         FROM registry.property property
         WHERE gnaf_match.match_count=0
+          AND NOT EXISTS (
+              SELECT 1 FROM registry.property_identifier identifier
+              WHERE identifier.property_ref=property.property_ref AND identifier.scheme='gnaf_pid'
+          )
           AND property.postcode=eligible.postcode
           AND property.locality=eligible.locality
           AND property.street_name=eligible.street_name_normalised
@@ -195,7 +212,47 @@ PSI_ADDRESS_RESOLUTION_SQL = """
     ) registry_match
 """
 
+# Accepted G-NAF identities are normally virtual. Materialise only the unique identities
+# referenced by this import, with provenance, so PSI retains its registry foreign key.
+# These anchors never update canonical fields and are excluded from legacy read fallbacks.
 PSI_TARGET_INSERT_SQL = """
+    WITH matched_addresses AS MATERIALIZED (
+        SELECT DISTINCT ON (resolution.exact_property_ref)
+            resolution.exact_property_ref,address.*
+        FROM propertyscope_psi_address_resolution resolution
+        JOIN warehouse.gnaf_address address
+          ON address.dataset_release_id=resolution.gnaf_release_id
+         AND address.gnaf_pid=resolution.gnaf_pid
+        WHERE resolution.match_count=1 AND address.published
+        ORDER BY resolution.exact_property_ref,address.gnaf_pid
+    ), inserted_properties AS (
+        INSERT INTO registry.property (
+            property_ref,address_display,flat_type,unit_number,street_number_first,
+            street_number_suffix,street_number_last,street_name,street_type,locality,
+            postcode,state,address_search,geom,resolution_status,created_at,updated_at,version
+        ) SELECT exact_property_ref,address_display,flat_type,unit_number,street_number_first,
+            street_number_suffix,street_number_last,COALESCE(street_name,address_display),
+            street_type,locality,postcode,'NSW',
+            trim(regexp_replace(lower(address_display),'[^a-z0-9]+',' ','g')),geom,
+            CASE WHEN source_status='CURRENT' THEN 'verified' ELSE 'retired' END,
+            now(),now(),1
+        FROM matched_addresses
+        ON CONFLICT (property_ref) DO NOTHING
+        RETURNING property_ref
+    ), inserted_identifiers AS (
+        INSERT INTO registry.property_identifier (
+            id,property_ref,scheme,identifier_value,source_release_id,is_current,
+            valid_from,valid_to,match_method,match_confidence,evidence_json,created_at
+        ) SELECT md5('propertyscope-gnaf_pid-identifier:' || address.dataset_release_id::text
+                || ':' || address.gnaf_pid)::uuid,
+            address.exact_property_ref,'gnaf_pid',address.gnaf_pid,address.dataset_release_id,
+            true,now()::date,NULL,'source-authoritative',1,
+            jsonb_build_object('identity_anchor','psi-accepted-gnaf',
+                'geocode_type',address.geocode_type,'source_crs',address.source_crs),now()
+        FROM matched_addresses address
+        JOIN inserted_properties inserted ON inserted.property_ref=address.exact_property_ref
+        ON CONFLICT (scheme,identifier_value,source_release_id) DO NOTHING
+    )
     INSERT INTO warehouse.psi_sale (
         dataset_release_id,source_business_key,source_revision,source_era,
         source_partition_year,district_code,property_id,dealing_id,source_system,

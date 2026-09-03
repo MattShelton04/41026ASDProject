@@ -79,6 +79,13 @@ PostgreSQL temporary-file limit and a pre-COPY disk-capacity check bound failure
 changes the database globally. Disposable real-shape benchmarks, not production artifacts, gate
 100,000 then 1,000,000-row evidence and enforce the 30-minute statement ceiling.
 
+PSI resolves unique addresses directly against the accepted G-NAF warehouse identities, including
+the street-type equivalents already recognised by its source parser. Only missing registry anchors
+needed by resolved sales are inserted, with source provenance, inside the atomic candidate import.
+The unchanged foreign key remains enforced. Canonical property reads exclude those registry
+snapshots from legacy fallback, so withdrawal or replacement of an accepted address cannot reveal
+stale fields. ADR-038 records this extension to the ADR-028 identity and ADR-032 import boundaries.
+
 The supported consumer-platform increment aligns the public contract with that runner output:
 portable products are gzip-compressed NDJSON, and a versioned producer-owned contract set binds
 runtime registry entries, record schemas, manifest evidence, guide examples and drift tests. Shared
