@@ -12,14 +12,18 @@ from propertyscope_due_diligence.api import (
     register_error_handlers,
     register_health,
 )
-from propertyscope_due_diligence.clients import DueDiligenceStoreClient, Feature1Client
+from propertyscope_due_diligence.clients import (
+    AiModeClient,
+    DueDiligenceStoreClient,
+    Feature1Client,
+)
 
 
-def create_app(*, store: Any = None, feature1: Any = None) -> Flask:
+def create_app(*, store: Any = None, feature1: Any = None, ai_mode: Any = None) -> Flask:
     """Create the credential-free due-diligence backend.
 
-    Tests inject fake ``store`` and ``feature1`` clients; the container constructs
-    real HTTP clients from the environment.
+    Tests inject fake ``store``, ``feature1`` and ``ai_mode`` clients; the container
+    constructs real HTTP clients from the environment.
     """
     if store is None:  # pragma: no cover - constructs a real network client
         store = DueDiligenceStoreClient(
@@ -30,11 +34,13 @@ def create_app(*, store: Any = None, feature1: Any = None) -> Flask:
         feature1 = Feature1Client(
             os.environ.get("PROPERTYSCOPE_DATA_PLATFORM_URL", "http://f1-backend:5201")
         )
+    if ai_mode is None:  # pragma: no cover - constructs a real network client
+        ai_mode = AiModeClient(os.environ.get("AI_MODE_BASE_URL", "http://shared-ai-mode:5005"))
     app = Flask("propertyscope-due-diligence")
     app.config["MAX_CONTENT_LENGTH"] = int(
         os.environ.get("PROPERTYSCOPE_MAX_REQUEST_BYTES", "262144")
     )
     register_health(app, store)
-    app.register_blueprint(create_blueprint(store, feature1))
+    app.register_blueprint(create_blueprint(store, feature1, ai_mode))
     register_error_handlers(app)
     return app
