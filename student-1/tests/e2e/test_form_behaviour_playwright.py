@@ -524,6 +524,35 @@ def test_search_and_every_filter_use_native_keyboard_and_explicit_reset(
     assert not [message for message in console_errors if "hx-disabled-elt" in message]
 
 
+def test_source_filter_reset_aborts_an_in_flight_search(page: Page, fixture_origin: str) -> None:
+    _open(page, fixture_origin, "sources")
+    search = page.get_by_label("Search (optional)")
+    expect(search).to_be_visible()
+    held: list[Route] = []
+
+    def hold_filtered_sources(route: Route) -> None:
+        if "q=fixture" in route.request.url:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/fragments/data-platform/v1/sources?*", hold_filtered_sources)
+    search.fill("fixture")
+    search.press("Enter")
+    expect(page.get_by_role("button", name="Apply filters")).to_be_disabled()
+    assert held, "the filtered source request must still be in flight"
+
+    with page.expect_event(
+        "requestfailed", predicate=lambda request: request.url == held[0].request.url, timeout=3000
+    ):
+        page.get_by_role("button", name="Reset filters").click()
+
+    expect(page.locator(".active-filters")).to_have_count(0)
+    expect(search).to_have_value("")
+    expect(page.get_by_label("Status (optional)")).to_have_value("all")
+    expect(page).to_have_url(f"{page.url.split('#')[0]}#sources?status=all")
+
+
 def test_source_job_and_release_create_edit_forms_retain_server_failures(
     page: Page, fixture_origin: str
 ) -> None:
