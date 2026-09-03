@@ -33,6 +33,7 @@ Record = Mapping[str, Any]
 RecordValidator = Callable[[Record, int], None]
 ManifestValidator = Callable[[Mapping[str, Any]], None]
 _OPERATION_ID_ADAPTER = TypeAdapter(Identifier)
+_DECOMPRESSION_CHUNK_BYTES = 65_536
 
 
 class ConsumerProtocolError(RuntimeError):
@@ -353,13 +354,13 @@ def _decode_and_stage(
             pending = chunk
             while pending:
                 remaining = policy.max_uncompressed_bytes - uncompressed_bytes
-                output = decompressor.decompress(pending, remaining + 1)
+                output_limit = min(_DECOMPRESSION_CHUNK_BYTES, remaining + 1)
+                output = decompressor.decompress(pending, output_limit)
                 consume_output(output)
                 pending = decompressor.unconsumed_tail
                 if not pending:
                     break
-        remaining = policy.max_uncompressed_bytes - uncompressed_bytes
-        consume_output(decompressor.flush(remaining + 1))
+        consume_output(decompressor.flush(_DECOMPRESSION_CHUNK_BYTES))
     except zlib.error as exc:
         raise ConsumerProtocolError(
             "artifact_gzip_invalid", "The artifact is not a valid gzip stream"
