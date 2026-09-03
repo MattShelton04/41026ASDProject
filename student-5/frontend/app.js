@@ -432,18 +432,46 @@ export function renderEvidence(value) {
     <div class="evidence-limitations"><h4>Evidence limitations</h4><ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
 }
 
-export function renderSummaryRun(run) {
+function workflowPhaseLabel(value) {
+  const label = String(value || "").replaceAll("_", " ");
+  return label ? `${label[0].toUpperCase()}${label.slice(1)}` : "Pending";
+}
+
+export function summaryWorkflowView(run) {
+  const status = typeof run?.status === "string" ? run.status : "";
   const phases = Array.isArray(run?.phases) ? run.phases : [];
+  let statusText = "Generating case summary";
+
+  if (!status) {
+    statusText = "Ready to generate a case summary.";
+  } else if (status === "succeeded") {
+    statusText = "Case summary generated successfully.";
+  } else if (["failed", "cancelled"].includes(status)) {
+    const failedPhase = phases.find((phase) => phase?.status === "failed")?.name;
+    statusText = failedPhase
+      ? `The case summary could not be generated: ${workflowPhaseLabel(failedPhase)} failed.`
+      : "The case summary could not be generated.";
+  }
+
+  return { statusText };
+}
+
+export function renderSummaryRun(run, workflowView = summaryWorkflowView(run)) {
   const actions = Array.isArray(run?.suggested_next_actions) ? run.suggested_next_actions : [];
   const evidenceUsed = Array.isArray(run?.evidence_used) ? run.evidence_used : [];
   const references = Array.isArray(run?.evidence_references) ? run.evidence_references : [];
   const limitations = Array.isArray(run?.limitations) ? run.limitations : [];
-  return `<ol class="run-phases" aria-label="Plan Act Observe Adapt progress">${phases.map((phase) => `<li data-phase="${escapeHtml(phase.name)}"><strong>${escapeHtml(phase.name)}</strong><span>${escapeHtml(phase.status)}</span></li>`).join("")}</ol>
+  if (!run?.status) return `<p class="workflow-status" role="status" aria-live="polite" data-workflow-status>${escapeHtml(workflowView.statusText)}</p>`;
+  return `<p class="workflow-status" role="status" aria-live="polite" data-workflow-status>${escapeHtml(workflowView.statusText)}</p>
     ${run?.summary ? `<h4>Case summary</h4><p>${escapeHtml(run.summary)}</p>` : `<p>${run?.error ? escapeHtml(run.error) : "Summary generation is in progress."}</p>`}
     <h4>Suggested next actions</h4>${actions.length ? `<ol>${actions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : "<p>No suggested actions yet.</p>"}
     <h4>Evidence used</h4>${evidenceUsed.length ? `<ul>${evidenceUsed.map((item) => `<li><strong>${escapeHtml(item?.label || "Evidence source")}</strong>: ${escapeHtml(item?.status || "Unavailable")}${item?.detail ? `; ${escapeHtml(item.detail)}` : ""}</li>`).join("")}</ul>` : "<p>No evidence summary is available. Review the bounded evidence above.</p>"}
     <details class="technical-audit"><summary>Technical audit references</summary>${references.length ? `<ul>${references.map((item) => `<li><code>${escapeHtml(item)}</code></li>`).join("")}</ul>` : "<p>No technical references reported.</p>"}</details>
     <h4>Limitations</h4>${limitations.length ? `<ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "<p>No additional AI limitations reported.</p>"}`;
+}
+
+function updateSummaryRegion(target, run) {
+  target.innerHTML = renderSummaryRun(run);
 }
 
 function renderDetail(item) {
@@ -475,7 +503,7 @@ function renderDetail(item) {
     <section class="workspace-section" aria-labelledby="notes-heading"><header><div><p class="ps-eyebrow">OBSERVATIONS</p><h3 id="notes-heading">Notes</h3></div><button class="ps-button ps-button--primary" type="button" data-add-note>Add note</button></header><div class="workspace-items">${renderNoteItems(notes, propertyName)}</div></section>
     <section class="workspace-section" aria-labelledby="tasks-heading"><header><div><p class="ps-eyebrow">NEXT STEPS</p><h3 id="tasks-heading">Tasks</h3></div><button class="ps-button ps-button--primary" type="button" data-add-task>Add task</button></header><div class="workspace-items">${renderTaskItems(tasks, propertyName)}</div></section>
     <section class="workspace-section" aria-labelledby="evidence-heading"><header><div><p class="ps-eyebrow">CROSS-FEATURE EVIDENCE</p><h3 id="evidence-heading">Bounded evidence</h3></div><button class="ps-button" type="button" data-refresh-evidence>Refresh evidence</button></header><div data-evidence aria-live="polite"><p>Loading evidence…</p></div></section>
-    <section class="workspace-section" aria-labelledby="summary-heading"><header><div><p class="ps-eyebrow">AI ASSISTANCE</p><h3 id="summary-heading">Buyer case summary</h3></div><button class="ps-button ps-button--primary" type="button" data-generate-summary>Generate case summary</button></header><p class="item-reference">AI output is advisory. Confirm evidence and important decisions yourself.</p><div data-summary-run aria-live="polite"><p>No AI summary has been generated.</p></div></section>`;
+    <section class="workspace-section" aria-labelledby="summary-heading"><header><div><p class="ps-eyebrow">AI ASSISTANCE</p><h3 id="summary-heading">Buyer case summary</h3></div><button class="ps-button ps-button--primary" type="button" data-generate-summary>Generate case summary</button></header><p class="item-reference">AI output is advisory. Confirm evidence and important decisions yourself.</p><div data-summary-run>${renderSummaryRun(null)}</div></section>`;
   view.querySelector("[data-edit]")?.addEventListener("click", () => openCaseForm(item));
   view.querySelector("[data-delete]")?.addEventListener("click", () => openDeleteDialog(`buyer case “${item.name}”`, () => api.delete(item.id), "#buyer-cases"));
   view.querySelector("[data-add-property]")?.addEventListener("click", () => openPropertyForm());
@@ -518,7 +546,7 @@ async function pollSummary(caseId, runId) {
   if (!target || currentCase?.id !== caseId) return;
   try {
     const run = await api.summaries.read(caseId, runId);
-    target.innerHTML = renderSummaryRun(run);
+    updateSummaryRegion(target, run);
     if (!["succeeded", "failed", "cancelled"].includes(run.status)) {
       globalThis.setTimeout(() => pollSummary(caseId, runId), 1000);
     }
@@ -532,11 +560,11 @@ async function generateSummary(caseId) {
   const button = document.querySelector("[data-generate-summary]");
   if (!target || !button) return;
   button.disabled = true;
-  target.innerHTML = "<p>Starting the Plan → Act → Observe → Adapt workflow…</p>";
+  updateSummaryRegion(target, { status: "queued", phases: [] });
   try {
     const key = `buyer-summary-${caseId}-${Date.now()}`;
     const run = await api.summaries.create(caseId, key);
-    target.innerHTML = renderSummaryRun(run);
+    updateSummaryRegion(target, run);
     if (!["succeeded", "failed", "cancelled"].includes(run.status)) await pollSummary(caseId, run.id);
   } catch (error) {
     target.innerHTML = '<div data-state="unavailable"><p>AI summary service is unavailable. Ordinary case, property, note and task controls remain available.</p></div>';

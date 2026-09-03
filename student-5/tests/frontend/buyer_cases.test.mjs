@@ -22,6 +22,7 @@ import {
   renderSummaryRun,
   renderTaskItems,
   statusLabel,
+  summaryWorkflowView,
   targetSuburbsFromText,
   uiStateForError,
   validateCaseInput,
@@ -282,7 +283,7 @@ test("bounded evidence renderer exposes all states and limitations safely", () =
   for (const mojibake of ["â", "€", "�"]) assert.doesNotMatch(html, new RegExp(mojibake));
 });
 
-test("AI summary renderer shows Plan Act Observe Adapt, references and limitations", () => {
+test("AI summary renderer preserves its user-facing result without phase cards", () => {
   const rawReference = "buyer.evidence.collect.v1:feature_1:property_ref:b5000000-0000-4000-8000-000000000001:succeeded";
   const html = renderSummaryRun({
     status: "succeeded",
@@ -301,9 +302,11 @@ test("AI summary renderer shows Plan Act Observe Adapt, references and limitatio
     evidence_references: [rawReference],
     limitations: ["Feature 3 unavailable"],
   });
-  for (const phase of ["plan", "act", "observe", "adapt"]) assert.match(html, new RegExp(phase));
+  assert.match(html, /Case summary generated successfully\./);
+  assert.doesNotMatch(html, /AI processing details/);
+  assert.doesNotMatch(html, /run-phases|data-phase/);
   assert.match(html, /Review &lt;evidence&gt;/);
-  const primaryEvidence = html.slice(html.indexOf("<h4>Evidence used</h4>"), html.indexOf("<details"));
+  const primaryEvidence = html.slice(html.indexOf("<h4>Evidence used</h4>"), html.indexOf('<details class="technical-audit"'));
   for (const label of ["Buyer case and shortlist", "Case notes", "Case tasks", "Property discovery", "Sales research", "Suburb analytics", "Due diligence"]) {
     assert.match(primaryEvidence, new RegExp(label));
   }
@@ -317,6 +320,44 @@ test("AI summary renderer shows Plan Act Observe Adapt, references and limitatio
   assert.doesNotMatch(html, /<details class="technical-audit" open/);
   assert.match(html, new RegExp(rawReference.replaceAll(".", "\\.")));
   assert.match(html, /Feature 3 unavailable/);
+});
+
+test("AI workflow presents a compact accessible idle status", () => {
+  const view = summaryWorkflowView(null);
+  const html = renderSummaryRun(null, view);
+  assert.deepEqual(view, { statusText: "Ready to generate a case summary." });
+  assert.match(html, /role="status" aria-live="polite" data-workflow-status>Ready to generate a case summary\.<\/p>/);
+  assert.doesNotMatch(html, /AI processing details|run-phases|data-phase/);
+});
+
+test("AI workflow uses one concise processing status for every phase", () => {
+  for (const status of ["queued", "planning", "acting", "observing", "adapting", "review_required"]) {
+    const run = { status, phases: [{ name: "adapt", status: "running" }] };
+    assert.equal(summaryWorkflowView(run).statusText, "Generating case summary");
+  }
+});
+
+test("successful workflow status is concise", () => {
+  const view = summaryWorkflowView({ status: "succeeded", phases: [] });
+  assert.equal(view.statusText, "Case summary generated successfully.");
+});
+
+test("failed workflow status identifies the failed phase without rendering phase cards", () => {
+  const run = {
+    status: "failed",
+    phases: [
+      { name: "plan", status: "succeeded" },
+      { name: "act", status: "succeeded" },
+      { name: "observe", status: "succeeded" },
+      { name: "adapt", status: "failed" },
+    ],
+    error: "Generation stopped safely.",
+  };
+  const view = summaryWorkflowView(run);
+  const html = renderSummaryRun(run, view);
+  assert.equal(view.statusText, "The case summary could not be generated: Adapt failed.");
+  assert.match(html, /role="status" aria-live="polite"/);
+  assert.doesNotMatch(html, /AI processing details|run-phases|data-phase/);
 });
 
 test("workspace renderers show journey, ratings, associations and completion controls safely", () => {
