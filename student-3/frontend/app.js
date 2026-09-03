@@ -234,17 +234,6 @@ async function filterSuburbs(query = $("#search").value.trim()) {
   $("#search-status").textContent = payload.items.length
     ? `${payload.items.length} matching ${payload.items.length === 1 ? "suburb" : "suburbs"}.`
     : "No matching suburbs. Check the spelling, try a postcode, or clear the search and map filters.";
-  if (state.map?.layerIds.includes("suburbs")) {
-    state.map.setLayerData("suburbs", suburbFeatures(payload.items));
-  }
-  if (state.selectedLocality && !payload.items.some((item) => item.locality === state.selectedLocality)) {
-    ++suburbSelection;
-    state.map?.setLayerData("places", featureCollection([]));
-    state.selectedLocality = "";
-    state.places = [];
-    $("#suburb-detail").hidden = true;
-    state.assistant?.controller.setContext({ route: "suburbs" });
-  }
   if (generation !== suburbFilterGeneration) return;
   announce(`${payload.page?.total ?? payload.count} suburb results.`);
   } catch (error) {

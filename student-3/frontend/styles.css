@@ -37,6 +37,10 @@ dialog{width:min(650px,calc(100vw - 2rem));padding:0;border:0;border-radius:16px
 #published-more[hidden] { display: none; }
 #map-fallback[hidden] { display: none; }
 .suburb-search { margin-top: 1.5rem; }
+.list-filter-bar { display: grid; grid-template-columns: auto repeat(3, minmax(150px, 1fr)); align-items: end; gap: .75rem; margin-top: .75rem; padding: .85rem 1rem; border: 1px solid var(--ps-line); border-radius: var(--ps-radius-lg); background: var(--ps-color-surface-subtle); }
+.list-filter-bar h3 { align-self: center; margin: 0; font-size: .85rem; white-space: nowrap; }
+.list-filter-bar label { display: grid; gap: .35rem; margin: 0; color: var(--ps-color-text-muted); font-size: .72rem; font-weight: 700; }
+.list-filter-bar select { width: 100%; padding: .6rem; border: 1px solid var(--ps-line-strong); border-radius: 8px; background: white; }
 .bookmark-toolbar { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
 .bookmark-dialog-body { padding: 1.4rem; }
 #bookmark-dialog { max-height: calc(100dvh - 2rem); overflow-y: auto; }
@@ -44,3 +48,13 @@ dialog{width:min(650px,calc(100vw - 2rem));padding:0;border:0;border-radius:16px
 #bookmark-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; }
 .suburb-detail__heading { flex-wrap: wrap; }
 #bookmark-suburb[aria-pressed="true"] { background: var(--ps-ocean-100); color: var(--ps-ocean-800); }
+
+@media (max-width: 900px) {
+  .list-filter-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .list-filter-bar h3 { grid-column: 1 / -1; }
+}
+
+@media (max-width: 600px) {
+  .list-filter-bar { grid-template-columns: 1fr; }
+  .list-filter-bar h3 { grid-column: auto; }
+}
