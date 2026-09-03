@@ -57,6 +57,19 @@ SUBURBS = (
     ("penrith", "Penrith", "2750", "Penrith", -33.7507, 150.6877, 15700, 12.3),
 )
 MONTHS = ("2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06")
+# Synthetic school, transport and park counts, not claims about actual suburbs.
+DEMO_AMENITIES = {
+    "surry-hills": (0, 2, 1),
+    "parramatta": (3, 2, 2),
+    "newtown": (1, 1, 0),
+    "manly": (0, 1, 3),
+    "chatswood": (2, 3, 0),
+    "bankstown": (3, 0, 1),
+    "burwood": (1, 0, 0),
+    "hurstville": (2, 1, 1),
+    "sutherland": (0, 0, 2),
+    "penrith": (1, 2, 3),
+}
 
 
 def _now() -> str:
@@ -90,7 +103,46 @@ class Repository:
             connection.executescript(SCHEMA)
             if connection.execute("SELECT COUNT(*) FROM suburb_info").fetchone()[0] == 0:
                 self._seed(connection)
+            self._vary_fixture_amenities(connection)
             self._ensure_fixture_revision(connection)
+
+    def _vary_fixture_amenities(self, connection: sqlite3.Connection) -> None:
+        """Upgrade only the known demo amenity rows, once per fixture suburb."""
+        for key, locality, _postcode, _lga, lat, lng, _population, _area in SUBURBS:
+            if not connection.execute(
+                "SELECT 1 FROM suburb_info WHERE id=? AND source_release='demo-2026.1'",
+                (key,),
+            ).fetchone():
+                continue
+            if connection.execute(
+                "SELECT 1 FROM suburb_amenity WHERE suburb_id=? AND source_release='demo-2026.2'",
+                (key,),
+            ).fetchone():
+                continue
+            for index in range(3):
+                connection.execute(
+                    "DELETE FROM suburb_amenity WHERE id=? AND suburb_id=? "
+                    "AND source_release='demo-2026.1'",
+                    (f"amenity-{key}-{index}", key),
+                )
+            point_index = 0
+            for place_type, count in zip(
+                ("school", "transport", "park"), DEMO_AMENITIES[key], strict=True
+            ):
+                for number in range(1, count + 1):
+                    connection.execute(
+                        "INSERT INTO suburb_amenity VALUES "
+                        "(?, ?, ?, ?, ?, ?, 'observed', 'demo-2026.2')",
+                        (
+                            f"demo-v2-{key}-{place_type}-{number}",
+                            key,
+                            place_type,
+                            f"{locality} Demo {place_type.title()} {number}",
+                            lat + 0.0015 * (point_index % 3 - 1),
+                            lng + 0.0015 * (point_index // 3 - 1),
+                        ),
+                    )
+                    point_index += 1
 
     def _seed(self, connection: sqlite3.Connection) -> None:
         for index, (key, locality, postcode, lga, lat, lng, population, area) in enumerate(SUBURBS):
@@ -168,11 +220,18 @@ class Repository:
     def _ensure_fixture_revision(self, connection: sqlite3.Connection) -> None:
         """Add deterministic factual context metrics to old and new scaffold databases."""
         for key, _locality, _postcode, _lga, _lat, _lng, population, area in SUBURBS:
+            counts = dict(
+                connection.execute(
+                    "SELECT place_type, COUNT(*) FROM suburb_amenity "
+                    "WHERE suburb_id=? GROUP BY place_type",
+                    (key,),
+                ).fetchall()
+            )
             metrics = (
                 ("population_density", round(population / area, 1), "people per km²"),
-                ("amenity_observations", 3.0, "observations"),
-                ("school_observations", 1.0, "observations"),
-                ("transport_observations", 1.0, "observations"),
+                ("amenity_observations", float(sum(counts.values())), "observations"),
+                ("school_observations", float(counts.get("school", 0)), "observations"),
+                ("transport_observations", float(counts.get("transport", 0)), "observations"),
             )
             for metric, value, unit in metrics:
                 connection.execute(
@@ -181,6 +240,18 @@ class Repository:
                     "'demo-2026.1')",
                     (f"context-{key}-{metric}", key, metric, value, unit),
                 )
+                if metric != "population_density":
+                    connection.execute(
+                        "UPDATE suburb_indicators SET value=?, zero_missing_state=?, "
+                        "source_release='demo-2026.2' WHERE id=? "
+                        "AND measure_source='derived_fixture_context' "
+                        "AND source_release IN ('demo-2026.1', 'demo-2026.2')",
+                        (
+                            value,
+                            "recorded_zero" if value == 0 else "observed",
+                            f"context-{key}-{metric}",
+                        ),
+                    )
             suburb_index = next(index for index, item in enumerate(SUBURBS) if item[0] == key)
             for month_index, month in enumerate(MONTHS):
                 base_count = (suburb_index * 3 + month_index * 2 + 7) % 29

@@ -9,6 +9,7 @@ from http import HTTPStatus
 from typing import Any
 from urllib.parse import parse_qs, unquote
 
+from .imports import Imports
 from .repository import Repository
 
 StartResponse = Callable[[str, list[tuple[str, str]]], None]
@@ -24,7 +25,9 @@ def _json(start: StartResponse, status: int, payload: object) -> Iterable[bytes]
 
 
 def _body(environ: dict[str, Any]) -> dict[str, Any]:
-    length = min(int(environ.get("CONTENT_LENGTH") or 0), 65_536)
+    length = int(environ.get("CONTENT_LENGTH") or 0)
+    if length > 4_194_304:
+        raise ValueError("body_too_large")
     if length <= 0:
         return {}
     value = json.loads(environ["wsgi.input"].read(length))
@@ -39,6 +42,7 @@ def create_app(repository: Repository | None = None) -> Callable[..., Iterable[b
         os.getenv("SUBURB_DB_PATH", "/var/lib/propertyscope-suburbs/suburbs.sqlite3")
     )
     store.initialise()
+    imports = Imports(store)
 
     def app(environ: dict[str, Any], start: StartResponse) -> Iterable[bytes]:
         method = environ.get("REQUEST_METHOD", "GET")
@@ -47,6 +51,28 @@ def create_app(repository: Repository | None = None) -> Callable[..., Iterable[b
             key: values[-1] for key, values in parse_qs(environ.get("QUERY_STRING", "")).items()
         }
         try:
+            if path == "/internal/v1/imports" and method == "POST":
+                return _json(start, 202, imports.enqueue(_body(environ)))
+            if path == "/internal/v1/imports/claim" and method == "POST":
+                return _json(start, 200, imports.claim())
+            if path.startswith("/internal/v1/imports/"):
+                parts = path.removeprefix("/internal/v1/imports/").split("/")
+                if len(parts) == 1 and method == "GET":
+                    return _json(start, 200, imports.status(parts[0]))
+                if len(parts) == 2 and method == "POST":
+                    if parts[1] == "retry":
+                        return _json(start, 202, imports.retry(parts[0]))
+                    return _json(start, 200, imports.apply(parts[0], parts[1], _body(environ)))
+            if path == "/internal/v1/published/sources" and method == "GET":
+                return _json(start, 200, imports.sources())
+            if path == "/internal/v1/published/suburbs" and method == "GET":
+                return _json(
+                    start,
+                    200,
+                    imports.localities(query.get("q", ""), int(query.get("offset", "0"))),
+                )
+            if path == "/internal/v1/published/context" and method == "GET":
+                return _json(start, 200, imports.context(query.get("locality", "")))
             if path in {"/health/live", "/health/ready"}:
                 return _json(
                     start,

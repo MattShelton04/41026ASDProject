@@ -132,6 +132,18 @@ that feature.
 
 ### Feature 3 deployment integration (3 September 2026)
 
+Feature 3 additionally implements the ADR-033 consumer callback/status protocol for BOCSAR and
+government schools. A backend worker downloads validated releases and sends bounded staging batches
+to its exclusively owned SQLite database service; durable fenced leases, invisible staging and an
+atomic receipt/current-release pointer protect retry and crash recovery. Population is explicitly
+pulled from Feature 1's accepted ABS SEIFA product, preserving its Feature 1 target rather than
+re-registering the product. No shared database credentials or files cross this boundary. The
+backend also reconciles accepted releases at startup and every fifteen minutes, independent of
+browser traffic; this never acquires publisher data or approves a release. The feature's
+Published evidence panel is independent of its original demonstration fixtures and
+does not silently substitute them for unavailable official evidence. See the Feature 3 README for
+limits, source semantics, routes and activation prerequisites.
+
 The root selection now enables `student-3-suburb-analytics`. Its explicit Compose topology comprises
 `f3-frontend`, `f3-backend` and `f3-database`; only the database mounts `f3-suburb-data`. The public
 frontend binds loopback port 5600 (override: `PROPERTYSCOPE_SUBURB_ANALYTICS_PORT`) and is routed by

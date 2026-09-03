@@ -81,9 +81,85 @@ standard library. `stack down` preserves the database volume.
 
 ## Current data and platform assumptions
 
+### Shared-source ingestion
+
+Feature 3 now consumes immutable releases through Feature 1's supported HTTP contract and
+artifact APIs. It never opens Feature 1's PostgreSQL database, receives its credentials, or
+imports its Python implementation. No publisher download or shared publication happens at startup.
+
+Supported products:
+
+| Dataset | Consumer contract | Activation |
+| --- | --- | --- |
+| `bocsar-crime` | `propertyscope.crime-series.v2` | Feature 1 publication callback or explicit accepted-release sync |
+| `nsw-government-schools` | `propertyscope.school-points.v2` | Feature 1 publication callback or explicit accepted-release sync |
+| `abs-seifa-2021` | `propertyscope.seifa-area.v1` | Background or explicit sync of Feature 1's accepted release only |
+
+Population retains its producer-declared `feature-1` target; it is a local read replica, not a
+Feature 3 publication acknowledgement sent back to the producer. Boundaries and other amenities
+remain out of scope. Dataset acquisition, quality review and shared publication still belong to
+Feature 1 and require the team's normal approval workflow.
+
+The backend implements `POST /api/data-import/v1/propertyscope-releases` and
+`GET /api/data-import/v1/propertyscope-releases/{operation_id}` on its internal service origin.
+The callback requires matching body/header idempotency keys and forwards request correlation.
+Root Compose supplies `PROPERTYSCOPE_FEATURE_3_URL=http://f3-backend:5301` to Feature 1 and
+`SUBURB_IMPORT_WORKER=1` to the single-worker Feature 3 backend. The database durably queues each
+operation; the backend worker streams downloads and stages bounded batches through the database
+HTTP API. A 180-second renewable, fenced lease permits recovery after a backend restart.
+
+Before commit, the importer checks the digest-bound producer contract archive, selected schema and
+builder, manifest/record provenance, gzip integrity, SHA-256, exact byte/record counts, unique
+record keys and crime coverage semantics. It rejects redirects and external schema references.
+Limits are 1 GB compressed, 12 GB expanded, one million records and 500 KB per record. These accept
+the currently observed ~500 MB BOCSAR candidate declaration but are not a source-scale benchmark.
+Insufficient capacity fails explicitly, never truncates. Verified receipt and current-data pointer
+commit together; unverified staging is hidden. Failed imports retain the previous current release.
+Unknown commit outcomes reconcile durable state before lease recovery. Explicit retry retains the
+previous failure receipt; it does not silently retry terminal failures forever.
+
+Open the **Published evidence** sidebar tab at `http://localhost:5600/#published`. It is separate
+from **Overview & map**, and contains imported-locality search and collapsed operator controls.
+The backend checks already
+accepted releases at startup and every fifteen minutes, independently of browser traffic. Repeated
+checks retain the same import identity and do not re-download imported releases. The visible page
+refreshes availability every thirty seconds. Manual sync/status/retry controls are optional recovery
+tools inside the collapsed **Data maintenance (operators)** section. Failed operations require an
+operator retry after their underlying issue is resolved; visiting a suburb never starts a download.
+Suburb pins zoom to neighbourhood level and load the selected amenity types; accessible suburb
+buttons remain as an alternative. Rapid selections cannot overwrite the latest suburb's amenities.
+The equivalent public API is:
+
+```text
+POST /api/suburb-analytics/v1/data-imports/{dataset_id}/sync
+POST /api/suburb-analytics/v1/data-imports/{operation_id}/retry
+GET  /api/suburb-analytics/v1/published/sources
+GET  /api/suburb-analytics/v1/published/suburbs?q=Parramatta&offset=0
+GET  /api/suburb-analytics/v1/published/context?locality=Parramatta
+```
+
+Imported locality searches are paginated independently of the ten-suburb demo. Context shows
+2021 population, government school locations/status and the last twelve covered crime months per
+actual source category, with complete retained series available in the context API. Crime counts
+are zero only inside the declared observation universe when the source permits it. Postcodes are
+retained but never relabelled as suburbs. Exact normalised name matching does not resolve boundary
+differences; duplicate ABS locality matches are shown as ambiguous. No rates are calculated from
+2021 population against recent crime. Missing amenities/area/LGA boundaries are not invented.
+Existing demo maps, comparisons and AI tools remain explicitly fixture-based and separate.
+
+Local activation check (3 September 2026): the producer's accepted synthetic crime and school
+artifact endpoints returned HTTP 503 `artifact_unavailable`; the full BOCSAR candidate returned
+409 `artifact_not_publishable`. Population has no accepted release. These upstream prerequisites
+must be resolved before real data appears. No shared datasets were downloaded, published or
+replaced while implementing the consumer.
+
 - The checked-in dataset is a partial deterministic demonstration fixture, not live official data.
 - Authentication remains a shared-platform decision, so local saved comparisons operate as a
   single-user demo rather than inventing a feature-specific identity scheme.
+- Overview & map includes a bookmarked-suburb shortlist. Select a map pin or suburb card to
+  bookmark/remove that suburb, then use **Bookmarked suburbs** to reopen or remove saved entries.
+  Bookmarks persist in browser local storage for that origin, not an authenticated account;
+  direct and shared-shell origins have separate lists. Clearing site data removes the shortlist.
 - Nearby-place distances are straight-line distances. School proximity never implies catchment or
   enrolment eligibility.
 

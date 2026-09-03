@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from propertyscope_suburb_store.repository import Repository
+from propertyscope_suburb_store.repository import DEMO_AMENITIES, SUBURBS, Repository
 
 
 @pytest.fixture
@@ -16,6 +16,54 @@ def repository(tmp_path: Path) -> Repository:
 def test_seeded_tables_meet_assessed_minimum(repository: Repository) -> None:
     assert all(count >= 10 for count in repository.table_counts().values())
     assert repository.table_counts()["suburb_indicators"] == 400
+
+
+def test_demo_amenity_filters_and_counts_are_distinct(repository: Repository) -> None:
+    assert len(set(DEMO_AMENITIES.values())) == len(SUBURBS)
+    for index, kind in enumerate(("school", "transport", "park")):
+        expected = {key for key, counts in DEMO_AMENITIES.items() if counts[index]}
+        items, total = repository.list_suburbs(amenity=kind)
+        assert {item["id"] for item in items} == expected
+        assert total == len(expected) < len(SUBURBS)
+    for key, locality, *_rest in SUBURBS:
+        school, transport, park = DEMO_AMENITIES[key]
+        assert len(repository.places("NSW", locality)) == school + transport + park
+        for metric, value in (
+            ("amenity_observations", school + transport + park),
+            ("school_observations", school),
+            ("transport_observations", transport),
+        ):
+            record = repository.area_series("NSW", locality, metric)[0]
+            assert record["value"] == value
+            assert record["zero_missing_state"] == ("recorded_zero" if value == 0 else "observed")
+
+
+def test_existing_demo_upgrade_preserves_other_records_and_is_repeatable(tmp_path: Path) -> None:
+    from propertyscope_suburb_store.repository import SCHEMA
+
+    store = Repository(tmp_path / "legacy.sqlite3")
+    with store.connect() as connection:
+        connection.executescript(SCHEMA)
+        store._seed(connection)
+        store._ensure_fixture_revision(connection)
+        connection.execute(
+            "INSERT INTO suburb_amenity VALUES "
+            "('custom', 'burwood', 'park', 'Keep me', -33.8, 151.1, 'observed', 'custom')"
+        )
+        saved = [tuple(row) for row in connection.execute("SELECT * FROM user_suburbs").fetchall()]
+    store.initialise()
+    counts = store.table_counts()
+    store.initialise()
+    assert store.table_counts() == counts
+    with store.connect() as connection:
+        assert [
+            tuple(row) for row in connection.execute("SELECT * FROM user_suburbs").fetchall()
+        ] == saved
+        assert (
+            connection.execute("SELECT name FROM suburb_amenity WHERE id='custom'").fetchone()[0]
+            == "Keep me"
+        )
+    assert store.area_series("NSW", "Burwood", "amenity_observations")[0]["value"] == 2
 
 
 def test_zero_and_missing_semantics_are_explicit(repository: Repository) -> None:
