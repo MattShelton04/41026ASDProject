@@ -210,6 +210,65 @@ test("map pin selection loads amenities and zooms without rebuilding the map", a
   assert.match(nodes.get("#live").textContent, /Newtown/);
 });
 
+test("crime trends expose units in suburb summaries, chart axes and table", () => {
+  const nodes = new Map(["#chart", "#summary-cards", "#trend-head", "#trend-body"].map((id) => [id, {innerHTML: ""}]));
+  const caption = {textContent: ""};
+  nodes.get("#trend-head").closest = () => ({querySelector: () => caption});
+  const context = vm.createContext({
+    document: {
+      querySelector: (id) => nodes.get(id),
+      createElement: () => ({set textContent(value) { this.innerHTML = String(value); }, innerHTML: ""}),
+    },
+  });
+  vm.runInContext(js.replace(/^import .*;\r?\n/gm, "").replaceAll('import.meta.url', '"http://localhost/app.js"').replace(/init\(\);\s*$/, ""), context);
+  vm.runInContext(`renderTrend({
+    measure: "rate", offence: "property",
+    series: [
+      {locality: "Burwood", items: [{month: "2026-01", value: 12.5, unit: "per 100,000", zero_missing_state: "observed"}]},
+      {locality: "Newtown", items: [{month: "2026-01", value: 8.2, unit: "per 100,000", zero_missing_state: "observed"}]}
+    ]
+  })`, context);
+  assert.match(nodes.get("#summary-cards").innerHTML, /Burwood · per 100,000 people/);
+  assert.match(nodes.get("#chart").innerHTML, />Month<\/text>/);
+  assert.match(nodes.get("#chart").innerHTML, /Recorded offence rate \(per 100,000 people\)/);
+  assert.match(nodes.get("#trend-head").innerHTML, /Burwood \(per 100,000 people\)/);
+  assert.match(caption.textContent, /trend data in per 100,000 people/);
+  vm.runInContext(`renderTrend({
+    measure: "count", offence: "property",
+    series: [
+      {locality: "Burwood", items: [{month: "2026-01", value: 4, unit: "count", zero_missing_state: "observed"}]},
+      {locality: "Newtown", items: [{month: "2026-01", value: 3, unit: "count", zero_missing_state: "observed"}]}
+    ]
+  })`, context);
+  assert.match(nodes.get("#chart").innerHTML, /Recorded offences \(count\)/);
+  assert.match(nodes.get("#trend-head").innerHTML, /Newtown \(count\)/);
+});
+
+test("saved comparisons load into trend controls and navigate to crime trends", () => {
+  const nodes = new Map(["#locality-a", "#locality-b", "#from-month", "#to-month", "#measure", "#offence", "#trend-notice", "#toast"].map((id) => [id, {value: "", dataset: {}}]));
+  const location = {hash: "#comparisons"};
+  const context = vm.createContext({
+    location,
+    document: {querySelector: (id) => nodes.get(id)},
+    setTimeout: () => {},
+  });
+  vm.runInContext(js.replace(/^import .*;\r?\n/gm, "").replaceAll('import.meta.url', '"http://localhost/app.js"').replace(/init\(\);\s*$/, "") + '\nstate.suburbs = [{locality: "Burwood"}, {locality: "Newtown"}];', context);
+  vm.runInContext(`loadComparison({
+    id: "comparison-1", name: "Inner west", localities: ["Burwood", "Newtown"],
+    from_month: "2026-02", to_month: "2026-05", measure: "rate"
+  })`, context);
+  assert.equal(nodes.get("#locality-a").value, "Burwood");
+  assert.equal(nodes.get("#locality-b").value, "Newtown");
+  assert.equal(nodes.get("#from-month").value, "2026-02");
+  assert.equal(nodes.get("#to-month").value, "2026-05");
+  assert.equal(nodes.get("#measure").value, "rate");
+  assert.equal(nodes.get("#offence").value, "all_recorded");
+  assert.equal(location.hash, "#trends");
+  assert.match(nodes.get("#trend-notice").textContent, /Loading saved comparison/);
+  vm.runInContext(`loadComparison({name: "Old comparison", localities: ["Unavailable"], from_month: "2026-01", to_month: "2026-02", measure: "count"})`, context);
+  assert.match(nodes.get("#toast").textContent, /cannot be loaded/);
+});
+
 test("sync controls are optional collapsed operator tools", () => {
   assert.match(html, /<details id="data-maintenance"><summary>Data maintenance \(operators\)<\/summary>/);
   const maintenance = html.split('<details id="data-maintenance">')[1].split("</details>")[0];
@@ -233,6 +292,7 @@ test("frontend exposes map, chart table, CRUD and responsible-use language", () 
   assert.match(html, /id="assistant-root"/);
   assert.match(html, /<table>/);
   assert.match(html, /New comparison/);
+  assert.match(js, /Load in crime trends/);
   assert.match(html, /does not label suburbs safe, unsafe, good or bad/);
   assert.match(js, /crime\/compare/);
   assert.match(js, /area-series/);

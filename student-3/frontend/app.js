@@ -266,13 +266,20 @@ async function compareTrends(event) {
 function renderTrend(payload) {
   const all = payload.series.flatMap((series) => series.items.map((item) => item.value).filter((value) => value !== null));
   const maximum = Math.max(...all, 1); const months = [...new Set(payload.series.flatMap((series) => series.items.map((item) => item.month)))].sort();
-  const width = 760, height = 270, pad = 38;
-  const x = (index) => pad + index * ((width - pad * 2) / Math.max(months.length - 1, 1));
-  const y = (value) => height - pad - (value / maximum) * (height - pad * 2);
+  const sourceUnit = payload.series.flatMap((series) => series.items).find((item) => item.unit)?.unit;
+  const unit = sourceUnit || (payload.measure === "rate" ? "per 100,000" : "count");
+  const unitLabel = unit === "per 100,000" ? "per 100,000 people" : unit;
+  const measureLabel = payload.measure === "rate" ? "Recorded offence rate" : "Recorded offences";
+  const width = 760, height = 300, left = 58, right = 28, top = 24, bottom = 52;
+  const x = (index) => left + index * ((width - left - right) / Math.max(months.length - 1, 1));
+  const y = (value) => height - bottom - (value / maximum) * (height - top - bottom);
   const path = (items) => items.filter((item) => item.value !== null).map((item, index) => `${index ? "L" : "M"}${x(months.indexOf(item.month))},${y(item.value)}`).join(" ");
-  $("#chart").innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="chart-title chart-desc"><title id="chart-title">${escapeHtml(payload.offence)} ${escapeHtml(payload.measure)} comparison</title><desc id="chart-desc">Trend lines for ${payload.series.map((item) => item.locality).join(" and ")}.</desc>${[0,.25,.5,.75,1].map((part) => `<line class="grid" x1="${pad}" y1="${y(maximum*part)}" x2="${width-pad}" y2="${y(maximum*part)}"></line><text x="2" y="${y(maximum*part)+4}">${Math.round(maximum*part)}</text>`).join("")}<path class="line-a" d="${path(payload.series[0].items)}"></path><path class="line-b" d="${path(payload.series[1].items)}"></path>${payload.series.map((series, seriesIndex) => series.items.filter((item) => item.value !== null).map((item) => `<circle class="point-${seriesIndex ? "b" : "a"}" cx="${x(months.indexOf(item.month))}" cy="${y(item.value)}" r="5"><title>${escapeHtml(series.locality)} ${item.month}: ${item.value}</title></circle>`).join("")).join("")}${months.map((month, index) => `<text x="${x(index)}" y="${height-8}" text-anchor="middle">${month.slice(5)}</text>`).join("")}</svg>`;
-  $("#summary-cards").innerHTML = payload.series.map((series) => { const observed = series.items.filter((item) => item.value !== null); const first = observed[0]?.value ?? null, last = observed.at(-1)?.value ?? null; const change = first === null || last === null ? "Unavailable" : `${last - first >= 0 ? "+" : ""}${(last - first).toFixed(1)}`; return `<article class="summary-card"><span>${escapeHtml(series.locality)}</span><strong>${change}</strong><span>absolute change across selected fixture period</span></article>`; }).join("");
-  $("#trend-head").innerHTML = `<tr><th>Month</th>${payload.series.map((series) => `<th>${escapeHtml(series.locality)}</th>`).join("")}</tr>`;
+  $("#chart").innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="chart-title chart-desc"><title id="chart-title">${escapeHtml(payload.offence)} ${escapeHtml(payload.measure)} comparison</title><desc id="chart-desc">Trend lines for ${payload.series.map((item) => item.locality).join(" and ")}. Horizontal axis: month. Vertical axis: ${escapeHtml(measureLabel)}, ${escapeHtml(unitLabel)}.</desc><text class="axis-title" x="${width / 2}" y="${height - 4}" text-anchor="middle">Month</text><text class="axis-title" transform="rotate(-90)" x="${-height / 2}" y="13" text-anchor="middle">${escapeHtml(measureLabel)} (${escapeHtml(unitLabel)})</text>${[0,.25,.5,.75,1].map((part) => `<line class="grid" x1="${left}" y1="${y(maximum*part)}" x2="${width-right}" y2="${y(maximum*part)}"></line><text x="${left-8}" y="${y(maximum*part)+4}" text-anchor="end">${Math.round(maximum*part)}</text>`).join("")}<path class="line-a" d="${path(payload.series[0].items)}"></path><path class="line-b" d="${path(payload.series[1].items)}"></path>${payload.series.map((series, seriesIndex) => series.items.filter((item) => item.value !== null).map((item) => `<circle class="point-${seriesIndex ? "b" : "a"}" cx="${x(months.indexOf(item.month))}" cy="${y(item.value)}" r="5"><title>${escapeHtml(series.locality)} ${item.month}: ${item.value} ${escapeHtml(unitLabel)}</title></circle>`).join("")).join("")}${months.map((month, index) => `<text x="${x(index)}" y="${height-bottom+20}" text-anchor="middle">${month.slice(5)}</text>`).join("")}</svg>`;
+  $("#summary-cards").innerHTML = payload.series.map((series) => { const observed = series.items.filter((item) => item.value !== null); const first = observed[0]?.value ?? null, last = observed.at(-1)?.value ?? null; const change = first === null || last === null ? "Unavailable" : `${last - first >= 0 ? "+" : ""}${(last - first).toFixed(1)}`; return `<article class="summary-card"><span>${escapeHtml(series.locality)} · ${escapeHtml(unitLabel)}</span><strong>${change}</strong><span>absolute change (${escapeHtml(unitLabel)}) across selected fixture period</span></article>`; }).join("");
+  const table = $("#trend-head").closest?.("table");
+  const caption = table?.querySelector("caption");
+  if (caption) caption.textContent = `Accessible trend data in ${unitLabel}. A dash means missing evidence, never zero.`;
+  $("#trend-head").innerHTML = `<tr><th scope="col">Month</th>${payload.series.map((series) => `<th scope="col">${escapeHtml(series.locality)} (${escapeHtml(unitLabel)})</th>`).join("")}</tr>`;
   $("#trend-body").innerHTML = months.map((month) => `<tr><th>${month}</th>${payload.series.map((series) => {
     const item = series.items.find((row) => row.month === month);
     const value = item?.value === null || item?.value === undefined ? "—" : item.value;
@@ -286,10 +293,26 @@ function renderTrend(payload) {
 async function loadComparisons() {
   try {
     const payload = await api("/suburb-comparisons"); state.comparisons = payload.items;
-    $("#comparison-list").innerHTML = payload.items.map((item) => `<article class="comparison-card"><div><span class="ps-badge ps-badge--info">${escapeHtml(item.status)}</span><h3>${escapeHtml(item.name)}</h3><p>${item.localities.map(escapeHtml).join(" ↔ ")} · ${item.from_month} to ${item.to_month} · ${escapeHtml(item.measure)}</p><p>${escapeHtml(item.notes)}</p></div><div class="row-actions"><button class="ps-button ps-button--small" data-edit="${item.id}">Edit</button><button class="ps-button ps-button--small ps-button--danger" data-delete="${item.id}">Delete</button></div></article>`).join("") || `<div class="notice">No saved comparisons yet.</div>`;
+    $("#comparison-list").innerHTML = payload.items.map((item) => `<article class="comparison-card"><div><span class="ps-badge ps-badge--info">${escapeHtml(item.status)}</span><h3>${escapeHtml(item.name)}</h3><p>${item.localities.map(escapeHtml).join(" ↔ ")} · ${item.from_month} to ${item.to_month} · ${escapeHtml(item.measure)}</p><p>${escapeHtml(item.notes)}</p></div><div class="row-actions"><button class="ps-button ps-button--small ps-button--primary" data-load="${escapeHtml(item.id)}">Load in crime trends</button><button class="ps-button ps-button--small" data-edit="${escapeHtml(item.id)}">Edit</button><button class="ps-button ps-button--small ps-button--danger" data-delete="${escapeHtml(item.id)}">Delete</button></div></article>`).join("") || `<div class="notice">No saved comparisons yet.</div>`;
+    $$('[data-load]').forEach((button) => button.onclick = () => loadComparison(state.comparisons.find((item) => item.id === button.dataset.load)));
     $$("[data-edit]").forEach((button) => button.onclick = () => openDialog(state.comparisons.find((item) => item.id === button.dataset.edit)));
     $$("[data-delete]").forEach((button) => button.onclick = () => deleteComparison(button.dataset.delete));
   } catch (error) { $("#comparison-list").innerHTML = `<div class="notice">${escapeHtml(error.message)}</div>`; }
+}
+
+function loadComparison(item) {
+  if (!item || item.localities?.length !== 2 || !item.localities.every((locality) => state.suburbs.some((suburb) => suburb.locality === locality))) {
+    toast("This saved comparison cannot be loaded. Choose exactly two currently available suburbs, then save it again.");
+    return;
+  }
+  $("#locality-a").value = item.localities[0];
+  $("#locality-b").value = item.localities[1];
+  $("#from-month").value = item.from_month;
+  $("#to-month").value = item.to_month;
+  $("#measure").value = item.measure;
+  $("#offence").value = "all_recorded";
+  $("#trend-notice").textContent = `Loading saved comparison “${item.name}”…`;
+  location.hash = "#trends";
 }
 
 function openDialog(item = null) {

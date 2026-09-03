@@ -18,6 +18,15 @@ def test_seeded_tables_meet_assessed_minimum(repository: Repository) -> None:
     assert repository.table_counts()["suburb_indicators"] == 400
 
 
+def test_seeded_comparisons_are_loadable(repository: Repository) -> None:
+    supported = {locality for _key, locality, *_rest in SUBURBS}
+    comparisons = repository.comparisons()
+    assert len(comparisons) == len(SUBURBS)
+    assert all(len(item["localities"]) == 2 for item in comparisons)
+    assert all(set(item["localities"]) <= supported for item in comparisons)
+    assert {item["measure"] for item in comparisons} == {"count", "rate"}
+
+
 def test_demo_amenity_filters_and_counts_are_distinct(repository: Repository) -> None:
     assert len(set(DEMO_AMENITIES.values())) == len(SUBURBS)
     for index, kind in enumerate(("school", "transport", "park")):
@@ -50,19 +59,33 @@ def test_existing_demo_upgrade_preserves_other_records_and_is_repeatable(tmp_pat
             "INSERT INTO suburb_amenity VALUES "
             "('custom', 'burwood', 'park', 'Keep me', -33.8, 151.1, 'observed', 'custom')"
         )
-        saved = [tuple(row) for row in connection.execute("SELECT * FROM user_suburbs").fetchall()]
+        connection.execute(
+            "UPDATE user_suburbs SET name='Surry Hills research', "
+            "localities_json='[\"Surry Hills\"]', measure='rate', "
+            "selected_indicators_json='[\"offence_rate\"]' WHERE id='comparison-1'"
+        )
+    custom = store.create_comparison(
+        {
+            "name": "Keep my comparison",
+            "localities": ["Burwood", "Newtown"],
+            "from_month": "2026-02",
+            "to_month": "2026-05",
+            "measure": "count",
+            "notes": "User-created record",
+        }
+    )
     store.initialise()
     counts = store.table_counts()
     store.initialise()
     assert store.table_counts() == counts
     with store.connect() as connection:
-        assert [
-            tuple(row) for row in connection.execute("SELECT * FROM user_suburbs").fetchall()
-        ] == saved
         assert (
             connection.execute("SELECT name FROM suburb_amenity WHERE id='custom'").fetchone()[0]
             == "Keep me"
         )
+    assert store.comparison(custom["id"]) == custom
+    seeded = [item for item in store.comparisons() if item["id"].startswith("comparison-")]
+    assert all(len(item["localities"]) == 2 for item in seeded)
     assert store.area_series("NSW", "Burwood", "amenity_observations")[0]["value"] == 2
 
 
