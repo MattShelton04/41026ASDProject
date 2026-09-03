@@ -13,9 +13,9 @@
 - `tests/`: unit and integration tests for the assigned microservices
 - `Dockerfile`: container definition for the assigned services
 
-The completed feature must support CRUD, contain at least ten records per table,
-integrate with the unified home page and shared styling, interact with the
-approved LLM, and remain part of the integrated group application.
+The Release 0 feature implements CRUD with at least ten deterministic records per table, shared-home
+integration and styling, bounded evidence from public feature APIs, and one AI-mode case-summary
+workflow. See [the Release 0 implementation and evidence guide](docs/release-0-implementation-evidence.md).
 
 ## Approved feature boundary
 
@@ -35,4 +35,5 @@ limitations.
 
 The approved allocation and complete minimum boundary are maintained in the
 [approved feature scope](../docs/architecture/registered-feature-scope.md). This README records
-ownership and planned scope only; no Feature 5 implementation is claimed yet.
+the implemented Release 0 boundary; later-release dossier, MCP, RAG and multi-agent capabilities are
+not claimed.

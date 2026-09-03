@@ -1,9 +1,20 @@
 [project]
 name = "student-5-feature"
 version = "0.1.0"
-description = "Student 5 owned feature slice"
+description = "PropertyScope buyer journey and agent workspace"
 requires-python = ">=3.12,<3.13"
-dependencies = ["shared-contracts"]
+dependencies = [
+    "flask>=3.1,<4",
+    "gunicorn>=23,<24",
+    "shared-contracts",
+]
 
-[tool.uv]
-package = false
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["backend/src", "database/src"]
+
+[tool.setuptools.package-data]
+propertyscope_buyer_store = ["sql/*.sql"]

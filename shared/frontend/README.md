@@ -45,8 +45,8 @@ Agent runs          http://localhost:5100/operations/ai-mode/
 
 Feature 1 remains directly reachable at `http://localhost:5200` for isolated development. Its
 relative static assets and namespaced public API allow the same image to work at either ingress.
-Features 2–5 are approved and allocated, and have reserved registry/base-path entries, but no live
-edge route until their complete feature slice is implemented and enabled.
+Features 2, 4 and 5 are enabled through manifest-generated live edge routes. Feature 3 retains a
+reserved registry/base-path entry and remains visibly unavailable.
 
 A deployment may override them in the same-origin `config.js` loaded before `app.js`:
 
@@ -63,8 +63,9 @@ not contain secrets. Keeping configuration in this external asset satisfies the 
 `script-src 'self'` Content Security Policy; inline configuration is unsupported.
 
 The shell presents product research areas rather than assignment feature/release terminology. Only
-Property records is linked as a live user journey; the other areas remain visibly unavailable and
-do not fall through to Feature 1. Data and agent operations are secondary operator destinations.
+Manifest-enabled research areas are linked as live user journeys. Feature 3 remains visibly
+unavailable and does not fall through to another feature. Data and agent operations are secondary
+operator destinations.
 The shell does not infer service health from a static page or claim future functionality is running.
 
 ## Shared-shell HTMX flow
@@ -79,7 +80,7 @@ HTMX is vendored as version 2.0.10 from the upstream `htmx.org` npm distribution
 evaluation and fragment script execution disabled. `dashboard.test.mjs` verifies its exact SHA-256
 and compares every fragment row with `features.js`: ID, label, owner, canonical route,
 `implemented`, and `enabled`. This deliberate parity check keeps the static no-build fragment honest;
-only Feature 1 is interactive and Features 2–5 remain planned.
+only manifest-enabled features are interactive and Feature 3 remains planned.
 
 Small external JavaScript listeners retain ownership of configuration-link projection, request
 status, retry focus, and re-processing after the shell hash router restores the home markup. Maps,

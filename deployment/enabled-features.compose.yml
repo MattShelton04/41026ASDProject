@@ -44,9 +44,21 @@ services:
   f4-postgres:
     profiles:
     - release-0
+  f5-backend:
+    profiles:
+    - release-0
+  f5-db-api:
+    profiles:
+    - release-0
+  f5-frontend:
+    ports:
+    - 127.0.0.1:${PROPERTYSCOPE_BUYER_WORKSPACES_PORT:-5500}:8080
+    profiles:
+    - release-0
   shared-ai-mode:
     environment:
-      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/market-intelligence-tools.yaml
+      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/market-intelligence-tools.yaml,/etc/ai-mode/buyer-workspace-tools.yaml
     volumes:
     - ./student-1/tool-catalog.yaml:/etc/ai-mode/propertyscope-tools.yaml:ro
     - ./student-2/tool-catalog.yaml:/etc/ai-mode/market-intelligence-tools.yaml:ro
+    - ./student-5/tool-catalog.yaml:/etc/ai-mode/buyer-workspace-tools.yaml:ro

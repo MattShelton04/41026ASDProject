@@ -29,6 +29,16 @@ const VALUES = [
     "healthPath": "/health/ready",
     "owner": "student-4",
     "publicHealthPath": "/api/shared-health/due-diligence"
+  },
+  {
+    "backendBase": "/api/buyer-workspaces/v1",
+    "displayName": "PropertyScope Buyer Journey Workspace",
+    "evidenceAdapterPath": null,
+    "featureKey": "student-5-buyer-journey",
+    "frontendBase": "/features/buyer-workspaces/",
+    "healthPath": "/health/ready",
+    "owner": "student-5",
+    "publicHealthPath": "/api/shared-health/buyer-workspaces"
   }
 ];
 
