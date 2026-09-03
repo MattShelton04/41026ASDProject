@@ -269,6 +269,31 @@ def test_insufficient_database_capacity_fails_despite_artifact_headroom_and_pres
     assert str(tmp_path) not in str(error)
 
 
+@pytest.mark.parametrize("capacity_gib,permitted", [(64, False), (128, True)])
+def test_psi_identity_materialisation_requires_measured_database_headroom(
+    tmp_path: Path, capacity_gib: int, permitted: bool
+) -> None:
+    store = _PreflightStore({"id": uuid.uuid4()})
+    store.current_database_bytes = 6 * 1024**3
+    loader = DatabaseLoader(
+        cast(Any, store),
+        tmp_path,
+        worker_id="loader-identity-headroom",
+        database_capacity_bytes=capacity_gib * 1024**3,
+        disk_free_bytes=lambda _: 1024**4,
+    )
+
+    if permitted:
+        loader._preflight_materialisation_capacity(1, profile="psi-sales")
+    else:
+        with pytest.raises(LoaderResourceLimitError) as raised:
+            loader._preflight_materialisation_capacity(1, profile="psi-sales")
+        assert raised.value.code == "insufficient_loader_database_capacity"
+        assert raised.value.details["database_growth_floor_bytes"] == 24 * 1024**3
+        assert raised.value.details["wal_allowance_bytes"] == 64 * 1024**3
+    assert store.destination_started is False
+
+
 def test_missing_database_capacity_fails_closed_before_database_size_lookup(tmp_path: Path) -> None:
     store = _PreflightStore({"id": uuid.uuid4()})
     loader = DatabaseLoader(

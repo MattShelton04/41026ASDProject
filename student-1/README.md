@@ -71,6 +71,13 @@ the unchanged PostgreSQL typed staging, identity/revision, address-resolution an
 PostgreSQL remains authoritative, historical JSON/NDJSON stays replayable and complete consumer
 release exports remain gzip NDJSON.
 
+PSI exact-address matching uses the accepted, published G-NAF generation and recognised street-type
+equivalents. Unique matches create only the missing registry reference anchors needed for the
+sales foreign key; canonical addresses still come from the accepted warehouse generation. See
+[ADR-038](../docs/architecture/decisions/ADR-038-psi-accepted-gnaf-reference-anchors.md).
+After correcting an import failure, **Use downloaded file** on its run creates a cached reprocess
+with the same scope and lineage. Selected archive-year runs remain partial and non-publishable.
+
 The PSI adapter is verified against real publisher archives and parses every annual archive from
 1990 onward plus current Monday weekly updates. Archives download into temporary files and
 DAT members are consumed as streams, so the archive and expanded records are not duplicated in

@@ -6,7 +6,7 @@
     </div>
   </div>
   {% if success %}<div class="notice positive" data-source-success tabindex="-1" role="status">{{ success }} Request ID {{ request_id }}.</div>{% endif %}
-  <form class="toolbar" hx-get="{{ fragment_base }}" hx-target="#source-crud-region" hx-swap="outerHTML" hx-indicator="#source-list-indicator" hx-disabled-elt="find button[type='submit']">
+  <form class="toolbar" hx-get="{{ fragment_base }}" hx-target="#source-crud-region" hx-swap="outerHTML" hx-sync="this:replace" hx-indicator="#source-list-indicator" hx-disabled-elt="find button[type='submit']">
     <div class="filter-row">
       <label class="field"><span>Search (optional)</span><input type="search" name="q" value="{{ query }}" placeholder="Source or publisher" autocomplete="off" maxlength="200"></label>
       <label class="field"><span>Status (optional)</span><select name="status">

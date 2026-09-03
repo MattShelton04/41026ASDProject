@@ -232,14 +232,14 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
       const saleHistoryHost = pendingSection("Loading accepted sale history…");
       const saleHistoryPanel = panel("Sale history", "Recorded transactions from the current published NSW sales release", saleHistoryHost);
       append(contentColumn, saleHistoryPanel);
-      const technicalBody = el("div", "stack");
+      const technicalBody = el("div", "stack property-sources");
       append(technicalBody, detailList([["PropertyScope reference", el("code", "mono", property.property_ref)], ["Request ID", el("code", "mono", detailResult.requestId)]]));
       const coordinateHost = pendingSection("Loading recorded coordinates…");
       append(technicalBody, coordinateHost);
-      append(technicalBody, evidenceTable("Source identifiers", detailPayload.identifiers || [], [
-        ["Scheme", (item) => item.scheme], ["Identifier", (item) => item.identifier_value], ["Match method", (item) => humanise(item.match_method)], ["Confidence", (item) => item.match_confidence ?? "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"], ["Details", (item) => item.evidence_json ? technicalDetails(item.evidence_json, "Inspect") : "Unknown"],
+      append(technicalBody, evidenceRecords("Source identifiers", detailPayload.identifiers || [], [
+        ["Scheme", (item) => item.scheme], ["Identifier", (item) => el("code", "mono", item.identifier_value)], ["Match method", (item) => humanise(item.match_method)], ["Confidence", (item) => item.match_confidence ?? "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"], ["Details", (item) => item.evidence_json ? technicalDetails(item.evidence_json, "Inspect source evidence") : "Unknown"],
       ], "No source identifiers are recorded. Identity confidence is therefore unknown."));
-      append(technicalBody, evidenceTable("Address aliases", detailPayload.aliases || [], [
+      append(technicalBody, evidenceRecords("Address aliases", detailPayload.aliases || [], [
         ["Alias", (item) => item.alias_display], ["Kind", (item) => humanise(item.alias_kind)], ["Source identifier", (item) => item.source_identifier || "Unknown"], ["Current", (item) => item.is_current ? "Yes" : "No"],
       ], "No address aliases are recorded for this property."));
       const reportHost = pendingSection("Loading source summary…");
@@ -256,7 +256,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
         resolvePendingSection(mapHost);
         resolvePendingSection(coordinateHost);
         mapHost.replaceChildren(propertyMap({ property, latitude, longitude, announce, routeEpoch }));
-        coordinateHost.replaceChildren(coordinateTable({ map, property, latitude, longitude }));
+        coordinateHost.replaceChildren(coordinateDetails({ map, property, latitude, longitude }));
         if (result.status === "rejected") {
           append(mapHost, el("div", "notice warning", `Spatial context is temporarily unavailable; canonical identity remains usable.${problemSuffix(result.reason)}`));
         }
@@ -329,13 +329,13 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
   }
 
   function renderPropertyReportSection(result) {
-    const section = el("section", "panel report-section");
-    const heading = el("div", "panel-heading");
+    const section = el("section", "property-source-section report-section");
+    const heading = el("div");
     const copy = el("div");
     append(copy, el("h3", "", "Source summary"), el("p", "", "Property identity and published dataset details that can be reused in reports"));
     append(heading, copy);
     append(section, heading);
-    const body = el("div", "panel-body");
+    const body = el("div", "stack");
     if (result?.error) {
       append(body, el("div", "notice warning", `The source summary is temporarily unavailable. Property search remains usable.${result.error.requestId ? ` Request ID ${result.error.requestId}` : ""}`));
       append(section, body);
@@ -353,14 +353,16 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     ]));
     const releases = reportReleaseRows(report);
     if (!releases.length) append(body, el("p", "", "No published datasets are available for this summary."));
-    else append(body, makeTable(
-      [{ label: "Dataset" }, { label: "Research area" }, { label: "Version" }, { label: "Status" }, { label: "Published" }, { label: "Coverage" }],
+    else append(body, sourceRecordList(
       releases,
-      (item) => {
-        const row = el("tr");
-        append(row, cell(displayName(item.dataset_id || "—"), "primary-cell"), cell(researchAreaLabel(item.target_feature)), cell(item.release_version || item.dataset_release_id || "—"), cell(badge(item.coverage_status)), cell(formatDate(item.accepted_at || item.checked_at)), cell(item.coverage_scope ? technicalDetails(item.coverage_scope, "Inspect") : "—"));
-        return row;
-      },
+      [
+        ["Dataset", (item) => displayName(item.dataset_id || "—")],
+        ["Research area", (item) => researchAreaLabel(item.target_feature)],
+        ["Version", (item) => el("code", "mono", item.release_version || item.dataset_release_id || "—")],
+        ["Status", (item) => badge(item.coverage_status)],
+        ["Published", (item) => formatDate(item.accepted_at || item.checked_at)],
+        ["Coverage", (item) => item.coverage_scope ? technicalDetails(item.coverage_scope, "Inspect coverage") : "—"],
+      ],
     ));
     if (identity.geometry) append(body, technicalDetails(identity.geometry, "Report coordinates"));
     append(section, body);
@@ -435,21 +437,14 @@ function resolvePendingSection(section) {
   section.removeAttribute("role");
 }
 
-function coordinateTable({ map, property, latitude, longitude }) {
-  return makeTable(
-    [{ label: "Coordinate" }, { label: "Value" }],
-    [
-      { label: "Latitude", value: latitude ?? "Unknown" },
-      { label: "Longitude", value: longitude ?? "Unknown" },
-      { label: "Geometry type", value: map.geometry?.type || property.geometry?.type || "Unknown" },
-    ],
-    (item) => {
-      const row = el("tr");
-      append(row, cell(item.label, "primary-cell"), cell(String(item.value), item.label === "Geometry type" ? "" : "mono"));
-      return row;
-    },
-    "Property coordinates",
-  );
+function coordinateDetails({ map, property, latitude, longitude }) {
+  const section = el("section", "property-source-section");
+  append(section, el("h3", "", "Coordinates"), detailList([
+    ["Latitude", el("code", "mono", latitude ?? "Unknown")],
+    ["Longitude", el("code", "mono", longitude ?? "Unknown")],
+    ["Geometry type", map.geometry?.type || property.geometry?.type || "Unknown"],
+  ]));
+  return section;
 }
 
 function coverageSection(coverage, result) {
@@ -628,11 +623,21 @@ function propertyMap({ property, latitude, longitude, announce, routeEpoch }) {
   return host;
 }
 
-function evidenceTable(title, items, columns, emptyCopy) {
-  const body = el("div", "stack"); append(body, el("h2", "", title));
+function evidenceRecords(title, items, fields, emptyCopy) {
+  const body = el("section", "property-source-section"); append(body, el("h3", "", title));
   if (!items.length) { append(body, el("p", "", emptyCopy)); return body; }
-  append(body, makeTable(columns.map(([label]) => ({ label })), items, (item) => { const row = el("tr"); columns.forEach(([, value], index) => append(row, cell(value(item), index === 0 ? "primary-cell" : ""))); return row; }));
+  append(body, sourceRecordList(items, fields));
   return body;
+}
+
+function sourceRecordList(items, fields) {
+  const list = el("ul", "property-source-records");
+  for (const item of items) {
+    const record = el("li");
+    append(record, detailList(fields.map(([label, value]) => [label, value(item)])));
+    append(list, record);
+  }
+  return list;
 }
 
 function propertyMatchLabel(item) {

@@ -12,6 +12,7 @@ from uuid import UUID
 
 import pytest
 from scripts import ui_smoke
+from scripts.onboarding import load_enabled_projection
 from scripts.ui_fixture_server import LOOPBACK_HOST, SCENARIO_COOKIE, UIFixtureServer
 from scripts.ui_fixture_sources import INTERNAL_SOURCES, FixtureSourceStoreClient
 from scripts.ui_fixtures import (
@@ -349,6 +350,29 @@ def test_detail_routes_do_not_fall_back_to_the_first_record(route: str, code: st
     assert response.status == 404
     assert response.content_type == "application/problem+json"
     assert response.body["code"] == code
+
+
+@pytest.mark.parametrize("scenario", ["populated", "slow", "error"])
+def test_every_enabled_frontend_has_shared_health_fixture(scenario: str) -> None:
+    projection = load_enabled_projection(Path(__file__).resolve().parents[2])
+    for feature in projection.features:
+        frontend = next((route for route in feature.routes if route.kind == "frontend"), None)
+        if frontend is None:
+            continue
+        slug = frontend.path.rstrip("/").rsplit("/", 1)[-1]
+        response = fixture_response("GET", f"/api/shared-health/{slug}", "", scenario)
+        if scenario == "error":
+            assert response.status == 503
+            assert response.body["code"] == "fixture_dependency_unavailable"
+        else:
+            health = TypedHealthProjection.model_validate(response.body)
+            assert response.status == health.http_status == 200
+            assert health.service == f"propertyscope-{slug}"
+            assert health.checks["database"].required is True
+            assert response.delay_seconds == (1.25 if scenario == "slow" else 0)
+
+    unknown = fixture_response("GET", "/api/shared-health/unregistered", "", "populated")
+    assert unknown.status == 404
 
 
 def test_shared_health_evidence_and_ai_operations_projections_are_contract_valid() -> None:

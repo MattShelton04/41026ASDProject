@@ -609,6 +609,16 @@ def test_psi_exact_address_index_matches_null_equivalent_predicates() -> None:
     assert "INCLUDE (property_ref)" in migration
 
 
+def test_gnaf_identity_guard_index_includes_historical_provenance() -> None:
+    migration = (
+        files(MIGRATION_PACKAGE).joinpath("049_index_gnaf_identity_anchors.sql").read_text("utf-8")
+    )
+
+    assert "ON registry.property_identifier (property_ref)" in migration
+    assert "WHERE scheme='gnaf_pid'" in migration
+    assert "WHERE is_current" not in migration
+
+
 def test_consumer_import_identity_and_delivery_are_separately_constrained() -> None:
     initial = (
         files(MIGRATION_PACKAGE)

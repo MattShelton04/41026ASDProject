@@ -36,7 +36,10 @@ export function disclosurePanel(title, subtitle = "", body = null, { open = fals
   const copy = el("span", "disclosure-copy");
   append(copy, el("span", "disclosure-title", title));
   if (subtitle) append(copy, el("span", "disclosure-subtitle", subtitle));
-  append(summary, copy, el("span", "disclosure-action", "Show details"));
+  const action = el("span", "disclosure-action");
+  action.setAttribute("aria-hidden", "true");
+  append(action, el("span", "disclosure-show", "Show details"), el("span", "disclosure-hide", "Hide details"));
+  append(summary, copy, action);
   append(details, summary);
   if (body) {
     if (!body.classList.contains("table-wrap")) body.classList.add("panel-body");
