@@ -5,6 +5,82 @@ const API = "/api/suburb-analytics/v1";
 const state = { suburbs: [], places: [], map: null, comparisons: [], assistant: null, selectedLocality: "" };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+let suburbSelection = 0;
+let suburbFilterGeneration = 0;
+let suburbSearchTimer;
+const BOOKMARK_KEY = "propertyscope.suburb-analytics.bookmarks.v1";
+let bookmarks = [];
+
+function loadBookmarks() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(BOOKMARK_KEY) || "[]");
+    bookmarks = Array.isArray(saved) ? [...new Set(saved.filter((value) => typeof value === "string" && value.length <= 100))] : [];
+  } catch { bookmarks = []; }
+  updateBookmarkControls();
+}
+
+function updateBookmarkControls() {
+  $("#show-bookmarks").textContent = `Bookmarked suburbs (${bookmarks.length})`;
+  const button = $("#bookmark-suburb");
+  if (button) {
+    const saved = bookmarks.includes(button.dataset.locality);
+    button.textContent = saved ? "Remove bookmark" : "Bookmark suburb";
+    button.setAttribute("aria-pressed", String(saved));
+  }
+}
+
+function toggleBookmark(locality) {
+  const saved = bookmarks.includes(locality);
+  const next = saved ? bookmarks.filter((item) => item !== locality) : [...bookmarks, locality];
+  try { localStorage.setItem(BOOKMARK_KEY, JSON.stringify(next)); }
+  catch { toast("Could not save bookmarks. Browser storage may be unavailable."); return; }
+  bookmarks = next;
+  updateBookmarkControls();
+  toast(`${locality} ${saved ? "removed from" : "added to"} your bookmarks.`);
+}
+
+function renderBookmarks() {
+  const list = $("#bookmark-list");
+  list.replaceChildren();
+  $("#bookmark-empty").hidden = bookmarks.length > 0;
+  [...bookmarks].sort((a, b) => a.localeCompare(b)).forEach((locality) => {
+    const row = document.createElement("li");
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "ps-button";
+    open.textContent = locality;
+    open.disabled = !state.suburbs.some((item) => item.locality === locality);
+    open.addEventListener("click", () => {
+      $("#bookmark-dialog").close();
+      chooseSuburb(locality).then(() => {
+        if (state.selectedLocality === locality && !$("#suburb-detail").hidden) {
+          $("#suburb-detail").scrollIntoView({ block: "nearest" });
+          $("#bookmark-suburb").focus({ preventScroll: true });
+        }
+      });
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "ps-button ps-button--small";
+    remove.textContent = "Remove";
+    remove.setAttribute("aria-label", `Remove ${locality} bookmark`);
+    remove.addEventListener("click", () => {
+      toggleBookmark(locality);
+      renderBookmarks();
+      (list.querySelector("button") || $("#close-bookmarks")).focus();
+    });
+    row.append(open, remove);
+    list.append(row);
+  });
+}
+
+function chooseSuburb(locality) {
+  return selectSuburb(locality).catch((error) => {
+    if (state.selectedLocality !== locality) return;
+    announce(`Could not load ${locality}: ${error.message}`);
+    toast(`Could not load ${locality}. Please try again.`);
+  });
+}
 
 async function api(path, options = {}) {
   const response = await fetch(`${API}${path}`, { headers: { Accept: "application/json", "Content-Type": "application/json" }, ...options });
@@ -35,6 +111,7 @@ function optionMarkup(selected = "") {
 }
 
 function populateSelectors() {
+  $("#suburb-search-options").innerHTML = state.suburbs.map((item) => `<option value="${escapeHtml(item.locality)}"></option>`).join("");
   ["#locality-a", "#locality-b", "#comparison-a", "#comparison-b"].forEach((id, index) => { $(id).innerHTML = optionMarkup(state.suburbs[index % 2]?.locality); });
   const lgas = [...new Set(state.suburbs.map((item) => item.lga))].sort();
   $("#lga-filter").innerHTML = `<option value="">All areas</option>${lgas.map((item) => `<option>${escapeHtml(item)}</option>`).join("")}`;
@@ -43,7 +120,7 @@ function populateSelectors() {
 function renderSuburbs(items) {
   $("#result-count").textContent = `${items.length} supported ${items.length === 1 ? "suburb" : "suburbs"}`;
   $("#suburb-cards").innerHTML = items.map((item) => `<article class="suburb-card"><button type="button" data-locality="${escapeHtml(item.locality)}"><span class="ps-badge ps-badge--partial">Partial fixture</span><h3>${escapeHtml(item.locality)}</h3><span class="suburb-meta"><span>${escapeHtml(item.postcode)}</span><span>${escapeHtml(item.lga)}</span></span></button></article>`).join("");
-  $$("[data-locality]").forEach((button) => button.addEventListener("click", () => selectSuburb(button.dataset.locality)));
+  $$("[data-locality]").forEach((button) => button.addEventListener("click", () => chooseSuburb(button.dataset.locality)));
 }
 
 function selectedPlaceTypes() { return new Set($$(".filters input:checked").map((input) => input.value)); }
@@ -60,7 +137,10 @@ function suburbFeatures(items) {
 async function initialiseMap() {
   const suburbPoints = suburbFeatures(state.suburbs);
   try {
-    state.map = await createMap({ container: $("#map"), provider: createOpenFreeMapProvider(), layers: [{ id: "suburbs", label: "Supported suburbs", kind: "point", data: suburbPoints, style: { color: "#086d70", radius: 7 }, popup: { title: "name", fields: [{ label: "Postcode", property: "postcode" }] } }], view: { center: [151.12, -33.88], zoom: 9 } });
+    state.map = await createMap({ container: $("#map"), provider: createOpenFreeMapProvider(), layers: [
+      { id: "suburbs", label: "Supported suburbs", kind: "point", data: suburbPoints, style: { color: "#086d70", radius: 7 }, onSelect: (feature) => chooseSuburb(feature.properties.name) },
+      { id: "places", label: "Filtered places", kind: "point", data: featureCollection([]), style: { color: "#d67359", radius: 6 }, popup: { title: "name", fields: [{ label: "Type", property: "type" }] } },
+    ], view: { center: [151.12, -33.88], zoom: 9 } });
     $("#map-legend").innerHTML = `<span>● Supported suburb</span><span>◆ Place</span>`;
   } catch (error) {
     $("#map").hidden = true; $("#map-fallback").hidden = false;
@@ -71,6 +151,13 @@ async function initialiseMap() {
 async function selectSuburb(locality) {
   const suburb = state.suburbs.find((item) => item.locality === locality);
   if (!suburb) return;
+  const selection = ++suburbSelection;
+  state.selectedLocality = locality;
+  state.places = [];
+  $("#suburb-detail").hidden = true;
+  state.map?.setLayerData("places", featureCollection([]));
+  state.map?.flyTo({ longitude: suburb.longitude, latitude: suburb.latitude, zoom: 14 });
+  announce(`Loading amenities for ${locality}…`);
   const [payload, summary, density, amenityCount, schoolCount, transportCount] = await Promise.all([
     api(`/suburbs/NSW/${encodeURIComponent(locality)}/places?limit=50`),
     api(`/suburbs/NSW/${encodeURIComponent(locality)}`),
@@ -79,6 +166,7 @@ async function selectSuburb(locality) {
     api(`/suburbs/NSW/${encodeURIComponent(locality)}/area-series?metric=school_observations`),
     api(`/suburbs/NSW/${encodeURIComponent(locality)}/area-series?metric=transport_observations`),
   ]);
+  if (selection !== suburbSelection) return;
   state.selectedLocality = locality;
   state.places = payload.items.filter((place) => selectedPlaceTypes().has(place.place_type));
   renderSuburbDetail(summary.suburb, {
@@ -90,16 +178,7 @@ async function selectSuburb(locality) {
   state.assistant?.controller.setContext({ route: "suburbs/detail", locality });
   if (state.map) {
     const points = featureCollection(state.places.map((place) => pointFeature(place.longitude, place.latitude, { name: place.name, type: place.place_type }, place.id)));
-    if (state.map.layerIds.includes("places")) state.map.setLayerData("places", points);
-    else {
-      // The shared controller's initial layer set is immutable, so rebuild once when places first appear.
-      state.map.destroy();
-      state.map = await createMap({ container: $("#map"), provider: createOpenFreeMapProvider(), layers: [
-        { id: "suburbs", label: "Supported suburbs", kind: "point", data: suburbFeatures(state.suburbs), style: { color: "#086d70", radius: 7 }, popup: { title: "name" } },
-        { id: "places", label: "Filtered places", kind: "point", data: points, style: { color: "#d67359", radius: 6 }, popup: { title: "name", fields: [{ label: "Type", property: "type" }] } },
-      ], view: { center: [suburb.longitude, suburb.latitude], zoom: 13 } });
-    }
-    state.map.flyTo({ longitude: suburb.longitude, latitude: suburb.latitude, zoom: 13 });
+    state.map.setLayerData("places", points);
   }
   announce(`${state.places.length} filtered places shown for ${locality}.`);
 }
@@ -118,31 +197,60 @@ function renderSuburbDetail(suburb, metrics) {
     $("#locality-a").value = suburb.locality;
     location.hash = "#trends";
   });
+  const bookmark = document.createElement("button");
+  bookmark.id = "bookmark-suburb";
+  bookmark.type = "button";
+  bookmark.className = "ps-button ps-button--small";
+  bookmark.dataset.locality = suburb.locality;
+  bookmark.addEventListener("click", () => toggleBookmark(suburb.locality));
+  detail.querySelector(".suburb-detail__heading").append(bookmark);
+  updateBookmarkControls();
 }
 
 async function search(event) {
-  event.preventDefault(); const query = new FormData(event.currentTarget).get("q").trim();
-  await filterSuburbs(query);
+  event.preventDefault();
+  await filterSuburbs();
+}
+
+function scheduleSuburbSearch(event) {
+  clearTimeout(suburbSearchTimer);
+  ++suburbFilterGeneration;
+  if (event.isComposing) return;
+  $("#search-status").textContent = "Updating suburb results…";
+  suburbSearchTimer = setTimeout(() => filterSuburbs(), 250);
 }
 
 async function filterSuburbs(query = $("#search").value.trim()) {
+  clearTimeout(suburbSearchTimer);
+  const generation = ++suburbFilterGeneration;
+  $("#search-status").textContent = "Updating suburb results…";
+  try {
   const params = new URLSearchParams({ q: query, limit: "50", sort: $("#sort-filter").value });
   if ($("#lga-filter").value) params.set("lga", $("#lga-filter").value);
   if ($("#amenity-filter").value) params.set("amenity", $("#amenity-filter").value);
   const payload = await api(`/suburbs?${params}`);
+  if (generation !== suburbFilterGeneration) return;
   renderSuburbs(payload.items);
-  if (payload.items.length && !payload.items.some((item) => item.locality === state.selectedLocality)) {
-    await selectSuburb(payload.items[0].locality);
-  } else if (!payload.items.length) {
+  $("#search-status").textContent = payload.items.length
+    ? `${payload.items.length} matching ${payload.items.length === 1 ? "suburb" : "suburbs"}.`
+    : "No matching suburbs. Check the spelling, try a postcode, or clear the search and map filters.";
+  if (state.map?.layerIds.includes("suburbs")) {
+    state.map.setLayerData("suburbs", suburbFeatures(payload.items));
+  }
+  if (state.selectedLocality && !payload.items.some((item) => item.locality === state.selectedLocality)) {
+    ++suburbSelection;
+    state.map?.setLayerData("places", featureCollection([]));
     state.selectedLocality = "";
     state.places = [];
     $("#suburb-detail").hidden = true;
     state.assistant?.controller.setContext({ route: "suburbs" });
   }
-  if (state.map?.layerIds.includes("suburbs")) {
-    state.map.setLayerData("suburbs", suburbFeatures(payload.items));
-  }
+  if (generation !== suburbFilterGeneration) return;
   announce(`${payload.page?.total ?? payload.count} suburb results.`);
+  } catch (error) {
+    if (generation !== suburbFilterGeneration) return;
+    $("#search-status").textContent = `Could not update suburbs: ${error.message} Previous results are still shown. Try again.`;
+  }
 }
 
 async function compareTrends(event) {
@@ -225,11 +333,22 @@ function initialiseAssistant() {
 }
 
 async function init() {
+  $("#search").addEventListener("input", scheduleSuburbSearch);
+  $("#search").addEventListener("compositionend", scheduleSuburbSearch);
+  loadBookmarks();
+  $("#show-bookmarks").addEventListener("click", () => { renderBookmarks(); $("#bookmark-dialog").showModal(); });
+  $("#close-bookmarks").addEventListener("click", () => $("#bookmark-dialog").close());
+  addEventListener("storage", (event) => {
+    if (event.key === BOOKMARK_KEY || event.key === null) {
+      loadBookmarks();
+      if ($("#bookmark-dialog").open) renderBookmarks();
+    }
+  });
   addEventListener("hashchange", route); $("#search-form").addEventListener("submit", search); $("#trend-form").addEventListener("submit", compareTrends); $("#new-comparison").onclick = () => openDialog(); $("#comparison-form").addEventListener("submit", saveComparison); initialiseAssistant();
   ["#lga-filter", "#amenity-filter", "#sort-filter"].forEach((selector) => $(selector).addEventListener("change", () => filterSuburbs()));
   $$(".filters input").forEach((input) => input.addEventListener("change", () => {
     const current = state.selectedLocality || state.suburbs[0]?.locality;
-    if (current) selectSuburb(current);
+    if (current) chooseSuburb(current);
   }));
   try { const [health, suburbs] = await Promise.all([fetch(new URL("./health/ready", import.meta.url)).then((response) => response.json()), api("/suburbs?limit=50")]); state.suburbs = suburbs.items; $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = health.status === "ready" ? "Data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
   route();

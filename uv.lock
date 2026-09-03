@@ -1024,12 +1024,18 @@ version = "0.1.0"
 source = { virtual = "student-3" }
 dependencies = [
     { name = "gunicorn" },
+    { name = "httpx" },
+    { name = "jsonschema" },
+    { name = "shared-consumer-protocol" },
     { name = "shared-contracts" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "gunicorn", specifier = ">=23,<24" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "jsonschema", specifier = ">=4.26.0" },
+    { name = "shared-consumer-protocol", editable = "shared/consumer-protocol" },
     { name = "shared-contracts", editable = "shared/contracts" },
 ]
 

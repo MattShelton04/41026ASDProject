@@ -35,6 +35,7 @@ def test_suburb_services_use_http_and_exclusively_owned_storage() -> None:
     base = yaml.safe_load((ROOT / "docker-compose.yml").read_text("utf-8"))["services"]
     assert base["f3-backend"]["environment"] == {
         "SUBURB_STORE_URL": "http://f3-database:5302",
+        "SUBURB_IMPORT_WORKER": "1",
         "AI_MODE_URL": "http://shared-ai-mode:5005",
         "PROPERTY_DATA_URL": "http://f1-backend:5201",
     }

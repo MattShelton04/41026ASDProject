@@ -30,7 +30,13 @@ class HttpClient:
         )
         try:
             with urlopen(request, timeout=self.timeout) as response:
-                return json.loads(response.read(1_048_576))
+                body = response.read(16_777_217)
+                if len(body) > 16_777_216:
+                    raise ServiceError(502, {"code": "dependency_response_too_large"})
+                result = json.loads(body)
+                if not isinstance(result, dict):
+                    raise ServiceError(502, {"code": "invalid_dependency_response"})
+                return result
         except HTTPError as exc:
             try:
                 body = json.loads(exc.read(65_536))

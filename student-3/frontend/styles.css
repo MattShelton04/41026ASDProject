@@ -34,3 +34,13 @@ dialog{width:min(650px,calc(100vw - 2rem));padding:0;border:0;border-radius:16px
   .context-grid { grid-template-columns: 1fr; }
   .suburb-detail__heading { flex-direction: column; }
 }
+#published-more[hidden] { display: none; }
+#map-fallback[hidden] { display: none; }
+.suburb-search { margin-top: 1.5rem; }
+.bookmark-toolbar { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+.bookmark-dialog-body { padding: 1.4rem; }
+#bookmark-dialog { max-height: calc(100dvh - 2rem); overflow-y: auto; }
+#bookmark-list { display: grid; gap: .75rem; padding: 0; list-style: none; }
+#bookmark-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; }
+.suburb-detail__heading { flex-wrap: wrap; }
+#bookmark-suburb[aria-pressed="true"] { background: var(--ps-ocean-100); color: var(--ps-ocean-800); }

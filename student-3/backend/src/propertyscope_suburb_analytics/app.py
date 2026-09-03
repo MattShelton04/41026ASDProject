@@ -9,7 +9,10 @@ from http import HTTPStatus
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote
 
+import httpx
+
 from .clients import HttpClient, ServiceError
+from .ingestion import IMPORT_PATH, Ingestion, correlation
 
 StartResponse = Callable[[str, list[tuple[str, str]]], None]
 BASE = "/api/suburb-analytics/v1"
@@ -46,7 +49,9 @@ def _problem(start: StartResponse, status: int, code: str, detail: str) -> Itera
 
 
 def _body(environ: dict[str, Any]) -> dict[str, Any]:
-    length = min(int(environ.get("CONTENT_LENGTH") or 0), 65_536)
+    length = int(environ.get("CONTENT_LENGTH") or 0)
+    if length > 2_000_000:
+        raise ValueError("body_too_large")
     value = json.loads(environ["wsgi.input"].read(length)) if length else {}
     if not isinstance(value, dict):
         raise ValueError("body must be an object")
@@ -81,6 +86,9 @@ def create_app(
     properties = property_data or HttpClient(
         os.getenv("PROPERTY_DATA_URL", "http://f1-backend:5201"), timeout=4.0
     )
+    ingestion = Ingestion(data, properties.base_url)
+    if os.getenv("SUBURB_IMPORT_WORKER") == "1":
+        ingestion.start()
 
     def app(environ: dict[str, Any], start: StartResponse) -> Iterable[bytes]:
         method = environ.get("REQUEST_METHOD", "GET")
@@ -88,6 +96,60 @@ def create_app(
         raw_query = environ.get("QUERY_STRING", "")
         query = {key: values[-1] for key, values in parse_qs(raw_query).items()}
         try:
+            if path == IMPORT_PATH and method == "POST":
+                return _response(
+                    start,
+                    202,
+                    ingestion.enqueue(
+                        _body(environ),
+                        correlation(environ),
+                        environ.get("HTTP_IDEMPOTENCY_KEY", ""),
+                    ),
+                )
+            if path.startswith(IMPORT_PATH + "/") and method == "GET":
+                return _response(
+                    start,
+                    200,
+                    data.request(
+                        "GET",
+                        "/internal/v1/imports/"
+                        + quote(path.removeprefix(IMPORT_PATH + "/"), safe=""),
+                    ),
+                )
+            if (
+                path.startswith(f"{BASE}/data-imports/")
+                and path.endswith("/retry")
+                and method == "POST"
+            ):
+                operation = quote(
+                    path.removeprefix(f"{BASE}/data-imports/").removesuffix("/retry"), safe=""
+                )
+                return _response(
+                    start, 202, data.request("POST", f"/internal/v1/imports/{operation}/retry", {})
+                )
+            if (
+                path.startswith(f"{BASE}/data-imports/")
+                and path.endswith("/sync")
+                and method == "POST"
+            ):
+                dataset = path.removeprefix(f"{BASE}/data-imports/").removesuffix("/sync")
+                return _response(start, 202, ingestion.sync(dataset, correlation(environ)))
+            if (
+                path
+                in {
+                    f"{BASE}/published/sources",
+                    f"{BASE}/published/suburbs",
+                    f"{BASE}/published/context",
+                }
+                and method == "GET"
+            ):
+                return _response(
+                    start,
+                    200,
+                    data.request(
+                        "GET", "/internal/v1/" + path.removeprefix(BASE + "/") + "?" + raw_query
+                    ),
+                )
             if path in {"/health/live", "/health/ready"}:
                 health = data.request("GET", "/health/ready")
                 return _response(
@@ -459,6 +521,18 @@ def create_app(
                         },
                     )
                     return _response(start, 202, run)
+        except httpx.HTTPStatusError as exc:
+            return _problem(
+                start,
+                503 if exc.response.status_code >= 500 else 409,
+                "published_source_unavailable",
+                "An accepted downloadable source release is not available. "
+                "Review it in Feature 1 first.",
+            )
+        except httpx.HTTPError:
+            return _problem(
+                start, 503, "producer_unavailable", "The data platform could not be reached."
+            )
         except ValueError as exc:
             return _problem(start, 422, "invalid_request", str(exc))
         except ServiceError as exc:

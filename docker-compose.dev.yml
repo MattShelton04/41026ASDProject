@@ -124,6 +124,7 @@ services:
     volumes:
       - ./student-3/frontend/index.html:/usr/share/nginx/html/index.html:ro
       - ./student-3/frontend/app.js:/usr/share/nginx/html/app.js:ro
+      - ./student-3/frontend/published.js:/usr/share/nginx/html/published.js:ro
       - ./student-3/frontend/styles.css:/usr/share/nginx/html/styles.css:ro
       - ./shared/frontend/design-system:/usr/share/nginx/html/design-system:ro
       - ./shared/frontend/browser:/usr/share/nginx/html/browser:ro

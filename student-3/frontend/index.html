@@ -11,8 +11,9 @@
   <link rel="stylesheet" href="./design-system/components.css">
   <link rel="stylesheet" href="./mapping/mapping.css">
   <link rel="stylesheet" href="./ai-chat/styles.css">
-  <link rel="stylesheet" href="./styles.css">
-  <script type="module" src="./app.js?v=feature3-integrated"></script>
+  <link rel="stylesheet" href="./styles.css?v=overview-search">
+  <script type="module" src="./app.js?v=click-to-select-suburbs"></script>
+  <script type="module" src="./published.js?v=2"></script>
 </head>
 <body>
   <a class="ps-skip-link" href="#main">Skip to suburb analytics</a>
@@ -30,6 +31,7 @@
       <p class="nav-label">Explore</p>
       <a href="#explore" data-route="explore" aria-current="page">Overview &amp; map</a>
       <a href="#trends" data-route="trends">Crime trends</a>
+      <a href="#published" data-route="published">Published evidence</a>
       <p class="nav-label">Your research</p>
       <a href="#comparisons" data-route="comparisons">Saved comparisons</a>
       <a href="#assistant" data-route="assistant">Ask AI about trends</a>
@@ -39,14 +41,32 @@
       <div id="live" class="ps-sr-only" aria-live="polite"></div>
       <section class="hero">
         <div><p class="ps-eyebrow">Suburb, crime &amp; liveability analytics</p><h1>Understand a suburb through evidence, not a score.</h1><p>Compare recorded trends over the same period, explore nearby places and keep source coverage in view.</p></div>
-        <form id="search-form" class="ps-input-shell" role="search">
-          <span aria-hidden="true">⌕</span><label class="ps-sr-only" for="search">Search suburb or postcode</label>
-          <input id="search" name="q" type="search" placeholder="Try Parramatta or 2150" minlength="2" maxlength="80">
-          <button class="ps-button ps-button--primary" type="submit">Search</button>
-        </form>
+      </section>
+      <section id="published-view" class="view" data-view="published" aria-labelledby="published-title" hidden>
+        <section class="ps-card" aria-labelledby="published-title"><div class="ps-card__body">
+          <h2 id="published-title">Published evidence</h2>
+          <p>Published data updates automatically in the background. Browse the latest imported evidence here; no manual sync is needed. Overview &amp; map and Crime trends remain separate demonstration views.</p>
+          <p id="published-availability" role="status">Checking available evidence…</p>
+          <form id="published-search"><label for="published-query">Search imported NSW localities</label><input id="published-query" type="search" maxlength="100"><button class="ps-button" type="submit">Search imported data</button></form>
+          <div id="published-localities"></div>
+          <button id="published-more" class="ps-button" type="button" hidden>More localities</button>
+          <div id="published-context" aria-live="polite"></div>
+          <details id="data-maintenance"><summary>Data maintenance (operators)</summary>
+          <p>Optional diagnostics and manual recovery. Shared dataset acquisition and publication still require team approval.</p>
+          <div id="published-sources" role="status">Checking imported releases…</div>
+          <div class="dialog-actions">
+            <button class="ps-button" type="button" data-sync="bocsar-crime">Sync accepted crime release</button>
+            <button class="ps-button" type="button" data-sync="abs-seifa-2021">Sync accepted population release</button>
+            <button class="ps-button" type="button" data-sync="nsw-government-schools">Sync accepted schools release</button>
+            <button class="ps-button" type="button" id="published-refresh">Refresh import status</button>
+          </div>
+          <p id="published-message" role="status"></p>
+          </details>
+        </div></section>
       </section>
       <section id="explore-view" class="view" data-view="explore">
         <div class="section-heading"><div><p class="ps-eyebrow">Supported localities</p><h2>Explore the current demonstration footprint</h2></div><p id="result-count">Loading suburbs…</p></div>
+        <div class="bookmark-toolbar"><button id="show-bookmarks" class="ps-button" type="button" aria-haspopup="dialog" aria-controls="bookmark-dialog">Bookmarked suburbs (0)</button></div>
         <div class="explore-grid">
           <section class="ps-card filters" aria-labelledby="filter-title"><div class="ps-card__body">
             <h3 id="filter-title">Map filters</h3>
@@ -63,6 +83,13 @@
           </div>
         </div>
         <section id="suburb-detail" class="suburb-detail ps-card" aria-live="polite" hidden></section>
+        <form id="search-form" class="ps-input-shell suburb-search" role="search" aria-label="Search overview suburbs">
+          <span aria-hidden="true">⌕</span><label class="ps-sr-only" for="search">Search suburb or postcode</label>
+          <input id="search" name="q" type="search" placeholder="Type a suburb or postcode…" maxlength="80" list="suburb-search-options" aria-describedby="search-status">
+          <datalist id="suburb-search-options"></datalist>
+          <button class="ps-button ps-button--primary" type="submit">Search</button>
+        </form>
+        <p id="search-status" class="fine-print" role="status">Results update as you type. Clear the search to show all suburbs matching your map filters.</p>
         <div id="suburb-cards" class="suburb-grid" aria-live="polite"></div>
       </section>
       <section id="trends-view" class="view" data-view="trends" hidden>
@@ -87,6 +114,14 @@
     </main>
   </div>
   <dialog id="comparison-dialog"><form id="comparison-form" method="dialog"><div class="dialog-heading"><div><p class="ps-eyebrow">Saved research</p><h2 id="dialog-title">New comparison</h2></div><button value="cancel" aria-label="Close">×</button></div><input id="comparison-id" type="hidden"><input id="comparison-version" type="hidden"><label>Name<input id="comparison-name" required maxlength="100"></label><div class="form-grid"><label>Suburb A<select id="comparison-a" required></select></label><label>Suburb B<select id="comparison-b" required></select></label><label>From<input id="comparison-from" type="month" value="2026-01" required></label><label>To<input id="comparison-to" type="month" value="2026-06" required></label><label>Measure<select id="comparison-measure"><option value="count">Count</option><option value="rate">Rate</option></select></label><label>Status<select id="comparison-status"><option value="saved">Saved</option><option value="reviewing">Reviewing</option><option value="complete">Complete</option></select></label></div><label>Notes<textarea id="comparison-notes" rows="4" maxlength="1000"></textarea></label><p id="form-error" role="alert"></p><div class="dialog-actions"><button class="ps-button" value="cancel">Cancel</button><button id="save-comparison" class="ps-button ps-button--primary" value="save">Save comparison</button></div></form></dialog>
+  <dialog id="bookmark-dialog" aria-labelledby="bookmark-title" aria-describedby="bookmark-help">
+    <div class="bookmark-dialog-body">
+      <div class="dialog-heading"><h2 id="bookmark-title">Bookmarked suburbs</h2><button id="close-bookmarks" type="button" aria-label="Close bookmarked suburbs" autofocus>×</button></div>
+      <p id="bookmark-help">Saved in this browser for this site, not to an account. Select a suburb to view it on the map. Unavailable suburbs cannot be opened.</p>
+      <p id="bookmark-empty">No bookmarked suburbs yet. Select a suburb on the map or in the suburb list, then choose “Bookmark suburb”.</p>
+      <ul id="bookmark-list"></ul>
+    </div>
+  </dialog>
   <div id="toast" class="ps-toast" role="status" aria-live="polite"></div>
 </body>
 </html>

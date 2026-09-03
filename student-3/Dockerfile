@@ -22,6 +22,7 @@ COPY student-4/pyproject.toml student-4/pyproject.toml
 COPY student-5/pyproject.toml student-5/pyproject.toml
 RUN uv sync --locked --no-dev --package student-3-feature --no-install-workspace
 COPY shared/contracts/python shared/contracts/python
+COPY shared/consumer-protocol/python shared/consumer-protocol/python
 RUN uv sync --locked --no-dev --package student-3-feature && uv cache clean
 
 FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
@@ -30,6 +31,7 @@ WORKDIR /app
 RUN groupadd --gid 10003 propertyscope && useradd --uid 10003 --gid propertyscope --create-home --shell /usr/sbin/nologin propertyscope
 COPY --from=builder --chown=propertyscope:propertyscope /app/.venv /app/.venv
 COPY --from=builder --chown=propertyscope:propertyscope /app/shared/contracts /app/shared/contracts
+COPY --from=builder --chown=propertyscope:propertyscope /app/shared/consumer-protocol /app/shared/consumer-protocol
 
 FROM runtime AS database
 ENV PYTHONPATH=/app/student-3/database/src PORT=5302 SUBURB_DB_PATH=/var/lib/propertyscope-suburbs/suburbs.sqlite3

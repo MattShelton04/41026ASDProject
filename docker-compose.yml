@@ -185,6 +185,7 @@ services:
       PROPERTYSCOPE_PSI_CACHED_YEARS: ${PROPERTYSCOPE_PSI_CACHED_YEARS:-}
       PROPERTYSCOPE_PSI_CACHED_WEEKS: ${PROPERTYSCOPE_PSI_CACHED_WEEKS:-}
       PROPERTYSCOPE_FEATURE_2_URL: http://f2-backend:5301
+      PROPERTYSCOPE_FEATURE_3_URL: http://f3-backend:5301
     depends_on:
       f1-db-api:
         condition: service_healthy
@@ -359,6 +360,7 @@ services:
     restart: unless-stopped
     environment:
       SUBURB_STORE_URL: http://f3-database:5302
+      SUBURB_IMPORT_WORKER: "1"
       AI_MODE_URL: http://shared-ai-mode:5005
       PROPERTY_DATA_URL: http://f1-backend:5201
     depends_on:
