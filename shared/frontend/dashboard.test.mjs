@@ -43,7 +43,8 @@ test("shared assistant wrapper owns product and feature vocabulary", () => {
 test("feature registry is the bounded source for shell routes and availability", () => {
   const features = featureRegistry();
   assert.equal(features.length, 5);
-  assert.equal(features.filter((item) => item.href).length, 4);
+  assert.equal(features.filter((item) => item.href).length, 5);
+  assert.equal(findFeature("suburb-analytics").href, "/features/suburb-analytics/#suburbs");
   assert.equal(findFeature("data-platform").href, "/features/data-platform/#properties");
   assert.equal(findFeature("student-4-due-diligence").frontendBase, "/features/due-diligence/");
   assert.equal(
@@ -144,7 +145,7 @@ test("research-area fragment stays in exact parity with the feature registry", (
 test("capability manifest separates implemented, enabled and planned states", () => {
   const manifest = capabilityManifest({ featureHrefs: { "property-records": "/properties" }, agentRuns: "/runs" });
   assert.equal(manifest.release, "release-0");
-  assert.equal(manifest.features.filter((item) => item.enabled).length, 4);
+  assert.equal(manifest.features.filter((item) => item.enabled).length, 5);
   assert.equal(manifest.features.find((item) => item.id === "property-records").href, "/properties");
   assert.equal(
     manifest.features.find((item) => item.id === "sales-market").href,

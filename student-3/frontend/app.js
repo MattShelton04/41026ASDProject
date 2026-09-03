@@ -231,7 +231,7 @@ async function init() {
     const current = state.selectedLocality || state.suburbs[0]?.locality;
     if (current) selectSuburb(current);
   }));
-  try { const [health, suburbs] = await Promise.all([fetch("/health/ready").then((response) => response.json()), api("/suburbs?limit=50")]); state.suburbs = suburbs.items; $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = health.status === "ready" ? "Data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
+  try { const [health, suburbs] = await Promise.all([fetch(new URL("./health/ready", import.meta.url)).then((response) => response.json()), api("/suburbs?limit=50")]); state.suburbs = suburbs.items; $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = health.status === "ready" ? "Data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
   route();
 }
 

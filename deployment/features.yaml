@@ -4,6 +4,8 @@ features:
     enabled: true
   - feature_key: student-2-market-intelligence
     enabled: true
+  - feature_key: student-3-suburb-analytics
+    enabled: true
   - feature_key: student-4-due-diligence
     enabled: true
   - feature_key: student-5-buyer-journey

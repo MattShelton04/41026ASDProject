@@ -328,6 +328,61 @@ services:
       timeout: 3s
       retries: 20
 
+  f3-database:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-3-suburb-analytics
+    build:
+      context: .
+      dockerfile: student-3/Dockerfile
+      target: database
+    image: propertyscope/f3-database:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      SUBURB_DB_PATH: /var/lib/propertyscope-suburbs/suburbs.sqlite3
+    volumes:
+      - f3-suburb-data:/var/lib/propertyscope-suburbs
+    networks: [shared-platform]
+    stop_grace_period: 20s
+
+  f3-backend:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-3-suburb-analytics
+    build:
+      context: .
+      dockerfile: student-3/Dockerfile
+      target: backend
+    image: propertyscope/f3-backend:dev
+    init: true
+    restart: unless-stopped
+    environment:
+      SUBURB_STORE_URL: http://f3-database:5302
+      AI_MODE_URL: http://shared-ai-mode:5005
+      PROPERTY_DATA_URL: http://f1-backend:5201
+    depends_on:
+      f3-database:
+        condition: service_healthy
+    networks: [shared-platform]
+    stop_grace_period: 35s
+
+  f3-frontend:
+    profiles: [feature-base]
+    labels:
+      propertyscope.feature-key: student-3-suburb-analytics
+    build:
+      context: .
+      dockerfile: student-3/Dockerfile
+      target: frontend
+    image: propertyscope/f3-frontend:dev
+    init: true
+    restart: unless-stopped
+    depends_on:
+      f3-backend:
+        condition: service_healthy
+    networks: [shared-platform]
+
   f4-postgres:
     profiles: [feature-base]
     labels:
@@ -520,5 +575,6 @@ volumes:
   f1-artifacts:
   f1-postgres-data:
   f2-sqlite-data:
+  f3-suburb-data:
   f4-postgres-data:
   f5-sqlite-data:

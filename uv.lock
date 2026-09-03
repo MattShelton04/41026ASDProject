@@ -1023,11 +1023,15 @@ name = "student-3-feature"
 version = "0.1.0"
 source = { virtual = "student-3" }
 dependencies = [
+    { name = "gunicorn" },
     { name = "shared-contracts" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "shared-contracts", editable = "shared/contracts" }]
+requires-dist = [
+    { name = "gunicorn", specifier = ">=23,<24" },
+    { name = "shared-contracts", editable = "shared/contracts" },
+]
 
 [[package]]
 name = "student-4-feature"

@@ -112,7 +112,7 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
         fragment = response.read()
         assert response.headers.get_content_type() == "text/html"
         assert fragment.count(b"data-feature-id=") == 5
-        assert fragment.count(b'data-feature-state="planned"') == 1
+        assert fragment.count(b'data-feature-state="planned"') == 0
         buyer_start = fragment.index(b'data-feature-id="buyer-workspace"')
         buyer_entry = fragment[buyer_start : fragment.index(b"</article>", buyer_start)]
         assert b"Buyer workspace" in buyer_entry

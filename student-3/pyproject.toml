@@ -3,7 +3,10 @@ name = "student-3-feature"
 version = "0.1.0"
 description = "Student 3 owned feature slice"
 requires-python = ">=3.12,<3.13"
-dependencies = ["shared-contracts"]
+dependencies = [
+    "gunicorn>=23,<24",
+    "shared-contracts",
+]
 
 [tool.uv]
 package = false

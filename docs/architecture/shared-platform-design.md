@@ -130,6 +130,18 @@ scope record now supplies those ownership boundaries without moving them into th
 Feature-specific entities, prompts, and business rules remain owned by the student responsible for
 that feature.
 
+### Feature 3 deployment integration (3 September 2026)
+
+The root selection now enables `student-3-suburb-analytics`. Its explicit Compose topology comprises
+`f3-frontend`, `f3-backend` and `f3-database`; only the database mounts `f3-suburb-data`. The public
+frontend binds loopback port 5600 (override: `PROPERTYSCOPE_SUBURB_ANALYTICS_PORT`) and is routed by
+the shared edge at `/features/suburb-analytics/`. Internal ports 5301/5302 remain container-local.
+The backend calls its store, Feature 1 and shared AI-mode over HTTP; its read-only catalogue and
+quality inputs are projected from its owned manifest. Gunicorn serves the WSGI factories with
+source reload in the development overlay. Data remains a deterministic partial demonstration
+fixture and saved comparisons retain the documented single-user demo assumption. Enablement does
+not claim official-data ingestion, authentication, or completion of remaining delivery evidence.
+
 ## 1. Executive decision
 
 Build a compliance-first, contract-driven microservices platform with five repeated

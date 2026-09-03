@@ -21,6 +21,16 @@ const VALUES = [
     "publicHealthPath": "/api/shared-health/market-intelligence"
   },
   {
+    "backendBase": "/api/suburb-analytics/v1",
+    "displayName": "PropertyScope Suburb, Crime and Liveability Analytics",
+    "evidenceAdapterPath": null,
+    "featureKey": "student-3-suburb-analytics",
+    "frontendBase": "/features/suburb-analytics/",
+    "healthPath": "/health/ready",
+    "owner": "student-3",
+    "publicHealthPath": "/api/shared-health/suburb-analytics"
+  },
+  {
     "backendBase": "/api/due-diligence/v1",
     "displayName": "PropertyScope Site, Planning and Building Due Diligence",
     "evidenceAdapterPath": null,

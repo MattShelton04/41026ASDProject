@@ -107,6 +107,58 @@
       ]
     },
     {
+      "ai": {
+        "runtime_path": "/etc/ai-mode/suburb-analytics-tools.yaml",
+        "tool_catalog": "student-3/tool-catalog.yaml"
+      },
+      "databases": [
+        {
+          "database_service": "f3-database",
+          "volumes": [
+            "f3-suburb-data"
+          ]
+        }
+      ],
+      "enabled": true,
+      "evidence_adapter": null,
+      "feature_key": "student-3-suburb-analytics",
+      "frontend": {
+        "asset_root": "student-3/frontend",
+        "host_port_default": 5600,
+        "host_port_variable": "PROPERTYSCOPE_SUBURB_ANALYTICS_PORT",
+        "internal_port": 8080,
+        "route_fragment": "student-3/frontend/integration/research-area.html",
+        "service": "f3-frontend"
+      },
+      "health_path": "/health/ready",
+      "owner": "student-3",
+      "quality": {
+        "coverage_fail_under": 80,
+        "coverage_packages": [
+          "propertyscope_suburb_analytics",
+          "propertyscope_suburb_store"
+        ],
+        "node_test_files": [
+          "student-3/tests/frontend.test.mjs"
+        ],
+        "python_test_paths": [
+          "student-3/tests"
+        ]
+      },
+      "routes": [
+        {
+          "kind": "frontend",
+          "path": "/features/suburb-analytics/",
+          "service": "f3-frontend"
+        },
+        {
+          "kind": "backend",
+          "path": "/api/suburb-analytics/v1",
+          "service": "f3-backend"
+        }
+      ]
+    },
+    {
       "ai": null,
       "databases": [
         {

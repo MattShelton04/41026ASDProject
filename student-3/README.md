@@ -54,21 +54,30 @@ demonstration fixture; it is not represented as current official crime or liveab
 
 ## Local development
 
-The feature deliberately uses Python's standard library so it does not require a shared lockfile
-change. Start the database and backend in separate terminals from the repository root:
+Start the integrated stack from the repository root with `uv run scripts/dev.py stack up`.
+After dependency or Dockerfile changes, use `uv run scripts/dev.py stack rebuild`.
+Open `http://localhost:5100/features/suburb-analytics/#suburbs` through the shared shell or
+`http://localhost:5600/` directly. The host port can be overridden with
+`PROPERTYSCOPE_SUBURB_ANALYTICS_PORT`; 5300 belongs to Feature 2 and the separate UI fixture server.
+
+For standalone development without Docker, start the database, backend and frontend in three
+separate terminals from the repository root:
 
 ```powershell
 $env:PYTHONPATH='student-3/database/src'; $env:SUBURB_DB_PATH='student-3/.local/suburbs.sqlite3'; python -m propertyscope_suburb_store.app
-$env:PYTHONPATH='student-3/backend/src'; $env:SUBURB_STORE_URL='http://127.0.0.1:5302'; python -m propertyscope_suburb_analytics.app
-$env:PORT='5300'; python student-3/frontend/dev_server.py
+$env:PYTHONPATH='student-3/backend/src'; $env:SUBURB_STORE_URL='http://127.0.0.1:5302'; $env:AI_MODE_URL='http://127.0.0.1:5005'; $env:PROPERTY_DATA_URL='http://127.0.0.1:5200'; python -m propertyscope_suburb_analytics.app
+$env:PORT='5600'; python student-3/frontend/dev_server.py
 ```
 
-Then open `http://127.0.0.1:5300/`.
+Then open `http://127.0.0.1:5600/`.
 
-The Dockerfile exposes independent `database`, `backend` and `frontend` targets. The feature manifest
-is ready for future deployment registration. Root Compose, deployment selection and shared proxy
-routing are intentionally unchanged; the approved home-page button points at the local frontend on
-port 5300.
+The Dockerfile exposes independent `database`, `backend` and `frontend` targets. Root Compose
+starts `f3-database`, `f3-backend` and `f3-frontend` through the enabled feature manifest. Only the
+database mounts `f3-suburb-data`; the backend reaches it, Feature 1 and shared AI-mode over HTTP.
+The internal 5301/5302 ports are not published to the host and do not conflict with other containers.
+The locked Gunicorn runtime serves the WSGI application factories; the development overlay reloads
+backend/database source and serves frontend edits directly. The standalone servers use Python's
+standard library. `stack down` preserves the database volume.
 
 ## Current data and platform assumptions
 

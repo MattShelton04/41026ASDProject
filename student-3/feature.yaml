@@ -15,7 +15,7 @@ onboarding:
     service: f3-frontend
     internal_port: 8080
     host_port_variable: PROPERTYSCOPE_SUBURB_ANALYTICS_PORT
-    host_port_default: 5300
+    host_port_default: 5600
     route_fragment: student-3/frontend/integration/research-area.html
   backend:
     service: f3-backend
