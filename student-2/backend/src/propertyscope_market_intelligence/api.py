@@ -89,6 +89,52 @@ def _case_evidence(store: Any, case_id: str) -> tuple[dict[str, Any] | None, Res
     }, None
 
 
+def _agent_case(market_case: dict[str, Any]) -> dict[str, Any]:
+    """Return case facts that are useful in prose without exposing internal identifiers."""
+
+    fields = (
+        "name",
+        "address_display",
+        "date_from",
+        "date_to",
+        "status",
+        "notes",
+        "filters",
+        "property_validation_state",
+        "version",
+    )
+    return {field: market_case.get(field) for field in fields}
+
+
+def _agent_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    """Replace source identifiers with the count needed for a user-facing explanation."""
+
+    value = dict(summary)
+    source_release_ids = value.pop("source_release_ids", [])
+    value["source_release_count"] = len(source_release_ids)
+    return value
+
+
+def _agent_sales(sales: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep evidence fields while removing database and provenance identifiers."""
+
+    fields = (
+        "address_display",
+        "contract_date",
+        "settlement_date",
+        "price_aud",
+        "area_square_metres",
+        "locality",
+        "postcode",
+        "match_tier",
+        "match_confidence",
+        "geographic_precision",
+        "release_version",
+        "synthetic",
+    )
+    return [{field: sale.get(field) for field in fields} for sale in sales]
+
+
 def register_health(app: Flask, store: Any) -> None:
     @app.get("/health/live")
     def live() -> tuple[Response, int]:
@@ -140,7 +186,7 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
         validation_state = feature1.validate_property(str(command.property_ref))
         if validation_state == "not_found":
             return _problem(
-                422, "unknown_property", "Feature 1 does not contain that property reference"
+                422, "unknown_property", "Feature 1 could not verify the selected property"
             )
         payload = command.model_dump(mode="json")
         payload["property_validation_state"] = validation_state
@@ -202,10 +248,13 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
         if case_response.status_code >= 400:
             return _relay(case_response)
         objective = (
-            f"Explain market case {command.case_id} using only the two allowlisted "
+            "Explain the selected market case using only the two allowlisted "
             "Feature 2 tools. Use the deterministic count, median, transaction-volume, "
             "source and exclusion evidence. State missing data and limitations. Never "
-            "estimate a property value and never recommend "
+            "display UUIDs, internal identifiers or raw field names such as market_case_id, "
+            "property_ref or release_id. Refer to the case by its name and to the property "
+            "by its address_display value from the inspection tool. Never estimate a "
+            "property value and never recommend "
             f"whether to buy. User question: {command.message}"
         )
         upstream = ai_mode.create_run(
@@ -274,7 +323,7 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
         response = store.request("GET", f"{_INTERNAL}/market-cases/{case_id}")
         if response.status_code >= 400:
             return _relay(response)
-        return jsonify({"market_case": response.json()})
+        return jsonify({"market_case": _agent_case(response.json())})
 
     @blueprint.post(f"{_API}/tools/market.sales.summary.v1")
     def tool_summary() -> Response:
@@ -287,7 +336,12 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
         if error is not None:
             return error
         assert value is not None
-        return jsonify({"summary": value["summary"], "sales": value["sales"]})
+        return jsonify(
+            {
+                "summary": _agent_summary(value["summary"]),
+                "sales": _agent_sales(value["sales"]),
+            }
+        )
 
     @blueprint.post("/api/data-import/v1/propertyscope-releases")
     def import_release() -> Response | tuple[Response, int]:

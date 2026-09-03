@@ -7,7 +7,7 @@ tools:
       name: market.cases.inspect.v1
       version: v1
       feature_key: student-2-market-intelligence
-      description: Inspect one saved market research case, including its verified property reference, date window, status, filters, and notes.
+      description: Inspect one saved market research case using its user-facing name, property address, date window, status, filters, and notes. Internal identifiers are not returned.
       input_schema:
         type: object
         properties:

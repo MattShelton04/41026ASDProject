@@ -109,12 +109,21 @@ def test_public_case_evidence_and_tools(tmp_path: Path) -> None:
         "/api/market-intelligence/v1/tools/market.cases.inspect.v1",
         json={"market_case_id": case_id},
     )
-    assert case_tool.get_json()["market_case"]["id"] == case_id
+    agent_case = case_tool.get_json()["market_case"]
+    assert agent_case["name"].startswith("Sydney example")
+    assert agent_case["address_display"] == "11 Example Street, Sydney NSW 2000"
+    assert "id" not in agent_case
+    assert "property_ref" not in agent_case
     summary_tool = client.post(
         "/api/market-intelligence/v1/tools/market.sales.summary.v1",
         json={"market_case_id": case_id},
     )
-    assert summary_tool.get_json()["summary"]["median_price_aud"] == 992500
+    agent_evidence = summary_tool.get_json()
+    assert agent_evidence["summary"]["median_price_aud"] == 992500
+    assert agent_evidence["summary"]["source_release_count"] == 1
+    assert "source_release_ids" not in agent_evidence["summary"]
+    assert all("property_ref" not in sale for sale in agent_evidence["sales"])
+    assert all("release_id" not in sale for sale in agent_evidence["sales"])
 
 
 def test_public_crud_validates_feature_1(tmp_path: Path) -> None:
@@ -158,6 +167,9 @@ def test_assistant_run_is_bounded_and_owned(tmp_path: Path) -> None:
     assert ai.payload is not None
     assert ai.payload["tool_allowlist"] == ["market.cases.inspect.v1", "market.sales.summary.v1"]
     assert ai.payload["limits"]["max_iterations"] == 4
+    assert case_id not in ai.payload["objective"]
+    assert "Never display UUIDs" in ai.payload["objective"]
+    assert "Refer to the case by its name" in ai.payload["objective"]
     run_id = created.get_json()["id"]
     assert client.get(f"/api/market-intelligence/v1/assistant/turns/{run_id}").status_code == 200
     assert (
