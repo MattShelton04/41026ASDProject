@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -615,7 +616,9 @@ def test_bounded_evidence_and_ai_summary_workflow_are_projected_safely() -> None
     assert created.get_json()["status"] == "queued"
     assert ai_mode.created is not None
     assert ai_mode.created["feature_key"] == "student-5-buyer-journey"
-    assert "Feature 3" in ai_mode.created["objective"]
+    assert "Property discovery, Sales research, Suburb analytics" in ai_mode.created["objective"]
+    assert "never use numbered feature labels" in ai_mode.created["objective"]
+    assert "unavailable Suburb analytics evidence" in ai_mode.created["objective"]
     assert "no more than 120 words" in ai_mode.created["objective"]
     assert "exactly 3 to 5" in ai_mode.created["objective"]
     assert "Attribute uncertain claims" in ai_mode.created["objective"]
@@ -651,8 +654,12 @@ def test_ai_summary_excludes_technical_telemetry_from_suggested_actions() -> Non
             run = super()._run(status)
             if status == "succeeded":
                 run["final_result"] = {
-                    "summary": " ".join(f"word-{index}" for index in range(140)),
+                    "summary": (
+                        "FEATURE 1, feature 2, Feature 3, and fEaTuRe 4 report bounded findings. "
+                        + " ".join(f"word-{index}" for index in range(140))
+                    ),
                     "suggested_next_actions": [
+                        "Review Feature 1 findings with the buyer.",
                         "Review buyer.evidence.collect.v1 tool call call_id abc after HTTP 200.",
                         f"Check raw property {CASE_ID} before proceeding.",
                         "Verify the partial market evidence from Feature 2.",
@@ -746,6 +753,7 @@ def test_ai_summary_excludes_technical_telemetry_from_suggested_actions() -> Non
     assert completed.status_code == 200
     assert len(payload["summary"].split()) == 120
     assert payload["suggested_next_actions"] == [
+        "Review Property discovery findings with the buyer.",
         "Verify the sales evidence against current primary-source records.",
         "Obtain current suburb evidence from an authoritative primary source.",
         "Review the flagged due-diligence records with an appropriately qualified adviser.",
@@ -786,9 +794,21 @@ def test_ai_summary_excludes_technical_telemetry_from_suggested_actions() -> Non
         f"buyer.evidence.collect.v1:feature_1:property_ref:{CASE_ID}",
     ]
     assert payload["limitations"] == [
-        "Feature 3 evidence is unavailable.",
-        "Feature 2 evidence is conflicting.",
+        "Suburb analytics evidence is unavailable.",
+        "Sales research evidence is conflicting.",
     ]
+    user_facing = " ".join(
+        [payload["summary"], *payload["suggested_next_actions"], *payload["limitations"]]
+        + [item["label"] for item in payload["evidence_used"]]
+    )
+    assert re.search(r"\bfeature\s+[1-4]\b", user_facing, re.IGNORECASE) is None
+    for domain_name in (
+        "Property discovery",
+        "Sales research",
+        "Suburb analytics",
+        "Due diligence",
+    ):
+        assert domain_name in user_facing
 
 
 @pytest.mark.parametrize(

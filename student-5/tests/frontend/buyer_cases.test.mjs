@@ -297,8 +297,8 @@ test("AI summary renderer preserves its user-facing result without phase cards",
   const html = renderSummaryRun({
     status: "succeeded",
     phases: ["plan", "act", "observe", "adapt"].map((name) => ({ name, status: "succeeded" })),
-    summary: "Review <evidence>",
-    suggested_next_actions: ["Book inspection"],
+    summary: "Property discovery and Sales research provide bounded <evidence>.",
+    suggested_next_actions: ["Review Due diligence findings"],
     evidence_used: [
       { label: "Buyer case and shortlist", status: "Retrieved", detail: "1 shortlisted property" },
       { label: "Case notes", status: "Retrieved", detail: "1 note" },
@@ -309,12 +309,12 @@ test("AI summary renderer preserves its user-facing result without phase cards",
       { label: "Due diligence", status: "Partial" },
     ],
     evidence_references: [rawReference],
-    limitations: ["Feature 3 unavailable"],
+    limitations: ["Suburb analytics is unavailable"],
   });
   assert.match(html, /Case summary generated successfully\./);
   assert.doesNotMatch(html, /AI processing details/);
   assert.doesNotMatch(html, /run-phases|data-phase/);
-  assert.match(html, /Review &lt;evidence&gt;/);
+  assert.match(html, /Property discovery and Sales research provide bounded &lt;evidence&gt;/);
   const primaryEvidence = html.slice(html.indexOf("<h4>Evidence used</h4>"), html.indexOf('<details class="technical-audit"'));
   for (const label of ["Buyer case and shortlist", "Case notes", "Case tasks", "Property discovery", "Sales research", "Suburb analytics", "Due diligence"]) {
     assert.match(primaryEvidence, new RegExp(label));
@@ -328,7 +328,9 @@ test("AI summary renderer preserves its user-facing result without phase cards",
   assert.match(html, /<details class="technical-audit"><summary>Technical audit references<\/summary>/);
   assert.doesNotMatch(html, /<details class="technical-audit" open/);
   assert.match(html, new RegExp(rawReference.replaceAll(".", "\\.")));
-  assert.match(html, /Feature 3 unavailable/);
+  assert.match(html, /Suburb analytics is unavailable/);
+  const userFacingHtml = html.replace(/<details class="technical-audit">.*?<\/details>/, "");
+  assert.doesNotMatch(userFacingHtml, /Feature\s+[1-4]/i);
 });
 
 test("AI workflow presents a compact accessible idle status", () => {
