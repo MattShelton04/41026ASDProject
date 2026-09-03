@@ -38,15 +38,21 @@ from shared_consumer_protocol import ConsumerProtocolError, PublicationRequest
 
 
 @contextmanager
-def serve(app: Any) -> Iterator[HttpClient]:
+def serve_origin(app: Any) -> Iterator[str]:
     with make_server("127.0.0.1", 0, app) as server:
         thread = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         thread.start()
         try:
-            yield HttpClient(f"http://127.0.0.1:{server.server_port}")
+            yield f"http://127.0.0.1:{server.server_port}"
         finally:
             server.shutdown()
             thread.join(timeout=2)
+
+
+@contextmanager
+def serve(app: Any) -> Iterator[HttpClient]:
+    with serve_origin(app) as origin:
+        yield HttpClient(origin)
 
 
 ORIGIN = "http://producer.test"
@@ -149,7 +155,7 @@ def fixture(
     return payload, records, artifact
 
 
-def producer(payload: dict[str, Any], artifact: bytes, mutate: Any = None) -> httpx.MockTransport:
+def producer_app(payload: dict[str, Any], artifact: bytes, mutate: Any = None) -> Any:
     # Producer-owned test schemas are served through discovery, never imported from Feature 1.
     schema = {
         "type": "object",
@@ -185,32 +191,35 @@ def producer(payload: dict[str, Any], artifact: bytes, mutate: Any = None) -> ht
     digest = hashlib.sha256(blob).hexdigest()
     contract_path = BASE + f"/product-contracts/v1/sha256/{digest}.zip"
 
-    def respond(request: httpx.Request) -> httpx.Response:
-        path = request.url.path
+    def respond(environ: dict[str, Any], start_response: Any) -> list[bytes]:
+        path = environ["PATH_INFO"]
         if path.endswith("/product-contracts/v1"):
-            return httpx.Response(
-                200,
-                json={
+            body = json.dumps(
+                {
                     "content_sha256": digest,
                     "byte_count": len(blob),
                     "artifact_path": contract_path,
-                },
-            )
-        if path == contract_path:
-            return httpx.Response(200, content=blob)
-        if path.endswith("/accepted"):
-            return httpx.Response(200, json={"release": {"manifest": payload["manifest"]}})
-        assert path == payload["artifact_path"]
-        assert request.headers["X-Request-ID"] == CORRELATION["request_id"]
+                }
+            ).encode()
+            content_type = "application/json"
+        elif path == contract_path:
+            body = blob
+            content_type = "application/zip"
+        elif path.endswith("/accepted"):
+            body = json.dumps({"release": {"manifest": payload["manifest"]}}).encode()
+            content_type = "application/json"
+        else:
+            assert path == payload["artifact_path"]
+            assert environ["HTTP_X_REQUEST_ID"] == CORRELATION["request_id"]
+            body = artifact
+            content_type = "application/gzip"
+        start_response(
+            "200 OK",
+            [("Content-Type", content_type), ("Content-Length", str(len(body)))],
+        )
+        return [body]
 
-        class ArtifactStream(httpx.SyncByteStream):
-            def __iter__(self) -> Iterator[bytes]:
-                yield artifact
-
-        # Model an unconsumed network response through HTTPX's streaming interface.
-        return httpx.Response(200, stream=ArtifactStream())
-
-    return httpx.MockTransport(respond)
+    return respond
 
 
 @pytest.fixture
@@ -227,9 +236,10 @@ def test_stream_commit_and_replay_through_real_database_http(
     payload, records, artifact = fixture(dataset, 2)
     with (
         serve(create_app(database.repository)) as store,
-        httpx.Client(transport=producer(payload, artifact)) as client,
+        serve_origin(producer_app(payload, artifact)) as origin,
+        httpx.Client() as client,
     ):
-        consumer = Ingestion(store, ORIGIN)
+        consumer = Ingestion(store, origin)
         ack = consumer.enqueue(payload, CORRELATION, payload["idempotency_key"], callback=False)
         assert ack["status"] == "queued"
         assert database.localities("")["items"] == []
@@ -269,9 +279,9 @@ def test_stream_commit_and_replay_through_real_database_http(
 def test_failed_replacement_never_exposes_staging(database: Imports, fault: str) -> None:
     payload, records, artifact = fixture()
     with serve(create_app(database.repository)) as store:
-        consumer = Ingestion(store, ORIGIN)
-        consumer.enqueue(payload, CORRELATION, payload["idempotency_key"])
-        with httpx.Client(transport=producer(payload, artifact)) as client:
+        with serve_origin(producer_app(payload, artifact)) as origin, httpx.Client() as client:
+            consumer = Ingestion(store, origin)
+            consumer.enqueue(payload, CORRELATION, payload["idempotency_key"])
             consumer.run_once(client)
         next_payload, next_records, next_artifact = fixture()
         row = next_records[0]
@@ -307,8 +317,12 @@ def test_failed_replacement_never_exposes_staging(database: Imports, fault: str)
                 hashlib.sha256(next_artifact).hexdigest()
             )
         next_payload["record_count"] = next_payload["manifest"]["record_count"] = len(next_records)
-        ack = consumer.enqueue(next_payload, CORRELATION, next_payload["idempotency_key"])
-        with httpx.Client(transport=producer(next_payload, next_artifact)) as client:
+        with (
+            serve_origin(producer_app(next_payload, next_artifact)) as origin,
+            httpx.Client() as client,
+        ):
+            consumer = Ingestion(store, origin)
+            ack = consumer.enqueue(next_payload, CORRELATION, next_payload["idempotency_key"])
             consumer.run_once(client)
         assert database.status(ack["consumer_operation_id"])["status"] == "failed"
         assert database.context("Parramatta")["crime"] == records
@@ -377,10 +391,11 @@ def test_contract_discovery_rejects_remote_references() -> None:
         files[PRODUCTS["bocsar-crime"][2]]["$ref"] = "http://attacker.test/schema"
 
     with (
-        httpx.Client(transport=producer(payload, artifact, mutate)) as client,
+        serve_origin(producer_app(payload, artifact, mutate)) as origin,
+        httpx.Client() as client,
         pytest.raises(ValueError, match="external_schema"),
     ):
-        contract_validators(client, ORIGIN, PublicationRequest.model_validate(payload))
+        contract_validators(client, origin, PublicationRequest.model_validate(payload))
     assert references([{"$ref": "#/local"}, 1]) == ["#/local"]
 
 
@@ -433,8 +448,8 @@ def test_public_callback_status_read_routes_and_explicit_retry(database: Imports
         )
         assert retry.status_code == 202
         assert retry.json()["consumer_operation_id"] == operation
-        with httpx.Client(transport=producer(payload, artifact)) as valid:
-            consumer.run_once(valid)
+        with serve_origin(producer_app(payload, artifact)) as origin, httpx.Client() as valid:
+            Ingestion(store, origin).run_once(valid)
         assert database.status(operation)["status"] == "accepted"
         with pytest.raises(ValueError, match="retry_conflict"):
             database.retry(operation)
@@ -443,15 +458,14 @@ def test_public_callback_status_read_routes_and_explicit_retry(database: Imports
 
 
 def test_sync_keeps_population_target_and_requires_accepted_lookup(
-    database: Imports, monkeypatch: pytest.MonkeyPatch
+    database: Imports,
 ) -> None:
     payload, _, artifact = fixture("abs-seifa-2021")
-    original_client = httpx.Client
-    with serve(create_app(database.repository)) as store:
-        consumer = Ingestion(store, ORIGIN)
-        monkeypatch.setattr(
-            httpx, "Client", lambda: original_client(transport=producer(payload, artifact))
-        )
+    with (
+        serve(create_app(database.repository)) as store,
+        serve_origin(producer_app(payload, artifact)) as origin,
+    ):
+        consumer = Ingestion(store, origin)
         ack = consumer.sync("abs-seifa-2021", CORRELATION)
         assert ack["target"] == "feature-1"
         with httpx.Client() as client:
@@ -475,10 +489,13 @@ def test_lost_commit_response_reconciles_without_deleting_accepted_data(database
                 raise ServiceError(503, {"code": "simulated_lost_reply"})
             return result
 
-    with serve(create_app(database.repository)) as store:
-        consumer = Ingestion(LostReply(store.base_url), ORIGIN)
+    with (
+        serve(create_app(database.repository)) as store,
+        serve_origin(producer_app(payload, artifact)) as origin,
+    ):
+        consumer = Ingestion(LostReply(store.base_url), origin)
         ack = consumer.enqueue(payload, CORRELATION, payload["idempotency_key"])
-        with httpx.Client(transport=producer(payload, artifact)) as client:
+        with httpx.Client() as client:
             assert consumer.run_once(client)
             assert not consumer.run_once(client)
         assert database.status(ack["consumer_operation_id"])["status"] == "accepted"
