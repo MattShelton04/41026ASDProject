@@ -1,5 +1,9 @@
 const API = "/api/market-intelligence/v1";
-const EXAMPLE_PROPERTY = "a0000000-0000-0000-0000-000000000001";
+const EXAMPLE_PROPERTY = {
+  reference: "a0000000-0000-0000-0000-000000000001",
+  address: "11 Example Street, Sydney NSW 2000",
+};
+const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
   currency: "AUD",
@@ -26,6 +30,37 @@ function el(tag, className, value) {
 
 function humanise(value) {
   return String(value || "unknown").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function redactInternalIdentifiers(value) {
+  return String(value)
+    .replace(UUID_PATTERN, "[internal reference hidden]")
+    .replace(/\bmarket_case_id\b/gi, "market case")
+    .replace(/\bproperty_ref\b/gi, "property");
+}
+
+function populatePropertyChoices(selectedReference, selectedAddress) {
+  const properties = new Map([[EXAMPLE_PROPERTY.reference, EXAMPLE_PROPERTY.address]]);
+  for (const item of state.cases) properties.set(item.property_ref, item.address_display);
+  if (selectedReference) properties.set(selectedReference, selectedAddress || "Selected property");
+
+  const select = byId("form-property-choice");
+  clear(select);
+  for (const [reference, address] of properties) {
+    const option = el("option", "", address);
+    option.value = reference;
+    option.dataset.address = address;
+    select.append(option);
+  }
+  select.value = selectedReference || EXAMPLE_PROPERTY.reference;
+  syncSelectedProperty();
+}
+
+function syncSelectedProperty() {
+  const select = byId("form-property-choice");
+  const option = select.selectedOptions[0];
+  byId("form-property").value = option?.value || "";
+  byId("form-address").value = option?.dataset.address || "";
 }
 
 async function api(path, options = {}) {
@@ -156,9 +191,8 @@ function openCreate() {
   text(byId("form-title"), "New case");
   byId("case-form").reset();
   byId("form-version").value = "";
-  byId("form-property").disabled = false;
-  byId("form-property").value = EXAMPLE_PROPERTY;
-  byId("form-address").value = "11 Example Street, Sydney NSW 2000";
+  byId("form-property-choice").disabled = false;
+  populatePropertyChoices(EXAMPLE_PROPERTY.reference, EXAMPLE_PROPERTY.address);
   byId("form-from").value = "2019-01-01";
   byId("form-to").value = "2026-12-31";
   byId("form-tier").value = "B";
@@ -172,9 +206,8 @@ function openEdit() {
   text(byId("form-title"), "Edit case");
   byId("form-version").value = item.version;
   byId("form-name").value = item.name;
-  byId("form-property").value = item.property_ref;
-  byId("form-property").disabled = true;
-  byId("form-address").value = item.address_display;
+  populatePropertyChoices(item.property_ref, item.address_display);
+  byId("form-property-choice").disabled = true;
   byId("form-from").value = item.date_from;
   byId("form-to").value = item.date_to;
   byId("form-status").value = item.status;
@@ -228,9 +261,9 @@ function answerText(result) {
   for (const key of preferred) {
     const value = result[key];
     if (value == null) continue;
-    lines.push(`${humanise(key)}:\n${Array.isArray(value) ? value.join("\n") : String(value)}`);
+    lines.push(`${humanise(key)}:\n${redactInternalIdentifiers(Array.isArray(value) ? value.join("\n") : value)}`);
   }
-  return lines.join("\n\n") || JSON.stringify(result, null, 2);
+  return lines.join("\n\n") || redactInternalIdentifiers(JSON.stringify(result, null, 2));
 }
 
 async function pollAssistant(runId) {
@@ -278,6 +311,7 @@ byId("case-list").addEventListener("click", async (event) => {
 });
 byId("new-case").addEventListener("click", openCreate);
 byId("edit-case").addEventListener("click", openEdit);
+byId("form-property-choice").addEventListener("change", syncSelectedProperty);
 byId("delete-case").addEventListener("click", () => deleteCase().catch((error) => notify(error.message, true)));
 byId("close-dialog").addEventListener("click", () => byId("case-dialog").close());
 byId("cancel-dialog").addEventListener("click", () => byId("case-dialog").close());

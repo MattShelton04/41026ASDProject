@@ -63,7 +63,7 @@ def _validate_create(body: object) -> tuple[dict[str, Any] | None, str | None]:
     try:
         uuid.UUID(payload["property_ref"])
     except ValueError:
-        return None, "property_ref must be a UUID from Feature 1"
+        return None, "the selected property is invalid"
     if not _valid_date(payload["date_from"]) or not _valid_date(payload["date_to"]):
         return None, "date_from and date_to must be ISO dates"
     if payload["date_from"] > payload["date_to"]:
@@ -226,7 +226,7 @@ def create_blueprint(store: Any, *, internal_token: str) -> Blueprint:
         try:
             uuid.UUID(property_ref)
         except ValueError:
-            return _problem(422, "invalid_property_ref", "property_ref must be a UUID")
+            return _problem(422, "invalid_property_ref", "the selected property is invalid")
         return jsonify(
             {
                 "items": store.list_sales(

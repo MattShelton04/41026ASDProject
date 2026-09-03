@@ -11,12 +11,17 @@ test("market page exposes CRUD, evidence and AI regions", () => {
     assert.match(page, new RegExp(`id="${marker}"`));
   }
   assert.match(page, /not a valuation or buying recommendation/i);
+  assert.match(page, /Selected property/);
+  assert.match(page, /Internal references stay hidden/);
+  assert.doesNotMatch(page, /property reference|UUID/i);
 });
 
 test("browser code uses the owned API and all CRUD verbs", () => {
   assert.match(app, /\/api\/market-intelligence\/v1/);
   for (const verb of ["POST", "PUT", "DELETE"]) assert.match(app, new RegExp(`method: "${verb}"`));
   assert.match(app, /\/assistant\/turns/);
+  assert.match(app, /redactInternalIdentifiers/);
+  assert.match(app, /form-property-choice/);
 });
 
 test("research area fragment replaces the planned sales row", () => {

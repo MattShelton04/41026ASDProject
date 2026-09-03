@@ -16,7 +16,7 @@ This feature is research support. It does not calculate a property valuation, fo
 | --- | --- |
 | Integrated user interface | Feature 2 is available from the shared PropertyScope home page and follows the shared design system. |
 | Market case CRUD | Create, list, inspect, edit and delete saved market research cases. |
-| Feature 1 integration | New cases use a stable Feature 1 property UUID and the backend checks that reference through the Feature 1 API. |
+| Feature 1 integration | Users choose a verified property by address. Its stable Feature 1 identifier remains hidden and is checked through the Feature 1 API. |
 | Sales evidence | Review contract date, recorded price, match tier, confidence, source release and whether the record is synthetic. |
 | Deterministic summaries | Calculate eligible sale count, median recorded price, volume by contract year, exclusions and source releases without using an LLM for arithmetic. |
 | Quality controls | Filter by date range and minimum property-match tier, reject missing or zero prices, and explain why records were excluded. |
@@ -45,24 +45,24 @@ The selected case shows its verified property state, saved status, eligible sale
 
 ![Review the selected market case and deterministic summary](docs/screenshots/02-review-seeded-case.png)
 
-Use **Edit** to change the case name, address label, date window, status, match threshold or notes. Use **Delete** only when the saved case is no longer needed. Deletion requires confirmation in the interface.
+Use **Edit** to change the case name, date window, status, match threshold or notes. Use **Delete** only when the saved case is no longer needed. Deletion requires confirmation in the interface.
 
 ### 3. Create a market case
 
 Click **New case**. Then:
 
 1. Enter a descriptive case name.
-2. Paste the stable property UUID shown by Feature 1.
-3. Confirm the display address.
+2. Choose the verified property by its address.
+3. Confirm that the property address is correct.
 4. Choose the start and end dates.
 5. Select `Draft`, `Active`, `Complete` or `Archived`.
 6. Choose the minimum match tier.
 7. Add optional research notes.
 8. Click **Save case**.
 
-The showcase Feature 1 property UUID and address are pre-filled for a quick Release 0 demonstration.
+The showcase property is pre-selected by address for a quick Release 0 demonstration. Its internal identifier is sent between services but is not shown to the user.
 
-![Create a new market case using a Feature 1 property reference](docs/screenshots/03-create-market-case.png)
+![Create a new market case using a verified Feature 1 property](docs/screenshots/03-create-market-case.png)
 
 ### 4. Read the quality notes
 
