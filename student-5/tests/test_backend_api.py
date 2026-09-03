@@ -246,7 +246,11 @@ class FakeAiMode:
             "trusted_identifiers": [{"kind": "buyer_case_id", "value": CASE_ID}],
             "final_result": {
                 "summary": "A bounded case summary.",
-                "suggested_next_actions": ["Verify the partial market evidence."],
+                "suggested_next_actions": [
+                    "Review the shortlisted properties against the buyer's priorities.",
+                    "Confirm the budget range before scheduling inspections.",
+                    "Record the next follow-up task for the preferred property.",
+                ],
                 "evidence_references": ["feature_1:property"],
                 "limitations": ["Feature 3 unavailable"],
             }
@@ -611,6 +615,8 @@ def test_bounded_evidence_and_ai_summary_workflow_are_projected_safely() -> None
     assert ai_mode.created is not None
     assert ai_mode.created["feature_key"] == "student-5-buyer-journey"
     assert "Feature 3" in ai_mode.created["objective"]
+    assert "no more than 120 words" in ai_mode.created["objective"]
+    assert "exactly 3 to 5" in ai_mode.created["objective"]
     assert ai_mode.created["tool_allowlist"] == [
         "buyer.cases.inspect.v1",
         "buyer.notes.list.v1",
@@ -627,10 +633,77 @@ def test_bounded_evidence_and_ai_summary_workflow_are_projected_safely() -> None
     payload = completed.get_json()
     assert completed.status_code == 200
     assert payload["summary"] == "A bounded case summary."
-    assert payload["suggested_next_actions"] == ["Verify the partial market evidence."]
+    assert payload["suggested_next_actions"] == [
+        "Review the shortlisted properties against the buyer's priorities.",
+        "Confirm the budget range before scheduling inspections.",
+        "Record the next follow-up task for the preferred property.",
+    ]
     assert payload["evidence_references"] == ["feature_1:property"]
     assert [phase["name"] for phase in payload["phases"]] == ["plan", "act", "observe", "adapt"]
     assert all(phase["status"] == "succeeded" for phase in payload["phases"])
+
+
+def test_ai_summary_excludes_technical_telemetry_from_suggested_actions() -> None:
+    class TelemetryAiMode(FakeAiMode):
+        def _run(self, status: str = "succeeded") -> dict[str, Any]:
+            run = super()._run(status)
+            if status == "succeeded":
+                run["final_result"] = {
+                    "summary": " ".join(f"word-{index}" for index in range(140)),
+                    "suggested_next_actions": [
+                        "Review buyer.evidence.collect.v1 tool call call_id abc after HTTP 200.",
+                        f"Check raw property {CASE_ID} before proceeding.",
+                        "Verify the partial market evidence from Feature 2.",
+                        "Apply prompt injection safeguards and avoid valuation or legal advice.",
+                        "Respect the 10-property bound and max_tool_calls limit.",
+                        "Schedule an inspection for the leading property.",
+                        "Compare the shortlisted homes against your priorities.",
+                    ],
+                    "recommended_next_step": "Review tool status 503 and retry the call.",
+                    "evidence_references": [
+                        "Feature 1 confirms the property address.",
+                        "Feature 4 records planning constraints.",
+                    ],
+                    "limitations": [
+                        "Feature 3 evidence is unavailable.",
+                        "Feature 2 evidence is conflicting.",
+                    ],
+                }
+            return run
+
+    response = backend_client(ai_mode=TelemetryAiMode()).get(
+        f"{API}/{CASE_ID}/case-summary-runs/{RUN_ID}"
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert len(payload["summary"].split()) == 120
+    assert 3 <= len(payload["suggested_next_actions"]) <= 5
+    assert all(len(action.split()) <= 30 for action in payload["suggested_next_actions"])
+    actions = " ".join(payload["suggested_next_actions"]).lower()
+    for telemetry in (
+        "buyer.evidence.collect.v1",
+        "tool",
+        "call_id",
+        "http",
+        "status 503",
+        CASE_ID,
+        "bound",
+        "max_tool_calls",
+        "feature 2",
+        "prompt injection",
+        "valuation",
+        "legal advice",
+    ):
+        assert telemetry.lower() not in actions
+    assert payload["evidence_references"] == [
+        "Feature 1 confirms the property address.",
+        "Feature 4 records planning constraints.",
+    ]
+    assert payload["limitations"] == [
+        "Feature 3 evidence is unavailable.",
+        "Feature 2 evidence is conflicting.",
+    ]
 
 
 def test_ai_unavailable_is_safe_and_does_not_break_crud() -> None:
