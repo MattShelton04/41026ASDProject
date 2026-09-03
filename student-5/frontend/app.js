@@ -423,7 +423,7 @@ export function renderEvidence(value) {
     const items = Array.isArray(section.items) ? section.items : [];
     const limitations = Array.isArray(section.limitations) ? section.limitations : [];
     return `<article class="evidence-card"><header><h4>${escapeHtml(title)}</h4><span class="ps-badge evidence-${escapeHtml(section.state)}">${escapeHtml(evidenceStateLabel(section.state))}</span></header>
-      ${items.length ? `<ul>${items.map((item) => `<li><code>${escapeHtml(item.property_ref || "Unknown property")}</code> — ${escapeHtml(evidenceStateLabel(item.state))}${item.address_display ? `: ${escapeHtml(item.address_display)}` : ""}</li>`).join("")}</ul>` : "<p>No evidence records returned.</p>"}
+      ${items.length ? `<ul>${items.map((item) => `<li><code>${escapeHtml(item.property_ref || "Unknown property")}</code>: ${escapeHtml(evidenceStateLabel(item.state))}${item.address_display ? `: ${escapeHtml(item.address_display)}` : ""}</li>`).join("")}</ul>` : "<p>No evidence records returned.</p>"}
       ${limitations.map((item) => `<p class="item-reference">${escapeHtml(item)}</p>`).join("")}</article>`;
   }).join("");
   const limitations = Array.isArray(value?.limitations) ? value.limitations : [];
@@ -435,12 +435,14 @@ export function renderEvidence(value) {
 export function renderSummaryRun(run) {
   const phases = Array.isArray(run?.phases) ? run.phases : [];
   const actions = Array.isArray(run?.suggested_next_actions) ? run.suggested_next_actions : [];
+  const evidenceUsed = Array.isArray(run?.evidence_used) ? run.evidence_used : [];
   const references = Array.isArray(run?.evidence_references) ? run.evidence_references : [];
   const limitations = Array.isArray(run?.limitations) ? run.limitations : [];
   return `<ol class="run-phases" aria-label="Plan Act Observe Adapt progress">${phases.map((phase) => `<li data-phase="${escapeHtml(phase.name)}"><strong>${escapeHtml(phase.name)}</strong><span>${escapeHtml(phase.status)}</span></li>`).join("")}</ol>
     ${run?.summary ? `<h4>Case summary</h4><p>${escapeHtml(run.summary)}</p>` : `<p>${run?.error ? escapeHtml(run.error) : "Summary generation is in progress."}</p>`}
     <h4>Suggested next actions</h4>${actions.length ? `<ol>${actions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : "<p>No suggested actions yet.</p>"}
-    <h4>Evidence references</h4>${references.length ? `<ul>${references.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "<p>No AI evidence references yet. Review the bounded evidence above.</p>"}
+    <h4>Evidence used</h4>${evidenceUsed.length ? `<ul>${evidenceUsed.map((item) => `<li><strong>${escapeHtml(item?.label || "Evidence source")}</strong>: ${escapeHtml(item?.status || "Unavailable")}${item?.detail ? `; ${escapeHtml(item.detail)}` : ""}</li>`).join("")}</ul>` : "<p>No evidence summary is available. Review the bounded evidence above.</p>"}
+    <details class="technical-audit"><summary>Technical audit references</summary>${references.length ? `<ul>${references.map((item) => `<li><code>${escapeHtml(item)}</code></li>`).join("")}</ul>` : "<p>No technical references reported.</p>"}</details>
     <h4>Limitations</h4>${limitations.length ? `<ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "<p>No additional AI limitations reported.</p>"}`;
 }
 

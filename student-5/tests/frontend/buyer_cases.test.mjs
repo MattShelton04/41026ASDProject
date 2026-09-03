@@ -278,20 +278,44 @@ test("bounded evidence renderer exposes all states and limitations safely", () =
   assert.match(html, /&lt;Address&gt;/);
   assert.match(html, /Bounded to 10 properties/);
   assert.match(html, /feature_1:property_ref:property-1/);
+  assert.match(html, /<code>property-1<\/code>: Complete/);
+  for (const mojibake of ["â", "€", "�"]) assert.doesNotMatch(html, new RegExp(mojibake));
 });
 
 test("AI summary renderer shows Plan Act Observe Adapt, references and limitations", () => {
+  const rawReference = "buyer.evidence.collect.v1:feature_1:property_ref:b5000000-0000-4000-8000-000000000001:succeeded";
   const html = renderSummaryRun({
     status: "succeeded",
     phases: ["plan", "act", "observe", "adapt"].map((name) => ({ name, status: "succeeded" })),
     summary: "Review <evidence>",
     suggested_next_actions: ["Book inspection"],
-    evidence_references: ["feature_1:property"],
+    evidence_used: [
+      { label: "Buyer case and shortlist", status: "Retrieved", detail: "1 shortlisted property" },
+      { label: "Case notes", status: "Retrieved", detail: "1 note" },
+      { label: "Case tasks", status: "Retrieved", detail: "2 tasks (1 completed, 1 incomplete)" },
+      { label: "Property discovery", status: "Complete" },
+      { label: "Sales research", status: "Conflicting; verification required" },
+      { label: "Suburb analytics", status: "Unavailable" },
+      { label: "Due diligence", status: "Partial" },
+    ],
+    evidence_references: [rawReference],
     limitations: ["Feature 3 unavailable"],
   });
   for (const phase of ["plan", "act", "observe", "adapt"]) assert.match(html, new RegExp(phase));
   assert.match(html, /Review &lt;evidence&gt;/);
-  assert.match(html, /feature_1:property/);
+  const primaryEvidence = html.slice(html.indexOf("<h4>Evidence used</h4>"), html.indexOf("<details"));
+  for (const label of ["Buyer case and shortlist", "Case notes", "Case tasks", "Property discovery", "Sales research", "Suburb analytics", "Due diligence"]) {
+    assert.match(primaryEvidence, new RegExp(label));
+  }
+  assert.match(primaryEvidence, /Buyer case and shortlist<\/strong>: Retrieved; 1 shortlisted property/);
+  assert.match(primaryEvidence, /Case tasks<\/strong>: Retrieved; 2 tasks \(1 completed, 1 incomplete\)/);
+  assert.match(primaryEvidence, /Sales research<\/strong>: Conflicting; verification required/);
+  assert.match(primaryEvidence, /Due diligence<\/strong>: Partial/);
+  for (const mojibake of ["â", "€", "�"]) assert.doesNotMatch(html, new RegExp(mojibake));
+  assert.doesNotMatch(primaryEvidence, /buyer\.evidence|feature_1|b5000000/);
+  assert.match(html, /<details class="technical-audit"><summary>Technical audit references<\/summary>/);
+  assert.doesNotMatch(html, /<details class="technical-audit" open/);
+  assert.match(html, new RegExp(rawReference.replaceAll(".", "\\.")));
   assert.match(html, /Feature 3 unavailable/);
 });
 
