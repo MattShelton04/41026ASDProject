@@ -97,8 +97,46 @@ class FakeFeature1:
         return self._coordinates
 
 
-def _client(store: FakeStore | None = None, feature1: FakeFeature1 | None = None):
-    app = create_app(store=store or FakeStore(), feature1=feature1 or FakeFeature1())
+class FakeAiMode:
+    def __init__(self, *, run_feature_key: str = "student-4-due-diligence") -> None:
+        self._run_feature_key = run_feature_key
+        self.created: list[dict[str, Any]] = []
+
+    def create_run(self, payload: dict[str, Any]) -> httpx.Response:
+        self.created.append(payload)
+        return httpx.Response(202, json={"id": "run-1", "status": "queued"})
+
+    def get(self, path: str, *, params: Any = None) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "run": {
+                    "id": "run-1",
+                    "status": "succeeded",
+                    "feature_key": self._run_feature_key,
+                    "tool_allowlist": [
+                        "duediligence.review.inspect.v1",
+                        "duediligence.evidence.summary.v1",
+                    ],
+                    "final_result": {"questions": ["Confirm the zoning permits your use."]},
+                }
+            },
+        )
+
+    def cancel(self, run_id: str) -> httpx.Response:
+        return httpx.Response(200, json={"id": run_id, "status": "cancelled"})
+
+
+def _client(
+    store: FakeStore | None = None,
+    feature1: FakeFeature1 | None = None,
+    ai_mode: FakeAiMode | None = None,
+):
+    app = create_app(
+        store=store or FakeStore(),
+        feature1=feature1 or FakeFeature1(),
+        ai_mode=ai_mode or FakeAiMode(),
+    )
     return app.test_client()
 
 
@@ -237,6 +275,98 @@ def test_map_unavailable_when_no_coordinates():
 
 def test_map_missing_review_relays_not_found():
     assert _client().get(f"{_API}/site-reviews/nope/map").status_code == 404
+
+
+def test_assistant_capabilities_lists_tools():
+    body = _client().get(f"{_API}/assistant/capabilities").get_json()
+    assert body["feature_key"] == "student-4-due-diligence"
+    assert "duediligence.review.inspect.v1" in body["tools"]
+    assert body["suggested_questions"]
+
+
+def test_assistant_turn_creates_a_bounded_run():
+    store = FakeStore()
+    ai = FakeAiMode()
+    client = create_app(store=store, feature1=FakeFeature1(), ai_mode=ai).test_client()
+    review_id = client.post(
+        f"{_API}/site-reviews",
+        json={"property_ref": "a0", "address_display": "x", "title": "t"},
+    ).get_json()["id"]
+    response = client.post(f"{_API}/assistant/turns", json={"review_id": review_id})
+    assert response.status_code == 202
+    assert response.get_json()["id"] == "run-1"
+    payload = ai.created[0]
+    assert payload["feature_key"] == "student-4-due-diligence"
+    assert payload["trusted_identifiers"] == [{"kind": "site_review_id", "value": review_id}]
+    assert payload["tool_allowlist"] == [
+        "duediligence.review.inspect.v1",
+        "duediligence.evidence.summary.v1",
+    ]
+
+
+def test_assistant_turn_requires_review_id():
+    assert _client().post(f"{_API}/assistant/turns", json={}).status_code == 422
+    assert _client().post(f"{_API}/assistant/turns", json="x").status_code == 422
+
+
+def test_assistant_turn_relays_missing_review():
+    assert _client().post(f"{_API}/assistant/turns", json={"review_id": "nope"}).status_code == 404
+
+
+def test_assistant_detail_rejects_unowned_run():
+    client = _client(ai_mode=FakeAiMode(run_feature_key="student-2-market-intelligence"))
+    assert client.get(f"{_API}/assistant/turns/run-1").status_code == 404
+
+
+def test_assistant_detail_returns_owned_run():
+    body = _client().get(f"{_API}/assistant/turns/run-1").get_json()
+    assert body["run"]["status"] == "succeeded"
+
+
+def test_assistant_cancel_owned_run():
+    assert _client().post(f"{_API}/assistant/turns/run-1/cancel").status_code == 200
+
+
+def test_assistant_turn_degrades_when_ai_unavailable():
+    class DownAi(FakeAiMode):
+        def create_run(self, payload):
+            from propertyscope_due_diligence.clients import DependencyUnavailableError
+
+            raise DependencyUnavailableError("down")
+
+    store = FakeStore()
+    client = create_app(store=store, feature1=FakeFeature1(), ai_mode=DownAi()).test_client()
+    review_id = client.post(
+        f"{_API}/site-reviews",
+        json={"property_ref": "a0", "address_display": "x", "title": "t"},
+    ).get_json()["id"]
+    assert client.post(f"{_API}/assistant/turns", json={"review_id": review_id}).status_code == 503
+
+
+def test_tool_review_inspect_returns_review():
+    store = FakeStore()
+    client = create_app(store=store, feature1=FakeFeature1(), ai_mode=FakeAiMode()).test_client()
+    review_id = client.post(
+        f"{_API}/site-reviews",
+        json={"property_ref": "a0", "address_display": "x", "title": "t"},
+    ).get_json()["id"]
+    body = client.post(
+        f"{_API}/tools/duediligence.review.inspect.v1", json={"site_review_id": review_id}
+    ).get_json()
+    assert body["site_review"]["id"] == review_id
+
+
+def test_tool_evidence_summary_returns_constraints_and_buildings():
+    store = FakeStore()
+    client = create_app(store=store, feature1=FakeFeature1(), ai_mode=FakeAiMode()).test_client()
+    review_id = client.post(
+        f"{_API}/site-reviews",
+        json={"property_ref": "a0", "address_display": "x", "title": "t"},
+    ).get_json()["id"]
+    body = client.post(
+        f"{_API}/tools/duediligence.evidence.summary.v1", json={"site_review_id": review_id}
+    ).get_json()
+    assert body["constraints"] and body["buildings"]
 
 
 def test_unknown_route_returns_problem():

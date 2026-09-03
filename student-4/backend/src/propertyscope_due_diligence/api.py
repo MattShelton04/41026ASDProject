@@ -12,6 +12,7 @@ from typing import Any
 
 from flask import Blueprint, Flask, Response, jsonify, request
 
+from propertyscope_due_diligence.clients import DependencyUnavailableError
 from propertyscope_due_diligence.map_layers import build_map
 from shared_contracts import HealthStatus, ReadinessCheckProjection, project_readiness
 
@@ -19,6 +20,13 @@ _SERVICE = "propertyscope-due-diligence"
 _VERSION = "0.1.0"
 _API = "/api/due-diligence/v1"
 _INTERNAL = "/internal/due-diligence/v1"
+FEATURE_KEY = "student-4-due-diligence"
+TOOL_ALLOWLIST = ("duediligence.review.inspect.v1", "duediligence.evidence.summary.v1")
+_SUGGESTED_QUESTIONS = (
+    "Generate professional-verification questions for this site review.",
+    "What planning and environmental evidence still needs professional checking?",
+    "Which strata or building matters should a buyer confirm before proceeding?",
+)
 
 
 def _problem(status: int, code: str, detail: str) -> tuple[Response, int]:
@@ -79,7 +87,7 @@ def register_health(app: Flask, store: Any) -> None:
         return jsonify(projection.model_dump(mode="json")), projection.http_status
 
 
-def create_blueprint(store: Any, feature1: Any) -> Blueprint:
+def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
     """Create the public due-diligence API blueprint."""
     blueprint = Blueprint("due_diligence", __name__)
 
@@ -175,6 +183,144 @@ def create_blueprint(store: Any, feature1: Any) -> Blueprint:
             .get("items", [])
         )
         return jsonify(build_map(longitude, latitude, review, constraints))
+
+    # --- Bounded AI-mode assistant: a Plan -> Act -> Observe -> Adapt question pack ---
+
+    @blueprint.get(f"{_API}/assistant/capabilities")
+    def assistant_capabilities() -> Response:
+        return jsonify(
+            {
+                "feature_key": FEATURE_KEY,
+                "tools": list(TOOL_ALLOWLIST),
+                "suggested_questions": list(_SUGGESTED_QUESTIONS),
+                "offline_safe": (
+                    "Site-review CRUD, evidence and the map work without an AI credential."
+                ),
+            }
+        )
+
+    @blueprint.post(f"{_API}/assistant/turns")
+    def assistant_turn() -> Response | tuple[Response, int]:
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            return _problem(422, "invalid_assistant_turn", "Request body must be a JSON object")
+        review_id = str(body.get("review_id", "")).strip()
+        if not review_id:
+            return _problem(422, "invalid_assistant_turn", "review_id is required")
+        message = str(body.get("message") or "").strip()
+        review_response = store.request("GET", f"{_INTERNAL}/site-reviews/{review_id}")
+        if review_response.status_code >= 400:
+            return _relay(review_response)
+        objective = (
+            f"Generate a bounded pack of professional-verification questions for site review "
+            f"{review_id}, using only the two allowlisted Feature 4 tools. Inspect the review "
+            "and its planning, environmental, strata and building evidence. In the findings, "
+            "phrase each item as a specific question the buyer should ask a suitably qualified "
+            "professional, grounded in the confirmed, partial-coverage, non-intersection and "
+            "unavailable evidence states, and prioritise evidence that is unavailable or only "
+            "partially covered. Do not certify compliance, safety or legal suitability, and do "
+            "not give legal advice."
+        )
+        if message:
+            objective = f"{objective} User request: {message}"
+        try:
+            upstream = ai_mode.create_run(
+                {
+                    "feature_key": FEATURE_KEY,
+                    "objective": objective,
+                    "trusted_identifiers": [{"kind": "site_review_id", "value": review_id}],
+                    "prompt_set": "default.v7",
+                    "tool_allowlist": list(TOOL_ALLOWLIST),
+                    "limits": {
+                        "max_iterations": 4,
+                        "max_tool_calls": 6,
+                        "time_budget_ms": 120000,
+                        "max_model_repairs": 1,
+                    },
+                }
+            )
+        except DependencyUnavailableError as exc:
+            return _problem(503, "ai_mode_unavailable", str(exc))
+        return _relay(upstream)
+
+    def _owned_run(run_id: str) -> tuple[Any, bool]:
+        response = ai_mode.get(f"/api/v1/agent-runs/{run_id}")
+        if response.status_code >= 400:
+            return response, False
+        payload = response.json()
+        run = payload.get("run") if isinstance(payload, dict) else None
+        owned = (
+            isinstance(run, dict)
+            and run.get("feature_key") == FEATURE_KEY
+            and run.get("tool_allowlist") == list(TOOL_ALLOWLIST)
+        )
+        return response, owned
+
+    @blueprint.get(f"{_API}/assistant/turns/<run_id>")
+    def assistant_detail(run_id: str) -> Response | tuple[Response, int]:
+        try:
+            upstream, owned = _owned_run(run_id)
+        except DependencyUnavailableError as exc:
+            return _problem(503, "ai_mode_unavailable", str(exc))
+        if upstream.status_code < 400 and not owned:
+            return _problem(404, "assistant_turn_not_found", "Assistant turn does not exist")
+        return _relay(upstream)
+
+    @blueprint.get(f"{_API}/assistant/turns/<run_id>/events")
+    def assistant_events(run_id: str) -> Response | tuple[Response, int]:
+        try:
+            detail, owned = _owned_run(run_id)
+            if detail.status_code >= 400:
+                return _relay(detail)
+            if not owned:
+                return _problem(404, "assistant_turn_not_found", "Assistant turn does not exist")
+            params = {key: value for key in ("after", "limit") if (value := request.args.get(key))}
+            return _relay(ai_mode.get(f"/api/v1/agent-runs/{run_id}/events", params=params))
+        except DependencyUnavailableError as exc:
+            return _problem(503, "ai_mode_unavailable", str(exc))
+
+    @blueprint.post(f"{_API}/assistant/turns/<run_id>/cancel")
+    def assistant_cancel(run_id: str) -> Response | tuple[Response, int]:
+        try:
+            detail, owned = _owned_run(run_id)
+            if detail.status_code >= 400:
+                return _relay(detail)
+            if not owned:
+                return _problem(404, "assistant_turn_not_found", "Assistant turn does not exist")
+            return _relay(ai_mode.cancel(run_id))
+        except DependencyUnavailableError as exc:
+            return _problem(503, "ai_mode_unavailable", str(exc))
+
+    # Read-only tools the shared AI-mode service calls back into this backend.
+
+    @blueprint.post(f"{_API}/tools/duediligence.review.inspect.v1")
+    def tool_review_inspect() -> Response:
+        body = request.get_json(silent=True) or {}
+        review_id = str(body.get("site_review_id", "")).strip()
+        response = store.request("GET", f"{_INTERNAL}/site-reviews/{review_id}")
+        if response.status_code >= 400:
+            return _relay(response)
+        return jsonify({"site_review": response.json()})
+
+    @blueprint.post(f"{_API}/tools/duediligence.evidence.summary.v1")
+    def tool_evidence_summary() -> Response:
+        body = request.get_json(silent=True) or {}
+        review_id = str(body.get("site_review_id", "")).strip()
+        review_response = store.request("GET", f"{_INTERNAL}/site-reviews/{review_id}")
+        if review_response.status_code >= 400:
+            return _relay(review_response)
+        reference = review_response.json()["property_ref"]
+        constraints = (
+            store.request("GET", f"{_INTERNAL}/properties/{reference}/constraints")
+            .json()
+            .get("items", [])
+        )
+        buildings = (
+            store.request("GET", f"{_INTERNAL}/properties/{reference}/buildings")
+            .json()
+            .get("items", [])
+        )
+        return jsonify({"constraints": constraints, "buildings": buildings})
 
     return blueprint
 

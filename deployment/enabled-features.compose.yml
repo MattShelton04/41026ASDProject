@@ -68,9 +68,10 @@ services:
     - release-0
   shared-ai-mode:
     environment:
-      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/market-intelligence-tools.yaml,/etc/ai-mode/suburb-analytics-tools.yaml,/etc/ai-mode/buyer-workspace-tools.yaml
+      AI_MODE_TOOL_CATALOG_PATHS: /etc/ai-mode/propertyscope-tools.yaml,/etc/ai-mode/market-intelligence-tools.yaml,/etc/ai-mode/suburb-analytics-tools.yaml,/etc/ai-mode/due-diligence-tools.yaml,/etc/ai-mode/buyer-workspace-tools.yaml
     volumes:
     - ./student-1/tool-catalog.yaml:/etc/ai-mode/propertyscope-tools.yaml:ro
     - ./student-2/tool-catalog.yaml:/etc/ai-mode/market-intelligence-tools.yaml:ro
     - ./student-3/tool-catalog.yaml:/etc/ai-mode/suburb-analytics-tools.yaml:ro
+    - ./student-4/tool-catalog.yaml:/etc/ai-mode/due-diligence-tools.yaml:ro
     - ./student-5/tool-catalog.yaml:/etc/ai-mode/buyer-workspace-tools.yaml:ro

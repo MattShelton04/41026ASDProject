@@ -5,10 +5,9 @@ owner: student-4
 frontend_base_path: /features/due-diligence/
 backend_base_path: /api/due-diligence/v1
 health_path: /health/ready
-# AI-mode tool integration (a bounded Plan -> Act -> Observe -> Adapt question pack)
-# is intentionally deferred to a later branch; add an `ai:` onboarding block and a
-# student-4/tool-catalog.yaml when it lands.
-ai_capabilities: []
+ai_capabilities:
+  - duediligence.review.inspect.v1
+  - duediligence.evidence.summary.v1
 onboarding:
   frontend:
     asset_root: student-4/frontend
@@ -20,6 +19,9 @@ onboarding:
   backend:
     service: f4-backend
     internal_port: 5401
+  ai:
+    tool_catalog: student-4/tool-catalog.yaml
+    runtime_path: /etc/ai-mode/due-diligence-tools.yaml
   quality:
     python_test_paths:
       - student-4/tests
