@@ -1,13 +1,14 @@
 # Release 0
 
-The Shared platform and Feature 1 form an operational Release 0 candidate slice. Features 2–5 are
-approved but not implemented or integrated, so the repository is not yet a complete group
-submission.
+The Shared platform and all five student feature slices are enabled in the generated Release 0
+profile. The final report records each slice's implementation, tests, CI evidence and known
+limitations without treating deterministic fixtures as current official data.
 
 ## Start here
 
-- [`../reports/release-0-technical-report.md`](../reports/release-0-technical-report.md): current
-  assignment-aligned report scaffold, evidence map, rubric traceability, and remaining gates
+- [`../reports/release-0-technical-report.md`](../reports/release-0-technical-report.md): final
+  assignment-aligned report source, evidence map and rubric traceability
+- [`../reports/group20.pdf`](../reports/group20.pdf): generated Canvas submission artefact
 - [`feature-onboarding.md`](feature-onboarding.md): requirements and executable onboarding checks for
   an approved student vertical slice
 - [`feature-client-adoption.md`](feature-client-adoption.md): independent data-client and Shared
@@ -35,7 +36,9 @@ technical report and current executable checks for later implementation/test sta
 - Feature 1 frontend, backend, runner, database API, loader, and PostgreSQL/PostGIS services
 - complete registered-source acquisition, candidate review, publication/activation evidence, and
   accepted property/address/sale-history projections
-- Integration CI plus Student 1 browser and integrated-container checks
+- five enabled student feature slices with independently owned frontend, backend/API and database
+  services
+- Integration CI plus `student-1.yml` through `student-5.yml`, with retained successful runs
 
 All shared views consume public HTTP projections. No service imports another student's production
 code or accesses another feature's database.
@@ -53,11 +56,10 @@ The offline stack validates deterministic service/data paths without a model cre
 evidence requires the approved provider configuration; official-source acquisition starts only when
 an operator explicitly launches a job.
 
-## Remaining group gates
+## Recorded limitations
 
-- implement and integrate Features 2–5, including CRUD, owned persistence, AI paths, tests, and CI
-- retain durable OpenAI/model and Feature 1 PostgreSQL/PostGIS approval evidence
-- prove at least ten deterministic records in every assessed table
-- capture final five-feature health, endpoint/NFR, Compose, workflow, screenshot, and AI-run evidence
-- complete contribution/commit/attendance records, publish the maximum ten-minute group video, and
-  export the final report PDF
+The technical report is the current authority for submission limitations. The main evidence risks
+are the remote-provider approval record, Feature 4's unapproved PostgreSQL/PostGIS deviation from
+the published SQLite requirement, Feature 1's literal per-table count interpretation, and uneven
+feature-specific live-provider records. These are not concealed by the successful deterministic and
+container checks.

@@ -1,11 +1,11 @@
 # Reports
 
-Store group technical-report working material and final release reports here.
-Each release report should include the required architecture, implementation,
-testing, workflow, deployment, contribution, attendance, screenshot, known
-issue, and showcase-video evidence applicable to that release.
+This directory contains the maintained Release 0 report source and submission PDF.
 
-The current working scaffold is the
-[`Release 0 technical report`](release-0-technical-report.md). Verified Shared/Feature 1 material is
-filled in; explicit TODO/evidence markers remain for student-owned Features 2–5 and final group
-submission artefacts. Do not remove a marker by converting planned work into an implementation claim.
+- [`release-0-technical-report.md`](release-0-technical-report.md) is the evidence-backed source.
+- [`group20.pdf`](group20.pdf) is the Canvas submission artefact.
+- `scripts/build_release0_report.py` regenerates the PDF and its report-sized diagrams.
+
+The report covers all five enabled feature slices, architecture, Docker Compose, AI mode and the
+agentic loop, local and GitHub Actions evidence, screenshots, contribution records and known
+limitations. Regenerate and visually inspect the PDF after changing its source.
