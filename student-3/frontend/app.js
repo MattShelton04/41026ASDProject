@@ -123,7 +123,7 @@ function renderSuburbs(items) {
   $$("[data-locality]").forEach((button) => button.addEventListener("click", () => chooseSuburb(button.dataset.locality)));
 }
 
-function selectedPlaceTypes() { return new Set($$(".filters input:checked").map((input) => input.value)); }
+function selectedPlaceTypes() { return new Set($$(".map-filters input:checked").map((input) => input.value)); }
 
 function suburbFeatures(items) {
   return featureCollection(items.map((item) => pointFeature(
@@ -233,7 +233,18 @@ async function filterSuburbs(query = $("#search").value.trim()) {
   renderSuburbs(payload.items);
   $("#search-status").textContent = payload.items.length
     ? `${payload.items.length} matching ${payload.items.length === 1 ? "suburb" : "suburbs"}.`
-    : "No matching suburbs. Check the spelling, try a postcode, or clear the search and map filters.";
+    : "No matching suburbs. Check the spelling, try a postcode, or clear the search and suburb filters.";
+  if (state.map?.layerIds.includes("suburbs")) {
+    state.map.setLayerData("suburbs", suburbFeatures(payload.items));
+  }
+  if (state.selectedLocality && !payload.items.some((item) => item.locality === state.selectedLocality)) {
+    ++suburbSelection;
+    state.map?.setLayerData("places", featureCollection([]));
+    state.selectedLocality = "";
+    state.places = [];
+    $("#suburb-detail").hidden = true;
+    state.assistant?.controller.setContext({ route: "suburbs" });
+  }
   if (generation !== suburbFilterGeneration) return;
   announce(`${payload.page?.total ?? payload.count} suburb results.`);
   } catch (error) {
@@ -358,7 +369,7 @@ async function init() {
   });
   addEventListener("hashchange", route); $("#search-form").addEventListener("submit", search); $("#trend-form").addEventListener("submit", compareTrends); $("#new-comparison").onclick = () => openDialog(); $("#comparison-form").addEventListener("submit", saveComparison); initialiseAssistant();
   ["#lga-filter", "#amenity-filter", "#sort-filter"].forEach((selector) => $(selector).addEventListener("change", () => filterSuburbs()));
-  $$(".filters input").forEach((input) => input.addEventListener("change", () => {
+  $$(".map-filters input").forEach((input) => input.addEventListener("change", () => {
     const current = state.selectedLocality || state.suburbs[0]?.locality;
     if (current) chooseSuburb(current);
   }));
