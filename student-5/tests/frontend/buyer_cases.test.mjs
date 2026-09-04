@@ -22,6 +22,7 @@ import {
   renderSummaryRun,
   renderTaskItems,
   statusLabel,
+  summaryWorkflowView,
   targetSuburbsFromText,
   uiStateForError,
   validateCaseInput,
@@ -266,7 +267,11 @@ test("bounded evidence renderer exposes all states and limitations safely", () =
     sections: {
       feature_1: { state: "complete", items: [{ property_ref: "property-1", state: "complete", address_display: "<Address>" }] },
       feature_2: { state: "partial", items: [] },
-      feature_3: { state: "unavailable", items: [], limitations: ["No public API"] },
+      feature_3: {
+        state: "unavailable",
+        items: [],
+        limitations: ["Feature 3 has no available Release 0 public API."],
+      },
       feature_4: { state: "conflicting", items: [{ property_ref: "property-1", state: "needs_verification" }] },
     },
     evidence_references: ["feature_1:property_ref:property-1"],
@@ -278,21 +283,92 @@ test("bounded evidence renderer exposes all states and limitations safely", () =
   assert.match(html, /&lt;Address&gt;/);
   assert.match(html, /Bounded to 10 properties/);
   assert.match(html, /feature_1:property_ref:property-1/);
+  assert.match(html, /<code>property-1<\/code>: Complete/);
+  assert.match(html, /Suburb analytics evidence/);
+  assert.match(html, /Suburb analytics evidence<\/h4><span class="ps-badge evidence-unavailable">Unavailable/);
+  assert.doesNotMatch(html, /Feature 3 evidence/);
+  assert.match(html, /No evidence records returned\./);
+  assert.doesNotMatch(html, /Feature 3 has no available Release 0 public API\./);
+  for (const mojibake of ["â", "€", "�"]) assert.doesNotMatch(html, new RegExp(mojibake));
 });
 
-test("AI summary renderer shows Plan Act Observe Adapt, references and limitations", () => {
+test("AI summary renderer preserves its user-facing result without phase cards", () => {
+  const rawReference = "buyer.evidence.collect.v1:feature_1:property_ref:b5000000-0000-4000-8000-000000000001:succeeded";
   const html = renderSummaryRun({
     status: "succeeded",
     phases: ["plan", "act", "observe", "adapt"].map((name) => ({ name, status: "succeeded" })),
-    summary: "Review <evidence>",
-    suggested_next_actions: ["Book inspection"],
-    evidence_references: ["feature_1:property"],
-    limitations: ["Feature 3 unavailable"],
+    summary: "Property discovery and Sales research provide bounded <evidence>.",
+    suggested_next_actions: ["Review Due diligence findings"],
+    evidence_used: [
+      { label: "Buyer case and shortlist", status: "Retrieved", detail: "1 shortlisted property" },
+      { label: "Case notes", status: "Retrieved", detail: "1 note" },
+      { label: "Case tasks", status: "Retrieved", detail: "2 tasks (1 completed, 1 incomplete)" },
+      { label: "Property discovery", status: "Complete" },
+      { label: "Sales research", status: "Conflicting; verification required" },
+      { label: "Suburb analytics", status: "Unavailable" },
+      { label: "Due diligence", status: "Partial" },
+    ],
+    evidence_references: [rawReference],
+    limitations: ["Suburb analytics is unavailable"],
   });
-  for (const phase of ["plan", "act", "observe", "adapt"]) assert.match(html, new RegExp(phase));
-  assert.match(html, /Review &lt;evidence&gt;/);
-  assert.match(html, /feature_1:property/);
-  assert.match(html, /Feature 3 unavailable/);
+  assert.match(html, /Case summary generated successfully\./);
+  assert.doesNotMatch(html, /AI processing details/);
+  assert.doesNotMatch(html, /run-phases|data-phase/);
+  assert.match(html, /Property discovery and Sales research provide bounded &lt;evidence&gt;/);
+  const primaryEvidence = html.slice(html.indexOf("<h4>Evidence used</h4>"), html.indexOf('<details class="technical-audit"'));
+  for (const label of ["Buyer case and shortlist", "Case notes", "Case tasks", "Property discovery", "Sales research", "Suburb analytics", "Due diligence"]) {
+    assert.match(primaryEvidence, new RegExp(label));
+  }
+  assert.match(primaryEvidence, /Buyer case and shortlist<\/strong>: Retrieved; 1 shortlisted property/);
+  assert.match(primaryEvidence, /Case tasks<\/strong>: Retrieved; 2 tasks \(1 completed, 1 incomplete\)/);
+  assert.match(primaryEvidence, /Sales research<\/strong>: Conflicting; verification required/);
+  assert.match(primaryEvidence, /Due diligence<\/strong>: Partial/);
+  for (const mojibake of ["â", "€", "�"]) assert.doesNotMatch(html, new RegExp(mojibake));
+  assert.doesNotMatch(primaryEvidence, /buyer\.evidence|feature_1|b5000000/);
+  assert.match(html, /<details class="technical-audit"><summary>Technical audit references<\/summary>/);
+  assert.doesNotMatch(html, /<details class="technical-audit" open/);
+  assert.match(html, new RegExp(rawReference.replaceAll(".", "\\.")));
+  assert.match(html, /Suburb analytics is unavailable/);
+  const userFacingHtml = html.replace(/<details class="technical-audit">.*?<\/details>/, "");
+  assert.doesNotMatch(userFacingHtml, /Feature\s+[1-4]/i);
+});
+
+test("AI workflow presents a compact accessible idle status", () => {
+  const view = summaryWorkflowView(null);
+  const html = renderSummaryRun(null, view);
+  assert.deepEqual(view, { statusText: "Ready to generate a case summary." });
+  assert.match(html, /role="status" aria-live="polite" data-workflow-status>Ready to generate a case summary\.<\/p>/);
+  assert.doesNotMatch(html, /AI processing details|run-phases|data-phase/);
+});
+
+test("AI workflow uses one concise processing status for every phase", () => {
+  for (const status of ["queued", "planning", "acting", "observing", "adapting", "review_required"]) {
+    const run = { status, phases: [{ name: "adapt", status: "running" }] };
+    assert.equal(summaryWorkflowView(run).statusText, "Generating case summary");
+  }
+});
+
+test("successful workflow status is concise", () => {
+  const view = summaryWorkflowView({ status: "succeeded", phases: [] });
+  assert.equal(view.statusText, "Case summary generated successfully.");
+});
+
+test("failed workflow status identifies the failed phase without rendering phase cards", () => {
+  const run = {
+    status: "failed",
+    phases: [
+      { name: "plan", status: "succeeded" },
+      { name: "act", status: "succeeded" },
+      { name: "observe", status: "succeeded" },
+      { name: "adapt", status: "failed" },
+    ],
+    error: "Generation stopped safely.",
+  };
+  const view = summaryWorkflowView(run);
+  const html = renderSummaryRun(run, view);
+  assert.equal(view.statusText, "The case summary could not be generated: Adapt failed.");
+  assert.match(html, /role="status" aria-live="polite"/);
+  assert.doesNotMatch(html, /AI processing details|run-phases|data-phase/);
 });
 
 test("workspace renderers show journey, ratings, associations and completion controls safely", () => {

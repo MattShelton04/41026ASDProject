@@ -414,27 +414,20 @@ body {
   border-radius: var(--ps-radius-md);
 }
 
-.evidence-card header,
-.run-phases {
+.evidence-card header {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: var(--ps-space-3);
 }
 
-.run-phases {
-  padding: 0;
-  list-style: none;
-}
-
-.run-phases li {
-  display: grid;
-  flex: 1 1 8rem;
-  gap: var(--ps-space-1);
+.workflow-status {
+  margin-block: var(--ps-space-3);
   padding: var(--ps-space-3);
-  border: var(--ps-border-width) solid var(--ps-color-border);
-  border-radius: var(--ps-radius-sm);
-  text-transform: capitalize;
+  border-inline-start: var(--ps-space-1) solid var(--ps-color-accent);
+  background: var(--ps-color-surface-subtle);
+  color: var(--ps-color-text-strong);
+  font-weight: var(--ps-weight-bold);
 }
 
 .item-reference,

@@ -18,7 +18,7 @@ test("published evidence distinguishes zero, missing and incompatible population
 const html = readFileSync(new URL("../frontend/index.html", import.meta.url), "utf8");
 const js = readFileSync(new URL("../frontend/app.js", import.meta.url), "utf8");
 
-test("live search replaces prior queries, restores cleared results and ignores stale responses", async () => {
+test("live search filters only the suburb list, preserves selection and ignores stale responses", async () => {
   const nodes = new Map();
   const renders = [];
   const updates = [];
@@ -75,15 +75,18 @@ test("live search replaces prior queries, restores cleared results and ignores s
   assert.equal(timers.size, 0);
   assert.deepEqual(selections, [], "typing and submitting must not select a suburb");
   assert.equal(vm.runInContext("state.selectedLocality", context), "");
-  vm.runInContext('state.selectedLocality = "Burwood"; $("#suburb-detail").hidden = false;', context);
+  vm.runInContext('state.selectedLocality = "Burwood"; state.places = [{id: "school"}]; $("#suburb-detail").hidden = false;', context);
   await vm.runInContext('filterSuburbs("")', context);
   assert.equal(vm.runInContext("state.selectedLocality", context), "Burwood");
   assert.equal(nodes.get("#suburb-detail").hidden, false);
   context.fetch = async () => ({ok: true, json: async () => ({items: [{locality: "Parramatta"}]})});
+  const mapUpdatesBeforeFilteringOutSelection = updates.length;
   await vm.runInContext('filterSuburbs("Parramatta")', context);
-  assert.equal(vm.runInContext("state.selectedLocality", context), "");
-  assert.equal(nodes.get("#suburb-detail").hidden, true);
-  assert.deepEqual(selections, [], "filtering out a selection must not select its replacement");
+  assert.equal(vm.runInContext("state.selectedLocality", context), "Burwood");
+  assert.equal(vm.runInContext("state.places.length", context), 1);
+  assert.equal(nodes.get("#suburb-detail").hidden, false);
+  assert.equal(updates.length, mapUpdatesBeforeFilteringOutSelection, "list filters must not replace map layers");
+  assert.deepEqual(selections, [], "filtering must not change the selected suburb");
 });
 
 test("suburb search belongs only to overview, below the map and above suburb cards", () => {
@@ -93,6 +96,12 @@ test("suburb search belongs only to overview, below the map and above suburb car
   assert.equal(html.match(/id="search-form"/g).length, 1);
   assert.ok(overview.indexOf('id="search-form"') > overview.indexOf('id="suburb-detail"'));
   assert.ok(overview.indexOf('id="search-form"') < overview.indexOf('id="suburb-cards"'));
+  assert.ok(overview.indexOf('id="lga-filter"') > overview.indexOf('id="search-form"'));
+  assert.ok(overview.indexOf('id="sort-filter"') < overview.indexOf('id="suburb-cards"'));
+  assert.match(overview, /class="list-filter-bar" aria-labelledby="list-filter-title"/);
+  const mapFilters = overview.split('class="ps-card filters"')[1].split('class="map-stack"')[0];
+  assert.match(mapFilters, /Places to show/);
+  assert.doesNotMatch(mapFilters, /id="(?:lga|amenity|sort)-filter"/);
   assert.match(overview, /aria-label="Search overview suburbs"/);
 });
 
@@ -298,6 +307,6 @@ test("frontend exposes map, chart table, CRUD and responsible-use language", () 
   assert.match(js, /area-series/);
   assert.match(js, /createFeatureAssistant/);
   assert.match(js, /\(missing\)/);
-  assert.match(js, /setLayerData\("suburbs"/);
+  assert.doesNotMatch(js, /setLayerData\("suburbs"/);
   assert.match(js, /createMap/);
 });
