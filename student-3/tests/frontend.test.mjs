@@ -99,7 +99,7 @@ test("suburb search belongs only to overview, below the map and above suburb car
   assert.ok(overview.indexOf('id="lga-filter"') > overview.indexOf('id="search-form"'));
   assert.ok(overview.indexOf('id="sort-filter"') < overview.indexOf('id="suburb-cards"'));
   assert.match(overview, /class="list-filter-bar" aria-labelledby="list-filter-title"/);
-  const mapFilters = overview.split('class="ps-card filters"')[1].split('class="map-stack"')[0];
+  const mapFilters = overview.split('class="ps-card map-filters"')[1].split('class="map-stack"')[0];
   assert.match(mapFilters, /Places to show/);
   assert.doesNotMatch(mapFilters, /id="(?:lga|amenity|sort)-filter"/);
   assert.match(overview, /aria-label="Search overview suburbs"/);
