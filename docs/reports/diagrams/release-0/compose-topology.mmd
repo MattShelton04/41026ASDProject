@@ -1,0 +1,67 @@
+flowchart TB
+    net["shared-platform Docker network"]
+
+    subgraph shared["Shared — 2 services"]
+        sf[shared-frontend]
+        sa[shared-ai-mode]
+        sav[(shared-ai-mode-state)]
+        sa --- sav
+    end
+
+    subgraph one["Feature 1 — 6 services"]
+        f1f[f1-frontend] --> f1b[f1-backend]
+        f1r[f1-runner] <-->|worker HTTP| f1b
+        f1b --> f1d[f1-db-api] --> f1p[f1-postgres]
+        f1l[f1-db-loader] --> f1p
+        f1a[(f1-artifacts)]
+        f1v[(f1-postgres-data)]
+        f1r ---|RW| f1a
+        f1b ---|RO| f1a
+        f1d ---|RO| f1a
+        f1l ---|RO| f1a
+        f1p --- f1v
+    end
+
+    subgraph two["Feature 2 — 3 services"]
+        f2f[f2-frontend] --> f2b[f2-backend] --> f2d[f2-db-api]
+        f2v[(f2-sqlite-data)]
+        f2d --- f2v
+    end
+
+    subgraph three["Feature 3 — 3 services"]
+        f3f[f3-frontend] --> f3b[f3-backend / worker] --> f3d[f3-database]
+        f3v[(f3-suburb-data)]
+        f3d --- f3v
+    end
+
+    subgraph four["Feature 4 — 4 services"]
+        f4f[f4-frontend] --> f4b[f4-backend] --> f4d[f4-db-api] --> f4p[f4-postgres]
+        f4v[(f4-postgres-data)]
+        f4p --- f4v
+    end
+
+    subgraph five["Feature 5 — 3 services"]
+        f5f[f5-frontend] --> f5b[f5-backend] --> f5d[f5-db-api]
+        f5v[(f5-sqlite-data)]
+        f5d --- f5v
+    end
+
+    sf --- net
+    sa --- net
+    f1b --- net
+    f2b --- net
+    f3b --- net
+    f4b --- net
+    f5b --- net
+
+    count["Release 0 generated profile<br/>21 services · 7 named volumes"]
+    net --- count
+
+    classDef shared fill:#dce6f1,stroke:#2f5597,color:#111827;
+    classDef feature fill:#eaf1f8,stroke:#5b7fa6,color:#111827;
+    classDef volume fill:#f3f5f7,stroke:#6b7280,color:#111827;
+    classDef note fill:#fff2cc,stroke:#a67c00,color:#111827;
+    class sf,sa shared;
+    class f1f,f1b,f1r,f1d,f1l,f1p,f2f,f2b,f2d,f3f,f3b,f3d,f4f,f4b,f4d,f4p,f5f,f5b,f5d feature;
+    class sav,f1a,f1v,f2v,f3v,f4v,f5v volume;
+    class net,count note;

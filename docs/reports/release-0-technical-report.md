@@ -257,13 +257,25 @@ database volume is mounted only by its owner.
 
 ## 4 Software architecture
 
-### 4 1 Individual service boundaries
+### 4 1 Feature 1 runtime and individual service boundaries
 
-![Figure 2 Individual frontend backend database and AI service boundaries](assets/release-0/individual-boundaries.png)
+Feature 1 is deliberately more than a frontend, backend and database. The credential-free runner
+claims acquisition work through the backend's worker HTTP contract and is the only service that
+writes content-addressed source artefacts. The DB API owns request-time persistence access, while the
+separate credential-owning loader performs durable imports and accepted-generation activation. All
+three services read the artefact volume, but only the runner writes it; only PostgreSQL mounts the
+database volume. Publication remains a reviewed backend action and accepted releases are delivered
+to downstream consumers through idempotent HTTP contracts.
+
+![Figure 2 Feature 1 runtime trust boundaries acquisition loading AI callbacks and publication](assets/release-0/individual-boundaries.png)
+
+The Mermaid source for every architecture, state and pipeline figure is retained under
+`docs/reports/diagrams/release-0`. The rendered PNG files are the PDF-compatible derivatives, not
+independent drawings.
 
 | Feature | Frontend | Backend and API | Database service | AI integration |
 |---|---|---|---|---|
-| Student 1 | Shared tokens, HTMX Source CRUD, property and operations views | Public API plus serial acquisition runner | Private DB API and loader over PostgreSQL/PostGIS | Property, release and run evidence tools |
+| Student 1 | Shared tokens, HTMX source CRUD, property and operations views | Credential-free public/control API plus serial acquisition runner using a worker HTTP contract | Private DB API plus serial loader over PostgreSQL/PostGIS; separate artefact and database volume ownership | Fourteen property, source, release, run, coverage and reviewed-action capabilities; accepted-release delivery to Features 2 to 4 |
 | Student 2 | Sales and market case workspace | Case CRUD, import validation and deterministic summaries | Token-guarded DB API over SQLite | Two case and sales-summary tools |
 | Student 3 | Suburb map, filters, comparisons and published evidence | Query, compare, nearby places, imports and assistant routes | Private network database API over SQLite | Snapshot, crime comparison and methodology tools |
 | Student 4 | Site-review list, dialogs, checklist, evidence and map | Review CRUD, Feature 1 validation, map and assistant routes | Token-guarded DB API over PostgreSQL/PostGIS | Review inspection and evidence-summary tools |
@@ -271,10 +283,12 @@ database volume is mounted only by its owner.
 
 ### 4 2 Integrated architecture
 
-The browser enters through `shared-frontend` on port 5100. The shared edge loads a same-origin HTMX
-feature directory and proxies feature routes so users remain within one product shell. Backends call
-their owned database API and the shared AI mode over private Compose networking. Feature 1 publishes
-validated artefacts; downstream features consume those through supported HTTP contracts.
+The browser normally enters through `shared-frontend` on port 5100. The shared edge loads a
+same-origin HTMX feature directory and proxies feature routes so users remain within one product
+shell; per-feature frontend ports remain available for local development. Backends call only their
+owned database service and the shared AI mode over private Compose networking. AI mode calls back to
+allowlisted feature-owned HTTP tools and never opens a feature database. Feature 1 publishes accepted
+dataset releases; downstream features consume those through supported HTTP contracts.
 
 ![Figure 3 Integrated Release 0 software architecture](assets/release-0/integrated-architecture.png)
 

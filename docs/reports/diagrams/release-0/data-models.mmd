@@ -1,0 +1,25 @@
+flowchart LR
+    subgraph left["Feature-owned Release 0 data models"]
+        direction TB
+        f1["F1 Data platform<br/><br/>Source definition → ingestion run → run task → artefact record → dataset release<br/>Dataset release → quality results and publication review<br/>Approved review → accepted generation → property registry / identifiers / coverage<br/>Approved review → consumer delivery operation"]
+        f2["F2 Market intelligence<br/><br/>Market case 1 → many sale observations<br/>Filters and summaries remain deterministic"]
+        f3["F3 Suburb analytics<br/><br/>Suburb 1 → many indicators and amenities<br/>Suburb → overview and user-saved comparison"]
+        f1 ~~~ f2
+        f2 ~~~ f3
+    end
+
+    subgraph right["Independently owned schemas"]
+        direction TB
+        f4["F4 Due diligence<br/><br/>Site review 1 → many constraint observations<br/>Site review 1 → many building observations"]
+        f5["F5 Buyer workspace<br/><br/>Buyer case 1 → many shortlist properties<br/>Buyer case 1 → many notes and tasks<br/>A note or task may refer to one same-case property"]
+        rule["No cross-feature foreign keys<br/>Integration is by versioned HTTP contract"]
+        f4 ~~~ f5
+        f5 ~~~ rule
+    end
+
+    f1 ~~~ f4
+
+    classDef model fill:#eaf1f8,stroke:#5b7fa6,color:#111827;
+    classDef note fill:#fff2cc,stroke:#a67c00,color:#111827;
+    class f1,f2,f3,f4,f5 model;
+    class rule note;

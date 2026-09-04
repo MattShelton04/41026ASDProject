@@ -1,0 +1,19 @@
+flowchart LR
+    change["Push / pull request"]
+    integration["integration-ci.yml<br/>canonical repository gate"]
+    students["student-1.yml … student-5.yml<br/>path-filtered feature gates"]
+
+    quality["Locked workspace<br/>format · Ruff · Mypy · pytest · JS<br/>architecture · packaging · generation drift"]
+    compose["Compose config<br/>and container image builds"]
+    smoke["Health · fixture/seed · CRUD<br/>persistence · boundary smoke"]
+    evidence["Retained successful workflow runs<br/>URL · SHA · result in Section 7"]
+
+    change --> integration --> quality --> compose --> evidence
+    change --> students --> compose --> smoke --> evidence
+
+    classDef trigger fill:#fff2cc,stroke:#a67c00,color:#111827;
+    classDef gate fill:#eaf1f8,stroke:#5b7fa6,color:#111827;
+    classDef proof fill:#d9ead3,stroke:#548235,color:#111827;
+    class change trigger;
+    class integration,students,quality,compose,smoke gate;
+    class evidence proof;

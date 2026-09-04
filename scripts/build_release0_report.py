@@ -167,8 +167,8 @@ def _save(image: Image.Image, name: str) -> None:
     image.save(ASSET_DIR / name, optimize=True)
 
 
-def build_diagrams() -> None:
-    """Create readable report-sized architecture figures."""
+def _build_legacy_diagrams() -> None:
+    """Retain the pre-Mermaid renderer only as migration history; do not call it."""
     image, draw = _canvas("Integrated Release 0 architecture")
     _rounded_box(draw, (65, 430, 270, 600), "User\nbrowser", fill="#F3F5F7")
     _rounded_box(
@@ -385,6 +385,27 @@ def build_diagrams() -> None:
         draw.text((x1 + 28, y1 + 22), name, fill="#17365D", font=_font(29, bold=True))
         draw.multiline_text((x1 + 28, y1 + 85), body, fill="#111827", font=_font(24), spacing=14)
     _save(image, "data-models.png")
+
+
+def _validate_mermaid_diagrams() -> None:
+    """Require each checked-in Mermaid source and its rendered report asset."""
+    pairs = {
+        "feature-1-runtime.mmd": "individual-boundaries.png",
+        "integrated-architecture.mmd": "integrated-architecture.png",
+        "compose-topology.mmd": "compose-topology.png",
+        "data-models.mmd": "data-models.png",
+        "agent-loop.mmd": "agent-loop.png",
+        "devops-pipeline.mmd": "devops-pipeline.png",
+    }
+    source_dir = REPORT_DIR / "diagrams" / "release-0"
+    missing = [
+        str(path)
+        for source_name, asset_name in pairs.items()
+        for path in (source_dir / source_name, ASSET_DIR / asset_name)
+        if not path.is_file()
+    ]
+    if missing:
+        raise FileNotFoundError("Missing report diagram files: " + ", ".join(missing))
 
 
 def _styles() -> dict[str, ParagraphStyle]:
@@ -740,7 +761,7 @@ def parse_markdown(source: Path, baseline: str) -> list[Flowable]:
 
 
 def build(source: Path, output: Path, baseline: str) -> None:
-    build_diagrams()
+    _validate_mermaid_diagrams()
     output.parent.mkdir(parents=True, exist_ok=True)
     document = ReportDocTemplate(
         str(output),

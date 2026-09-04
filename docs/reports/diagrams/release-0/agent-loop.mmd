@@ -1,0 +1,48 @@
+flowchart TB
+    start((Start)) --> queued[queued]
+    queued -->|worker claims run| planning[planning]
+    planning -->|valid bounded plan| ready[ready]
+    ready -->|authorized action dispatch| acting[acting]
+    acting -->|result persisted| observing[observing]
+    observing -->|deterministic observation persisted| adapting[adapting]
+
+    planning -->|interrupted model call, retry| planning
+    acting -->|interrupted read-only action,<br/>replay exact call| ready
+    adapting -->|continue current plan| ready
+    adapting -->|replan| planning
+    adapting -->|interrupted model call, retry| adapting
+
+    ready -->|protected action| review[review_required]
+    acting -->|mutation outcome unknown| review
+    review -->|approve exact pending call| ready
+
+    adapting -->|validated final result| succeeded[succeeded]
+
+    queued -->|cancel before start| cancelled[cancelled]
+    planning -->|safe boundary| cancelled
+    ready -->|safe boundary| cancelled
+    adapting -->|safe boundary| cancelled
+    review -->|human rejects| cancelled
+
+    planning -->|invalid plan, provider error, or limit| failed[failed]
+    ready -->|invalid action or policy| failed
+    acting -->|terminal tool or adapter failure| failed
+    observing -->|invalid persisted result| failed
+    adapting -->|invalid decision, review target, or limit| failed
+    review -->|invalid review state| failed
+
+    succeeded --> finish((End))
+    failed --> finish
+    cancelled --> finish
+
+    note["Durable invariant<br/>Every model call and tool dispatch has a persisted running step before external I/O.<br/>Each transition and its step/review update commit atomically with optimistic version checking."]
+    adapting --- note
+
+    classDef active fill:#eaf1f8,stroke:#5b7fa6,color:#111827;
+    classDef review fill:#fff2cc,stroke:#a67c00,color:#111827;
+    classDef success fill:#d9ead3,stroke:#548235,color:#111827;
+    classDef terminal fill:#f3f5f7,stroke:#6b7280,color:#111827;
+    class queued,planning,ready,acting,observing,adapting active;
+    class review,note review;
+    class succeeded success;
+    class failed,cancelled terminal;
