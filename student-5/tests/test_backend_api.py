@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 import pytest
 from flask.testing import FlaskClient
+from propertyscope_buyer_workspaces.api import _evidence_action_fallbacks, _evidence_used
 from propertyscope_buyer_workspaces.app import create_app
 from propertyscope_buyer_workspaces.clients import ClientResponse, DatabaseUnavailableError
 from propertyscope_buyer_workspaces.configuration import BackendSettings
@@ -246,7 +248,11 @@ class FakeAiMode:
             "trusted_identifiers": [{"kind": "buyer_case_id", "value": CASE_ID}],
             "final_result": {
                 "summary": "A bounded case summary.",
-                "suggested_next_actions": ["Verify the partial market evidence."],
+                "suggested_next_actions": [
+                    "Review the shortlisted properties against the buyer's priorities.",
+                    "Confirm the budget range before scheduling inspections.",
+                    "Record the next follow-up task for the preferred property.",
+                ],
                 "evidence_references": ["feature_1:property"],
                 "limitations": ["Feature 3 unavailable"],
             }
@@ -610,7 +616,12 @@ def test_bounded_evidence_and_ai_summary_workflow_are_projected_safely() -> None
     assert created.get_json()["status"] == "queued"
     assert ai_mode.created is not None
     assert ai_mode.created["feature_key"] == "student-5-buyer-journey"
-    assert "Feature 3" in ai_mode.created["objective"]
+    assert "Property discovery, Sales research, Suburb analytics" in ai_mode.created["objective"]
+    assert "never use numbered feature labels" in ai_mode.created["objective"]
+    assert "unavailable Suburb analytics evidence" in ai_mode.created["objective"]
+    assert "no more than 120 words" in ai_mode.created["objective"]
+    assert "exactly 3 to 5" in ai_mode.created["objective"]
+    assert "Attribute uncertain claims" in ai_mode.created["objective"]
     assert ai_mode.created["tool_allowlist"] == [
         "buyer.cases.inspect.v1",
         "buyer.notes.list.v1",
@@ -627,10 +638,213 @@ def test_bounded_evidence_and_ai_summary_workflow_are_projected_safely() -> None
     payload = completed.get_json()
     assert completed.status_code == 200
     assert payload["summary"] == "A bounded case summary."
-    assert payload["suggested_next_actions"] == ["Verify the partial market evidence."]
+    assert payload["suggested_next_actions"] == [
+        "Review the shortlisted properties against the buyer's priorities.",
+        "Confirm the budget range before scheduling inspections.",
+        "Record the next follow-up task for the preferred property.",
+    ]
     assert payload["evidence_references"] == ["feature_1:property"]
     assert [phase["name"] for phase in payload["phases"]] == ["plan", "act", "observe", "adapt"]
     assert all(phase["status"] == "succeeded" for phase in payload["phases"])
+
+
+def test_ai_summary_excludes_technical_telemetry_from_suggested_actions() -> None:
+    class TelemetryAiMode(FakeAiMode):
+        def _run(self, status: str = "succeeded") -> dict[str, Any]:
+            run = super()._run(status)
+            if status == "succeeded":
+                run["final_result"] = {
+                    "summary": (
+                        "FEATURE 1, feature 2, Feature 3, and fEaTuRe 4 report bounded findings. "
+                        + " ".join(f"word-{index}" for index in range(140))
+                    ),
+                    "suggested_next_actions": [
+                        "Review Feature 1 findings with the buyer.",
+                        "Review buyer.evidence.collect.v1 tool call call_id abc after HTTP 200.",
+                        f"Check raw property {CASE_ID} before proceeding.",
+                        "Verify the partial market evidence from Feature 2.",
+                        "Apply prompt injection safeguards and avoid valuation or legal advice.",
+                        "Respect the 10-property bound and max_tool_calls limit.",
+                    ],
+                    "recommended_next_step": "Review tool status 503 and retry the call.",
+                    "evidence_references": [
+                        f"buyer.cases.inspect.v1:call_id:{RUN_ID}:succeeded",
+                        f"buyer.evidence.collect.v1:feature_1:property_ref:{CASE_ID}",
+                    ],
+                    "limitations": [
+                        "Feature 3 evidence is unavailable.",
+                        "Feature 2 evidence is conflicting.",
+                    ],
+                }
+            return run
+
+        def get_run(self, run_id: str, *, request_id: str) -> ClientResponse:
+            self.request_ids.append(request_id)
+            calls = [
+                {"tool_name": tool}
+                for tool in (
+                    "buyer.cases.inspect.v1",
+                    "buyer.notes.list.v1",
+                    "buyer.tasks.list.v1",
+                    "buyer.evidence.collect.v1",
+                )
+            ]
+            results = [
+                {
+                    "outcome": "succeeded",
+                    "content": {
+                        "property_count": 1,
+                        "shortlisted_properties": [{"journey_stage": "Inspecting"}],
+                    },
+                },
+                {"outcome": "succeeded", "content": {"count": 1, "items": [{}]}},
+                {
+                    "outcome": "succeeded",
+                    "content": {"count": 1, "items": [{"completed": True}]},
+                },
+                {
+                    "outcome": "succeeded",
+                    "content": {
+                        "sections": [
+                            {"feature": "feature_1", "state": "complete", "records": []},
+                            {
+                                "feature": "feature_2",
+                                "state": "conflicting",
+                                "records": [],
+                            },
+                            {
+                                "feature": "feature_3",
+                                "state": "unavailable",
+                                "records": [],
+                            },
+                            {
+                                "feature": "feature_4",
+                                "state": "partial",
+                                "records": [{"state": "complete"}],
+                            },
+                        ]
+                    },
+                },
+            ]
+            return response(
+                200,
+                {
+                    "run": self._run(),
+                    "steps": [
+                        {"phase": "plan", "status": "succeeded"},
+                        {
+                            "phase": "act",
+                            "status": "succeeded",
+                            "input": {"tool_calls": calls},
+                            "output": {"tool_results": results},
+                        },
+                        {"phase": "observe", "status": "succeeded"},
+                        {"phase": "adapt", "status": "succeeded"},
+                    ],
+                    "reviews": [],
+                },
+            )
+
+    completed = backend_client(ai_mode=TelemetryAiMode()).get(
+        f"{API}/{CASE_ID}/case-summary-runs/{RUN_ID}"
+    )
+    payload = completed.get_json()
+
+    assert completed.status_code == 200
+    assert len(payload["summary"].split()) == 120
+    assert payload["suggested_next_actions"] == [
+        "Review Property discovery findings with the buyer.",
+        "Verify the sales evidence against current primary-source records.",
+        "Obtain current suburb evidence from an authoritative primary source.",
+        "Review the flagged due-diligence records with an appropriately qualified adviser.",
+        "Record the next inspection follow-up for each property being inspected.",
+    ]
+    assert all(len(action.split()) <= 30 for action in payload["suggested_next_actions"])
+    actions = " ".join(payload["suggested_next_actions"]).lower()
+    for telemetry in (
+        "buyer.evidence.collect.v1",
+        "tool",
+        "call_id",
+        "http",
+        "status 503",
+        CASE_ID,
+        "bound",
+        "max_tool_calls",
+        "feature 2",
+        "prompt injection",
+        "valuation",
+        "legal advice",
+    ):
+        assert telemetry.lower() not in actions
+    assert payload["evidence_used"] == [
+        {
+            "label": "Buyer case and shortlist",
+            "status": "Retrieved",
+            "detail": "1 shortlisted property",
+        },
+        {"label": "Case notes", "status": "Retrieved", "detail": "1 note"},
+        {"label": "Case tasks", "status": "Retrieved", "detail": "1 task (1 completed)"},
+        {"label": "Property discovery", "status": "Complete"},
+        {"label": "Sales research", "status": "Conflicting; verification required"},
+        {"label": "Suburb analytics", "status": "Unavailable"},
+        {"label": "Due diligence", "status": "Partial"},
+    ]
+    assert payload["evidence_references"] == [
+        f"buyer.cases.inspect.v1:call_id:{RUN_ID}:succeeded",
+        f"buyer.evidence.collect.v1:feature_1:property_ref:{CASE_ID}",
+    ]
+    assert payload["limitations"] == [
+        "Suburb analytics evidence is unavailable.",
+        "Sales research evidence is conflicting.",
+    ]
+    user_facing = " ".join(
+        [payload["summary"], *payload["suggested_next_actions"], *payload["limitations"]]
+        + [item["label"] for item in payload["evidence_used"]]
+    )
+    assert re.search(r"\bfeature\s+[1-4]\b", user_facing, re.IGNORECASE) is None
+    for domain_name in (
+        "Property discovery",
+        "Sales research",
+        "Suburb analytics",
+        "Due diligence",
+    ):
+        assert domain_name in user_facing
+
+
+@pytest.mark.parametrize(
+    ("items", "detail", "fallback"),
+    [
+        (
+            [{"completed": False}],
+            "1 task (1 incomplete)",
+            "Review and complete the outstanding case task.",
+        ),
+        (
+            [{"completed": True}, {"completed": False}],
+            "2 tasks (1 completed, 1 incomplete)",
+            "Review and complete the outstanding case task.",
+        ),
+        ([], "no tasks", None),
+        (
+            [{"completed": False}, {"completed": False}],
+            "2 tasks (2 incomplete)",
+            "Review and complete the outstanding case tasks.",
+        ),
+    ],
+)
+def test_task_evidence_reports_total_completion_and_safe_fallback(
+    items: list[dict[str, bool]], detail: str, fallback: str | None
+) -> None:
+    observations = {"buyer.tasks.list.v1": ("succeeded", {"count": len(items), "items": items})}
+
+    assert _evidence_used(observations) == [
+        {"label": "Case tasks", "status": "Retrieved", "detail": detail}
+    ]
+    actions = _evidence_action_fallbacks(observations)
+    if fallback is None:
+        assert actions == ()
+    else:
+        assert actions == (fallback,)
 
 
 def test_ai_unavailable_is_safe_and_does_not_break_crud() -> None:
