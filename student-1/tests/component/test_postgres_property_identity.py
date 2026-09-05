@@ -19,6 +19,7 @@ from psycopg.rows import dict_row
 
 from propertyscope_data_store._property_reads import _CanonicalPropertyReads
 from propertyscope_data_store.errors import NotFoundError
+from propertyscope_data_store.import_profiles import execute_stream_import
 from propertyscope_data_store.migrations import migrate
 
 ADMIN_URL = os.getenv("PROPERTYSCOPE_TEST_POSTGRES_URL", "").strip()
@@ -155,3 +156,97 @@ def test_non_gnaf_registry_identity_keeps_compatibility_reads(
         item["property_ref"] == property_ref
         for item in reads.search_properties("21 example", state="NSW", limit=25).items
     )
+
+
+def test_bulk_provenance_migration_retains_existing_references(
+    identity_database: psycopg.Connection[dict[str, Any]],
+) -> None:
+    conn = identity_database
+    missing = conn.execute("""SELECT count(*) AS count FROM warehouse.gnaf_address fact
+        WHERE NOT EXISTS (SELECT 1 FROM warehouse.import_batch batch
+            WHERE (batch.dataset_release_id,batch.artifact_record_id,batch.ingestion_run_id)=
+                  (fact.dataset_release_id,fact.artifact_record_id,fact.ingestion_run_id))""").fetchone()
+    assert missing is not None and missing["count"] == 0
+    constraints = conn.execute("""SELECT conrelid::regclass::text AS relation,
+        confrelid::regclass::text AS parent FROM pg_constraint WHERE contype='f'
+        AND connamespace='warehouse'::regnamespace""").fetchall()
+    assert all(
+        item["relation"] == "warehouse.import_batch"
+        for item in constraints
+        if item["parent"].startswith("ops.")
+    )
+    assert any(item["parent"] == "registry.property" for item in constraints)
+    assert {
+        item["parent"] for item in constraints if item["relation"] == "warehouse.import_batch"
+    } == {"ops.dataset_release", "ops.artifact_record", "ops.ingestion_run"}
+
+
+def test_bulk_import_checks_provenance_before_consuming_rows(
+    identity_database: psycopg.Connection[dict[str, Any]],
+) -> None:
+    def forbidden_rows() -> Iterator[dict[str, Any]]:
+        yield pytest.fail("invalid provenance must fail before COPY")
+
+    with pytest.raises(psycopg.errors.ForeignKeyViolation):
+        execute_stream_import(
+            identity_database,
+            {
+                "candidate_release_id": uuid.uuid4(),
+                "artifact_record_id": uuid.uuid4(),
+                "ingestion_run_id": uuid.uuid4(),
+            },
+            profile="gnaf-nsw",
+            rows=forbidden_rows(),
+        )
+    identity_database.rollback()
+
+
+def test_bulk_rows_and_provenance_roll_back_together(
+    identity_database: psycopg.Connection[dict[str, Any]],
+) -> None:
+    conn = identity_database
+    original = conn.execute(
+        "SELECT * FROM ops.dataset_release WHERE dataset_id='gnaf-nsw' LIMIT 1"
+    ).fetchone()
+    assert original is not None
+    release_id = uuid.uuid4()
+    conn.execute(
+        """INSERT INTO ops.dataset_release SELECT (jsonb_populate_record(
+        NULL::ops.dataset_release,to_jsonb(release) || jsonb_build_object(
+            'id',%s::text,'release_version','bulk-rollback-test','status','draft'
+        ))).* FROM ops.dataset_release release WHERE id=%s""",
+        (release_id, original["id"]),
+    )
+    conn.commit()
+    row = conn.execute("""SELECT *, ST_X(geom) AS longitude,ST_Y(geom) AS latitude
+        FROM warehouse.gnaf_address LIMIT 1""").fetchone()
+    assert row is not None
+    row.update(gnaf_pid="bulk-rollback-test", source_crs=4326)
+    result = execute_stream_import(
+        conn,
+        {
+            "candidate_release_id": release_id,
+            "artifact_record_id": original["artifact_record_id"],
+            "ingestion_run_id": original["ingestion_run_id"],
+        },
+        profile="gnaf-nsw",
+        rows=[row],
+    )
+    assert result.rows_accepted == 1
+    assert (
+        conn.execute(
+            "SELECT 1 FROM warehouse.import_batch WHERE dataset_release_id=%s", (release_id,)
+        ).fetchone()
+        is not None
+    )
+    conn.rollback()
+    for table in ("import_batch", "gnaf_address"):
+        assert (
+            conn.execute(
+                sql.SQL("SELECT 1 FROM warehouse.{} WHERE dataset_release_id=%s").format(
+                    sql.Identifier(table)
+                ),
+                (release_id,),
+            ).fetchone()
+            is None
+        )
