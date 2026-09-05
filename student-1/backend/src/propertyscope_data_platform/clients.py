@@ -329,6 +329,12 @@ class ConsumerImportClient:
             return self._failed("consumer_redirect_rejected", "Consumer redirects are rejected")
         if len(response.content) > self.MAX_RESPONSE_BYTES:
             return self._failed("consumer_response_too_large", "Consumer response exceeds limit")
+        if response.status_code >= 500 or response.status_code in {408, 429}:
+            return self._failed(
+                "consumer_unavailable",
+                "Consumer control service is temporarily unavailable",
+                retryable=True,
+            )
         try:
             payload = response.json()
         except ValueError:

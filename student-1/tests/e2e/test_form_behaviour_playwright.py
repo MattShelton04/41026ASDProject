@@ -1236,6 +1236,62 @@ def test_operations_overview_job_and_release_states_are_truthful(
         assert box["height"] >= 44
 
 
+def test_release_state_refreshes_without_waiting_for_record_preview(
+    page: Page, fixture_origin: str
+) -> None:
+    state = {"published": False}
+    previews: list[Route] = []
+
+    def detail(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        payload["release"]["status"] = "accepted" if state["published"] else "awaiting_review"
+        payload["activations"] = [{"status": "succeeded" if state["published"] else "running"}]
+        payload["consumer_imports"] = []
+        route.fulfill(response=response, json=payload)
+
+    page.route(f"**/api/data-platform/v1/dataset-releases/{REVIEW_ID}", detail)
+    page.route(
+        f"**/api/data-platform/v1/dataset-releases/{REVIEW_ID}/records?*",
+        lambda route: previews.append(route),
+    )
+    _open(page, fixture_origin, f"releases/{REVIEW_ID}")
+    expect(page.get_by_role("heading", name="Publishing version", exact=True)).to_be_visible()
+    expect(page.get_by_text("Awaiting review", exact=True)).to_have_count(0)
+    expect(page.get_by_role("button", name="Publish", exact=True)).to_have_count(0)
+    expect(page.get_by_text("Loading record preview…", exact=True)).to_be_visible()
+
+    state["published"] = True
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    expect(page.get_by_role("heading", name="Published dataset", exact=True)).to_be_visible()
+    expect(page.get_by_text("Awaiting review", exact=True)).to_have_count(0)
+    assert len(previews) == 1
+    previews[0].abort()
+
+
+def test_stale_submit_review_action_refreshes_before_opening_a_dialog(
+    page: Page, fixture_origin: str
+) -> None:
+    reads = 0
+
+    def detail(route: Route) -> None:
+        nonlocal reads
+        reads += 1
+        response = route.fetch()
+        payload = response.json()
+        payload["release"]["status"] = "candidate" if reads == 1 else "awaiting_review"
+        payload["activations"] = []
+        payload["consumer_imports"] = []
+        route.fulfill(response=response, json=payload)
+
+    page.route(f"**/api/data-platform/v1/dataset-releases/{CANDIDATE_ID}", detail)
+    _open(page, fixture_origin, f"releases/{CANDIDATE_ID}")
+    page.get_by_role("button", name="Submit for review", exact=True).click()
+    expect(page.get_by_role("button", name="Publish", exact=True)).to_be_visible()
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    expect(page.get_by_role("button", name="Submit for review", exact=True)).to_have_count(0)
+
+
 def test_run_poll_keeps_cached_supporting_evidence_disclosure_focus_and_scroll(
     page: Page, fixture_origin: str
 ) -> None:

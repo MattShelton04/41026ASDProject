@@ -61,6 +61,7 @@ import {
   createPublicationAttemptKeys,
   nextPublicationPollDelay,
   PUBLICATION_POLL_LIMIT,
+  publicationDisplayState,
   reconcilePublication,
 } from "../../frontend/core/publication.js";
 import {
@@ -136,14 +137,14 @@ test("consumer import delivery states reconcile without claiming activation comp
   }), "pending");
 });
 
-test("publication polling is finite, backs off, and pauses while hidden", () => {
+test("publication polling backs off, pauses while hidden, and follows long imports", () => {
   assert.equal(nextPublicationPollDelay(0, "pending"), 1500);
   assert.equal(nextPublicationPollDelay(6, "pending"), 3000);
   assert.equal(nextPublicationPollDelay(18, "pending"), 10000);
   assert.equal(nextPublicationPollDelay(0, "completed"), null);
   assert.equal(nextPublicationPollDelay(0, "failed"), null);
   assert.equal(nextPublicationPollDelay(1, "pending", { visible: false }), null);
-  assert.equal(nextPublicationPollDelay(PUBLICATION_POLL_LIMIT, "pending"), null);
+  assert.equal(nextPublicationPollDelay(PUBLICATION_POLL_LIMIT, "pending"), 30000);
 });
 
 test("a retried consumer delivery takes precedence over its historical failed activation", () => {
@@ -152,6 +153,15 @@ test("a retried consumer delivery takes precedence over its historical failed ac
     activations: [{ status: "failed" }],
     consumer_imports: [{ status: "activation_pending" }],
   }), "pending");
+});
+
+test("publication labels reflect approval and background work without changing review controls", () => {
+  const release = { status: "awaiting_review" };
+  assert.equal(publicationDisplayState(release, "pending"), "publishing");
+  assert.equal(publicationDisplayState(release, "failed"), "publication_failed");
+  assert.equal(publicationDisplayState(release, "unknown"), "awaiting_review");
+  assert.equal(publicationDisplayState({ status: "accepted" }, "completed"), "published");
+  assert.equal(release.status, "awaiting_review");
 });
 
 test("publication operation selection and status paths use the durable fixed resource", () => {

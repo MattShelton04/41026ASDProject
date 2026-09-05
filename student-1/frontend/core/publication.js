@@ -7,6 +7,13 @@ const FAILED_CONSUMER_IMPORT_STATES = Object.freeze(["failed", "rejected"]);
 
 export const PUBLICATION_POLL_LIMIT = 60;
 
+export function publicationDisplayState(release, outcome) {
+  if (release.status === "accepted") return "published";
+  if (outcome === "pending") return "publishing";
+  if (outcome === "failed" && release.status === "awaiting_review") return "publication_failed";
+  return release.status;
+}
+
 export function publicationIdentity(release) {
   return `${release.id}:v${release.version}`;
 }
@@ -65,6 +72,7 @@ export function activePublicationOperation(body) {
 }
 
 export function nextPublicationPollDelay(attempt, outcome, { visible = true } = {}) {
-  if (outcome !== "pending" || !visible || attempt >= PUBLICATION_POLL_LIMIT) return null;
+  if (outcome !== "pending" || !visible) return null;
+  if (attempt >= PUBLICATION_POLL_LIMIT) return 30000;
   return Math.min(1500 * (2 ** Math.floor(Math.max(0, attempt) / 6)), 10000);
 }

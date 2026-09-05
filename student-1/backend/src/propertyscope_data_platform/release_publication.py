@@ -204,6 +204,7 @@ def publish_release(
             comment=comment.strip(),
             tool_output=tool_output,
             replayed=True,
+            idempotency_key=idempotency_key,
         )
     publication = ConsumerPublicationRequest(
         release_id=release_id,
@@ -314,6 +315,7 @@ def publish_release(
         comment=comment.strip(),
         tool_output=tool_output,
         replayed=not receipt_envelope["created"],
+        idempotency_key=idempotency_key,
     )
 
 
@@ -349,6 +351,7 @@ def complete_publication(
     comment: str,
     tool_output: bool,
     replayed: bool,
+    idempotency_key: str | None = None,
 ) -> Response:
     queued = store.request(
         "POST",
@@ -358,7 +361,7 @@ def complete_publication(
             "publication_receipt_id": receipt["id"],
             "expected_release_version": version,
             "comment": comment,
-            "idempotency_key": receipt["consumer_operation_id"],
+            "idempotency_key": idempotency_key or receipt["consumer_operation_id"],
         },
     )
     if queued.status_code >= 400:
@@ -373,23 +376,24 @@ def complete_publication(
     activation_envelope = queued.json()
     activation = activation_envelope["activation"]
     completed = activation_envelope.get("outcome") == "completed"
+    failed = activation.get("status") == "failed"
     if tool_output:
         return _catalog_publication_output(
-            "accepted" if completed else "pending",
+            "accepted" if completed else "failed" if failed else "pending",
             receipt_id=receipt["id"],
             replayed=replayed,
-            status_code=200 if completed else 202,
+            status_code=200 if completed else 424 if failed else 202,
         )
     response = jsonify(
         {
             "release": release,
             "receipt": public_receipt(receipt),
             "activation": public_activation(activation),
-            "publication_status": "completed" if completed else "pending",
+            "publication_status": "completed" if completed else "failed" if failed else "pending",
             "replayed": replayed,
         }
     )
-    response.status_code = 200 if completed else 202
+    response.status_code = 200 if completed else 424 if failed else 202
     return response
 
 

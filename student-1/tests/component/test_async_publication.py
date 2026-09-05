@@ -7,6 +7,7 @@ from threading import Event
 from typing import Any, cast
 
 import httpx
+import pytest
 from flask import Flask
 
 from propertyscope_data_platform.app import create_app
@@ -353,6 +354,23 @@ def test_connect_and_poll_bound_chunked_responses_before_json_parsing() -> None:
     assert connect.error is not None and connect.error.code == "consumer_response_too_large"
     assert poll.consumer_operation_id is None
     assert poll.error is not None and poll.error.code == "consumer_response_too_large"
+
+
+@pytest.mark.parametrize("status", [408, 429, 500, 502, 503, 504])
+@pytest.mark.parametrize("body", [b"upstream unavailable", b'{"error":"unavailable"}'])
+def test_consumer_control_outage_is_retryable(status: int, body: bytes) -> None:
+    client = ConsumerImportClient(
+        {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},
+        client=httpx.Client(
+            transport=httpx.MockTransport(lambda _: httpx.Response(status, content=body))
+        ),
+    )
+    for outcome in (
+        client.connect("feature-3", _publication(), {}),
+        client.poll("feature-3", "consumer-owned-42", _publication(), {}),
+    ):
+        assert outcome.receipt is None
+        assert outcome.error is not None and outcome.error.retryable
 
 
 def test_connect_rejects_negative_content_length_before_body_read() -> None:
@@ -754,3 +772,56 @@ def test_failed_delivery_projects_retained_receipt_error() -> None:
     )
     assert projected["error_json"] == error
     assert "lease_token" not in projected
+
+
+@pytest.mark.parametrize(
+    ("activation_status", "expected_status"), [("queued", 202), ("failed", 424)]
+)
+def test_local_activation_retry_uses_browser_attempt_key(
+    activation_status: str, expected_status: int
+) -> None:
+    release = {
+        "id": RELEASE_ID,
+        "dataset_id": "gnaf-nsw",
+        "target_feature": "feature-1",
+        "schema_version": "property.v2",
+        "content_sha256": DIGEST,
+        "record_count": 5190134,
+        "status": "awaiting_review",
+        "version": 2,
+    }
+    receipt = {
+        "id": "receipt",
+        "consumer_operation_id": "stable-local-verification",
+        "status": "accepted",
+        "schema_version": "property.v2",
+        "content_sha256": DIGEST,
+        "rows_received": 5190134,
+        "rows_accepted": 5190134,
+        "rows_rejected": 0,
+    }
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json={"release": release, "receipts": [receipt]})
+        assert request.url.path.endswith("/activations")
+        assert json.loads(request.content)["idempotency_key"] == "new-browser-attempt"
+        return httpx.Response(
+            202, json={"activation": {"id": "activation", "status": activation_status}}
+        )
+
+    store = DataStoreClient(
+        "http://database", "token", client=httpx.Client(transport=httpx.MockTransport(database))
+    )
+    with Flask("local-retry").test_request_context():
+        response = publish_release(
+            store,
+            ConsumerImportClient({}),
+            uuid.UUID(RELEASE_ID),
+            {"version": 2, "comment": "Retry activation"},
+            "new-browser-attempt",
+        )
+    assert response.status_code == expected_status
+    assert response.get_json()["publication_status"] == (
+        "pending" if expected_status == 202 else "failed"
+    )

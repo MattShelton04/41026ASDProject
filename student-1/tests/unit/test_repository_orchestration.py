@@ -91,6 +91,32 @@ class CancellableConnection(ScriptedConnection):
         self.cancelled.set()
 
 
+def test_submit_review_replay_after_lost_response_keeps_original_decision() -> None:
+    release_id = uuid.uuid4()
+    current = {
+        "id": release_id,
+        "status": "awaiting_review",
+        "version": 3,
+        "review_comment": "Ready for review",
+    }
+    connection = ScriptedConnection([current])
+    result = ConnectedStore(connection).transition_release(
+        release_id, expected_version=2, target="awaiting_review", comment="Ready for review"
+    )
+    assert result["version"] == 3
+    assert len(connection.queries) == 1
+
+
+def test_submit_review_replay_cannot_replace_review_text() -> None:
+    connection = ScriptedConnection(
+        [{"status": "awaiting_review", "version": 3, "review_comment": "Original approval"}]
+    )
+    with pytest.raises(ConflictError):
+        ConnectedStore(connection).transition_release(
+            uuid.uuid4(), expected_version=2, target="awaiting_review", comment="Changed approval"
+        )
+
+
 def _consumer_import_values(release_id: uuid.UUID, **overrides: Any) -> dict[str, Any]:
     values: dict[str, Any] = {
         "dataset_id": "bocsar-crime",

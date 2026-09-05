@@ -455,7 +455,7 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
             consumer_operation_id TEXT NOT NULL,status TEXT NOT NULL,schema_version TEXT NOT NULL,
             content_sha256 TEXT NOT NULL,rows_received BIGINT NOT NULL,
             rows_accepted BIGINT NOT NULL,
-            rows_rejected BIGINT NOT NULL,completed_at TIMESTAMPTZ NOT NULL
+            rows_rejected BIGINT NOT NULL,completed_at TIMESTAMPTZ NOT NULL,error_json JSONB
         );
         CREATE TABLE ops.release_activation (
             id UUID PRIMARY KEY,dataset_release_id UUID NOT NULL,
@@ -551,7 +551,7 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
     assert claimed is not None and claimed["phase_key"] == "record_receipt"
     connection.execute(
         """INSERT INTO ops.publication_receipt VALUES
-        (%s,%s,'feature-3','consumer-owned-42','accepted','crime-series.v1',%s,3,3,0,now())""",
+        (%s,%s,'feature-3','consumer-owned-42','accepted','crime-series.v1',%s,3,3,0,now(),NULL)""",
         (receipt_id, release_id, digest),
     )
     connection.commit()
@@ -730,6 +730,32 @@ def test_durable_consumer_import_progresses_and_retries_activation_without_redow
     assert terminal["status"] == "failed"
     assert terminal["phase_key"] == "complete"
     assert terminal["attempt_number"] == 5
+
+    # A closed failed remote receipt permits a new delivery, while the original
+    # idempotency key and receipt remain immutable historical evidence.
+    failed_receipt_id = uuid.uuid4()
+    connection.execute(
+        """INSERT INTO ops.publication_receipt VALUES
+        (%s,%s,'feature-3','failed-remote','failed','crime-series.v1',%s,1,0,0,
+         clock_timestamp(),'{"code":"artifact_transport_failed","retryable":true}')""",
+        (failed_receipt_id, second_release_id, digest),
+    )
+    connection.execute(
+        """UPDATE ops.consumer_import_operation SET consumer_operation_id='failed-remote',
+        publication_receipt_id=%s WHERE id=%s""",
+        (failed_receipt_id, bounded_id),
+    )
+    connection.commit()
+    replay, created = operations.create(second_release_id, bounded_values)
+    assert not created and str(replay["id"]) == bounded["id"] and replay["status"] == "failed"
+    fresh_values = {**bounded_values, "idempotency_key": "fresh-after-failed-receipt"}
+    fresh, created = operations.create(second_release_id, fresh_values)
+    assert created and fresh["id"] != bounded["id"] and fresh["phase_key"] == "connect"
+    assert str(operations.get(bounded_id)["publication_receipt_id"]) == str(failed_receipt_id)
+    coalesced, created = operations.create(
+        second_release_id, {**fresh_values, "idempotency_key": "another-browser-retry"}
+    )
+    assert not created and coalesced["id"] == fresh["id"]
 
 
 def test_unusable_psi_address_number_does_not_abort_or_move_accepted_pointer(
