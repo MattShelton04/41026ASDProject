@@ -100,6 +100,7 @@ class Repository:
     def initialise(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as connection:
+            connection.execute("PRAGMA journal_mode=WAL")
             connection.executescript(SCHEMA)
             if connection.execute("SELECT COUNT(*) FROM suburb_info").fetchone()[0] == 0:
                 self._seed(connection)

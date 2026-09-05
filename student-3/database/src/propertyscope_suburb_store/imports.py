@@ -145,7 +145,6 @@ class Imports:
             if row is None:
                 return {}
             token = str(uuid4())
-            db.execute("DELETE FROM source_records WHERE operation_id=?", (row["id"],))
             db.execute(
                 "UPDATE source_imports SET status='running',token=?,lease_until=?,"
                 "attempt_number=attempt_number+1 WHERE id=?",
@@ -201,8 +200,12 @@ class Imports:
                         key, locality = record["sal_code"], record["locality_name"]
                     else:
                         key, locality = record["school_code"], record["locality_normalised"]
-                    db.execute(
-                        "INSERT INTO source_records VALUES (?,?,?,?,?)",
+                    staged = db.execute(
+                        "INSERT INTO source_records VALUES (?,?,?,?,?) "
+                        "ON CONFLICT(operation_id,ordinal) DO UPDATE "
+                        "SET record_json=excluded.record_json "
+                        "WHERE source_records.record_key=excluded.record_key "
+                        "AND source_records.record_json=excluded.record_json",
                         (
                             operation,
                             item["ordinal"],
@@ -211,6 +214,8 @@ class Imports:
                             json.dumps(record),
                         ),
                     )
+                    if staged.rowcount != 1:
+                        raise ValueError("import_staging_evidence_conflict")
                 db.execute(
                     "UPDATE source_imports SET lease_until=? WHERE id=?",
                     (time.time() + 180, operation),
@@ -244,7 +249,6 @@ class Imports:
                 else:
                     if receipt["status"] == "accepted":
                         raise ValueError("invalid_failure_receipt")
-                    db.execute("DELETE FROM source_records WHERE operation_id=?", (operation,))
                     error = receipt.get("error") or {}
                     if error.get("retryable") is True and row["attempt_number"] < 5:
                         db.execute(
@@ -257,6 +261,7 @@ class Imports:
                             (time.time() + min(2 ** row["attempt_number"], 30), operation),
                         )
                         return {"ok": True}
+                    db.execute("DELETE FROM source_records WHERE operation_id=?", (operation,))
                 db.execute(
                     "UPDATE source_imports SET status=?,receipt_json=?,token=NULL WHERE id=?",
                     (receipt["status"], json.dumps(receipt), operation),

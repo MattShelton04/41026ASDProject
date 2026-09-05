@@ -7,6 +7,7 @@ dependencies = [
     "gunicorn>=23,<24",
     "httpx>=0.28.1",
     "jsonschema>=4.26.0",
+    "jsonschema-rs>=0.43,<0.44",
     "shared-consumer-protocol",
     "shared-contracts",
 ]

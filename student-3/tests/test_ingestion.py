@@ -263,6 +263,33 @@ def database(tmp_path: Path) -> Imports:
 
 
 @pytest.mark.parametrize("dataset", PRODUCTS)
+def test_compiled_contract_validation_preserves_formats_and_types(dataset: str) -> None:
+    payload, records, artifact = fixture(dataset)
+
+    def strict_schema(files: dict[str, Any]) -> None:
+        schema = files[PRODUCTS[dataset][2]]
+        schema["properties"]["provenance"] = {
+            "type": "object",
+            "properties": {"release_id": {"type": "string", "format": "uuid"}},
+        }
+        schema["properties"]["strict_count"] = {"type": "integer", "minimum": 0}
+
+    with serve_origin(producer_app(payload, artifact, mutate=strict_schema)) as origin:
+        with httpx.Client() as client:
+            validate, _ = contract_validators(
+                client, origin, PublicationRequest.model_validate(payload)
+            )
+        validate(records[0], 1)
+        invalid_format = deepcopy(records[0])
+        invalid_format["provenance"]["release_id"] = "not-a-uuid"
+        with pytest.raises(ValueError, match="uuid"):
+            validate(invalid_format, 1)
+        for invalid_count in (True, -1, 1.5, "1"):
+            with pytest.raises(ValueError):
+                validate(records[0] | {"strict_count": invalid_count}, 1)
+
+
+@pytest.mark.parametrize("dataset", PRODUCTS)
 def test_stream_commit_and_replay_through_real_database_http(
     database: Imports, dataset: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -385,7 +412,26 @@ def test_reclaim_fences_old_worker_and_preserves_identity(database: Imports) -> 
     with pytest.raises(ValueError, match="lease_conflict"):
         database.apply(first["id"], "stage", {"token": first["token"], "items": []})
     with database.repository.connect() as db:
-        assert db.execute("SELECT COUNT(*) FROM source_records").fetchone()[0] == 0
+        assert db.execute("SELECT COUNT(*) FROM source_records").fetchone()[0] == 1
+    database.apply(
+        second["id"],
+        "stage",
+        {
+            "token": second["token"],
+            "items": [{"ordinal": 1, "record": records[0]}],
+        },
+    )
+    changed = deepcopy(records[0])
+    changed["offence_label"] = "Changed data"
+    with pytest.raises(ValueError, match="staging_evidence_conflict"):
+        database.apply(
+            second["id"],
+            "stage",
+            {
+                "token": second["token"],
+                "items": [{"ordinal": 1, "record": changed}],
+            },
+        )
     replay = deepcopy(payload)
     replay["idempotency_key"] = "another-delivery"
     assert (
