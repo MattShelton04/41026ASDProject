@@ -23,6 +23,7 @@
   align-items: center;
   gap: var(--ps-space-3);
   min-width: 0;
+  min-height: var(--ps-control-height);
   color: var(--ps-color-text);
   text-decoration: none;
   letter-spacing: normal;
@@ -75,6 +76,7 @@
 .ps-feature-header .ps-product-nav a:hover { color: var(--ps-color-accent); background: var(--ps-color-surface-subtle); }
 .ps-feature-header a:focus-visible { outline: var(--ps-focus-outline); outline-offset: var(--ps-focus-offset); }
 .ps-feature-header .topbar-search { flex: 1 1 15rem; max-width: 25rem; min-width: 0; }
+.ps-feature-header .topbar-search input { min-height: var(--ps-control-height); }
 .ps-feature-header .topbar-actions { margin-left: auto; }
 .ps-feature-header ~ .workspace-strip { flex-wrap: wrap; height: auto; }
 /* Service badges now sit on the light shared header, not legacy inverse surfaces. */
