@@ -1,0 +1,61 @@
+{
+  "scope": "synthetic private page transport and portable product build; no database/network",
+  "rows": 100000,
+  "product": "property-sales",
+  "repetitions": 3,
+  "gzip_sha256": "e1ee608bd8974f3cbb9ef0369e639af9faa98c6851a58dd5a55465221e3754e3",
+  "gzip_bytes": 5144702,
+  "variants": {
+    "record_pages": {
+      "runs": [
+        {
+          "seconds": 8.20483790000435,
+          "transport_bytes": 34900814
+        },
+        {
+          "seconds": 8.832900100038387,
+          "transport_bytes": 34900814
+        },
+        {
+          "seconds": 8.006153499998618,
+          "transport_bytes": 34900814
+        }
+      ],
+      "median_seconds": 8.20483790000435
+    },
+    "column_pages_prefetched": {
+      "runs": [
+        {
+          "seconds": 9.689781599969137,
+          "transport_bytes": 15402059
+        },
+        {
+          "seconds": 7.690358700056095,
+          "transport_bytes": 15402059
+        },
+        {
+          "seconds": 8.078202300006524,
+          "transport_bytes": 15402059
+        }
+      ],
+      "median_seconds": 8.078202300006524
+    },
+    "column_pages_parallel": {
+      "runs": [
+        {
+          "seconds": 6.649997900007293,
+          "transport_bytes": 15402059
+        },
+        {
+          "seconds": 4.883099300030153,
+          "transport_bytes": 15402059
+        },
+        {
+          "seconds": 4.746479099965654,
+          "transport_bytes": 15402059
+        }
+      ],
+      "median_seconds": 4.883099300030153
+    }
+  }
+}

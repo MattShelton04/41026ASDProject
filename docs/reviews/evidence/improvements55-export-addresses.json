@@ -1,0 +1,60 @@
+{
+  "scope": "synthetic private page transport and portable product build; no database/network",
+  "rows": 100000,
+  "repetitions": 3,
+  "gzip_sha256": "99fc6fc681d8a0d893194e5bab4cdf9ce296461550be09f7266e9cd728ad48ec",
+  "gzip_bytes": 8307479,
+  "variants": {
+    "record_pages": {
+      "runs": [
+        {
+          "seconds": 7.016867399972398,
+          "transport_bytes": 55823042
+        },
+        {
+          "seconds": 6.720112900016829,
+          "transport_bytes": 55823042
+        },
+        {
+          "seconds": 6.64309059997322,
+          "transport_bytes": 55823042
+        }
+      ],
+      "median_seconds": 6.720112900016829
+    },
+    "column_pages_prefetched": {
+      "runs": [
+        {
+          "seconds": 6.596206700021867,
+          "transport_bytes": 25224842
+        },
+        {
+          "seconds": 6.270816100004595,
+          "transport_bytes": 25224842
+        },
+        {
+          "seconds": 6.2229525000439025,
+          "transport_bytes": 25224842
+        }
+      ],
+      "median_seconds": 6.270816100004595
+    },
+    "column_pages_parallel": {
+      "runs": [
+        {
+          "seconds": 4.828688399982639,
+          "transport_bytes": 25224842
+        },
+        {
+          "seconds": 4.721178599982522,
+          "transport_bytes": 25224842
+        },
+        {
+          "seconds": 4.759619099961128,
+          "transport_bytes": 25224842
+        }
+      ],
+      "median_seconds": 4.759619099961128
+    }
+  }
+}
