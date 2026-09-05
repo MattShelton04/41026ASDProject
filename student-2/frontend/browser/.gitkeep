@@ -1,0 +1,2 @@
+# Docker Compose mounts the Shared browser package into this directory in development.
+# The real modules live in shared/frontend/browser.

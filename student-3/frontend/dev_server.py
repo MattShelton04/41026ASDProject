@@ -34,7 +34,7 @@ def static_path(path: str) -> Path | None:
             return None
         if candidate.is_file():
             return candidate if candidate.suffix.lower() in STATIC_SUFFIXES else None
-        if candidate.suffix or parts and parts[0] in SHARED_ROOTS:
+        if candidate.suffix or (parts and parts[0] in SHARED_ROOTS):
             return None
         if parts and parts[0] in {"api", "health"}:
             return None

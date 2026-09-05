@@ -253,7 +253,10 @@ def test_shared_browser_assets_survive_development_directory_mounts() -> None:
     browser_mount = "./shared/frontend/browser:/usr/share/nginx/html/browser:ro"
     for number in range(1, 6):
         assert browser_mount in services[f"f{number}-frontend"]["volumes"]
+    for number in (2, 4):
+        assert (REPOSITORY_ROOT / f"student-{number}/frontend/browser").is_dir()
     for service in ("f3-database", "f3-backend"):
-        assert "./shared/contracts/python:/app/shared/contracts/python:ro" in services[service][
-            "volumes"
-        ]
+        assert (
+            "./shared/contracts/python:/app/shared/contracts/python:ro"
+            in services[service]["volumes"]
+        )

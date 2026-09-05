@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 from urllib.request import urlopen
 
 from playwright.sync_api import Page, Route, sync_playwright
+
 from scripts.ui_fixture_server import UIFixtureServer
 
 FEATURES = (
@@ -153,7 +154,10 @@ def run(
                             )
                             page = context.new_page()
                             errors: list[str] = []
-                            page.on("pageerror", lambda error: errors.append(str(error)))
+                            page.on(
+                                "pageerror",
+                                lambda error, errors=errors: errors.append(str(error)),
+                            )
                             row: dict[str, Any] = {
                                 "feature": feature,
                                 "mode": mode,

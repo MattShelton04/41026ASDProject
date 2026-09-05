@@ -136,7 +136,9 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
             return _relay(review_response)
         review = review_response.json()
         reference = review["property_ref"]
-        constraints_response = store.request("GET", f"{_INTERNAL}/properties/{reference}/constraints")
+        constraints_response = store.request(
+            "GET", f"{_INTERNAL}/properties/{reference}/constraints"
+        )
         if constraints_response.status_code != 200:
             return _relay(constraints_response)
         buildings_response = store.request("GET", f"{_INTERNAL}/properties/{reference}/buildings")
@@ -184,7 +186,9 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
                 }
             )
         longitude, latitude = coordinates
-        constraints_response = store.request("GET", f"{_INTERNAL}/properties/{reference}/constraints")
+        constraints_response = store.request(
+            "GET", f"{_INTERNAL}/properties/{reference}/constraints"
+        )
         if constraints_response.status_code != 200:
             return _relay(constraints_response)
         constraints = constraints_response.json().get("items", [])
@@ -320,7 +324,9 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
         if review_response.status_code >= 400:
             return _relay(review_response)
         reference = review_response.json()["property_ref"]
-        constraints_response = store.request("GET", f"{_INTERNAL}/properties/{reference}/constraints")
+        constraints_response = store.request(
+            "GET", f"{_INTERNAL}/properties/{reference}/constraints"
+        )
         if constraints_response.status_code != 200:
             return _relay(constraints_response)
         constraints = constraints_response.json().get("items", [])
