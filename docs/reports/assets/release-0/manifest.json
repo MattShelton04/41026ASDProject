@@ -1,0 +1,65 @@
+{
+  "mermaid_version": "11.12.0",
+  "diagrams": {
+    "feature-1-runtime.mmd": {
+      "source_sha256": "6eb72819d185adb7cb4cdac8988d81b6d8b7fb41864d0dfdb1ef2801912f4537",
+      "asset_sha256": "1935a1517f595945d5a4fa0a9b65701efb370a9519535839647c7655fe61634f"
+    },
+    "feature-1-publication.mmd": {
+      "source_sha256": "0845ce4fd31b8600df0e76fc857c79889862ef1341266fcb91dcf1853df34e74",
+      "asset_sha256": "a35b986e3afaf8e4bcb55ef8de16459b19257f7dd1e834bbb8130819f71253ab"
+    },
+    "feature-2-runtime.mmd": {
+      "source_sha256": "43620062545f2ecf9fb23ca89ff582e944909b6a71460e733a1f682297af9147",
+      "asset_sha256": "71c6424c2980d4c00c78a3d9a57c97c192839411113a264fbebaeab98e640a97"
+    },
+    "feature-3-runtime.mmd": {
+      "source_sha256": "f718a42f1ee8dc1a14784c07e9fc6973fc8f015341b25ee5a059444bd18d2721",
+      "asset_sha256": "bdfc59ad4cd7a61f3b97690f91206b117628d670b8b6f172af2f31e424461dff"
+    },
+    "feature-4-runtime.mmd": {
+      "source_sha256": "5fbd9ffb395d965b4bedebbbb0c3b2826581f374274abaa5cd9040f3bbd49aec",
+      "asset_sha256": "5eef5080b5bbefc07a5499435a77707e8c66178230c149192ff654616946f301"
+    },
+    "feature-5-runtime.mmd": {
+      "source_sha256": "a12f7e942a2a9e71fb43f559cf7e372085ddbe4e521c87fe7b6764e05a6645e4",
+      "asset_sha256": "6d023698577cb695291101c6d22fb798076c781121c6cd08aeb57c5be9ca294f"
+    },
+    "feature-1-erd.mmd": {
+      "source_sha256": "0d69323b0801aba0ca2991b6b1bfbfad91b28e85a50ae70b0f592819ce2ccc3d",
+      "asset_sha256": "449cb768aa7e13421c55d515339722ed0980a895f4088afb37b6d8c6b13035ef"
+    },
+    "feature-2-erd.mmd": {
+      "source_sha256": "4c9afbe840a600d0ca5542a61b42b616d92d0b3145762c37ac00407629fe5b9e",
+      "asset_sha256": "d85515d85a07d7b0ddfa4dd2ffb77117042345f7ef37b2b26fc436db15823651"
+    },
+    "feature-3-erd.mmd": {
+      "source_sha256": "0230ef4c34ea8a7e5b3742bab4f140a3845de7a9a7aaf8ab9565a3a7a3e1f7aa",
+      "asset_sha256": "6baef777152a09def02ba5390b566045f64c7128734f944998acb5a082b9977a"
+    },
+    "feature-4-erd.mmd": {
+      "source_sha256": "f289e6344ac3a97130925d05a7e756d14636aa3e459927f6a877146b5953d0c8",
+      "asset_sha256": "379c8976e35eb79bd47c78385f166349fea29a4766fb4db2519dcb21f0ebaf2a"
+    },
+    "feature-5-erd.mmd": {
+      "source_sha256": "38b70717e41899bde90defc4bebb9bc5ad48762e6315c1d2ef2c8072d8c22cef",
+      "asset_sha256": "7f4b486c2548af81a0b7dbeb03584be2ef754a9dbefba890e052ee4f37bbb423"
+    },
+    "integrated-architecture.mmd": {
+      "source_sha256": "e2909c042f3e823d91cca267f7b7551548c824797f892ebb45556ef8046f45e9",
+      "asset_sha256": "66986710d2c897982dd8bda892124cf061993f13ac0f2ade6e19f395c4160f50"
+    },
+    "compose-topology.mmd": {
+      "source_sha256": "6e2fdf4c55ea30a2461761673e134450c14ce13408140577f44e81d93bc13f1f",
+      "asset_sha256": "a619357bc7062cef03eabb7bd8a9132497e6d3e0656a60eb5f310c0a6e529ab0"
+    },
+    "agent-loop.mmd": {
+      "source_sha256": "663a9a743b41b41cf7de0ed110c1adab24452e71cea50b3821024772f477169e",
+      "asset_sha256": "222812a691c9522a45a0c1415fcbfc7faed9b94f09fc47f914f342ecdf40e8a1"
+    },
+    "devops-pipeline.mmd": {
+      "source_sha256": "b6522c751c0b1f7d300f61aeca38d7d2b899cd6d23867c7cb7c1647bed0a804d",
+      "asset_sha256": "0f6af5a1a75061ecc3d2bc1abb1fe8906bc7ef8ce46fa55497dee8d174ac4aa2"
+    }
+  }
+}

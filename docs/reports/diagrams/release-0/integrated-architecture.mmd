@@ -1,0 +1,45 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+flowchart TB
+    user([User browser]) --> edge["shared-frontend<br/>HTMX shell · generated routes · reverse proxy"]
+    model["OpenAI API: Luna / Terra (preferred)<br/>Gemini API (supported alternative)"]
+
+    subgraph features["Five independently owned feature slices"]
+        direction LR
+        f1["F1 Data platform<br/>frontend · backend · runner<br/>DB API · loader · PostGIS"]
+        f2["F2 Market intelligence<br/>frontend · backend<br/>DB API · SQLite"]
+        f3["F3 Suburb analytics<br/>frontend · backend/worker<br/>database API · SQLite"]
+        f4["F4 Due diligence<br/>frontend · backend<br/>DB API · PostGIS"]
+        f5["F5 Buyer workspace<br/>frontend · backend<br/>DB API · SQLite"]
+    end
+
+    edge --> f1
+    edge --> f2
+    edge --> f3
+    edge --> f4
+    edge --> f5
+
+    f1 -->|accepted sale releases| f2
+    f1 -->|accepted BOCSAR / schools / SEIFA| f3
+    f1 -->|verified property and coordinates| f4
+    f1 -->|property evidence| f5
+    f2 -->|market evidence| f5
+    f4 -->|review evidence| f5
+
+    ai["shared-ai-mode<br/>SQLite run state · bounded Plan/Act/Observe/Adapt"]
+    f1 <--> ai
+    f2 <--> ai
+    f3 <--> ai
+    f4 <--> ai
+    f5 <--> ai
+    aitip["AI directions<br/>feature backend submits a bounded run<br/>AI mode calls allowlisted feature HTTP tools"] --- ai
+    ai -->|configured provider API| model
+
+    isolation["Ownership rule<br/>No feature imports another feature's code<br/>No service opens another feature's database"]
+    features --- isolation
+
+    classDef shared fill:#dfeded,stroke:#176b75,color:#111827;
+    classDef feature fill:#eff6f6,stroke:#6b969b,color:#111827;
+    classDef note fill:#faf2e4,stroke:#a67c00,color:#111827;
+    class edge,ai shared;
+    class f1,f2,f3,f4,f5 feature;
+    class model,isolation,aitip note;

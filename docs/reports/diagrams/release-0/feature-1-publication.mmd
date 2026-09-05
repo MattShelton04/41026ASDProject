@@ -1,0 +1,24 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+erDiagram
+    direction LR
+    dataset_release ||--o{ release_activation : activates
+    dataset_release ||--o{ consumer_import_operation : delivers
+    consumer_import_operation ||--o{ consumer_import_delivery_alias : identifies
+    dataset_release ||--o{ seifa_sal : attributes
+    dataset_release ||--o| accepted_generation : accepts
+    dataset_release { uuid id PK }
+    release_activation { uuid id PK
+        uuid dataset_release_id FK
+        uuid publication_receipt_id FK }
+    consumer_import_operation { uuid id PK
+        uuid dataset_release_id FK
+        text target_feature
+        integer activation_attempt }
+    consumer_import_delivery_alias { text target_feature PK,FK
+        text idempotency_key PK
+        uuid consumer_import_operation_id FK }
+    seifa_sal { uuid dataset_release_id PK,FK
+        text sal_code PK }
+    accepted_generation { text dataset_id PK
+        text target_feature PK
+        uuid dataset_release_id FK,UK }

@@ -1,0 +1,12 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+flowchart TB
+    edge["Shared HTMX entry<br/>port 5100"] -->|same-origin route| front
+    subgraph feature["Feature 4 / Site and building due diligence"]
+    front["f4-frontend<br/>Nginx frontend"] -->|public HTTP API| back
+    back["f4-backend<br/>Review CRUD<br/>evidence and maps"] -->|private HTTP| db["f4-db-api<br/>owned database API"]
+    db -->|SQL| pg["f4-postgres<br/>PostgreSQL / PostGIS"]
+    pg -->|sole mount| volume[("f4-postgres-data")]
+    end
+    back <-->|runs / tools| ai["shared-ai-mode<br/>Plan / Act / Observe / Adapt"]
+    ai -->|Responses API| model["OpenAI API<br/>Luna planner / Terra adapter"]
+    back -.->|public HTTP| upstream["Feature 1 public API<br/>property validation<br/>coordinates"]

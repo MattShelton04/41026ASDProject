@@ -1,0 +1,18 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+erDiagram
+    direction LR
+    buyer_case ||--o{ case_property : owns
+    buyer_case ||--o{ case_note : owns
+    buyer_case ||--o{ case_task : owns
+    case_property |o--o{ case_note : "optional reference"
+    case_property |o--o{ case_task : "optional reference"
+    buyer_case { text id PK
+        text owner_ref }
+    case_property { text id PK
+        text buyer_case_id FK }
+    case_note { text id PK
+        text buyer_case_id FK
+        text case_property_id FK }
+    case_task { text id PK
+        text buyer_case_id FK
+        text case_property_id FK }

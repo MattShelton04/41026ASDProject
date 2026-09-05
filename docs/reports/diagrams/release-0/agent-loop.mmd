@@ -1,0 +1,15 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+flowchart TB
+    queued["Queued / durable run"] --> plan["PLAN<br/>Bounded model plan"]
+    plan --> ready["Ready / validate dispatch"]
+    ready -->|read-only| act["ACT<br/>Allowlisted feature HTTP tool"]
+    ready -->|protected write| review["Human review<br/>exact pending action"]
+    review -->|approved| act
+    act --> observe["OBSERVE<br/>Validate and persist tool evidence"]
+    observe --> adapt["ADAPT<br/>Integrate evidence and choose next step"]
+    adapt -->|more tools| ready
+    adapt -->|replan| plan
+    adapt -->|final result| done["Succeeded"]
+    review -->|rejected| cancelled["Cancelled"]
+    policy["At safe boundaries:<br/>cancellation, failure or exhausted budgets stop the run.<br/>Interrupted read-only calls use bounded recovery."]
+    adapt ~~~ policy
