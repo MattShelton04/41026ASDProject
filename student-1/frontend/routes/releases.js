@@ -392,6 +392,10 @@ export function createReleaseRoutes({
     const lifecycleNotice = el("div", `notice ${lifecycle.tone}`.trim());
     append(lifecycleNotice, badge(displayState), document.createTextNode(` ${lifecycle.message}`));
     append(view, lifecycleNotice);
+    if (publicationOutcome === "failed") {
+      const failure = consumerImports.at(-1)?.error_json || activations.at(-1)?.error_json;
+      if (failure?.message) append(view, el("div", "notice negative", failure.message));
+    }
     if (activeConsumerImport && activeConsumerImport.status !== "activation_queued") append(view, el("div", "notice info", `Consumer delivery continues (${displayName(activeConsumerImport.phase_key || activeConsumerImport.status)}). The currently published version remains live until the consumer accepts this version and activation succeeds.`));
     else if (activeActivation) append(view, el("div", "notice info", `Accepted-version activation continues (${activeActivation.progress_phase || displayName(activeActivation.status)}). The currently published version remains live until the final pointer switch succeeds.`));
     else if (activeConsumerImport?.status === "activation_queued") append(view, el("div", "notice info", "The consumer accepted this version and accepted-version activation is queued. The currently published version remains live until the final pointer switch succeeds."));

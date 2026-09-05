@@ -99,6 +99,42 @@ approved and published through the browser. Queue-to-completion took 0.748 secon
 4. Keep the predecessor accepted until consumer acceptance and local activation both succeed.
    Do not edit lifecycle rows or delete receipts to make the page appear recovered.
 
+## Property-sales integration gap found during follow-up
+
+The user subsequently tried release `a7078066-1bde-4b31-8b4d-4acab03939e6`: 7,402,643
+`propertyscope.property-sales.v3` records and 952,728,964 compressed bytes. Feature 2 returned:
+
+```text
+HTTP 422 application/problem+json
+code: invalid_sales_publication
+detail: record_count: Input should be less than or equal to 5000
+```
+
+This is a real consumer capacity rejection, not a timeout or an invalid source release.
+Feature 2's existing Release 0 importer also limits compressed artifacts to 25 MiB and expanded
+artifacts to 75 MiB. It downloads into memory, decompresses the entire artifact, builds a list of
+normalized records and synchronously sends them to its database API. It does not yet implement
+the asynchronous status/receipt workflow required for full-size PSI releases. Raising these
+constants alone would not make that integration ready for millions of records.
+
+Feature 1 previously replaced the structured HTTP problem with `consumer_response_invalid`.
+It now retains a bounded consumer rejection message on the durable failed delivery, without
+inventing a consumer operation or receipt, and displays the cause directly on the release page.
+Transient HTTP 408/429/5xx remain retryable. The previous accepted sales release stays active.
+
+**Scope decision:** after discussing the required work, the user preferred leaving the larger
+Feature 2 importer change out of this PR and documenting the integration gap. No Feature 2
+capacity limit was introduced or increased here, and Feature 1 does not truncate the full release
+to satisfy those limits. Publication of this full PSI release remains blocked by the existing
+consumer until that integration is upgraded.
+
+The follow-up integration should remove fixed dataset-size caps through streaming and bounded
+batches, with a durable consumer-issued operation/status endpoint, fenced worker leases,
+replayable staging, complete schema/digest/count validation and atomic accepted-generation
+visibility. Existing Feature 2 case/sales reads must select the accepted generation. Consumer
+acceptance must precede Feature 1 activation under ADR-033; bypassing that gate would change the
+recorded publication contract.
+
 Architecture: [ADR-040](../architecture/decisions/ADR-040-publication-recovery-and-current-state.md).
 
 ## Checks
@@ -106,7 +142,7 @@ Architecture: [ADR-040](../architecture/decisions/ADR-040-publication-recovery-a
 - Canonical gate: `uv run python scripts/check.py` (format, lint, types, architecture, contracts,
   migrations, offline Python suites and frontend tests).
 - Browser regression suite: `uv run pytest student-1/tests/e2e/test_form_behaviour_playwright.py
-  --no-cov -q` — 40 passed.
+  --no-cov -q` — 41 passed.
 - Disposable PostgreSQL suite: `student-1/tests/component/test_postgres_import_reliability.py`
   with `PROPERTYSCOPE_TEST_POSTGRES_URL` pointing to a separate temporary PostGIS container —
   20 passed. The retained live database was never supplied to this test suite.

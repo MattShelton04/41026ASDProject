@@ -389,6 +389,29 @@ def test_consumer_control_outage_is_retryable(status: int, body: bytes) -> None:
         assert outcome.error is not None and outcome.error.retryable
 
 
+def test_consumer_problem_reports_capacity_rejection_without_fabricating_a_receipt() -> None:
+    client = ConsumerImportClient(
+        {"feature-2": ConsumerEndpoint("http://feature-2", "/api/imports")},
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(
+                    422,
+                    headers={"Content-Type": "application/problem+json"},
+                    json={
+                        "code": "invalid_sales_publication",
+                        "detail": "record_count: Input should be less than or equal to 5000",
+                    },
+                )
+            )
+        ),
+    )
+    outcome = client.connect("feature-2", _publication(), {})
+    assert outcome.consumer_operation_id is None and outcome.receipt is None
+    assert outcome.error is not None and not outcome.error.retryable
+    assert outcome.error.code == "consumer_request_rejected"
+    assert "less than or equal to 5000" in outcome.error.message
+
+
 def test_connect_rejects_negative_content_length_before_body_read() -> None:
     client = ConsumerImportClient(
         {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},

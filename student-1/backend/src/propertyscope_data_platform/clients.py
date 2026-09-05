@@ -380,6 +380,18 @@ class ConsumerImportClient:
                     receipt=receipt,
                     error=receipt.error,
                 )
+        if (
+            400 <= response.status_code < 500
+            and response.headers.get("content-type", "").split(";", 1)[0]
+            == "application/problem+json"
+            and isinstance(payload, dict)
+            and isinstance(payload.get("detail"), str)
+            and payload["detail"].strip()
+        ):
+            return self._failed(
+                "consumer_request_rejected",
+                ("Consumer declined publication: " + payload["detail"].strip())[:500],
+            )
         return self._failed("consumer_response_invalid", "Consumer response is contract-invalid")
 
     @staticmethod

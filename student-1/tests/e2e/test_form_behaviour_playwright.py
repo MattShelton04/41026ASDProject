@@ -1236,6 +1236,31 @@ def test_operations_overview_job_and_release_states_are_truthful(
         assert box["height"] >= 44
 
 
+def test_publication_failure_explains_consumer_rejection(page: Page, fixture_origin: str) -> None:
+    def detail(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        payload["release"]["status"] = "awaiting_review"
+        payload["activations"] = []
+        payload["consumer_imports"] = [
+            {
+                "status": "failed",
+                "error_json": {
+                    "message": "Consumer declined publication: record_count exceeds 5000"
+                },
+            }
+        ]
+        route.fulfill(response=response, json=payload)
+
+    page.route(f"**/api/data-platform/v1/dataset-releases/{REVIEW_ID}", detail)
+    _open(page, fixture_origin, f"releases/{REVIEW_ID}")
+    expect(
+        page.get_by_text("Consumer declined publication: record_count exceeds 5000", exact=True)
+    ).to_be_visible()
+    expect(page.get_by_role("button", name="Retry publication", exact=True)).to_be_visible()
+    expect(page.get_by_text("Awaiting review", exact=True)).to_have_count(0)
+
+
 def test_release_list_refresh_preserves_unsubmitted_filters(
     page: Page, fixture_origin: str
 ) -> None:

@@ -174,6 +174,10 @@ Open <http://localhost:5200>. The main product path is:
    reconciles uncertain work before a fresh delivery. See
    [ADR-040](../docs/architecture/decisions/ADR-040-publication-recovery-and-current-state.md) and the
    [live investigation](../docs/operations/publication-investigation-2026-09-05.md).
+   Full PSI publication currently requires a Feature 2 importer upgrade: its Release 0 consumer
+   accepts at most 5,000 records / 25 MiB compressed and imports synchronously. The release page
+   reports that consumer rejection explicitly; Feature 1 retains the complete candidate and prior
+   accepted release. The required uncapped streaming integration is documented in the investigation.
 6. When a version needs interpretation, select **Review with AI**. AI review is optional, cannot
    publish changes and remains available later in **Activity history**.
 
