@@ -1,0 +1,11 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+flowchart TB
+    edge["Shared HTMX entry<br/>port 5100"] -->|same-origin route| front
+    subgraph feature["Feature 5 / Buyer journey workspace"]
+    front["f5-frontend<br/>Nginx frontend"] -->|public HTTP API| back
+    back["f5-backend<br/>Cases and shortlist<br/>notes and tasks"] -->|private HTTP| db["f5-db-api<br/>owned database API"]
+    db -->|sole file owner| volume[("SQLite<br/>f5-sqlite-data")]
+    end
+    back <-->|runs / tools| ai["shared-ai-mode<br/>Plan / Act / Observe / Adapt"]
+    ai -->|Responses API| model["OpenAI API<br/>Luna planner / Terra adapter"]
+    back -.->|public HTTP| upstream["Feature 1 / 2 / 4 APIs<br/>bounded research evidence"]

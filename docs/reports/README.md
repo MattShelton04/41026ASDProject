@@ -1,11 +1,62 @@
 # Reports
 
-Store group technical-report working material and final release reports here.
-Each release report should include the required architecture, implementation,
-testing, workflow, deployment, contribution, attendance, screenshot, known
-issue, and showcase-video evidence applicable to that release.
+This directory contains the maintained Release 0 report source and submission PDF.
 
-The current working scaffold is the
-[`Release 0 technical report`](release-0-technical-report.md). Verified Shared/Feature 1 material is
-filled in; explicit TODO/evidence markers remain for student-owned Features 2–5 and final group
-submission artefacts. Do not remove a marker by converting planned work into an implementation claim.
+- [`release-0-technical-report.md`](release-0-technical-report.md) is the evidence-backed source.
+- [`group20.pdf`](group20.pdf) is the Canvas submission artefact.
+- `diagrams/release-0/*.mmd` contains the reviewable Mermaid source for every report diagram.
+- `assets/release-0/*.png` contains the rendered Mermaid figures embedded in the PDF.
+- `assets/release-0/manifest.json` binds every figure to its Mermaid source and rendered PNG by SHA-256
+  (source line endings are normalised for Windows and Unix checkouts).
+- `scripts/build_release0_report.py` checks those hashes and regenerates the PDF.
+
+The report covers all five enabled feature slices, architecture, Docker Compose, AI mode and the
+agentic loop, local and GitHub Actions evidence, screenshots, contribution records and known
+limitations. Regenerate and visually inspect the PDF after changing its source.
+
+Build from a clean checkout using the locked development dependencies (ReportLab, Pillow and pypdf):
+
+```text
+uv sync --locked --all-packages --all-groups
+uv run python scripts/build_release0_report.py
+```
+
+Ordinary PDF builds require no network, browser, model credential or Docker. They use the checked-in
+figures, retain clickable evidence links and PDF bookmarks, and produce byte-identical output for
+the same inputs and locked environment. Repository links retain URL fragments and point to the
+software evidence baseline; rebuilding the report does not refresh historical execution evidence.
+
+After changing a diagram, install Node.js with `npx` and refresh all figures and their manifest:
+
+```text
+uv run python scripts/build_release0_report.py --render-diagrams
+```
+
+This explicitly invokes Mermaid CLI **11.12.0**, which may download its npm package and Chromium on
+first use. Commit the changed Mermaid sources, PNGs, manifest, Markdown and regenerated `group20.pdf`
+together. Do not update the manifest by hand to bypass a stale-diagram error.
+
+The report includes a runtime architecture and selected-key ERD for every student. ERDs label query
+associations separately from actual foreign keys; the linked owned schemas remain authoritative for
+all columns and constraints. OpenAI is the registered provider; the team's complimentary-token
+allowance is recorded as an account-specific rationale. Gemini is also supported as an alternative
+with a free tier for eligible models; OpenAI remains preferred.
+
+Feature 1's two ERDs cover selected current operational and publication/data-product relationships
+after the complete migration chain through `049_index_gnaf_identity_anchors.sql`. The report links
+the full SQL directory and migration runner, and records later changes to lineage, activation,
+consumer delivery, SEIFA and lookup indexes. Review both diagrams and this boundary when migrations
+change; the diagrams are curated schema views, not an automatically introspected database dump.
+
+Before handoff, run the canonical gate and render the PDF for visual review:
+
+```text
+uv run python scripts/check.py
+pdftoppm -scale-to 1400 -png docs/reports/group20.pdf tmp/pdfs/report
+```
+
+Create `tmp/pdfs` first and install Poppler if it is not available. Inspect every page for clipped
+tables, tiny diagram labels, orphaned text, caption placement and contents destinations. Generator
+tests cover reproducibility, navigation, figure inclusion and stale assets; they do not replace this
+visual review. The report's evidence limitations are retained in Section 9, including the absence
+of a final simultaneous local all-feature startup record.

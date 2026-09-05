@@ -1,0 +1,15 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+flowchart TB
+    edge["Shared entry / f1-frontend"] -->|HTTP| back["f1-backend<br/>control, review and publication"]
+    back -->|private HTTP| db["f1-db-api<br/>request-time persistence"]
+    db -->|SQL| pg[("f1-postgres<br/>PostgreSQL / PostGIS")]
+    runner["f1-runner<br/>acquisition worker"] <-->|worker HTTP| back
+    sources["Official / cached sources"] --> runner
+    runner -->|RW| files[("f1-artifacts<br/>immutable source files")]
+    files -.->|RO| loader["f1-db-loader<br/>bulk import and activation"]
+    loader -->|SQL| pg
+    files -.->|RO| db
+    files -.->|RO| back
+    back <-->|runs / tools| ai["shared-ai-mode"]
+    ai -->|Responses API| model["OpenAI API<br/>Luna / Terra"]
+    back -->|accepted-release HTTP| consumers["Feature 2 / 3 / 4 consumers"]

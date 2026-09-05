@@ -1,0 +1,11 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+flowchart TB
+    edge["Shared HTMX entry<br/>port 5100"] -->|same-origin route| front
+    subgraph feature["Feature 3 / Suburb and liveability analytics"]
+    front["f3-frontend<br/>Nginx frontend"] -->|public HTTP API| back
+    back["f3-backend<br/>Comparison CRUD<br/>query and import worker"] -->|private HTTP| db["f3-database<br/>owned database API"]
+    db -->|sole file owner| volume[("SQLite<br/>f3-suburb-data")]
+    end
+    back <-->|runs / tools| ai["shared-ai-mode<br/>Plan / Act / Observe / Adapt"]
+    ai -->|Responses API| model["OpenAI API<br/>Luna planner / Terra adapter"]
+    back -.->|public HTTP| upstream["Feature 1 public API<br/>property context<br/>accepted products"]

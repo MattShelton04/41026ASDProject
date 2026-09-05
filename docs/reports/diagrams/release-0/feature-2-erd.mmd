@@ -1,0 +1,13 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+erDiagram
+    direction LR
+    market_case }o..o{ sale_observation : "query by property and filters; no FK"
+    market_case { text id PK
+        text property_ref
+        text filters_json
+        integer version }
+    sale_observation { text id PK
+        text property_ref
+        text release_id
+        text contract_date
+        integer price_aud }

@@ -1,0 +1,23 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+block-beta
+    columns 3
+    network["Shared-platform network / generated Release 0 profile"]:3
+    shared["SHARED / 2 services\nshared-frontend\nshared-ai-mode"]
+    f1["FEATURE 1 / 6 services\nfrontend / backend / runner\ndb-api / db-loader / postgres"]
+    f2["FEATURE 2 / 3 services\nfrontend / backend / db-api"]
+    sv[("AI run-state volume")]
+    v1[("PostgreSQL data\nand artifact volumes")]
+    v2[("SQLite data volume")]
+    f3["FEATURE 3 / 3 services\nfrontend / backend / database"]
+    f4["FEATURE 4 / 4 services\nfrontend / backend / db-api\npostgres"]
+    f5["FEATURE 5 / 3 services\nfrontend / backend / db-api"]
+    v3[("SQLite suburb-data volume")]
+    v4[("PostgreSQL data volume")]
+    v5[("SQLite data volume")]
+    note["21 services / 7 named volumes\nCompose supplies internal DNS, health checks and provider secret\nShared edge publishes the integrated application on port 5100"]:3
+    shared --> sv
+    f1 --> v1
+    f2 --> v2
+    f3 --> v3
+    f4 --> v4
+    f5 --> v5
