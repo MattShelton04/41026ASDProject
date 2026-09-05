@@ -121,9 +121,12 @@ PSI_IDENTITY_SQL = """
     FROM first_transmissions
 """
 
+# Aggregate each reference source once. Correlated aggregate lookups for every
+# eligible address took over 18 minutes on the full sales history. Materialized
+# dictionaries let PostgreSQL batch-join the eight exact components instead.
 PSI_ADDRESS_RESOLUTION_SQL = """
     CREATE TEMP TABLE propertyscope_psi_address_resolution ON COMMIT DROP AS
-    WITH eligible_addresses AS (
+    WITH eligible_addresses AS MATERIALIZED (
         SELECT DISTINCT source.postcode,source.locality,source.street_name_normalised,
             source.street_type,source.street_number_first,source.street_number_last,
             source.street_number_suffix,source.unit_number
@@ -137,79 +140,88 @@ PSI_ADDRESS_RESOLUTION_SQL = """
           AND source.street_type IS NOT NULL
           AND source.street_number_first IS NOT NULL
           AND source.house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
+
+    ), accepted_gnaf_candidates AS MATERIALIZED (
+        SELECT address.postcode,address.locality,address.street_name AS street_name_normalised,
+            types.street_type,address.street_number_first,
+            COALESCE(address.street_number_last,-1) AS street_number_last,
+            COALESCE(address.street_number_suffix,'') AS street_number_suffix,
+            COALESCE(address.unit_number,'') AS unit_number,
+            count(DISTINCT COALESCE(address.property_ref,
+                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid))::integer AS match_count,
+            min(COALESCE(address.property_ref,
+                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)::text)::uuid
+                AS exact_property_ref,
+            min(address.gnaf_pid) AS gnaf_pid,
+            min(address.dataset_release_id::text)::uuid AS gnaf_release_id
+        FROM warehouse.gnaf_address address
+        CROSS JOIN LATERAL (
+            SELECT address.street_type
+            UNION
+            SELECT CASE address.street_type
+                WHEN 'AVENUE' THEN 'AV' WHEN 'CLOSE' THEN 'CL'
+                WHEN 'COURT' THEN 'CT' WHEN 'CRESCENT' THEN 'CR'
+                WHEN 'DRIVE' THEN 'DR' WHEN 'HIGHWAY' THEN 'HWY'
+                WHEN 'PARADE' THEN 'PDE' WHEN 'PLACE' THEN 'PL'
+                WHEN 'ROAD' THEN 'RD' WHEN 'STREET' THEN 'ST'
+                WHEN 'TERRACE' THEN 'TCE'
+            END
+        ) types
+        WHERE address.dataset_release_id=(
+                SELECT accepted.dataset_release_id FROM serving.accepted_generation accepted
+                WHERE accepted.dataset_id='gnaf-nsw'
+            )
+          AND address.published AND address.street_name IS NOT NULL
+          AND address.street_type IS NOT NULL AND address.street_number_first IS NOT NULL
+          AND types.street_type IS NOT NULL
+          AND EXISTS (SELECT 1 FROM eligible_addresses)
+        GROUP BY 1,2,3,4,5,6,7,8
+    ), registry_fallback_candidates AS MATERIALIZED (
+        SELECT property.postcode,property.locality,
+            property.street_name AS street_name_normalised,
+            property.street_type,property.street_number_first,
+            COALESCE(property.street_number_last,-1) AS street_number_last,
+            COALESCE(property.street_number_suffix,'') AS street_number_suffix,
+            COALESCE(property.unit_number,'') AS unit_number,
+            count(DISTINCT property.property_ref)::integer AS match_count,
+            min(property.property_ref::text)::uuid AS exact_property_ref
+        FROM registry.property property
+        WHERE NOT EXISTS (
+            SELECT 1 FROM registry.property_identifier identifier
+            WHERE identifier.property_ref=property.property_ref AND identifier.scheme='gnaf_pid'
+        )
+          AND EXISTS (SELECT 1 FROM eligible_addresses)
+        GROUP BY 1,2,3,4,5,6,7,8
     )
     SELECT eligible.postcode,eligible.locality,eligible.street_name_normalised,
         eligible.street_type,eligible.street_number_first,eligible.street_number_last,
         eligible.street_number_suffix,eligible.unit_number,
-        CASE WHEN gnaf_match.match_count>0
-            THEN gnaf_match.match_count ELSE registry_match.match_count END AS match_count,
-        CASE WHEN gnaf_match.match_count>0
-            THEN gnaf_match.exact_property_ref ELSE registry_match.exact_property_ref
-        END AS exact_property_ref,
+        COALESCE(gnaf_match.match_count,registry_match.match_count,0) AS match_count,
+        CASE WHEN gnaf_match.match_count=1 THEN gnaf_match.exact_property_ref
+            WHEN gnaf_match.match_count IS NULL AND registry_match.match_count=1
+                THEN registry_match.exact_property_ref
+            ELSE NULL END AS exact_property_ref,
         gnaf_match.gnaf_pid,gnaf_match.gnaf_release_id
     FROM eligible_addresses eligible
-    CROSS JOIN LATERAL (
-        SELECT count(DISTINCT COALESCE(address.property_ref,
-                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid))::integer AS match_count,
-            CASE WHEN count(DISTINCT COALESCE(address.property_ref,
-                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid))=1
-                THEN min(COALESCE(address.property_ref,
-                    md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)::text)::uuid
-                ELSE NULL
-            END AS exact_property_ref,
-            min(address.gnaf_pid) AS gnaf_pid,
-            min(address.dataset_release_id::text)::uuid AS gnaf_release_id
-        FROM warehouse.gnaf_address address
-        WHERE address.dataset_release_id=(
-                SELECT accepted.dataset_release_id
-                FROM serving.accepted_generation accepted
-                WHERE accepted.dataset_id='gnaf-nsw'
-            )
-          AND address.published
-          AND address.street_name IS NOT NULL
-          AND address.street_type IS NOT NULL
-          AND address.street_number_first IS NOT NULL
-          AND address.postcode=eligible.postcode
-          AND address.locality=eligible.locality
-          AND address.street_name=eligible.street_name_normalised
-          AND address.street_type=ANY(ARRAY[eligible.street_type,
-              CASE eligible.street_type
-                  WHEN 'AV' THEN 'AVENUE' WHEN 'CL' THEN 'CLOSE'
-                  WHEN 'CT' THEN 'COURT' WHEN 'CR' THEN 'CRESCENT'
-                  WHEN 'DR' THEN 'DRIVE' WHEN 'HWY' THEN 'HIGHWAY'
-                  WHEN 'LANE' THEN 'LANE' WHEN 'PDE' THEN 'PARADE'
-                  WHEN 'PL' THEN 'PLACE' WHEN 'RD' THEN 'ROAD'
-                  WHEN 'ST' THEN 'STREET' WHEN 'TCE' THEN 'TERRACE'
-              END])
-          AND address.street_number_first=eligible.street_number_first
-          AND COALESCE(address.street_number_last,-1)=COALESCE(
-              eligible.street_number_last,-1)
-          AND COALESCE(address.street_number_suffix,'')=COALESCE(
-              eligible.street_number_suffix,'')
-          AND COALESCE(address.unit_number,'')=COALESCE(eligible.unit_number,'')
-    ) gnaf_match
-    CROSS JOIN LATERAL (
-        SELECT count(DISTINCT property.property_ref)::integer AS match_count,
-            CASE WHEN count(DISTINCT property.property_ref)=1
-                THEN min(property.property_ref::text)::uuid ELSE NULL
-            END AS exact_property_ref
-        FROM registry.property property
-        WHERE gnaf_match.match_count=0
-          AND NOT EXISTS (
-              SELECT 1 FROM registry.property_identifier identifier
-              WHERE identifier.property_ref=property.property_ref AND identifier.scheme='gnaf_pid'
-          )
-          AND property.postcode=eligible.postcode
-          AND property.locality=eligible.locality
-          AND property.street_name=eligible.street_name_normalised
-          AND property.street_type=eligible.street_type
-          AND property.street_number_first=eligible.street_number_first
-          AND COALESCE(property.street_number_last,-1)=COALESCE(
-              eligible.street_number_last,-1)
-          AND COALESCE(property.street_number_suffix,'')=COALESCE(
-              eligible.street_number_suffix,'')
-          AND COALESCE(property.unit_number,'')=COALESCE(eligible.unit_number,'')
-    ) registry_match
+    LEFT JOIN accepted_gnaf_candidates gnaf_match
+      ON gnaf_match.postcode=eligible.postcode
+      AND gnaf_match.locality=eligible.locality
+      AND gnaf_match.street_name_normalised=eligible.street_name_normalised
+      AND gnaf_match.street_type=eligible.street_type
+      AND gnaf_match.street_number_first=eligible.street_number_first
+      AND gnaf_match.street_number_last=COALESCE(eligible.street_number_last,-1)
+      AND gnaf_match.street_number_suffix=COALESCE(eligible.street_number_suffix,'')
+      AND gnaf_match.unit_number=COALESCE(eligible.unit_number,'')
+    LEFT JOIN registry_fallback_candidates registry_match
+      ON registry_match.postcode=eligible.postcode
+      AND registry_match.locality=eligible.locality
+      AND registry_match.street_name_normalised=eligible.street_name_normalised
+      AND registry_match.street_type=eligible.street_type
+      AND registry_match.street_number_first=eligible.street_number_first
+      AND registry_match.street_number_last=COALESCE(eligible.street_number_last,-1)
+      AND registry_match.street_number_suffix=COALESCE(eligible.street_number_suffix,'')
+      AND registry_match.unit_number=COALESCE(eligible.unit_number,'')
+      AND gnaf_match.match_count IS NULL
 """
 
 # Accepted G-NAF identities are normally virtual. Materialise only the unique identities

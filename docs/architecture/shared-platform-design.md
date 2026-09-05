@@ -87,10 +87,11 @@ use their registered tuple; direct administrative SQL can bypass that relationsh
 throughput tradeoff. BOCSAR selects the first source row per natural key in one ordered pass,
 replacing its grouped-ordinal join. Checksums, complete counts and atomic activation remain.
 
-PSI resolves unique addresses directly against the accepted G-NAF warehouse identities, including
+PSI batch-joins unique addresses against materialized dictionaries of accepted G-NAF warehouse identities, including
 the street-type equivalents already recognised by its source parser. Only missing registry anchors
 needed by resolved sales are inserted, with source provenance, inside the atomic candidate import.
-The unchanged foreign key remains enforced. Canonical property reads exclude those registry
+The dictionaries avoid a correlated database search for every sales address while retaining
+exact cardinality and ambiguity checks. The unchanged foreign key remains enforced. Canonical property reads exclude those registry
 snapshots from legacy fallback, so withdrawal or replacement of an accepted address cannot reveal
 stale fields. ADR-038 records this extension to the ADR-028 identity and ADR-032 import boundaries.
 

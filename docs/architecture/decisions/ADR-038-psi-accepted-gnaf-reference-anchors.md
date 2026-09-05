@@ -62,3 +62,18 @@ Real PostgreSQL regressions enforce foreign keys, ambiguity refusal, source pres
 transaction rollback, replay, and accepted-generation changes. Failed retained jobs can use the
 supported cached reprocess action to create a new candidate with the original scope and lineage;
 their original failure evidence remains intact.
+
+### Full-history matching implementation (5 September 2026)
+
+The complete 7.4-million-row sales load exposed an expensive correlated lookup plan:
+address resolution alone ran for over 18 minutes before operator-authorised cancellation.
+The typed loader now aggregates accepted G-NAF and eligible legacy registry identities into
+transaction-local, materialized address dictionaries, then joins the distinct sales addresses
+against those dictionaries. Reference tables are read in batches rather than searched separately
+for every address. Existing loader temporary-file and statement limits still apply.
+
+G-NAF full street-type names contribute their existing abbreviated lookup spelling as well;
+an abbreviation stored by G-NAF does not acquire a reverse full-name equivalence. Distinct
+property-reference counts preserve ambiguity across both spellings. Legacy fallback is allowed
+only when G-NAF has no candidate, and only a unique reference is returned. No matching confidence,
+source facts, identity anchors, quality policy or activation behavior changes.

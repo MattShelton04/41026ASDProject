@@ -187,3 +187,38 @@ tests. The idle database API, loader and runner were refreshed successfully afte
 migration. Complete G-NAF and BOCSAR were restarted through cached canonical replay;
 complete PSI history was queued through the registered full-data job. These new
 runs do not publish candidates or replace the accepted generations automatically.
+
+## Live fast-import results and the full-history PSI follow-up
+
+The replacement full canonical G-NAF replay accepted 5,190,134 addresses: import
+5m56s, build 3m22s, execution 9m18s. Import alone fell about 80% from the measured
+30m05s baseline. BOCSAR accepted 10,114,565 canonical observation/coverage rows:
+import 13m29s, build 3m55s, execution 17m23s, plus 9m04s waiting behind G-NAF.
+Its product contains 318,122 crime-series records. Both candidate releases passed
+schema and candidate-row-count checks. Acquisition was skipped for these retained
+canonical replays; these are not fresh network-download timings.
+
+Complete PSI prepared 7,402,643 canonical records in 21m39s, but its import exposed
+another source-scale query problem. The exact-address phase alone spent over
+18 minutes in a pair of correlated aggregate lookups. Live cumulative index counters
+showed about 720 million entries read through the broad G-NAF locality/postcode
+index and no use of the exact-component index. The operator-authorised cancellation
+preserved the prepared canonical artifact for another replay, avoiding repeated
+source preparation. The cancelled attempt is not a successful import timing.
+
+The typed PSI matcher now builds materialized address dictionaries and batch-joins
+the distinct eligible addresses. Each source is grouped once; G-NAF precedence,
+zero/one/many cardinality, directional street-type equivalents, supplied-reference
+precedence and stale-anchor exclusion are preserved. A regression specifically
+checks ambiguity when full and abbreviated spellings coexist. ADR-038 documents
+the implementation change. The portable downstream product remains unchanged.
+
+Three isolated, fully migrated PostgreSQL trials at each scale verified every
+expected match. At 100k eligible addresses the old/new medians were 1.88s/2.59s;
+at 1m they were 19.47s/35.59s. This deliberately simple single-locality fixture
+uses the selective exact-component index successfully, so batch aggregation is
+slower there. It establishes correctness and a bounded source-scale execution
+sample, not a general speedup. The live dataset's repeated broad-index searches
+are the reason for changing query shape; the retained full-history replay must
+establish the actual benefit. Temporary reference dictionaries trade extra
+sequential grouping and spill space for removal of per-address search plans.

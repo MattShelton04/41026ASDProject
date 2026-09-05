@@ -1094,6 +1094,47 @@ def test_psi_accepts_registered_street_type_equivalences_without_changing_source
     }
 
 
+def test_psi_batch_match_keeps_alias_ambiguity_and_full_name_direction(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    accepted_release = uuid.uuid4()
+    connection.execute(
+        "INSERT INTO serving.accepted_generation VALUES ('gnaf-nsw',%s)",
+        (accepted_release,),
+    )
+    connection.execute(
+        "INSERT INTO warehouse.gnaf_address (dataset_release_id,gnaf_pid,postcode,"
+        "locality,street_name,street_type,street_number_first,published) VALUES "
+        "(%s,'full','2000','SYDNEY','EXAMPLE','STREET',10,TRUE),"
+        "(%s,'short','2000','SYDNEY','EXAMPLE','ST',10,TRUE)",
+        (accepted_release, accepted_release),
+    )
+    # An abbreviation accepts either spelling, making this address ambiguous.
+    # The full spelling only accepts itself, as in the original matching policy.
+    _stage_typed_psi_rows(
+        connection,
+        [_psi_row(key="short"), {**_psi_row(key="full"), "street_type": "STREET"}],
+    )
+    import_profiles._insert_psi_rows(
+        connection.cursor(),
+        release_id=uuid.uuid4(),
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        phase_rows=2,
+        phase_callback=None,
+    )
+    expected_ref = uuid.UUID(hashlib.md5(b"propertyscope-gnaf:full").hexdigest())
+    rows = connection.execute(
+        "SELECT source_business_key,property_ref FROM warehouse.psi_sale "
+        "ORDER BY source_business_key"
+    ).fetchall()
+    assert rows == [
+        {"source_business_key": "full", "property_ref": expected_ref},
+        {"source_business_key": "short", "property_ref": None},
+    ]
+
+
 def test_psi_does_not_reuse_stale_gnaf_anchor_after_accepted_generation_changes(
     isolated_postgres: psycopg.Connection[dict[str, object]],
 ) -> None:

@@ -113,6 +113,9 @@ PSI exact-address matching uses the accepted, published G-NAF generation and rec
 equivalents. Unique matches create only the missing registry reference anchors needed for the
 sales foreign key; canonical addresses still come from the accepted warehouse generation. See
 [ADR-038](../docs/architecture/decisions/ADR-038-psi-accepted-gnaf-reference-anchors.md).
+Full-history PSI matching builds transaction-local address dictionaries and joins sales addresses
+in batches, avoiding repeated lookup queries against the full property register. Exact matching,
+ambiguity handling and source facts remain unchanged.
 After correcting an import failure, **Use downloaded file** on its run creates a cached reprocess
 with the same scope and lineage. Selected archive-year runs remain partial and non-publishable.
 
