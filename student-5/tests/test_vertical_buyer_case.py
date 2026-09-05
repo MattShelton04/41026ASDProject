@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import urlencode, urlsplit
 
 from flask.testing import FlaskClient
+
 from propertyscope_buyer_store.app import create_app as create_database_app
 from propertyscope_buyer_store.configuration import StoreSettings
 from propertyscope_buyer_store.repository import BuyerStore

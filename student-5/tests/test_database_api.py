@@ -6,6 +6,7 @@ import logging
 
 import pytest
 from flask.testing import FlaskClient
+
 from propertyscope_buyer_store.repository import BuyerStore
 
 BASE = "/internal/buyer-workspaces/v1"

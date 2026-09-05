@@ -8,20 +8,26 @@
   <link rel="stylesheet" href="design-system/base.css">
   <link rel="stylesheet" href="design-system/components.css">
   <link rel="stylesheet" href="styles.css">
-  <script defer src="app.js"></script>
+  <script type="module" src="app.js"></script>
+  <link rel="stylesheet" href="./design-system/shell.css">
+  <script type="module" src="./shell.js"></script>
 </head>
 <body>
   <a class="ps-skip-link" href="#main-content">Skip to content</a>
-  <header class="topbar">
-    <a class="brand" href="/">PropertyScope NSW <span>Property research workspace</span></a>
-    <nav aria-label="Product navigation">
-      <a href="/">Home</a>
-      <a href="/features/data-platform/#properties">Property data</a>
-      <a aria-current="page" href="#market-cases">Sales and market</a>
-    </nav>
+  <header class="topbar ps-feature-header">
+    <a class="ps-feature-brand" data-product-home href="/" aria-label="PropertyScope product home">
+        <span class="ps-feature-brand-mark" aria-hidden="true">PS</span>
+        <span><strong>PropertyScope NSW</strong><small>Property research workspace</small></span>
+      </a>
+    <nav class="ps-product-nav" aria-label="PropertyScope navigation">
+        <a data-product-path="#home" href="/#home">Home</a>
+        <a data-product-path="#features" href="/#features">Research areas</a>
+        <a data-product-path="#system-status" href="/#system-status">Data status</a>
+        <a data-product-path="#evidence" href="/#evidence">Sources &amp; history</a>
+      </nav>
   </header>
 
-  <main id="main-content">
+  <main id="main-content" tabindex="-1">
     <section class="hero" aria-labelledby="page-title">
       <div>
         <p class="eyebrow">NSW PROPERTY SALES</p>
@@ -123,6 +129,7 @@
       <label for="form-status">Status</label><select id="form-status"><option value="draft">Draft</option><option value="active">Active</option><option value="complete">Complete</option><option value="archived">Archived</option></select>
       <label for="form-tier">Minimum match tier</label><select id="form-tier"><option value="A">A: exact only</option><option value="B" selected>B: strong or exact</option><option value="C">C: include lower-confidence matches</option></select>
       <label for="form-notes">Research notes</label><textarea id="form-notes" rows="4" maxlength="4000"></textarea>
+      <p id="form-error" class="error-text" role="alert" hidden></p>
       <div class="dialog-actions"><button id="cancel-dialog" class="button" type="button">Cancel</button><button class="button button-primary" type="submit">Save case</button></div>
     </form>
   </dialog>

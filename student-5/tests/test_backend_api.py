@@ -10,13 +10,13 @@ from typing import Any
 
 import pytest
 from flask.testing import FlaskClient
+
+from ai_mode.tool_catalog import build_tool_runtime, load_tool_catalog
 from propertyscope_buyer_workspaces.api import _evidence_action_fallbacks, _evidence_used
 from propertyscope_buyer_workspaces.app import create_app
 from propertyscope_buyer_workspaces.clients import ClientResponse, DatabaseUnavailableError
 from propertyscope_buyer_workspaces.configuration import BackendSettings
 from propertyscope_buyer_workspaces.integrations import IntegrationUnavailableError
-
-from ai_mode.tool_catalog import build_tool_runtime, load_tool_catalog
 
 API = "/api/buyer-workspaces/v1/buyer-cases"
 TOOLS = "/api/buyer-workspaces/v1/tools"

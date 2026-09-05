@@ -1,3 +1,5 @@
+import { el, requestJsonResponse, createLatestTask } from "./browser/index.js";
+
 const API = "/api/market-intelligence/v1";
 const EXAMPLE_PROPERTY = {
   reference: "a0000000-0000-0000-0000-000000000001",
@@ -11,6 +13,10 @@ const money = new Intl.NumberFormat("en-AU", {
 });
 
 const state = { cases: [], selectedId: null, evidence: null, editing: false };
+const evidenceTask = createLatestTask();
+const assistantTask = createLatestTask();
+let saving = false;
+let deleting = false;
 const byId = (id) => document.getElementById(id);
 
 function text(node, value) {
@@ -19,13 +25,6 @@ function text(node, value) {
 
 function clear(node) {
   while (node.firstChild) node.firstChild.remove();
-}
-
-function el(tag, className, value) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (value != null) node.textContent = String(value);
-  return node;
 }
 
 function humanise(value) {
@@ -64,13 +63,7 @@ function syncSelectedProperty() {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(`${API}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
-  });
-  const body = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-  if (!response.ok) throw new Error(body.detail || body.title || "Request failed");
-  return body;
+  return (await requestJsonResponse(fetch, `${API}${path}`, options)).body;
 }
 
 function notify(message, isError = false) {
@@ -176,14 +169,24 @@ async function loadCases(preferredId = null) {
 }
 
 async function loadEvidence() {
-  if (!state.selectedId) {
-    state.evidence = null;
-    renderEvidence();
-    return;
-  }
-  state.evidence = await api(`/market-cases/${state.selectedId}/evidence`);
-  renderEvidence();
+  const task = evidenceTask.start();
+  assistantTask.cancel();
+  const id = state.selectedId;
+  state.evidence = null;
   renderCases();
+  renderEvidence();
+  if (!id) return;
+  byId("case-detail").setAttribute("aria-busy", "true");
+  try {
+    const evidence = await api(`/market-cases/${encodeURIComponent(id)}/evidence`, { signal: task.signal });
+    if (!task.isCurrent()) return;
+    state.evidence = evidence;
+    renderEvidence();
+  } catch (error) {
+    if (task.isCurrent()) throw error;
+  } finally {
+    if (task.isCurrent()) byId("case-detail").setAttribute("aria-busy", "false");
+  }
 }
 
 function openCreate() {
@@ -230,6 +233,12 @@ function formPayload() {
 
 async function saveCase(event) {
   event.preventDefault();
+  if (saving) return;
+  saving = true;
+  const button = event.submitter;
+  if (button) button.disabled = true;
+  byId("form-error").hidden = true;
+  try {
   const payload = formPayload();
   let saved;
   if (state.editing) {
@@ -242,16 +251,26 @@ async function saveCase(event) {
   byId("case-dialog").close();
   notify(`Saved “${saved.name}”.`);
   await loadCases(saved.id);
+  } catch (error) {
+    text(byId("form-error"), error.message);
+    byId("form-error").hidden = false;
+  } finally {
+    saving = false;
+    if (button) button.disabled = false;
+  }
 }
 
 async function deleteCase() {
-  if (!state.evidence) return;
+  if (!state.evidence || deleting) return;
   const item = state.evidence.market_case;
   if (!window.confirm(`Delete “${item.name}”? This cannot be undone.`)) return;
+  deleting = true;
+  try {
   await api(`/market-cases/${item.id}`, { method: "DELETE" });
   state.selectedId = null;
   notify(`Deleted “${item.name}”.`);
   await loadCases();
+  } finally { deleting = false; }
 }
 
 function answerText(result) {
@@ -266,9 +285,10 @@ function answerText(result) {
   return lines.join("\n\n") || redactInternalIdentifiers(JSON.stringify(result, null, 2));
 }
 
-async function pollAssistant(runId) {
+async function pollAssistant(runId, task) {
   for (let attempt = 0; attempt < 90; attempt += 1) {
-    const detail = await api(`/assistant/turns/${runId}`);
+    const detail = await api(`/assistant/turns/${encodeURIComponent(runId)}`, { signal: task.signal });
+    if (!task.isCurrent()) return;
     const run = detail.run || detail;
     text(byId("assistant-answer"), `${humanise(run.status)} · run ${runId.slice(0, 8)}…`);
     if (run.status === "succeeded") {
@@ -278,7 +298,11 @@ async function pollAssistant(runId) {
     if (["failed", "cancelled", "timed_out"].includes(run.status)) {
       throw new Error(run.error?.message || `AI run ${humanise(run.status)}`);
     }
-    await new Promise((resolve) => window.setTimeout(resolve, 1200));
+    if (run.status === "waiting_for_review") {
+      text(byId("assistant-answer"), "This run needs human review. Open AI activity to continue; your saved case is unchanged.");
+      return;
+    }
+    await task.delay(1200);
   }
   throw new Error("AI run is still active; check AI-mode activity for its durable status.");
 }
@@ -286,22 +310,24 @@ async function pollAssistant(runId) {
 async function askAssistant(event) {
   event.preventDefault();
   if (!state.selectedId) return;
+  const task = assistantTask.start();
   const button = event.submitter;
   button.disabled = true;
   text(byId("assistant-answer"), "Starting a bounded Plan → Act → Observe → Adapt run…");
   try {
     const run = await api("/assistant/turns", {
-      method: "POST",
+      method: "POST", signal: task.signal,
       body: JSON.stringify({ case_id: state.selectedId, message: byId("assistant-message").value }),
     });
-    await pollAssistant(run.id);
+    if (task.isCurrent()) await pollAssistant(run.id, task);
   } catch (error) {
-    text(byId("assistant-answer"), `${error.message}\n\nThe deterministic case summary above remains available.`);
+    if (task.isCurrent()) text(byId("assistant-answer"), `${error.message}\n\nThe deterministic case summary above remains available.`);
   } finally {
     button.disabled = false;
   }
 }
 
+function initialise() {
 byId("case-list").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-case-id]");
   if (!button) return;
@@ -323,3 +349,8 @@ loadCases().catch((error) => {
   state.evidence = null;
   renderEvidence();
 });
+
+  window.addEventListener("pagehide", () => { evidenceTask.cancel(); assistantTask.cancel(); }, { once: true });
+}
+
+if (typeof document !== "undefined") initialise();

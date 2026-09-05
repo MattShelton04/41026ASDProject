@@ -8,7 +8,7 @@ shared package, and student slice owns its dependencies in a local `pyproject.to
 
 - Git
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
-- Node.js 20 or newer for the dependency-free operations-interface behavior tests; no npm
+- Node.js 20.6 or newer for the dependency-free Shared and feature-interface behavior tests; no npm
   install or browser test stack is required
 - Docker Desktop or another Docker Engine with Compose support for container builds,
   integration checks, and the assignment-aligned runtime
@@ -191,3 +191,42 @@ Agents follow the root `AGENTS.md` plus any closer scoped instructions. Give an 
 goal, owned paths, acceptance criteria, and required checks. Agents should inspect the current
 diff before acting, preserve unrelated work, and finish with an evidence-based handoff rather
 than assuming that a passing unit test proves integration behaviour.
+
+
+## Cross-feature frontend changes
+
+The Shared browser public API and feature-shell contract are documented in
+`shared/frontend/browser/README.md`. Use that barrel instead of copying request, abort, polling,
+HTML escaping or product-navigation implementations. Feature API adapters, business states and
+local screen composition remain feature-owned. A new Shared asset must be available in both the
+Docker image and the development bind mounts; a production-only copy is not enough.
+
+Node behavior tests need the repository bootstrap to resolve these shared source assets without
+copying or installing them:
+
+```text
+node --import ./scripts/frontend-test-bootstrap.mjs --test shared/frontend/browser/browser.test.mjs student-3/tests/frontend.test.mjs
+```
+
+The canonical test command supplies this automatically. For rendered shell changes, install the
+workspace browser dependencies and Chromium, then run:
+
+```text
+uv run playwright install chromium
+uv run python -m scripts.ui_feature_smoke --output .propertyscope-runtime/feature-smoke
+```
+
+This matrix covers five real feature entrypoints at 320, 390, 768 and 1440 pixels, with empty and
+unavailable API fixtures, product-link checks, horizontal-overflow checks, uncaught page errors
+and selected mobile dialog/drawer interactions. It is not a live-stack CRUD or provider test.
+Use `--feature buyer-workspaces` (or another feature slug) to shard it. `--chromium /path/to/binary`
+selects an existing browser.
+
+`--injected-document` is an explicitly weaker DOM/CSS/module test profile for environments where
+normal browser navigation is unavailable. It uses `about:blank`, an injected base URL and CORS
+headers only in intercepted test responses. It does **not** validate real-origin navigation, CSP,
+cookies, service workers, storage persistence or authentication. Do not substitute its result for
+the normal-origin smoke or the existing Feature 1 form/e2e suite before merging.
+
+See `docs/reviews/repository-health-review.md` for the September 2026 review, the implemented
+changes, outstanding work and the exact validation boundary.

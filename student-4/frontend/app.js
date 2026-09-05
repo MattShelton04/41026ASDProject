@@ -1,202 +1,57 @@
+import { el, requestJsonResponse, createLatestTask, pollUntilSettled } from "./browser/index.js";
+
 // Student 4 - Site, Planning & Building Due Diligence frontend.
 // Dependency-free ES module with a tiny hash router (#site-reviews list,
 // #site-reviews/<id> detail). Pure helpers are exported for the Node test gate;
 // the DOM bootstrap only runs inside a browser.
 
+async function requestResponse(path, options = {}) {
+  const { body, response } = await requestJsonResponse(fetch, path, { ...options, throwHttpErrors: false });
+  return { ok: response.ok, status: response.status, json: async () => body };
+}
+
+const routeTask = createLatestTask();
+const questionTask = createLatestTask();
+let activeMap = null;
+
 export const API_BASE = "/api/due-diligence/v1";
 
-const LIST_INTRO =
-  "Review available planning, environmental, strata and building evidence for a property, " +
-  "and record a due-diligence disposition. Confirmed observations, non-intersections, partial " +
-  "coverage and unavailable coverage are shown distinctly.";
-
-const STATUS_LABELS = {
-  draft: "Draft",
-  in_review: "In review",
-  completed: "Completed",
-  archived: "Archived",
-};
-
-const DISPOSITION_LABELS = {
-  undecided: "Undecided",
-  proceed: "Proceed",
-  hold: "Hold",
-  do_not_proceed: "Do not proceed",
-};
-
-const EVIDENCE_STATE_LABELS = {
-  confirmed: "Confirmed",
-  non_intersection: "No intersection",
-  partial_coverage: "Partial coverage",
-  unavailable: "Unavailable",
-};
-
-// Map a review status to a shared evidence badge modifier (or "" for the neutral badge).
-const STATUS_BADGE = {
-  completed: "ps-badge--confirmed",
-  in_review: "ps-badge--info",
-  draft: "ps-badge--planned",
-};
-
-// Map an evidence state to a shared badge modifier (or "" for the neutral badge).
-const EVIDENCE_STATE_BADGE = {
-  confirmed: "ps-badge--confirmed",
-  partial_coverage: "ps-badge--partial",
-  non_intersection: "ps-badge--info",
-};
-
-export function statusLabel(status) {
-  return STATUS_LABELS[status] || "Unknown";
-}
-
-export function dispositionLabel(disposition) {
-  return DISPOSITION_LABELS[disposition] || "Unknown";
-}
-
-export function evidenceStateLabel(state) {
-  return EVIDENCE_STATE_LABELS[state] || "Unknown";
-}
-
-export function statusBadgeClass(status) {
-  return STATUS_BADGE[status] || "";
-}
-
-export function evidenceBadgeClass(state) {
-  return EVIDENCE_STATE_BADGE[state] || "";
-}
-
-export function summariseReview(review) {
-  return `${review.title} - ${review.address_display} (${statusLabel(review.status)})`;
-}
-
-// Turn a snake_case identifier (e.g. floor_space_ratio) into a readable label.
-export function formatType(value) {
-  if (!value) return "";
-  const spaced = String(value).replace(/_/g, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
-// Parse the location hash into a route: the list, or a review detail with its id.
-export function parseRoute(hash) {
-  const clean = String(hash || "").replace(/^#/, "");
-  const match = clean.match(/^site-reviews\/(.+)$/);
-  if (match) return { name: "detail", id: decodeURIComponent(match[1]) };
-  return { name: "list" };
-}
-
-const DEFAULT_CHECKLIST = [
-  { item: "Confirm zoning permits the intended use", done: false },
-  { item: "Check flood and bushfire exposure", done: false },
-  { item: "Review strata and building orders", done: false },
-];
-
-// Build a create payload from raw form values, trimming text and defaulting safely.
-export function buildReviewPayload(values) {
-  return {
-    property_ref: String(values.propertyRef || "").trim(),
-    address_display: String(values.addressDisplay || "").trim(),
-    title: String(values.title || "").trim(),
-    status: values.status || "draft",
-    disposition: values.disposition || "undecided",
-    notes: String(values.notes || "").trim(),
-    checklist: Array.isArray(values.checklist) ? values.checklist : DEFAULT_CHECKLIST,
-  };
-}
-
-// Map a create/update Problem Details response to a friendly message.
-export function problemMessage(problem, status) {
-  const code = problem && problem.code;
-  if (code === "unknown_property") return "That property is not verified in Feature 1.";
-  if (code === "invalid_site_review") {
-    return (problem && problem.detail) || "Please check the review details and try again.";
-  }
-  return `Could not save the review (status ${status}).`;
-}
-
-// Build an update payload for an existing review (property is not editable).
-export function buildUpdatePayload(values) {
-  return {
-    title: String(values.title || "").trim(),
-    status: values.status || "draft",
-    disposition: values.disposition || "undecided",
-    notes: String(values.notes || "").trim(),
-  };
-}
-
-// Return a new checklist with one item's done-state changed (pure).
-export function toggleChecklist(checklist, index, done) {
-  const items = Array.isArray(checklist) ? checklist : [];
-  return items.map((item, position) => (position === index ? { ...item, done } : item));
-}
-
-// Extract a clean question / verification-point list from an AI-mode final_result (pure).
-// Prefers an explicit `questions` array; otherwise uses the default.v7 `findings` list
-// (plus the recommended next step); otherwise pulls question-like lines from the text.
-export function extractQuestions(finalResult) {
-  if (!finalResult || typeof finalResult !== "object") return [];
-  if (Array.isArray(finalResult.questions)) {
-    const questions = finalResult.questions
-      .map((q) => (typeof q === "string" ? q : q && q.question))
-      .filter((q) => typeof q === "string" && q.trim())
-      .map((q) => q.trim());
-    if (questions.length) return questions;
-  }
-  if (Array.isArray(finalResult.findings)) {
-    const points = finalResult.findings
-      .filter((f) => typeof f === "string" && f.trim())
-      .map((f) => f.trim());
-    if (typeof finalResult.recommended_next_step === "string" && finalResult.recommended_next_step.trim()) {
-      points.push(finalResult.recommended_next_step.trim());
-    }
-    if (points.length) return points;
-  }
-  const text = [finalResult.summary, finalResult.answer]
-    .filter((value) => typeof value === "string")
-    .join("\n");
-  return text
-    .split("\n")
-    .map((line) => line.replace(/^\s*(?:\d+[.)]|[-*\u2022])\s*/, "").trim())
-    .filter((line) => line.endsWith("?"));
-}
-
-// Build shared-map layer definitions from the backend /map payload (pure).
-export function mapLayerDefinitions(mapData) {
-  const layers = [];
-  if (mapData && mapData.property) {
-    layers.push({
-      id: "property",
-      label: "Property",
-      kind: "point",
-      data: mapData.property,
-      popup: { title: "address", fields: [] },
-    });
-  }
-  const hazards = Array.isArray(mapData && mapData.layers) ? mapData.layers : [];
-  for (const layer of hazards) {
-    layers.push({
-      id: layer.id,
-      label: layer.label,
-      kind: "polygon",
-      data: layer.data,
-      popup: {
-        title: "hazard",
-        fields: [
-          { label: "Evidence", property: "evidence_state" },
-          { label: "Note", property: "summary" },
-        ],
-      },
-    });
-  }
-  return layers;
-}
+import {
+  LIST_INTRO,
+  statusLabel,
+  dispositionLabel,
+  evidenceStateLabel,
+  statusBadgeClass,
+  evidenceBadgeClass,
+  summariseReview,
+  formatType,
+  parseRoute,
+  buildReviewPayload,
+  problemMessage,
+  buildUpdatePayload,
+  toggleChecklist,
+  extractQuestions,
+  mapLayerDefinitions,
+} from "./models.js";
+export {
+  LIST_INTRO,
+  statusLabel,
+  dispositionLabel,
+  evidenceStateLabel,
+  statusBadgeClass,
+  evidenceBadgeClass,
+  summariseReview,
+  formatType,
+  parseRoute,
+  buildReviewPayload,
+  problemMessage,
+  buildUpdatePayload,
+  toggleChecklist,
+  extractQuestions,
+  mapLayerDefinitions,
+} from "./models.js";
 
 // --- DOM helpers (browser only) ---
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text != null) node.textContent = text;
-  return node;
-}
 
 function badge(modifier, text) {
   return el("span", ["ps-badge", modifier].filter(Boolean).join(" "), text);
@@ -268,18 +123,20 @@ function renderListView(view) {
   matches.forEach((review) => grid.append(reviewCard(review)));
 }
 
-async function ensureReviews(view) {
+async function ensureReviews(view, task) {
   if (reviewsLoaded) return true;
   renderMessage(view, "Loading site reviews\u2026");
   try {
-    const response = await fetch(`${API_BASE}/site-reviews`);
+    const response = await requestResponse(`${API_BASE}/site-reviews`, { signal: task.signal });
+    if (!task.isCurrent()) return false;
     if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
     const payload = await response.json();
     allReviews = Array.isArray(payload.items) ? payload.items : [];
     reviewsLoaded = true;
-    setServiceState("online", "Evidence service available");
+    setServiceState("online", "Review service available");
     return true;
   } catch (error) {
+    if (!task.isCurrent()) return false;
     renderMessage(view, "Could not load site reviews. Is the due-diligence service running?");
     setServiceState("offline", "Service unavailable");
     return false;
@@ -381,7 +238,7 @@ async function toggleChecklistItem(review, index, checkbox, li) {
   const updated = toggleChecklist(review.checklist, index, desired);
   checkbox.disabled = true;
   try {
-    const response = await fetch(`${API_BASE}/site-reviews/${encodeURIComponent(review.id)}`, {
+    const response = await requestResponse(`${API_BASE}/site-reviews/${encodeURIComponent(review.id)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ checklist: updated }),
@@ -436,14 +293,16 @@ function renderQuestionList(host, questions) {
 }
 
 async function generateQuestions(review, button, status, listHost) {
+  if (button.disabled) return;
+  const task = questionTask.start();
   button.disabled = true;
   status.hidden = false;
   status.textContent = "Starting a bounded Plan \u2192 Act \u2192 Observe \u2192 Adapt run\u2026";
   try {
-    const start = await fetch(`${API_BASE}/assistant/turns`, {
+    const start = await requestResponse(`${API_BASE}/assistant/turns`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ review_id: review.id }),
+      body: JSON.stringify({ review_id: review.id }), signal: task.signal,
     });
     if (!start.ok) {
       const problem = await start.json().catch(() => ({}));
@@ -454,7 +313,8 @@ async function generateQuestions(review, button, status, listHost) {
       );
     }
     const run = await start.json();
-    const questions = await pollAssistant(run.id, status);
+    const questions = await pollAssistant(run.id, status, task);
+    if (!task.isCurrent() || !listHost.isConnected) return;
     if (questions.length === 0) {
       status.textContent = "The AI run finished without a clear question list. Try again.";
       return;
@@ -469,28 +329,25 @@ async function generateQuestions(review, button, status, listHost) {
   }
 }
 
-async function pollAssistant(runId, status) {
-  for (let attempt = 0; attempt < 90; attempt += 1) {
-    const response = await fetch(`${API_BASE}/assistant/turns/${encodeURIComponent(runId)}`);
+async function pollAssistant(runId, status, task) {
+  const run = await pollUntilSettled(async (signal) => {
+    const response = await requestResponse(`${API_BASE}/assistant/turns/${encodeURIComponent(runId)}`, { signal });
     if (!response.ok) throw new Error("Lost track of the AI run.");
     const detail = await response.json();
-    const run = detail.run || detail;
-    status.textContent = `AI run: ${run.status}\u2026`;
-    if (run.status === "succeeded") return extractQuestions(run.final_result);
-    if (["failed", "cancelled", "timed_out"].includes(run.status)) {
-      throw new Error(
-        (run.error && run.error.message) ||
-          `AI run ${run.status}. Add an AI credential to enable generation; the evidence remains usable.`,
-      );
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-  }
-  throw new Error("The AI run is still active; check back shortly.");
+    return detail.run || detail;
+  }, {
+    task, intervalMs: 1200,
+    onUpdate: (value) => { status.textContent = `AI run: ${value.status}…`; },
+    isSettled: (value) => ["succeeded", "failed", "cancelled", "timed_out", "waiting_for_review"].includes(value.status),
+  });
+  if (run.status === "waiting_for_review") throw new Error("This run needs human review. Open AI activity to continue.");
+  if (run.status !== "succeeded") throw new Error(run.error?.message || `AI run ${run.status}. The evidence remains usable.`);
+  return extractQuestions(run.final_result);
 }
 
 async function saveQuestions(review, questions, status) {
   try {
-    const response = await fetch(`${API_BASE}/site-reviews/${encodeURIComponent(review.id)}`, {
+    const response = await requestResponse(`${API_BASE}/site-reviews/${encodeURIComponent(review.id)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ verification_questions: questions }),
@@ -499,9 +356,11 @@ async function saveQuestions(review, questions, status) {
       review.verification_questions = questions;
       reviewsLoaded = false;
       status.textContent = `Saved ${questions.length} question(s) to this review.`;
+    } else {
+      status.textContent = "Questions generated, but not saved. Copy them before leaving this review.";
     }
   } catch (networkError) {
-    // Non-fatal: the generated questions are already displayed.
+    status.textContent = "Questions generated, but not saved. Copy them before leaving this review.";
   }
 }
 
@@ -540,7 +399,7 @@ function mapCard(review) {
 async function loadMap(reviewId, canvas, statusNode) {
   let mapData;
   try {
-    const response = await fetch(`${API_BASE}/site-reviews/${encodeURIComponent(reviewId)}/map`);
+    const response = await requestResponse(`${API_BASE}/site-reviews/${encodeURIComponent(reviewId)}/map`);
     if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
     mapData = await response.json();
   } catch (networkError) {
@@ -555,36 +414,42 @@ async function loadMap(reviewId, canvas, statusNode) {
   }
   try {
     const mapping = await import("./mapping/index.js");
-    await mapping.createMap({
+    if (!canvas.isConnected) return;
+    const map = await mapping.createMap({
       container: canvas,
       provider: mapping.createOpenFreeMapProvider(),
       layers: mapLayerDefinitions(mapData),
       view: { center: mapData.center, zoom: 15 },
       onStatus(event) {
+        if (!canvas.isConnected) return;
         statusNode.dataset.state = event.state;
         statusNode.textContent = event.message;
       },
     });
+    if (!canvas.isConnected) map.destroy();
+    else activeMap = map;
   } catch (mapError) {
     statusNode.dataset.state = "error";
     statusNode.textContent = "The interactive map could not start; the evidence below remains available.";
   }
 }
 
-async function renderDetailView(view, id) {
+async function renderDetailView(view, id, task) {
   renderMessage(view, "Loading review\u2026");
   let data;
   try {
-    const response = await fetch(`${API_BASE}/site-reviews/${encodeURIComponent(id)}/evidence`);
+    const response = await requestResponse(`${API_BASE}/site-reviews/${encodeURIComponent(id)}/evidence`, { signal: task.signal });
+    if (!task.isCurrent()) return;
     if (response.status === 404) {
       view.replaceChildren(backLink(), el("p", "empty", "That site review was not found."));
-      setServiceState("online", "Evidence service available");
+      setServiceState("online", "Review service available");
       return;
     }
     if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
     data = await response.json();
-    setServiceState("online", "Evidence service available");
+    setServiceState("online", "Review service available");
   } catch (error) {
+    if (!task.isCurrent()) return;
     view.replaceChildren(
       backLink(),
       el("p", "empty", "Could not load this review. Is the due-diligence service running?"),
@@ -672,7 +537,7 @@ function propertyOption(item) {
 
 async function runPropertySearch(query, results) {
   try {
-    const response = await fetch(`${API_BASE}/properties/search?q=${encodeURIComponent(query)}`);
+    const response = await requestResponse(`${API_BASE}/properties/search?q=${encodeURIComponent(query)}`);
     if (!response.ok) {
       results.replaceChildren(el("p", "search-hint", "Enter at least three characters to search."));
       return;
@@ -790,7 +655,7 @@ function saveCreate() {
     addressDisplay: selectedProperty.address_display,
     ...currentFormValues(),
   });
-  return fetch(`${API_BASE}/site-reviews`, {
+  return requestResponse(`${API_BASE}/site-reviews`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -799,7 +664,7 @@ function saveCreate() {
 
 function saveEdit() {
   const payload = buildUpdatePayload(currentFormValues());
-  return fetch(`${API_BASE}/site-reviews/${encodeURIComponent(editingReviewId)}`, {
+  return requestResponse(`${API_BASE}/site-reviews/${encodeURIComponent(editingReviewId)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -866,7 +731,7 @@ async function confirmDelete() {
   const button = document.querySelector("#confirm-delete");
   if (button) button.disabled = true;
   try {
-    const response = await fetch(`${API_BASE}/site-reviews/${encodeURIComponent(deletingReviewId)}`, {
+    const response = await requestResponse(`${API_BASE}/site-reviews/${encodeURIComponent(deletingReviewId)}`, {
       method: "DELETE",
     });
     closeConfirm();
@@ -892,16 +757,20 @@ function focusMain() {
 }
 
 async function route(options) {
+  const task = routeTask.start();
+  questionTask.cancel();
+  activeMap?.destroy();
+  activeMap = null;
   const view = document.querySelector("#view");
   if (!view) return;
   const parsed = parseRoute(location.hash);
   if (parsed.name === "detail") {
-    await renderDetailView(view, parsed.id);
+    await renderDetailView(view, parsed.id, task);
   } else {
-    const ready = await ensureReviews(view);
-    if (ready) renderListView(view);
+    const ready = await ensureReviews(view, task);
+    if (ready && task.isCurrent()) renderListView(view);
   }
-  if (options && options.focus) focusMain();
+  if (task.isCurrent() && options && options.focus) focusMain();
 }
 
 function initialise() {
@@ -918,6 +787,7 @@ function initialise() {
     });
   }
   window.addEventListener("hashchange", () => route({ focus: true }));
+  window.addEventListener("pagehide", () => { routeTask.cancel(); questionTask.cancel(); activeMap?.destroy(); clearTimeout(toastTimer); clearTimeout(searchTimer); }, { once: true });
 
   const dialog = document.querySelector("#review-dialog");
   if (dialog) {

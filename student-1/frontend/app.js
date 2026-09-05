@@ -5,7 +5,7 @@ import { parseIntegerField, parseJsonField, propertySearchQuery } from "./core/f
 import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
 import { parseRoute } from "./core/router.js";
 import { requestActiveDialogClose, runDialogForm } from "./components/dialogs.js";
-import { createDrawerController, createToastController } from "./browser/index.js";
+import { createDrawerController, createToastController, disposeTableRegions } from "./browser/index.js";
 import { formField } from "./components/forms.js";
 import { hydrateIcons } from "./components/icons.js";
 import { renderLoading } from "./components/states.js";
@@ -40,15 +40,9 @@ const toastController = createToastController(toast, { duration: 4500 });
 hydrateIcons();
 let drawerController = null;
 
-const productHomeUrl = window.PROPERTYSCOPE_HOME_URL
-  || (window.location.pathname.startsWith("/features/data-platform/") ? "/" : "http://localhost:5100/");
 const healthUrl = window.location.pathname.startsWith("/features/data-platform/")
   ? "/api/shared-health/data-platform"
   : "/health/ready";
-for (const item of document.querySelectorAll("[data-product-home]")) item.href = productHomeUrl;
-for (const item of document.querySelectorAll("[data-product-path]")) {
-  item.href = new URL(item.dataset.productPath, new URL(productHomeUrl, window.location.href)).href;
-}
 
 const state = {
   pollTimer: null,
@@ -225,6 +219,7 @@ async function checkHealth() {
 }
 
 async function renderRoute({ focus = false } = {}) {
+  disposeTableRegions(view);
   featureAssistant.destroy();
   const routeEpoch = generationGuard.begin();
   clearTimeout(state.pollTimer); state.lastRunStatus = ""; state.lastAgentStatus = "";
@@ -339,3 +334,5 @@ document.addEventListener("visibilitychange", () => {
 });
 
 checkHealth(); renderRoute(); setInterval(checkHealth, 30000);
+
+window.addEventListener("pagehide", () => { disposeTableRegions(view); drawerController?.destroy(); toastController.hide(); }, { once: true });

@@ -30,17 +30,29 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: student-5-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   feature-5-quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Install uv and Python
-        uses: astral-sh/setup-uv@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.1"
           python-version: "3.12"
           enable-cache: true
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20"
       - name: Install locked workspace
         run: uv sync --locked --all-packages --all-groups
       - name: Format and lint Student 5
@@ -54,7 +66,7 @@ jobs:
       - name: Check Student 5 browser code
         run: |
           node --check student-5/frontend/app.js
-          node --test student-5/tests/frontend/buyer_cases.test.mjs
+          node --import ./scripts/frontend-test-bootstrap.mjs --test student-5/tests/frontend/buyer_cases.test.mjs
       - name: Validate deployment and boundaries
         run: |
           uv lock --check

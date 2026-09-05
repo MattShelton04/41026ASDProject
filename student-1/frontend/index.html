@@ -15,12 +15,14 @@
     <link rel="stylesheet" href="./styles.css?v=22">
     <script defer src="./vendor/htmx-2.0.10.min.js"></script>
   <script type="module" src="./app.js?v=45"></script>
-  </head>
+    <link rel="stylesheet" href="./design-system/shell.css">
+  <script type="module" src="./shell.js"></script>
+</head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
-    <header class="topbar">
-      <a class="brand" data-product-home href="http://localhost:5100/" aria-label="PropertyScope product home">
-        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m12 3-8 4 8 4 8-4-8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg></span>
+    <header class="topbar ps-feature-header">
+      <a class="ps-feature-brand" data-product-home href="/" aria-label="PropertyScope product home">
+        <span class="ps-feature-brand-mark" aria-hidden="true">PS</span>
         <span><strong>PropertyScope NSW</strong><small>Property research workspace</small></span>
       </a>
       <form id="header-property-search" class="topbar-search" role="search">
@@ -28,11 +30,11 @@
         <label class="visually-hidden" for="header-property-query">Search Property data</label>
         <input id="header-property-query" name="q" type="search" placeholder="Search Property data by address or reference" autocomplete="street-address" minlength="2" maxlength="200">
       </form>
-      <nav class="global-nav" aria-label="PropertyScope navigation">
-        <a data-product-path="#home" href="http://localhost:5100/#home">Home</a>
-        <a data-product-path="#features" href="http://localhost:5100/#features">Research areas</a>
-        <a data-product-path="#system-status" href="http://localhost:5100/#system-status">Data status</a>
-        <a data-product-path="#evidence" href="http://localhost:5100/#evidence">Sources &amp; history</a>
+      <nav class="ps-product-nav" aria-label="PropertyScope navigation">
+        <a data-product-path="#home" href="/#home">Home</a>
+        <a data-product-path="#features" href="/#features">Research areas</a>
+        <a data-product-path="#system-status" href="/#system-status">Data status</a>
+        <a data-product-path="#evidence" href="/#evidence">Sources &amp; history</a>
       </nav>
       <div class="topbar-actions">
         <div id="service-state" class="service-state checking" role="status">
@@ -45,7 +47,7 @@
       </div>
     </header>
 
-    <div class="workspace-strip" aria-label="Current research area and data status"><span class="workspace-strip__area"><b>Current research area</b> Property data</span><span><i aria-hidden="true"></i> Property records available</span><span>NSW coverage</span><span>Sources and uncertainty shown</span></div>
+    <div class="workspace-strip" aria-label="Current research area and data status"><span class="workspace-strip__area"><b>Current research area</b> Property data</span><span><i aria-hidden="true"></i> Property research</span><span>NSW coverage</span><span>Sources and uncertainty shown</span></div>
 
     <div class="app-shell">
       <aside id="primary-nav" class="sidebar" aria-label="Primary navigation">

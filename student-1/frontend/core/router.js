@@ -3,7 +3,10 @@ export const ROUTES = new Set(["overview", "data-products", "sources", "jobs", "
 export function parseRoute(hash = "") {
   const raw = String(hash).replace(/^#/, "") || "properties";
   const path = raw.split("?")[0];
-  const [candidate, id, action] = path.split("/").map(decodeURIComponent);
+  let decoded;
+  try { decoded = path.split("/").map(decodeURIComponent); }
+  catch { return { route: "properties", id: "", action: "" }; }
+  const [candidate, id, action] = decoded;
   return { route: ROUTES.has(candidate) ? candidate : "properties", id: id || "", action: action || "" };
 }
 

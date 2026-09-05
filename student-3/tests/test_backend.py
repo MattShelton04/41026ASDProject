@@ -4,7 +4,9 @@ import io
 import json
 from typing import Any
 
-from propertyscope_suburb_analytics.app import create_app
+import pytest
+
+from propertyscope_suburb_analytics.app import _validate_comparison, create_app
 from propertyscope_suburb_analytics.clients import ServiceError
 
 
@@ -141,3 +143,33 @@ def test_assistant_failure_explains_deterministic_fallback() -> None:
     )
     assert status == 503
     assert "saved comparisons and charts still work" in payload["detail"]
+
+
+@pytest.mark.parametrize("month", ["2026-00", "2026-13", "0000-01", "2026-1", "20x6-01"])
+def test_saved_comparison_rejects_invalid_calendar_months(month: str) -> None:
+    with pytest.raises(ValueError, match="month"):
+        _validate_comparison(
+            {
+                "name": "Calendar test",
+                "localities": ["Parramatta"],
+                "measure": "count",
+                "from_month": month,
+                "to_month": "2026-12",
+            }
+        )
+
+
+@pytest.mark.parametrize("version", [True, 0, "1"])
+def test_saved_comparison_requires_positive_integer_version(version: object) -> None:
+    with pytest.raises(ValueError, match="version"):
+        _validate_comparison(
+            {
+                "name": "Version test",
+                "localities": ["Parramatta"],
+                "measure": "count",
+                "from_month": "2026-01",
+                "to_month": "2026-12",
+                "version": version,
+            },
+            require_version=True,
+        )

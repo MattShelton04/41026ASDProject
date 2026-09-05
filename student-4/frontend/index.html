@@ -12,24 +12,26 @@
     <link rel="stylesheet" href="./mapping/mapping.css" />
     <link rel="stylesheet" href="./styles.css" />
     <script type="module" src="./app.js"></script>
-  </head>
+    <link rel="stylesheet" href="./design-system/shell.css">
+  <script type="module" src="./shell.js"></script>
+</head>
   <body>
     <a class="ps-skip-link" href="#main-content">Skip to main content</a>
-    <header class="topbar">
-      <a class="brand" href="/" aria-label="PropertyScope product home">
-        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m12 3-8 4 8 4 8-4-8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg></span>
-        <span><strong>PropertyScope NSW</strong><small>Site &amp; planning workspace</small></span>
+    <header class="topbar ps-feature-header">
+      <a class="ps-feature-brand" data-product-home href="/" aria-label="PropertyScope product home">
+        <span class="ps-feature-brand-mark" aria-hidden="true">PS</span>
+        <span><strong>PropertyScope NSW</strong><small>Property research workspace</small></span>
       </a>
       <form class="topbar-search" id="review-filter-form" role="search">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
         <label class="ps-sr-only" for="review-filter">Filter site reviews</label>
         <input id="review-filter" name="q" type="search" placeholder="Filter site reviews by address" autocomplete="off" maxlength="200" />
       </form>
-      <nav class="global-nav" aria-label="PropertyScope navigation">
-        <a href="/">Home</a>
-        <a href="/#features">Research areas</a>
-        <a href="/#system-status">Data status</a>
-        <a href="/#evidence">Sources &amp; history</a>
+      <nav class="ps-product-nav" aria-label="PropertyScope navigation">
+        <a data-product-path="#home" href="/#home">Home</a>
+        <a data-product-path="#features" href="/#features">Research areas</a>
+        <a data-product-path="#system-status" href="/#system-status">Data status</a>
+        <a data-product-path="#evidence" href="/#evidence">Sources &amp; history</a>
       </nav>
       <div class="topbar-actions">
         <div id="service-state" class="service-state checking" role="status">
@@ -41,7 +43,7 @@
 
     <div class="workspace-strip" aria-label="Current research area and evidence status">
       <span class="workspace-strip__area"><b>Current research area</b> Site &amp; planning</span>
-      <span><i aria-hidden="true"></i> Evidence workspace available</span>
+      <span><i aria-hidden="true"></i> Evidence-led review</span>
       <span>Planning, environmental, strata &amp; building</span>
       <span>Evidence states shown</span>
     </div>
@@ -57,7 +59,7 @@
           <a href="#site-reviews" aria-current="page"><span class="nav-icon" aria-hidden="true">&#x25A4;</span>Site reviews</a>
         </nav>
         <div class="sidebar-note">
-          <a href="/">&larr; Back to research workspace</a>
+          <a data-product-home href="/">&larr; Back to research workspace</a>
           <span>Planning, environmental, strata and building evidence for a verified property, with gaps made explicit.</span>
         </div>
       </aside>

@@ -1,3 +1,5 @@
+import { trendPath } from "../frontend/trend.js";
+import { escapeHtml, requestJsonResponse } from "../../shared/frontend/browser/index.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -26,6 +28,7 @@ test("live search filters only the suburb list, preserves selection and ignores 
   const timers = new Map();
   let timerId = 0;
   const context = vm.createContext({
+    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
     document: {querySelector: (id) => { if (!nodes.has(id)) nodes.set(id, {value: ""}); return nodes.get(id); }},
     URLSearchParams,
     setTimeout: (callback) => { timers.set(++timerId, callback); return timerId; },
@@ -68,7 +71,7 @@ test("live search filters only the suburb list, preserves selection and ignores 
   assert.equal(updates.length, beforeUpdates);
   context.fetch = async () => { throw new Error("offline"); };
   await vm.runInContext('filterSuburbs("Parramatta")', context);
-  assert.match(nodes.get("#search-status").textContent, /Could not update suburbs.*offline/);
+  assert.match(nodes.get("#search-status").textContent, /Could not update suburbs.*service could not be reached/);
   context.fetch = async () => ({ok: true, json: async () => ({items: all})});
   await vm.runInContext('search({preventDefault() {}})', context);
   assert.equal(renders.length, before + 1);
@@ -114,6 +117,7 @@ test("published evidence has its own tab and routes independently of overview", 
   const views = ["explore", "published", "trends", "comparisons", "assistant"].map((name) => ({dataset: {view: name}}));
   const links = views.map((view) => ({dataset: {route: view.dataset.view}, setAttribute(_key, value) { this.current = value; }}));
   const context = vm.createContext({
+    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
     location: {hash: "#published"},
     document: {querySelector: () => ({focus() {}}), querySelectorAll: (selector) => selector === "[data-view]" ? views : links},
   });
@@ -148,6 +152,7 @@ test("bookmarks persist, deduplicate, reopen and remove with storage failures ha
   nodes.get("#bookmark-suburb").dataset.locality = "Newtown";
   let stored = '["Newtown","Newtown",null,3]';
   const context = vm.createContext({
+    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
     document: {querySelector: (id) => nodes.get(id), createElement: node},
     localStorage: {getItem: () => stored, setItem: (_key, value) => { stored = value; }},
     setTimeout: () => {},
@@ -186,6 +191,7 @@ test("map pin selection loads amenities and zooms without rebuilding the map", a
   let creations = 0;
   const controller = { layerIds: ["suburbs", "places"], setLayerData: (id, data) => updates.push({id, data}), flyTo: (view) => flights.push(view) };
   const context = vm.createContext({
+    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
     document: {querySelector: (id) => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); }, querySelectorAll: () => [{value: "school"}]},
     createMap: async (options) => { definition = options; creations++; return controller; },
     createOpenFreeMapProvider: () => ({}),
@@ -224,6 +230,7 @@ test("crime trends expose units in suburb summaries, chart axes and table", () =
   const caption = {textContent: ""};
   nodes.get("#trend-head").closest = () => ({querySelector: () => caption});
   const context = vm.createContext({
+    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
     document: {
       querySelector: (id) => nodes.get(id),
       createElement: () => ({set textContent(value) { this.innerHTML = String(value); }, innerHTML: ""}),
@@ -257,6 +264,7 @@ test("saved comparisons load into trend controls and navigate to crime trends", 
   const nodes = new Map(["#locality-a", "#locality-b", "#from-month", "#to-month", "#measure", "#offence", "#trend-notice", "#toast"].map((id) => [id, {value: "", dataset: {}}]));
   const location = {hash: "#comparisons"};
   const context = vm.createContext({
+    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
     location,
     document: {querySelector: (id) => nodes.get(id)},
     setTimeout: () => {},
@@ -286,7 +294,7 @@ test("sync controls are optional collapsed operator tools", () => {
 });
 
 test("readiness follows the feature ingress on both direct and shared hosts", () => {
-  assert.match(js, /fetch\(new URL\("\.\/health\/ready", import\.meta\.url\)\)/);
+  assert.match(js, /requestJsonResponse\(fetch, new URL\("\.\/health\/ready", import\.meta\.url\)\)/);
   assert.doesNotMatch(js, /fetch\("\/health\/ready"\)/);
   assert.equal(new URL("./health/ready", "http://localhost:5600/app.js").href,
     "http://localhost:5600/health/ready");
@@ -309,4 +317,31 @@ test("frontend exposes map, chart table, CRUD and responsible-use language", () 
   assert.match(js, /\(missing\)/);
   assert.doesNotMatch(js, /setLayerData\("suburbs"/);
   assert.match(js, /createMap/);
+});
+
+test("missing observations break a trend rather than joining across missing months", () => {
+  assert.equal(trendPath([{month:"a",value:1},{month:"b",value:null},{month:"c",value:3},{month:"d",value:0}], ["a","b","c","d"], (x)=>x, (y)=>y), "M0,1 M2,3 L3,0");
+  assert.equal(trendPath([{month:"a",value:"<script>"},{month:"b",value:Infinity}], ["a","b"], (x)=>x, (y)=>y), "");
+});
+
+
+test("trend rendering escapes API labels in SVG descriptions and table headings", () => {
+  const nodes = new Map();
+  const context = vm.createContext({
+    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    document: {querySelector: (id) => {
+      if (!nodes.has(id)) nodes.set(id, {innerHTML: "", value: "count"});
+      return nodes.get(id);
+    }},
+  });
+  vm.runInContext(js.replace(/^import .*;\r?\n/gm, "").replaceAll('import.meta.url', '"http://localhost/app.js"').replace(/init\(\);\s*$/, ""), context);
+  const attack = '<img src=x onerror="alert(1)">';
+  context.payload = {measure: "count", unit: "count", series: [
+    {locality: attack, items: [{month: "2026-01", value: 1}]},
+    {locality: "Safe", items: [{month: "2026-01", value: 2}]},
+  ]};
+  vm.runInContext("renderTrend(payload)", context);
+  const output = [...nodes.values()].map((node) => node.innerHTML).join("");
+  assert.ok(output.includes("&lt;img"));
+  assert.ok(!output.includes("<img"));
 });

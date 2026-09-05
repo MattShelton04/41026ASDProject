@@ -385,3 +385,23 @@ test("workspace renderers show journey, ratings, associations and completion con
   assert.match(taskHtml, /Mark incomplete/);
   assert.match(taskHtml, /is-complete/);
 });
+
+test("task due dates reject impossible calendar days", () => {
+  assert.ok(buildTaskPayload({title: "Inspect", dueDate: "2026-02-31"}).errors.dueDate);
+  assert.ok(buildTaskPayload({title: "Inspect", dueDate: "2026-13-01"}).errors.dueDate);
+  assert.equal(buildTaskPayload({title: "Inspect", dueDate: "2028-02-29"}).payload.due_date, "2028-02-29");
+});
+
+
+test("buyer reads accept cancellation without relabelling it as database unavailability", async () => {
+  let requestedSignal;
+  const api = createBuyerCaseApi(async (_path, {signal}) => {
+    requestedSignal = signal;
+    return new Promise(() => {});
+  });
+  const controller = new AbortController();
+  const reading = api.summaries.read("case-1", "run-1", {signal: controller.signal});
+  controller.abort();
+  await assert.rejects(reading, {name: "AbortError"});
+  assert.equal(requestedSignal.aborted, true);
+});

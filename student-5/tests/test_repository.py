@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
+
 from propertyscope_buyer_store.repository import BuyerStore, ConcurrentUpdateError
 
 OWNER = "release0-demo-owner"

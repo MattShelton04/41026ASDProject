@@ -9,6 +9,8 @@ from http import HTTPStatus
 from typing import Any
 from urllib.parse import parse_qs, unquote
 
+from shared_contracts import read_json_object
+
 from .imports import Imports
 from .repository import Repository
 
@@ -25,15 +27,7 @@ def _json(start: StartResponse, status: int, payload: object) -> Iterable[bytes]
 
 
 def _body(environ: dict[str, Any]) -> dict[str, Any]:
-    length = int(environ.get("CONTENT_LENGTH") or 0)
-    if length > 4_194_304:
-        raise ValueError("body_too_large")
-    if length <= 0:
-        return {}
-    value = json.loads(environ["wsgi.input"].read(length))
-    if not isinstance(value, dict):
-        raise ValueError("JSON body must be an object")
-    return value
+    return read_json_object(environ, max_bytes=4_194_304)
 
 
 def create_app(repository: Repository | None = None) -> Callable[..., Iterable[bytes]]:

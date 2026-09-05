@@ -5,6 +5,7 @@ on:
     paths:
       - "student-4/**"
       - "shared/contracts/**"
+      - "shared/frontend/**"
       - "deployment/**"
       - "docker-compose*.yml"
       - "pyproject.toml"
@@ -16,6 +17,7 @@ on:
     paths:
       - "student-4/**"
       - "shared/contracts/**"
+      - "shared/frontend/**"
       - "deployment/**"
       - "docker-compose*.yml"
       - "pyproject.toml"
@@ -36,12 +38,19 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Install uv and Python
-        uses: astral-sh/setup-uv@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.1"
           python-version: "3.12"
           enable-cache: true
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20"
       - name: Install locked workspace
         run: uv sync --locked --all-packages --all-groups
       - name: Lint and format Feature 4
@@ -61,7 +70,7 @@ jobs:
       - name: Check browser JavaScript
         run: |
           node --check student-4/frontend/app.js
-          node --test student-4/tests/frontend/core.test.mjs
+          node --import ./scripts/frontend-test-bootstrap.mjs --test student-4/tests/frontend/core.test.mjs
       - name: Build Feature 4 containers
         run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml build f4-db-api f4-backend f4-frontend
       - name: Start Feature 4 fixture stack

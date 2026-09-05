@@ -195,3 +195,13 @@ test("extractQuestions falls back to question-like lines in text", () => {
   ]);
   assert.deepEqual(extractQuestions(null), []);
 });
+
+test("malformed percent escapes fall back to the review list", () => {
+  assert.deepEqual(parseRoute("#site-reviews/%E0%A4%A"), {name: "list"});
+});
+
+test("default checklists are not shared mutable state between reviews", () => {
+  const first = buildReviewPayload({title: "first"});
+  first.checklist[0].done = true;
+  assert.equal(buildReviewPayload({title: "second"}).checklist[0].done, false);
+});

@@ -14,15 +14,22 @@
   <link rel="stylesheet" href="./styles.css?v=overview-search">
   <script type="module" src="./app.js?v=click-to-select-suburbs"></script>
   <script type="module" src="./published.js?v=2"></script>
+  <link rel="stylesheet" href="./design-system/shell.css">
+  <script type="module" src="./shell.js"></script>
 </head>
 <body>
   <a class="ps-skip-link" href="#main">Skip to suburb analytics</a>
-  <header class="topbar">
-    <a class="brand" href="http://localhost:5100/" aria-label="PropertyScope product home">
-      <span class="brand-mark" aria-hidden="true">⌂</span>
-      <span><strong>PropertyScope NSW</strong><small>Property research workspace</small></span>
-    </a>
-    <nav aria-label="Product"><a href="http://localhost:5100/#features">Research areas</a><a href="http://localhost:5100/#evidence">Sources &amp; history</a></nav>
+  <header class="topbar ps-feature-header">
+    <a class="ps-feature-brand" data-product-home href="/" aria-label="PropertyScope product home">
+        <span class="ps-feature-brand-mark" aria-hidden="true">PS</span>
+        <span><strong>PropertyScope NSW</strong><small>Property research workspace</small></span>
+      </a>
+    <nav class="ps-product-nav" aria-label="PropertyScope navigation">
+        <a data-product-path="#home" href="/#home">Home</a>
+        <a data-product-path="#features" href="/#features">Research areas</a>
+        <a data-product-path="#system-status" href="/#system-status">Data status</a>
+        <a data-product-path="#evidence" href="/#evidence">Sources &amp; history</a>
+      </nav>
     <span id="service-state" class="ps-badge ps-badge--planned" role="status">Checking service</span>
   </header>
   <div class="workspace-strip"><strong>Suburb context</strong><span>NSW demonstration coverage</span><span>Sources and limitations visible</span></div>

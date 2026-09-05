@@ -13,6 +13,7 @@ on:
       - "scripts/**"
       - "shared/consumer-protocol/**"
       - "shared/contracts/**"
+      - "shared/frontend/**"
       - "student-1/contracts/**"
       - "student-3/**"
       - "uv.lock"
@@ -29,6 +30,7 @@ on:
       - "scripts/**"
       - "shared/consumer-protocol/**"
       - "shared/contracts/**"
+      - "shared/frontend/**"
       - "student-1/contracts/**"
       - "student-3/**"
       - "uv.lock"
@@ -76,7 +78,7 @@ jobs:
       - name: Run Feature 3 Python tests with coverage
         run: uv run --locked pytest --cov=propertyscope_suburb_analytics --cov=propertyscope_suburb_store --cov-branch --cov-report=term-missing --cov-fail-under=80 student-3/tests
       - name: Run Feature 3 frontend behavior tests
-        run: node --test student-3/tests/frontend.test.mjs
+        run: node --import ./scripts/frontend-test-bootstrap.mjs --test student-3/tests/frontend.test.mjs
 
   feature-stack:
     name: Feature 3 integrated stack

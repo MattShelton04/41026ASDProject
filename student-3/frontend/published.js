@@ -1,3 +1,4 @@
+import { requestJsonResponse } from "./browser/index.js";
 const API = "/api/suburb-analytics/v1";
 
 export function crimeValue(series, month) {
@@ -13,10 +14,7 @@ export function populationLabel(items) {
 }
 
 async function request(path, method = "GET") {
-  const response = await fetch(API + path, { method, headers: { Accept: "application/json" } });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.detail || "The import service could not complete this request.");
-  return body;
+  return (await requestJsonResponse(fetch, API + path, { method })).body;
 }
 
 function element(tag, text) {

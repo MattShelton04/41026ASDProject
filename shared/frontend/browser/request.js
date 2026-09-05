@@ -1,5 +1,4 @@
-/** Abort and timeout lifecycle shared by browser-facing HTTP clients. */
-
+/** Abort/timeout lifecycle. The operation must include consuming the response body. */
 export class RequestTimeoutError extends Error {
   constructor(timeoutMs, options = {}) {
     super(`Request timed out after ${timeoutMs} ms`, options);
@@ -8,44 +7,39 @@ export class RequestTimeoutError extends Error {
   }
 }
 
-function abortSources(signal, signals) {
-  return [signal, ...(signals || [])].filter(Boolean);
-}
-
-export async function withRequestLifecycle(
-  operation,
-  { signal = null, signals = [], timeoutMs = 0 } = {},
-) {
+export async function withRequestLifecycle(operation, { signal = null, signals = [], timeoutMs = 0 } = {}) {
   const controller = new AbortController();
-  const sources = abortSources(signal, signals);
-  let timedOut = false;
+  const sources = [...new Set([signal, ...signals].filter(Boolean))];
   const listeners = new Map();
-
-  for (const source of sources) {
-    if (source.aborted) {
-      controller.abort(source.reason);
-      break;
-    }
-    const listener = () => controller.abort(source.reason);
-    source.addEventListener("abort", listener, { once: true });
-    listeners.set(source, listener);
-  }
-
-  const timeout = Number.isFinite(timeoutMs) && timeoutMs > 0
-    ? setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, timeoutMs)
-    : null;
-
+  let timer;
+  let onAbort;
+  let timedOut = false;
   try {
-    return await operation(controller.signal);
+    for (const source of sources) {
+      if (source.aborted) {
+        controller.abort(source.reason);
+        break;
+      }
+      const listener = () => controller.abort(source.reason);
+      source.addEventListener("abort", listener, { once: true });
+      listeners.set(source, listener);
+    }
+    controller.signal.throwIfAborted();
+    const aborted = new Promise((_, reject) => {
+      onAbort = () => reject(controller.signal.reason);
+      controller.signal.addEventListener("abort", onAbort, { once: true });
+    });
+    if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+      timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
+    }
+    // The rejection handler also observes an operation that ignores cancellation and rejects later.
+    return await Promise.race([operation(controller.signal), aborted]);
   } catch (error) {
     if (timedOut) throw new RequestTimeoutError(timeoutMs, { cause: error });
     throw error;
   } finally {
-    if (timeout !== null) clearTimeout(timeout);
+    clearTimeout(timer);
+    if (onAbort) controller.signal.removeEventListener("abort", onAbort);
     for (const [source, listener] of listeners) source.removeEventListener("abort", listener);
   }
 }
-

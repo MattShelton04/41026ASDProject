@@ -11,6 +11,7 @@ from typing import Any
 from wsgiref.simple_server import make_server
 
 import pytest
+
 from propertyscope_suburb_analytics.app import create_app
 from propertyscope_suburb_analytics.clients import HttpClient, ServiceError
 from propertyscope_suburb_store.app import create_app as create_store

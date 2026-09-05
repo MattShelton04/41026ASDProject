@@ -104,6 +104,7 @@ from shared_contracts.operations import (
     RunCorrelation,
     ToolCallEvidence,
 )
+from shared_contracts.wsgi import read_json_object
 
 __all__ = [
     "AGENT_RUN_ID_HEADER",
@@ -197,5 +198,6 @@ __all__ = [
     "load_feature_manifest",
     "load_feature_manifests",
     "project_readiness",
+    "read_json_object",
     "trace_id_from_traceparent",
 ]

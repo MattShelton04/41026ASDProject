@@ -146,7 +146,8 @@ def test_property_data_and_agent_operations_link_back_to_product_home() -> None:
     assert "Property data" in feature_page
     assert "Property search" in feature_page
     assert "Published data" in feature_page
-    assert "Property records available" in feature_page
+    assert "Property research</span>" in feature_page
+    assert "Property records available" not in feature_page
 
     assert "PropertyScope | Activity history" in operations_page
     assert "Shared view · AI activity" in operations_page
@@ -233,3 +234,26 @@ def test_production_styles_do_not_use_transition_all() -> None:
         "student-1/frontend/styles.css",
     ):
         assert "transition: all" not in _read(path).lower()
+
+
+def test_every_feature_loads_the_shared_shell_without_inline_scripts() -> None:
+    for number in range(1, 6):
+        html = _read(f"student-{number}/frontend/index.html")
+        entry = _read(f"student-{number}/frontend/shell.js")
+        assert 'src="./shell.js"' in html
+        assert '"./browser/index.js"' in entry
+        assert "mountFeatureShell();" in entry
+        assert not re.search(r"<script(?![^>]+src=)", html)
+
+
+def test_shared_browser_assets_survive_development_directory_mounts() -> None:
+    import yaml
+
+    services = yaml.safe_load(_read("docker-compose.dev.yml"))["services"]
+    browser_mount = "./shared/frontend/browser:/usr/share/nginx/html/browser:ro"
+    for number in range(1, 6):
+        assert browser_mount in services[f"f{number}-frontend"]["volumes"]
+    for service in ("f3-database", "f3-backend"):
+        assert "./shared/contracts/python:/app/shared/contracts/python:ro" in services[service][
+            "volumes"
+        ]

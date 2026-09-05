@@ -1,4 +1,4 @@
-"""Keep Shared and Feature 1 CSS aligned with the semantic design foundation."""
+"""Keep every frontend aligned with the semantic design foundation."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = REPOSITORY_ROOT / "docs" / "ui" / "frontend-style-baseline.json"
 STYLE_ROOTS = (
     REPOSITORY_ROOT / "shared" / "frontend",
-    REPOSITORY_ROOT / "student-1" / "frontend",
+    *sorted(REPOSITORY_ROOT.glob("student-*/frontend")),
 )
 EXCLUDED_PARTS = {"vendor"}
 EXCLUDED_FILES = {Path("shared/frontend/design-system/tokens.css")}

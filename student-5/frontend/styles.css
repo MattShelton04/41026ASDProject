@@ -2,64 +2,6 @@ body {
   min-width: 320px;
 }
 
-.topbar {
-  min-height: var(--ps-control-height-large);
-  display: flex;
-  align-items: center;
-  gap: var(--ps-layout-gap);
-  padding: var(--ps-space-3) var(--ps-page-gutter);
-  background: var(--ps-color-text-strong);
-  color: var(--ps-color-inverse);
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ps-space-3);
-  color: var(--ps-color-inverse);
-  text-decoration: none;
-}
-
-.brand-mark {
-  width: var(--ps-control-height-compact);
-  height: var(--ps-control-height-compact);
-  display: grid;
-  place-items: center;
-  border: var(--ps-border-width) solid var(--ps-color-inverse-border);
-  border-radius: var(--ps-radius-sm);
-  font-weight: var(--ps-weight-bold);
-}
-
-.brand strong,
-.brand small {
-  display: block;
-}
-
-.brand small {
-  color: var(--ps-color-inverse-muted);
-  font-size: var(--ps-text-caption);
-}
-
-.topbar nav {
-  display: flex;
-  gap: var(--ps-space-2);
-  margin-left: auto;
-}
-
-.topbar nav a {
-  padding: var(--ps-space-2) var(--ps-space-3);
-  border-radius: var(--ps-radius-sm);
-  color: var(--ps-color-inverse-muted);
-  font-weight: var(--ps-weight-bold);
-  text-decoration: none;
-}
-
-.topbar nav a[aria-current="page"],
-.topbar nav a:hover {
-  background: var(--ps-color-inverse-hover);
-  color: var(--ps-color-inverse);
-}
-
 .topbar a:focus-visible {
   outline: var(--ps-focus-outline-inverse);
 }
@@ -448,15 +390,9 @@ body {
 }
 
 @media (max-width: 42rem) {
-  .topbar {
-    flex-wrap: wrap;
-  }
 
-  .topbar nav {
-    order: 3;
-    width: 100%;
-    margin-left: 0;
-  }
+
+
 
   .service-state {
     margin-left: auto;
