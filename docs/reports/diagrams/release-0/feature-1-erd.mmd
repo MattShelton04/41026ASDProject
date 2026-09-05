@@ -1,0 +1,14 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+erDiagram
+    direction LR
+    source_definition ||--o{ ingestion_run : records
+    ingestion_run ||--o{ artifact_record : produces
+    ingestion_run ||--o{ dataset_release : creates
+    source_definition { uuid id PK }
+    ingestion_run { uuid id PK
+        uuid source_definition_id FK }
+    artifact_record { uuid id PK
+        uuid ingestion_run_id FK }
+    dataset_release { uuid id PK
+        uuid ingestion_run_id FK
+        uuid source_definition_id FK }

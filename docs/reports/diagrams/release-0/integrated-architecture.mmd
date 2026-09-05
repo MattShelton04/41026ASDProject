@@ -1,6 +1,7 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
 flowchart TB
     user([User browser]) --> edge["shared-frontend<br/>HTMX shell · generated routes · reverse proxy"]
-    model["Approved remote model profile"]
+    model["OpenAI API: Luna / Terra"]
 
     subgraph features["Five independently owned feature slices"]
         direction LR
@@ -36,9 +37,9 @@ flowchart TB
     isolation["Ownership rule<br/>No feature imports another feature's code<br/>No service opens another feature's database"]
     features --- isolation
 
-    classDef shared fill:#dce6f1,stroke:#2f5597,color:#111827;
-    classDef feature fill:#eaf1f8,stroke:#5b7fa6,color:#111827;
-    classDef note fill:#fff2cc,stroke:#a67c00,color:#111827;
+    classDef shared fill:#dfeded,stroke:#176b75,color:#111827;
+    classDef feature fill:#eff6f6,stroke:#6b969b,color:#111827;
+    classDef note fill:#faf2e4,stroke:#a67c00,color:#111827;
     class edge,ai shared;
     class f1,f2,f3,f4,f5 feature;
     class model,isolation,aitip note;

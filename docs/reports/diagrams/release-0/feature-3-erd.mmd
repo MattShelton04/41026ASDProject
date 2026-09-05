@@ -1,0 +1,17 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+erDiagram
+    direction LR
+    suburb_info ||--o{ suburb_indicators : has
+    suburb_info ||--o{ suburb_amenity : has
+    suburb_info ||--o| suburb_overview : has
+    user_suburbs }o..o{ suburb_info : "localities_json; no FK"
+    suburb_info { text id PK }
+    suburb_indicators { text id PK
+        text suburb_id FK }
+    suburb_amenity { text id PK
+        text suburb_id FK }
+    suburb_overview { text id PK
+        text suburb_id FK,UK }
+    user_suburbs { text id PK
+        text localities_json
+        integer version }

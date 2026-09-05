@@ -1,0 +1,14 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+erDiagram
+    direction LR
+    site_review }o..o{ constraint_observation : "property_ref match; no FK"
+    site_review }o..o{ building_observation : "property_ref match; no FK"
+    site_review { uuid id PK
+        text property_ref
+        integer version }
+    constraint_observation { uuid id PK
+        text property_ref
+        text evidence_state }
+    building_observation { uuid id PK
+        text property_ref
+        text evidence_state }

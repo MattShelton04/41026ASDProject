@@ -1,20 +1,26 @@
-# PropertyScope NSW Release 0 Technical Report
+# PropertyScope NSW
+
+**Release 0 / Technical report**
+
+An integrated NSW property-research workspace, built by five feature teams on a shared microservices foundation.
 
 **41026 Advanced Software Development**
 
-**Assessment 1 Release 0 Agentic AI Foundations Microservices and DevOps**
+Assessment 1: Agentic AI Foundations, Microservices and DevOps
 
-**Canvas Group 20**
+| Submission | Group 20 |
+|---|---|
+| Due | 6 September 2026, 11:59 pm Sydney time |
+| Repository | [MattShelton04/41026ASDProject](https://github.com/MattShelton04/41026ASDProject) |
+| Demonstration | [Watch the published group demonstration](https://drive.google.com/file/d/1L_S7Ez5-m4EHWBL7_O2PatsyJNqDDASq/view) |
+| Showcase | Recorded and presented in Week 6 on 4 September 2026 |
+| Software baseline | `7d5350d19023fb1e978e85127a72e3500a1556f3` |
 
-**Due 6 September 2026 at 11 59 pm Sydney time**
+**Five integrated features. One shared application.**
 
-**Repository [MattShelton04 41026ASDProject](https://github.com/MattShelton04/41026ASDProject)**
+Property discovery / Market intelligence / Suburb analytics / Due diligence / Buyer journey
 
-**Software evidence baseline `7d5350d19023fb1e978e85127a72e3500a1556f3`**
-
-**Published demonstration [ASD PropertyScope full demonstration](https://drive.google.com/file/d/1L_S7Ez5-m4EHWBL7_O2PatsyJNqDDASq/view)**
-
-**Demonstration status Recorded and presented in the Week 6 class on 4 September 2026**
+This report distinguishes implementation, retained execution evidence and remaining limitations. Repository evidence links are pinned to the software baseline above; report figures are regenerated from versioned Mermaid sources.
 
 [[PAGEBREAK]]
 
@@ -39,9 +45,9 @@ Release 0 compliance risk.
 
 AI mode implements a durable Plan, Act, Observe and Adapt state machine with versioned planner and
 adapter prompts, schema-validated feature tools, bounded retries and human review for protected
-actions. The registered Release 0 profile uses the OpenAI Responses API rather than the Ollama and
-open-source model configuration named in the brief. The repository records this provider choice as
-approved project scope, but the signed approval is not reproduced in this report. Deterministic CRUD
+actions. OpenAI is the approved Release 0 provider, recorded in the registered feature scope.
+The OpenAI Responses API routes planning to GPT-5.6 Luna and adaptation to GPT-5.6 Terra.
+The team selected this API for low-cost experimentation and its account's data-sharing token allowance (Section 5.1). Deterministic CRUD
 and evidence views continue to work without a model credential.
 
 The recorded demonstration and Week 6 presentation are complete. In accordance with the 30 August
@@ -51,7 +57,7 @@ the video.
 
 ## 1 Project overview
 
-### 1 1 Problem and product purpose
+### 1.1 Problem and product purpose
 
 NSW property research is fragmented across government datasets, property identifiers, recorded sale
 history, suburb indicators, planning constraints and personal notes. PropertyScope gives a user one
@@ -63,7 +69,7 @@ Release 0 establishes the software foundation: integrated microservices, owned p
 CRUD, AI mode, a shared agent loop, Docker Compose and continuous integration. Later-release MCP,
 RAG, multi-agent and cloud deployment work is outside this report.
 
-### 1 2 Team and feature allocation
+### 1.2 Team and feature allocation
 
 | Student | Name | Student ID | Feature | Release 0 result |
 |---|---|---:|---|---|
@@ -78,7 +84,7 @@ The approved ownership boundary is recorded in
 one student service to import another student's production code. Cross-feature integration occurs
 through public HTTP APIs and versioned data products.
 
-### 1 3 Release 0 acceptance map
+### 1.3 Release 0 acceptance map
 
 | Assessed capability | Implemented evidence |
 |---|---|
@@ -92,7 +98,7 @@ through public HTTP APIs and versioned data products.
 
 ## 2 Agile project analysis and planning
 
-### 2 1 Working method
+### 2.1 Working method
 
 The team used short-lived feature branches and pull requests into `main`. The repository moved from
 the shared platform and Feature 1 baseline to five integrated slices between 26 July and 4 September.
@@ -112,7 +118,7 @@ This pattern is visible in the delivery history. Feature 3, for example, followe
 slice with focused pull requests for ingestion, filters, comparisons and cross-platform CI. Feature 4
 similarly separated initial integration, CRUD, evidence, mapping, AI and workflow work.
 
-### 2 2 Release backlog and completion
+### 2.2 Release backlog and completion
 
 | ID | Backlog outcome | Owner | Acceptance evidence | Result |
 |---|---|---|---|---|
@@ -127,7 +133,7 @@ similarly separated initial integration, CRUD, evidence, mapping, AI and workflo
 | R0 09 | Five student workflows | Each owner | Successful run URL and SHA for every workflow | Complete |
 | R0 10 | Report video and Week 6 presentation | Team | This report and completed group demonstration | Complete subject to accessible video link |
 
-### 2 3 Common requirements
+### 2.3 Common requirements
 
 Every slice contributes the following functional requirements: an independently deployed frontend;
 a versioned backend API; an owned database API and schema; visible Create, Read, Update and Delete;
@@ -146,7 +152,9 @@ credentials.
 | Maintainability | Typed boundaries, application factories, migrations and deterministic tests | Ruff, Mypy, pytest and Node checks |
 | Data integrity | One owning database service and idempotent migrations | Compose volumes, internal APIs and migration tests |
 
-### 2 4 Individual feature plans and risks
+[[PAGEBREAK]]
+
+### 2.4 Individual feature plans and risks
 
 #### Student 1 Data Platform and Property Discovery
 
@@ -165,6 +173,14 @@ database API; only the database API and loader hold PostgreSQL credentials.
 | Principal risks | Publisher scale or change, incomplete evidence presented as certain, model failure and the published SQLite wording |
 | Controls | Content hashes, typed canonical artefacts, explicit coverage, safe capacity limits, human review, accepted-generation pointers and approved Feature 1 PostGIS exception |
 
+Selected operational core; the full migration also defines registry, warehouse and publication tables. [Physical schema](../../student-1/database/src/propertyscope_data_store/sql/001_initial.sql).
+
+![Figure 1 Feature 1 entity relationships and selected physical keys](assets/release-0/feature-1-erd.png)
+
+
+
+[[PAGEBREAK]]
+
 #### Student 2 Property Sales Explorer and Market Cases
 
 The feature stores market cases against externally owned property references, imports compatible
@@ -175,11 +191,19 @@ Case CRUD uses optimistic versions and returns HTTP 409 for stale changes.
 |---|---|
 | Functional backlog | Select a known property, create and edit a case, filter attributed sales, show exclusions and source releases, delete a case and request an AI explanation |
 | Non functional focus | Deterministic calculations, bounded imports, provenance, version conflicts and offline use |
-| Conceptual model | One market case selects one property and filters many sale observations; a summary is derived rather than stored as model output |
+| Conceptual model | A market case selects a property and filters reusable sale observations; observations are not owned by a case; a summary is derived rather than stored as model output |
 | Logical model | `market_case` and `sale_observation`; unique source business key, revision and release; property and contract-date index |
 | Physical model | SQLite volume owned by `f2-db-api`; Nginx frontend and Flask backend and database APIs |
 | Principal risks | Synthetic demonstration data, weak or missing price records, unavailable Feature 1 validation and model overreach |
 | Controls | Explicit exclusions, integer median, source metadata, `property_validation_state`, read-only tools and no valuation or recommendation language |
+
+Selected keys and relationships; the physical schema defines the remaining fields, checks and indexes. Dashed associations labelled "no FK" are query relationships, not database constraints. [Physical schema](../../student-2/database/src/propertyscope_market_store/sql/001_initial.sql).
+
+![Figure 2 Feature 2 entity relationships and selected physical keys](assets/release-0/feature-2-erd.png)
+
+
+
+[[PAGEBREAK]]
 
 #### Student 3 Suburb Crime and Liveability Analytics
 
@@ -198,6 +222,14 @@ the audited Release 0 runtime.
 | Principal risks | Partial fixture mistaken for current official data, incompatible periods or units, boundary ambiguity and unavailable upstream release artefacts |
 | Controls | Source labels, count and rate separation, null preservation, exact manifest and hash checks, atomic current pointers and no safety or desirability ranking |
 
+Selected keys and relationships; the physical schema defines the remaining fields, checks and indexes. Dashed associations labelled "no FK" are query relationships, not database constraints. [Physical schema](../../student-3/database/src/propertyscope_suburb_store/repository.py).
+
+![Figure 3 Feature 3 entity relationships and selected physical keys](assets/release-0/feature-3-erd.png)
+
+
+
+[[PAGEBREAK]]
+
 #### Student 4 Site Planning and Building Due Diligence
 
 The feature creates and manages site reviews, combines planning, environmental, strata and building
@@ -209,11 +241,19 @@ spatial intersection.
 |---|---|
 | Functional backlog | Create, read, edit and delete site reviews; change checklist, status and notes; inspect attributed evidence; view a map; generate professional-verification questions |
 | Non functional focus | Visible uncertainty, bounded GeoJSON, database isolation, provider degradation and safe non-advisory language |
-| Conceptual model | One site review has many planning or environmental constraints and many building or strata observations |
+| Conceptual model | Site reviews and observation collections share a property reference; observations are not children of a review |
 | Logical model | `site_review`, `constraint_observation`, `building_observation` with evidence-state, source and confidence fields |
 | Physical model | PostgreSQL/PostGIS behind `f4-db-api`, Nginx frontend and Flask backend; this differs from the published SQLite requirement and has no recorded exception |
 | Principal risks | Synthetic evidence mistaken for official parcel evidence, model treated as compliance advice and database-technology non-compliance |
 | Controls | Evidence badges and sources, explicit professional verification, read-only AI tools and a disclosed implementation limitation |
+
+Selected keys and relationships; the physical schema defines the remaining fields, checks and indexes. Dashed associations labelled "no FK" are query relationships, not database constraints. [Physical schema](../../student-4/database/src/propertyscope_due_diligence_store/sql/001_initial.sql).
+
+![Figure 4 Feature 4 entity relationships and selected physical keys](assets/release-0/feature-4-erd.png)
+
+
+
+[[PAGEBREAK]]
 
 #### Student 5 Buyer Journey and Agent Workspace
 
@@ -231,7 +271,11 @@ concurrency protects every mutable record.
 | Principal risks | Incomplete cross-feature evidence, no production identity service, stale writes and model-generated unsupported action |
 | Controls | Explicit availability states, demo-owner scope, positive versions and HTTP 409, source references, short read-only tool context and human decision warning |
 
-![Figure 1 Release 0 conceptual and logical data relationships](assets/release-0/data-models.png)
+Selected keys and relationships; the physical schema defines the remaining fields, checks and indexes. [Physical schema](../../student-5/database/src/propertyscope_buyer_store/sql/001_initial.sql).
+
+![Figure 5 Feature 5 entity relationships and selected physical keys](assets/release-0/feature-5-erd.png)
+
+
 
 ## 3 Repository structure
 
@@ -255,9 +299,13 @@ contracts and tests may import shared testkit, but a student service may not imp
 or `agent_core`. AI mode may call allowlisted feature endpoints, never a student database. Each
 database volume is mounted only by its owner.
 
+[[PAGEBREAK]]
+
 ## 4 Software architecture
 
-### 4 1 Feature 1 runtime and individual service boundaries
+### 4.1 Individual software architecture
+
+#### Feature 1 / Data Platform and Property Discovery
 
 Feature 1 is deliberately more than a frontend, backend and database. The credential-free runner
 claims acquisition work through the backend's worker HTTP contract and is the only service that
@@ -267,21 +315,47 @@ three services read the artefact volume, but only the runner writes it; only Pos
 database volume. Publication remains a reviewed backend action and accepted releases are delivered
 to downstream consumers through idempotent HTTP contracts.
 
-![Figure 2 Feature 1 runtime trust boundaries acquisition loading AI callbacks and publication](assets/release-0/individual-boundaries.png)
+![Figure 6 Feature 1 runtime trust boundaries acquisition loading AI callbacks and publication](assets/release-0/individual-boundaries.png)
 
 The Mermaid source for every architecture, state and pipeline figure is retained under
 `docs/reports/diagrams/release-0`. The rendered PNG files are the PDF-compatible derivatives, not
 independent drawings.
 
-| Feature | Frontend | Backend and API | Database service | AI integration |
-|---|---|---|---|---|
-| Student 1 | Shared tokens, HTMX source CRUD, property and operations views | Credential-free public/control API plus serial acquisition runner using a worker HTTP contract | Private DB API plus serial loader over PostgreSQL/PostGIS; separate artefact and database volume ownership | Fourteen property, source, release, run, coverage and reviewed-action capabilities; accepted-release delivery to Features 2 to 4 |
-| Student 2 | Sales and market case workspace | Case CRUD, import validation and deterministic summaries | Token-guarded DB API over SQLite | Two case and sales-summary tools |
-| Student 3 | Suburb map, filters, comparisons and published evidence | Query, compare, nearby places, imports and assistant routes | Private network database API over SQLite | Snapshot, crime comparison and methodology tools |
-| Student 4 | Site-review list, dialogs, checklist, evidence and map | Review CRUD, Feature 1 validation, map and assistant routes | Token-guarded DB API over PostgreSQL/PostGIS | Review inspection and evidence-summary tools |
-| Student 5 | Cases, shortlist, notes, tasks, evidence and AI timeline | CRUD, evidence composition and assistant routes | Token-guarded DB API over SQLite | Four owner-scoped case, shortlist, note and task tools |
+[[PAGEBREAK]]
 
-### 4 2 Integrated architecture
+#### Feature 2 / Market cases and recorded sales
+
+Market-case CRUD crosses the frontend, backend and private database API. The backend validates property references through Feature 1 and derives sales statistics deterministically. Two read-only tools expose case context and summary facts to AI mode. The SQLite file remains exclusively with f2-db-api.
+
+![Figure 7 Feature 2 frontend backend persistence and AI boundaries](assets/release-0/feature-2-runtime.png)
+
+[[PAGEBREAK]]
+
+#### Feature 3 / Suburb and liveability analytics
+
+The backend owns query, comparison, nearby-place and assistant routes plus the fenced import worker. Only f3-database opens SQLite. Feature 1 products arrive over validated HTTP delivery contracts; the retained Release 0 demonstration uses labelled fixture data. Three read-only tools bound the assistant context.
+
+![Figure 8 Feature 3 frontend backend persistence and AI boundaries](assets/release-0/feature-3-runtime.png)
+
+[[PAGEBREAK]]
+
+#### Feature 4 / Site and building due diligence
+
+The backend validates properties through Feature 1, manages reviews and prepares bounded evidence and map responses. The private database API alone receives PostgreSQL credentials; f4-postgres owns the database volume. Two read-only tools support professional-verification questions. The PostgreSQL requirement deviation is disclosed in Section 9.
+
+![Figure 9 Feature 4 frontend backend persistence and AI boundaries](assets/release-0/feature-4-runtime.png)
+
+[[PAGEBREAK]]
+
+#### Feature 5 / Buyer journey workspace
+
+The backend manages cases, shortlist entries, notes and tasks through its private SQLite API. Public Feature 1, 2 and 4 APIs supply bounded research evidence. Feature 3 is reported as unavailable in this baseline. Four owner-scoped, read-only tools support the AI summary; version checks protect mutable records.
+
+![Figure 10 Feature 5 frontend backend persistence and AI boundaries](assets/release-0/feature-5-runtime.png)
+
+[[PAGEBREAK]]
+
+### 4.2 Integrated architecture
 
 The browser normally enters through `shared-frontend` on port 5100. The shared edge loads a
 same-origin HTMX feature directory and proxies feature routes so users remain within one product
@@ -290,20 +364,22 @@ owned database service and the shared AI mode over private Compose networking. A
 allowlisted feature-owned HTTP tools and never opens a feature database. Feature 1 publishes accepted
 dataset releases; downstream features consume those through supported HTTP contracts.
 
-![Figure 3 Integrated Release 0 software architecture](assets/release-0/integrated-architecture.png)
+![Figure 11 Integrated Release 0 software architecture](assets/release-0/integrated-architecture.png)
 
 The integrated architecture contains additional workers only where durable background processing is
 required. Feature 1 separates acquisition from database loading so the runner never receives
 database credentials. Feature 3 performs fenced consumer imports through its backend worker. Feature
 5 composes data at request time from public APIs and keeps the result's availability and limitations.
 
-### 4 3 Docker Compose architecture
+[[PAGEBREAK]]
+
+### 4.3 Docker Compose architecture
 
 `deployment/features.yaml` enables all five manifests. The generator creates
 `deployment/enabled-features.compose.yml` and the shared route projection. The resulting Release 0
 profile contains 21 services and seven named volumes.
 
-![Figure 4 Docker Compose service groups](assets/release-0/compose-topology.png)
+![Figure 12 Docker Compose service groups](assets/release-0/compose-topology.png)
 
 | Group | Services | Owned durable volume |
 |---|---|---|
@@ -325,9 +401,11 @@ was unavailable during the final report edit, so this report relies on the retai
 student workflow container jobs for runtime startup, health, seed and smoke evidence rather than
 claiming a new local Docker run.
 
+[[PAGEBREAK]]
+
 ## 5 AI mode and agentic workflow
 
-### 5 1 AI mode design
+### 5.1 AI mode design
 
 Shared AI mode owns provider selection and the agent lifecycle. A feature backend submits an
 objective, trusted context, prompt-set version, limits and a feature-owned tool allowlist. AI mode
@@ -335,15 +413,29 @@ validates the request, persists it to its SQLite run store and executes the boun
 Feature tools are ordinary HTTP endpoints with validated JSON schemas. Protected writes do not run
 automatically; they require a separate reviewed action.
 
-The registered `remote-standard.v1` profile uses GPT-5.6 Luna for planning and GPT-5.6 Terra for
-adaptation through the OpenAI Responses API. A `gemini-development.v1` compatibility profile was
-also evaluated. This is an intentional departure from the published Ollama, Qwen and Llama wording.
-The registered project scope records the selected remote provider, but the report contains no signed
-approval attachment. No feature selects a concrete model itself.
+**Provider decision: OpenAI API.** The approved [registered feature scope](../architecture/registered-feature-scope.md#document-control)
+records OpenAI with GPT-5.6 Luna and GPT-5.6 Terra. The remote-standard.v1 profile uses Luna for
+planning and Terra for adaptation through the Responses API. This is the team's settled Release 0
+selection under the approved registration, and replaces the brief's example Ollama runtime. No
+feature selects a concrete model itself.
 
-### 5 2 Plan Act Observe Adapt
+The team confirms that its data-sharing opt-in provides **2.5 million complimentary tokens per day
+for its Luna/Terra use**. That account allowance makes repeated prompt refinement, bounded agent runs
+and a five-student demonstration practical at low cost, without local model weights or GPU setup.
+The allowance is an account-specific planning assumption supplied by the team, not a universal or
+per-model entitlement. OpenAI's [data controls documentation](https://developers.openai.com/api/docs/guides/your-data)
+explains that API data is not used for model improvement unless the customer explicitly opts in.
 
-![Figure 5 Bounded Plan Act Observe Adapt state machine](assets/release-0/agent-loop.png)
+The demonstration uses public-source evidence and labelled fixtures; credentials remain in a file
+secret outside the report and repository. Calls retain bounded iteration, tool and time budgets.
+The historical gemini-development.v1 run in Section 5.4 is compatibility-test evidence; it does
+not change the selected OpenAI deployment.
+
+[[PAGEBREAK]]
+
+### 5.2 Plan Act Observe Adapt
+
+![Figure 13 Bounded Plan Act Observe Adapt workflow](assets/release-0/agent-loop.png)
 
 | Phase | Durable behaviour | Evidence retained |
 |---|---|---|
@@ -352,11 +444,11 @@ approval attachment. No feature selects a concrete model itself.
 | Observe | Tool result is validated and stored as evidence | Result summary, evidence reference and failure classification |
 | Adapt | Model integrates observations and either finishes, replans or requests review | Final findings, limitations, recommendation and next state |
 
-The run can terminate as succeeded, failed or cancelled, or pause at review required. Idempotency,
+The diagram summarises the main execution path. The [normative state machine](../architecture/agent-run-state-machine.md) specifies every failure, cancellation and recovery transition. The run can terminate as succeeded, failed or cancelled, or pause at review required. Idempotency,
 bounded recovery and durable checkpoints prevent an interrupted process from silently repeating a
 protected action.
 
-### 5 3 Prompt engineering and context management
+### 5.3 Prompt engineering and context management
 
 The shared prompt set is stored under `ai-services/ai-mode/src/ai_mode/prompt_assets`. Planner and
 adapter templates have matching metadata and immutable versions from v1 to v7. Version 7 added typed
@@ -377,7 +469,7 @@ defined beside the route rather than in a separate template file. Their request 
 three to four iterations, six to ten tool calls and a 120-second budget. Tool responses apply their
 own list and record bounds before any content enters the model context.
 
-### 5 4 Agent workflow record
+### 5.4 Agent workflow record
 
 The strongest retained failure-recovery record is Feature 1 run
 `c7ca3ef0-c76f-47f5-bc42-acf03b20f8eb` from 22 August. It used prompt set `default.v4` under the
@@ -396,22 +488,45 @@ recommended a bounded human-reviewed reprocess. It did not retry or publish.
 | Outcome | Succeeded after three iterations with evidence and safety note |
 | Reproducible pointer | `student-1/AI_EVALUATION.md` and the durable run ID above |
 
-A later OpenAI run, `5a436835-e8e3-41f1-a00a-4c9a29b2454e`, used `default.v7`, Luna planning and
-Terra adaptation. It completed two Plan, Act, Observe and Adapt cycles using property search and
+A later OpenAI run recorded in the report, `5a436835-e8e3-41f1-a00a-4c9a29b2454e`, used `default.v7`, Luna planning and
+Terra adaptation. The retained report account describes two Plan, Act, Observe and Adapt cycles using property search and
 property inspection. The final answer retained the verified address, accepted sale-history coverage,
 zero returned rows and a warning against inferring that the property never sold. This demonstrates
-the prompt refinement from operational recovery to typed provenance and ordered multi-tool evidence.
+the reported prompt refinement from operational recovery to typed provenance and ordered multi-tool evidence.
+Its raw event export is not checked into the software baseline, so the run ID and narrative alone
+are not an independently replayable execution log. The earlier failed-import scenario has a linked
+[evaluation record](../../student-1/AI_EVALUATION.md#scenario-b--failed-import-recovery).
+
+### 5.5 AI-assisted software review record
+
+The retained [26 July scaffold review](../architecture/reviews/2026-07-26-gemini-antigravity-scaffold-review.md)
+records an AI-assisted examination of the assignment, repository structure, database isolation,
+Compose, workflows and shared UI. It is a historical development artefact: its six-person roster,
+empty-Compose description and some proposed database patterns predate the approved five-feature
+architecture and must not be treated as current instructions.
+
+| Review area | Recorded finding | Current evidence to compare |
+|---|---|---|
+| Database design | Resolve store technology and ownership explicitly | Owned database APIs, migrations and registered Feature 1 PostGIS exception; Feature 4 limitation remains disclosed |
+| Implementation | Build shared styling and a unified home page | Shared HTMX entry point and the application screenshots in Section 8.4 |
+| Microservices | Populate the scaffold with container networking and service boundaries | Five individual diagrams, generated 21-service profile and architecture validator |
+| DevOps | Align workflow names and configure branch triggers | The five student workflow files and retained successful runs in Section 7 |
+
+This review provides retained development findings, while Section 5.4 provides application-loop
+execution evidence. The repository does not retain the complete original specialised review prompt
+and phase-by-phase terminal log for every student. The report therefore does not claim that the
+runtime diagnosis record alone proves every software-development review requirement.
 
 ## 6 Implementation summary
 
-### 6 1 Shared platform
+### 6.1 Shared platform
 
 The shared platform supplies the HTMX entry point, common design tokens, feature registry, status and
 evidence views, reusable AI chat, mapping components, versioned contracts, consumer protocol,
 testkit, model registry, feature onboarding and generated deployment. The platform exposes only
 manifest-enabled routes, so placeholder folders do not appear as available features.
 
-### 6 2 Feature capability and CRUD evidence
+### 6.2 Feature capability and CRUD evidence
 
 | Feature | Visible CRUD | Principal public API | Seed or data evidence | AI path |
 |---|---|---|---|---|
@@ -427,7 +542,7 @@ every control table. This is more faithful to an auditable operations system, bu
 literal ten rows in every database table. Features 2 to 5 test at least ten rows in every assessed
 business table; Feature 4's counts are in PostgreSQL rather than the specified SQLite store.
 
-### 6 3 Cross feature integration
+### 6.3 Cross feature integration
 
 Feature 2 validates property references and imports compatible sale releases through Feature 1 HTTP
 contracts. Feature 3 implements an idempotent consumer for accepted BOCSAR, schools and SEIFA
@@ -435,18 +550,20 @@ products. Feature 4 searches Feature 1 for a verified property and uses its coor
 deterministic map. Feature 5 composes bounded evidence from Features 1, 2 and 4. It currently reports
 Feature 3 evidence as unavailable. None of these paths opens another feature's database.
 
+[[PAGEBREAK]]
+
 ## 7 DevOps and GitHub Actions
 
-### 7 1 Pipeline architecture
+### 7.1 Pipeline architecture
 
-![Figure 6 GitHub Actions and container validation pipeline](assets/release-0/devops-pipeline.png)
+![Figure 14 GitHub Actions and container validation pipeline](assets/release-0/devops-pipeline.png)
 
 Integration CI is the canonical source gate. It installs the locked workspace, runs formatting,
 linting, generation-drift checks, architecture and packaging validators, Mypy, Python tests,
 frontend tests, coverage and Compose configuration validation. Student workflows are path-filtered
 so each owner can build and test the assigned containers without repeating the entire gate.
 
-### 7 2 Student workflow responsibilities
+### 7.2 Student workflow responsibilities
 
 | Workflow | Trigger and scope | Feature checks | Container evidence |
 |---|---|---|---|
@@ -459,7 +576,7 @@ so each owner can build and test the assigned containers without repeating the e
 Student 4's step name refers to CRUD but the shell body checks frontend GET, list GET and table counts;
 its create, update and delete paths are covered by API tests rather than that live container smoke.
 
-### 7 3 Successful workflow evidence
+### 7.3 Successful workflow evidence
 
 | Workflow | Evidence SHA | Successful run | Result |
 |---|---|---|---|
@@ -474,9 +591,11 @@ The runs occur at different SHAs because path filters execute a student workflow
 scope changes. The final baseline Integration and Student 3 runs succeeded after the last Feature 3
 merge. The report does not imply that the five student jobs ran together at one SHA.
 
+[[PAGEBREAK]]
+
 ## 8 Testing and validation evidence
 
-### 8 1 Local canonical quality gate
+### 8.1 Local canonical quality gate
 
 The command `uv run python scripts/check.py` was executed on Windows against baseline `7d5350d` on
 4 September 2026. Docker-dependent PostgreSQL component cases were skipped unless an opt-in
@@ -497,7 +616,7 @@ internet access.
 | Frontend behaviour | Student 2 3 passed Student 3 12 Student 4 18 Student 5 21 | Node tests plus shared and Feature 1 syntax and behaviour checks |
 | Compose configuration | Passed | Production and development models with all five manifests |
 
-### 8 2 Endpoint and container evidence
+### 8.2 Endpoint and container evidence
 
 | Boundary | Verification |
 |---|---|
@@ -509,7 +628,7 @@ internet access.
 | Persistence | Migration tests prove idempotency; Student 5 restarts without deleting its volume and checks created and deleted state |
 | Docker Compose | Every student workflow builds its images; the generated all-feature profile validates to 21 services |
 
-### 8 3 Non functional testing
+### 8.3 Non functional testing
 
 | Quality characteristic | Test or measure | Result and limit |
 |---|---|---|
@@ -526,15 +645,17 @@ The project does not claim a single end-user latency service-level objective for
 source-scale benchmark measures real throughput and capacity; ordinary UI endpoints are bounded and
 smoke-tested, but a common percentile latency benchmark was not retained for Release 0.
 
-### 8 4 Application screenshots
+[[PAGEBREAK]]
 
-![Figure 7 Shared entry point with five research areas](../images/readme/propertyscope-home.png)
+### 8.4 Application screenshots
 
-![Figure 8 Feature 1 property discovery and attributed evidence](../images/readme/property-search.png)
+![Figure 15 Shared entry point with five research areas](../images/readme/propertyscope-home.png)
 
-![Figure 9 Feature 2 review of a deterministic market case](../../student-2/docs/screenshots/02-review-seeded-case.png)
+![Figure 16 Feature 1 property discovery and attributed evidence](../images/readme/property-search.png)
 
-![Figure 10 Feature 2 AI explanation of selected evidence](../../student-2/docs/screenshots/04-ask-ai-about-evidence.png)
+![Figure 17 Feature 2 review of a deterministic market case](../../student-2/docs/screenshots/02-review-seeded-case.png)
+
+![Figure 18 Feature 2 AI explanation of selected evidence](../../student-2/docs/screenshots/04-ask-ai-about-evidence.png)
 
 The screenshots are deterministic demonstration captures rather than proof of current official
 publisher facts. Features 3 to 5 were demonstrated in the recorded and in-class presentation but do
@@ -545,13 +666,15 @@ not have committed report screenshots at the audited baseline.
 | Limitation | Effect on Release 0 evidence |
 |---|---|
 | Feature 4 uses PostgreSQL/PostGIS without a recorded exception | The feature is operational, isolated and tested, but differs from the brief's SQLite requirement for individual student stores |
-| Remote OpenAI profile differs from named Ollama Qwen and Llama baseline | The application and agent loop work through the provider boundary; signed approval evidence should accompany assessment interpretation |
 | Feature 1 does not seed ten rows into every lifecycle and audit table | Real source tables contain large populations, while event counts reflect actual operations rather than fabricated assessment padding |
 | Feature 3 accepted official products were unavailable at the audited runtime | Its Release 0 views and AI remain clearly labelled deterministic fixtures |
 | Feature 4 evidence and map layers are synthetic | The map illustrates evidence states around a property coordinate and must not be read as a parcel intersection or current planning certificate |
 | Feature 5 has no production authentication | A server-configured demonstration owner scopes records; it is not a multi-user identity system |
 | Feature 5 queries only bounded candidate pages from Features 2 and 4 | A matching record outside the first 25 can appear unavailable |
 | Feature-specific live AI evidence is uneven | Feature 1 has durable run IDs and Feature 4 records a live evaluation; Features 2, 3 and 5 rely mainly on deterministic tool and degradation tests |
+| Original software-review prompts and terminal phase logs are incomplete | Section 5.5 retains the historical AI-assisted review, but a per-student development-loop transcript is not present |
+| Screenshots for Features 3 to 5 are not retained at the software baseline | Their UI demonstration is in the published video; the PDF has screenshots of Shared and Features 1 and 2 only |
+| No final local all-feature Docker execution log is retained | Per-feature CI stack runs and all-feature Compose validation are available; they do not prove one simultaneous local startup |
 | No common percentile endpoint benchmark | Source-scale operations are measured, but ordinary feature endpoint latency is not reported as one cross-feature SLA |
 
 These limitations preserve the distinction between implemented behaviour, deterministic fixture
@@ -560,7 +683,7 @@ workflows, but they constrain how results may be interpreted.
 
 ## 10 Contribution and commit record
 
-### 10 1 Group contribution summary
+### 10.1 Group contribution summary
 
 | Student | Principal contribution | Merged pull request evidence |
 |---|---|---|
@@ -570,7 +693,7 @@ workflows, but they constrain how results may be interpreted.
 | Michael | Feature 4 integration, CRUD, evidence, mapping, AI, CI and marking documentation | PRs 68, 69, 72, 75 to 80 and 87 to 89 |
 | Derek | Feature 5 store, cases, shortlist, notes, tasks, evidence, AI, runtime, CI and presentation refinement | [PR 82](https://github.com/MattShelton04/41026ASDProject/pull/82) and [PR 91](https://github.com/MattShelton04/41026ASDProject/pull/91) |
 
-### 10 2 Selected immutable commits
+### 10.2 Selected immutable commits
 
 | Student | Date | Commit | Contribution |
 |---|---|---|---|
@@ -593,7 +716,7 @@ The baseline shortlog attributes 61 commits to Matthew's two identities, 2 to Bu
 commits before its squash merge. Pull request links provide the most useful review and integration
 record because they include workflow checks and the final merge state.
 
-### 10 3 Attendance and demonstration
+### 10.3 Attendance and demonstration
 
 | Checkpoint | Matthew | Burhan | James | Michael | Derek | Evidence |
 |---|---|---|---|---|---|---|
@@ -611,14 +734,16 @@ line with the later showcase instruction.
 |---|---|---|---|
 | 1 Project Setup | Sections 1, 3 and 4 | Root structure, five manifests, shared shell and Compose | Strong with disclosed F4 database deviation |
 | 2 Service Implementation | Sections 4 and 6 | Five enabled service slices and health checks | Strong |
-| 3 AI Mode Integration | Section 5 | Shared run API and five feature tool catalogues | Implemented with provider approval risk |
-| 4 Agentic AI Workflow | Section 5 | Agent core state machine, durable events and retained run IDs | Strong |
-| 5 Prompt Engineering and Context | Section 5 3 | Versioned shared prompts and feature objectives and schemas | Strong, feature assets are split between templates and routes |
+| 3 AI Mode Integration | Section 5 | Shared run API and five feature tool catalogues | Implemented with registered OpenAI selection |
+| 4 Agentic AI Workflow | Sections 5.2, 5.4 and 5.5 | Agent core state machine, evaluation record and retained run IDs | Runtime implemented; development-review log gap disclosed |
+| 5 Prompt Engineering and Context | Section 5.3 | Versioned shared prompts and feature objectives and schemas | Strong, feature assets are split between templates and routes |
 | 6 DevOps and GitHub Actions | Section 7 | Five student workflows and Integration CI | Strong |
-| 7 Docker Compose Integration | Section 4 3 and 8 2 | One 21-service profile and successful feature stack jobs | Strong; no final local Docker rerun |
+| 7 Docker Compose Integration | Sections 4.3 and 8.2 | One 21-service profile and successful feature stack jobs | Strong; no final local Docker rerun |
 | 8 Working Software | Section 6 | CRUD tests, feature smokes, seeds and presentation | Strong with Feature 1 literal table-count risk |
-| 9 Technical Report | Sections 1 to 11 | Architecture, tests, NFRs, screenshots, logs, commits and limitations | Complete |
-| 10 Project Demonstration | Section 10 3 and cover link | Published recording and completed Week 6 presentation | Complete when URL access is verified |
+| 9 Technical Report | Sections 1 to 11 | Five individual architectures and ERDs; tests, screenshots, logs and contributions | Covered; evidence gaps disclosed in Section 9 |
+| 10 Project Demonstration | Section 10.3 and cover link | Published recording and completed Week 6 presentation | Complete when URL access is verified |
+
+[[PAGEBREAK]]
 
 ## Appendix A Evidence index
 
@@ -653,6 +778,18 @@ uv run scripts/dev.py stack status
 uv run scripts/dev.py operator report
 ```
 
+To regenerate this report from a clean checkout:
+
+```text
+uv sync --locked --all-packages --all-groups
+uv run python scripts/build_release0_report.py
+```
+
+When Mermaid sources change, install Node.js and run the builder with --render-diagrams.
+The pinned renderer refreshes PNGs and their content-hash manifest before generating the PDF.
+Normal builds use those checked-in assets offline and reject stale figures. Review the rendered
+pages after changing Markdown, figures or layout; a successful build alone is not a visual check.
+
 The final submission filename is `group20.pdf`. The PDF contains the repository and published
-demonstration links required by the assignment. The Canvas due date is 6 September 2026 at 11 59 pm
+demonstration links required by the assignment. The Canvas due date is 6 September 2026 at 11:59 pm
 Sydney time.

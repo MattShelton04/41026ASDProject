@@ -3,20 +3,25 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
+import json
 import re
+import shutil
+import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 from typing import override
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
     BaseDocTemplate,
+    CondPageBreak,
     Flowable,
     KeepTogether,
     PageBreak,
@@ -36,9 +41,12 @@ from reportlab.platypus.tableofcontents import TableOfContents
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_DIR = ROOT / "docs" / "reports"
 ASSET_DIR = REPORT_DIR / "assets" / "release-0"
-NAVY = colors.HexColor("#17365D")
-BLUE = colors.HexColor("#2F5597")
-PALE_BLUE = colors.HexColor("#EAF1F8")
+CONTENT_WIDTH = A4[0] - 40 * mm
+DIAGRAM_DIR = REPORT_DIR / "diagrams" / "release-0"
+MERMAID_VERSION = "11.12.0"
+NAVY = colors.HexColor("#153E46")
+BLUE = colors.HexColor("#176B75")
+PALE_BLUE = colors.HexColor("#EFF6F6")
 PALE_GREY = colors.HexColor("#F3F5F7")
 MID_GREY = colors.HexColor("#6B7280")
 LIGHT_BORDER = colors.HexColor("#D9D9D9")
@@ -55,6 +63,10 @@ class ReportDocTemplate(BaseDocTemplate):
             self.width,
             self.height,
             id="normal",
+            leftPadding=0,
+            rightPadding=0,
+            topPadding=0,
+            bottomPadding=0,
         )
         self.addPageTemplates(PageTemplate(id="report", frames=frame, onPage=self._page))
         self._heading_index = 0
@@ -66,6 +78,19 @@ class ReportDocTemplate(BaseDocTemplate):
     def _page(self, canvas: object, doc: object) -> None:
         page_number = getattr(doc, "page", 1)
         canvas.saveState()
+        if page_number == 1:
+            canvas.setFillColor(NAVY)
+            canvas.rect(0, A4[1] - 18 * mm, A4[0], 18 * mm, fill=1, stroke=0)
+            canvas.setFillColor(colors.white)
+            canvas.setFont("Helvetica-Bold", 9)
+            canvas.drawString(self.leftMargin, A4[1] - 11 * mm, "PROPERTYSCOPE NSW  /  GROUP 20")
+        else:
+            canvas.setFont("Helvetica", 8)
+            canvas.setFillColor(MID_GREY)
+            canvas.drawString(
+                self.leftMargin, A4[1] - 13 * mm, "41026  /  ADVANCED SOFTWARE DEVELOPMENT"
+            )
+            canvas.drawRightString(A4[0] - self.rightMargin, A4[1] - 13 * mm, "RELEASE 0")
         canvas.setStrokeColor(LIGHT_BORDER)
         canvas.setLineWidth(0.4)
         canvas.line(self.leftMargin, 15 * mm, A4[0] - self.rightMargin, 15 * mm)
@@ -89,323 +114,135 @@ class ReportDocTemplate(BaseDocTemplate):
         self._heading_index += 1
         self.canv.bookmarkPage(key)
         self.canv.addOutlineEntry(text, key, level=level, closed=level > 0)
-        self.notify("TOCEntry", (level, text, self.page, key))
+        if level == 0:
+            self.notify("TOCEntry", (level, text, self.page, key))
 
 
-def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    candidates = [
-        Path("C:/Windows/Fonts/aptos.ttf"),
-        Path("C:/Windows/Fonts/arial.ttf"),
-    ]
-    if bold:
-        candidates = [
-            Path("C:/Windows/Fonts/aptos-display-bold.ttf"),
-            Path("C:/Windows/Fonts/arialbd.ttf"),
-        ]
-    for candidate in candidates:
-        if candidate.exists():
-            return ImageFont.truetype(str(candidate), size=size)
-    return ImageFont.load_default()
+class ReportContents(TableOfContents):
+    """Compact linked chapter index; detailed navigation remains in PDF bookmarks."""
 
-
-def _rounded_box(
-    draw: ImageDraw.ImageDraw,
-    xy: tuple[int, int, int, int],
-    text: str,
-    *,
-    fill: str = "#EAF1F8",
-    outline: str = "#8AA4C0",
-    font_size: int = 29,
-) -> None:
-    draw.rounded_rectangle(xy, radius=18, fill=fill, outline=outline, width=3)
-    font = _font(font_size, bold=True)
-    x1, y1, x2, y2 = xy
-    lines = text.split("\n")
-    heights = [draw.textbbox((0, 0), line, font=font)[3] for line in lines]
-    line_gap = 8
-    total_height = sum(heights) + line_gap * (len(lines) - 1)
-    y = y1 + (y2 - y1 - total_height) / 2
-    for line, height in zip(lines, heights, strict=True):
-        bounds = draw.textbbox((0, 0), line, font=font)
-        width = bounds[2] - bounds[0]
-        draw.text((x1 + (x2 - x1 - width) / 2, y), line, fill="#111827", font=font)
-        y += height + line_gap
-
-
-def _arrow(
-    draw: ImageDraw.ImageDraw,
-    start: tuple[int, int],
-    end: tuple[int, int],
-    *,
-    fill: str = "#2F5597",
-    width: int = 6,
-) -> None:
-    draw.line((start, end), fill=fill, width=width)
-    x1, y1 = start
-    x2, y2 = end
-    if abs(x2 - x1) >= abs(y2 - y1):
-        direction = 1 if x2 > x1 else -1
-        points = [(x2, y2), (x2 - direction * 20, y2 - 13), (x2 - direction * 20, y2 + 13)]
-    else:
-        direction = 1 if y2 > y1 else -1
-        points = [(x2, y2), (x2 - 13, y2 - direction * 20), (x2 + 13, y2 - direction * 20)]
-    draw.polygon(points, fill=fill)
-
-
-def _canvas(
-    title: str, size: tuple[int, int] = (1800, 1050)
-) -> tuple[Image.Image, ImageDraw.ImageDraw]:
-    image = Image.new("RGB", size, "white")
-    draw = ImageDraw.Draw(image)
-    draw.text((60, 35), title, fill="#111827", font=_font(44, bold=True))
-    draw.line((60, 100, size[0] - 60, 100), fill="#D9D9D9", width=3)
-    return image, draw
-
-
-def _save(image: Image.Image, name: str) -> None:
-    ASSET_DIR.mkdir(parents=True, exist_ok=True)
-    image.save(ASSET_DIR / name, optimize=True)
-
-
-def _build_legacy_diagrams() -> None:
-    """Retain the pre-Mermaid renderer only as migration history; do not call it."""
-    image, draw = _canvas("Integrated Release 0 architecture")
-    _rounded_box(draw, (65, 430, 270, 600), "User\nbrowser", fill="#F3F5F7")
-    _rounded_box(
-        draw, (345, 400, 650, 630), "Shared frontend\nHTMX entry and\nreverse proxy", fill="#DCE6F1"
-    )
-    _arrow(draw, (270, 515), (345, 515))
-    lane_y = [155, 325, 495, 665, 835]
-    feature_names = [
-        "F1 Data platform",
-        "F2 Market cases",
-        "F3 Suburb analytics",
-        "F4 Due diligence",
-        "F5 Buyer journey",
-    ]
-    for y, label in zip(lane_y, feature_names, strict=True):
-        _rounded_box(draw, (745, y, 990, y + 110), f"{label}\nfrontend", font_size=24)
-        _rounded_box(draw, (1080, y, 1325, y + 110), "Backend API", font_size=25)
-        _rounded_box(
-            draw,
-            (1415, y, 1725, y + 110),
-            "Database API\nand owned store",
-            fill="#F3F5F7",
-            font_size=24,
+    @override
+    def wrap(self, availWidth: float, availHeight: float) -> tuple[float, float]:
+        styles = _styles()
+        label_style = ParagraphStyle(
+            "ContentsLabel",
+            parent=styles["body"],
+            fontSize=11,
+            leading=15,
+            textColor=NAVY,
+            spaceAfter=0,
         )
-        _arrow(draw, (650, 515), (745, y + 55))
-        _arrow(draw, (990, y + 55), (1080, y + 55))
-        _arrow(draw, (1325, y + 55), (1415, y + 55))
-    _rounded_box(draw, (1030, 925, 1375, 1025), "Shared AI mode", fill="#D9EAD3", font_size=28)
-    _rounded_box(
-        draw,
-        (1480, 925, 1725, 1025),
-        "Approved remote\nmodel profile",
-        fill="#FFF2CC",
-        font_size=23,
-    )
-    _arrow(draw, (1375, 975), (1480, 975))
-    for y in lane_y:
-        draw.line((1200, y + 110, 1200, 925), fill="#76933C", width=3)
-    _save(image, "integrated-architecture.png")
+        page_style = ParagraphStyle(
+            "ContentsPage", parent=label_style, alignment=TA_RIGHT, fontName="Helvetica-Bold"
+        )
+        entries = self._lastEntries or [(0, "Building contents", 0, None)]
+        rows = []
+        for _, title, page, key in entries:
+            label = html.escape(title)
+            number = str(page)
+            if key:
+                label = f'<link href="#{key}">{label}</link>'
+                number = f'<link href="#{key}">{number}</link>'
+            rows.append([Paragraph(label, label_style), Paragraph(number, page_style)])
+        self._table = Table(
+            rows,
+            colWidths=[availWidth - 16 * mm, 16 * mm],
+            style=TableStyle(
+                [
+                    ("LINEBELOW", (0, 0), (-1, -1), 0.4, LIGHT_BORDER),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                ]
+            ),
+        )
+        self.width, self.height = self._table.wrapOn(self.canv, availWidth, availHeight)
+        return self.width, self.height
 
-    image, draw = _canvas("Individual feature service boundaries")
-    labels = [
-        ("Student 1", "Frontend", "Backend + runner", "DB API + loader", "PostgreSQL/PostGIS"),
-        ("Student 2", "Frontend", "Backend API", "DB API", "SQLite"),
-        ("Student 3", "Frontend", "Backend API", "DB API", "SQLite"),
-        ("Student 4", "Frontend", "Backend API", "DB API", "PostgreSQL/PostGIS"),
-        ("Student 5", "Frontend", "Backend API", "DB API", "SQLite"),
-    ]
-    for i, row in enumerate(labels):
-        y = 145 + i * 170
-        draw.text((65, y + 40), row[0], fill="#17365D", font=_font(29, bold=True))
-        xs = [280, 610, 940, 1270]
-        widths = [250, 260, 260, 430]
-        for x, width, value in zip(xs, widths, row[1:], strict=True):
-            fill = (
-                "#FFF2CC" if row[0] == "Student 4" and value == "PostgreSQL/PostGIS" else "#EAF1F8"
+
+def _diagram_pairs() -> dict[str, str]:
+    return {
+        "feature-1-runtime.mmd": "individual-boundaries.png",
+        **{f"feature-{i}-runtime.mmd": f"feature-{i}-runtime.png" for i in range(2, 6)},
+        **{f"feature-{i}-erd.mmd": f"feature-{i}-erd.png" for i in range(1, 6)},
+        **{
+            f"{name}.mmd": f"{name}.png"
+            for name in (
+                "integrated-architecture",
+                "compose-topology",
+                "agent-loop",
+                "devops-pipeline",
             )
-            _rounded_box(draw, (x, y, x + width, y + 115), value, fill=fill, font_size=24)
-        for left, right in zip(
-            [(530, y + 58), (870, y + 58), (1200, y + 58)],
-            [(610, y + 58), (940, y + 58), (1270, y + 58)],
-            strict=True,
+        },
+    }
+
+
+def _diagram_fingerprint(source: Path, asset: Path) -> dict[str, str]:
+    return {
+        "source_sha256": hashlib.sha256(
+            source.read_text(encoding="utf-8").encode("utf-8")
+        ).hexdigest(),
+        "asset_sha256": hashlib.sha256(asset.read_bytes()).hexdigest(),
+    }
+
+
+def render_diagrams() -> None:
+    """Render pinned Mermaid sources and record hashes to detect stale derivatives."""
+    npx = shutil.which("npx.cmd") or shutil.which("npx")
+    if not npx:
+        raise RuntimeError("Node.js and npx are required for --render-diagrams")
+    ASSET_DIR.mkdir(parents=True, exist_ok=True)
+    manifest_path = ASSET_DIR / "manifest.json"
+    previous = (
+        json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
+    )
+    manifest = {}
+    for source_name, asset_name in _diagram_pairs().items():
+        source, asset = DIAGRAM_DIR / source_name, ASSET_DIR / asset_name
+        if (
+            previous.get("mermaid_version") == MERMAID_VERSION
+            and source.exists()
+            and asset.exists()
+            and previous.get("diagrams", {}).get(source_name) == _diagram_fingerprint(source, asset)
         ):
-            _arrow(draw, left, right, width=4)
-    draw.text(
-        (1270, 1010),
-        "Yellow marks the recorded SQLite requirement deviation",
-        fill="#6B7280",
-        font=_font(20),
-    )
-    _save(image, "individual-boundaries.png")
-
-    image, draw = _canvas("Docker Compose release profile")
-    groups = [
-        ("Shared", "shared-frontend\nshared-ai-mode", (75, 180, 500, 450), "#DCE6F1"),
-        (
-            "Feature 1",
-            "frontend  backend  runner\ndb-api  db-loader  postgres",
-            (560, 150, 1180, 440),
-            "#EAF1F8",
-        ),
-        (
-            "Feature 2",
-            "frontend  backend  db-api\nSQLite volume",
-            (1250, 150, 1740, 440),
-            "#EAF1F8",
-        ),
-        ("Feature 3", "frontend  backend  database\nSQLite volume", (75, 580, 565, 870), "#EAF1F8"),
-        (
-            "Feature 4",
-            "frontend  backend  db-api\nPostgreSQL/PostGIS",
-            (635, 580, 1125, 870),
-            "#FFF2CC",
-        ),
-        (
-            "Feature 5",
-            "frontend  backend  db-api\nSQLite volume",
-            (1195, 580, 1685, 870),
-            "#EAF1F8",
-        ),
-    ]
-    for name, body, xy, fill in groups:
-        draw.rounded_rectangle(xy, radius=24, fill=fill, outline="#8AA4C0", width=4)
-        x1, y1, _, _ = xy
-        draw.text((x1 + 25, y1 + 22), name, fill="#17365D", font=_font(31, bold=True))
-        draw.multiline_text((x1 + 25, y1 + 95), body, fill="#111827", font=_font(25), spacing=16)
-    draw.text(
-        (75, 950),
-        "21 services  |  7 named volumes  |  one generated release-0 profile",
-        fill="#111827",
-        font=_font(30, bold=True),
-    )
-    _save(image, "compose-topology.png")
-
-    image, draw = _canvas("DevOps pipeline and retained evidence")
-    boxes = [
-        (80, 380, 340, 570, "Branch and\npull request"),
-        (430, 220, 760, 410, "Integration CI\ncanonical gate"),
-        (430, 560, 760, 750, "Student 1 to 5\npath filtered CI"),
-        (850, 220, 1190, 410, "Format lint types\ncontracts and tests"),
-        (850, 560, 1190, 750, "Build containers\nstart fixture stack"),
-        (1280, 380, 1710, 570, "Health seed CRUD\nand boundary smoke"),
-    ]
-    for x1, y1, x2, y2, label in boxes:
-        _rounded_box(draw, (x1, y1, x2, y2), label, fill="#EAF1F8", font_size=29)
-    for start, end in [
-        ((340, 475), (430, 315)),
-        ((340, 475), (430, 655)),
-        ((760, 315), (850, 315)),
-        ((760, 655), (850, 655)),
-        ((1190, 315), (1280, 475)),
-        ((1190, 655), (1280, 475)),
-    ]:
-        _arrow(draw, start, end)
-    draw.text(
-        (430, 835),
-        "All six latest successful run URLs and SHAs are retained in Section 7",
-        fill="#6B7280",
-        font=_font(26),
-    )
-    _save(image, "devops-pipeline.png")
-
-    image, draw = _canvas("Plan Act Observe Adapt workflow")
-    positions = {
-        "Plan": (185, 350, 520, 570),
-        "Act": (725, 155, 1060, 375),
-        "Observe": (1270, 350, 1660, 570),
-        "Adapt": (725, 690, 1060, 910),
-    }
-    subtitles = {
-        "Plan": "select bounded\nread-only tools",
-        "Act": "validate and call\nfeature HTTP API",
-        "Observe": "record result\nand evidence",
-        "Adapt": "finish retry or\nrequest review",
-    }
-    for name, xy in positions.items():
-        _rounded_box(draw, xy, f"{name}\n{subtitles[name]}", fill="#EAF1F8", font_size=28)
-    _arrow(draw, (520, 430), (725, 290))
-    _arrow(draw, (1060, 290), (1270, 430))
-    _arrow(draw, (1470, 570), (1060, 780))
-    _arrow(draw, (725, 780), (350, 570))
-    _rounded_box(
-        draw,
-        (1270, 745, 1660, 910),
-        "Succeeded failed\nor review required",
-        fill="#D9EAD3",
-        font_size=25,
-    )
-    _arrow(draw, (1060, 800), (1270, 825))
-    draw.text(
-        (600, 980),
-        "Durable run events retain phase status prompt version tool evidence "
-        "timing and safe outcome",
-        fill="#6B7280",
-        font=_font(23),
-    )
-    _save(image, "agent-loop.png")
-
-    image, draw = _canvas("Release 0 data models")
-    panels = [
-        (
-            "F1 Data platform",
-            "Sources -> runs -> artifacts -> releases\n"
-            "Properties -> identifiers -> coverage\n"
-            "Warehouses -> accepted generations",
-        ),
-        (
-            "F2 Market cases",
-            "Market case 1 -> many sale observations\nFilters and summary remain deterministic",
-        ),
-        (
-            "F3 Suburb analytics",
-            "Suburb -> indicators and amenities\nOverview + user saved suburbs",
-        ),
-        (
-            "F4 Due diligence",
-            "Site review 1 -> many constraints\nSite review 1 -> many building records",
-        ),
-        (
-            "F5 Buyer journey",
-            "Buyer case 1 -> shortlist properties\nBuyer case 1 -> notes and tasks",
-        ),
-    ]
-    for i, (name, body) in enumerate(panels):
-        col = i % 2
-        row = i // 2
-        x1 = 80 + col * 860
-        y1 = 145 + row * 290
-        x2 = x1 + (780 if i < 4 else 1640)
-        y2 = y1 + 220
-        draw.rounded_rectangle(
-            (x1, y1, x2, y2), radius=22, fill="#F8FAFC", outline="#8AA4C0", width=3
+            manifest[source_name] = _diagram_fingerprint(source, asset)
+            continue
+        subprocess.run(
+            [
+                npx,
+                "--yes",
+                f"@mermaid-js/mermaid-cli@{MERMAID_VERSION}",
+                "-i",
+                str(source),
+                "-o",
+                str(asset),
+                "-b",
+                "white",
+                "-w",
+                "1800",
+                "-s",
+                "2",
+            ],
+            check=True,
         )
-        draw.text((x1 + 28, y1 + 22), name, fill="#17365D", font=_font(29, bold=True))
-        draw.multiline_text((x1 + 28, y1 + 85), body, fill="#111827", font=_font(24), spacing=14)
-    _save(image, "data-models.png")
+        manifest[source_name] = _diagram_fingerprint(source, asset)
+    manifest_path.write_text(
+        json.dumps({"mermaid_version": MERMAID_VERSION, "diagrams": manifest}, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _validate_mermaid_diagrams() -> None:
-    """Require each checked-in Mermaid source and its rendered report asset."""
-    pairs = {
-        "feature-1-runtime.mmd": "individual-boundaries.png",
-        "integrated-architecture.mmd": "integrated-architecture.png",
-        "compose-topology.mmd": "compose-topology.png",
-        "data-models.mmd": "data-models.png",
-        "agent-loop.mmd": "agent-loop.png",
-        "devops-pipeline.mmd": "devops-pipeline.png",
-    }
-    source_dir = REPORT_DIR / "diagrams" / "release-0"
-    missing = [
-        str(path)
-        for source_name, asset_name in pairs.items()
-        for path in (source_dir / source_name, ASSET_DIR / asset_name)
-        if not path.is_file()
-    ]
-    if missing:
-        raise FileNotFoundError("Missing report diagram files: " + ", ".join(missing))
+    """Fail before publication if a source or rendered diagram has changed."""
+    manifest = json.loads((ASSET_DIR / "manifest.json").read_text(encoding="utf-8"))
+    if manifest.get("mermaid_version") != MERMAID_VERSION:
+        raise ValueError("Mermaid version changed; run --render-diagrams")
+    for source_name, asset_name in _diagram_pairs().items():
+        source, asset = DIAGRAM_DIR / source_name, ASSET_DIR / asset_name
+        if manifest["diagrams"].get(source_name) != _diagram_fingerprint(source, asset):
+            raise ValueError(f"Stale diagram {source_name}; run --render-diagrams")
 
 
 def _styles() -> dict[str, ParagraphStyle]:
@@ -415,9 +252,9 @@ def _styles() -> dict[str, ParagraphStyle]:
         "ReportTitle",
         parent=base["Title"],
         fontName="Helvetica-Bold",
-        fontSize=27,
-        leading=32,
-        textColor=colors.black,
+        fontSize=34,
+        leading=39,
+        textColor=NAVY,
         alignment=TA_LEFT,
         spaceAfter=10 * mm,
     )
@@ -425,8 +262,8 @@ def _styles() -> dict[str, ParagraphStyle]:
         "ReportSubtitle",
         parent=base["Normal"],
         fontName="Helvetica",
-        fontSize=15,
-        leading=20,
+        fontSize=12,
+        leading=17,
         textColor=NAVY,
         spaceAfter=5 * mm,
     )
@@ -436,7 +273,7 @@ def _styles() -> dict[str, ParagraphStyle]:
         fontName="Helvetica-Bold",
         fontSize=18,
         leading=22,
-        textColor=colors.black,
+        textColor=NAVY,
         spaceBefore=7 * mm,
         spaceAfter=4 * mm,
         keepWithNext=True,
@@ -447,7 +284,7 @@ def _styles() -> dict[str, ParagraphStyle]:
         fontName="Helvetica-Bold",
         fontSize=13.5,
         leading=17,
-        textColor=colors.black,
+        textColor=NAVY,
         spaceBefore=5 * mm,
         spaceAfter=2.5 * mm,
         keepWithNext=True,
@@ -458,7 +295,7 @@ def _styles() -> dict[str, ParagraphStyle]:
         fontName="Helvetica-Bold",
         fontSize=11,
         leading=14,
-        textColor=colors.black,
+        textColor=NAVY,
         spaceBefore=3.5 * mm,
         spaceAfter=1.5 * mm,
         keepWithNext=True,
@@ -467,7 +304,7 @@ def _styles() -> dict[str, ParagraphStyle]:
         "Body",
         parent=base["BodyText"],
         fontName="Helvetica",
-        fontSize=9.4,
+        fontSize=9.5,
         leading=13.2,
         textColor=colors.HexColor("#222222"),
         spaceAfter=2.5 * mm,
@@ -490,7 +327,7 @@ def _styles() -> dict[str, ParagraphStyle]:
     styles["caption"] = ParagraphStyle(
         "Caption",
         parent=styles["small"],
-        alignment=TA_CENTER,
+        alignment=TA_LEFT,
         textColor=MID_GREY,
         spaceBefore=1.5 * mm,
         spaceAfter=4 * mm,
@@ -509,7 +346,7 @@ def _styles() -> dict[str, ParagraphStyle]:
         "Code",
         parent=base["Code"],
         fontName="Courier",
-        fontSize=7.5,
+        fontSize=7.2,
         leading=10,
         leftIndent=4 * mm,
         rightIndent=4 * mm,
@@ -528,7 +365,8 @@ def _resolve_link(target: str, source: Path, baseline: str) -> str:
         rel = target_path.relative_to(ROOT).as_posix()
     except ValueError:
         return target
-    return f"https://github.com/MattShelton04/41026ASDProject/blob/{baseline}/{rel}"
+    fragment = "#" + target.split("#", 1)[1] if "#" in target else ""
+    return f"https://github.com/MattShelton04/41026ASDProject/blob/{baseline}/{rel}{fragment}"
 
 
 def _inline(text: str, source: Path, baseline: str) -> str:
@@ -540,7 +378,7 @@ def _inline(text: str, source: Path, baseline: str) -> str:
     def replace_link(match: re.Match[str]) -> str:
         label, target = match.group(1), html.unescape(match.group(2))
         resolved = html.escape(_resolve_link(target, source, baseline), quote=True)
-        return f'<link href="{resolved}" color="#2F5597"><u>{label}</u></link>'
+        return f'<link href="{resolved}" color="#176B75"><u>{label}</u></link>'
 
     return re.sub(r"\[([^\]]+)\]\(([^)]+)\)", replace_link, escaped)
 
@@ -554,13 +392,16 @@ def _table(
     normalised = [row + [""] * (cols - len(row)) for row in rows]
     weights: list[float] = []
     for col in range(cols):
-        lengths = [min(max(len(re.sub(r"[*`\[\]]", "", row[col])), 5), 80) for row in normalised]
-        weights.append(max(15.0, sum(lengths) / len(lengths)))
+        lengths = [
+            min(max(len(re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", row[col])), 5), 80)
+            for row in normalised
+        ]
+        weights.append(max(25.0, sum(lengths) / len(lengths)))
     total = sum(weights)
-    available = A4[0] - 34 * mm
+    available = CONTENT_WIDTH
     widths = [available * weight / total for weight in weights]
     cell_style = ParagraphStyle(
-        "TableCell", parent=styles["small"], fontSize=7.35, leading=9.5, spaceAfter=0
+        "TableCell", parent=styles["small"], fontSize=8.1, leading=10.5, spaceAfter=0
     )
     header_style = ParagraphStyle(
         "TableHeader", parent=cell_style, fontName="Helvetica-Bold", textColor=colors.white
@@ -573,12 +414,12 @@ def _table(
     commands: list[tuple[object, ...]] = [
         ("BACKGROUND", (0, 0), (-1, 0), NAVY),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("GRID", (0, 0), (-1, -1), 0.45, LIGHT_BORDER),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.35, LIGHT_BORDER),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 4.5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4.5),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ]
     for row in range(1, len(data)):
         if row % 2 == 0:
@@ -590,8 +431,15 @@ def _table(
 def _image_flowable(path: Path, caption: str, styles: dict[str, ParagraphStyle]) -> list[Flowable]:
     with Image.open(path) as image:
         width_px, height_px = image.size
-    max_width = A4[0] - 36 * mm
-    max_height = 185 * mm
+    max_width = CONTENT_WIDTH
+    if path.stem.endswith("-erd") or "screenshots" in path.parts or "readme" in path.parts:
+        max_height = 100 * mm
+    elif path.stem == "compose-topology":
+        max_height = 115 * mm
+    elif path.stem == "agent-loop":
+        max_height = 135 * mm
+    else:
+        max_height = 185 * mm
     scale = min(max_width / width_px, max_height / height_px)
     rendered = RLImage(str(path), width=width_px * scale, height=height_px * scale)
     return [KeepTogether([rendered, Paragraph(html.escape(caption), styles["caption"])])]
@@ -640,7 +488,7 @@ def parse_markdown(source: Path, baseline: str) -> list[Flowable]:
 
     def flush_code() -> None:
         if code_lines:
-            story.append(Preformatted("\n".join(code_lines), styles["code"]))
+            story.append(Preformatted("\n".join(code_lines), styles["code"], maxLineLength=100))
             code_lines.clear()
 
     for line in lines:
@@ -661,35 +509,19 @@ def parse_markdown(source: Path, baseline: str) -> list[Flowable]:
             flush_paragraph()
             flush_list()
             flush_table()
-            toc = TableOfContents()
-            toc.levelStyles = [
-                ParagraphStyle(
-                    "TOC1",
-                    parent=styles["body"],
-                    fontSize=10,
-                    leading=14,
-                    leftIndent=0,
-                    firstLineIndent=0,
-                    spaceBefore=2,
-                ),
-                ParagraphStyle(
-                    "TOC2",
-                    parent=styles["small"],
-                    fontSize=8.5,
-                    leading=12,
-                    leftIndent=12,
-                    firstLineIndent=0,
-                ),
-                ParagraphStyle(
-                    "TOC3",
-                    parent=styles["small"],
-                    fontSize=7.8,
-                    leading=10,
-                    leftIndent=24,
-                    firstLineIndent=0,
-                ),
-            ]
-            story.extend([Paragraph("Contents", styles["h1"]), toc, PageBreak()])
+            story.extend(
+                [
+                    Paragraph("Contents", styles["h1"]),
+                    Paragraph(
+                        "Select a chapter or page number to navigate. "
+                        "PDF bookmarks include every subsection.",
+                        styles["small"],
+                    ),
+                    Spacer(1, 5 * mm),
+                    ReportContents(),
+                    PageBreak(),
+                ]
+            )
             continue
         if line.strip() == "[[PAGEBREAK]]":
             flush_paragraph()
@@ -713,10 +545,14 @@ def parse_markdown(source: Path, baseline: str) -> list[Flowable]:
             level = len(heading.group(1))
             title = heading.group(2).strip()
             if level == 1 and not story:
-                story.append(Spacer(1, 34 * mm))
+                story.append(Spacer(1, 20 * mm))
                 story.append(Paragraph(_inline(title, source, baseline), styles["title"]))
             else:
-                paragraph = Paragraph(_inline(title, source, baseline), styles[f"h{min(level, 3)}"])
+                if level == 2:
+                    story.append(CondPageBreak(70 * mm))
+                paragraph = Paragraph(
+                    _inline(title, source, baseline), styles[f"h{min(max(level - 1, 1), 3)}"]
+                )
                 paragraph._heading_level = max(0, level - 2)  # type: ignore[attr-defined]
                 story.append(paragraph)
             continue
@@ -766,13 +602,14 @@ def build(source: Path, output: Path, baseline: str) -> None:
     document = ReportDocTemplate(
         str(output),
         pagesize=A4,
-        leftMargin=17 * mm,
-        rightMargin=17 * mm,
-        topMargin=18 * mm,
+        leftMargin=20 * mm,
+        rightMargin=20 * mm,
+        topMargin=23 * mm,
         bottomMargin=22 * mm,
         title="PropertyScope NSW Release 0 Technical Report",
         author="Group 20",
         subject="41026 Advanced Software Development Assessment 1",
+        invariant=True,
     )
     story = parse_markdown(source, baseline)
     document.multiBuild(story)
@@ -783,7 +620,14 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("--source", type=Path, default=REPORT_DIR / "release-0-technical-report.md")
     parser.add_argument("--output", type=Path, default=REPORT_DIR / "group20.pdf")
     parser.add_argument("--baseline", default="7d5350d19023fb1e978e85127a72e3500a1556f3")
+    parser.add_argument(
+        "--render-diagrams",
+        action="store_true",
+        help="Refresh Mermaid PNGs and their drift manifest before building",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.render_diagrams:
+        render_diagrams()
     build(args.source.resolve(), args.output.resolve(), args.baseline)
     print(args.output.resolve())
     return 0

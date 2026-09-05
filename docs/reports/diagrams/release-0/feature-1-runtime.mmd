@@ -1,47 +1,15 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
 flowchart TB
-    user([User browser]) -->|port 5100| edge["shared-frontend<br/>same-origin edge"]
-    user -. direct development ingress .-> front
-    edge -->|generated feature route| front
-
-    subgraph f1["Feature 1 — PropertyScope data platform"]
-        direction TB
-        subgraph control["User and control plane"]
-            direction LR
-            front["f1-frontend<br/>HTMX operations and property UI"] -->|public API / fragments| back["f1-backend<br/>public/control API · review · publication"]
-            back -->|private HTTP| dbapi["f1-db-api<br/>request-time persistence<br/>database credentials"]
-            dbapi -->|SQL| pg[("f1-postgres<br/>PostgreSQL/PostGIS<br/>sole DB-volume owner")]
-        end
-
-        subgraph work["Acquisition, artefact and bulk-loading plane"]
-            direction LR
-            runner["f1-runner<br/>serial acquisition worker<br/>no database credentials"]
-            artifacts[("f1-artifacts<br/>content-addressed files")]
-            loader["f1-db-loader<br/>serial import/activation worker<br/>database credentials"]
-            runner -->|read/write| artifacts
-            artifacts -. read-only mount .-> loader
-            loader -->|bulk COPY · generation activation| pg
-        end
-
-        back -->|claimable acquisition tasks| runner
-        runner -->|claim · heartbeat · result<br/>worker HTTP contract| back
-        artifacts -. read-only mount .-> back
-        artifacts -. read-only mount .-> dbapi
-    end
-
-    sources["Official/cached sources<br/>G-NAF · NSW PSI · BOCSAR<br/>schools · ABS SEIFA"] -->|download / validate| runner
-    back --> ai["shared-ai-mode<br/>bounded durable agent"]
-    ai --> back
-    ai -->|Responses API| model["Approved remote<br/>model profile"]
-    back -->|idempotent accepted-release delivery| consumers["Feature consumers<br/>Feature 2 · Feature 3 · Feature 4"]
-
-    aitip["AI directions<br/>backend submits runs<br/>AI calls allowlisted backend tools"] --- ai
-    volumetip["Volume permissions<br/>runner RW · backend/API/loader RO<br/>PostgreSQL alone mounts DB data"] --- artifacts
-
-    classDef shared fill:#dce6f1,stroke:#2f5597,color:#111827;
-    classDef runtime fill:#eaf1f8,stroke:#5b7fa6,color:#111827;
-    classDef store fill:#f3f5f7,stroke:#6b7280,color:#111827;
-    classDef external fill:#fff2cc,stroke:#a67c00,color:#111827;
-    class edge,ai shared;
-    class front,back,runner,dbapi,loader runtime;
-    class artifacts,pg store;
-    class user,sources,model,consumers,aitip,volumetip external;
+    edge["Shared entry / f1-frontend"] -->|HTTP| back["f1-backend<br/>control, review and publication"]
+    back -->|private HTTP| db["f1-db-api<br/>request-time persistence"]
+    db -->|SQL| pg[("f1-postgres<br/>PostgreSQL / PostGIS")]
+    runner["f1-runner<br/>acquisition worker"] <-->|worker HTTP| back
+    sources["Official / cached sources"] --> runner
+    runner -->|RW| files[("f1-artifacts<br/>immutable source files")]
+    files -.->|RO| loader["f1-db-loader<br/>bulk import and activation"]
+    loader -->|SQL| pg
+    files -.->|RO| db
+    files -.->|RO| back
+    back <-->|runs / tools| ai["shared-ai-mode"]
+    ai -->|Responses API| model["OpenAI API<br/>Luna / Terra"]
+    back -->|accepted-release HTTP| consumers["Feature 2 / 3 / 4 consumers"]

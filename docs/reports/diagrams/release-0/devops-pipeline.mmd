@@ -1,4 +1,5 @@
-flowchart LR
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+flowchart TB
     change["Push / pull request"]
     integration["integration-ci.yml<br/>canonical repository gate"]
     students["student-1.yml … student-5.yml<br/>path-filtered feature gates"]
@@ -11,8 +12,8 @@ flowchart LR
     change --> integration --> quality --> compose --> evidence
     change --> students --> compose --> smoke --> evidence
 
-    classDef trigger fill:#fff2cc,stroke:#a67c00,color:#111827;
-    classDef gate fill:#eaf1f8,stroke:#5b7fa6,color:#111827;
+    classDef trigger fill:#faf2e4,stroke:#a67c00,color:#111827;
+    classDef gate fill:#eff6f6,stroke:#6b969b,color:#111827;
     classDef proof fill:#d9ead3,stroke:#548235,color:#111827;
     class change trigger;
     class integration,students,quality,compose,smoke gate;

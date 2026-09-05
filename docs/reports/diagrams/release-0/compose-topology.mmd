@@ -1,67 +1,23 @@
-flowchart TB
-    net["shared-platform Docker network"]
-
-    subgraph shared["Shared — 2 services"]
-        sf[shared-frontend]
-        sa[shared-ai-mode]
-        sav[(shared-ai-mode-state)]
-        sa --- sav
-    end
-
-    subgraph one["Feature 1 — 6 services"]
-        f1f[f1-frontend] --> f1b[f1-backend]
-        f1r[f1-runner] <-->|worker HTTP| f1b
-        f1b --> f1d[f1-db-api] --> f1p[f1-postgres]
-        f1l[f1-db-loader] --> f1p
-        f1a[(f1-artifacts)]
-        f1v[(f1-postgres-data)]
-        f1r ---|RW| f1a
-        f1b ---|RO| f1a
-        f1d ---|RO| f1a
-        f1l ---|RO| f1a
-        f1p --- f1v
-    end
-
-    subgraph two["Feature 2 — 3 services"]
-        f2f[f2-frontend] --> f2b[f2-backend] --> f2d[f2-db-api]
-        f2v[(f2-sqlite-data)]
-        f2d --- f2v
-    end
-
-    subgraph three["Feature 3 — 3 services"]
-        f3f[f3-frontend] --> f3b[f3-backend / worker] --> f3d[f3-database]
-        f3v[(f3-suburb-data)]
-        f3d --- f3v
-    end
-
-    subgraph four["Feature 4 — 4 services"]
-        f4f[f4-frontend] --> f4b[f4-backend] --> f4d[f4-db-api] --> f4p[f4-postgres]
-        f4v[(f4-postgres-data)]
-        f4p --- f4v
-    end
-
-    subgraph five["Feature 5 — 3 services"]
-        f5f[f5-frontend] --> f5b[f5-backend] --> f5d[f5-db-api]
-        f5v[(f5-sqlite-data)]
-        f5d --- f5v
-    end
-
-    sf --- net
-    sa --- net
-    f1b --- net
-    f2b --- net
-    f3b --- net
-    f4b --- net
-    f5b --- net
-
-    count["Release 0 generated profile<br/>21 services · 7 named volumes"]
-    net --- count
-
-    classDef shared fill:#dce6f1,stroke:#2f5597,color:#111827;
-    classDef feature fill:#eaf1f8,stroke:#5b7fa6,color:#111827;
-    classDef volume fill:#f3f5f7,stroke:#6b7280,color:#111827;
-    classDef note fill:#fff2cc,stroke:#a67c00,color:#111827;
-    class sf,sa shared;
-    class f1f,f1b,f1r,f1d,f1l,f1p,f2f,f2b,f2d,f3f,f3b,f3d,f4f,f4b,f4d,f4p,f5f,f5b,f5d feature;
-    class sav,f1a,f1v,f2v,f3v,f4v,f5v volume;
-    class net,count note;
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+block-beta
+    columns 3
+    network["Shared-platform network / generated Release 0 profile"]:3
+    shared["SHARED / 2 services\nshared-frontend\nshared-ai-mode"]
+    f1["FEATURE 1 / 6 services\nfrontend / backend / runner\ndb-api / db-loader / postgres"]
+    f2["FEATURE 2 / 3 services\nfrontend / backend / db-api"]
+    sv[("AI run-state volume")]
+    v1[("PostgreSQL data\nand artifact volumes")]
+    v2[("SQLite data volume")]
+    f3["FEATURE 3 / 3 services\nfrontend / backend / database"]
+    f4["FEATURE 4 / 4 services\nfrontend / backend / db-api\npostgres"]
+    f5["FEATURE 5 / 3 services\nfrontend / backend / db-api"]
+    v3[("SQLite suburb-data volume")]
+    v4[("PostgreSQL data volume")]
+    v5[("SQLite data volume")]
+    note["21 services / 7 named volumes\nCompose supplies internal DNS, health checks and provider secret\nShared edge publishes the integrated application on port 5100"]:3
+    shared --> sv
+    f1 --> v1
+    f2 --> v2
+    f3 --> v3
+    f4 --> v4
+    f5 --> v5
