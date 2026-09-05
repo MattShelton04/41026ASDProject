@@ -165,6 +165,7 @@ class ReportContents(TableOfContents):
 def _diagram_pairs() -> dict[str, str]:
     return {
         "feature-1-runtime.mmd": "individual-boundaries.png",
+        "feature-1-publication.mmd": "feature-1-publication.png",
         **{f"feature-{i}-runtime.mmd": f"feature-{i}-runtime.png" for i in range(2, 6)},
         **{f"feature-{i}-erd.mmd": f"feature-{i}-erd.png" for i in range(1, 6)},
         **{
@@ -366,7 +367,8 @@ def _resolve_link(target: str, source: Path, baseline: str) -> str:
     except ValueError:
         return target
     fragment = "#" + target.split("#", 1)[1] if "#" in target else ""
-    return f"https://github.com/MattShelton04/41026ASDProject/blob/{baseline}/{rel}{fragment}"
+    kind = "tree" if target_path.is_dir() else "blob"
+    return f"https://github.com/MattShelton04/41026ASDProject/{kind}/{baseline}/{rel}{fragment}"
 
 
 def _inline(text: str, source: Path, baseline: str) -> str:

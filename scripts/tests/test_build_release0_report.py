@@ -42,6 +42,15 @@ def test_headings_keep_visual_and_bookmark_hierarchy(tmp_path: Path) -> None:
     assert [getattr(item, "_heading_level", None) for item in headings] == [None, 0, 1, 2]
 
 
+def test_migration_directory_links_to_pinned_github_tree() -> None:
+    source = report.REPORT_DIR / "release-0-technical-report.md"
+    migration_path = "student-1/database/src/propertyscope_data_store/sql"
+    url = report._resolve_link(f"../../{migration_path}", source, BASELINE)
+    assert (
+        url == f"https://github.com/MattShelton04/41026ASDProject/tree/{BASELINE}/{migration_path}"
+    )
+
+
 @pytest.mark.parametrize("changed", ["source", "asset"])
 def test_rejects_stale_diagram_sources_and_assets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: str

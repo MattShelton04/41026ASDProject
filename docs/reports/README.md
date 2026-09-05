@@ -39,7 +39,14 @@ together. Do not update the manifest by hand to bypass a stale-diagram error.
 The report includes a runtime architecture and selected-key ERD for every student. ERDs label query
 associations separately from actual foreign keys; the linked owned schemas remain authoritative for
 all columns and constraints. OpenAI is the registered provider; the team's complimentary-token
-allowance is recorded as an account-specific rationale, separately from historical Gemini tests.
+allowance is recorded as an account-specific rationale. Gemini is also supported as an alternative
+with a free tier for eligible models; OpenAI remains preferred.
+
+Feature 1's two ERDs cover selected current operational and publication/data-product relationships
+after the complete migration chain through `049_index_gnaf_identity_anchors.sql`. The report links
+the full SQL directory and migration runner, and records later changes to lineage, activation,
+consumer delivery, SEIFA and lookup indexes. Review both diagrams and this boundary when migrations
+change; the diagrams are curated schema views, not an automatically introspected database dump.
 
 Before handoff, run the canonical gate and render the PDF for visual review:
 
