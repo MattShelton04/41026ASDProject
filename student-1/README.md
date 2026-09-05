@@ -38,10 +38,10 @@ publication/recovery lifecycle, dataset semantics, and future-registration proce
 [the Release 0 data-product consumer guide](DATA_PRODUCT_CONSUMER_GUIDE.md).
 The supported `GET /api/data-platform/v1/product-contracts/v1` discovery resource and its
 digest-bound ZIP are the consumer entry point for producer-owned record schemas; consumers do not
-read repository paths. Releases use gzip-compressed NDJSON, and external publication is a
-durable consumer-import operation with a short connect phase and a fixed status resource. The final
-receipt is stored before activation is queued; the prior accepted release remains live until the
-atomic pointer switch completes.
+read repository paths. Releases use gzip-compressed NDJSON. Producer verification queues durable
+local activation; the atomic accepted-pointer switch also creates a downstream delivery outbox.
+Consumer imports run independently and cannot block or roll back producer publication. See
+[ADR-041](../docs/architecture/decisions/ADR-041-producer-owned-publication.md).
 
 Version-controlled source/job configuration lives in `config/`, HTTP and release schemas in
 `contracts/`, and persistence-neutral Pydantic/domain policy in
@@ -165,7 +165,19 @@ Open <http://localhost:5200>. The main product path is:
 5. Review new versions under **Published data** before publishing or rejecting them. Data checks,
    files and coverage are opened from the update or version they explain instead of appearing as
    separate primary destinations. Publication returns after queueing a durable background
-   activation; the release page shows its progress while the prior accepted version remains live.
+   activation; the release page shows **Publishing** while the prior accepted version remains live.
+   Publication reconciliation runs independently of acquisition/export. The page continues slow
+   polling for long imports. Lightweight activations run independently of serial bulk imports and
+   GNAF index builds, retaining artifact verification and fenced accepted-pointer transactions.
+   The page refreshes when its tab becomes visible and loads record previews
+   separately from current state/actions. **Retry publication** preserves failed receipts and
+   retries local activation with a fresh attempt key. See
+   [ADR-040](../docs/architecture/decisions/ADR-040-publication-recovery-and-current-state.md) and the
+   [live investigation](../docs/operations/publication-investigation-2026-09-05.md).
+   Full PSI publication is independent of Feature 2. Its importer now accepts durable background
+   work and streams the complete dataset without a total record/byte cap (ADR-042). Failed delivery
+   is reported separately and can be retried with **Retry downstream import** on the published
+   release. Feature 1 publishes all records without truncation.
 6. When a version needs interpretation, select **Review with AI**. AI review is optional, cannot
    publish changes and remains available later in **Activity history**.
 

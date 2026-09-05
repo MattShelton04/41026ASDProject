@@ -61,6 +61,7 @@ import {
   createPublicationAttemptKeys,
   nextPublicationPollDelay,
   PUBLICATION_POLL_LIMIT,
+  publicationDisplayState,
   reconcilePublication,
 } from "../../frontend/core/publication.js";
 import {
@@ -136,14 +137,31 @@ test("consumer import delivery states reconcile without claiming activation comp
   }), "pending");
 });
 
-test("publication polling is finite, backs off, and pauses while hidden", () => {
+test("publication polling backs off, pauses while hidden, and follows long imports", () => {
   assert.equal(nextPublicationPollDelay(0, "pending"), 1500);
   assert.equal(nextPublicationPollDelay(6, "pending"), 3000);
   assert.equal(nextPublicationPollDelay(18, "pending"), 10000);
   assert.equal(nextPublicationPollDelay(0, "completed"), null);
   assert.equal(nextPublicationPollDelay(0, "failed"), null);
   assert.equal(nextPublicationPollDelay(1, "pending", { visible: false }), null);
-  assert.equal(nextPublicationPollDelay(PUBLICATION_POLL_LIMIT, "pending"), null);
+  assert.equal(nextPublicationPollDelay(PUBLICATION_POLL_LIMIT, "pending"), 30000);
+});
+
+test("a retried consumer delivery takes precedence over its historical failed activation", () => {
+  assert.equal(reconcilePublication({
+    release: { status: "awaiting_review" },
+    activations: [{ status: "failed" }],
+    consumer_imports: [{ status: "activation_pending" }],
+  }), "pending");
+});
+
+test("publication labels reflect approval and background work without changing review controls", () => {
+  const release = { status: "awaiting_review" };
+  assert.equal(publicationDisplayState(release, "pending"), "publishing");
+  assert.equal(publicationDisplayState(release, "failed"), "publication_failed");
+  assert.equal(publicationDisplayState(release, "unknown"), "awaiting_review");
+  assert.equal(publicationDisplayState({ status: "accepted" }, "completed"), "published");
+  assert.equal(release.status, "awaiting_review");
 });
 
 test("publication operation selection and status paths use the durable fixed resource", () => {
@@ -205,7 +223,7 @@ test("failed publication timeout reconciliation permits a fresh retry", async ()
       timeoutError,
     }),
     (error) => error === timeoutError
-      && /Publication delivery or activation failed/.test(error.message)
+      && /Publication verification or activation failed/.test(error.message)
       && /fresh retry is safe/.test(error.message)
       && !/outcome is not known/.test(error.message),
   );
@@ -234,7 +252,7 @@ test("publication timeout reconciliation recognizes durable consumer delivery", 
   });
   assert.equal(body.consumer_imports[0].status, "polling");
   assert.deepEqual(cleared, ["release-1:v4"]);
-  assert.match(toasts[0], /durable consumer delivery and accepted-version activation/);
+  assert.match(toasts[0], /durable artifact verification and accepted-version activation/);
 });
 
 test("requestJson adds correlation and idempotency-compatible JSON headers", async () => {
@@ -948,6 +966,8 @@ test("coverage matrices flatten into accessible table rows", () => {
 });
 
 test("formatting pairs states with text and handles byte boundaries", () => {
+  assert.deepEqual(stateLabel("imported"), { text: "Imported", tone: "positive", symbol: "✓" });
+  assert.deepEqual(stateLabel("delivered"), { text: "Delivered", tone: "positive", symbol: "✓" });
   assert.deepEqual(stateLabel("accepted"), { text: "Published", tone: "positive", symbol: "✓" });
   assert.deepEqual(stateLabel("stale"), { text: "Stale", tone: "warning", symbol: "△" });
   assert.equal(formatBytes(1024), "1.00 KB");
@@ -1003,7 +1023,7 @@ test("release publication renders durable delivery evidence and polls only pendi
   assert.match(releases, /nextPublicationPollDelay\(/);
   assert.match(releases, /visibilitychange/);
   assert.match(releases, /PUBLICATION_POLL_LIMIT/);
-  assert.match(releases, /currently published version remains live/);
+  assert.match(releases, /current version remains live/);
   assert.doesNotMatch(releases, /continues in the database loader/);
 });
 
@@ -1058,4 +1078,19 @@ test("overview problem notice uses a labelled responsive list", async () => {
   assert.match(styles, /\.overview-problems \{ display: grid;/);
   assert.match(styles, /\.overview-problems \{[^}]*margin-top: var\(--ps-space-4\);/);
   assert.match(styles, /\.problem-links \{ display: grid;/);
+});
+
+
+test("producer publication remains independent of downstream delivery", () => {
+  for (const status of ["queued", "polling", "failed", "rejected", "delivered"]) {
+    const body = {
+      publication_policy: "producer-owned",
+      release: { status: "awaiting_review" },
+      consumer_imports: [{ status }],
+    };
+    assert.equal(reconcilePublication(body), "unknown");
+    assert.equal(reconcilePublication({ ...body, release: { status: "accepted" } }), "completed");
+    assert.equal(reconcilePublication({ ...body, activations: [{ status: "running" }] }), "pending");
+    assert.equal(reconcilePublication({ ...body, activations: [{ status: "failed" }] }), "failed");
+  }
 });

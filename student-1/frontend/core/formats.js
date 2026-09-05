@@ -91,8 +91,10 @@ export function formatDuration(start, end = Date.now()) {
 }
 
 export function statusTone(status) {
+  if (status === "publishing") return "info";
+  if (status === "publication_failed") return "negative";
   const value = String(status || "unknown").toLowerCase();
-  if (["accepted", "succeeded", "pass", "passed", "active", "available", "supported", "complete", "completed", "healthy", "published", "observed", "confirmed", "verified", "unchanged"].includes(value)) return "positive";
+  if (["accepted", "succeeded", "pass", "passed", "active", "available", "supported", "complete", "completed", "healthy", "published", "observed", "confirmed", "verified", "imported", "delivered", "unchanged"].includes(value)) return "positive";
   if (["failed", "rejected", "abandoned", "blocked", "unavailable", "cancelled", "error", "unhealthy", "source_failed"].includes(value)) return "negative";
   if (["partial", "warning", "warn", "stale", "candidate", "review", "review_required", "awaiting_review", "cancelling", "conflicting"].includes(value)) return "warning";
   if (ACTIVE_RUN_STATES.has(value) || ["draft", "pending"].includes(value)) return "info";

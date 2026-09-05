@@ -107,6 +107,13 @@ Root Compose supplies `PROPERTYSCOPE_FEATURE_3_URL=http://f3-backend:5301` to Fe
 `SUBURB_IMPORT_WORKER=1` to the single-worker Feature 3 backend. The database durably queues each
 operation; the backend worker streams downloads and stages bounded batches through the database
 HTTP API. A 180-second renewable, fenced lease permits recovery after a backend restart.
+Transport and pre-commit database outages retry with bounded backoff for up to five attempts.
+Recovery revalidates the stream and reuses identical staged rows; conflicting replay is rejected.
+SQLite WAL lets status reads proceed during staging writes. Original terminal receipts and delivery
+keys remain immutable; a fresh key after a closed failed receipt creates a new operation, while
+active or accepted matching imports coalesce. Rebuild `f3-backend` after installing the compiled
+`jsonschema-rs` dependency; record/manifest format and semantic validation remain mandatory.
+See [ADR-040](../docs/architecture/decisions/ADR-040-publication-recovery-and-current-state.md).
 
 Before commit, the importer checks the digest-bound producer contract archive, selected schema and
 builder, manifest/record provenance, gzip integrity, SHA-256, exact byte/record counts, unique
@@ -124,7 +131,7 @@ The backend checks already
 accepted releases at startup and every fifteen minutes, independently of browser traffic. Repeated
 checks retain the same import identity and do not re-download imported releases. The visible page
 refreshes availability every thirty seconds. Manual sync/status/retry controls are optional recovery
-tools inside the collapsed **Data maintenance (operators)** section. Failed operations require an
+tools inside the collapsed **Data maintenance (operators)** section. Terminal failures require an
 operator retry after their underlying issue is resolved; visiting a suburb never starts a download.
 Suburb pins zoom to neighbourhood level and load the selected amenity types; accessible suburb
 buttons remain as an alternative. Rapid selections cannot overwrite the latest suburb's amenities.

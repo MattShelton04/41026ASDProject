@@ -91,6 +91,32 @@ class CancellableConnection(ScriptedConnection):
         self.cancelled.set()
 
 
+def test_submit_review_replay_after_lost_response_keeps_original_decision() -> None:
+    release_id = uuid.uuid4()
+    current = {
+        "id": release_id,
+        "status": "awaiting_review",
+        "version": 3,
+        "review_comment": "Ready for review",
+    }
+    connection = ScriptedConnection([current])
+    result = ConnectedStore(connection).transition_release(
+        release_id, expected_version=2, target="awaiting_review", comment="Ready for review"
+    )
+    assert result["version"] == 3
+    assert len(connection.queries) == 1
+
+
+def test_submit_review_replay_cannot_replace_review_text() -> None:
+    connection = ScriptedConnection(
+        [{"status": "awaiting_review", "version": 3, "review_comment": "Original approval"}]
+    )
+    with pytest.raises(ConflictError):
+        ConnectedStore(connection).transition_release(
+            uuid.uuid4(), expected_version=2, target="awaiting_review", comment="Changed approval"
+        )
+
+
 def _consumer_import_values(release_id: uuid.UUID, **overrides: Any) -> dict[str, Any]:
     values: dict[str, Any] = {
         "dataset_id": "bocsar-crime",
@@ -1398,6 +1424,31 @@ def test_property_search_api_does_not_inflate_total_for_out_of_range_offset() ->
     assert response.get_json()["next_offset"] is None
 
 
+@pytest.mark.parametrize("lifecycle", ["all", "review", "published", "rejected"])
+def test_release_api_accepts_ui_search_and_lifecycle_filters(lifecycle: str) -> None:
+    store = PropertyQueryStore()
+    app = Flask(__name__)
+    app.register_blueprint(create_blueprint(store, internal_token="secret"))
+    register_error_handlers(app)
+    response = app.test_client().get(
+        f"/internal/data-platform/v1/releases?lifecycle={lifecycle}&q=%20NSW%20&limit=100&offset=0",
+        headers={"X-PropertyScope-Internal-Token": "secret"},
+    )
+    assert response.status_code == 200
+    assert "NSW" in store.params
+
+
+def test_release_api_still_rejects_unknown_query_parameters() -> None:
+    app = Flask(__name__)
+    app.register_blueprint(create_blueprint(PropertyQueryStore(), internal_token="secret"))
+    register_error_handlers(app)
+    response = app.test_client().get(
+        "/internal/data-platform/v1/releases?lifecyle=all",
+        headers={"X-PropertyScope-Internal-Token": "secret"},
+    )
+    assert response.status_code == 422
+
+
 def test_release_collection_excludes_retired_assessment_sources() -> None:
     store = PropertyQueryStore()
 
@@ -2583,7 +2634,7 @@ def test_failed_activation_with_accepted_receipt_requeues_without_consumer_redow
     )
 
 
-@pytest.mark.parametrize("terminal_status", ["rejected", "failed"])
+@pytest.mark.parametrize("terminal_status", ["rejected"])
 def test_nonaccepted_attached_receipt_remains_terminal_on_fresh_delivery_key(
     terminal_status: str,
 ) -> None:

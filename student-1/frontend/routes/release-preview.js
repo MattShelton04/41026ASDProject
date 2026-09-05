@@ -7,7 +7,7 @@ import { technicalDetails } from "../components/layout.js";
 import { emptyState } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
 
-export function releasePreviewPanel(releaseId, initialPage, { request, isCurrent }) {
+export function releasePreviewPanel(releaseId, initialPage, { request, isCurrent, displayState }) {
   const host = el("section", "panel");
   const heading = el("div", "panel-heading");
   const copy = el("div");
@@ -21,7 +21,7 @@ export function releasePreviewPanel(releaseId, initialPage, { request, isCurrent
     disposeTableRegions(body);
     body.replaceChildren();
     const release = page.release || {};
-    append(body, el("div", "notice", `${humanise(release.status)} version · ${formatNumber(page.total)} previewable ${humanise(page.profile)} records. No other version is included.`));
+    append(body, el("div", "notice", `${humanise(displayState || release.status)} version · ${formatNumber(page.total)} previewable ${humanise(page.profile)} records. No other version is included.`));
     if (!page.items?.length) {
       append(body, emptyState("No preview rows", "This release has no rows in its registered warehouse projection."));
       return;

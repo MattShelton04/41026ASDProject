@@ -9,6 +9,10 @@ from typing import Any
 
 from flask import Blueprint, Flask, Response, jsonify, request
 
+from propertyscope_market_store.import_operations import (
+    ImportConflictError,
+    ImportLeaseConflictError,
+)
 from propertyscope_market_store.repository import VersionConflictError
 from shared_contracts import HealthStatus, ReadinessCheckProjection, project_readiness
 
@@ -250,6 +254,50 @@ def create_blueprint(store: Any, *, internal_token: str) -> Blueprint:
             )
         return jsonify(store.import_sales(records))
 
+    @blueprint.post(f"{_API}/sales-imports")
+    def create_import() -> tuple[Response, int]:
+        body = request.get_json()
+        if not isinstance(body, dict):
+            raise ValueError("publication must be an object")
+        return jsonify({"operation": store.imports.create(body)}), 202
+
+    @blueprint.get(f"{_API}/sales-imports/<uuid:operation_id>")
+    def get_import(operation_id: uuid.UUID) -> Response | tuple[Response, int]:
+        operation = store.imports.get(str(operation_id))
+        if operation is None:
+            return _problem(404, "import_not_found", "Sales import does not exist")
+        return jsonify({"operation": operation})
+
+    @blueprint.post(f"{_API}/sales-imports/claim")
+    def claim_import() -> Response:
+        return jsonify({"operation": store.imports.claim()})
+
+    @blueprint.post(f"{_API}/sales-imports/<uuid:operation_id>/<action>")
+    def advance_import(operation_id: uuid.UUID, action: str) -> Response | tuple[Response, int]:
+        body = request.get_json()
+        if not isinstance(body, dict) or not isinstance(body.get("lease_token"), str):
+            raise ValueError("worker lease token is required")
+        token = body["lease_token"]
+        if action == "heartbeat":
+            store.imports.heartbeat(str(operation_id), token)
+        elif action == "batches":
+            records, start = body.get("records"), body.get("start")
+            if (
+                not isinstance(records, list)
+                or not all(isinstance(r, dict) for r in records)
+                or type(start) is not int
+            ):
+                raise ValueError("records and a starting ordinal are required")
+            store.imports.stage(str(operation_id), token, start, records)
+        elif action == "finish":
+            error = body.get("error")
+            if error is not None and not isinstance(error, dict):
+                raise ValueError("error must be an object or null")
+            store.imports.finish(str(operation_id), token, error=error)
+        else:
+            return _problem(404, "not_found", "Import action does not exist")
+        return jsonify({"updated": True})
+
     @blueprint.get(f"{_API}/seed-report")
     def seed_report() -> Response:
         return jsonify({"tables": store.table_counts(), "minimum_rows_per_domain_table": 10})
@@ -258,6 +306,16 @@ def create_blueprint(store: Any, *, internal_token: str) -> Blueprint:
 
 
 def register_error_handlers(app: Flask) -> None:
+    app.register_error_handler(
+        ImportLeaseConflictError, lambda error: _problem(409, "lease_conflict", str(error))
+    )
+    app.register_error_handler(
+        ImportConflictError, lambda error: _problem(422, "import_conflict", str(error))
+    )
+    app.register_error_handler(
+        ValueError, lambda error: _problem(422, "invalid_import", str(error))
+    )
+
     @app.errorhandler(404)
     def not_found(_error: Any) -> tuple[Response, int]:
         return _problem(404, "not_found", "The requested resource was not found")

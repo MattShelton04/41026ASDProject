@@ -13,9 +13,11 @@ from propertyscope_market_intelligence.api import (
     register_health,
 )
 from propertyscope_market_intelligence.clients import AiModeClient, Feature1Client, StoreClient
+from propertyscope_market_intelligence.import_worker import SalesImportWorker
 
 
 def create_app(*, store: Any = None, feature1: Any = None, ai_mode: Any = None) -> Flask:
+    start_worker = store is None
     if store is None:
         store = StoreClient(
             os.environ.get("PROPERTYSCOPE_DATABASE_API_URL", "http://f2-db-api:5302"),
@@ -32,4 +34,8 @@ def create_app(*, store: Any = None, feature1: Any = None, ai_mode: Any = None) 
     register_health(app, store)
     app.register_blueprint(create_blueprint(store, feature1, ai_mode))
     register_error_handlers(app)
+    if start_worker:
+        worker = SalesImportWorker(store, feature1)
+        app.extensions["sales_import_worker"] = worker
+        worker.start()
     return app

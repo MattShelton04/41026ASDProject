@@ -334,169 +334,6 @@ def test_backend_protects_runner_and_publication() -> None:
     assert response.content_type == "application/problem+json"
 
 
-def test_publication_queues_durable_consumer_import_without_calling_consumer() -> None:
-    release_id = "60000000-0000-0000-0000-000000000011"
-    digest = "a" * 64
-    events: list[str] = []
-    release = {
-        "id": release_id,
-        "dataset_id": "bocsar-crime",
-        "target_feature": "feature-3",
-        "schema_version": "crime-series.v1",
-        "content_sha256": digest,
-        "record_count": 3,
-        "manifest_json": {"target_feature": "feature-3"},
-        "status": "awaiting_review",
-        "version": 2,
-    }
-
-    def database(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET":
-            return httpx.Response(
-                200, json={"release": release, "receipts": [], "consumer_imports": []}
-            )
-        assert request.url.path.endswith("/consumer-imports")
-        events.append("queue")
-        body = cast(dict[str, Any], json.loads(request.content))
-        assert body["dataset_id"] == release["dataset_id"]
-        assert body["content_sha256"] == digest
-        return httpx.Response(
-            202,
-            json={
-                "operation": {
-                    "id": "70000000-0000-0000-0000-000000000001",
-                    "dataset_release_id": release_id,
-                    "status": "queued",
-                    "phase_key": "connect",
-                    "attempt_number": 1,
-                    "requested_at": "2026-08-26T10:00:00Z",
-                    "version": 1,
-                    "lease_token": "must-not-leak",
-                },
-                "created": True,
-            },
-        )
-
-    def consumer(_: httpx.Request) -> httpx.Response:
-        raise AssertionError("browser publication must not call the consumer")
-
-    transport = httpx.MockTransport(database)
-    app = create_backend_app(
-        store_client=DataStoreClient(
-            "http://database", "secret", client=httpx.Client(transport=transport)
-        ),
-        ai_mode_client=AiModeClient(
-            "http://ai",
-            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
-        ),
-        consumer_client=ConsumerImportClient(
-            {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},
-            client=httpx.Client(transport=httpx.MockTransport(consumer)),
-        ),
-    )
-    response = app.test_client().post(
-        f"/api/data-platform/v1/dataset-releases/{release_id}/publish",
-        headers={"Idempotency-Key": "publish-release-11"},
-        json={"version": 2, "comment": "Reviewed", "approved": True},
-    )
-    assert response.status_code == 202
-    assert events == ["queue"]
-    assert response.get_json()["release"]["status"] == "awaiting_review"
-    assert response.get_json()["consumer_import"]["status"] == "queued"
-    assert response.get_json()["consumer_import"]["budgets"]["connect_timeout_seconds"] == 5
-    assert "lease_token" not in response.get_json()["consumer_import"]
-
-
-def test_publication_retry_replays_durable_delivery_without_calling_consumer() -> None:
-    release_id = "60000000-0000-0000-0000-000000000013"
-    digest = "c" * 64
-    release = {
-        "id": release_id,
-        "dataset_id": "bocsar-crime",
-        "target_feature": "feature-3",
-        "schema_version": "propertyscope.crime-series.v1",
-        "content_sha256": digest,
-        "record_count": 2,
-        "manifest_json": {},
-        "status": "awaiting_review",
-        "version": 2,
-    }
-    operation: dict[str, Any] | None = None
-    consumer_calls = 0
-
-    def database(request: httpx.Request) -> httpx.Response:
-        nonlocal operation
-        if request.method == "GET":
-            return httpx.Response(
-                200,
-                json={
-                    "release": release,
-                    "receipts": [],
-                    "consumer_imports": [operation] if operation else [],
-                },
-            )
-        created = operation is None
-        operation = {
-            "id": "72000000-0000-0000-0000-000000000013",
-            "dataset_release_id": release_id,
-            "idempotency_key": "publish-recovery",
-            "status": "queued",
-            "phase_key": "connect",
-            "attempt_number": 1,
-            "version": 1,
-        }
-        return httpx.Response(
-            202 if created else 200,
-            json={"operation": operation, "created": created},
-        )
-
-    def consumer(_: httpx.Request) -> httpx.Response:
-        nonlocal consumer_calls
-        consumer_calls += 1
-        return httpx.Response(
-            200,
-            json={
-                "consumer_operation_id": "publish-recovery",
-                "status": "accepted",
-                "schema_version": "propertyscope.crime-series.v1",
-                "content_sha256": digest,
-                "rows_received": 2,
-                "rows_accepted": 2,
-                "rows_rejected": 0,
-                "error": None,
-            },
-        )
-
-    app = create_backend_app(
-        store_client=DataStoreClient(
-            "http://database",
-            "secret",
-            client=httpx.Client(transport=httpx.MockTransport(database)),
-        ),
-        ai_mode_client=AiModeClient(
-            "http://ai",
-            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
-        ),
-        consumer_client=ConsumerImportClient(
-            {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},
-            client=httpx.Client(transport=httpx.MockTransport(consumer)),
-        ),
-    )
-    client = app.test_client()
-    kwargs = {
-        "headers": {"Idempotency-Key": "publish-recovery"},
-        "json": {"version": 2, "comment": "Reviewed", "approved": True},
-    }
-
-    first = client.post(f"/api/data-platform/v1/dataset-releases/{release_id}/publish", **kwargs)
-    second = client.post(f"/api/data-platform/v1/dataset-releases/{release_id}/publish", **kwargs)
-
-    assert first.status_code == 202
-    assert second.status_code == 202
-    assert second.get_json()["replayed"] is True
-    assert consumer_calls == 0
-
-
 @pytest.mark.parametrize(
     ("activation_status", "database_status", "expected_http"),
     [("succeeded", 200, 200), ("failed", 409, 409)],
@@ -581,68 +418,6 @@ def test_publication_replay_preserves_terminal_activation_outcome(
         assert response.get_json()["activation"]["status"] == "succeeded"
 
 
-def test_browser_publish_does_not_wait_for_consumer_rejection() -> None:
-    release_id = "60000000-0000-0000-0000-000000000012"
-    digest = "b" * 64
-    release = {
-        "id": release_id,
-        "dataset_id": "bocsar-crime",
-        "target_feature": "feature-3",
-        "schema_version": "crime-series.v1",
-        "content_sha256": digest,
-        "record_count": 3,
-        "manifest_json": {},
-        "status": "awaiting_review",
-        "version": 1,
-    }
-
-    def database(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET":
-            return httpx.Response(
-                200, json={"release": release, "receipts": [], "consumer_imports": []}
-            )
-        return httpx.Response(
-            202,
-            json={
-                "operation": {
-                    "id": "72000000-0000-0000-0000-000000000012",
-                    "dataset_release_id": release_id,
-                    "status": "queued",
-                    "phase_key": "connect",
-                    "attempt_number": 1,
-                    "version": 1,
-                },
-                "created": True,
-            },
-        )
-
-    consumer = httpx.MockTransport(
-        lambda _: httpx.Response(422, json={"code": "consumer_rejected"})
-    )
-    app = create_backend_app(
-        store_client=DataStoreClient(
-            "http://database",
-            "secret",
-            client=httpx.Client(transport=httpx.MockTransport(database)),
-        ),
-        ai_mode_client=AiModeClient(
-            "http://ai",
-            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
-        ),
-        consumer_client=ConsumerImportClient(
-            {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},
-            client=httpx.Client(transport=consumer),
-        ),
-    )
-    response = app.test_client().post(
-        f"/api/data-platform/v1/dataset-releases/{release_id}/publish",
-        headers={"Idempotency-Key": "publish-release-12"},
-        json={"version": 1, "comment": "Reviewed", "approved": True},
-    )
-    assert response.status_code == 202
-    assert response.get_json()["publication_status"] == "pending"
-
-
 @pytest.mark.parametrize("status_code", [200, 422])
 def test_typed_consumer_rejection_preserves_receipt_evidence(status_code: int) -> None:
     publication = ConsumerPublicationRequest(
@@ -689,8 +464,10 @@ def test_typed_consumer_rejection_preserves_receipt_evidence(status_code: int) -
     assert receipt.error.code == "unsupported_period"
 
 
-def test_source_scale_local_publication_queues_without_rereading_artifact(
+@pytest.mark.parametrize("target_feature", ["feature-1", "feature-2", "feature-3"])
+def test_source_scale_publication_ignores_downstream_failure_and_replays_activation(
     tmp_path: Path,
+    target_feature: str,
 ) -> None:
     release_id = "60000000-0000-0000-0000-000000000014"
     digest = "a" * 64
@@ -700,7 +477,7 @@ def test_source_scale_local_publication_queues_without_rereading_artifact(
         "release_id": release_id,
         "release_version": "fixture-local-failure-v1",
         "dataset_id": "fixture-property",
-        "target_feature": "feature-1",
+        "target_feature": target_feature,
         "builder_key": "property-snapshot",
         "builder_version": "3.0.0",
         "import_profile": "property-fixture",
@@ -732,7 +509,7 @@ def test_source_scale_local_publication_queues_without_rereading_artifact(
     release = {
         "id": release_id,
         "dataset_id": "fixture-property",
-        "target_feature": "feature-1",
+        "target_feature": target_feature,
         "schema_version": "propertyscope.property-snapshot.v2",
         "content_sha256": digest,
         "record_count": 5_190_134,
@@ -741,6 +518,19 @@ def test_source_scale_local_publication_queues_without_rereading_artifact(
         "version": 1,
     }
     receipts: list[dict[str, Any]] = []
+    downstream_failure = {
+        "id": "failed-delivery",
+        "idempotency_key": "old-attempt",
+        "status": "failed",
+        "dataset_release_id": release_id,
+        "dataset_id": release["dataset_id"],
+        "target_feature": target_feature,
+        "schema_version": release["schema_version"],
+        "content_sha256": digest,
+        "record_count": release["record_count"],
+        "error_json": {"code": "consumer_request_rejected", "message": "5000 record limit"},
+    }
+    activation_requests = []
 
     def database(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path.endswith("/artifact"):
@@ -756,8 +546,16 @@ def test_source_scale_local_publication_queues_without_rereading_artifact(
                 },
             )
         if request.method == "GET":
-            return httpx.Response(200, json={"release": release, "receipts": receipts})
+            return httpx.Response(
+                200,
+                json={
+                    "release": release,
+                    "receipts": receipts,
+                    "consumer_imports": [downstream_failure],
+                },
+            )
         if request.url.path.endswith("/activations"):
+            activation_requests.append(json.loads(request.content))
             return httpx.Response(
                 202,
                 json={
@@ -766,11 +564,12 @@ def test_source_scale_local_publication_queues_without_rereading_artifact(
                         "status": "queued",
                         "attempt_number": 1,
                     },
-                    "created": True,
+                    "created": len(activation_requests) == 1,
                 },
             )
         assert request.url.path.endswith("/receipts")
         body = cast(dict[str, Any], json.loads(request.content))
+        assert body["target_feature"] == "feature-1"
         assert body["status"] == "accepted"
         assert body["rows_received"] == body["rows_accepted"] == 5_190_134
         receipt = {"id": "receipt-local-binding", **body}
@@ -801,6 +600,16 @@ def test_source_scale_local_publication_queues_without_rereading_artifact(
     assert len(receipts) == 1
     assert receipts[0]["consumer_operation_id"] != "publish-source-scale"
     assert receipts[0]["consumer_operation_id"].startswith("feature-1-local:")
+
+    replay = app.test_client().post(
+        f"/api/data-platform/v1/dataset-releases/{release_id}/publish",
+        headers={"Idempotency-Key": "publish-source-scale"},
+        json={"version": 1, "comment": "Reviewed", "approved": True},
+    )
+    assert replay.status_code == 202
+    assert replay.get_json()["replayed"] is True
+    assert activation_requests[0] == activation_requests[1]
+    assert len(receipts) == 1
 
 
 @pytest.mark.parametrize(
@@ -1925,3 +1734,61 @@ def test_every_catalog_tool_binds_to_a_real_backend_route() -> None:
     for binding in catalog["tools"]:
         assert binding["path"] in rules
         assert binding["method"] in rules[binding["path"]]
+
+
+@pytest.mark.parametrize(
+    ("release_status", "version", "key", "expected"),
+    [
+        ("accepted", 5, "delivery-key", 202),
+        ("awaiting_review", 5, "delivery-key", 409),
+        ("accepted", 4, "delivery-key", 409),
+        ("accepted", 5, "", 422),
+    ],
+)
+def test_downstream_retry_requires_current_published_release(
+    release_status: str,
+    version: int,
+    key: str,
+    expected: int,
+) -> None:
+    release_id = "60000000-0000-0000-0000-000000000011"
+    writes = []
+    release = {
+        "id": release_id,
+        "status": release_status,
+        "version": 5,
+        "dataset_id": "nsw-psi-sales",
+        "target_feature": "feature-2",
+        "schema_version": "propertyscope.property-sales.v3",
+        "content_sha256": "a" * 64,
+        "record_count": 7_402_643,
+    }
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json={"release": release})
+        assert request.url.path.endswith("/consumer-imports")
+        writes.append(json.loads(request.content))
+        return httpx.Response(202, json={"operation": {"status": "queued", "delivery_only": True}})
+
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database",
+            "secret",
+            client=httpx.Client(transport=httpx.MockTransport(database)),
+        ),
+        ai_mode_client=AiModeClient("http://ai"),
+    )
+    response = app.test_client().post(
+        f"/api/data-platform/v1/dataset-releases/{release_id}/retry-delivery",
+        headers={"Idempotency-Key": key},
+        json={"version": version},
+    )
+    assert response.status_code == expected
+    assert release["status"] == release_status and release["version"] == 5
+    if expected == 202:
+        assert response.get_json()["delivery_status"] == "queued"
+        assert writes[0]["record_count"] == 7_402_643
+        assert writes[0]["expected_release_version"] == 5
+    else:
+        assert not writes

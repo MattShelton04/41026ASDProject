@@ -4,6 +4,7 @@ import hashlib
 import uuid
 from contextlib import nullcontext
 from pathlib import Path
+from threading import Event, Thread
 from typing import Any, cast
 
 import pytest
@@ -35,6 +36,34 @@ class _RecordingConnection:
 
     def execute(self, query: str) -> None:
         self.queries.append(query)
+
+
+def test_lightweight_activation_finishes_while_bulk_loader_is_blocked(tmp_path: Path) -> None:
+    bulk_started, activated = Event(), Event()
+
+    class Store:
+        def claim_release_activation(self, **values: Any) -> dict[str, Any] | None:
+            assert values["lightweight_only"] is True
+            assert bulk_started.wait(5)
+            return {"id": "lightweight"}
+
+    class Loader(DatabaseLoader):
+        def run_once(self) -> bool:
+            bulk_started.set()
+            assert activated.wait(5), "bulk work must not block lightweight publication"
+            self.stop()
+            return True
+
+        def _activate(self, operation: dict[str, Any]) -> None:
+            assert operation["id"] == "lightweight"
+            activated.set()
+            self.stop_event.wait(5)
+
+    loader = Loader(cast(Any, Store()), tmp_path, worker_id="loader-test")
+    worker = Thread(target=loader.run_forever)
+    worker.start()
+    worker.join(timeout=10)
+    assert activated.is_set() and not worker.is_alive()
 
 
 def test_typed_rows_report_consumed_progress_and_keep_cancellation_responsive(

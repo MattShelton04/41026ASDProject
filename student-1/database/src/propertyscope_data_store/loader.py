@@ -111,6 +111,35 @@ class DatabaseLoader:
         self.stop_event = Event()
 
     def run_forever(self) -> None:
+        activation_worker = Thread(
+            target=self._run_lightweight_activations,
+            name="lightweight-publication",
+            daemon=True,
+        )
+        activation_worker.start()
+        try:
+            self._run_bulk_forever()
+        finally:
+            self.stop_event.set()
+            activation_worker.join(timeout=5)
+
+    def _run_lightweight_activations(self) -> None:
+        """Finish receipt-backed pointer changes while bulk work occupies the serial lane."""
+        while not self.stop_event.is_set():
+            try:
+                operation = self.store.claim_release_activation(
+                    worker_id=self.worker_id,
+                    lease_seconds=ACTIVATION_LEASE_SECONDS,
+                    lightweight_only=True,
+                )
+                if operation is not None:
+                    self._activate(operation)
+                    continue
+            except Exception:
+                logger.exception("Lightweight activation claim failed; polling will resume")
+            self.stop_event.wait(1.0)
+
+    def _run_bulk_forever(self) -> None:
         while not self.stop_event.is_set():
             try:
                 worked = self.run_once()

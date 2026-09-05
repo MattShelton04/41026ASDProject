@@ -1236,6 +1236,137 @@ def test_operations_overview_job_and_release_states_are_truthful(
         assert box["height"] >= 44
 
 
+def test_published_release_can_retry_downstream_without_republishing(
+    page: Page, fixture_origin: str
+) -> None:
+    retried = False
+
+    def detail(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        payload["release"]["status"] = "accepted"
+        payload["publication_policy"] = "producer-owned"
+        payload["activations"] = []
+        payload["consumer_imports"] = [
+            {
+                "status": "queued" if retried else "failed",
+                "phase_key": "connect" if retried else "complete",
+                "error_json": None
+                if retried
+                else {"message": "Consumer declined publication: record_count exceeds 5000"},
+            }
+        ]
+        route.fulfill(response=response, json=payload)
+
+    def retry(route: Route) -> None:
+        nonlocal retried
+        assert route.request.method == "POST"
+        assert route.request.headers.get("idempotency-key")
+        command = route.request.post_data_json
+        assert isinstance(command, dict)
+        assert command["version"] >= 1
+        retried = True
+        route.fulfill(status=202, json={"delivery_status": "queued"})
+
+    page.route(f"**/api/data-platform/v1/dataset-releases/{REVIEW_ID}", detail)
+    page.route(f"**/api/data-platform/v1/dataset-releases/{REVIEW_ID}/retry-delivery", retry)
+    _open(page, fixture_origin, f"releases/{REVIEW_ID}")
+    expect(page.get_by_role("heading", name="Published dataset", exact=True)).to_be_visible()
+    expect(
+        page.get_by_text(
+            "Published in the data platform. Downstream import needs attention:", exact=False
+        )
+    ).to_be_visible()
+    expect(page.get_by_role("button", name="Publish", exact=True)).to_have_count(0)
+    expect(page.get_by_text("Awaiting review", exact=True)).to_have_count(0)
+    page.get_by_role("button", name="Retry downstream import", exact=True).click()
+    expect(page.get_by_text("Downstream import continues", exact=False)).to_be_visible()
+    expect(page.get_by_role("heading", name="Published dataset", exact=True)).to_be_visible()
+    assert retried
+
+
+def test_release_list_refresh_preserves_unsubmitted_filters(
+    page: Page, fixture_origin: str
+) -> None:
+    published = False
+
+    def releases(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        release = next(item for item in payload["items"] if item["id"] == CANDIDATE_ID)
+        release["status"] = "accepted" if published else "awaiting_review"
+        release["publication_status"] = "completed" if published else "pending"
+        route.fulfill(response=response, json=payload)
+
+    page.route("**/api/data-platform/v1/dataset-releases?*", releases)
+    _open(page, fixture_origin, "releases")
+    row = page.get_by_role("row").filter(has=page.locator(f'a[href="#releases/{CANDIDATE_ID}"]'))
+    expect(row).to_contain_text("Publishing")
+    search = page.get_by_role("searchbox", name="Search (optional)", exact=True)
+    search.fill("Unsubmitted search")
+    published = True
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    expect(row).to_contain_text("Published")
+    expect(search).to_have_value("Unsubmitted search")
+    expect(search).to_be_focused()
+
+
+def test_release_state_refreshes_without_waiting_for_record_preview(
+    page: Page, fixture_origin: str
+) -> None:
+    state = {"published": False}
+    previews: list[Route] = []
+
+    def detail(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        payload["release"]["status"] = "accepted" if state["published"] else "awaiting_review"
+        payload["activations"] = [{"status": "succeeded" if state["published"] else "running"}]
+        payload["consumer_imports"] = []
+        route.fulfill(response=response, json=payload)
+
+    page.route(f"**/api/data-platform/v1/dataset-releases/{REVIEW_ID}", detail)
+    page.route(
+        f"**/api/data-platform/v1/dataset-releases/{REVIEW_ID}/records?*",
+        lambda route: previews.append(route),
+    )
+    _open(page, fixture_origin, f"releases/{REVIEW_ID}")
+    expect(page.get_by_role("heading", name="Publishing version", exact=True)).to_be_visible()
+    expect(page.get_by_text("Awaiting review", exact=True)).to_have_count(0)
+    expect(page.get_by_role("button", name="Publish", exact=True)).to_have_count(0)
+    expect(page.get_by_text("Loading record preview…", exact=True)).to_be_visible()
+
+    state["published"] = True
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    expect(page.get_by_role("heading", name="Published dataset", exact=True)).to_be_visible()
+    expect(page.get_by_text("Awaiting review", exact=True)).to_have_count(0)
+    assert len(previews) == 1
+    previews[0].abort()
+
+
+def test_stale_submit_review_action_refreshes_before_opening_a_dialog(
+    page: Page, fixture_origin: str
+) -> None:
+    reads = 0
+
+    def detail(route: Route) -> None:
+        nonlocal reads
+        reads += 1
+        response = route.fetch()
+        payload = response.json()
+        payload["release"]["status"] = "candidate" if reads == 1 else "awaiting_review"
+        payload["activations"] = []
+        payload["consumer_imports"] = []
+        route.fulfill(response=response, json=payload)
+
+    page.route(f"**/api/data-platform/v1/dataset-releases/{CANDIDATE_ID}", detail)
+    _open(page, fixture_origin, f"releases/{CANDIDATE_ID}")
+    page.get_by_role("button", name="Submit for review", exact=True).click()
+    expect(page.get_by_role("button", name="Publish", exact=True)).to_be_visible()
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    expect(page.get_by_role("button", name="Submit for review", exact=True)).to_have_count(0)
+
+
 def test_run_poll_keeps_cached_supporting_evidence_disclosure_focus_and_scroll(
     page: Page, fixture_origin: str
 ) -> None:

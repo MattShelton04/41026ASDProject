@@ -67,6 +67,7 @@ def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Respons
         ),
     }
     payload = {
+        "publication_policy": "producer-owned",
         "release": release,
         "quality_results": quality_results,
         "quality_summary": quality_summary,
@@ -135,6 +136,9 @@ def public_activation(operation: Mapping[str, Any]) -> dict[str, Any]:
             "requested_at",
             "started_at",
             "materialized_at",
+            "progress_phase_key",
+            "progress_phase",
+            "progress_updated_at",
             "finished_at",
             "error_json",
             "version",
@@ -156,6 +160,7 @@ def public_consumer_import(operation: Mapping[str, Any]) -> dict[str, Any]:
             "record_count",
             "status",
             "phase_key",
+            "delivery_only",
             "remote_status",
             "consumer_operation_id",
             "publication_receipt_id",
@@ -173,4 +178,8 @@ def public_consumer_import(operation: Mapping[str, Any]) -> dict[str, Any]:
         "status_timeout_seconds": CONSUMER_STATUS_TIMEOUT_SECONDS,
         "maximum_response_bytes": CONSUMER_RESPONSE_MAX_BYTES,
     }
+    if projected["error_json"] is None and operation.get("status") in {"failed", "rejected"}:
+        result = operation.get("result_json")
+        if isinstance(result, Mapping):
+            projected["error_json"] = result.get("error")
     return projected

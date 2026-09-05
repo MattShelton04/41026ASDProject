@@ -11,6 +11,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from propertyscope_market_store.import_operations import SalesImportOperations
 from propertyscope_market_store.migrations import migrate
 
 
@@ -34,6 +35,7 @@ class MarketStore:
     def __init__(self, database_path: Path) -> None:
         self._path = database_path
         self._migration_lock = Lock()
+        self.imports = SalesImportOperations(self._connect)
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._path, timeout=10)
@@ -162,6 +164,16 @@ class MarketStore:
 
     def list_sales(self, property_ref: str, *, limit: int = 5000) -> list[dict[str, Any]]:
         with self._connect() as connection:
+            current = connection.execute(
+                "SELECT release_id FROM sales_current_generation WHERE dataset_id='nsw-psi-sales'"
+            ).fetchone()
+            if current:
+                rows = connection.execute(
+                    "SELECT record_json FROM sale_generation_record WHERE release_id=? "
+                    "AND property_ref=? ORDER BY contract_date DESC,source_business_key LIMIT ?",
+                    (current["release_id"], property_ref, limit),
+                ).fetchall()
+                return [json.loads(row["record_json"]) for row in rows]
             rows = connection.execute(
                 """
                 SELECT * FROM sale_observation

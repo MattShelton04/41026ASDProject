@@ -491,6 +491,23 @@ wheels = [
 ]
 
 [[package]]
+name = "jsonschema-rs"
+version = "0.43.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/20/7e/82d2e215da508f4810cd46feae2c844a2c5b814b445642f5ef38e281357c/jsonschema_rs-0.43.0.tar.gz", hash = "sha256:4654885ddbe28864de898491a5435e15f8eeacccd8531e09b369ba8417a509ac", size = 1955637, upload-time = "2026-02-28T14:18:14.11Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/26/1a/e88125b062126e0eb9990937bdcfab113d608b06122729714f79b1d48981/jsonschema_rs-0.43.0-cp310-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:690150085b0c9df2c003a5e3427db00ef1768e3ff2111f72e51b5280729da3a6", size = 7336162, upload-time = "2026-02-28T14:17:35.304Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/86/b4edd7668aec9336fdec98f8065d40cd0639bb12bcf1d6246c630d538e7a/jsonschema_rs-0.43.0-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:8e60d3c81481a9389e782ea923c8411891e3e739f487067478831566a272d771", size = 3812375, upload-time = "2026-02-28T14:17:37.105Z" },
+    { url = "https://files.pythonhosted.org/packages/37/96/80bfa38887165154c6a1080d6769ab4682e4ca3499e8f5f54a94c94c9141/jsonschema_rs-0.43.0-cp310-abi3-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:06d6d9d1a85d40e8087976d2f212ba2db56884e37c9db8f5be2fada743ee25d0", size = 3557503, upload-time = "2026-02-28T14:17:38.516Z" },
+    { url = "https://files.pythonhosted.org/packages/af/1a/95d22ca3764e6e370b3d247ea683ca65bdd1818a46ba79898e3adff8c643/jsonschema_rs-0.43.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5ed0bd08ce53966cdff1fd7554b774d24a91b7161f0a508dd9b66c568bbf7923", size = 3909306, upload-time = "2026-02-28T14:17:39.932Z" },
+    { url = "https://files.pythonhosted.org/packages/19/f4/78e47d5d3766c33715ef41433d3b81b7d0e4cc4fe8e17e65cf9f70e110cd/jsonschema_rs-0.43.0-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:f91e25a66928a842e7a796c68c5ea33c911ce4ad306dbba98fbb65f87d09b1c6", size = 3574749, upload-time = "2026-02-28T14:17:41.144Z" },
+    { url = "https://files.pythonhosted.org/packages/38/2d/ff353145357a58f21fc4bf244b4ecbf14506f740f4c3707eb23a1f788fe3/jsonschema_rs-0.43.0-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:6f9fc670da6f9d4b0eeaa633929269e668845d4e213509727054a8bb49d60211", size = 3767166, upload-time = "2026-02-28T14:17:42.671Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/25/a1d21d7e0f4c3b90465c30f97cad83078527951024dda352665a385a7ce6/jsonschema_rs-0.43.0-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:cb9f45df13b0c8c117dc1f00f2fba9c21cd5b4402f45c2e5778096431cbe2f25", size = 4132998, upload-time = "2026-02-28T14:17:43.856Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/1a/1b01e5d390ebe3edae4560a474c07757dac984a6f11f88b6535a6c3182ef/jsonschema_rs-0.43.0-cp310-abi3-win32.whl", hash = "sha256:235d66ae44abadfe504b059681be926271ed5c0cb61e3f7002edc2d226c1cff8", size = 3177450, upload-time = "2026-02-28T14:17:45.355Z" },
+    { url = "https://files.pythonhosted.org/packages/23/95/30e6bb6542fbe9c99bca0d533477e4f2cc7156bd011a2500b276e9d2969a/jsonschema_rs-0.43.0-cp310-abi3-win_amd64.whl", hash = "sha256:3a20fd21ecf2360ec0ad6424dd4a12714b399a52c7a476b2d9c9883054812ac0", size = 3731009, upload-time = "2026-02-28T14:17:46.633Z" },
+]
+
+[[package]]
 name = "jsonschema-specifications"
 version = "2025.9.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1112,6 +1129,7 @@ dependencies = [
     { name = "gunicorn" },
     { name = "httpx" },
     { name = "jsonschema" },
+    { name = "jsonschema-rs" },
     { name = "shared-consumer-protocol" },
     { name = "shared-contracts" },
 ]
@@ -1121,6 +1139,7 @@ requires-dist = [
     { name = "gunicorn", specifier = ">=23,<24" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jsonschema", specifier = ">=4.26.0" },
+    { name = "jsonschema-rs", specifier = ">=0.43,<0.44" },
     { name = "shared-consumer-protocol", editable = "shared/consumer-protocol" },
     { name = "shared-contracts", editable = "shared/contracts" },
 ]

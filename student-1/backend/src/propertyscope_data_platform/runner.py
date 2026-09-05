@@ -13,7 +13,7 @@ from contextlib import AbstractContextManager, closing, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from threading import Event
+from threading import Event, Thread
 from typing import Any
 
 import httpx
@@ -151,16 +151,38 @@ class AcquisitionRunner:
         self.stop_event = Event()
 
     def run_forever(self) -> None:
+        publication_worker = Thread(
+            target=self._run_publications_forever, name="publication-delivery", daemon=True
+        )
+        publication_worker.start()
+        try:
+            self._run_acquisition_forever()
+        finally:
+            self.stop_event.set()
+            publication_worker.join(timeout=15)
+
+    def _run_publications_forever(self) -> None:
+        """Keep short delivery phases moving during source-scale acquisition and exports."""
         while not self.stop_event.is_set():
             try:
-                worked = self.run_once()
+                worked = self._run_consumer_import_once()
+            except httpx.HTTPError:
+                logger.exception("Publication control-plane request failed; polling will resume")
+                worked = False
+            if not worked:
+                self.stop_event.wait(self.settings.poll_seconds)
+
+    def _run_acquisition_forever(self) -> None:
+        while not self.stop_event.is_set():
+            try:
+                worked = self.run_once(include_publications=False)
             except httpx.HTTPError:
                 logger.exception("Runner control-plane request failed; polling will resume")
                 worked = False
             if not worked:
                 self.stop_event.wait(self.settings.poll_seconds)
 
-    def run_once(self) -> bool:
+    def run_once(self, *, include_publications: bool = True) -> bool:
         response = self.client.post(
             f"{self.settings.backend_url}/internal/data-platform/v1/worker/tasks/claim",
             headers=self._headers(),
@@ -172,7 +194,7 @@ class AcquisitionRunner:
         response.raise_for_status()
         task: dict[str, Any] | None = response.json().get("task")
         if task is None:
-            return self._run_consumer_import_once()
+            return self._run_consumer_import_once() if include_publications else False
         task_id = str(task["id"])
         lease_token = str(task["lease_token"])
         try:

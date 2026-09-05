@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
+from threading import Event
 from typing import Any, cast
 
 import httpx
+import pytest
 from flask import Flask
 
 from propertyscope_data_platform.app import create_app
@@ -16,12 +18,28 @@ from propertyscope_data_platform.clients import (
     DataStoreClient,
 )
 from propertyscope_data_platform.domain import ConsumerPublicationRequest
+from propertyscope_data_platform.release_projection import public_activation
 from propertyscope_data_platform.release_publication import process_consumer_import, publish_release
 from propertyscope_data_platform.runner import AcquisitionRunner, RunnerSettings
 
 RELEASE_ID = "60000000-0000-0000-0000-000000000099"
 OPERATION_ID = "72000000-0000-0000-0000-000000000099"
 DIGEST = "a" * 64
+
+
+def test_public_activation_reports_preparation_phase_without_worker_credentials() -> None:
+    projected = public_activation(
+        {
+            "status": "running",
+            "progress_phase_key": "materialisation",
+            "progress_phase": "Materialising reviewed release",
+            "progress_updated_at": "now",
+            "lease_token": "private-token",
+        }
+    )
+    assert projected["progress_phase"] == "Materialising reviewed release"
+    assert projected["progress_updated_at"] == "now"
+    assert "lease_token" not in projected
 
 
 class _OversizedChunkedBody(httpx.SyncByteStream):
@@ -85,7 +103,18 @@ def _async_ack(status: str = "queued") -> dict[str, Any]:
     }
 
 
-def test_tool_publication_uses_closed_catalog_for_async_queue_and_replay_failure() -> None:
+@pytest.mark.parametrize(
+    ("activation_status", "http_status", "catalog_status"),
+    [
+        ("queued", 202, "pending"),
+        ("failed", 424, "failed"),
+    ],
+)
+def test_tool_publication_uses_producer_activation_catalog(
+    activation_status: str,
+    http_status: int,
+    catalog_status: str,
+) -> None:
     release = {
         "id": RELEASE_ID,
         "dataset_id": "bocsar-crime",
@@ -93,71 +122,50 @@ def test_tool_publication_uses_closed_catalog_for_async_queue_and_replay_failure
         "schema_version": "crime-series.v1",
         "content_sha256": DIGEST,
         "record_count": 3,
-        "manifest_json": {"target_feature": "feature-3"},
         "status": "awaiting_review",
         "version": 2,
     }
-    operation = _operation("connect", status="queued", publication_receipt_id=None)
-
-    def queued_database(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET":
-            return httpx.Response(
-                200,
-                json={"release": release, "receipts": [], "consumer_imports": []},
-            )
-        return httpx.Response(202, json={"operation": operation, "created": True})
-
-    app = Flask("tool-publication-catalog-test")
-    with app.test_request_context(headers={"X-Request-ID": "tool-request"}):
-        queued = publish_release(
-            DataStoreClient(
-                "http://database",
-                "secret",
-                client=httpx.Client(transport=httpx.MockTransport(queued_database)),
-            ),
-            ConsumerImportClient({}),
-            uuid.UUID(RELEASE_ID),
-            {"comment": "Approved tool publication"},
-            "tool-delivery-key",
-            tool_output=True,
-        )
-
-    assert queued.status_code == 202
-    assert queued.get_json() == {"status": "pending", "receipt_id": None, "replayed": False}
-
-    failed = {
-        **operation,
-        "status": "failed",
-        "phase_key": "complete",
-        "publication_receipt_id": "71000000-0000-0000-0000-000000000099",
+    receipt = {
+        "id": "producer-receipt",
+        "consumer_operation_id": "feature-1-local:verified",
+        "status": "accepted",
+        "schema_version": "crime-series.v1",
+        "content_sha256": DIGEST,
+        "rows_received": 3,
+        "rows_accepted": 3,
+        "rows_rejected": 0,
     }
 
-    def failed_database(request: httpx.Request) -> httpx.Response:
+    def database(request: httpx.Request) -> httpx.Response:
         if request.method == "GET":
-            return httpx.Response(
-                200,
-                json={"release": release, "receipts": [], "consumer_imports": [failed]},
-            )
-        return httpx.Response(200, json={"operation": failed, "created": False})
+            return httpx.Response(200, json={"release": release, "receipts": [receipt]})
+        assert request.url.path.endswith("/activations")
+        return httpx.Response(
+            200,
+            json={
+                "activation": {"id": OPERATION_ID, "status": activation_status},
+                "created": False,
+            },
+        )
 
-    with app.test_request_context(headers={"X-Request-ID": "tool-replay"}):
-        replay = publish_release(
+    app = Flask("tool-publication-catalog-test")
+    with app.test_request_context():
+        response = publish_release(
             DataStoreClient(
                 "http://database",
                 "secret",
-                client=httpx.Client(transport=httpx.MockTransport(failed_database)),
+                client=httpx.Client(transport=httpx.MockTransport(database)),
             ),
             ConsumerImportClient({}),
             uuid.UUID(RELEASE_ID),
-            {"comment": "Approved tool publication"},
-            "fresh-tool-key",
+            {"comment": "Reviewed"},
+            "tool-key",
             tool_output=True,
         )
-
-    assert replay.status_code == 424
-    assert replay.get_json() == {
-        "status": "failed",
-        "receipt_id": "71000000-0000-0000-0000-000000000099",
+    assert response.status_code == http_status
+    assert response.get_json() == {
+        "status": catalog_status,
+        "receipt_id": "producer-receipt",
         "replayed": True,
     }
 
@@ -352,6 +360,46 @@ def test_connect_and_poll_bound_chunked_responses_before_json_parsing() -> None:
     assert connect.error is not None and connect.error.code == "consumer_response_too_large"
     assert poll.consumer_operation_id is None
     assert poll.error is not None and poll.error.code == "consumer_response_too_large"
+
+
+@pytest.mark.parametrize("status", [408, 429, 500, 502, 503, 504])
+@pytest.mark.parametrize("body", [b"upstream unavailable", b'{"error":"unavailable"}'])
+def test_consumer_control_outage_is_retryable(status: int, body: bytes) -> None:
+    client = ConsumerImportClient(
+        {"feature-3": ConsumerEndpoint("http://feature-3", "/api/imports")},
+        client=httpx.Client(
+            transport=httpx.MockTransport(lambda _: httpx.Response(status, content=body))
+        ),
+    )
+    for outcome in (
+        client.connect("feature-3", _publication(), {}),
+        client.poll("feature-3", "consumer-owned-42", _publication(), {}),
+    ):
+        assert outcome.receipt is None
+        assert outcome.error is not None and outcome.error.retryable
+
+
+def test_consumer_problem_reports_capacity_rejection_without_fabricating_a_receipt() -> None:
+    client = ConsumerImportClient(
+        {"feature-2": ConsumerEndpoint("http://feature-2", "/api/imports")},
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(
+                    422,
+                    headers={"Content-Type": "application/problem+json"},
+                    json={
+                        "code": "invalid_sales_publication",
+                        "detail": "record_count: Input should be less than or equal to 5000",
+                    },
+                )
+            )
+        ),
+    )
+    outcome = client.connect("feature-2", _publication(), {})
+    assert outcome.consumer_operation_id is None and outcome.receipt is None
+    assert outcome.error is not None and not outcome.error.retryable
+    assert outcome.error.code == "consumer_request_rejected"
+    assert "less than or equal to 5000" in outcome.error.message
 
 
 def test_connect_rejects_negative_content_length_before_body_read() -> None:
@@ -699,3 +747,110 @@ def test_runner_advances_one_delivery_phase_when_no_ingestion_task(tmp_path: Pat
         "/internal/data-platform/v1/worker/consumer-imports/claim",
         f"/internal/data-platform/v1/worker/consumer-imports/{OPERATION_ID}/step",
     ]
+
+
+def test_publication_advances_while_acquisition_is_blocked(tmp_path: Path) -> None:
+    acquiring, delivered = Event(), Event()
+
+    def backend(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/worker/tasks/claim"):
+            return httpx.Response(200, json={"task": {"id": "task", "lease_token": "lease"}})
+        if request.url.path.endswith("/worker/consumer-imports/claim"):
+            assert acquiring.wait(2)
+            return httpx.Response(
+                200, json={"operation": {"id": OPERATION_ID, "lease_token": "lease"}}
+            )
+        if request.url.path.endswith("/step"):
+            delivered.set()
+        return httpx.Response(200, json={})
+
+    runner = AcquisitionRunner(
+        RunnerSettings(
+            backend_url="http://backend",
+            token="token",
+            artifact_root=tmp_path,
+            worker_id="runner",
+            poll_seconds=0.01,
+            lease_seconds=30,
+        ),
+        client=httpx.Client(transport=httpx.MockTransport(backend)),
+    )
+
+    def acquire(task: dict[str, Any]) -> tuple[int, int]:
+        acquiring.set()
+        progressed = delivered.wait(2)
+        runner.stop()
+        assert progressed, "publication starved behind ingestion"
+        return 1, 1
+
+    runner._execute = acquire  # type: ignore[method-assign]
+    runner.run_forever()
+    assert delivered.is_set()
+
+
+def test_failed_delivery_projects_retained_receipt_error() -> None:
+    from propertyscope_data_platform.release_projection import public_consumer_import
+
+    error = {
+        "code": "artifact_transport_failed",
+        "message": "Download interrupted",
+        "retryable": True,
+    }
+    projected = public_consumer_import(
+        _operation("complete", status="failed", result_json={"error": error})
+    )
+    assert projected["error_json"] == error
+    assert "lease_token" not in projected
+
+
+@pytest.mark.parametrize(
+    ("activation_status", "expected_status"), [("queued", 202), ("failed", 424)]
+)
+def test_local_activation_retry_uses_browser_attempt_key(
+    activation_status: str, expected_status: int
+) -> None:
+    release = {
+        "id": RELEASE_ID,
+        "dataset_id": "gnaf-nsw",
+        "target_feature": "feature-1",
+        "schema_version": "property.v2",
+        "content_sha256": DIGEST,
+        "record_count": 5190134,
+        "status": "awaiting_review",
+        "version": 2,
+    }
+    receipt = {
+        "id": "receipt",
+        "consumer_operation_id": "stable-local-verification",
+        "status": "accepted",
+        "schema_version": "property.v2",
+        "content_sha256": DIGEST,
+        "rows_received": 5190134,
+        "rows_accepted": 5190134,
+        "rows_rejected": 0,
+    }
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json={"release": release, "receipts": [receipt]})
+        assert request.url.path.endswith("/activations")
+        assert json.loads(request.content)["idempotency_key"] == "new-browser-attempt"
+        return httpx.Response(
+            202, json={"activation": {"id": "activation", "status": activation_status}}
+        )
+
+    store = DataStoreClient(
+        "http://database", "token", client=httpx.Client(transport=httpx.MockTransport(database))
+    )
+    with Flask("local-retry").test_request_context():
+        response = publish_release(
+            store,
+            ConsumerImportClient({}),
+            uuid.UUID(RELEASE_ID),
+            {"version": 2, "comment": "Retry activation"},
+            "new-browser-attempt",
+        )
+    assert response.status_code == expected_status
+    assert response.get_json()["publication_status"] == (
+        "pending" if expected_status == 202 else "failed"
+    )

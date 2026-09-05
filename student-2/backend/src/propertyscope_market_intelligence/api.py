@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import uuid
 from typing import Any
 
@@ -18,9 +17,9 @@ from propertyscope_market_intelligence.domain import (
     MarketCaseCreate,
     MarketCaseUpdate,
     PublicationRequest,
-    decode_sales_artifact,
     summarize_sales,
 )
+from propertyscope_market_intelligence.import_worker import public_import
 from shared_contracts import HealthStatus, ReadinessCheckProjection, project_readiness
 
 _SERVICE = "propertyscope-market-intelligence"
@@ -349,46 +348,23 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
             publication = PublicationRequest.model_validate(_json_body())
         except ValidationError as exc:
             return _validation_problem("invalid_sales_publication", exc)
-        compressed = feature1.artifact(publication.artifact_path)
-        if hashlib.sha256(compressed).hexdigest() != publication.content_sha256:
-            return _problem(
-                422, "artifact_checksum_mismatch", "The sales artifact checksum does not match"
-            )
-        try:
-            records = decode_sales_artifact(publication, compressed)
-        except ValueError as exc:
-            return jsonify(
-                {
-                    "consumer_operation_id": publication.idempotency_key,
-                    "status": "rejected",
-                    "schema_version": publication.schema_version,
-                    "content_sha256": publication.content_sha256,
-                    "rows_received": 0,
-                    "rows_accepted": 0,
-                    "rows_rejected": 0,
-                    "error": {
-                        "code": "invalid_sales_artifact",
-                        "message": str(exc),
-                        "retryable": False,
-                        "details": {},
-                    },
-                }
-            ), 422
-        imported = store.request("POST", f"{_INTERNAL}/sales/import", json={"records": records})
-        if imported.status_code >= 400:
-            return _relay(imported)
-        return jsonify(
-            {
-                "consumer_operation_id": publication.idempotency_key,
-                "status": "accepted",
-                "schema_version": publication.schema_version,
-                "content_sha256": publication.content_sha256,
-                "rows_received": len(records),
-                "rows_accepted": len(records),
-                "rows_rejected": 0,
-                "error": None,
-            }
+        response = store.request(
+            "POST", f"{_INTERNAL}/sales-imports", json=publication.model_dump(mode="json")
         )
+        if response.status_code >= 400:
+            return _relay(response)
+        operation = response.json()["operation"]
+        return jsonify(public_import(operation)), 202 if operation["status"] in {
+            "queued",
+            "running",
+        } else 200
+
+    @blueprint.get("/api/data-import/v1/propertyscope-releases/<uuid:operation_id>")
+    def import_status(operation_id: uuid.UUID) -> Response:
+        response = store.request("GET", f"{_INTERNAL}/sales-imports/{operation_id}")
+        if response.status_code >= 400:
+            return _relay(response)
+        return jsonify(public_import(response.json()["operation"]))
 
     return blueprint
 

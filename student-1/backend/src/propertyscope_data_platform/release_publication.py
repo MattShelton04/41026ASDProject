@@ -71,7 +71,7 @@ def publish_release(
     *,
     tool_output: bool = False,
 ) -> Response:
-    """Record the final consumer receipt before atomically activating a release."""
+    """Verify producer evidence and queue activation independently of downstream imports."""
     current_response = store.request(
         "GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers
     )
@@ -101,8 +101,12 @@ def publish_release(
         (
             item
             for item in envelope.get("receipts", [])
-            if item["consumer_operation_id"] == idempotency_key
-            or (release["target_feature"] == "feature-1" and receipt_matches_release(item, release))
+            if (
+                str(item["consumer_operation_id"]).startswith("feature-1-local:")
+                or release["target_feature"] == "feature-1"
+            )
+            and item.get("status") == "accepted"
+            and receipt_matches_release(item, release)
         ),
         None,
     )
@@ -204,6 +208,7 @@ def publish_release(
             comment=comment.strip(),
             tool_output=tool_output,
             replayed=True,
+            idempotency_key=idempotency_key,
         )
     publication = ConsumerPublicationRequest(
         release_id=release_id,
@@ -215,72 +220,13 @@ def publish_release(
         artifact_path=f"{BASE}/dataset-releases/{release_id}/artifact",
         idempotency_key=idempotency_key,
     )
-    if release["target_feature"] == "feature-1":
-        result = verify_local_publication(store, release, publication)
-    else:
-        queued = store.request(
-            "POST",
-            f"{INTERNAL}/releases/{release_id}/consumer-imports",
-            headers=request.headers,
-            json={
-                "dataset_id": release["dataset_id"],
-                "target_feature": release["target_feature"],
-                "schema_version": release["schema_version"],
-                "content_sha256": release["content_sha256"],
-                "record_count": release["record_count"],
-                "artifact_path": publication.artifact_path,
-                "expected_release_version": version,
-                "comment": comment.strip(),
-                "idempotency_key": idempotency_key,
-                "request_id": request.headers.get("X-Request-ID", str(uuid.uuid4())),
-            },
-        )
-        if queued.status_code >= 400:
-            if tool_output:
-                return _catalog_publication_output(
-                    "failed",
-                    receipt_id=(
-                        prior_operation.get("publication_receipt_id")
-                        if prior_operation is not None
-                        else None
-                    ),
-                    replayed=prior_operation is not None,
-                    status_code=queued.status_code,
-                )
-            return forward(queued)
-        operation = queued.json()["operation"]
-        publication_status = {
-            "published": "completed",
-            "rejected": "failed",
-            "failed": "failed",
-        }.get(str(operation["status"]), "pending")
-        replayed = not queued.json().get("created", False) or prior_operation is not None
-        if tool_output:
-            return _catalog_publication_output(
-                "accepted" if publication_status == "completed" else publication_status,
-                receipt_id=operation.get("publication_receipt_id"),
-                replayed=replayed,
-                status_code={"completed": 200, "failed": 424}.get(publication_status, 202),
-            )
-        response = jsonify(
-            {
-                "release": release,
-                "consumer_import": public_consumer_import(operation),
-                "publication_status": publication_status,
-                "replayed": replayed,
-                "status_path": (
-                    f"{BASE}/dataset-releases/{release_id}/consumer-imports/{operation['id']}"
-                ),
-            }
-        )
-        response.status_code = {"completed": 200, "failed": 424}.get(publication_status, 202)
-        return response
+    result = verify_local_publication(store, release, publication)
     recorded = store.request(
         "POST",
         f"{INTERNAL}/releases/{release_id}/receipts",
         headers=request.headers,
         json={
-            "target_feature": release["target_feature"],
+            "target_feature": "feature-1",
             **result.model_dump(mode="json"),
             "request_id": request.headers.get("X-Request-ID", str(uuid.uuid4())),
         },
@@ -304,7 +250,7 @@ def publish_release(
         return problem(
             424,
             "consumer_publication_failed",
-            "Consumer did not accept the release; the prior accepted release remains live",
+            "Producer artifact verification failed; the prior accepted release remains live",
         )
     return complete_publication(
         store,
@@ -314,6 +260,7 @@ def publish_release(
         comment=comment.strip(),
         tool_output=tool_output,
         replayed=not receipt_envelope["created"],
+        idempotency_key=idempotency_key,
     )
 
 
@@ -349,6 +296,7 @@ def complete_publication(
     comment: str,
     tool_output: bool,
     replayed: bool,
+    idempotency_key: str | None = None,
 ) -> Response:
     queued = store.request(
         "POST",
@@ -358,7 +306,7 @@ def complete_publication(
             "publication_receipt_id": receipt["id"],
             "expected_release_version": version,
             "comment": comment,
-            "idempotency_key": receipt["consumer_operation_id"],
+            "idempotency_key": idempotency_key or receipt["consumer_operation_id"],
         },
     )
     if queued.status_code >= 400:
@@ -373,23 +321,24 @@ def complete_publication(
     activation_envelope = queued.json()
     activation = activation_envelope["activation"]
     completed = activation_envelope.get("outcome") == "completed"
+    failed = activation.get("status") == "failed"
     if tool_output:
         return _catalog_publication_output(
-            "accepted" if completed else "pending",
+            "accepted" if completed else "failed" if failed else "pending",
             receipt_id=receipt["id"],
             replayed=replayed,
-            status_code=200 if completed else 202,
+            status_code=200 if completed else 424 if failed else 202,
         )
     response = jsonify(
         {
             "release": release,
             "receipt": public_receipt(receipt),
             "activation": public_activation(activation),
-            "publication_status": "completed" if completed else "pending",
+            "publication_status": "completed" if completed else "failed" if failed else "pending",
             "replayed": replayed,
         }
     )
-    response.status_code = 200 if completed else 202
+    response.status_code = 200 if completed else 424 if failed else 202
     return response
 
 

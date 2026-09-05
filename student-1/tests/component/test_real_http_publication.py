@@ -722,14 +722,8 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
             )
             assert publish.status_code == 202
             assert release["status"] == "awaiting_review"
-            if context.target_feature != "feature-1":
-                operation = publish.json()["consumer_import"]
-                assert operation["status"] == "queued"
-                assert operation["phase_key"] == "connect"
-                assert receipts == []
-                assert activations == []
-            else:
-                assert publish.json()["activation"]["status"] == "queued"
+            assert publish.json()["activation"]["status"] == "queued"
+            assert receipts[-1]["target_feature"] == "feature-1"
             pending_replay = httpx.post(
                 f"{backend_url}/api/data-platform/v1/dataset-releases/{release['id']}/publish",
                 headers={"Idempotency-Key": f"publish-{dataset_id}"},
@@ -737,15 +731,6 @@ def test_every_registered_product_publishes_with_policy_over_real_http(
             )
             assert pending_replay.status_code == 202
             assert pending_replay.json()["replayed"] is True
-            if context.target_feature != "feature-1":
-                assert (
-                    pending_replay.json()["consumer_import"]["id"]
-                    == (publish.json()["consumer_import"]["id"])
-                )
-                assert len(consumer_imports) == 1
-                assert receipts == []
-                assert activations == []
-                return
             assert pending_replay.json()["activation"]["id"] == (publish.json()["activation"]["id"])
             assert len(receipts) == 1
             assert len(activations) == 1

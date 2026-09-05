@@ -5,7 +5,7 @@ export function publicationSuccessMessage(body) {
   if (outcome === "completed") return "Publication completed";
   if (outcome === "pending") return "Publication queued";
   if (outcome === "failed") {
-    throw new Error("Publication delivery or activation failed before the live version changed. A fresh retry is safe.");
+    throw new Error("Publication verification or activation failed before the live version changed. A fresh retry is safe.");
   }
   throw new Error("The service returned an unknown publication status.");
 }
@@ -34,13 +34,13 @@ export async function reconcilePublicationTimeout({
     publicationKeys.clear(key.identity);
     const progress = outcome === "completed"
       ? "completed"
-      : "continues through durable consumer delivery and accepted-version activation";
+      : "continues through durable artifact verification and accepted-version activation";
     showToast(`Publication ${progress}. Request ID ${requestId}`);
     return body;
   }
   if (outcome === "failed") {
     publicationKeys.clear(key.identity);
-    timeoutError.message = `${timeoutError.message} Publication delivery or activation failed before the live version changed. A fresh retry is safe.`;
+    timeoutError.message = `${timeoutError.message} Publication verification or activation failed before the live version changed. A fresh retry is safe.`;
     throw timeoutError;
   }
   timeoutError.message = `${timeoutError.message} Its outcome is not known yet; retrying will reuse the same publication key.`;

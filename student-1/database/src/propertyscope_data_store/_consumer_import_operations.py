@@ -58,8 +58,9 @@ class _ConsumerImportOperations:
             ).fetchone()
             if release is None:
                 raise NotFoundError("release does not exist")
-            if release["status"] != "awaiting_review":
-                raise ConflictError("only a release awaiting review can be delivered")
+            delivery_only = release["status"] == "accepted"
+            if release["status"] not in {"awaiting_review", "accepted"}:
+                raise ConflictError("only a reviewed or published release can be delivered")
             if int(release["version"]) != expected_version:
                 raise ConflictError("release version does not match")
             expected_identity = self._identity_from_values(release_id, values)
@@ -87,6 +88,8 @@ class _ConsumerImportOperations:
                 AND operation.content_sha256=%s AND operation.record_count=%s
                 AND operation.status IN ('failed','rejected')
                 AND operation.consumer_operation_id IS NOT NULL
+                AND (operation.target_feature NOT IN ('feature-2','feature-3')
+                     OR receipt.status IS DISTINCT FROM 'failed')
                 ORDER BY operation.requested_at,operation.id LIMIT 1 FOR UPDATE OF operation""",
                 expected_identity,
             ).fetchone()
@@ -94,18 +97,25 @@ class _ConsumerImportOperations:
                 attached_status = failed_operation.get("attached_receipt_status")
                 if attached_status == "accepted" and failed_operation["status"] == "failed":
                     resumed = connection.execute(
-                        """UPDATE ops.consumer_import_operation SET status='activation_pending',
-                        phase_key='queue_activation',activation_attempt=activation_attempt+1,
+                        """UPDATE ops.consumer_import_operation SET
+                        status=CASE WHEN %s THEN 'delivered' ELSE 'activation_pending' END,
+                        phase_key=CASE WHEN %s THEN 'complete' ELSE 'queue_activation' END,
+                        delivery_only=%s,activation_attempt=activation_attempt+1,
                         release_activation_id=NULL,attempt_number=1,next_attempt_at=%s,
                         expected_release_version=%s,review_comment=%s,request_id=%s,
-                        error_json=NULL,finished_at=NULL,lease_owner=NULL,lease_token=NULL,
-                        lease_expires_at=NULL,heartbeat_at=NULL,version=version+1
+                        error_json=NULL,finished_at=CASE WHEN %s THEN %s ELSE NULL END,
+                        lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,version=version+1
                         WHERE id=%s RETURNING *""",
                         (
+                            delivery_only,
+                            delivery_only,
+                            delivery_only,
                             now,
                             expected_version,
                             comment,
                             str(values["request_id"]),
+                            delivery_only,
+                            now,
                             failed_operation["id"],
                         ),
                     ).fetchone()
@@ -128,8 +138,8 @@ class _ConsumerImportOperations:
                     """UPDATE ops.consumer_import_operation SET status=%s,phase_key=%s,
                     attempt_number=1,next_attempt_at=%s,error_json=NULL,finished_at=NULL,
                     lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,heartbeat_at=NULL,
-                    version=version+1 WHERE id=%s RETURNING *""",
-                    (resumed_status, resumed_phase, now, failed_operation["id"]),
+                    delivery_only=%s,version=version+1 WHERE id=%s RETURNING *""",
+                    (resumed_status, resumed_phase, now, delivery_only, failed_operation["id"]),
                 ).fetchone()
                 if resumed is None:
                     raise ConflictError("consumer import retry could not be persisted")
@@ -157,8 +167,8 @@ class _ConsumerImportOperations:
                     id,dataset_release_id,dataset_id,target_feature,schema_version,content_sha256,
                     record_count,manifest_json,artifact_path,expected_release_version,review_comment,
                     idempotency_key,consumer_operation_id,publication_receipt_id,status,phase_key,
-                    attempt_number,next_attempt_at,request_id,requested_at,version
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1,%s,%s,%s,1)
+                    attempt_number,next_attempt_at,request_id,requested_at,version,delivery_only,finished_at
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1,%s,%s,%s,1,%s,%s)
                     RETURNING *""",
                     (
                         uuid.uuid4(),
@@ -179,11 +189,17 @@ class _ConsumerImportOperations:
                             else None
                         ),
                         accepted_receipt["id"] if accepted_receipt is not None else None,
-                        "activation_pending" if resumed_receipt else "queued",
-                        "queue_activation" if resumed_receipt else "connect",
+                        ("delivered" if delivery_only else "activation_pending")
+                        if resumed_receipt
+                        else "queued",
+                        ("complete" if delivery_only else "queue_activation")
+                        if resumed_receipt
+                        else "connect",
                         now,
                         str(values["request_id"]),
                         now,
+                        delivery_only,
+                        now if delivery_only and resumed_receipt else None,
                     ),
                 ).fetchone()
                 if row is None:
@@ -394,7 +410,11 @@ class _ConsumerImportOperations:
         with self._owner.connection() as connection:
             row = connection.execute(
                 """UPDATE ops.consumer_import_operation operation SET publication_receipt_id=%s,
-                status=%s,phase_key=%s,finished_at=%s,lease_owner=NULL,lease_token=NULL,
+                status=CASE WHEN operation.delivery_only AND receipt.status='accepted'
+                    THEN 'delivered' ELSE %s END,
+                phase_key=CASE WHEN operation.delivery_only THEN 'complete' ELSE %s END,
+                finished_at=CASE WHEN operation.delivery_only THEN %s ELSE %s END,
+                lease_owner=NULL,lease_token=NULL,error_json=receipt.error_json,
                 lease_expires_at=NULL,heartbeat_at=NULL,version=operation.version+1
                 FROM ops.publication_receipt receipt WHERE operation.id=%s
                 AND operation.status='claimed' AND operation.phase_key='record_receipt'
@@ -414,6 +434,7 @@ class _ConsumerImportOperations:
                     receipt_id,
                     "activation_pending" if accepted else receipt_status,
                     "queue_activation" if accepted else "complete",
+                    now,
                     None if accepted else now,
                     operation_id,
                     worker_id,

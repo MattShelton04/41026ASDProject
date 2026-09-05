@@ -102,12 +102,19 @@ provides only the domain-neutral transport and validation protocol; product sche
 remain in their owning features. External delivery is a durable consumer-import operation, separate
 from immutable release identity and from any genuine consumer-issued operation identity. A bounded
 connect request queues or discovers consumer work, leased reconciliation retains progress and a final
-receipt, and activation is queued only after acceptance evidence is durable. Browser requests do not
-wait for source-scale imports, and accepted pointers retain the ADR-028 atomic activation boundary.
+receipt independently of producer publication. Under
+[ADR-041](decisions/ADR-041-producer-owned-publication.md), producer verification queues local
+activation; its final transaction publishes the generation and persists downstream delivery together.
+Consumer acceptance or failure never gates or rolls back that publication. Browser requests do not
+wait for source-scale work, and accepted pointers retain the ADR-028 atomic activation boundary.
 Consumers discover the deterministic contract ZIP through
 `GET /api/data-platform/v1/product-contracts/v1` and download only its digest-bound immutable path;
 the package includes current record schemas and the unchanged legacy schemas needed to interpret
 accepted releases. ADR-033 records the contract distribution, trust boundary and replay rules.
+[ADR-040](decisions/ADR-040-publication-recovery-and-current-state.md) adds independent publication
+reconciliation, transient control-error recovery, immutable failed-receipt retries and current
+publication state in the UI. Feature 3 retains fenced staging on recovery and compiles the same
+producer schemas, including format checks, without weakening full-artifact verification.
 
 The onboarding and operations increment makes `deployment/features.yaml` the explicit enablement
 selection and projects it through validated feature-owned onboarding metadata. Enabled routes,
@@ -1337,3 +1344,9 @@ Review this design at four points:
 
 Update the decisions, risks, topology, and evidence mapping rather than creating an
 unrelated replacement document.
+
+
+[ADR-042](decisions/ADR-042-durable-streaming-sales-import.md) extends Feature 2's sales importer
+with a durable 202/status workflow, bounded streaming and invisible replayable generation batches.
+Feature 1 pushes release metadata; each consumer pulls bytes and owns its own accepted-generation
+switch. Full-size consumer import is independent of producer publication under ADR-041.

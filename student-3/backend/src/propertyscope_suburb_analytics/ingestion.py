@@ -17,7 +17,7 @@ from uuid import uuid4
 from zipfile import ZipFile
 
 import httpx
-from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema_rs import Draft202012Validator
 
 from shared_consumer_protocol import (
     ArtifactAccessPolicy,
@@ -135,8 +135,8 @@ def contract_validators(
     for schema_item in (schema, manifest_schema):
         if any(not ref.startswith("#/") for ref in references(schema_item)):
             raise ValueError("external_schema_reference")
-    record_validator = Draft202012Validator(schema, format_checker=FormatChecker())
-    manifest_validator = Draft202012Validator(manifest_schema, format_checker=FormatChecker())
+    record_validator = Draft202012Validator(schema, validate_formats=True)
+    manifest_validator = Draft202012Validator(manifest_schema, validate_formats=True)
 
     def validate(record: Mapping[str, Any], ordinal: int) -> None:
         record_validator.validate(record)
@@ -167,8 +167,9 @@ def contract_validators(
                 if date.fromisoformat(month).day != 1:
                     raise ValueError("invalid_crime_month")
             observations = record["observations"]
+            observed_months = set(months)
             if len({item["month"] for item in observations}) != len(observations) or any(
-                item["month"] not in months for item in observations
+                item["month"] not in observed_months for item in observations
             ):
                 raise ValueError("invalid_crime_observations")
         if ordinal < 1:
@@ -189,6 +190,17 @@ def references(value: Any) -> list[str]:
 
 class BeforeCommitError(RuntimeError):
     """A staging flush failed before any commit request was sent."""
+
+
+def retryable_import_error(exc: Exception) -> bool:
+    if not isinstance(exc, ConsumerProtocolError):
+        return isinstance(exc, httpx.TransportError)
+    if exc.code in {"artifact_transport_failed", "artifact_response_rejected"}:
+        return exc.retryable
+    original = exc.original_error
+    if isinstance(original, BeforeCommitError):
+        original = original.__cause__
+    return isinstance(original, ServiceError) and original.status == 503
 
 
 class HttpSink:
@@ -338,7 +350,7 @@ class Ingestion:
                     "code": getattr(exc, "code", "import_validation_failed"),
                     "message": "Import failed validation or transport; "
                     "previous evidence is unchanged.",
-                    "retryable": False,
+                    "retryable": retryable_import_error(exc),
                 },
             )
             sink.send("fail", {"receipt": receipt})
