@@ -96,7 +96,8 @@ approved and published through the browser. Queue-to-completion took 0.748 secon
 3. Once a terminal failure is understood and resolved, choose **Retry publication** and supply an
    approval note. Unknown remote outcomes are reconciled first; an old failed receipt remains in
    history. A fresh attempt follows once that failure is definitive.
-4. Keep the predecessor accepted until consumer acceptance and local activation both succeed.
+4. Keep the predecessor accepted until producer verification and local activation succeed.
+   Downstream delivery is independent under ADR-041; its failure does not undo publication.
    Do not edit lifecycle rows or delete receipts to make the page appear recovered.
 
 ## Property-sales integration gap found during follow-up
@@ -120,20 +121,23 @@ constants alone would not make that integration ready for millions of records.
 Feature 1 previously replaced the structured HTTP problem with `consumer_response_invalid`.
 It now retains a bounded consumer rejection message on the durable failed delivery, without
 inventing a consumer operation or receipt, and displays the cause directly on the release page.
-Transient HTTP 408/429/5xx remain retryable. The previous accepted sales release stays active.
+Transient HTTP 408/429/5xx remain retryable. At this investigation stage, the previous accepted
+sales release stayed active because of the former consumer gate.
 
 **Scope decision:** after discussing the required work, the user preferred leaving the larger
 Feature 2 importer change out of this PR and documenting the integration gap. No Feature 2
 capacity limit was introduced or increased here, and Feature 1 does not truncate the full release
-to satisfy those limits. Publication of this full PSI release remains blocked by the existing
-consumer until that integration is upgraded.
+to satisfy those limits. The initial assumption that Feature 2 must accept before Feature 1 can
+publish was subsequently rejected explicitly by the user. ADR-041 replaces that gate with
+producer-owned publication and an independent durable delivery outbox. Full PSI publication no
+longer depends on upgrading Feature 2.
 
 The follow-up integration should remove fixed dataset-size caps through streaming and bounded
 batches, with a durable consumer-issued operation/status endpoint, fenced worker leases,
 replayable staging, complete schema/digest/count validation and atomic accepted-generation
-visibility. Existing Feature 2 case/sales reads must select the accepted generation. Consumer
-acceptance must precede Feature 1 activation under ADR-033; bypassing that gate would change the
-recorded publication contract.
+visibility. Existing Feature 2 case/sales reads must select its own accepted generation. The
+former ADR-033 consumer-acceptance gate is superseded by ADR-041; downstream import readiness
+is now explicitly separate from producer publication readiness.
 
 Architecture: [ADR-040](../architecture/decisions/ADR-040-publication-recovery-and-current-state.md).
 
@@ -151,3 +155,17 @@ Architecture: [ADR-040](../architecture/decisions/ADR-040-publication-recovery-a
 
 PostgreSQL opt-in suites are skipped by the ordinary canonical gate; the reliability suite above
 was run separately. The Windows symlink test remains skipped when Developer Mode is unavailable.
+
+
+## Producer-owned PSI publication validation
+
+Under ADR-041, the complete sales release was approved through the integrated browser and
+published at 2026-09-05 11:35:42.801 UTC. Queue acceptance was at 11:35:26.526 UTC; complete
+artifact verification and activation took 16.275 seconds on this local disk. All 7,402,643 rows
+and the original 952,728,964-byte artifact are retained. No lifecycle SQL repair was used.
+The automatically created downstream outbox then received Feature 2's 5,000-record rejection;
+the browser correctly remained Published and displayed that failure as a separate warning.
+Disposable PostgreSQL validation now passes 22 tests, including atomic outbox rollback, activation
+replay and producer publication surviving both accepted and failed downstream receipts.
+The user subsequently authorized extending Feature 2 to support the full release; that follow-up
+must preserve this producer/consumer independence.

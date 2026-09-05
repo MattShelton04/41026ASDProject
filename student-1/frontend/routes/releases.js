@@ -9,12 +9,12 @@ import {
   PUBLICATION_POLL_LIMIT,
   publicationDisplayState,
   reconcilePublication,
-} from "../core/publication.js?v=46";
+} from "../core/publication.js?v=48";
 import {
   consumerImportStatusPath,
   publicationSuccessMessage,
   reconcilePublicationTimeout,
-} from "./release-publication.js?v=46";
+} from "./release-publication.js?v=48";
 import { runDialogForm } from "../components/dialogs.js";
 import { formField, filterToolbar } from "../components/forms.js";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
@@ -287,6 +287,7 @@ export function createReleaseRoutes({
     const activeActivation = [...activations].reverse().find((item) => ["queued", "claimed", "running", "interrupted"].includes(item.status)) || null;
     const publicationOutcome = reconcilePublication({
       release, activations, consumer_imports: consumerImports,
+      publication_policy: body.publication_policy,
     });
     const publicationInProgress = publicationOutcome === "pending";
     let manifest = release.manifest_json || body.manifest;
@@ -358,7 +359,7 @@ export function createReleaseRoutes({
       const comment = requiredReviewText("Approval note");
       const ok = await confirmAction({
         title: "Publish this version?",
-        description: "Publishing sends this version to its destination. The current version stays in use unless the new version is published successfully.",
+        description: "Publishing makes this verified version current in the data platform. Downstream imports run separately.",
         label: "Publish version",
         tone: "primary",
         extra: comment,
@@ -393,12 +394,13 @@ export function createReleaseRoutes({
     append(lifecycleNotice, badge(displayState), document.createTextNode(` ${lifecycle.message}`));
     append(view, lifecycleNotice);
     if (publicationOutcome === "failed") {
-      const failure = consumerImports.at(-1)?.error_json || activations.at(-1)?.error_json;
+      const failure = activations.at(-1)?.error_json;
       if (failure?.message) append(view, el("div", "notice negative", failure.message));
     }
-    if (activeConsumerImport && activeConsumerImport.status !== "activation_queued") append(view, el("div", "notice info", `Consumer delivery continues (${displayName(activeConsumerImport.phase_key || activeConsumerImport.status)}). The currently published version remains live until the consumer accepts this version and activation succeeds.`));
-    else if (activeActivation) append(view, el("div", "notice info", `Accepted-version activation continues (${activeActivation.progress_phase || displayName(activeActivation.status)}). The currently published version remains live until the final pointer switch succeeds.`));
-    else if (activeConsumerImport?.status === "activation_queued") append(view, el("div", "notice info", "The consumer accepted this version and accepted-version activation is queued. The currently published version remains live until the final pointer switch succeeds."));
+    if (activeActivation) append(view, el("div", "notice info", `Publication continues (${activeActivation.progress_phase || displayName(activeActivation.status)}). The current version remains live until the final switch succeeds.`));
+    if (activeConsumerImport) append(view, el("div", "notice info", `Downstream import continues (${displayName(activeConsumerImport.phase_key || activeConsumerImport.status)}). It does not block data platform publication.`));
+    const downstreamFailure = consumerImports.at(-1)?.error_json;
+    if (release.status === "accepted" && downstreamFailure?.message) append(view, el("div", "notice warning", `Published in the data platform. Downstream import needs attention: ${downstreamFailure.message}`));
     if (publicationInProgress && publicationPolling.attempts >= PUBLICATION_POLL_LIMIT) append(view, el("div", "notice info", "Publication is still running. Progress updates continue every 30 seconds."));
     if (blocking) append(view, el("div", "notice negative", "Required data checks failed, so this version cannot be published. Review the failures, then retry or reject it."));
     const layout = el("div", "detail-layout");
@@ -418,8 +420,8 @@ export function createReleaseRoutes({
     ));
     const receiptBody = el("div");
     if (!receipts.length) append(receiptBody, el("p", "", "No consumer publication receipts recorded."));
-    for (const receipt of [...receipts].reverse()) append(receiptBody, detailList([["Research area", researchAreaLabel(receipt.target_feature || release.target_feature)], ["Status", badge(receipt.status)], ["Rows received", formatNumber(receipt.rows_received)], ["Rows accepted", formatNumber(receipt.rows_accepted)], ["Failure details", receipt.error ? technicalDetails(receipt.error, "Inspect failure") : "None recorded"]]));
-    append(side, panel("Publication receipts", "Recorded outcomes from each destination", receiptBody));
+    for (const receipt of [...receipts].reverse()) append(receiptBody, detailList([["Research area", receipt.consumer_operation_id?.startsWith("feature-1-local:") ? "Data platform verification" : researchAreaLabel(receipt.target_feature || release.target_feature)], ["Status", badge(receipt.status)], ["Rows received", formatNumber(receipt.rows_received)], ["Rows accepted", formatNumber(receipt.rows_accepted)], ["Failure details", receipt.error ? technicalDetails(receipt.error, "Inspect failure") : "None recorded"]]));
+    append(side, panel("Publication receipts", "Producer verification and downstream import outcomes", receiptBody));
     const consumerImportBody = el("div");
     if (!consumerImports.length) append(consumerImportBody, el("p", "", "No consumer import operations recorded."));
     for (const operation of [...consumerImports].reverse()) append(consumerImportBody, detailList([
@@ -433,7 +435,7 @@ export function createReleaseRoutes({
       ["Budgets", operation.budgets ? technicalDetails(operation.budgets, "Inspect limits") : "Not recorded"],
       ["Failure details", operation.error_json ? technicalDetails(operation.error_json, "Inspect failure") : "None recorded"],
     ]));
-    append(side, panel("Consumer import operations", "Durable delivery, receipt, and activation queueing", consumerImportBody));
+    append(side, panel("Consumer import operations", "Independent downstream delivery and import outcomes", consumerImportBody));
     const activationBody = el("div");
     if (!activations.length) append(activationBody, el("p", "", "No background publication operations recorded."));
     for (const activation of [...activations].reverse()) append(activationBody, detailList([["Status", badge(activation.status)], ["Current step", activation.progress_phase || (["failed", "succeeded"].includes(activation.status) ? displayName(activation.status) : "Waiting for a publication worker")], ["Started", formatDate(activation.started_at)], ["Last progress update", formatDate(activation.progress_updated_at)], ["Attempt", formatNumber(activation.attempt_number)], ["Requested", formatDate(activation.requested_at)], ["Materialised", formatDate(activation.materialized_at)], ["Finished", formatDate(activation.finished_at)], ["Failure details", activation.error_json ? technicalDetails(activation.error_json, "Inspect failure") : "None recorded"]]));
@@ -457,7 +459,7 @@ export function createReleaseRoutes({
         publicationStatusPaths.get(id) || "",
       )
       : "";
-    schedulePublicationPoll(id, statusPath, routeEpoch, publicationOutcome);
+    schedulePublicationPoll(id, statusPath, routeEpoch, activeConsumerImport ? "pending" : publicationOutcome);
   }
 
   function requiredReviewText(label) {

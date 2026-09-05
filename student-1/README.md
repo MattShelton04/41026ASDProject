@@ -38,10 +38,10 @@ publication/recovery lifecycle, dataset semantics, and future-registration proce
 [the Release 0 data-product consumer guide](DATA_PRODUCT_CONSUMER_GUIDE.md).
 The supported `GET /api/data-platform/v1/product-contracts/v1` discovery resource and its
 digest-bound ZIP are the consumer entry point for producer-owned record schemas; consumers do not
-read repository paths. Releases use gzip-compressed NDJSON, and external publication is a
-durable consumer-import operation with a short connect phase and a fixed status resource. The final
-receipt is stored before activation is queued; the prior accepted release remains live until the
-atomic pointer switch completes.
+read repository paths. Releases use gzip-compressed NDJSON. Producer verification queues durable
+local activation; the atomic accepted-pointer switch also creates a downstream delivery outbox.
+Consumer imports run independently and cannot block or roll back producer publication. See
+[ADR-041](../docs/architecture/decisions/ADR-041-producer-owned-publication.md).
 
 Version-controlled source/job configuration lives in `config/`, HTTP and release schemas in
 `contracts/`, and persistence-neutral Pydantic/domain policy in
@@ -171,13 +171,13 @@ Open <http://localhost:5200>. The main product path is:
    GNAF index builds, retaining artifact verification and fenced accepted-pointer transactions.
    The page refreshes when its tab becomes visible and loads record previews
    separately from current state/actions. **Retry publication** preserves failed receipts and
-   reconciles uncertain work before a fresh delivery. See
+   retries local activation with a fresh attempt key. See
    [ADR-040](../docs/architecture/decisions/ADR-040-publication-recovery-and-current-state.md) and the
    [live investigation](../docs/operations/publication-investigation-2026-09-05.md).
-   Full PSI publication currently requires a Feature 2 importer upgrade: its Release 0 consumer
-   accepts at most 5,000 records / 25 MiB compressed and imports synchronously. The release page
-   reports that consumer rejection explicitly; Feature 1 retains the complete candidate and prior
-   accepted release. The required uncapped streaming integration is documented in the investigation.
+   Full PSI publication is independent of Feature 2. Its current importer accepts at most 5,000
+   records / 25 MiB compressed and imports synchronously; this appears as a separate downstream
+   warning on the published release. Feature 1 publishes all records without truncation. The
+   required streaming consumer integration is documented in the investigation.
 6. When a version needs interpretation, select **Review with AI**. AI review is optional, cannot
    publish changes and remains available later in **Activity history**.
 

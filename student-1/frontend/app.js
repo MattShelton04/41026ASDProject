@@ -16,7 +16,7 @@ import { createDataProductRoutes } from "./routes/data-products.js";
 import { createEvidenceRoutes } from "./routes/evidence.js";
 import { renderOverview } from "./routes/overview.js";
 import { createPropertyRoutes } from "./routes/properties.js";
-import { createReleaseRoutes } from "./routes/releases.js?v=47";
+import { createReleaseRoutes } from "./routes/releases.js?v=48";
 import { createRunPlanner } from "./routes/run-plan.js";
 import { createRunRoutes } from "./routes/runs.js";
 import { createSourceHtmxRoute } from "./routes/sources-htmx.js";

@@ -1021,7 +1021,7 @@ test("release publication renders durable delivery evidence and polls only pendi
   assert.match(releases, /nextPublicationPollDelay\(/);
   assert.match(releases, /visibilitychange/);
   assert.match(releases, /PUBLICATION_POLL_LIMIT/);
-  assert.match(releases, /currently published version remains live/);
+  assert.match(releases, /current version remains live/);
   assert.doesNotMatch(releases, /continues in the database loader/);
 });
 
@@ -1076,4 +1076,19 @@ test("overview problem notice uses a labelled responsive list", async () => {
   assert.match(styles, /\.overview-problems \{ display: grid;/);
   assert.match(styles, /\.overview-problems \{[^}]*margin-top: var\(--ps-space-4\);/);
   assert.match(styles, /\.problem-links \{ display: grid;/);
+});
+
+
+test("producer publication remains independent of downstream delivery", () => {
+  for (const status of ["queued", "polling", "failed", "rejected", "delivered"]) {
+    const body = {
+      publication_policy: "producer-owned",
+      release: { status: "awaiting_review" },
+      consumer_imports: [{ status }],
+    };
+    assert.equal(reconcilePublication(body), "unknown");
+    assert.equal(reconcilePublication({ ...body, release: { status: "accepted" } }), "completed");
+    assert.equal(reconcilePublication({ ...body, activations: [{ status: "running" }] }), "pending");
+    assert.equal(reconcilePublication({ ...body, activations: [{ status: "failed" }] }), "failed");
+  }
 });

@@ -396,8 +396,11 @@ class _ConsumerImportOperations:
         with self._owner.connection() as connection:
             row = connection.execute(
                 """UPDATE ops.consumer_import_operation operation SET publication_receipt_id=%s,
-                status=%s,phase_key=%s,finished_at=%s,lease_owner=NULL,lease_token=NULL,
-                error_json=receipt.error_json,
+                status=CASE WHEN operation.delivery_only AND receipt.status='accepted'
+                    THEN 'delivered' ELSE %s END,
+                phase_key=CASE WHEN operation.delivery_only THEN 'complete' ELSE %s END,
+                finished_at=CASE WHEN operation.delivery_only THEN %s ELSE %s END,
+                lease_owner=NULL,lease_token=NULL,error_json=receipt.error_json,
                 lease_expires_at=NULL,heartbeat_at=NULL,version=operation.version+1
                 FROM ops.publication_receipt receipt WHERE operation.id=%s
                 AND operation.status='claimed' AND operation.phase_key='record_receipt'
@@ -417,6 +420,7 @@ class _ConsumerImportOperations:
                     receipt_id,
                     "activation_pending" if accepted else receipt_status,
                     "queue_activation" if accepted else "complete",
+                    now,
                     None if accepted else now,
                     operation_id,
                     worker_id,

@@ -1,6 +1,6 @@
 # ADR-040: Keep publication recovery independent and show its current state
 
-- Status: Accepted
+- Status: Accepted; consumer-gated publication superseded by ADR-041
 - Date: 5 September 2026
 - Owners: Feature 1, with explicitly coordinated Feature 3 importer changes
 - Extends: ADR-028, ADR-030, ADR-033

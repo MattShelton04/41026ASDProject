@@ -103,7 +103,18 @@ def _async_ack(status: str = "queued") -> dict[str, Any]:
     }
 
 
-def test_tool_publication_uses_closed_catalog_for_async_queue_and_replay_failure() -> None:
+@pytest.mark.parametrize(
+    ("activation_status", "http_status", "catalog_status"),
+    [
+        ("queued", 202, "pending"),
+        ("failed", 424, "failed"),
+    ],
+)
+def test_tool_publication_uses_producer_activation_catalog(
+    activation_status: str,
+    http_status: int,
+    catalog_status: str,
+) -> None:
     release = {
         "id": RELEASE_ID,
         "dataset_id": "bocsar-crime",
@@ -111,71 +122,50 @@ def test_tool_publication_uses_closed_catalog_for_async_queue_and_replay_failure
         "schema_version": "crime-series.v1",
         "content_sha256": DIGEST,
         "record_count": 3,
-        "manifest_json": {"target_feature": "feature-3"},
         "status": "awaiting_review",
         "version": 2,
     }
-    operation = _operation("connect", status="queued", publication_receipt_id=None)
-
-    def queued_database(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET":
-            return httpx.Response(
-                200,
-                json={"release": release, "receipts": [], "consumer_imports": []},
-            )
-        return httpx.Response(202, json={"operation": operation, "created": True})
-
-    app = Flask("tool-publication-catalog-test")
-    with app.test_request_context(headers={"X-Request-ID": "tool-request"}):
-        queued = publish_release(
-            DataStoreClient(
-                "http://database",
-                "secret",
-                client=httpx.Client(transport=httpx.MockTransport(queued_database)),
-            ),
-            ConsumerImportClient({}),
-            uuid.UUID(RELEASE_ID),
-            {"comment": "Approved tool publication"},
-            "tool-delivery-key",
-            tool_output=True,
-        )
-
-    assert queued.status_code == 202
-    assert queued.get_json() == {"status": "pending", "receipt_id": None, "replayed": False}
-
-    failed = {
-        **operation,
-        "status": "failed",
-        "phase_key": "complete",
-        "publication_receipt_id": "71000000-0000-0000-0000-000000000099",
+    receipt = {
+        "id": "producer-receipt",
+        "consumer_operation_id": "feature-1-local:verified",
+        "status": "accepted",
+        "schema_version": "crime-series.v1",
+        "content_sha256": DIGEST,
+        "rows_received": 3,
+        "rows_accepted": 3,
+        "rows_rejected": 0,
     }
 
-    def failed_database(request: httpx.Request) -> httpx.Response:
+    def database(request: httpx.Request) -> httpx.Response:
         if request.method == "GET":
-            return httpx.Response(
-                200,
-                json={"release": release, "receipts": [], "consumer_imports": [failed]},
-            )
-        return httpx.Response(200, json={"operation": failed, "created": False})
+            return httpx.Response(200, json={"release": release, "receipts": [receipt]})
+        assert request.url.path.endswith("/activations")
+        return httpx.Response(
+            200,
+            json={
+                "activation": {"id": OPERATION_ID, "status": activation_status},
+                "created": False,
+            },
+        )
 
-    with app.test_request_context(headers={"X-Request-ID": "tool-replay"}):
-        replay = publish_release(
+    app = Flask("tool-publication-catalog-test")
+    with app.test_request_context():
+        response = publish_release(
             DataStoreClient(
                 "http://database",
                 "secret",
-                client=httpx.Client(transport=httpx.MockTransport(failed_database)),
+                client=httpx.Client(transport=httpx.MockTransport(database)),
             ),
             ConsumerImportClient({}),
             uuid.UUID(RELEASE_ID),
-            {"comment": "Approved tool publication"},
-            "fresh-tool-key",
+            {"comment": "Reviewed"},
+            "tool-key",
             tool_output=True,
         )
-
-    assert replay.status_code == 424
-    assert replay.get_json() == {
-        "status": "failed",
-        "receipt_id": "71000000-0000-0000-0000-000000000099",
+    assert response.status_code == http_status
+    assert response.get_json() == {
+        "status": catalog_status,
+        "receipt_id": "producer-receipt",
         "replayed": True,
     }
 

@@ -1731,7 +1731,7 @@ class PropertyScopeStore:
             operation = connection.execute(
                 """SELECT operation.*,release.dataset_id,release.target_feature,
                 release.status AS release_status,release.version AS release_version,
-                release.coverage_json,
+                release.coverage_json,receipt.request_id AS publication_request_id,
                 receipt.status AS receipt_status,receipt.schema_version AS receipt_schema_version,
                 receipt.content_sha256 AS receipt_content_sha256,receipt.rows_received,
                 receipt.rows_accepted,receipt.rows_rejected,release.schema_version,
@@ -1822,6 +1822,33 @@ class PropertyScopeStore:
                     now,
                 ),
             )
+            # Commit publication and its delivery outbox together. Consumer availability and
+            # import capacity cannot prevent or roll back this producer-owned pointer switch.
+            if operation["target_feature"] != "feature-1":
+                connection.execute(
+                    """INSERT INTO ops.consumer_import_operation (
+                    id,dataset_release_id,dataset_id,target_feature,schema_version,content_sha256,
+                    record_count,manifest_json,artifact_path,expected_release_version,review_comment,
+                    idempotency_key,status,phase_key,next_attempt_at,request_id,requested_at,
+                    delivery_only
+                    ) SELECT %s,id,dataset_id,target_feature,schema_version,content_sha256,
+                    record_count,manifest_json,%s,version,%s,%s,'queued','connect',%s,%s,%s,TRUE
+                    FROM ops.dataset_release release WHERE id=%s AND NOT EXISTS (
+                        SELECT 1 FROM ops.consumer_import_operation delivery
+                        WHERE delivery.dataset_release_id=release.id
+                        AND delivery.status NOT IN ('failed','rejected')
+                    ) ON CONFLICT DO NOTHING""",
+                    (
+                        uuid.uuid4(),
+                        f"/api/data-platform/v1/dataset-releases/{release['id']}/artifact",
+                        operation["review_comment"],
+                        f"published-release:{release['id']}",
+                        now,
+                        operation["publication_request_id"],
+                        now,
+                        release["id"],
+                    ),
+                )
             row = connection.execute(
                 """UPDATE ops.release_activation SET status='succeeded',finished_at=%s,
                 error_json=NULL,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,

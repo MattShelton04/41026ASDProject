@@ -44,7 +44,8 @@ export function reconcilePublication(body) {
     ? body.consumer_imports
     : (body?.consumer_import ? [body.consumer_import] : []);
   const activation = activations.at(-1) || null;
-  const consumerImport = consumerImports.at(-1) || null;
+  const consumerImport = body?.publication_policy === "producer-owned"
+    ? null : (consumerImports.at(-1) || null);
   if (body?.publication_status === "completed"
     || release.status === "accepted"
     || activation?.status === "succeeded") {

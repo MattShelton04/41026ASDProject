@@ -67,6 +67,7 @@ def release_inspection(store: DataStoreClient, release_id: uuid.UUID) -> Respons
         ),
     }
     payload = {
+        "publication_policy": "producer-owned",
         "release": release,
         "quality_results": quality_results,
         "quality_summary": quality_summary,
@@ -159,6 +160,7 @@ def public_consumer_import(operation: Mapping[str, Any]) -> dict[str, Any]:
             "record_count",
             "status",
             "phase_key",
+            "delivery_only",
             "remote_status",
             "consumer_operation_id",
             "publication_receipt_id",

@@ -200,7 +200,10 @@ def register_release_routes(
             {
                 "consumer_import": public_consumer_import(operation),
                 "activation": activation,
-                "publication_status": publication_status,
+                "delivery_status": operation["status"],
+                "publication_status": None
+                if operation.get("delivery_only")
+                else publication_status,
             }
         )
 

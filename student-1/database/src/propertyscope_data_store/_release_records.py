@@ -70,15 +70,10 @@ class _ReleaseRecords:
           WHEN EXISTS (SELECT 1 FROM ops.release_activation activation
             WHERE activation.dataset_release_id=release.id
             AND activation.status IN ('queued','claimed','running','interrupted'))
-          OR EXISTS (SELECT 1 FROM ops.consumer_import_operation delivery
-            WHERE delivery.dataset_release_id=release.id
-            AND delivery.status NOT IN ('published','failed','rejected')) THEN 'pending'
+          THEN 'pending'
           WHEN release.status='awaiting_review' AND (
             EXISTS (SELECT 1 FROM ops.release_activation activation
               WHERE activation.dataset_release_id=release.id AND activation.status='failed')
-            OR EXISTS (SELECT 1 FROM ops.consumer_import_operation delivery
-              WHERE delivery.dataset_release_id=release.id
-              AND delivery.status IN ('failed','rejected'))
           ) THEN 'failed' ELSE NULL END AS publication_status
         FROM ops.dataset_release release
         JOIN ops.source_definition source ON source.id=release.source_definition_id"""

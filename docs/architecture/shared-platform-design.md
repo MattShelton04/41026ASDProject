@@ -102,8 +102,11 @@ provides only the domain-neutral transport and validation protocol; product sche
 remain in their owning features. External delivery is a durable consumer-import operation, separate
 from immutable release identity and from any genuine consumer-issued operation identity. A bounded
 connect request queues or discovers consumer work, leased reconciliation retains progress and a final
-receipt, and activation is queued only after acceptance evidence is durable. Browser requests do not
-wait for source-scale imports, and accepted pointers retain the ADR-028 atomic activation boundary.
+receipt independently of producer publication. Under
+[ADR-041](decisions/ADR-041-producer-owned-publication.md), producer verification queues local
+activation; its final transaction publishes the generation and persists downstream delivery together.
+Consumer acceptance or failure never gates or rolls back that publication. Browser requests do not
+wait for source-scale work, and accepted pointers retain the ADR-028 atomic activation boundary.
 Consumers discover the deterministic contract ZIP through
 `GET /api/data-platform/v1/product-contracts/v1` and download only its digest-bound immutable path;
 the package includes current record schemas and the unchanged legacy schemas needed to interpret
