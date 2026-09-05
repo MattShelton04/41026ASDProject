@@ -71,6 +71,15 @@ the unchanged PostgreSQL typed staging, identity/revision, address-resolution an
 PostgreSQL remains authoritative, historical JSON/NDJSON stays replayable and complete consumer
 release exports remain gzip NDJSON.
 
+Bulk imports register provenance once per batch in `warehouse.import_batch`, inside the same
+transaction as the facts. Migration 050 backfills existing references and removes the three
+per-row release/artifact/run foreign keys from warehouse facts. The loader owns the relationship
+between facts and their registered batch; direct administrative SQL no longer enforces it.
+Property identity foreign keys, checksums, complete counts and atomic activation remain.
+BOCSAR also deduplicates in one ordered pass instead of grouping and joining the stage again.
+See [ADR-039](../docs/architecture/decisions/ADR-039-batch-provenance-for-bulk-imports.md).
+Refresh the database API and idle loader together after this migration before starting jobs.
+
 Large release builds request a compact private page layout: field names appear once alongside
 arrays of row values. The database API retains its ordinary record layout for older workers;
 the backend relays these private pages without decoding and re-encoding them. The runner reads

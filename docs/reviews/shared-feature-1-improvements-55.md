@@ -141,3 +141,49 @@ rerun, so full-job speedups remain unverified. The runner still schedules acquis
 serially and waits for loader completion; safely overlapping whole jobs requires a separate
 durable scheduling change and resource-budget measurements. No checksums, source completeness,
 identity matching, database ownership or human approval guarantees were weakened.
+
+## Follow-up: full ingestion exposed per-row provenance overhead
+
+The first complete post-change G-NAF run accepted 5,190,134 addresses in 38m31s:
+4m52s cached-source preparation, 30m05s import and 3m34s release construction.
+The build improved, but the total did not. The earlier estimate based on unchanged
+import time was too optimistic. BOCSAR prepared 10,114,565 canonical rows, then spent
+over 30 minutes in its observation INSERT. The operator authorised cancellation and
+explicitly prioritised a faster import path over exhaustive per-row metadata checks.
+
+Live counters exposed millions of repeated metadata scans and hundreds of millions
+of entries read from the changing ingestion-run index. The earlier reduced SQL
+benchmark tables omitted those foreign keys. They remain useful for comparing query
+shapes, but do not substantiate full-schema ingestion performance.
+
+Migration 050 and ADR-039 move the three constant metadata foreign keys from each
+warehouse row to one `warehouse.import_batch` registration. Existing references are
+backfilled first; facts, registration and quality updates retain one transaction.
+The loader now owns the fact-to-batch relationship, so direct administrative SQL no
+longer receives those three per-row checks. This explicitly supersedes the initial
+pass's decision to retain all existing constraints. Property identity foreign keys,
+artifact checksums, complete counts and atomic publication remain.
+
+BOCSAR also uses an ordered `DISTINCT ON` selection to keep the first source row per
+natural key without grouping then joining the wide stage again. Portable products
+and downstream interfaces are unchanged. The follow-up PostgreSQL suite passes all
+32 selected tests, including fully migrated provenance/backfill/rollback checks.
+
+Three-run full-schema materialisation stress tests used a separate PostGIS container
+limited to two CPUs/3GiB. A second connection updated the referenced run every 0.2s.
+At 1m rows, median G-NAF INSERT time fell from 59.76s to 26.49s; BOCSAR from 54.33s
+to 23.10s. The saved [EXPLAIN trigger evidence](evidence/improvements55-import-materialisation.json)
+shows the removed per-row metadata checks. Each product used a freshly migrated
+database, synthetic typed staging and rolled-back fact writes between repetitions;
+allocated pages were reused, so these are stress measurements rather than pristine
+end-to-end timing guarantees. Both products also passed three repetitions at 100k
+before advancing to 1m. Acquisition, validation/COPY and commit are outside this
+materialisation comparison. The metadata heartbeat is deliberately more frequent
+than production. The live reruns are the source of complete-job timing evidence.
+
+The final canonical gate passed after the follow-up: 1,617 Python tests and 192
+frontend tests, with 34 opt-in tests skipped. The separate PostgreSQL run passed 32
+tests. The idle database API, loader and runner were refreshed successfully after
+migration. Complete G-NAF and BOCSAR were restarted through cached canonical replay;
+complete PSI history was queued through the registered full-data job. These new
+runs do not publish candidates or replace the accepted generations automatically.

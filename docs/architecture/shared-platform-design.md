@@ -79,6 +79,14 @@ PostgreSQL temporary-file limit and a pre-COPY disk-capacity check bound failure
 changes the database globally. Disposable real-shape benchmarks, not production artifacts, gate
 100,000 then 1,000,000-row evidence and enforce the 30-minute statement ceiling.
 
+ADR-039 moves constant warehouse provenance validation to one `warehouse.import_batch`
+registration per release/artifact/run tuple in the import transaction. Migration 050 retains
+existing tuples and removes the three per-row operational metadata foreign keys from warehouse
+facts. Property identity foreign keys remain. The owning loader guarantees that written facts
+use their registered tuple; direct administrative SQL can bypass that relationship, an accepted
+throughput tradeoff. BOCSAR selects the first source row per natural key in one ordered pass,
+replacing its grouped-ordinal join. Checksums, complete counts and atomic activation remain.
+
 PSI resolves unique addresses directly against the accepted G-NAF warehouse identities, including
 the street-type equivalents already recognised by its source parser. Only missing registry anchors
 needed by resolved sales are inserted, with source provenance, inside the atomic candidate import.
