@@ -116,6 +116,24 @@ database repository retains atomic PostgreSQL operations but delegates immutable
 query registration, retry/task planning, serialization and replay matching to deterministic modules.
 PSI acquisition is disk-backed and member-streamed under the same registered limits.
 
+The September 2026 Feature 1 performance review retains complete gzip-NDJSON products and the
+existing consumer protocol. Only the private database-to-runner export hop negotiates
+`layout=columns` (`propertyscope.export-columns.v1`): an ordered field-name array and row-value
+arrays replace repeated JSON keys. Ordinary object pages remain the compatibility default.
+The runner prefetches at most one page and rejects generation drift, invalid/cyclic cursors,
+malformed rows and inconsistent totals before registering a product. Slow reads and projection
+waits renew the task lease and check cancellation.
+
+Large flat-record builds use a bounded queue of two spawned CPU projection processes by default (configurable
+0..4). Children receive registered builder identity, validated build context and row batches;
+they perform no HTTP, artifact writes, database access or publication. The runner retains ordered
+collection, one deterministic gzip stream, manifest aggregation and artifact registration.
+Address/sale batches contain 5,000 rows. Crime series retain serial projection with linear-time
+coverage membership checks; the benchmark can additionally compare 32-series process batches,
+but that mode is slower for the measured nested workload. Small products retain serial projection. This is intra-task
+CPU parallelism; acquisition tasks and database import/activation ownership remain unchanged.
+See [the review and measured limits](../reviews/shared-feature-1-improvements-55.md).
+
 This does not complete the five-feature shared-foundation definition of done. Features 2–5 now have
 approved owners and domain boundaries in [`registered-feature-scope.md`](registered-feature-scope.md),
 but their owners must still supply implemented manifests and endpoints; the product edge, complete

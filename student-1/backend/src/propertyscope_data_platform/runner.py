@@ -9,7 +9,7 @@ import signal
 import time
 import uuid
 from collections.abc import Callable, Iterable, Mapping
-from contextlib import AbstractContextManager, nullcontext
+from contextlib import AbstractContextManager, closing, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -49,6 +49,7 @@ from propertyscope_data_platform.release_builders import (
     resolve_release_builder,
     validate_feature_registration,
 )
+from propertyscope_data_platform.release_stream import ReleaseRowStream
 from propertyscope_data_platform.source_transport import RegisteredSourceTransport
 
 SCHOOLS_MASTER_URL = (
@@ -104,6 +105,11 @@ class RunnerSettings:
     gnaf_archive_path: Path | None = None
     gnaf_archive_crs: str = "GDA94"
     psi_archive_root: Path | None = None
+    release_projection_workers: int = 2
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.release_projection_workers <= 4:
+            raise ValueError("release projection workers must be between zero and four")
 
     @classmethod
     def from_environment(cls) -> RunnerSettings:
@@ -121,6 +127,9 @@ class RunnerSettings:
             gnaf_archive_path=_optional_path(os.environ.get("PROPERTYSCOPE_GNAF_ARCHIVE_PATH")),
             gnaf_archive_crs=os.environ.get("PROPERTYSCOPE_GNAF_CRS", "GDA94").upper(),
             psi_archive_root=_optional_path(os.environ.get("PROPERTYSCOPE_PSI_ARCHIVE_ROOT")),
+            release_projection_workers=int(
+                os.environ.get("PROPERTYSCOPE_RELEASE_PROJECTION_WORKERS", "2")
+            ),
         )
 
 
@@ -354,69 +363,71 @@ class AcquisitionRunner:
             raise RuntimeError("Release target contract does not match the registered builder")
         context = BuildContext.model_validate(payload.get("context"))
         release_id = str(payload["release_id"])
-        page_size = 20_000
-        expected_total: int | None = None
+        # Crime pages contain whole monthly series, not individual observations.
+        page_size = 500 if context.import_profile == "bocsar-sparse" else 20_000
 
-        def product_rows() -> Iterable[dict[str, Any]]:
-            nonlocal expected_total
-            cursor: str | None = None
-            processed = 0
-            while True:
-                params: dict[str, int | str] = {"limit": page_size}
-                if cursor is not None:
-                    params["cursor"] = cursor
-                page_response = self._control_request(
-                    "GET",
-                    f"{self.settings.backend_url}/internal/data-platform/v1/worker/releases/"
-                    f"{release_id}/product-records",
-                    headers=self._headers(),
-                    params=params,
-                    timeout=120,
-                )
-                page_response.raise_for_status()
-                page = page_response.json()
-                if str(page.get("release_id", release_id)) != release_id or str(
-                    page.get("candidate_generation_id", context.candidate_generation_id)
-                ) != str(context.candidate_generation_id):
-                    raise RuntimeError("Candidate generation changed during release construction")
-                if expected_total is None:
-                    total = page.get("total")
-                    if not isinstance(total, int) or isinstance(total, bool):
-                        raise RuntimeError("Release product first page has no candidate total")
-                    expected_total = total
-                items = page.get("items")
-                if not isinstance(items, list):
-                    raise RuntimeError("Release product page is malformed")
-                yield from items
-                processed += len(items)
-                next_cursor = page.get("next_cursor")
-                if next_cursor is None:
-                    break
-                if not isinstance(next_cursor, str) or next_cursor == cursor:
-                    raise RuntimeError("Release product pagination cursor is invalid")
-                self._heartbeat(
-                    str(task["id"]),
-                    str(task["lease_token"]),
-                    progress={
-                        "phase": "compressing complete release",
-                        "rows_processed": processed,
-                        "total_rows": expected_total,
-                    },
-                )
-                cursor = next_cursor
+        def fetch_page(cursor: str | None) -> dict[str, Any]:
+            params: dict[str, int | str] = {"limit": page_size, "layout": "columns"}
+            if cursor is not None:
+                params["cursor"] = cursor
+            # One bounded read; a transport failure follows the task's existing
+            # retryable recovery path instead of leaving a detached retry loop.
+            response = self.client.get(
+                f"{self.settings.backend_url}/internal/data-platform/v1/worker/releases/"
+                f"{release_id}/product-records",
+                headers=self._headers(),
+                params=params,
+                timeout=httpx.Timeout(120, connect=10, pool=10),
+            )
+            response.raise_for_status()
+            page = response.json()
+            if not isinstance(page, dict):
+                raise RuntimeError("Release product page is malformed")
+            return page
 
-        product = builder.stream(context, product_rows())
-        artifact = self.artifacts.put(
-            product.chunks(),
-            max_bytes=builder.spec.max_bytes,
-            media_type=builder.spec.media_type,
+        def heartbeat(processed: int, total: int | None) -> None:
+            if self.stop_event.is_set():
+                raise TaskCancelledError("Release construction stopped")
+            self._heartbeat(
+                str(task["id"]),
+                str(task["lease_token"]),
+                progress={
+                    "phase": "building complete release",
+                    "rows_processed": processed,
+                    "total_rows": total,
+                },
+            )
+
+        pages = ReleaseRowStream(
+            fetch_page,
+            heartbeat,
+            release_id=release_id,
+            generation_id=str(context.candidate_generation_id),
+            page_size=page_size,
+            heartbeat_seconds=_cancellation_poll_interval(self.settings.lease_seconds),
         )
+        with closing(pages.__iter__()) as rows:
+            product = builder.stream(
+                context,
+                rows,
+                # Nested crime series spend more time transferring process payloads
+                # than they save after linear-time coverage validation.
+                projection_workers=0
+                if context.import_profile == "bocsar-sparse"
+                else self.settings.release_projection_workers,
+                heartbeat=lambda: heartbeat(product.record_count, pages.total),
+            )
+            artifact = self.artifacts.put(
+                product.chunks(),
+                max_bytes=builder.spec.max_bytes,
+                media_type=builder.spec.media_type,
+            )
         manifest = product.manifest(
             content_sha256=artifact.sha256,
             byte_count=artifact.bytes,
             created_at=self.clock(),
         )
-        if expected_total != manifest.record_count:
+        if pages.total != manifest.record_count:
             raise RuntimeError("Release product page count is inconsistent")
         registration = self._control_request(
             "POST",

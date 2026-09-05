@@ -311,6 +311,42 @@ def _internal_headers() -> dict[str, str]:
     return {"X-PropertyScope-Internal-Token": "secret"}
 
 
+def test_private_export_negotiates_compact_pages_without_changing_legacy_clients() -> None:
+    class ExportStore(StrictScalarStore):
+        def release_product_records(self, release_id: uuid.UUID, **kwargs: Any) -> dict[str, Any]:
+            assert kwargs == {"limit": 20000, "cursor": None}
+            return {
+                "release_id": str(release_id),
+                "candidate_generation_id": str(release_id),
+                "items": [{"id": "one", "value": None}],
+                "total": 1,
+                "next_cursor": None,
+            }
+
+    client = _store_client(ExportStore())
+    path = f"/internal/data-platform/v1/releases/{uuid.uuid4()}/product-records"
+    original = client.get(path, headers=_internal_headers())
+    packed = client.get(path + "?layout=columns", headers=_internal_headers())
+    invalid = client.get(path + "?layout=unknown", headers=_internal_headers())
+    assert original.status_code == packed.status_code == 200
+    assert original.get_json()["items"] == [{"id": "one", "value": None}]
+    assert packed.get_json()["columns"] == ["id", "value"]
+    assert packed.get_json()["rows"] == [["one", None]]
+    assert "items" not in packed.get_json()
+    assert invalid.status_code == 422
+
+
+def test_history_job_filter_rejects_invalid_uuid_before_querying() -> None:
+    class HistoryStore(StrictScalarStore):
+        def list_runs(self, **kwargs: Any) -> list[dict[str, Any]]:
+            raise AssertionError("invalid filters must not reach persistence")
+
+    response = _store_client(HistoryStore()).get(
+        "/internal/data-platform/v1/runs?job_definition_id=not-a-uuid", headers=_internal_headers()
+    )
+    assert response.status_code == 422
+
+
 @pytest.mark.parametrize("retryable", ["false", 0, 1, None])
 def test_task_failure_rejects_non_boolean_retryable(retryable: object) -> None:
     store = StrictScalarStore()

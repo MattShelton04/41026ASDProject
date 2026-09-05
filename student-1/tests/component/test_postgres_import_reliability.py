@@ -30,6 +30,7 @@ from propertyscope_data_store import import_profiles
 from propertyscope_data_store._consumer_import_operations import _ConsumerImportOperations
 from propertyscope_data_store.errors import ConflictError, NotFoundError
 from propertyscope_data_store.import_profiles import iter_ndjson_import
+from propertyscope_data_store.query_specs import release_export_query
 from propertyscope_data_store.repository import PropertyScopeStore
 from propertyscope_data_store.source_materialisation import (
     BOCSAR_COPY_SQL,
@@ -1323,6 +1324,21 @@ def test_bocsar_earliest_duplicate_zero_missing_coverage_and_replay_semantics(
         "(SELECT count(*) FROM warehouse.bocsar_coverage) AS coverage"
     ).fetchone()
     assert counts == {"observations": 1, "coverage": 1}
+
+    export = release_export_query("bocsar-sparse", release_id, limit=500, cursor=None)
+    series = connection.execute(export.select_sql, export.select_params).fetchone()
+    assert series is not None
+    assert series["offence_label"] == "Assault"
+    assert series["subcategory_label"] == "Total"
+    assert series["observations"] == [
+        {"month": "2026-01-01", "count": 5, "source_row_sha256": "a" * 64}
+    ]
+    connection.execute("DELETE FROM warehouse.bocsar_observation")
+    empty = connection.execute(export.select_sql, export.select_params).fetchone()
+    assert empty is not None
+    assert empty["offence_label"] is None and empty["subcategory_label"] is None
+    assert empty["observations"] == []
+    assert empty["observed_months"] == series["observed_months"]
 
 
 @pytest.mark.parametrize(

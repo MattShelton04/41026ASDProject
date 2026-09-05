@@ -408,7 +408,17 @@ class DatabaseLoader:
                 total_bytes=total_bytes,
             )
             rows = iter_parquet_import(path, profile=profile)
-            cancellable_rows = _raise_between_rows(rows, raise_if_cancelled)
+            cancellable_rows = _raise_between_rows(
+                rows,
+                raise_if_cancelled,
+                progress=lambda count: self._update_import_progress(
+                    operation_id,
+                    phase_key="typed_staging",
+                    rows_processed=count,
+                    bytes_processed=0,
+                    total_bytes=None,
+                ),
+            )
             imported = self.store.execute_stream_import_profile(
                 work,
                 profile=profile,
@@ -740,11 +750,26 @@ class DatabaseLoader:
 
 
 def _raise_between_rows(
-    rows: Iterable[dict[str, Any]], raise_if_cancelled: Callable[[], None]
+    rows: Iterable[dict[str, Any]],
+    raise_if_cancelled: Callable[[], None],
+    *,
+    progress: Callable[[int], None] | None = None,
 ) -> Iterable[dict[str, Any]]:
+    processed = 0
+    reported = 0
+    last_report = time.monotonic()
     for row in rows:
         raise_if_cancelled()
         yield row
+        processed += 1
+        if progress is not None and processed % 10_000 == 0:
+            now = time.monotonic()
+            if now - last_report >= 1:
+                progress(processed)
+                reported = processed
+                last_report = now
+    if progress is not None and processed != reported:
+        progress(processed)
 
 
 def _verify_registered_file(
