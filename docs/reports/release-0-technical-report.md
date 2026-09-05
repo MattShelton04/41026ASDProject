@@ -474,6 +474,62 @@ The diagram summarises the main execution path. The [normative state machine](..
 bounded recovery and durable checkpoints prevent an interrupted process from silently repeating a
 protected action.
 
+[[PAGEBREAK]]
+
+#### Manifest-driven tool registration and dispatch
+
+Tool onboarding is declarative. Each student's `feature.yaml` declares `ai_capabilities` and an
+`onboarding.ai` entry naming its `tool_catalog` and container `runtime_path`. The enabled feature
+selection in `deployment/features.yaml` drives the deployment generator, which mounts those YAML
+catalogues read-only and sets `AI_MODE_TOOL_CATALOG_PATHS` for AI mode.
+
+| Boundary | Registration and execution rule |
+|---|---|
+| Feature catalogue | Defines each versioned tool name, owning feature, description, input/output JSON schemas, side-effect class, approval requirement and timeout; binds it to a fixed service, HTTP method and path |
+| Validation and startup | The quality gate checks capability declarations, feature ownership, backend origin and route namespace. Startup composes an immutable registry and HTTP executor; duplicate identities or bindings fail startup |
+| Per-run scope | The planner receives only the owning feature's tools and explicitly approved shared tools, further restricted by the run's allowlist. The runner rechecks this boundary before execution |
+| HTTP dispatch | The executor resolves the registered endpoint, validates payloads, bounds request/response sizes and timeouts, disables redirects and propagates request/run correlation and mutation idempotency headers |
+
+The model returns a structured JSON plan containing tool names and arguments. Agent core validates
+the plan and identifier provenance, then dispatches the approved calls through the HTTP adapter.
+Feature backends execute their own business logic and reach persistence through their database
+APIs. Validated results become durable observations for adaptation or replanning; a model cannot
+register a tool or supply an arbitrary destination URL.
+
+For example, Feature 2 registers `market.cases.inspect.v1` and `market.sales.summary.v1` in its
+[manifest](../../student-2/feature.yaml) and [catalogue](../../student-2/tool-catalog.yaml).
+Both accept a trusted `market_case_id`; their fixed POST routes run on `f2-backend:5301`.
+The [deployment generator](../../scripts/generate_deployment.py),
+[catalogue loader](../../ai-services/ai-mode/src/ai_mode/tool_catalog.py) and
+[HTTP adapter](../../ai-services/ai-mode/src/ai_mode/adapters/http_tools.py) implement these boundaries.
+
+#### Bounded parallel tool calls
+
+Planner v7 uses action `sequence` values as ordered stages. Independent read-only calls can share
+a stage and execute concurrently. In the Feature 2 example, inspecting a case and calculating its
+sales summary can share `sequence: 1` when the backend has already supplied the trusted case ID.
+Adaptation then receives both results. Calls needing newly discovered identifiers require a later
+plan after those identifiers have been observed.
+
+The runner uses a bounded thread pool with `max_parallel_tools` (default 10; permitted range 1 to
+25), splitting larger stages into bounded batches. Mutations remain sequential, and protected
+actions pass through the human-review path. Each call still consumes the tool-call budget and is
+subject to its own timeout and the remaining run deadline.
+
+The runner persists the ordered calls before dispatch and the ordered results before observation.
+Completion order therefore does not change the evidence order supplied to the adapter. Overlapping
+independent HTTP waits can reduce a batch's elapsed time towards its slowest call rather than the
+sum of call times, subject to capacity and overhead. This is an efficiency rationale, not a measured
+Release 0 speedup or a reduction in the number of tools invoked.
+
+The [runner](../../ai-services/agent-core/src/agent_core/runner.py) and its
+[tests](../../ai-services/agent-core/tests/test_runner.py) cover parallel dispatch,
+ordered outcomes and policy boundaries; the [run limits contract](../../shared/contracts/python/shared_contracts/agent.py)
+defines the concurrency bound. The [v7 planner prompt](../../ai-services/ai-mode/src/ai_mode/prompt_assets/planner/v7.system.j2)
+instructs the model to group only independent reads.
+
+[[PAGEBREAK]]
+
 ### 5.3 Prompt engineering and context management
 
 The shared prompt set is stored under `ai-services/ai-mode/src/ai_mode/prompt_assets`. Planner and
