@@ -69,6 +69,7 @@ from propertyscope_data_store.runtime_registry import (
 JsonObject = dict[str, Any]
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_ACTIVATION_STATES = frozenset({"succeeded", "failed"})
+INDEXED_ACTIVATION_DATASETS = ("gnaf-nsw", "fixture-property")
 _POSTGRES_FILESYSTEM_CAPACITY_PROGRAM = (
     'set -eu; test -n "$PGDATA"; '
     'LC_ALL=C df -PB1 -- "$PGDATA" "$PGDATA/pg_wal" '
@@ -1513,7 +1514,9 @@ class PropertyScopeStore:
     def get_release_activation(self, operation_id: uuid.UUID) -> JsonObject:
         return self._required("SELECT * FROM ops.release_activation WHERE id=%s", (operation_id,))
 
-    def claim_release_activation(self, *, worker_id: str, lease_seconds: int) -> JsonObject | None:
+    def claim_release_activation(
+        self, *, worker_id: str, lease_seconds: int, lightweight_only: bool = False
+    ) -> JsonObject | None:
         """Claim one activation, recovering an expired worker up to a bounded attempt limit."""
         now = datetime.now(UTC)
         token = uuid.uuid4().hex
@@ -1540,11 +1543,13 @@ class PropertyScopeStore:
             row = connection.execute(
                 """WITH candidate AS (
                     SELECT id,status FROM ops.release_activation
-                    WHERE status='queued' OR (
+                    WHERE (status='queued' OR (
                         status IN ('claimed','running','interrupted')
                         AND (lease_expires_at IS NULL OR lease_expires_at<=%s)
                         AND attempt_number<3
-                    ) ORDER BY requested_at FOR UPDATE SKIP LOCKED LIMIT 1
+                    )) AND (NOT %s OR dataset_release_id IN (
+                        SELECT id FROM ops.dataset_release WHERE dataset_id<>ALL(%s)
+                    )) ORDER BY requested_at FOR UPDATE SKIP LOCKED LIMIT 1
                 ) UPDATE ops.release_activation operation SET status='claimed',
                     attempt_number=CASE WHEN candidate.status='queued'
                         THEN operation.attempt_number ELSE operation.attempt_number+1 END,
@@ -1553,6 +1558,8 @@ class PropertyScopeStore:
                 FROM candidate WHERE operation.id=candidate.id RETURNING operation.*""",
                 (
                     now,
+                    lightweight_only,
+                    list(INDEXED_ACTIVATION_DATASETS),
                     worker_id,
                     token,
                     now + timedelta(seconds=lease_seconds),
@@ -1658,7 +1665,7 @@ class PropertyScopeStore:
         # connection can therefore renew the lease while PostgreSQL populates accepted-only
         # indexes. If the process stops after this commit but before the marker below, recovery
         # safely repeats the published=FALSE update and then records materialisation.
-        if work["dataset_id"] in {"gnaf-nsw", "fixture-property"}:
+        if work["dataset_id"] in INDEXED_ACTIVATION_DATASETS:
             with self.connection() as connection:
                 stopped = Event()
 

@@ -81,6 +81,8 @@ export function createReleaseRoutes({
   const detailRequests = createLatestRequestGuard();
   const publicationStatusPaths = new Map();
   let evidenceCache = null;
+  let refreshReleaseList = null;
+  let releaseListTimer = null;
   const publicationPolling = {
     timer: null, attempts: 0, releaseId: "", statusPath: "", routeEpoch: null, outcome: "unknown",
   };
@@ -133,7 +135,9 @@ export function createReleaseRoutes({
   }
 
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden || !publicationPolling.routeEpoch?.isCurrent()) return;
+    if (document.hidden) return;
+    if (refreshReleaseList) { refreshReleaseList(); return; }
+    if (!publicationPolling.routeEpoch?.isCurrent()) return;
     stopPublicationPolling();
     refreshPublicationStatus();
   });
@@ -206,6 +210,8 @@ export function createReleaseRoutes({
   }
 
   async function renderReleases(id = "") {
+    clearTimeout(releaseListTimer);
+    refreshReleaseList = null;
     stopPublicationPolling({ reset: true });
     const routeEpoch = generationGuard.capture();
     loading("Loading release evidence");
@@ -216,20 +222,49 @@ export function createReleaseRoutes({
       const selectedState = RELEASE_STATES.some((state) => state.key === requestedState) ? requestedState : "all";
       const filters = { q: params.get("q") || "", status: params.get("status") || "" };
       const offset = pageOffset(params);
-      const { body } = await request(`dataset-releases${queryString({ ...filters, lifecycle: selectedState, limit: 100, offset })}`);
+      const listPath = `dataset-releases${queryString({ ...filters, lifecycle: selectedState, limit: 100, offset })}`;
+      const { body } = await request(listPath);
       if (!routeEpoch.isCurrent()) return;
-      const visible = collection(body);
       view.replaceChildren();
       append(view, pageHeading("Property data", "Published data", "Review new data before it replaces the version currently used in property research.", [button("Create draft version", "button primary", () => openReleaseDialog())]));
       append(view, releaseStateTabs(selectedState, filters));
       append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: ["", "draft", "candidate", "awaiting_review", "accepted", "rejected", "superseded"], placeholder: "Dataset, version or research area", onApply: (values) => { location.hash = `#releases${queryString({ ...values, state: selectedState === "all" ? "" : selectedState })}`; } }));
-      append(view, collectionPagination("releases", { ...filters, state: selectedState }, body, offset));
-      if (!visible.length) { append(view, emptyState("No datasets found", filters.q || filters.status ? "Try clearing the current filters." : "A completed processing run can create a dataset for review.")); return; }
-      append(view, panel(`${visible.length} ${visible.length === 1 ? "data version" : "data versions"}`, "New versions stay separate until they are reviewed and published", makeTable(
-        [{ label: "Dataset / version" }, { label: "Research area" }, { label: "Records" }, { label: "State" }, { label: "Published" }, { label: "Checksum" }], visible,
-        (release) => { const row = el("tr"); const releaseLink = link(displayName(release.dataset_id || "Dataset"), `#releases/${release.id}`); append(row, cell(primaryCell(releaseLink, release.release_version || "Version not recorded"), "primary-cell"), cell(researchAreaLabel(release.target_feature)), cell(formatNumber(release.record_count), "numeric"), cell(badge(publicationDisplayState(release, release.publication_status))), cell(formatDate(release.accepted_at)), cell(technicalReference(release.content_sha256, 12))); return row; },
-        "Published data versions", { responsive: true },
-      )));
+      const resultsHost = el("div", "stack");
+      append(view, resultsHost);
+      function renderResults(payload) {
+        const visible = collection(payload);
+        const activeLink = resultsHost.contains(document.activeElement) ? document.activeElement.getAttribute("href") : null;
+        const scrollY = window.scrollY;
+        disposeTableRegions(resultsHost);
+        resultsHost.replaceChildren();
+        append(resultsHost, collectionPagination("releases", { ...filters, state: selectedState }, payload, offset));
+        if (!visible.length) { append(resultsHost, emptyState("No datasets found", filters.q || filters.status ? "Try clearing the current filters." : "A completed processing run can create a dataset for review.")); return; }
+        append(resultsHost, panel(`${visible.length} ${visible.length === 1 ? "data version" : "data versions"}`, "New versions stay separate until they are reviewed and published", makeTable(
+          [{ label: "Dataset / version" }, { label: "Research area" }, { label: "Records" }, { label: "State" }, { label: "Published" }, { label: "Checksum" }], visible,
+          (release) => { const row = el("tr"); const releaseLink = link(displayName(release.dataset_id || "Dataset"), `#releases/${release.id}`); append(row, cell(primaryCell(releaseLink, release.release_version || "Version not recorded"), "primary-cell"), cell(researchAreaLabel(release.target_feature)), cell(formatNumber(release.record_count), "numeric"), cell(badge(publicationDisplayState(release, release.publication_status))), cell(formatDate(release.accepted_at)), cell(technicalReference(release.content_sha256, 12))); return row; },
+          "Published data versions", { responsive: true },
+        )));
+        if (activeLink) [...resultsHost.querySelectorAll("a[href]")].find((item) => item.getAttribute("href") === activeLink)?.focus({ preventScroll: true });
+        window.scrollTo({ top: scrollY, behavior: "instant" });
+      }
+      renderResults(body);
+      let refreshing = false;
+      const refresh = async () => {
+        clearTimeout(releaseListTimer);
+        if (refreshing || document.hidden || !routeEpoch.isCurrent()) return;
+        refreshing = true;
+        try {
+          const result = await request(listPath);
+          if (routeEpoch.isCurrent()) renderResults(result.body);
+        } catch {
+          if (routeEpoch.isCurrent() && !resultsHost.querySelector(".refresh-warning")) append(resultsHost, el("p", "notice warning refresh-warning", "Publication states could not be refreshed. Retrying shortly."));
+        } finally {
+          refreshing = false;
+          if (routeEpoch.isCurrent()) releaseListTimer = setTimeout(refresh, 30000);
+        }
+      };
+      refreshReleaseList = refresh;
+      releaseListTimer = setTimeout(refresh, 30000);
     } catch (error) {
       if (!routeEpoch.isCurrent()) return;
       view.replaceChildren(errorState(error, rerender));
@@ -358,7 +393,7 @@ export function createReleaseRoutes({
     append(lifecycleNotice, badge(displayState), document.createTextNode(` ${lifecycle.message}`));
     append(view, lifecycleNotice);
     if (activeConsumerImport && activeConsumerImport.status !== "activation_queued") append(view, el("div", "notice info", `Consumer delivery continues (${displayName(activeConsumerImport.phase_key || activeConsumerImport.status)}). The currently published version remains live until the consumer accepts this version and activation succeeds.`));
-    else if (activeActivation) append(view, el("div", "notice info", `Accepted-version activation continues (${displayName(activeActivation.status)}). The currently published version remains live until the final pointer switch succeeds.`));
+    else if (activeActivation) append(view, el("div", "notice info", `Accepted-version activation continues (${activeActivation.progress_phase || displayName(activeActivation.status)}). The currently published version remains live until the final pointer switch succeeds.`));
     else if (activeConsumerImport?.status === "activation_queued") append(view, el("div", "notice info", "The consumer accepted this version and accepted-version activation is queued. The currently published version remains live until the final pointer switch succeeds."));
     if (publicationInProgress && publicationPolling.attempts >= PUBLICATION_POLL_LIMIT) append(view, el("div", "notice info", "Publication is still running. Progress updates continue every 30 seconds."));
     if (blocking) append(view, el("div", "notice negative", "Required data checks failed, so this version cannot be published. Review the failures, then retry or reject it."));
@@ -379,7 +414,7 @@ export function createReleaseRoutes({
     ));
     const receiptBody = el("div");
     if (!receipts.length) append(receiptBody, el("p", "", "No consumer publication receipts recorded."));
-    for (const receipt of receipts) append(receiptBody, detailList([["Research area", researchAreaLabel(receipt.target_feature || release.target_feature)], ["Status", badge(receipt.status)], ["Rows received", formatNumber(receipt.rows_received)], ["Rows accepted", formatNumber(receipt.rows_accepted)], ["Failure details", receipt.error ? technicalDetails(receipt.error, "Inspect failure") : "None recorded"]]));
+    for (const receipt of [...receipts].reverse()) append(receiptBody, detailList([["Research area", researchAreaLabel(receipt.target_feature || release.target_feature)], ["Status", badge(receipt.status)], ["Rows received", formatNumber(receipt.rows_received)], ["Rows accepted", formatNumber(receipt.rows_accepted)], ["Failure details", receipt.error ? technicalDetails(receipt.error, "Inspect failure") : "None recorded"]]));
     append(side, panel("Publication receipts", "Recorded outcomes from each destination", receiptBody));
     const consumerImportBody = el("div");
     if (!consumerImports.length) append(consumerImportBody, el("p", "", "No consumer import operations recorded."));
@@ -397,7 +432,7 @@ export function createReleaseRoutes({
     append(side, panel("Consumer import operations", "Durable delivery, receipt, and activation queueing", consumerImportBody));
     const activationBody = el("div");
     if (!activations.length) append(activationBody, el("p", "", "No background publication operations recorded."));
-    for (const activation of [...activations].reverse()) append(activationBody, detailList([["Status", badge(activation.status)], ["Attempt", formatNumber(activation.attempt_number)], ["Requested", formatDate(activation.requested_at)], ["Materialised", formatDate(activation.materialized_at)], ["Finished", formatDate(activation.finished_at)], ["Failure details", activation.error_json ? technicalDetails(activation.error_json, "Inspect failure") : "None recorded"]]));
+    for (const activation of [...activations].reverse()) append(activationBody, detailList([["Status", badge(activation.status)], ["Current step", activation.progress_phase || (["failed", "succeeded"].includes(activation.status) ? displayName(activation.status) : "Waiting for a publication worker")], ["Started", formatDate(activation.started_at)], ["Last progress update", formatDate(activation.progress_updated_at)], ["Attempt", formatNumber(activation.attempt_number)], ["Requested", formatDate(activation.requested_at)], ["Materialised", formatDate(activation.materialized_at)], ["Finished", formatDate(activation.finished_at)], ["Failure details", activation.error_json ? technicalDetails(activation.error_json, "Inspect failure") : "None recorded"]]));
     append(side, panel("Background publication", "Registry preparation completes before a short accepted-version switch", activationBody));
     append(layout, panel(publicationInProgress ? "Publishing version" : ["accepted", "superseded"].includes(release.status) ? "Published dataset" : publicationOutcome === "failed" ? "Publication needs attention" : "Version under review", "The exact version selected for publication", releaseBody), side);
     append(view, layout);

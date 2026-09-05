@@ -165,7 +165,15 @@ Open <http://localhost:5200>. The main product path is:
 5. Review new versions under **Published data** before publishing or rejecting them. Data checks,
    files and coverage are opened from the update or version they explain instead of appearing as
    separate primary destinations. Publication returns after queueing a durable background
-   activation; the release page shows its progress while the prior accepted version remains live.
+   activation; the release page shows **Publishing** while the prior accepted version remains live.
+   Publication reconciliation runs independently of acquisition/export. The page continues slow
+   polling for long imports. Lightweight activations run independently of serial bulk imports and
+   GNAF index builds, retaining artifact verification and fenced accepted-pointer transactions.
+   The page refreshes when its tab becomes visible and loads record previews
+   separately from current state/actions. **Retry publication** preserves failed receipts and
+   reconciles uncertain work before a fresh delivery. See
+   [ADR-040](../docs/architecture/decisions/ADR-040-publication-recovery-and-current-state.md) and the
+   [live investigation](../docs/operations/publication-investigation-2026-09-05.md).
 6. When a version needs interpretation, select **Review with AI**. AI review is optional, cannot
    publish changes and remains available later in **Activity history**.
 

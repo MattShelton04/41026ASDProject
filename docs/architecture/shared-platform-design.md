@@ -108,6 +108,10 @@ Consumers discover the deterministic contract ZIP through
 `GET /api/data-platform/v1/product-contracts/v1` and download only its digest-bound immutable path;
 the package includes current record schemas and the unchanged legacy schemas needed to interpret
 accepted releases. ADR-033 records the contract distribution, trust boundary and replay rules.
+[ADR-040](decisions/ADR-040-publication-recovery-and-current-state.md) adds independent publication
+reconciliation, transient control-error recovery, immutable failed-receipt retries and current
+publication state in the UI. Feature 3 retains fenced staging on recovery and compiles the same
+producer schemas, including format checks, without weakening full-artifact verification.
 
 The onboarding and operations increment makes `deployment/features.yaml` the explicit enablement
 selection and projects it through validated feature-owned onboarding metadata. Enabled routes,

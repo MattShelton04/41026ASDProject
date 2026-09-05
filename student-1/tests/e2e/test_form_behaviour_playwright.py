@@ -1236,6 +1236,32 @@ def test_operations_overview_job_and_release_states_are_truthful(
         assert box["height"] >= 44
 
 
+def test_release_list_refresh_preserves_unsubmitted_filters(
+    page: Page, fixture_origin: str
+) -> None:
+    published = False
+
+    def releases(route: Route) -> None:
+        response = route.fetch()
+        payload = response.json()
+        release = next(item for item in payload["items"] if item["id"] == CANDIDATE_ID)
+        release["status"] = "accepted" if published else "awaiting_review"
+        release["publication_status"] = "completed" if published else "pending"
+        route.fulfill(response=response, json=payload)
+
+    page.route("**/api/data-platform/v1/dataset-releases?*", releases)
+    _open(page, fixture_origin, "releases")
+    row = page.get_by_role("row").filter(has=page.locator(f'a[href="#releases/{CANDIDATE_ID}"]'))
+    expect(row).to_contain_text("Publishing")
+    search = page.get_by_role("searchbox", name="Search (optional)", exact=True)
+    search.fill("Unsubmitted search")
+    published = True
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    expect(row).to_contain_text("Published")
+    expect(search).to_have_value("Unsubmitted search")
+    expect(search).to_be_focused()
+
+
 def test_release_state_refreshes_without_waiting_for_record_preview(
     page: Page, fixture_origin: str
 ) -> None:

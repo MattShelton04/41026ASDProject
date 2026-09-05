@@ -18,12 +18,28 @@ from propertyscope_data_platform.clients import (
     DataStoreClient,
 )
 from propertyscope_data_platform.domain import ConsumerPublicationRequest
+from propertyscope_data_platform.release_projection import public_activation
 from propertyscope_data_platform.release_publication import process_consumer_import, publish_release
 from propertyscope_data_platform.runner import AcquisitionRunner, RunnerSettings
 
 RELEASE_ID = "60000000-0000-0000-0000-000000000099"
 OPERATION_ID = "72000000-0000-0000-0000-000000000099"
 DIGEST = "a" * 64
+
+
+def test_public_activation_reports_preparation_phase_without_worker_credentials() -> None:
+    projected = public_activation(
+        {
+            "status": "running",
+            "progress_phase_key": "materialisation",
+            "progress_phase": "Materialising reviewed release",
+            "progress_updated_at": "now",
+            "lease_token": "private-token",
+        }
+    )
+    assert projected["progress_phase"] == "Materialising reviewed release"
+    assert projected["progress_updated_at"] == "now"
+    assert "lease_token" not in projected
 
 
 class _OversizedChunkedBody(httpx.SyncByteStream):

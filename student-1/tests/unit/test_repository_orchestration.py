@@ -1424,6 +1424,31 @@ def test_property_search_api_does_not_inflate_total_for_out_of_range_offset() ->
     assert response.get_json()["next_offset"] is None
 
 
+@pytest.mark.parametrize("lifecycle", ["all", "review", "published", "rejected"])
+def test_release_api_accepts_ui_search_and_lifecycle_filters(lifecycle: str) -> None:
+    store = PropertyQueryStore()
+    app = Flask(__name__)
+    app.register_blueprint(create_blueprint(store, internal_token="secret"))
+    register_error_handlers(app)
+    response = app.test_client().get(
+        f"/internal/data-platform/v1/releases?lifecycle={lifecycle}&q=%20NSW%20&limit=100&offset=0",
+        headers={"X-PropertyScope-Internal-Token": "secret"},
+    )
+    assert response.status_code == 200
+    assert "NSW" in store.params
+
+
+def test_release_api_still_rejects_unknown_query_parameters() -> None:
+    app = Flask(__name__)
+    app.register_blueprint(create_blueprint(PropertyQueryStore(), internal_token="secret"))
+    register_error_handlers(app)
+    response = app.test_client().get(
+        "/internal/data-platform/v1/releases?lifecyle=all",
+        headers={"X-PropertyScope-Internal-Token": "secret"},
+    )
+    assert response.status_code == 422
+
+
 def test_release_collection_excludes_retired_assessment_sources() -> None:
     store = PropertyQueryStore()
 

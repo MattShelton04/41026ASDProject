@@ -255,6 +255,8 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             "target_feature",
             "schema_version",
             "ingestion_run_id",
+            "q",
+            "lifecycle",
             "limit",
             "offset",
         }

@@ -298,6 +298,56 @@ def test_cancel_intent_update_is_not_blocked_by_import_foreign_key_share(
         canceller.close()
 
 
+def test_lightweight_activation_claim_skips_index_builds_and_live_leases(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    connection.execute("""
+        CREATE SCHEMA ops;
+        CREATE TABLE ops.dataset_release (id UUID PRIMARY KEY,dataset_id TEXT NOT NULL);
+        CREATE TABLE ops.release_activation (
+            id UUID PRIMARY KEY,dataset_release_id UUID NOT NULL,status TEXT NOT NULL,
+            attempt_number INTEGER DEFAULT 1,finished_at TIMESTAMPTZ,error_json JSONB,
+            lease_owner TEXT,lease_token TEXT,lease_expires_at TIMESTAMPTZ,
+            heartbeat_at TIMESTAMPTZ,started_at TIMESTAMPTZ,
+            requested_at TIMESTAMPTZ DEFAULT clock_timestamp(),version INTEGER DEFAULT 1
+        );
+    """)
+    identifiers = {
+        dataset: uuid.uuid4() for dataset in ("gnaf-nsw", "fixture-property", "bocsar-crime")
+    }
+    for dataset, identity in identifiers.items():
+        connection.execute("INSERT INTO ops.dataset_release VALUES (%s,%s)", (identity, dataset))
+        connection.execute(
+            "INSERT INTO ops.release_activation (id,dataset_release_id,status) "
+            "VALUES (%s,%s,'queued')",
+            (identity, identity),
+        )
+    connection.commit()
+
+    class Store(PropertyScopeStore):
+        def __init__(self) -> None:
+            pass
+
+        @contextmanager
+        def connection(self) -> Iterator[psycopg.Connection[dict[str, object]]]:
+            yield connection
+
+    store = Store()
+    claimed = store.claim_release_activation(
+        worker_id="lightweight", lease_seconds=120, lightweight_only=True
+    )
+    assert claimed is not None and claimed["dataset_release_id"] == str(identifiers["bocsar-crime"])
+    assert (
+        store.claim_release_activation(
+            worker_id="another-lightweight", lease_seconds=120, lightweight_only=True
+        )
+        is None
+    )
+    bulk = store.claim_release_activation(worker_id="serial-bulk", lease_seconds=120)
+    assert bulk is not None and bulk["dataset_release_id"] == str(identifiers["gnaf-nsw"])
+
+
 def test_concurrent_consumer_import_creation_coalesces_one_release_identity(
     isolated_postgres: psycopg.Connection[dict[str, object]],
 ) -> None:
