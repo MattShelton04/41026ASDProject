@@ -13,9 +13,10 @@ from .repository import Repository
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS source_imports (
- id TEXT PRIMARY KEY, release_id TEXT UNIQUE NOT NULL, delivery_key TEXT UNIQUE NOT NULL,
+ id TEXT PRIMARY KEY, release_id TEXT NOT NULL, delivery_key TEXT UNIQUE NOT NULL,
  request_json TEXT NOT NULL, correlation_json TEXT NOT NULL, status TEXT NOT NULL,
- token TEXT, lease_until REAL NOT NULL DEFAULT 0, receipt_json TEXT
+ token TEXT, lease_until REAL NOT NULL DEFAULT 0, receipt_json TEXT,
+ attempt_number INTEGER NOT NULL DEFAULT 0, next_attempt_at REAL NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS source_records (
  operation_id TEXT NOT NULL, ordinal INTEGER NOT NULL, record_key TEXT NOT NULL,
@@ -40,6 +41,26 @@ class Imports:
         self.repository = repository
         with repository.connect() as db:
             db.executescript(SCHEMA)
+            db.execute("BEGIN IMMEDIATE")
+            if "attempt_number" not in {
+                row[1] for row in db.execute("PRAGMA table_info(source_imports)")
+            }:
+                # Preserve every operation and delivery alias while allowing failed attempt history.
+                db.execute("ALTER TABLE source_imports RENAME TO source_imports_legacy")
+                db.execute(SCHEMA.split(";", 1)[0])
+                columns = (
+                    "id,release_id,delivery_key,request_json,correlation_json,status,"
+                    "token,lease_until,receipt_json"
+                )
+                db.execute(
+                    f"INSERT INTO source_imports ({columns}) "
+                    f"SELECT {columns} FROM source_imports_legacy"
+                )
+                db.execute("DROP TABLE source_imports_legacy")
+            db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS source_import_live_release "
+                "ON source_imports(release_id) WHERE status <> 'failed'"
+            )
 
     @staticmethod
     def acknowledgement(row: Any) -> dict[str, Any]:
@@ -66,10 +87,20 @@ class Imports:
         with self.repository.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             rows = db.execute(
-                "SELECT * FROM source_imports WHERE release_id=? OR delivery_key=? "
+                "SELECT * FROM source_imports WHERE delivery_key=? "
                 "OR id IN (SELECT operation_id FROM source_deliveries WHERE delivery_key=?)",
-                (request["release_id"], request["idempotency_key"], request["idempotency_key"]),
+                (request["idempotency_key"], request["idempotency_key"]),
             ).fetchall()
+            if not rows:
+                rows = db.execute(
+                    "SELECT * FROM source_imports WHERE release_id=? ORDER BY rowid DESC LIMIT 1",
+                    (request["release_id"],),
+                ).fetchall()
+                if rows and rows[0]["status"] == "failed":
+                    old = json.loads(rows[0]["request_json"])
+                    if any(old[k] != request[k] for k in request if k != "idempotency_key"):
+                        raise ValueError("import_identity_conflict")
+                    rows = []
             if rows:
                 old = json.loads(rows[0]["request_json"])
                 if len(rows) != 1 or any(
@@ -107,16 +138,17 @@ class Imports:
         with self.repository.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
-                "SELECT * FROM source_imports WHERE status='queued' OR "
+                "SELECT * FROM source_imports WHERE (status='queued' AND next_attempt_at<=?) OR "
                 "(status='running' AND lease_until<?) ORDER BY rowid LIMIT 1",
-                (time.time(),),
+                (time.time(), time.time()),
             ).fetchone()
             if row is None:
                 return {}
             token = str(uuid4())
             db.execute("DELETE FROM source_records WHERE operation_id=?", (row["id"],))
             db.execute(
-                "UPDATE source_imports SET status='running',token=?,lease_until=? WHERE id=?",
+                "UPDATE source_imports SET status='running',token=?,lease_until=?,"
+                "attempt_number=attempt_number+1 WHERE id=?",
                 (token, time.time() + 180, row["id"]),
             )
             return {
@@ -128,19 +160,13 @@ class Imports:
 
     def retry(self, operation: str) -> dict[str, Any]:
         with self.repository.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
             row = db.execute("SELECT * FROM source_imports WHERE id=?", (operation,)).fetchone()
             if row is None or row["status"] != "failed":
                 raise ValueError("import_retry_conflict")
-            db.execute(
-                "INSERT INTO source_attempt_receipts VALUES (?,?,?)",
-                (operation, row["receipt_json"], time.time()),
-            )
-            db.execute(
-                "UPDATE source_imports SET status='queued',receipt_json=NULL WHERE id=?",
-                (operation,),
-            )
-        return self.status(operation)
+            request = json.loads(row["request_json"])
+            request["idempotency_key"] = f"retry-{operation}"
+            correlation = json.loads(row["correlation_json"])
+        return self.enqueue({"request": request, "correlation": correlation})
 
     def apply(self, operation: str, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         with self.repository.connect() as db:
@@ -219,6 +245,18 @@ class Imports:
                     if receipt["status"] == "accepted":
                         raise ValueError("invalid_failure_receipt")
                     db.execute("DELETE FROM source_records WHERE operation_id=?", (operation,))
+                    error = receipt.get("error") or {}
+                    if error.get("retryable") is True and row["attempt_number"] < 5:
+                        db.execute(
+                            "INSERT INTO source_attempt_receipts VALUES (?,?,?)",
+                            (operation, json.dumps(receipt), time.time()),
+                        )
+                        db.execute(
+                            "UPDATE source_imports SET status='queued',token=NULL,"
+                            "next_attempt_at=? WHERE id=?",
+                            (time.time() + min(2 ** row["attempt_number"], 30), operation),
+                        )
+                        return {"ok": True}
                 db.execute(
                     "UPDATE source_imports SET status=?,receipt_json=?,token=NULL WHERE id=?",
                     (receipt["status"], json.dumps(receipt), operation),

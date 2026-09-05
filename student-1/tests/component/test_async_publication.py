@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
+from threading import Event
 from typing import Any, cast
 
 import httpx
@@ -699,3 +700,57 @@ def test_runner_advances_one_delivery_phase_when_no_ingestion_task(tmp_path: Pat
         "/internal/data-platform/v1/worker/consumer-imports/claim",
         f"/internal/data-platform/v1/worker/consumer-imports/{OPERATION_ID}/step",
     ]
+
+
+def test_publication_advances_while_acquisition_is_blocked(tmp_path: Path) -> None:
+    acquiring, delivered = Event(), Event()
+
+    def backend(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/worker/tasks/claim"):
+            return httpx.Response(200, json={"task": {"id": "task", "lease_token": "lease"}})
+        if request.url.path.endswith("/worker/consumer-imports/claim"):
+            assert acquiring.wait(2)
+            return httpx.Response(
+                200, json={"operation": {"id": OPERATION_ID, "lease_token": "lease"}}
+            )
+        if request.url.path.endswith("/step"):
+            delivered.set()
+        return httpx.Response(200, json={})
+
+    runner = AcquisitionRunner(
+        RunnerSettings(
+            backend_url="http://backend",
+            token="token",
+            artifact_root=tmp_path,
+            worker_id="runner",
+            poll_seconds=0.01,
+            lease_seconds=30,
+        ),
+        client=httpx.Client(transport=httpx.MockTransport(backend)),
+    )
+
+    def acquire(task: dict[str, Any]) -> tuple[int, int]:
+        acquiring.set()
+        progressed = delivered.wait(2)
+        runner.stop()
+        assert progressed, "publication starved behind ingestion"
+        return 1, 1
+
+    runner._execute = acquire  # type: ignore[method-assign]
+    runner.run_forever()
+    assert delivered.is_set()
+
+
+def test_failed_delivery_projects_retained_receipt_error() -> None:
+    from propertyscope_data_platform.release_projection import public_consumer_import
+
+    error = {
+        "code": "artifact_transport_failed",
+        "message": "Download interrupted",
+        "retryable": True,
+    }
+    projected = public_consumer_import(
+        _operation("complete", status="failed", result_json={"error": error})
+    )
+    assert projected["error_json"] == error
+    assert "lease_token" not in projected

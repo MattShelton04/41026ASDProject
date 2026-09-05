@@ -1837,6 +1837,13 @@ class PropertyScopeStore:
             "abandoned": set(),
         }
         current = self.get_release(release_id)
+        if (
+            target in {"awaiting_review", "rejected"}
+            and current["status"] == target
+            and int(current["version"]) == expected_version + 1
+            and current.get("review_comment") == comment
+        ):
+            return current
         if target not in allowed[str(current["status"])]:
             raise ConflictError(f"release cannot transition from {current['status']} to {target}")
         if target == "accepted":

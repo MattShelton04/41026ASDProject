@@ -87,6 +87,8 @@ class _ConsumerImportOperations:
                 AND operation.content_sha256=%s AND operation.record_count=%s
                 AND operation.status IN ('failed','rejected')
                 AND operation.consumer_operation_id IS NOT NULL
+                AND (operation.target_feature<>'feature-3'
+                     OR receipt.status IS DISTINCT FROM 'failed')
                 ORDER BY operation.requested_at,operation.id LIMIT 1 FOR UPDATE OF operation""",
                 expected_identity,
             ).fetchone()
@@ -395,6 +397,7 @@ class _ConsumerImportOperations:
             row = connection.execute(
                 """UPDATE ops.consumer_import_operation operation SET publication_receipt_id=%s,
                 status=%s,phase_key=%s,finished_at=%s,lease_owner=NULL,lease_token=NULL,
+                error_json=receipt.error_json,
                 lease_expires_at=NULL,heartbeat_at=NULL,version=operation.version+1
                 FROM ops.publication_receipt receipt WHERE operation.id=%s
                 AND operation.status='claimed' AND operation.phase_key='record_receipt'

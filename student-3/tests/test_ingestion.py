@@ -486,14 +486,79 @@ def test_public_callback_status_read_routes_and_explicit_retry(database: Imports
             backend.base_url + f"/api/suburb-analytics/v1/data-imports/{operation}/retry"
         )
         assert retry.status_code == 202
-        assert retry.json()["consumer_operation_id"] == operation
+        retry_operation = retry.json()["consumer_operation_id"]
+        assert retry_operation != operation
         with serve_origin(producer_app(payload, artifact)) as origin, httpx.Client() as valid:
             Ingestion(store, origin).run_once(valid)
-        assert database.status(operation)["status"] == "accepted"
+        assert database.status(retry_operation)["status"] == "accepted"
+        assert database.status(operation)["status"] == "failed"
+        assert database.retry(operation)["consumer_operation_id"] == retry_operation
         with pytest.raises(ValueError, match="retry_conflict"):
-            database.retry(operation)
+            database.retry(retry_operation)
+
+
+def test_transport_retry_is_bounded_and_fresh_key_preserves_failed_receipt(
+    database: Imports,
+) -> None:
+    payload, _, _ = fixture()
+    ack = database.enqueue({"request": payload, "correlation": CORRELATION})
+    operation = ack["consumer_operation_id"]
+    for attempt in range(1, 6):
         with database.repository.connect() as db:
-            assert db.execute("SELECT COUNT(*) FROM source_attempt_receipts").fetchone()[0] == 1
+            db.execute("UPDATE source_imports SET next_attempt_at=0 WHERE id=?", (operation,))
+        job = database.claim()
+        receipt = {
+            k: payload[k]
+            for k in (
+                "release_id",
+                "dataset_id",
+                "schema_version",
+                "content_sha256",
+                "record_count",
+            )
+        }
+        receipt.update(
+            target="feature-3",
+            consumer_operation_id=operation,
+            status="failed",
+            rows_received=0,
+            rows_accepted=0,
+            rows_rejected=0,
+            error={
+                "code": "artifact_transport_failed",
+                "message": "Interrupted",
+                "retryable": True,
+            },
+        )
+        database.apply(operation, "fail", {"token": job["token"], "receipt": receipt})
+        assert database.status(operation)["status"] == ("queued" if attempt < 5 else "failed")
+    assert database.enqueue({"request": payload, "correlation": CORRELATION})["status"] == "failed"
+    fresh = deepcopy(payload)
+    fresh["idempotency_key"] = "fresh-delivery"
+    retried = database.enqueue({"request": fresh, "correlation": CORRELATION})
+    assert retried["consumer_operation_id"] != operation
+    assert retried["status"] == "queued"
+    assert database.status(operation)["status"] == "failed"
+    assert (
+        database.enqueue({"request": payload, "correlation": CORRELATION})["consumer_operation_id"]
+        == operation
+    )
+    alias = deepcopy(fresh)
+    alias["idempotency_key"] = "another-browser"
+    assert database.enqueue({"request": alias, "correlation": CORRELATION}) == retried
+    with database.repository.connect() as db:
+        assert db.execute("SELECT COUNT(*) FROM source_attempt_receipts").fetchone()[0] == 4
+
+
+def test_legacy_import_migration_preserves_failed_operation(database: Imports) -> None:
+    payload, _, _ = fixture()
+    ack = database.enqueue({"request": payload, "correlation": CORRELATION})
+    with database.repository.connect() as db:
+        db.execute("ALTER TABLE source_imports DROP COLUMN attempt_number")
+        db.execute("ALTER TABLE source_imports DROP COLUMN next_attempt_at")
+    migrated = Imports(database.repository)
+    assert migrated.status(ack["consumer_operation_id"]) == ack
+    assert migrated.claim()["id"] == ack["consumer_operation_id"]
 
 
 def test_sync_keeps_population_target_and_requires_accepted_lookup(

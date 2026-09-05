@@ -338,7 +338,11 @@ class Ingestion:
                     "code": getattr(exc, "code", "import_validation_failed"),
                     "message": "Import failed validation or transport; "
                     "previous evidence is unchanged.",
-                    "retryable": False,
+                    "retryable": (
+                        isinstance(exc, ConsumerProtocolError)
+                        and exc.code in {"artifact_transport_failed", "artifact_response_rejected"}
+                        and exc.retryable
+                    ),
                 },
             )
             sink.send("fail", {"receipt": receipt})

@@ -146,6 +146,14 @@ test("publication polling is finite, backs off, and pauses while hidden", () => 
   assert.equal(nextPublicationPollDelay(PUBLICATION_POLL_LIMIT, "pending"), null);
 });
 
+test("a retried consumer delivery takes precedence over its historical failed activation", () => {
+  assert.equal(reconcilePublication({
+    release: { status: "awaiting_review" },
+    activations: [{ status: "failed" }],
+    consumer_imports: [{ status: "activation_pending" }],
+  }), "pending");
+});
+
 test("publication operation selection and status paths use the durable fixed resource", () => {
   const selected = activePublicationOperation({
     consumer_imports: [{ id: "old", status: "failed" }, { id: "new", status: "polling" }],

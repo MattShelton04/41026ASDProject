@@ -2583,7 +2583,7 @@ def test_failed_activation_with_accepted_receipt_requeues_without_consumer_redow
     )
 
 
-@pytest.mark.parametrize("terminal_status", ["rejected", "failed"])
+@pytest.mark.parametrize("terminal_status", ["rejected"])
 def test_nonaccepted_attached_receipt_remains_terminal_on_fresh_delivery_key(
     terminal_status: str,
 ) -> None:

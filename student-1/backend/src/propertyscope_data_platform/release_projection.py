@@ -173,4 +173,8 @@ def public_consumer_import(operation: Mapping[str, Any]) -> dict[str, Any]:
         "status_timeout_seconds": CONSUMER_STATUS_TIMEOUT_SECONDS,
         "maximum_response_bytes": CONSUMER_RESPONSE_MAX_BYTES,
     }
+    if projected["error_json"] is None and operation.get("status") in {"failed", "rejected"}:
+        result = operation.get("result_json")
+        if isinstance(result, Mapping):
+            projected["error_json"] = result.get("error")
     return projected

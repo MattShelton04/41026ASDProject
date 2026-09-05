@@ -43,16 +43,16 @@ export function reconcilePublication(body) {
     || activation?.status === "succeeded") {
     return "completed";
   }
+  if (ACTIVE_ACTIVATION_STATES.includes(activation?.status)
+    || ACTIVE_CONSUMER_IMPORT_STATES.includes(consumerImport?.status)) {
+    return "pending";
+  }
   if (body?.publication_status === "failed"
     || activation?.status === "failed"
     || FAILED_CONSUMER_IMPORT_STATES.includes(consumerImport?.status)) {
     return "failed";
   }
-  if (body?.publication_status === "pending"
-    || ACTIVE_ACTIVATION_STATES.includes(activation?.status)
-    || ACTIVE_CONSUMER_IMPORT_STATES.includes(consumerImport?.status)) {
-    return "pending";
-  }
+  if (body?.publication_status === "pending") return "pending";
   return "unknown";
 }
 
