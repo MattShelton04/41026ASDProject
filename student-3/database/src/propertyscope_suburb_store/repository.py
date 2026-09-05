@@ -509,12 +509,14 @@ class Repository:
         current = self.comparison(comparison_id)
         if current is None:
             return None
-        version = int(payload.get("version", 0))
+        version = payload.get("version")
+        if type(version) is not int or version < 1:
+            raise ValueError("version is required for an update")
         if version != current["version"]:
             raise ValueError("version_conflict")
         merged = current | payload
         with self.connect() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 "UPDATE user_suburbs SET name=?, localities_json=?, from_month=?, to_month=?, "
                 "measure=?, selected_indicators_json=?, priorities_json=?, notes=?, status=?, "
                 "updated_at=?, version=version+1 WHERE id=? AND version=?",
@@ -533,6 +535,8 @@ class Repository:
                     version,
                 ),
             )
+            if cursor.rowcount != 1:
+                raise ValueError("version_conflict")
         return self.comparison(comparison_id)
 
     def delete_comparison(self, comparison_id: str) -> bool:

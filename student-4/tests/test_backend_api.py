@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 import httpx
+import pytest
 
 from propertyscope_due_diligence.app import create_app
 
@@ -29,7 +31,7 @@ class FakeStore:
             if not isinstance(json, dict) or not json.get("title"):
                 return httpx.Response(422, json={"code": "invalid_site_review"})
             self._seq += 1
-            review_id = f"r{self._seq}"
+            review_id = str(UUID(int=self._seq))
             row = {
                 "id": review_id,
                 "property_ref": json.get("property_ref", ""),
@@ -373,3 +375,33 @@ def test_unknown_route_returns_problem():
     response = _client().get(f"{_API}/missing")
     assert response.status_code == 404
     assert response.mimetype == "application/problem+json"
+
+
+@pytest.mark.parametrize(
+    "body", [None, [], ["x"], {"site_review_id": "../../site-reviews"}, {"site_review_id": 3}]
+)
+@pytest.mark.parametrize(
+    "tool", ["duediligence.review.inspect.v1", "duediligence.evidence.summary.v1"]
+)
+def test_tool_input_is_validated_before_store_access(body, tool):
+    response = _client().post(f"{_API}/tools/{tool}", json=body)
+    assert response.status_code == 422
+    assert response.get_json()["code"] == "invalid_tool_input"
+
+
+@pytest.mark.parametrize("resource", ["constraints", "buildings"])
+def test_evidence_failure_is_not_an_empty_success(resource):
+    class UnavailableEvidenceStore(FakeStore):
+        def request(self, method, path, **kwargs):
+            if path.endswith("/" + resource):
+                return httpx.Response(503, json={"code": "dependency_unavailable"})
+            return super().request(method, path, **kwargs)
+
+    client = _client(store=UnavailableEvidenceStore())
+    created = client.post(f"{_API}/site-reviews", json={"property_ref": "a0", "title": "test"})
+    review_id = created.get_json()["id"]
+    assert client.get(f"{_API}/site-reviews/{review_id}/evidence").status_code == 503
+    response = client.post(
+        f"{_API}/tools/duediligence.evidence.summary.v1", json={"site_review_id": review_id}
+    )
+    assert response.status_code == 503

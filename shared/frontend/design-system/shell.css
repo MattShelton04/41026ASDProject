@@ -1,0 +1,112 @@
+/* Shared feature-shell adapter. Load after legacy feature CSS during migration.
+   The feature owns content, filtering and its local sidebar; product navigation,
+   brand and responsive header geometry have one implementation. */
+.ps-feature-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--ps-z-shell);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ps-space-3) var(--ps-space-6);
+  height: auto;
+  min-height: var(--ps-shell-topbar-height);
+  padding: var(--ps-space-3) var(--ps-page-gutter);
+  color: var(--ps-color-text);
+  background: var(--ps-color-surface);
+  border-bottom: var(--ps-border-width) solid var(--ps-color-border);
+}
+.ps-feature-header .ps-feature-brand {
+  display: inline-flex;
+  flex: 0 1 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--ps-space-3);
+  min-width: 0;
+  color: var(--ps-color-text);
+  text-decoration: none;
+  letter-spacing: normal;
+  line-height: 1.3;
+}
+.ps-feature-header .ps-feature-brand strong { display: block; font-size: var(--ps-text-label); }
+.ps-feature-header .ps-feature-brand small {
+  display: block;
+  color: var(--ps-color-text-muted);
+  font-size: var(--ps-text-caption);
+  font-weight: 400;
+}
+.ps-feature-header .ps-feature-brand-mark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 var(--ps-control-height-compact);
+  width: var(--ps-control-height-compact);
+  height: var(--ps-control-height-compact);
+  padding: 0;
+  border-radius: var(--ps-radius-sm);
+  background: var(--ps-color-accent);
+  color: var(--ps-color-inverse);
+  font-size: var(--ps-text-label);
+  font-weight: 700;
+}
+.ps-feature-header .ps-product-nav {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ps-space-1);
+  width: auto;
+  margin: 0;
+}
+.ps-feature-header .ps-product-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ps-control-height);
+  padding: var(--ps-space-2) var(--ps-space-3);
+  border: 0;
+  border-radius: var(--ps-radius-sm);
+  color: var(--ps-color-text-muted);
+  background: transparent;
+  font-size: var(--ps-text-label);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ps-feature-header .ps-product-nav a:hover { color: var(--ps-color-accent); background: var(--ps-color-surface-subtle); }
+.ps-feature-header a:focus-visible { outline: var(--ps-focus-outline); outline-offset: var(--ps-focus-offset); }
+.ps-feature-header .topbar-search { flex: 1 1 15rem; max-width: 25rem; min-width: 0; }
+.ps-feature-header .topbar-actions { margin-left: auto; }
+.ps-feature-header ~ .workspace-strip { flex-wrap: wrap; height: auto; }
+/* Service badges now sit on the light shared header, not legacy inverse surfaces. */
+.ps-feature-header .service-state {
+  color: var(--ps-color-text-muted);
+  background: var(--ps-color-surface-subtle);
+  border: var(--ps-border-width) solid var(--ps-color-border);
+  border-radius: var(--ps-radius-pill);
+  padding: var(--ps-space-1) var(--ps-space-2);
+}
+.ps-feature-header .status-dot { background: var(--ps-color-warning); }
+.ps-feature-header .service-state.online .status-dot { background: var(--ps-color-success); }
+.ps-feature-header .service-state.offline .status-dot { background: var(--ps-color-danger); }
+/* Measured header/strip avoids stale fixed offsets when navigation wraps or zooms. */
+@media (min-width: 781px) {
+  .ps-feature-header ~ .app-shell > .sidebar,
+  .ps-feature-header ~ .shell > .sidebar {
+    top: calc(var(--ps-feature-header-height, var(--ps-shell-topbar-height)) + var(--ps-feature-strip-height, 0px));
+    max-height: calc(100vh - var(--ps-feature-header-height, var(--ps-shell-topbar-height)) - var(--ps-feature-strip-height, 0px));
+    height: auto;
+    overflow-y: auto;
+  }
+}
+@media (max-width: 72rem) {
+  .ps-feature-header .ps-product-nav { flex-basis: 100%; order: 3; justify-content: flex-start; }
+}
+@media (max-width: 48rem) {
+  .ps-feature-header { gap: var(--ps-space-2); padding: var(--ps-space-2) var(--ps-space-4); }
+  .ps-feature-header .ps-feature-brand { margin-right: auto; }
+  .ps-feature-header .ps-product-nav { gap: 0; }
+  .ps-feature-header .ps-product-nav a { font-size: var(--ps-text-caption); padding-inline: var(--ps-space-2); }
+  .ps-feature-header .topbar-search { display: flex; order: 4; flex-basis: 100%; max-width: none; }
+  .ps-feature-header .service-state { font-size: var(--ps-text-caption); }
+  .ps-feature-header ~ .workspace-strip > span:nth-child(n+3) { display: none; }
+}

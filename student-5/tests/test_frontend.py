@@ -63,7 +63,7 @@ def test_frontend_has_required_ui_states_and_responsive_floor() -> None:
 def test_frontend_never_contains_server_identity_or_internal_credentials() -> None:
     source = "\n".join(
         (FRONTEND / name).read_text(encoding="utf-8")
-        for name in ("index.html", "styles.css", "app.js")
+        for name in ("index.html", "styles.css", "app.js", "api.js", "models.js")
     )
     assert "owner_ref" not in source
     assert "release0-demo-owner" not in source
@@ -72,7 +72,7 @@ def test_frontend_never_contains_server_identity_or_internal_credentials() -> No
 
 
 def test_frontend_calls_only_the_public_buyer_case_api() -> None:
-    script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+    script = (FRONTEND / "api.js").read_text(encoding="utf-8")
     assert 'API_BASE = "/api/buyer-workspaces/v1"' in script
     assert "/internal/" not in script
     assert "ai-mode" not in script.lower()

@@ -13,3 +13,13 @@ export function append(target, ...children) {
   }
   return target;
 }
+
+/** Escape untrusted text in HTML text and quoted-attribute contexts, never URLs/scripts. */
+export function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}

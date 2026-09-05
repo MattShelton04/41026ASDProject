@@ -18,7 +18,8 @@ def test_javascript_compile_sources_are_first_party_and_repository_relative() ->
     sources = check.javascript_sources()
 
     assert "shared/frontend/app.js" in sources
-    assert "student-1/frontend/app.js" in sources
+    for student in range(1, 6):
+        assert f"student-{student}/frontend/app.js" in sources
     assert all(not source.startswith(("/", "C:/", "C:\\")) for source in sources)
     assert all("/vendor/" not in source for source in sources)
     assert sources == tuple(sorted(set(sources)))

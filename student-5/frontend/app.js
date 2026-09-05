@@ -1,302 +1,62 @@
-export const API_BASE = "/api/buyer-workspaces/v1";
-export const MAX_PREFERENCE_ITEMS = 20;
-export const MAX_PREFERENCE_TEXT_LENGTH = 100;
-export const JOURNEY_STAGES = ["Shortlisted", "Inspecting", "Reviewing", "Offer Considered", "Closed"];
-export const PROPERTY_PRIORITIES = ["low", "medium", "high"];
+import { createLatestTask, pollUntilSettled } from "./browser/index.js";
 
-export class ApiProblem extends Error {
-  constructor(status, code, detail) {
-    super(detail || `Request failed with status ${status}.`);
-    this.name = "ApiProblem";
-    this.status = status;
-    this.code = code || "request_failed";
-  }
-}
+import {
+  API_BASE,
+  MAX_PREFERENCE_ITEMS,
+  MAX_PREFERENCE_TEXT_LENGTH,
+  JOURNEY_STAGES,
+  PROPERTY_PRIORITIES,
+  ApiProblem,
+  createBuyerCaseApi,
+} from "./api.js";
+export {
+  API_BASE,
+  MAX_PREFERENCE_ITEMS,
+  MAX_PREFERENCE_TEXT_LENGTH,
+  JOURNEY_STAGES,
+  PROPERTY_PRIORITIES,
+  ApiProblem,
+  createBuyerCaseApi,
+} from "./api.js";
 
-export function createBuyerCaseApi(fetchImpl = globalThis.fetch) {
-  async function request(method, path, body, extraHeaders = {}) {
-    const options = { method, headers: { Accept: "application/json", ...extraHeaders } };
-    if (body !== undefined) {
-      options.headers["Content-Type"] = "application/json";
-      options.body = JSON.stringify(body);
-    }
-    let response;
-    try {
-      response = await fetchImpl(`${API_BASE}${path}`, options);
-    } catch (error) {
-      throw new ApiProblem(503, "database_unavailable", "Buyer cases are temporarily unavailable.");
-    }
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new ApiProblem(response.status, payload.code, payload.detail);
-    }
-    return payload;
-  }
-
-  function childApi(resource) {
-    return {
-      list: (caseId) => request("GET", `/buyer-cases/${encodeURIComponent(caseId)}/${resource}?page=1&page_size=100`),
-      create: (caseId, values) => request("POST", `/buyer-cases/${encodeURIComponent(caseId)}/${resource}`, values),
-      read: (caseId, childId) => request("GET", `/buyer-cases/${encodeURIComponent(caseId)}/${resource}/${encodeURIComponent(childId)}`),
-      update: (caseId, childId, values) => request("PUT", `/buyer-cases/${encodeURIComponent(caseId)}/${resource}/${encodeURIComponent(childId)}`, values),
-      delete: (caseId, childId) => request("DELETE", `/buyer-cases/${encodeURIComponent(caseId)}/${resource}/${encodeURIComponent(childId)}`),
-    };
-  }
-
-  return {
-    list: (page = 1, pageSize = 100) => request("GET", `/buyer-cases?page=${page}&page_size=${pageSize}`),
-    create: (values) => request("POST", "/buyer-cases", values),
-    read: (caseId) => request("GET", `/buyer-cases/${encodeURIComponent(caseId)}`),
-    update: (caseId, values) => request("PUT", `/buyer-cases/${encodeURIComponent(caseId)}`, values),
-    delete: (caseId) => request("DELETE", `/buyer-cases/${encodeURIComponent(caseId)}`),
-    properties: childApi("properties"),
-    notes: childApi("notes"),
-    tasks: childApi("tasks"),
-    evidence: (caseId) => request("GET", `/buyer-cases/${encodeURIComponent(caseId)}/evidence`),
-    summaries: {
-      create: (caseId, idempotencyKey) => request(
-        "POST",
-        `/buyer-cases/${encodeURIComponent(caseId)}/case-summary-runs`,
-        {},
-        { "Idempotency-Key": idempotencyKey },
-      ),
-      read: (caseId, runId) => request(
-        "GET",
-        `/buyer-cases/${encodeURIComponent(caseId)}/case-summary-runs/${encodeURIComponent(runId)}`,
-      ),
-    },
-  };
-}
-
-export function statusLabel(status) {
-  return { active: "Active", paused: "Paused", closed: "Closed" }[status] || "Unknown";
-}
-
-export function statusClass(status) {
-  return {
-    active: "ps-badge--confirmed",
-    paused: "ps-badge--partial",
-    closed: "ps-badge--planned",
-  }[status] || "";
-}
-
-export function formatBudget(minimum, maximum) {
-  const currency = new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    maximumFractionDigits: 0,
-  });
-  if (minimum == null && maximum == null) return "Not set";
-  if (minimum == null) return `Up to ${currency.format(maximum)}`;
-  if (maximum == null) return `From ${currency.format(minimum)}`;
-  return `${currency.format(minimum)} – ${currency.format(maximum)}`;
-}
-
-export function formatUpdated(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unknown";
-  return new Intl.DateTimeFormat("en-AU", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Australia/Sydney",
-  }).format(date);
-}
-
-export function targetSuburbsFromText(value) {
-  const seen = new Set();
-  return String(value || "")
-    .split(/\r?\n|,/)
-    .map((locality) => locality.trim().toUpperCase())
-    .filter((locality) => {
-      if (!locality || seen.has(locality)) return false;
-      seen.add(locality);
-      return true;
-    })
-    .map((locality) => ({ state: "NSW", locality }));
-}
-
-export function preferenceStringsFromText(value) {
-  const seen = new Set();
-  return String(value || "")
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter((item) => {
-      const key = item.toLocaleLowerCase("en-AU");
-      if (!item || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-}
-
-export function projectPreferenceLists(preferences) {
-  const value = preferences && typeof preferences === "object" && !Array.isArray(preferences)
-    ? preferences
-    : {};
-  return {
-    dwellingTypes: Array.isArray(value.dwelling_types)
-      ? value.dwelling_types.filter((item) => typeof item === "string")
-      : [],
-    priorities: Array.isArray(value.priorities)
-      ? value.priorities.filter((item) => typeof item === "string")
-      : [],
-  };
-}
-
-export function mergePreferences(existing, dwellingTypes, priorities) {
-  const retained = existing && typeof existing === "object" && !Array.isArray(existing)
-    ? { ...existing }
-    : {};
-  return {
-    ...retained,
-    dwelling_types: [...dwellingTypes],
-    priorities: [...priorities],
-  };
-}
-
-export function validateCaseInput(values) {
-  const errors = {};
-  const name = String(values.name || "").trim();
-  const minimum = values.budgetMin === "" ? null : Number(values.budgetMin);
-  const maximum = values.budgetMax === "" ? null : Number(values.budgetMax);
-  const suburbs = targetSuburbsFromText(values.suburbs);
-  const dwellingTypes = preferenceStringsFromText(values.dwellingTypes);
-  const priorities = preferenceStringsFromText(values.priorities);
-  if (!name) errors.name = "Enter a case name.";
-  if (name.length > 120) errors.name = "Case name must contain at most 120 characters.";
-  if (minimum !== null && (!Number.isInteger(minimum) || minimum < 0)) {
-    errors.budget = "Minimum budget must be a whole non-negative amount.";
-  }
-  if (maximum !== null && (!Number.isInteger(maximum) || maximum < 0)) {
-    errors.budget = "Maximum budget must be a whole non-negative amount.";
-  }
-  if (minimum !== null && maximum !== null && maximum < minimum) {
-    errors.budget = "Maximum budget cannot be less than minimum budget.";
-  }
-  if (suburbs.some((item) => item.locality.length > 100)) {
-    errors.suburbs = "Each locality must contain at most 100 characters.";
-  }
-  if (dwellingTypes.length > MAX_PREFERENCE_ITEMS || priorities.length > MAX_PREFERENCE_ITEMS) {
-    errors.preferences = `Use at most ${MAX_PREFERENCE_ITEMS} items in each preference list.`;
-  }
-  if (
-    dwellingTypes.some((item) => item.length > MAX_PREFERENCE_TEXT_LENGTH)
-    || priorities.some((item) => item.length > MAX_PREFERENCE_TEXT_LENGTH)
-  ) {
-    errors.preferences = `Each preference must contain at most ${MAX_PREFERENCE_TEXT_LENGTH} characters.`;
-  }
-  if (!["active", "paused", "closed"].includes(values.status || "active")) {
-    errors.status = "Choose a supported status.";
-  }
-  return { errors, name, minimum, maximum, suburbs, dwellingTypes, priorities };
-}
-
-export function buildCasePayload(values, version = null, existingPreferences = {}) {
-  const validated = validateCaseInput(values);
-  if (Object.keys(validated.errors).length) return { errors: validated.errors, payload: null };
-  const payload = {
-    name: validated.name,
-    budget_min_aud: validated.minimum,
-    budget_max_aud: validated.maximum,
-    target_suburbs: validated.suburbs,
-    preferences: mergePreferences(
-      existingPreferences,
-      validated.dwellingTypes,
-      validated.priorities,
-    ),
-    status: values.status || "active",
-  };
-  if (version !== null) payload.version = version;
-  return { errors: {}, payload };
-}
-
-function optionalInteger(value) {
-  return value === "" || value == null ? null : Number(value);
-}
-
-export function buildPropertyPayload(values, version = null) {
-  const errors = {};
-  const propertyRef = String(values.propertyRef || "").trim();
-  const label = String(values.propertyLabel || "").trim();
-  const rating = optionalInteger(values.rating);
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propertyRef)) {
-    errors.propertyRef = "Enter a valid property reference UUID.";
-  }
-  if (label.length > 500) errors.propertyLabel = "Property label must contain at most 500 characters.";
-  if (!JOURNEY_STAGES.includes(values.journeyStage || "Shortlisted")) errors.journeyStage = "Choose a supported journey stage.";
-  if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) errors.rating = "Rating must be empty or from 1 to 5.";
-  if (!PROPERTY_PRIORITIES.includes(values.priority || "medium")) errors.priority = "Choose a supported priority.";
-  if (Object.keys(errors).length) return { errors, payload: null };
-  const payload = {
-    property_label: label || null,
-    journey_stage: values.journeyStage || "Shortlisted",
-    rating,
-    priority: values.priority || "medium",
-  };
-  if (version === null) payload.property_ref = propertyRef;
-  else payload.version = version;
-  return { errors: {}, payload };
-}
-
-export function buildNotePayload(values, version = null) {
-  const content = String(values.content || "").trim();
-  const errors = {};
-  if (!content) errors.note = "Enter note content.";
-  if (content.length > 4000) errors.note = "Note content must contain at most 4000 characters.";
-  const payload = { case_property_id: values.propertyId || null, content };
-  if (version !== null) payload.version = version;
-  return { errors, payload: Object.keys(errors).length ? null : payload };
-}
-
-export function buildTaskPayload(values, version = null) {
-  const title = String(values.title || "").trim();
-  const dueDate = String(values.dueDate || "").trim();
-  const errors = {};
-  if (!title) errors.title = "Enter a task title.";
-  if (title.length > 300) errors.title = "Task title must contain at most 300 characters.";
-  if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) errors.dueDate = "Enter a valid due date.";
-  const payload = {
-    case_property_id: values.propertyId || null,
-    title,
-    due_date: dueDate || null,
-    completed: Boolean(values.completed),
-  };
-  if (version !== null) payload.version = version;
-  return { errors, payload: Object.keys(errors).length ? null : payload };
-}
-
-export function parseRoute(hash) {
-  const match = /^#buyer-cases\/([^/]+)$/.exec(hash || "");
-  if (!match) return { name: "list" };
-  try {
-    return { name: "detail", id: decodeURIComponent(match[1]) };
-  } catch (error) {
-    return { name: "list" };
-  }
-}
-
-export async function navigateForFollowUp(targetHash, currentHash, setHash, reload) {
-  if (targetHash === currentHash) {
-    await reload();
-    return "reloaded";
-  }
-  setHash(targetHash);
-  return "navigated";
-}
-
-export function uiStateForError(error) {
-  if (error instanceof ApiProblem && error.status === 409) return "conflict";
-  if (error instanceof ApiProblem && error.status === 422) return "invalid";
-  return "unavailable";
-}
-
-export function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
+import {
+  statusLabel,
+  statusClass,
+  formatBudget,
+  formatUpdated,
+  targetSuburbsFromText,
+  preferenceStringsFromText,
+  projectPreferenceLists,
+  mergePreferences,
+  validateCaseInput,
+  buildCasePayload,
+  buildPropertyPayload,
+  buildNotePayload,
+  buildTaskPayload,
+  parseRoute,
+  navigateForFollowUp,
+  uiStateForError,
+  escapeHtml,
+} from "./models.js";
+export {
+  statusLabel,
+  statusClass,
+  formatBudget,
+  formatUpdated,
+  targetSuburbsFromText,
+  preferenceStringsFromText,
+  projectPreferenceLists,
+  mergePreferences,
+  validateCaseInput,
+  buildCasePayload,
+  buildPropertyPayload,
+  buildNotePayload,
+  buildTaskPayload,
+  parseRoute,
+  navigateForFollowUp,
+  uiStateForError,
+  escapeHtml,
+} from "./models.js";
 
 const api = createBuyerCaseApi();
 let cases = [];
@@ -309,6 +69,10 @@ let editingProperty = null;
 let editingNote = null;
 let editingTask = null;
 let pendingDelete = null;
+const viewTask = createLatestTask();
+const summaryTask = createLatestTask();
+const evidenceTask = createLatestTask();
+let toastTimer;
 
 function showNotice(message, kind = "success") {
   const notice = document.querySelector("#notice");
@@ -323,7 +87,8 @@ function showToast(message) {
   if (!toast) return;
   toast.textContent = message;
   toast.dataset.visible = "true";
-  globalThis.setTimeout(() => delete toast.dataset.visible, 2400);
+  clearTimeout(toastTimer);
+  toastTimer = globalThis.setTimeout(() => delete toast.dataset.visible, 2400);
 }
 
 function renderState(state, heading, detail, retry = false) {
@@ -533,68 +298,75 @@ function renderDetail(item) {
 }
 
 async function loadEvidence(caseId) {
+  const task = evidenceTask.start();
   const target = document.querySelector("[data-evidence]");
   if (!target) return;
   target.innerHTML = "<p>Loading bounded evidence…</p>";
   try {
-    const value = await api.evidence(caseId);
-    if (currentCase?.id === caseId) target.innerHTML = renderEvidence(value);
+    const value = await api.evidence(caseId, {signal: task.signal});
+    if (task.isCurrent() && target.isConnected && currentCase?.id === caseId) target.innerHTML = renderEvidence(value);
   } catch (error) {
-    if (currentCase?.id === caseId) target.innerHTML = '<div data-state="unavailable"><p>Evidence services are unavailable. Buyer-case editing is still available.</p></div>';
-  }
-}
-
-async function pollSummary(caseId, runId) {
-  const target = document.querySelector("[data-summary-run]");
-  if (!target || currentCase?.id !== caseId) return;
-  try {
-    const run = await api.summaries.read(caseId, runId);
-    updateSummaryRegion(target, run);
-    if (!["succeeded", "failed", "cancelled"].includes(run.status)) {
-      globalThis.setTimeout(() => pollSummary(caseId, runId), 1000);
-    }
-  } catch (error) {
-    target.innerHTML = '<div data-state="unavailable"><p>AI summary service is unavailable. Your buyer case is unchanged.</p></div>';
+    if (task.isCurrent() && target.isConnected && currentCase?.id === caseId) target.innerHTML = '<div data-state="unavailable"><p>Evidence services are unavailable. Buyer-case editing is still available.</p></div>';
   }
 }
 
 async function generateSummary(caseId) {
   const target = document.querySelector("[data-summary-run]");
   const button = document.querySelector("[data-generate-summary]");
-  if (!target || !button) return;
+  if (!target || !button || button.disabled) return;
+  const task = summaryTask.start();
+  const isCurrent = () => task.isCurrent() && currentCase?.id === caseId && target.isConnected;
   button.disabled = true;
   updateSummaryRegion(target, { status: "queued", phases: [] });
   try {
-    const key = `buyer-summary-${caseId}-${Date.now()}`;
-    const run = await api.summaries.create(caseId, key);
-    updateSummaryRegion(target, run);
-    if (!["succeeded", "failed", "cancelled"].includes(run.status)) await pollSummary(caseId, run.id);
+    const key = `buyer-summary-${caseId}-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
+    const initial = await api.summaries.create(caseId, key);
+    if (!isCurrent()) return;
+    updateSummaryRegion(target, initial);
+    await pollUntilSettled((signal) => api.summaries.read(caseId, initial.id, {signal}), {
+      task, initial, isSettled: (run) => ["succeeded", "failed", "cancelled", "timed_out", "waiting_for_review"].includes(run.status),
+      onUpdate: (run) => { if (isCurrent()) updateSummaryRegion(target, run); },
+    });
   } catch (error) {
-    target.innerHTML = '<div data-state="unavailable"><p>AI summary service is unavailable. Ordinary case, property, note and task controls remain available.</p></div>';
+    if (isCurrent()) target.textContent = error.message + " Your buyer case is unchanged. Open AI activity for the durable run status.";
   } finally {
-    button.disabled = false;
+    if (isCurrent()) button.disabled = false;
   }
 }
 
 async function loadList() {
+  const task = viewTask.start();
+  summaryTask.cancel();
+  evidenceTask.cancel();
+  currentCase = null;
   renderState("loading", "Loading buyer cases…", "Please wait while saved cases are retrieved.");
   try {
-    const payload = await api.list();
+    const payload = await api.list(1, 100, {signal: task.signal});
+    if (!task.isCurrent()) return;
     cases = Array.isArray(payload.items) ? payload.items : [];
     renderList();
     setServiceState(true);
   } catch (error) {
+    if (!task.isCurrent()) return;
     setServiceState(false);
     renderState("unavailable", "Buyer cases are unavailable", "The service could not be reached. Your browser has not changed any cases.", true);
   }
 }
 
 async function loadDetail(caseId) {
+  const task = viewTask.start();
+  summaryTask.cancel();
+  evidenceTask.cancel();
+  currentCase = null;
   renderState("loading", "Loading buyer case…", "Please wait while the case is retrieved.");
   try {
     const [item, propertyPage, notePage, taskPage] = await Promise.all([
-      api.read(caseId), api.properties.list(caseId), api.notes.list(caseId), api.tasks.list(caseId),
+      api.read(caseId, {signal: task.signal}),
+      api.properties.list(caseId, {signal: task.signal}),
+      api.notes.list(caseId, {signal: task.signal}),
+      api.tasks.list(caseId, {signal: task.signal}),
     ]);
+    if (!task.isCurrent()) return;
     currentCase = item;
     properties = propertyPage.items;
     notes = notePage.items;
@@ -603,6 +375,7 @@ async function loadDetail(caseId) {
     setServiceState(true);
     void loadEvidence(caseId);
   } catch (error) {
+    if (!task.isCurrent()) return;
     setServiceState(false);
     const missing = error instanceof ApiProblem && error.status === 404;
     renderState(missing ? "empty" : "unavailable", missing ? "Buyer case not found" : "Buyer case unavailable", missing ? "It may have been deleted." : "The service could not be reached.", !missing);
@@ -949,6 +722,7 @@ export function initialise() {
   document.querySelectorAll("[data-close-delete]").forEach((button) => button.addEventListener("click", closeDeleteDialog));
   document.querySelector("#confirm-delete")?.addEventListener("click", confirmDelete);
   globalThis.addEventListener("hashchange", () => route());
+  globalThis.addEventListener("pagehide", () => { viewTask.cancel(); summaryTask.cancel(); evidenceTask.cancel(); clearTimeout(toastTimer); }, { once: true });
   route(false);
 }
 

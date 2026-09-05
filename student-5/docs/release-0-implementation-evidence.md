@@ -150,7 +150,7 @@ Run from the repository root:
 uv sync --locked --all-packages --all-groups
 uv run pytest student-5/tests --cov=propertyscope_buyer_workspaces --cov=propertyscope_buyer_store --cov-report=term --cov-fail-under=80
 node --check student-5/frontend/app.js
-node --test student-5/tests/frontend/buyer_cases.test.mjs
+node --import ./scripts/frontend-test-bootstrap.mjs --test student-5/tests/frontend/buyer_cases.test.mjs
 uv run ruff format --check student-5/backend/src student-5/database/src student-5/tests student-5/scripts
 uv run ruff check student-5/backend/src student-5/database/src student-5/tests student-5/scripts
 uv run mypy --strict --config-file student-5/pyproject.toml student-5/backend/src student-5/database/src student-5/tests student-5/scripts

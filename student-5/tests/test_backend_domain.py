@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from propertyscope_buyer_workspaces.domain import (
     MAX_PREFERENCE_ITEMS,
     PublicInputError,

@@ -161,3 +161,11 @@ PostgreSQL/PostGIS exception are approved. The final submission must retain dura
 evidence. Feature owners must still finalise their bounded datasets, routes/schemas, authentication
 where required, source licensing, tests, workflows, and integration evidence. Features 2–5 retain
 independent stores and never receive Feature 1 database credentials.
+
+
+## Repository health review
+
+The [repository health review](docs/reviews/repository-health-review.md) records the cross-feature
+reliability and design-system changes, source-level findings, validation evidence and remaining
+work. Shared frontend extension rules are in
+[the browser package guide](shared/frontend/browser/README.md).

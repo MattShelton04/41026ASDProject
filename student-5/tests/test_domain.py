@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from propertyscope_buyer_store.configuration import StoreSettings
 from propertyscope_buyer_store.domain import (
     InputValidationError,

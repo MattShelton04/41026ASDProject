@@ -423,7 +423,7 @@ Public Shared browser imports are intentionally narrow:
 
 | Public entrypoint | Shared responsibility | Feature responsibility |
 |---|---|---|
-| `browser/index.js` | Safe, domain-neutral DOM construction | Labels, actions and screen composition |
+| `browser/index.js` | Safe DOM, bounded JSON transport, cancellation, polling and common product-header geometry | Domain envelopes/errors, terminal states, labels, actions and screen composition |
 | `mapping/index.js` | Map lifecycle, provider validation and bounded GeoJSON behavior | API calls, layer meaning, popup fields and evidence claims |
 | `design-system/` documented assets | `--ps-*` tokens and `.ps-*` primitives | Density, domain tables/forms and feature-specific layout |
 

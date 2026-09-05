@@ -8,6 +8,7 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 FRONTEND_TEST = REPOSITORY_ROOT / "student-1" / "tests" / "frontend" / "core.test.mjs"
+FRONTEND_BOOTSTRAP = "./scripts/frontend-test-bootstrap.mjs"
 
 
 def test_feature_frontend_behavior_with_node_builtin_runner() -> None:
@@ -16,7 +17,7 @@ def test_feature_frontend_behavior_with_node_builtin_runner() -> None:
     assert node is not None, "Node.js 20 or newer is required for frontend behavior tests"
 
     completed = subprocess.run(
-        [node, "--test", str(FRONTEND_TEST)],
+        [node, "--import", str(FRONTEND_BOOTSTRAP), "--test", str(FRONTEND_TEST)],
         cwd=REPOSITORY_ROOT,
         check=False,
         capture_output=True,

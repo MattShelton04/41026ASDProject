@@ -17,8 +17,9 @@ from wsgiref.simple_server import make_server
 from zipfile import ZipFile
 
 import httpx
-import propertyscope_suburb_analytics.ingestion as ingestion_module
 import pytest
+
+import propertyscope_suburb_analytics.ingestion as ingestion_module
 from propertyscope_suburb_analytics.app import create_app as create_backend
 from propertyscope_suburb_analytics.clients import HttpClient, ServiceError
 from propertyscope_suburb_analytics.ingestion import (
@@ -34,7 +35,6 @@ from propertyscope_suburb_analytics.ingestion import (
 from propertyscope_suburb_store.app import create_app
 from propertyscope_suburb_store.imports import Imports
 from propertyscope_suburb_store.repository import Repository
-
 from shared_consumer_protocol import ConsumerProtocolError, PublicationRequest
 
 

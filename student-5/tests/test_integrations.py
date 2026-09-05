@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import pytest
+
 from propertyscope_buyer_workspaces.clients import ClientResponse, UrllibTransport
 from propertyscope_buyer_workspaces.integrations import (
     AiModeClient,

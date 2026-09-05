@@ -1,5 +1,7 @@
 /** Domain-neutral interaction helpers for the controls that exist in PropertyScope. */
 
+const drawers = new WeakMap();
+
 function ownerDocument(node) {
   return node?.ownerDocument || globalThis.document || null;
 }
@@ -23,6 +25,8 @@ export function createDrawerController({
   closeLabel = "Close navigation",
 }) {
   if (!drawer || !toggle || !mediaQuery) throw new TypeError("Drawer, toggle and media query are required.");
+  drawers.get(drawer)?.destroy();
+  let destroyed = false;
   const documentNode = ownerDocument(drawer);
   const focusableSelector = 'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
   const isOpen = () => drawer.classList.contains(openClass);
@@ -42,7 +46,7 @@ export function createDrawerController({
     if (restoreFocus && mediaQuery.matches) toggle.focus?.();
   };
   const open = () => {
-    if (!mediaQuery.matches) return;
+    if (destroyed || !mediaQuery.matches) return;
     drawer.classList.add(openClass);
     drawer.inert = false;
     drawer.removeAttribute?.("aria-hidden");
@@ -50,7 +54,7 @@ export function createDrawerController({
     toggle.setAttribute("aria-label", closeLabel);
     scrim?.removeAttribute?.("hidden");
     documentNode?.body?.classList?.add(lockClass);
-    queueMicrotask(() => resolveFocusTarget(drawer, initialFocus)?.focus?.());
+    queueMicrotask(() => { if (!destroyed && isOpen()) resolveFocusTarget(drawer, initialFocus)?.focus?.(); });
   };
   const toggleDrawer = () => { if (isOpen()) close(); else open(); };
   const keydown = (event) => {
@@ -82,13 +86,32 @@ export function createDrawerController({
     else setCompactState();
   };
 
+  const drawerClicked = (event) => { if (event.target.closest?.("a[href]")) close({ restoreFocus: false }); };
+  const scrimClicked = () => close();
   toggle.addEventListener("click", toggleDrawer);
-  drawer.addEventListener("click", (event) => { if (event.target.closest?.("a[href]")) close({ restoreFocus: false }); });
-  scrim?.addEventListener?.("click", () => close());
+  drawer.addEventListener("click", drawerClicked);
+  scrim?.addEventListener?.("click", scrimClicked);
   documentNode?.addEventListener?.("keydown", keydown);
   mediaQuery.addEventListener?.("change", mediaChanged);
   setCompactState();
-  return { close, open, toggle: toggleDrawer, isOpen };
+  const controller = {
+    close, open, toggle: toggleDrawer, isOpen,
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      close({ restoreFocus: false });
+      toggle.removeEventListener?.("click", toggleDrawer);
+      drawer.removeEventListener?.("click", drawerClicked);
+      scrim?.removeEventListener?.("click", scrimClicked);
+      documentNode?.removeEventListener?.("keydown", keydown);
+      mediaQuery.removeEventListener?.("change", mediaChanged);
+      drawer.inert = false;
+      drawer.removeAttribute?.("aria-hidden");
+      drawers.delete(drawer);
+    },
+  };
+  drawers.set(drawer, controller);
+  return controller;
 }
 
 /** A status toast never takes focus and replaces, rather than stacks, repeated messages. */
@@ -135,6 +158,13 @@ export function createTableRegion(table, label, { className = "" } = {}) {
     hint.hidden = !overflows;
   };
   queueMicrotask(syncOverflow);
-  if (globalThis.ResizeObserver) new ResizeObserver(syncOverflow).observe(region);
+  const observer = globalThis.ResizeObserver ? new ResizeObserver(syncOverflow) : null;
+  observer?.observe(region);
+  region.destroy = () => observer?.disconnect();
   return region;
+}
+
+/** Dispose observers before replacing a feature view or table collection. */
+export function disposeTableRegions(root) {
+  for (const region of root?.querySelectorAll?.(".ps-table-region") || []) region.destroy?.();
 }

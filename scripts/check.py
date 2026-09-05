@@ -24,6 +24,7 @@ CORE_TEST_PATHS = (
     "scripts/tests",
 )
 FRONTEND_TEST_PATHS = (
+    "shared/frontend/browser/browser.test.mjs",
     "shared/frontend/dashboard.test.mjs",
     "shared/frontend/ai-chat/ai-chat.test.mjs",
     "shared/frontend/mapping/mapping.test.mjs",
@@ -31,8 +32,7 @@ FRONTEND_TEST_PATHS = (
 )
 JAVASCRIPT_SOURCE_ROOTS = (
     REPOSITORY_ROOT / "shared" / "frontend",
-    REPOSITORY_ROOT / "student-1" / "frontend",
-    REPOSITORY_ROOT / "student-2" / "frontend",
+    *sorted(REPOSITORY_ROOT.glob("student-*/frontend")),
 )
 
 Command = tuple[str, ...]
@@ -67,6 +67,12 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "student-2/backend/src/propertyscope_market_intelligence",
         "student-2/database/src/propertyscope_market_store",
         "student-2/tests",
+        "student-3/backend/src/propertyscope_suburb_analytics",
+        "student-3/database/src/propertyscope_suburb_store",
+        "student-4/backend/src/propertyscope_due_diligence",
+        "student-4/database/src/propertyscope_due_diligence_store",
+        "student-5/backend/src/propertyscope_buyer_workspaces",
+        "student-5/database/src/propertyscope_buyer_store",
         "scripts/ui_audit",
         "scripts/devtools",
         "scripts/check.py",
@@ -124,7 +130,9 @@ def test_commands() -> tuple[Command, ...]:
         )
     node_tests = (*FRONTEND_TEST_PATHS, *feature_inputs.node_test_files)
     if node_tests:
-        commands.append(("node", "--test", *node_tests))
+        commands.append(
+            ("node", "--import", "./scripts/frontend-test-bootstrap.mjs", "--test", *node_tests)
+        )
     return tuple(commands)
 
 

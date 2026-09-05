@@ -14,6 +14,7 @@ from flask import Blueprint, Flask, Response, jsonify, request
 
 from propertyscope_due_diligence.clients import DependencyUnavailableError
 from propertyscope_due_diligence.map_layers import build_map
+from propertyscope_due_diligence.tool_inputs import review_identifier
 from shared_contracts import HealthStatus, ReadinessCheckProjection, project_readiness
 
 _SERVICE = "propertyscope-due-diligence"
@@ -135,8 +136,16 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
             return _relay(review_response)
         review = review_response.json()
         reference = review["property_ref"]
-        constraints = store.request("GET", f"{_INTERNAL}/properties/{reference}/constraints").json()
-        buildings = store.request("GET", f"{_INTERNAL}/properties/{reference}/buildings").json()
+        constraints_response = store.request(
+            "GET", f"{_INTERNAL}/properties/{reference}/constraints"
+        )
+        if constraints_response.status_code != 200:
+            return _relay(constraints_response)
+        buildings_response = store.request("GET", f"{_INTERNAL}/properties/{reference}/buildings")
+        if buildings_response.status_code != 200:
+            return _relay(buildings_response)
+        constraints = constraints_response.json()
+        buildings = buildings_response.json()
         return jsonify(
             {
                 "site_review": review,
@@ -177,11 +186,12 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
                 }
             )
         longitude, latitude = coordinates
-        constraints = (
-            store.request("GET", f"{_INTERNAL}/properties/{reference}/constraints")
-            .json()
-            .get("items", [])
+        constraints_response = store.request(
+            "GET", f"{_INTERNAL}/properties/{reference}/constraints"
         )
+        if constraints_response.status_code != 200:
+            return _relay(constraints_response)
+        constraints = constraints_response.json().get("items", [])
         return jsonify(build_map(longitude, latitude, review, constraints))
 
     # --- Bounded AI-mode assistant: a Plan -> Act -> Observe -> Adapt question pack ---
@@ -294,32 +304,36 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
     # Read-only tools the shared AI-mode service calls back into this backend.
 
     @blueprint.post(f"{_API}/tools/duediligence.review.inspect.v1")
-    def tool_review_inspect() -> Response:
-        body = request.get_json(silent=True) or {}
-        review_id = str(body.get("site_review_id", "")).strip()
+    def tool_review_inspect() -> Response | tuple[Response, int]:
+        try:
+            review_id = review_identifier(request.get_json(silent=True))
+        except ValueError as exc:
+            return _problem(422, "invalid_tool_input", str(exc))
         response = store.request("GET", f"{_INTERNAL}/site-reviews/{review_id}")
         if response.status_code >= 400:
             return _relay(response)
         return jsonify({"site_review": response.json()})
 
     @blueprint.post(f"{_API}/tools/duediligence.evidence.summary.v1")
-    def tool_evidence_summary() -> Response:
-        body = request.get_json(silent=True) or {}
-        review_id = str(body.get("site_review_id", "")).strip()
+    def tool_evidence_summary() -> Response | tuple[Response, int]:
+        try:
+            review_id = review_identifier(request.get_json(silent=True))
+        except ValueError as exc:
+            return _problem(422, "invalid_tool_input", str(exc))
         review_response = store.request("GET", f"{_INTERNAL}/site-reviews/{review_id}")
         if review_response.status_code >= 400:
             return _relay(review_response)
         reference = review_response.json()["property_ref"]
-        constraints = (
-            store.request("GET", f"{_INTERNAL}/properties/{reference}/constraints")
-            .json()
-            .get("items", [])
+        constraints_response = store.request(
+            "GET", f"{_INTERNAL}/properties/{reference}/constraints"
         )
-        buildings = (
-            store.request("GET", f"{_INTERNAL}/properties/{reference}/buildings")
-            .json()
-            .get("items", [])
-        )
+        if constraints_response.status_code != 200:
+            return _relay(constraints_response)
+        constraints = constraints_response.json().get("items", [])
+        buildings_response = store.request("GET", f"{_INTERNAL}/properties/{reference}/buildings")
+        if buildings_response.status_code != 200:
+            return _relay(buildings_response)
+        buildings = buildings_response.json().get("items", [])
         return jsonify({"constraints": constraints, "buildings": buildings})
 
     return blueprint

@@ -1,3 +1,5 @@
+import { trendPath } from "./trend.js";
+import { escapeHtml, requestJsonResponse } from "./browser/index.js";
 import { createMap, createOpenFreeMapProvider, featureCollection, pointFeature } from "./mapping/index.js";
 import { createFeatureAssistant } from "./ai-chat/index.js";
 
@@ -83,22 +85,17 @@ function chooseSuburb(locality) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(`${API}${path}`, { headers: { Accept: "application/json", "Content-Type": "application/json" }, ...options });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.detail || "The request could not be completed.");
-  return payload;
+  return (await requestJsonResponse(fetch, `${API}${path}`, options)).body;
 }
 
-function escapeHtml(value) {
-  const node = document.createElement("span"); node.textContent = String(value ?? ""); return node.innerHTML;
-}
 
 function announce(message) { $("#live").textContent = message; }
-function toast(message) { const node = $("#toast"); node.textContent = message; node.dataset.visible = "true"; setTimeout(() => { node.dataset.visible = "false"; }, 2600); }
+let toastTimer;
+function toast(message) { clearTimeout(toastTimer); const node = $("#toast"); node.textContent = message; node.dataset.visible = "true"; toastTimer = setTimeout(() => { node.dataset.visible = "false"; }, 2600); }
 
 function route() {
   const requested = location.hash.slice(1) || "explore";
-  const selected = requested === "suburbs" ? "explore" : requested;
+  const selected = ["explore", "trends", "published", "comparisons", "assistant"].includes(requested) ? requested : "explore";
   $$("[data-view]").forEach((view) => { view.hidden = view.dataset.view !== selected; });
   $$("[data-route]").forEach((link) => link.setAttribute("aria-current", link.dataset.route === selected ? "page" : "false"));
   if (selected === "comparisons") loadComparisons();
@@ -144,7 +141,7 @@ async function initialiseMap() {
     $("#map-legend").innerHTML = `<span>● Supported suburb</span><span>◆ Place</span>`;
   } catch (error) {
     $("#map").hidden = true; $("#map-fallback").hidden = false;
-    $("#map-fallback").innerHTML = `<div><strong>Map renderer unavailable</strong><p>The suburb list and coordinates remain available. ${escapeHtml(error.message)}</p></div>`;
+    $("#map-fallback").innerHTML = `<div><strong>Map renderer unavailable</strong><p>The map could not start in this browser. The suburb list and coordinates remain available.</p></div>`;
   }
 }
 
@@ -253,7 +250,7 @@ async function compareTrends(event) {
 }
 
 function renderTrend(payload) {
-  const all = payload.series.flatMap((series) => series.items.map((item) => item.value).filter((value) => value !== null));
+  const all = payload.series.flatMap((series) => series.items.map((item) => item.value).filter(Number.isFinite));
   const maximum = Math.max(...all, 1); const months = [...new Set(payload.series.flatMap((series) => series.items.map((item) => item.month)))].sort();
   const sourceUnit = payload.series.flatMap((series) => series.items).find((item) => item.unit)?.unit;
   const unit = sourceUnit || (payload.measure === "rate" ? "per 100,000" : "count");
@@ -262,27 +259,27 @@ function renderTrend(payload) {
   const width = 760, height = 300, left = 58, right = 28, top = 24, bottom = 52;
   const x = (index) => left + index * ((width - left - right) / Math.max(months.length - 1, 1));
   const y = (value) => height - bottom - (value / maximum) * (height - top - bottom);
-  const path = (items) => items.filter((item) => item.value !== null).map((item, index) => `${index ? "L" : "M"}${x(months.indexOf(item.month))},${y(item.value)}`).join(" ");
-  $("#chart").innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="chart-title chart-desc"><title id="chart-title">${escapeHtml(payload.offence)} ${escapeHtml(payload.measure)} comparison</title><desc id="chart-desc">Trend lines for ${payload.series.map((item) => item.locality).join(" and ")}. Horizontal axis: month. Vertical axis: ${escapeHtml(measureLabel)}, ${escapeHtml(unitLabel)}.</desc><text class="axis-title" x="${width / 2}" y="${height - 4}" text-anchor="middle">Month</text><text class="axis-title" transform="rotate(-90)" x="${-height / 2}" y="13" text-anchor="middle">${escapeHtml(measureLabel)} (${escapeHtml(unitLabel)})</text>${[0,.25,.5,.75,1].map((part) => `<line class="grid" x1="${left}" y1="${y(maximum*part)}" x2="${width-right}" y2="${y(maximum*part)}"></line><text x="${left-8}" y="${y(maximum*part)+4}" text-anchor="end">${Math.round(maximum*part)}</text>`).join("")}<path class="line-a" d="${path(payload.series[0].items)}"></path><path class="line-b" d="${path(payload.series[1].items)}"></path>${payload.series.map((series, seriesIndex) => series.items.filter((item) => item.value !== null).map((item) => `<circle class="point-${seriesIndex ? "b" : "a"}" cx="${x(months.indexOf(item.month))}" cy="${y(item.value)}" r="5"><title>${escapeHtml(series.locality)} ${item.month}: ${item.value} ${escapeHtml(unitLabel)}</title></circle>`).join("")).join("")}${months.map((month, index) => `<text x="${x(index)}" y="${height-bottom+20}" text-anchor="middle">${month.slice(5)}</text>`).join("")}</svg>`;
-  $("#summary-cards").innerHTML = payload.series.map((series) => { const observed = series.items.filter((item) => item.value !== null); const first = observed[0]?.value ?? null, last = observed.at(-1)?.value ?? null; const change = first === null || last === null ? "Unavailable" : `${last - first >= 0 ? "+" : ""}${(last - first).toFixed(1)}`; return `<article class="summary-card"><span>${escapeHtml(series.locality)} · ${escapeHtml(unitLabel)}</span><strong>${change}</strong><span>absolute change (${escapeHtml(unitLabel)}) across selected fixture period</span></article>`; }).join("");
+  const path = (items) => trendPath(items, months, x, y);
+  $("#chart").innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="chart-title chart-desc"><title id="chart-title">${escapeHtml(payload.offence)} ${escapeHtml(payload.measure)} comparison</title><desc id="chart-desc">Trend lines for ${payload.series.map((item) => escapeHtml(item.locality)).join(" and ")}. Horizontal axis: month. Vertical axis: ${escapeHtml(measureLabel)}, ${escapeHtml(unitLabel)}.</desc><text class="axis-title" x="${width / 2}" y="${height - 4}" text-anchor="middle">Month</text><text class="axis-title" transform="rotate(-90)" x="${-height / 2}" y="13" text-anchor="middle">${escapeHtml(measureLabel)} (${escapeHtml(unitLabel)})</text>${[0,.25,.5,.75,1].map((part) => `<line class="grid" x1="${left}" y1="${y(maximum*part)}" x2="${width-right}" y2="${y(maximum*part)}"></line><text x="${left-8}" y="${y(maximum*part)+4}" text-anchor="end">${Math.round(maximum*part)}</text>`).join("")}<path class="line-a" d="${path(payload.series[0].items)}"></path><path class="line-b" d="${path(payload.series[1].items)}"></path>${payload.series.map((series, seriesIndex) => series.items.filter((item) => Number.isFinite(item.value)).map((item) => `<circle class="point-${seriesIndex ? "b" : "a"}" cx="${x(months.indexOf(item.month))}" cy="${y(item.value)}" r="5"><title>${escapeHtml(series.locality)} ${escapeHtml(item.month)}: ${escapeHtml(item.value)} ${escapeHtml(unitLabel)}</title></circle>`).join("")).join("")}${months.map((month, index) => `<text x="${x(index)}" y="${height-bottom+20}" text-anchor="middle">${escapeHtml(month.slice(5))}</text>`).join("")}</svg>`;
+  $("#summary-cards").innerHTML = payload.series.map((series) => { const observed = series.items.filter((item) => Number.isFinite(item.value)); const first = observed[0]?.value ?? null, last = observed.at(-1)?.value ?? null; const change = first === null || last === null ? "Unavailable" : `${last - first >= 0 ? "+" : ""}${(last - first).toFixed(1)}`; return `<article class="summary-card"><span>${escapeHtml(series.locality)} · ${escapeHtml(unitLabel)}</span><strong>${change}</strong><span>absolute change (${escapeHtml(unitLabel)}) across selected fixture period</span></article>`; }).join("");
   const table = $("#trend-head").closest?.("table");
   const caption = table?.querySelector("caption");
   if (caption) caption.textContent = `Accessible trend data in ${unitLabel}. A dash means missing evidence, never zero.`;
   $("#trend-head").innerHTML = `<tr><th scope="col">Month</th>${payload.series.map((series) => `<th scope="col">${escapeHtml(series.locality)} (${escapeHtml(unitLabel)})</th>`).join("")}</tr>`;
-  $("#trend-body").innerHTML = months.map((month) => `<tr><th>${month}</th>${payload.series.map((series) => {
+  $("#trend-body").innerHTML = months.map((month) => `<tr><th>${escapeHtml(month)}</th>${payload.series.map((series) => {
     const item = series.items.find((row) => row.month === month);
     const value = item?.value === null || item?.value === undefined ? "—" : item.value;
     const stateLabel = item?.zero_missing_state === "recorded_zero"
       ? " (recorded zero)"
       : item?.zero_missing_state === "missing" ? " (missing)" : "";
-    return `<td>${value}${stateLabel}</td>`;
+    return `<td>${escapeHtml(value)}${stateLabel}</td>`;
   }).join("")}</tr>`).join("");
 }
 
 async function loadComparisons() {
   try {
     const payload = await api("/suburb-comparisons"); state.comparisons = payload.items;
-    $("#comparison-list").innerHTML = payload.items.map((item) => `<article class="comparison-card"><div><span class="ps-badge ps-badge--info">${escapeHtml(item.status)}</span><h3>${escapeHtml(item.name)}</h3><p>${item.localities.map(escapeHtml).join(" ↔ ")} · ${item.from_month} to ${item.to_month} · ${escapeHtml(item.measure)}</p><p>${escapeHtml(item.notes)}</p></div><div class="row-actions"><button class="ps-button ps-button--small ps-button--primary" data-load="${escapeHtml(item.id)}">Load in crime trends</button><button class="ps-button ps-button--small" data-edit="${escapeHtml(item.id)}">Edit</button><button class="ps-button ps-button--small ps-button--danger" data-delete="${escapeHtml(item.id)}">Delete</button></div></article>`).join("") || `<div class="notice">No saved comparisons yet.</div>`;
+    $("#comparison-list").innerHTML = payload.items.map((item) => `<article class="comparison-card"><div><span class="ps-badge ps-badge--info">${escapeHtml(item.status)}</span><h3>${escapeHtml(item.name)}</h3><p>${item.localities.map(escapeHtml).join(" ↔ ")} · ${escapeHtml(item.from_month)} to ${escapeHtml(item.to_month)} · ${escapeHtml(item.measure)}</p><p>${escapeHtml(item.notes)}</p></div><div class="row-actions"><button class="ps-button ps-button--small ps-button--primary" data-load="${escapeHtml(item.id)}">Load in crime trends</button><button class="ps-button ps-button--small" data-edit="${escapeHtml(item.id)}">Edit</button><button class="ps-button ps-button--small ps-button--danger" data-delete="${escapeHtml(item.id)}">Delete</button></div></article>`).join("") || `<div class="notice">No saved comparisons yet.</div>`;
     $$('[data-load]').forEach((button) => button.onclick = () => loadComparison(state.comparisons.find((item) => item.id === button.dataset.load)));
     $$("[data-edit]").forEach((button) => button.onclick = () => openDialog(state.comparisons.find((item) => item.id === button.dataset.edit)));
     $$("[data-delete]").forEach((button) => button.onclick = () => deleteComparison(button.dataset.delete));
@@ -362,7 +359,7 @@ async function init() {
     const current = state.selectedLocality || state.suburbs[0]?.locality;
     if (current) chooseSuburb(current);
   }));
-  try { const [health, suburbs] = await Promise.all([fetch(new URL("./health/ready", import.meta.url)).then((response) => response.json()), api("/suburbs?limit=50")]); state.suburbs = suburbs.items; $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = health.status === "ready" ? "Data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
+  try { const [health, suburbs] = await Promise.all([requestJsonResponse(fetch, new URL("./health/ready", import.meta.url)).then(({body}) => body), api("/suburbs?limit=50")]); state.suburbs = suburbs.items; $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = ["ready", "healthy"].includes(health.status) ? "Data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
   route();
 }
 

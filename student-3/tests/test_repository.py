@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
+
 from propertyscope_suburb_store.repository import DEMO_AMENITIES, SUBURBS, Repository
 
 
@@ -132,3 +134,39 @@ def test_comparison_crud_uses_optimistic_versions(repository: Repository) -> Non
         repository.update_comparison(created["id"], payload | {"version": 1})
     assert repository.delete_comparison(created["id"])
     assert repository.comparison(created["id"]) is None
+
+
+def test_concurrent_update_reports_conflict_instead_of_success(
+    repository: Repository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = repository.comparison
+    stale = original("comparison-1")
+    assert stale is not None
+    reads = 0
+
+    def read_then_compete(comparison_id: str) -> dict[str, Any] | None:
+        nonlocal reads
+        reads += 1
+        row = original(comparison_id)
+        if reads == 1:
+            with repository.connect() as connection:
+                connection.execute(
+                    "UPDATE user_suburbs SET notes='Concurrent writer', "
+                    "version=version+1 WHERE id=?",
+                    (comparison_id,),
+                )
+        return row
+
+    monkeypatch.setattr(repository, "comparison", read_then_compete)
+    with pytest.raises(ValueError, match="version_conflict"):
+        repository.update_comparison(
+            "comparison-1", {"version": stale["version"], "notes": "Lost writer"}
+        )
+    latest = original("comparison-1")
+    assert latest is not None and latest["notes"] == "Concurrent writer"
+
+
+@pytest.mark.parametrize("version", [True, False, "1", 1.0, 0, -1])
+def test_update_requires_a_strict_positive_integer(repository: Repository, version: object) -> None:
+    with pytest.raises(ValueError, match="version is required"):
+        repository.update_comparison("comparison-1", {"version": version})

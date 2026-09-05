@@ -13,7 +13,7 @@ independently buildable `student-N/frontend/` services.
 - `fragments/research-areas.html` — same-origin HTMX projection of the five approved research areas.
 - `vendor/htmx-2.0.10.min.js` — pinned local HTMX production build; provenance, licence and
   SHA-256 are recorded in `vendor/README.md`.
-- `browser/index.js` — stable public JavaScript barrel for domain-neutral DOM helpers.
+- `browser/index.js` — stable public barrel for DOM, transport, cancellation and product-shell helpers.
 - `ai-chat/index.js` — reusable assistant client, polling, formatting, semantic states, accessible transcript controller and `createFeatureAssistant` route factory; feature vocabulary is injected by route wrappers.
 - `feature-1-bridge.js` — bounded, failure-safe loading for Feature 1's public shell adapter.
 - `core.js` — safe DOM, formatting, table and correlated public-request helpers.
@@ -90,7 +90,8 @@ remain JavaScript because they need richer client state than an HTML swap provid
 ## Public frontend boundary
 
 Feature frontends consume Shared JavaScript only through documented `index.js` barrels. The current
-public modules are `browser/index.js` for domain-neutral DOM construction and `mapping/index.js` for
+public modules are `browser/index.js` for domain-neutral DOM, transport, lifecycle and product-shell
+helpers, and `mapping/index.js` for
 the map controller/provider contract. Files beside those barrels are implementation details and may
 change without a feature migration contract. CSS remains public only through the documented
 `design-system/` assets and `--ps-*`/`.ps-*` surface.

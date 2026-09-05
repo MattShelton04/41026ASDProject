@@ -60,8 +60,9 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=30 \
 CMD ["gunicorn", "--bind=0.0.0.0:5501", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "propertyscope_buyer_workspaces.app:create_app()"]
 
 FROM nginxinc/nginx-unprivileged:1.29.1-alpine3.22-slim AS frontend
-COPY student-5/frontend/index.html student-5/frontend/app.js student-5/frontend/styles.css /usr/share/nginx/html/
+COPY student-5/frontend/index.html student-5/frontend/app.js student-5/frontend/api.js student-5/frontend/models.js student-5/frontend/shell.js student-5/frontend/styles.css /usr/share/nginx/html/
 COPY shared/frontend/design-system /usr/share/nginx/html/design-system
+COPY shared/frontend/browser /usr/share/nginx/html/browser
 COPY student-5/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=20 \

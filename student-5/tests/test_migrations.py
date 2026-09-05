@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
+
 from propertyscope_buyer_store.migrations import seed
 from propertyscope_buyer_store.repository import BuyerStore
 

@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Callable, Iterable
+from datetime import date
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote
 
 import httpx
+
+from shared_contracts import read_json_object
 
 from .clients import HttpClient, ServiceError
 from .ingestion import IMPORT_PATH, Ingestion, correlation
@@ -49,13 +53,7 @@ def _problem(start: StartResponse, status: int, code: str, detail: str) -> Itera
 
 
 def _body(environ: dict[str, Any]) -> dict[str, Any]:
-    length = int(environ.get("CONTENT_LENGTH") or 0)
-    if length > 2_000_000:
-        raise ValueError("body_too_large")
-    value = json.loads(environ["wsgi.input"].read(length)) if length else {}
-    if not isinstance(value, dict):
-        raise ValueError("body must be an object")
-    return value
+    return read_json_object(environ, max_bytes=2_000_000)
 
 
 def _validate_comparison(payload: dict[str, Any], *, require_version: bool = False) -> None:
@@ -70,9 +68,17 @@ def _validate_comparison(payload: dict[str, Any], *, require_version: bool = Fal
         raise ValueError("localities must contain one to five suburb names")
     if payload.get("measure") not in ALLOWED_MEASURES:
         raise ValueError("measure must be count or rate")
-    if str(payload.get("from_month", "")) > str(payload.get("to_month", "")):
+    for field in ("from_month", "to_month"):
+        value = payload.get(field)
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}", value):
+            raise ValueError(f"{field} must be a YYYY-MM month")
+        try:
+            date.fromisoformat(value + "-01")
+        except ValueError as exc:
+            raise ValueError(f"{field} must be a valid calendar month") from exc
+    if payload["from_month"] > payload["to_month"]:
         raise ValueError("from_month must not be after to_month")
-    if require_version and not isinstance(payload.get("version"), int):
+    if require_version and (type(payload.get("version")) is not int or payload["version"] < 1):
         raise ValueError("version is required for an update")
 
 
