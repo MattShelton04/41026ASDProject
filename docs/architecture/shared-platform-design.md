@@ -1344,3 +1344,9 @@ Review this design at four points:
 
 Update the decisions, risks, topology, and evidence mapping rather than creating an
 unrelated replacement document.
+
+
+[ADR-042](decisions/ADR-042-durable-streaming-sales-import.md) extends Feature 2's sales importer
+with a durable 202/status workflow, bounded streaming and invisible replayable generation batches.
+Feature 1 pushes release metadata; each consumer pulls bytes and owns its own accepted-generation
+switch. Full-size consumer import is independent of producer publication under ADR-041.

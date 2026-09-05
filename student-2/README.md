@@ -117,7 +117,27 @@ The two owned tables are:
 | `market_case` | Stores the verified property reference, case name, date window, status, notes, filters, AI run reference and optimistic version. |
 | `sale_observation` | Stores normalised property sale evidence, matching confidence, provenance, release version and synthetic status. |
 
-For later releases, Feature 1 can publish a `propertyscope.property-sales.v3` release to `POST /api/data-import/v1/propertyscope-releases`. Feature 2 verifies the declared SHA-256 checksum, decompresses the gzip NDJSON artifact, validates every record against the v3 contract and imports records idempotently.
+Feature 1 pushes a release notification to `POST /api/data-import/v1/propertyscope-releases`.
+Feature 2 immediately returns its own durable operation ID (HTTP 202); the producer polls
+`GET /api/data-import/v1/propertyscope-releases/{operation_id}`. A backend worker pulls the artifact
+from Feature 1 and imports it independently of producer publication.
+
+There is no fixed total record, compressed-byte or expanded-byte cap. The worker streams compressed
+bytes to temporary disk, verifies the complete SHA-256 and declared byte count, then parses gzip
+NDJSON one bounded record at a time. It validates v3 fields and release/generation provenance and
+sends batches of at most 1,000 records / roughly 1 MiB to the database API. The 1 MiB per-record
+budget and bounded HTTP batches constrain memory; they do not truncate the dataset.
+
+Migration 004 adds durable operations, delivery aliases, retained generation staging and the
+consumer accepted pointer. Staging is invisible to sales reads. The final receipt and pointer switch
+commit together only after every record is validated, unique and accounted for. Exact staged replay
+succeeds; changed evidence or duplicate sales identities fail. An expired worker lease is fenced;
+transport/database failures retry up to five times and a fresh delivery can retry a closed failed
+operation. The previous consumer generation remains readable throughout. The backend starts its
+worker outside request handling; database leases coordinate restarts and multiple processes.
+Temporary compressed files are discarded on process exit and downloaded again after recovery.
+
+See [ADR-042](../docs/architecture/decisions/ADR-042-durable-streaming-sales-import.md).
 
 ## Architecture
 

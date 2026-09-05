@@ -81,6 +81,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/dataset-releases/{release_id}/records",
         "/dataset-releases/{release_id}/submit-review",
         "/dataset-releases/{release_id}/publish",
+        "/dataset-releases/{release_id}/retry-delivery",
         "/dataset-releases/{release_id}/consumer-imports/{operation_id}",
         "/dataset-releases/{release_id}/reject",
         "/dataset-releases/{release_id}/agent-runs",
@@ -554,6 +555,7 @@ def test_release_inspection_tool_declares_all_composed_evidence() -> None:
         "receipts",
         "activations",
         "consumer_imports",
+        "publication_policy",
         "accepted_predecessor",
         "release_contract",
     }

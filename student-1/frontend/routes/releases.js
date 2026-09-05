@@ -1,6 +1,6 @@
 import { collection, entity, newRequestId, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=46";
+import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=49";
 import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js";
 import {
   activePublicationOperation,
@@ -41,7 +41,7 @@ const RELEASE_FIELDS = [
 ];
 
 export function releaseLifecycleContext(status) {
-  if (["accepted", "published"].includes(status)) return { tone: "positive", message: "This is the published version currently available to its PropertyScope research area." };
+  if (["accepted", "published"].includes(status)) return { tone: "positive", message: "This is the published version currently available from the data platform." };
   if (status === "publishing") return { tone: "info", message: "Approval recorded. Publication is running in the background. The previous published version stays in use until this version is ready." };
   if (status === "publication_failed") return { tone: "negative", message: "Approval was recorded, but publication failed. The previous published version remains in use. Inspect the failure below, then retry publication." };
   if (status === "superseded") return { tone: "warning", message: "This published version has been replaced by a newer accepted version and remains available as history." };
@@ -382,6 +382,15 @@ export function createReleaseRoutes({
       });
       if (ok) rerender();
     }));
+    if (release.status === "accepted" && ["failed", "rejected"].includes(consumerImports.at(-1)?.status)) {
+      actions.push(button("Retry downstream import", "button secondary", async () => {
+        await mutate(`dataset-releases/${id}/retry-delivery`, {
+          idempotencyKey: `delivery-${id}-${newRequestId()}`,
+          body: { version: release.version }, success: "Downstream import queued",
+        });
+        await rerender();
+      }));
+    }
     actions.push(button("Review with AI", "button secondary", () => { location.hash = `#ai/release:${id}`; }));
 
     disposeTableRegions(view);
@@ -420,7 +429,7 @@ export function createReleaseRoutes({
     ));
     const receiptBody = el("div");
     if (!receipts.length) append(receiptBody, el("p", "", "No consumer publication receipts recorded."));
-    for (const receipt of [...receipts].reverse()) append(receiptBody, detailList([["Research area", receipt.consumer_operation_id?.startsWith("feature-1-local:") ? "Data platform verification" : researchAreaLabel(receipt.target_feature || release.target_feature)], ["Status", badge(receipt.status)], ["Rows received", formatNumber(receipt.rows_received)], ["Rows accepted", formatNumber(receipt.rows_accepted)], ["Failure details", receipt.error ? technicalDetails(receipt.error, "Inspect failure") : "None recorded"]]));
+    for (const receipt of [...receipts].reverse()) append(receiptBody, detailList([["Research area", receipt.consumer_operation_id?.startsWith("feature-1-local:") ? "Data platform verification" : researchAreaLabel(receipt.target_feature || release.target_feature)], ["Status", badge(receipt.status === "accepted" ? (receipt.consumer_operation_id?.startsWith("feature-1-local:") ? "verified" : "imported") : receipt.status)], ["Rows received", formatNumber(receipt.rows_received)], ["Rows accepted", formatNumber(receipt.rows_accepted)], ["Failure details", receipt.error ? technicalDetails(receipt.error, "Inspect failure") : "None recorded"]]));
     append(side, panel("Publication receipts", "Producer verification and downstream import outcomes", receiptBody));
     const consumerImportBody = el("div");
     if (!consumerImports.length) append(consumerImportBody, el("p", "", "No consumer import operations recorded."));

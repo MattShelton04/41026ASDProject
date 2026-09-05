@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from typing import Any
 
 import httpx
-
-from propertyscope_market_intelligence.domain import MAX_ARTIFACT_BYTES
 
 
 class DependencyUnavailableError(RuntimeError):
@@ -62,7 +60,7 @@ class Feature1Client:
             return "not_found"
         return "verified" if response.status_code < 300 else "unavailable"
 
-    def artifact(self, path: str) -> bytes:
+    def iter_artifact(self, path: str) -> Iterator[bytes]:
         if not path.startswith("/api/data-platform/v1/dataset-releases/") or any(
             marker in path for marker in ("..", "\\", "?", "#")
         ):
@@ -72,16 +70,11 @@ class Feature1Client:
                 if response.is_redirect:
                     raise ValueError("artifact redirects are rejected")
                 response.raise_for_status()
-                content = bytearray()
-                for chunk in response.iter_raw():
-                    if len(content) + len(chunk) > MAX_ARTIFACT_BYTES:
-                        raise ValueError("sales artifact exceeds the compressed size limit")
-                    content.extend(chunk)
+                yield from response.iter_raw(chunk_size=256 * 1024)
         except httpx.TransportError as exc:
             raise DependencyUnavailableError("Feature 1 sales artifact is unavailable") from exc
         except httpx.HTTPStatusError as exc:
             raise ValueError("Feature 1 rejected the sales artifact request") from exc
-        return bytes(content)
 
 
 class AiModeClient:

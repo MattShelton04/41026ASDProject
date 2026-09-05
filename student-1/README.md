@@ -174,10 +174,10 @@ Open <http://localhost:5200>. The main product path is:
    retries local activation with a fresh attempt key. See
    [ADR-040](../docs/architecture/decisions/ADR-040-publication-recovery-and-current-state.md) and the
    [live investigation](../docs/operations/publication-investigation-2026-09-05.md).
-   Full PSI publication is independent of Feature 2. Its current importer accepts at most 5,000
-   records / 25 MiB compressed and imports synchronously; this appears as a separate downstream
-   warning on the published release. Feature 1 publishes all records without truncation. The
-   required streaming consumer integration is documented in the investigation.
+   Full PSI publication is independent of Feature 2. Its importer now accepts durable background
+   work and streams the complete dataset without a total record/byte cap (ADR-042). Failed delivery
+   is reported separately and can be retried with **Retry downstream import** on the published
+   release. Feature 1 publishes all records without truncation.
 6. When a version needs interpretation, select **Review with AI**. AI review is optional, cannot
    publish changes and remains available later in **Activity history**.
 

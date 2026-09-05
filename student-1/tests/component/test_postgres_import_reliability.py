@@ -1583,7 +1583,9 @@ def test_producer_publication_commits_outbox_atomically_and_survives_downstream_
         CREATE TRIGGER reject_outbox BEFORE INSERT ON ops.consumer_import_operation
         FOR EACH ROW EXECUTE FUNCTION ops.reject_outbox();""")
     connection.commit()
-    store = PropertyScopeStore(_database_url(connection.info.dbname), runtime_registry=cast(Any, None))
+    store = PropertyScopeStore(
+        _database_url(connection.info.dbname), runtime_registry=cast(Any, None)
+    )
     with pytest.raises(psycopg.errors.RaiseException, match="outbox unavailable"):
         store.finish_release_activation(
             activation_id, worker_id="loader", lease_token="lease", status="succeeded", error=None
@@ -1668,3 +1670,22 @@ def test_producer_publication_commits_outbox_atomically_and_survives_downstream_
     assert connection.execute(
         "SELECT status,version FROM ops.dataset_release WHERE id=%s", (release_id,)
     ).fetchone() == {"status": "accepted", "version": 5}
+
+    retried, created = store.create_consumer_import(
+        release_id,
+        {
+            "dataset_id": "nsw-psi-sales",
+            "target_feature": "feature-2",
+            "schema_version": "property-sales.v3",
+            "content_sha256": digest,
+            "record_count": count,
+            "artifact_path": f"/api/data-platform/v1/dataset-releases/{release_id}/artifact",
+            "expected_release_version": 5,
+            "comment": "Retry downstream only",
+            "idempotency_key": "retry-delivery-key",
+            "request_id": "delivery-retry",
+        },
+    )
+    assert retried["delivery_only"] is True
+    assert retried["status"] == ("delivered" if accepted else "queued")
+    assert created is not bool(accepted)

@@ -1734,3 +1734,61 @@ def test_every_catalog_tool_binds_to_a_real_backend_route() -> None:
     for binding in catalog["tools"]:
         assert binding["path"] in rules
         assert binding["method"] in rules[binding["path"]]
+
+
+@pytest.mark.parametrize(
+    ("release_status", "version", "key", "expected"),
+    [
+        ("accepted", 5, "delivery-key", 202),
+        ("awaiting_review", 5, "delivery-key", 409),
+        ("accepted", 4, "delivery-key", 409),
+        ("accepted", 5, "", 422),
+    ],
+)
+def test_downstream_retry_requires_current_published_release(
+    release_status: str,
+    version: int,
+    key: str,
+    expected: int,
+) -> None:
+    release_id = "60000000-0000-0000-0000-000000000011"
+    writes = []
+    release = {
+        "id": release_id,
+        "status": release_status,
+        "version": 5,
+        "dataset_id": "nsw-psi-sales",
+        "target_feature": "feature-2",
+        "schema_version": "propertyscope.property-sales.v3",
+        "content_sha256": "a" * 64,
+        "record_count": 7_402_643,
+    }
+
+    def database(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json={"release": release})
+        assert request.url.path.endswith("/consumer-imports")
+        writes.append(json.loads(request.content))
+        return httpx.Response(202, json={"operation": {"status": "queued", "delivery_only": True}})
+
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database",
+            "secret",
+            client=httpx.Client(transport=httpx.MockTransport(database)),
+        ),
+        ai_mode_client=AiModeClient("http://ai"),
+    )
+    response = app.test_client().post(
+        f"/api/data-platform/v1/dataset-releases/{release_id}/retry-delivery",
+        headers={"Idempotency-Key": key},
+        json={"version": version},
+    )
+    assert response.status_code == expected
+    assert release["status"] == release_status and release["version"] == 5
+    if expected == 202:
+        assert response.get_json()["delivery_status"] == "queued"
+        assert writes[0]["record_count"] == 7_402_643
+        assert writes[0]["expected_release_version"] == 5
+    else:
+        assert not writes

@@ -335,7 +335,7 @@ paths:
         '409': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/Problem'}
         '424':
-          description: Durable consumer publication failed, or the consumer rejected the release
+          description: Producer verification or local activation failed
           content:
             application/json:
               schema: {$ref: '#/components/schemas/PublicationResult'}
@@ -356,6 +356,27 @@ paths:
               schema: {$ref: '#/components/schemas/ConsumerImportStatus'}
         '404': {$ref: '#/components/responses/Problem'}
         '503': {$ref: '#/components/responses/Problem'}
+  /dataset-releases/{release_id}/retry-delivery:
+    post:
+      operationId: retryPublishedReleaseDelivery
+      description: Retries downstream import independently of the already published producer generation.
+      parameters:
+        - {$ref: '#/components/parameters/ReleaseId'}
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              additionalProperties: false
+              properties:
+                version: {type: integer, minimum: 1}
+      responses:
+        '202': {description: Durable downstream delivery queued or replayed}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
   /dataset-releases/{release_id}/reject:
     post:
       operationId: rejectDatasetRelease
@@ -699,6 +720,7 @@ components:
         receipts: {type: array, maxItems: 100, items: {$ref: './consumer-publication-receipt.v1.schema.json'}}
         activations: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/ReleaseActivation'}}
         consumer_imports: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/ConsumerImportOperation'}}
+        publication_policy: {const: producer-owned}
         accepted_predecessor: {type: [object, 'null']}
     OperatorPublishRequest:
       type: object
@@ -759,8 +781,9 @@ components:
         schema_version: {type: string, minLength: 1, maxLength: 200}
         content_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
         record_count: {type: integer, minimum: 0}
-        status: {enum: [queued, claimed, polling, receipt_pending, activation_pending, activation_queued, published, rejected, failed, interrupted]}
+        status: {enum: [queued, claimed, polling, receipt_pending, activation_pending, activation_queued, published, delivered, rejected, failed, interrupted]}
         phase_key: {enum: [connect, poll, record_receipt, queue_activation, wait_activation, complete]}
+        delivery_only: {type: [boolean, 'null']}
         remote_status: {type: [string, 'null']}
         consumer_operation_id: {type: [string, 'null']}
         publication_receipt_id: {type: [string, 'null'], format: uuid}
@@ -789,7 +812,8 @@ components:
           anyOf:
             - {$ref: '#/components/schemas/ReleaseActivation'}
             - {type: 'null'}
-        publication_status: {enum: [pending, completed, failed]}
+        publication_status: {enum: [pending, completed, failed, null]}
+        delivery_status: {type: string}
     SourceDefinitionFields:
       type: object
       properties:

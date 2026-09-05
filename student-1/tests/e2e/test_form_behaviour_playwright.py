@@ -1236,29 +1236,53 @@ def test_operations_overview_job_and_release_states_are_truthful(
         assert box["height"] >= 44
 
 
-def test_publication_failure_explains_consumer_rejection(page: Page, fixture_origin: str) -> None:
+def test_published_release_can_retry_downstream_without_republishing(
+    page: Page, fixture_origin: str
+) -> None:
+    retried = False
+
     def detail(route: Route) -> None:
         response = route.fetch()
         payload = response.json()
-        payload["release"]["status"] = "awaiting_review"
+        payload["release"]["status"] = "accepted"
+        payload["publication_policy"] = "producer-owned"
         payload["activations"] = []
         payload["consumer_imports"] = [
             {
-                "status": "failed",
-                "error_json": {
-                    "message": "Consumer declined publication: record_count exceeds 5000"
-                },
+                "status": "queued" if retried else "failed",
+                "phase_key": "connect" if retried else "complete",
+                "error_json": None
+                if retried
+                else {"message": "Consumer declined publication: record_count exceeds 5000"},
             }
         ]
         route.fulfill(response=response, json=payload)
 
+    def retry(route: Route) -> None:
+        nonlocal retried
+        assert route.request.method == "POST"
+        assert route.request.headers.get("idempotency-key")
+        command = route.request.post_data_json
+        assert isinstance(command, dict)
+        assert command["version"] >= 1
+        retried = True
+        route.fulfill(status=202, json={"delivery_status": "queued"})
+
     page.route(f"**/api/data-platform/v1/dataset-releases/{REVIEW_ID}", detail)
+    page.route(f"**/api/data-platform/v1/dataset-releases/{REVIEW_ID}/retry-delivery", retry)
     _open(page, fixture_origin, f"releases/{REVIEW_ID}")
+    expect(page.get_by_role("heading", name="Published dataset", exact=True)).to_be_visible()
     expect(
-        page.get_by_text("Consumer declined publication: record_count exceeds 5000", exact=True)
+        page.get_by_text(
+            "Published in the data platform. Downstream import needs attention:", exact=False
+        )
     ).to_be_visible()
-    expect(page.get_by_role("button", name="Retry publication", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Publish", exact=True)).to_have_count(0)
     expect(page.get_by_text("Awaiting review", exact=True)).to_have_count(0)
+    page.get_by_role("button", name="Retry downstream import", exact=True).click()
+    expect(page.get_by_text("Downstream import continues", exact=False)).to_be_visible()
+    expect(page.get_by_role("heading", name="Published dataset", exact=True)).to_be_visible()
+    assert retried
 
 
 def test_release_list_refresh_preserves_unsubmitted_filters(

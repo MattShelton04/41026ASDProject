@@ -145,6 +145,7 @@ tools:
           receipts: {type: array, maxItems: 100, items: {type: object}}
           activations: {type: array, maxItems: 100, items: {type: object}}
           consumer_imports: {type: array, maxItems: 100, items: {type: object}}
+          publication_policy: {const: producer-owned}
           accepted_predecessor:
             type: [object, "null"]
             properties:
@@ -157,6 +158,7 @@ tools:
           - receipts
           - activations
           - consumer_imports
+          - publication_policy
           - accepted_predecessor
           - release_contract
         additionalProperties: false

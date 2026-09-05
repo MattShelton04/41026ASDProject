@@ -8,28 +8,32 @@ database repair was used. All publication/recovery actions used the supported br
 
 ```mermaid
 flowchart TD
-    UI[Review and approve in Feature 1] --> API[Publish request: persist durable work]
-    API -->|external product| Delivery[Feature 1 delivery queue]
-    Delivery --> Runner[Independent publication worker]
-    Runner --> Consumer[Feature 3 durable import and fenced lease]
-    Consumer --> Stream[Stream and validate full immutable artifact]
-    Stream --> Stage[Bounded staging batches]
-    Stage --> Receipt[Atomic consumer acceptance and final receipt]
-    Receipt --> Runner
-    Runner --> Activation[Feature 1 activation queue]
-    API -->|local product| Activation
-    Activation --> Prepare[Loader verifies evidence and prepares search indexes]
-    Prepare --> Switch[Short atomic accepted-version switch]
-    Switch --> Published[Published]
-    UI -. current status polling .-> Delivery
-    UI -. current status polling .-> Activation
+    UI[Review and approve in Feature 1] --> API[Publish request: verify producer artifact binding]
+    API --> Activation[Durable Feature 1 activation queue]
+    Activation --> Prepare[Loader verifies full artifact and prepares required local indexes]
+    Prepare --> Switch[Atomic producer pointer switch and delivery outbox]
+    Switch --> Published[Published in Feature 1]
+    Switch -->|external target| Delivery[Independent Feature 1 delivery worker]
+    Delivery -->|push metadata| Consumer[Feature 2 or 3 durable import operation]
+    Consumer --> Worker[Consumer background worker]
+    Worker -->|pull artifact bytes| F1Artifact[Feature 1 immutable artifact endpoint]
+    Worker --> Stage[Validate every record and stage bounded batches]
+    Stage --> Receipt[Atomic consumer pointer switch and final receipt]
+    Delivery -->|poll consumer status| Receipt
+    Receipt --> Evidence[Feature 1 downstream outcome history]
+    UI -. publication status .-> Activation
+    UI -. separate downstream status .-> Evidence
 ```
 
-The browser request already had a durable queue architecture. The incident exposed gaps in
+The diagram shows the final ADR-041/042 flow. At the start of the investigation, external
+publication waited for a downstream acceptance receipt before local activation. The browser
+request already had a durable queue architecture. The incident exposed gaps in
 scheduling, recovery and presentation around it; increasing request timeouts would not fix them.
 
 | Finding | Evidence and consequence | Fix |
 | --- | --- | --- |
+| Consumer capacity gated producer publication | Feature 2 rejected 7.4 million valid rows at its 5,000-record cap | Publish in Feature 1 independently; atomically queue downstream delivery (ADR-041) |
+| Full consumer import buffered all data | Feature 2 synchronously downloaded, expanded and normalized the entire artifact | Durable 202/status workflow, streamed download, bounded replayable batches and atomic consumer visibility (ADR-042) |
 | Raw review state shown during publication | Stored `awaiting_review` survives until activation; the page repeated it after approval | Publication-aware headings, notices, list and preview labels |
 | Stale actions and stopped refreshes | Cached modules, preview work and finite polling kept old state visible | Asset revalidation, independent preview loading, continued slow polling, visibility refresh and version recheck |
 | List rejected its own filters | UI sends `lifecycle` and `q`; repository supported both but database API omitted them from its allowlist | Allow those two supported parameters; retain rejection of unknown parameters and bounded search |
@@ -124,7 +128,7 @@ inventing a consumer operation or receipt, and displays the cause directly on th
 Transient HTTP 408/429/5xx remain retryable. At this investigation stage, the previous accepted
 sales release stayed active because of the former consumer gate.
 
-**Scope decision:** after discussing the required work, the user preferred leaving the larger
+**Earlier scope decision (subsequently extended by the user):** after discussing the required work, the user preferred leaving the larger
 Feature 2 importer change out of this PR and documenting the integration gap. No Feature 2
 capacity limit was introduced or increased here, and Feature 1 does not truncate the full release
 to satisfy those limits. The initial assumption that Feature 2 must accept before Feature 1 can
@@ -132,9 +136,9 @@ publish was subsequently rejected explicitly by the user. ADR-041 replaces that 
 producer-owned publication and an independent durable delivery outbox. Full PSI publication no
 longer depends on upgrading Feature 2.
 
-The follow-up integration should remove fixed dataset-size caps through streaming and bounded
-batches, with a durable consumer-issued operation/status endpoint, fenced worker leases,
-replayable staging, complete schema/digest/count validation and atomic accepted-generation
+The user subsequently requested that integration in this PR. ADR-042 implements streaming and
+bounded batches, a durable consumer-issued operation/status endpoint, fenced worker leases,
+replayable staging, complete digest/count and v3 record validation, and atomic accepted-generation
 visibility. Existing Feature 2 case/sales reads must select its own accepted generation. The
 former ADR-033 consumer-acceptance gate is superseded by ADR-041; downstream import readiness
 is now explicitly separate from producer publication readiness.

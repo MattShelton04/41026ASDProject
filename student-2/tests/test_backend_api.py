@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ import httpx
 from flask.testing import FlaskClient
 
 from propertyscope_market_intelligence.app import create_app as create_backend
+from propertyscope_market_intelligence.import_worker import SalesImportWorker
 from propertyscope_market_store.app import create_app as create_database
 from propertyscope_market_store.configuration import StoreSettings
 
@@ -42,6 +44,7 @@ class LocalStoreClient:
         )
         return httpx.Response(
             response.status_code,
+            request=httpx.Request(method, "http://database" + path),
             content=response.data,
             headers={"content-type": response.content_type},
         )
@@ -55,8 +58,8 @@ class FakeFeature1:
     def validate_property(self, _property_ref: str) -> str:
         return self.state
 
-    def artifact(self, _path: str) -> bytes:
-        return self._artifact
+    def iter_artifact(self, _path: str) -> Iterator[bytes]:
+        yield self._artifact
 
 
 class FakeAiMode:
@@ -224,9 +227,15 @@ def test_sales_publication_import_receipt(tmp_path: Path) -> None:
         "artifact_path": f"/api/data-platform/v1/dataset-releases/{release_id}/artifact",
         "idempotency_key": "feature-2-publication-test",
     }
-    response = _client(tmp_path, FakeFeature1(artifact=compressed)).post(
-        "/api/data-import/v1/propertyscope-releases", json=payload
-    )
-    assert response.status_code == 200
-    assert response.get_json()["status"] == "accepted"
-    assert response.get_json()["rows_accepted"] == 1
+    store = LocalStoreClient(tmp_path)
+    feature1 = FakeFeature1(artifact=compressed)
+    client = create_backend(store=store, feature1=feature1, ai_mode=FakeAiMode()).test_client()
+    response = client.post("/api/data-import/v1/propertyscope-releases", json=payload)
+    assert response.status_code == 202
+    operation_id = response.get_json()["consumer_operation_id"]
+    assert operation_id != payload["idempotency_key"]
+    assert SalesImportWorker(store, feature1).run_once() is True
+    result = client.get(f"/api/data-import/v1/propertyscope-releases/{operation_id}")
+    assert result.status_code == 200
+    assert result.get_json()["status"] == "accepted"
+    assert result.get_json()["rows_accepted"] == 1

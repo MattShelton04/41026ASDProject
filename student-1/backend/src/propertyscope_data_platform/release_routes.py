@@ -207,6 +207,51 @@ def register_release_routes(
             }
         )
 
+    @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/retry-delivery")
+    def retry_delivery(release_id: uuid.UUID) -> Response:
+        key = request.headers.get("Idempotency-Key", "").strip()
+        if not key:
+            return problem(422, "idempotency_key_required", "Idempotency-Key is required")
+        current = store.request("GET", f"{INTERNAL}/releases/{release_id}", headers=request.headers)
+        if current.status_code >= 400:
+            return forward(current)
+        release = current.json()["release"]
+        body = json_body()
+        if release["status"] != "accepted" or release["target_feature"] == "feature-1":
+            return problem(
+                409, "release_not_deliverable", "Only a published external release can be delivered"
+            )
+        if body.get("version") != release["version"]:
+            return problem(409, "release_version_conflict", "Release version does not match")
+        queued = store.request(
+            "POST",
+            f"{INTERNAL}/releases/{release_id}/consumer-imports",
+            headers=request.headers,
+            json={
+                **{
+                    field: release[field]
+                    for field in (
+                        "dataset_id",
+                        "target_feature",
+                        "schema_version",
+                        "content_sha256",
+                        "record_count",
+                    )
+                },
+                "artifact_path": f"{BASE}/dataset-releases/{release_id}/artifact",
+                "expected_release_version": release["version"],
+                "comment": "Retry downstream delivery of published release",
+                "idempotency_key": key,
+                "request_id": request.headers.get("X-Request-ID", str(uuid.uuid4())),
+            },
+        )
+        if queued.status_code >= 400:
+            return forward(queued)
+        operation = public_consumer_import(queued.json()["operation"])
+        response = jsonify({"consumer_import": operation, "delivery_status": operation["status"]})
+        response.status_code = 202
+        return response
+
     @api.post(f"{BASE}/dataset-releases/<uuid:release_id>/reject")
     def release_reject(release_id: uuid.UUID) -> Response:
         return transition(store, release_id, "rejected", json_body())

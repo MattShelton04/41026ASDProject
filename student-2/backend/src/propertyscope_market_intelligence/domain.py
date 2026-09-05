@@ -15,9 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 FEATURE_KEY = "student-2-market-intelligence"
 TOOL_ALLOWLIST = ("market.cases.inspect.v1", "market.sales.summary.v1")
 SALES_SCHEMA_VERSION = "propertyscope.property-sales.v3"
-MAX_ARTIFACT_BYTES = 25 * 1024 * 1024
-MAX_EXPANDED_BYTES = 75 * 1024 * 1024
-MAX_IMPORT_RECORDS = 5000
 
 
 class FeatureModel(BaseModel):
@@ -152,7 +149,7 @@ class PublicationRequest(FeatureModel):
     dataset_id: Literal["nsw-psi-sales"]
     schema_version: Literal["propertyscope.property-sales.v3"]
     content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    record_count: int = Field(ge=0, le=MAX_IMPORT_RECORDS)
+    record_count: int = Field(ge=0)
     manifest: dict[str, Any]
     artifact_path: str = Field(
         pattern=r"^/api/data-platform/v1/dataset-releases/[0-9a-f-]+/artifact$"
@@ -174,27 +171,29 @@ class PublicationRequest(FeatureModel):
                 raise ValueError(f"manifest {key} does not match publication envelope")
         if self.manifest.get("content_encoding") != "gzip":
             raise ValueError("only gzip sales artifacts are accepted")
+        if (
+            self.artifact_path
+            != f"/api/data-platform/v1/dataset-releases/{self.release_id}/artifact"
+        ):
+            raise ValueError("artifact path does not match the release")
+        byte_count = self.manifest.get("byte_count")
+        if byte_count is not None and (type(byte_count) is not int or byte_count < 1):
+            raise ValueError("manifest byte_count must be a positive integer")
         return self
 
 
 def decode_sales_artifact(
     publication: PublicationRequest, compressed: bytes
 ) -> list[dict[str, Any]]:
-    """Bound, decompress, parse and validate a Feature 1 v3 NDJSON artifact."""
+    """Decode an in-memory fixture; live imports use the bounded streaming worker."""
 
-    if len(compressed) > MAX_ARTIFACT_BYTES:
-        raise ValueError("sales artifact exceeds the compressed size limit")
     try:
         expanded = gzip.decompress(compressed)
     except (gzip.BadGzipFile, OSError) as exc:
         raise ValueError("sales artifact is not valid gzip data") from exc
-    if len(expanded) > MAX_EXPANDED_BYTES:
-        raise ValueError("sales artifact exceeds the expanded size limit")
     lines = expanded.splitlines()
     if len(lines) != publication.record_count:
         raise ValueError("sales artifact record count does not match publication envelope")
-    if len(lines) > MAX_IMPORT_RECORDS:
-        raise ValueError("sales artifact exceeds the Release 0 record limit")
     synthetic = "synthetic" in str(publication.manifest.get("source", "")).lower()
     normalized: list[dict[str, Any]] = []
     for index, line in enumerate(lines, start=1):

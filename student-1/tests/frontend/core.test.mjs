@@ -223,7 +223,7 @@ test("failed publication timeout reconciliation permits a fresh retry", async ()
       timeoutError,
     }),
     (error) => error === timeoutError
-      && /Publication delivery or activation failed/.test(error.message)
+      && /Publication verification or activation failed/.test(error.message)
       && /fresh retry is safe/.test(error.message)
       && !/outcome is not known/.test(error.message),
   );
@@ -252,7 +252,7 @@ test("publication timeout reconciliation recognizes durable consumer delivery", 
   });
   assert.equal(body.consumer_imports[0].status, "polling");
   assert.deepEqual(cleared, ["release-1:v4"]);
-  assert.match(toasts[0], /durable consumer delivery and accepted-version activation/);
+  assert.match(toasts[0], /durable artifact verification and accepted-version activation/);
 });
 
 test("requestJson adds correlation and idempotency-compatible JSON headers", async () => {
@@ -966,6 +966,8 @@ test("coverage matrices flatten into accessible table rows", () => {
 });
 
 test("formatting pairs states with text and handles byte boundaries", () => {
+  assert.deepEqual(stateLabel("imported"), { text: "Imported", tone: "positive", symbol: "✓" });
+  assert.deepEqual(stateLabel("delivered"), { text: "Delivered", tone: "positive", symbol: "✓" });
   assert.deepEqual(stateLabel("accepted"), { text: "Published", tone: "positive", symbol: "✓" });
   assert.deepEqual(stateLabel("stale"), { text: "Stale", tone: "warning", symbol: "△" });
   assert.equal(formatBytes(1024), "1.00 KB");
