@@ -53,7 +53,7 @@ def required_uuid(body: Mapping[str, Any], name: str) -> uuid.UUID:
 
 def tool_envelope(upstream: httpx.Response) -> Response:
     """Strip internal pagination fields to match bounded tool output contracts."""
-    if upstream.status_code >= 400:
+    if upstream.status_code >= 400 or upstream.is_redirect:
         return forward(upstream)
     data = upstream_json_object(upstream)
     return jsonify({"items": data.get("items", []), "count": data.get("count", 0)})

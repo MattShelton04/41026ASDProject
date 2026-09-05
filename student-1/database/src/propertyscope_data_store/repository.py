@@ -687,7 +687,20 @@ class PropertyScopeStore:
         """
         params: list[Any] = []
         predicates: list[str] = []
-        if status:
+        if status == "running":
+            predicates.append("run.status=ANY(%s)")
+            params.append(
+                [
+                    "planning",
+                    "discovering",
+                    "acquiring",
+                    "staging",
+                    "normalising",
+                    "validating",
+                    "building_release",
+                ]
+            )
+        elif status:
             predicates.append("run.status=%s")
             params.append(status)
         if job_definition_id is not None:

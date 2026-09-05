@@ -11,7 +11,7 @@ import { badge, detailList, pageHeading, panel, technicalDetails } from "../comp
 import { emptyState, errorState, renderLoading } from "../components/states.js";
 import { cell, makeTable, primaryCell, technicalReference } from "../components/tables.js";
 
-const RUN_FILTERS = ["", "requested", "queued", "running", "succeeded", "failed", "cancelled", "interrupted"];
+const RUN_FILTERS = ["", "queued", "running", "succeeded", "failed", "cancelled", "interrupted"];
 
 function runFailureNotice(run, tasks) {
   const failure = runFailureSummary(run, tasks);

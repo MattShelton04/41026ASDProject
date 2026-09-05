@@ -190,7 +190,7 @@ paths:
   /ingestion-runs:
     get:
       operationId: listRuns
-      description: Filters complete history before offset pagination; orders by requested_at and id descending.
+      description: Filters complete history before offset pagination; orders by requested_at and id descending. Status running includes planning, acquisition, staging, normalisation, validation and release building.
       parameters:
         - {$ref: '#/components/parameters/Limit'}
         - {$ref: '#/components/parameters/Offset'}
