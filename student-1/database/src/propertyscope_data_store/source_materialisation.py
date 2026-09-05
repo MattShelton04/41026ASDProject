@@ -361,18 +361,15 @@ BOCSAR_OBSERVATION_INSERT_SQL = """
         dataset_release_id,geography_kind,geography_value,source_category_key,
         offence_label,subcategory_label,month,count,source_row_sha256,
         normalisation_version,artifact_record_id,ingestion_run_id,created_at
-    ) WITH first_records AS (
-        SELECT geography_kind,geography_value,source_category_key,month,min(ordinal) AS ordinal
-        FROM propertyscope_bocsar_import_stage
-        WHERE record_kind='observation'
-        GROUP BY geography_kind,geography_value,source_category_key,month
-    ) SELECT %s,source.geography_kind,source.geography_value,source.source_category_key,
+    ) SELECT DISTINCT ON (
+        source.geography_kind,source.geography_value,source.source_category_key,source.month
+    ) %s,source.geography_kind,source.geography_value,source.source_category_key,
         source.offence_label,source.subcategory_label,source.month,source.count,
         source.source_row_sha256,'1.0.0',%s,%s,now()
-    FROM first_records first
-    JOIN propertyscope_bocsar_import_stage source USING (
-        geography_kind,geography_value,source_category_key,month,ordinal
-    )
+    FROM propertyscope_bocsar_import_stage source
+    WHERE source.record_kind='observation'
+    ORDER BY source.geography_kind,source.geography_value,source.source_category_key,
+        source.month,source.ordinal
     ON CONFLICT (dataset_release_id,geography_kind,geography_value,source_category_key,month)
     DO NOTHING
 """
@@ -382,18 +379,14 @@ BOCSAR_COVERAGE_INSERT_SQL = """
         dataset_release_id,geography_kind,geography_value,source_category_key,observed_months,
         first_month,last_month,month_count,blank_means_observed_zero,completeness_sha256,
         source_row_sha256,normalisation_version,artifact_record_id,ingestion_run_id,created_at
-    ) WITH first_records AS (
-        SELECT geography_kind,geography_value,source_category_key,min(ordinal) AS ordinal
-        FROM propertyscope_bocsar_import_stage
-        WHERE record_kind='coverage'
-        GROUP BY geography_kind,geography_value,source_category_key
-    ) SELECT %s,source.geography_kind,source.geography_value,source.source_category_key,
+    ) SELECT DISTINCT ON (
+        source.geography_kind,source.geography_value,source.source_category_key
+    ) %s,source.geography_kind,source.geography_value,source.source_category_key,
         source.observed_months,source.first_month,source.last_month,source.month_count,
         source.blank_means_observed_zero,source.completeness_sha256,source.source_row_sha256,
         '1.0.0',%s,%s,now()
-    FROM first_records first
-    JOIN propertyscope_bocsar_import_stage source USING (
-        geography_kind,geography_value,source_category_key,ordinal
-    )
+    FROM propertyscope_bocsar_import_stage source
+    WHERE source.record_kind='coverage'
+    ORDER BY source.geography_kind,source.geography_value,source.source_category_key,source.ordinal
     ON CONFLICT (dataset_release_id,geography_kind,geography_value,source_category_key) DO NOTHING
 """

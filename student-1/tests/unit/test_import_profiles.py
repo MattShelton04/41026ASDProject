@@ -760,10 +760,10 @@ def test_bocsar_typed_normal_path_uses_rowcount_without_destination_scans() -> N
     assert "FREEZE TRUE" in BOCSAR_COPY_SQL
     assert "ORDER BY ordinal" not in BOCSAR_OBSERVATION_INSERT_SQL
     assert "ORDER BY ordinal" not in BOCSAR_COVERAGE_INSERT_SQL
-    assert "min(ordinal) AS ordinal" in BOCSAR_OBSERVATION_INSERT_SQL
-    assert "min(ordinal) AS ordinal" in BOCSAR_COVERAGE_INSERT_SQL
-    assert "JOIN propertyscope_bocsar_import_stage source" in BOCSAR_OBSERVATION_INSERT_SQL
-    assert "JOIN propertyscope_bocsar_import_stage source" in BOCSAR_COVERAGE_INSERT_SQL
+    assert "SELECT DISTINCT ON" in BOCSAR_OBSERVATION_INSERT_SQL
+    assert "SELECT DISTINCT ON" in BOCSAR_COVERAGE_INSERT_SQL
+    assert "JOIN propertyscope_bocsar_import_stage" not in BOCSAR_OBSERVATION_INSERT_SQL
+    assert "JOIN propertyscope_bocsar_import_stage" not in BOCSAR_COVERAGE_INSERT_SQL
     assert "observed_months" in BOCSAR_COVERAGE_INSERT_SQL
     assert "blank_means_observed_zero" in BOCSAR_COVERAGE_INSERT_SQL
 
