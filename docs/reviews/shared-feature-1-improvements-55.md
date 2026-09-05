@@ -222,3 +222,10 @@ sample, not a general speedup. The live dataset's repeated broad-index searches
 are the reason for changing query shape; the retained full-history replay must
 establish the actual benefit. Temporary reference dictionaries trade extra
 sequential grouping and spill space for removal of per-address search plans.
+
+The final matching follow-up passed `uv run python scripts/check.py`: 1,617 Python
+tests and 192 frontend tests, with 35 opt-in tests skipped. A separate disposable
+PostgreSQL run passed all 33 import/identity/recovery tests, alongside 52 focused
+unit tests. The idle loader was refreshed and a complete retained PSI replay was
+started; its final live timing remains pending. The disposable benchmark server
+was removed after validation.
