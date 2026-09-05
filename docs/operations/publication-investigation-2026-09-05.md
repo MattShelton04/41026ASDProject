@@ -153,7 +153,9 @@ Architecture: [ADR-040](../architecture/decisions/ADR-040-publication-recovery-a
   --no-cov -q` — 41 passed.
 - Disposable PostgreSQL suite: `student-1/tests/component/test_postgres_import_reliability.py`
   with `PROPERTYSCOPE_TEST_POSTGRES_URL` pointing to a separate temporary PostGIS container —
-  20 passed. The retained live database was never supplied to this test suite.
+  22 passed. The retained live database was never supplied to this test suite.
+- Feature 2 suite: 24 passed with 80.03% coverage, including interrupted batch replay and
+  expired-lease fencing. Canonical checks and every PR CI check passed on code commit `128e748`.
 - Live checks: integrated-browser review/publish/retry, lifecycle/search filters, final state,
   consumer receipt counts, accepted pointers, runner restart and continuous loader activation.
 
@@ -173,3 +175,26 @@ Disposable PostgreSQL validation now passes 22 tests, including atomic outbox ro
 replay and producer publication surviving both accepted and failed downstream receipts.
 The user subsequently authorized extending Feature 2 to support the full release; that follow-up
 must preserve this producer/consumer independence.
+
+## Complete downstream PSI import validation
+
+After installing the streaming importer, **Retry downstream import** was selected through the
+integrated browser. Feature 2 operation `c77a52ee-bb66-47eb-9649-7cba20709f7b` began at
+2026-09-05 11:52:17.862 UTC and completed at 12:12:52.312 UTC: 20 minutes 34.449 seconds,
+on its first attempt. Its final receipt accepted all **7,402,643 records**, with zero rejected.
+Both the stored generation count and current consumer pointer match release
+`a7078066-1bde-4b31-8b4d-4acab03939e6`; Feature 2's supported sales read path returns records
+from that generation. The verified compressed artifact digest is
+`b92be59426a1779ae974085b9a0dcd96c0f5c05ba79a4024ce43c7b69c3e8e00`.
+
+Feature 1 remained Published throughout. Its independent delivery operation finished Delivered,
+and the final browser view shows the producer receipt as Verified and the downstream receipt as
+Imported, both with the complete count. The Published data filter also returns the release with
+7,402,643 records without the former HTTP 422. Failed earlier attempts remain visible in history.
+
+During the full import, the Feature 2 backend container used approximately 124 MiB; the database
+worker's resident memory was approximately 54 MiB. Container memory including filesystem cache
+was higher. Streaming and bounded batches avoid retaining the entire artifact or record set in
+application memory; there is no fixed total record or artifact-size cap. Available disk and
+processing capacity still determine completion time. This live import completed without a
+worker restart; crash recovery was validated separately by deterministic replay and lease tests.
