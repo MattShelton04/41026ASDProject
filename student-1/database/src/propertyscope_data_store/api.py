@@ -129,6 +129,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         items = store.list_runs(
             status=request.args.get("status"),
             query_text=optional_query_text(),
+            job_definition_id=optional_uuid_query("job_definition_id"),
             limit=limit,
             offset=offset,
         )
@@ -265,6 +266,8 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             target_feature=request.args.get("target_feature"),
             schema_version=request.args.get("schema_version"),
             ingestion_run_id=request.args.get("ingestion_run_id"),
+            query_text=optional_query_text(),
+            lifecycle=request.args.get("lifecycle"),
             limit=limit,
             offset=offset,
         )
@@ -676,6 +679,16 @@ def optional_query_text() -> str | None:
     if len(value) > 200:
         raise ValidationError("q must be at most 200 characters")
     return value or None
+
+
+def optional_uuid_query(name: str) -> uuid.UUID | None:
+    value = request.args.get(name, "").strip()
+    if not value:
+        return None
+    try:
+        return uuid.UUID(value)
+    except ValueError as exc:
+        raise ValidationError(f"{name} must be a UUID") from exc
 
 
 def bounded_integer(

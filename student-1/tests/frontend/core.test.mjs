@@ -985,7 +985,8 @@ test("report-section release evidence is bounded and defensively normalized", ()
 });
 
 test("release details render bounded paginated dataset records", async () => {
-  const releases = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
+  const releases = (await Promise.all(["releases.js", "release-preview.js"].map((name) =>
+    readFile(new URL(`../../frontend/routes/${name}`, import.meta.url), "utf8")))).join("\n");
   assert.match(releases, /dataset-releases\/\$\{id\}\/records\?limit=25&offset=0/);
   assert.match(releases, /function releasePreviewPanel/);
   assert.match(releases, /No other version is included/);

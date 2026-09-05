@@ -404,6 +404,43 @@ def _collection(items: list[dict[str, Any]], scenario: str) -> dict[str, Any]:
     }
 
 
+def _filtered_page(
+    items: list[dict[str, Any]],
+    scenario: str,
+    params: dict[str, list[str]],
+    *,
+    fields: tuple[str, ...],
+) -> dict[str, Any]:
+    selected = _collection(items, scenario)["items"]
+    query = params.get("q", [""])[-1].strip().lower()
+    status = params.get("status", [""])[-1]
+    job = params.get("job_definition_id", [""])[-1]
+    lifecycle = params.get("lifecycle", ["all"])[-1]
+    lifecycle_statuses = {
+        "review": {"validated", "candidate", "review", "review_required", "awaiting_review"},
+        "published": {"accepted"},
+        "rejected": {"rejected"},
+    }.get(lifecycle)
+    selected = [
+        item
+        for item in selected
+        if (not status or status == "all" or item.get("status") == status)
+        and (not job or item.get("job_definition_id") == job)
+        and (lifecycle_statuses is None or item.get("status") in lifecycle_statuses)
+        and (not query or query in " ".join(str(item.get(field, "")) for field in fields).lower())
+    ]
+    limit = max(1, min(100, int(params.get("limit", ["100"])[-1])))
+    offset = max(0, int(params.get("offset", ["0"])[-1]))
+    page = selected[offset : offset + limit]
+    return {
+        "items": page,
+        "count": len(page),
+        "limit": limit,
+        "offset": offset,
+        "next_offset": offset + len(page) if len(page) == limit else None,
+    }
+
+
 def fixture_response(
     method: str,
     path: str,
@@ -602,7 +639,9 @@ def fixture_response(
     if route == "jobs":
         return FixtureResponse(
             201 if method == "POST" else 200,
-            _mutation_or_collection(method, jobs, scenario, entity_key="job"),
+            _filtered_page(jobs, scenario, params, fields=("name", "dataset_id", "profile_key"))
+            if method == "GET"
+            else _mutation_or_collection(method, jobs, scenario, entity_key="job"),
             delay_seconds=delay,
         )
     if route.startswith("jobs/"):
@@ -621,7 +660,16 @@ def fixture_response(
     if route == "ingestion-runs":
         if partial_optional:
             return _optional_unavailable()
-        return FixtureResponse(200, _collection(runs, scenario), delay_seconds=delay)
+        return FixtureResponse(
+            200,
+            _filtered_page(
+                runs,
+                scenario,
+                params,
+                fields=("id", "job_name", "request_id", "dataset_id", "profile_key", "source_name"),
+            ),
+            delay_seconds=delay,
+        )
     if route.startswith("ingestion-runs/"):
         run = _select(_expanded(runs, scenario), "id", route.split("/")[1])
         if run is None:
@@ -638,7 +686,14 @@ def fixture_response(
             release_items = [item for item in releases if item["status"] == statuses[-1]]
         return FixtureResponse(
             200 if method == "GET" else 201,
-            _mutation_or_collection(method, release_items, scenario, entity_key="release"),
+            _filtered_page(
+                release_items,
+                scenario,
+                params,
+                fields=("dataset_id", "release_version", "target_feature"),
+            )
+            if method == "GET"
+            else _mutation_or_collection(method, release_items, scenario, entity_key="release"),
             delay_seconds=delay,
         )
     if route.startswith("dataset-releases/"):

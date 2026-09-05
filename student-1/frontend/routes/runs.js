@@ -1,4 +1,6 @@
 import { collection, entity, queryString } from "../core/api.js";
+import { disposeTableRegions } from "../browser/index.js";
+import { collectionPagination, pageOffset } from "../components/pagination.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, durationMilliseconds, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js";
 import { actionAvailability, createLatestRequestGuard, nextRunDetailPollDelay, retainRecent } from "../core/polling.js";
@@ -165,14 +167,12 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
     const routeEpoch = generationGuard.capture();
     const params = routeQuery(location.hash);
     const filters = { q: params.get("q") || "", status: params.get("status") || "", job: params.get("job") || "" };
+    const offset = pageOffset(params);
     renderLoading(view, "Loading run history");
     try {
-      const { body } = await request(`ingestion-runs${queryString({ status: filters.status, limit: 100 })}`);
+      const { body } = await request(`ingestion-runs${queryString({ status: filters.status, q: filters.q, job_definition_id: filters.job, limit: 100, offset })}`);
       if (!routeEpoch.isCurrent()) return;
-      const allRuns = collection(body);
-      const search = filters.q.toLowerCase();
-      const runs = allRuns.filter((run) => (!filters.job || run.job_definition_id === filters.job)
-        && (!search || [run.id, run.job_name, run.request_id, run.dataset_id].some((value) => String(value || "").toLowerCase().includes(search))));
+      const runs = collection(body);
       view.replaceChildren();
       append(view, pageHeading("Property data", "Update history", "Track each data update from download through checks and publication review.", [link("Choose a data update", "#jobs", "button primary")]));
       if (filters.job) {
@@ -183,6 +183,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
         append(view, jobFilter);
       }
       append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: RUN_FILTERS, placeholder: "Update name or reference", onApply: (values) => { location.hash = `#runs${queryString({ ...values, job: filters.job })}`; } }));
+      append(view, collectionPagination("runs", filters, body, offset));
       if (!runs.length) { append(view, emptyState("No updates found", "Start a saved data update or adjust the current filters.", link("View data updates", "#jobs", "button primary"))); return; }
       const table = makeTable([{ label: "Update" }, { label: "Method" }, { label: "Status" }, { label: "Rows loaded" }, { label: "Started" }, { label: "Reference" }], runs, (run) => {
         const row = el("tr");
@@ -237,6 +238,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       const linkedRelease = releasesFeed.items.find((release) => release.ingestion_run_id === id && !["accepted", "superseded"].includes(release.status));
       const refreshState = polling ? captureRefreshState(view) : null;
       const run = entity(detailResult.body, "run");
+      disposeTableRegions(view);
       view.replaceChildren();
       const availability = actionAvailability(run.status);
       const actions = [];

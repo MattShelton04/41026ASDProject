@@ -1408,6 +1408,22 @@ def test_release_collection_excludes_retired_assessment_sources() -> None:
     assert "release.status=%s" in store.query
 
 
+def test_release_filters_apply_before_stable_pagination() -> None:
+    store = PropertyQueryStore()
+    store.list_releases(
+        status=None, query_text="NSW 100%", lifecycle="published", limit=25, offset=100
+    )
+    assert "release.status=ANY(%s)" in store.query
+    assert "POSITION(lower(%s)" in store.query
+    assert "ORDER BY release.created_at DESC,release.id DESC LIMIT %s OFFSET %s" in store.query
+    assert store.params == [["accepted"], "NSW 100%", 25, 100]
+
+
+def test_release_collection_rejects_unknown_lifecycle() -> None:
+    with pytest.raises(ValidationError, match="lifecycle"):
+        PropertyQueryStore().list_releases(status=None, lifecycle="unknown", limit=25, offset=0)
+
+
 class PreviewStore(PropertyScopeStore):
     def __init__(self) -> None:
         self.required_calls = 0

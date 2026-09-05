@@ -308,6 +308,12 @@ are not presented as competing top-level workflows. `app.js` is the transition c
 The independently built frontend image copies shared design-system v0.1 assets, while the
 development overlay mounts the same source files for reload.
 
+Data updates, Update history and Published data use bookmarkable previous/next pages. Search,
+status, job and publication-state filters run before database pagination, including matches
+outside the first 100 records. Changing a property query cancels its obsolete read immediately;
+release previews serialize page requests. Route replacement and inner refreshes dispose table
+observers and open action-menu listeners.
+
 ### Source-definition HTMX CRUD
 
 Source definitions are the representative Release 0 HTMX CRUD slice. Opening `#sources` creates a

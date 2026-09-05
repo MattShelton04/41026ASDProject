@@ -19,6 +19,10 @@ import { formField, filterToolbar } from "../components/forms.js";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell, technicalReference } from "../components/tables.js";
+import { disposeTableRegions } from "../browser/index.js";
+import { createLatestRequestGuard } from "../core/polling.js";
+import { releasePreviewPanel } from "./release-preview.js";
+import { collectionPagination, pageOffset } from "../components/pagination.js";
 
 const RELEASE_FIELDS = [
   { name: "dataset_id", label: "Dataset ID", required: true, createOnly: true },
@@ -55,21 +59,12 @@ const RELEASE_STATES = Object.freeze([
   { key: "rejected", label: "Rejected" },
 ]);
 
-function matchesReleaseState(release, state) {
-  const status = String(release.status || "").toLowerCase();
-  if (state === "review") return ["validated", "candidate", "review", "review_required", "awaiting_review"].includes(status);
-  if (state === "published") return status === "accepted";
-  if (state === "rejected") return status === "rejected";
-  return true;
-}
-
-function releaseStateTabs(releases, selected, filters) {
+function releaseStateTabs(selected, filters) {
   const navigation = el("nav", "state-tabs");
   navigation.setAttribute("aria-label", "Published data lifecycle");
   for (const state of RELEASE_STATES) {
-    const count = releases.filter((release) => matchesReleaseState(release, state.key)).length;
     const tab = link("", `#releases${queryString({ q: filters.q, status: filters.status, state: state.key === "all" ? "" : state.key })}`, "state-tab");
-    append(tab, el("span", "", state.label), el("strong", "", formatNumber(count)));
+    append(tab, el("span", "", state.label));
     if (selected === state.key) tab.setAttribute("aria-current", "page");
     append(navigation, tab);
   }
@@ -80,6 +75,7 @@ export function createReleaseRoutes({
   view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender,
 }) {
   const publicationKeys = createPublicationAttemptKeys(newRequestId);
+  const detailRequests = createLatestRequestGuard();
   const publicationStatusPaths = new Map();
   const publicationPolling = {
     timer: null, attempts: 0, releaseId: "", statusPath: "", routeEpoch: null, outcome: "unknown",
@@ -104,6 +100,7 @@ export function createReleaseRoutes({
     try {
       if (statusPath) {
         const { body } = await request(statusPath);
+        if (!routeEpoch.isCurrent()) return;
         publicationPolling.outcome = reconcilePublication(body);
       }
       publicationPolling.attempts += 1;
@@ -216,18 +213,15 @@ export function createReleaseRoutes({
       const requestedState = params.get("state") || "all";
       const selectedState = RELEASE_STATES.some((state) => state.key === requestedState) ? requestedState : "all";
       const filters = { q: params.get("q") || "", status: params.get("status") || "" };
-      const { body } = await request("dataset-releases?limit=100");
+      const offset = pageOffset(params);
+      const { body } = await request(`dataset-releases${queryString({ ...filters, lifecycle: selectedState, limit: 100, offset })}`);
       if (!routeEpoch.isCurrent()) return;
-      const releases = collection(body);
-      const search = filters.q.toLowerCase();
-      const visible = releases.filter((release) => matchesReleaseState(release, selectedState)
-        && (!filters.status || release.status === filters.status)
-        && (!search || [release.dataset_id, release.release_version, release.target_feature]
-          .some((value) => String(value || "").toLowerCase().includes(search))));
+      const visible = collection(body);
       view.replaceChildren();
       append(view, pageHeading("Property data", "Published data", "Review new data before it replaces the version currently used in property research.", [button("Create draft version", "button primary", () => openReleaseDialog())]));
-      append(view, releaseStateTabs(releases, selectedState, filters));
+      append(view, releaseStateTabs(selectedState, filters));
       append(view, filterToolbar({ search: filters.q, status: filters.status, statuses: ["", "draft", "candidate", "awaiting_review", "accepted", "rejected", "superseded"], placeholder: "Dataset, version or research area", onApply: (values) => { location.hash = `#releases${queryString({ ...values, state: selectedState === "all" ? "" : selectedState })}`; } }));
+      append(view, collectionPagination("releases", { ...filters, state: selectedState }, body, offset));
       if (!visible.length) { append(view, emptyState("No datasets found", filters.q || filters.status ? "Try clearing the current filters." : "A completed processing run can create a dataset for review.")); return; }
       append(view, panel(`${visible.length} ${visible.length === 1 ? "data version" : "data versions"}`, "New versions stay separate until they are reviewed and published", makeTable(
         [{ label: "Dataset / version" }, { label: "Research area" }, { label: "Records" }, { label: "State" }, { label: "Published" }, { label: "Checksum" }], visible,
@@ -241,9 +235,13 @@ export function createReleaseRoutes({
   }
 
   async function renderReleaseDetail(id, routeEpoch, { polling = false } = {}) {
+    const refresh = detailRequests.begin();
+    const detailRequest = (path) => request(path, { signal: refresh.signal });
+    const isCurrent = () => routeEpoch.isCurrent() && refresh.isCurrent();
     if (!polling) publicationPolling.attempts = 0;
     stopPublicationPolling();
-    const { body, requestId } = await request(`dataset-releases/${id}`);
+    const { body, requestId } = await detailRequest(`dataset-releases/${id}`);
+    if (!isCurrent()) return;
     const release = entity(body, "release");
     const receipts = body.receipts || [];
     const activations = body.activations || [];
@@ -258,18 +256,18 @@ export function createReleaseRoutes({
     let manifestError = null;
     if (!manifest) {
       try {
-        manifest = (await request(`dataset-releases/${id}/manifest`)).body;
+        manifest = (await detailRequest(`dataset-releases/${id}/manifest`)).body;
       } catch (error) {
         if (error.name === "AbortError") throw error;
         manifestError = error;
       }
     }
     const [qualityResult, acceptedResult, previewResult] = await Promise.allSettled([
-      request(`ingestion-runs/${release.ingestion_run_id}/quality-results?limit=100`),
-      request("dataset-releases?status=accepted&limit=100"),
-      request(`dataset-releases/${id}/records?limit=25&offset=0`),
+      detailRequest(`ingestion-runs/${release.ingestion_run_id}/quality-results?limit=100`),
+      detailRequest("dataset-releases?status=accepted&limit=100"),
+      detailRequest(`dataset-releases/${id}/records?limit=25&offset=0`),
     ]);
-    if (!routeEpoch.isCurrent()) return;
+    if (!isCurrent()) return;
     const qualityResults = qualityResult.status === "fulfilled" ? collection(qualityResult.value.body) : [];
     const acceptedReleases = acceptedResult.status === "fulfilled" ? collection(acceptedResult.value.body) : [];
     const predecessor = acceptedReleases.find((candidate) => candidate.id === release.supersedes_release_id)
@@ -331,6 +329,7 @@ export function createReleaseRoutes({
     }));
     actions.push(button("Review with AI", "button secondary", () => { location.hash = `#ai/release:${id}`; }));
 
+    disposeTableRegions(view);
     view.replaceChildren();
     const sourceRecordCount = release.coverage_json?.source_record_count;
     append(view, pageHeading("Dataset review", `${displayName(release.dataset_id)} ${release.release_version}`, `${researchAreaLabel(release.target_feature)} · ${formatNumber(sourceRecordCount ?? release.record_count)} source records`, actions));
@@ -382,7 +381,7 @@ export function createReleaseRoutes({
     append(side, panel("Background publication", "Registry preparation completes before a short accepted-version switch", activationBody));
     append(layout, panel(["accepted", "superseded"].includes(release.status) ? "Published dataset" : "Version under review", "The exact version selected for review", releaseBody), side);
     append(view, layout);
-    if (previewResult.status === "fulfilled") append(view, releasePreviewPanel(id, previewResult.value.body));
+    if (previewResult.status === "fulfilled") append(view, releasePreviewPanel(id, previewResult.value.body, { request: detailRequest, isCurrent }));
     else append(view, panel("Dataset preview", "Records in this version", el("div", "notice warning", "A record preview is unavailable for this dataset. Version details and data checks remain available.")));
     append(view, renderReleaseReviewEvidence(release, predecessor, qualityResults, { qualityUnavailable: qualityResult.status === "rejected", predecessorUnavailable: acceptedResult.status === "rejected" }));
     const newestConsumerImport = [...consumerImports].reverse()[0] || null;
@@ -410,33 +409,7 @@ export function createReleaseRoutes({
     return value;
   }
 
-  function releasePreviewPanel(releaseId, initialPage) {
-    const host = el("section", "panel"); const heading = el("div", "panel-heading"); const copy = el("div");
-    append(copy, el("h2", "", "Dataset preview"), el("p", "", "Rows from this version only")); append(heading, copy);
-    const body = el("div", "panel-body"); append(host, heading, body);
-    const renderPage = (page) => {
-      body.replaceChildren(); const release = page.release || {};
-      append(body, el("div", "notice", `${humanise(release.status)} version · ${formatNumber(page.total)} previewable ${humanise(page.profile)} records. No other version is included.`));
-      if (!page.items?.length) { append(body, emptyState("No preview rows", "This release has no rows in its registered warehouse projection.")); return; }
-      const columns = page.columns || Object.keys(page.items[0]);
-      append(body, makeTable(columns.map((column) => ({ label: humanise(column) })), page.items, (item) => { const row = el("tr"); columns.forEach((column, index) => { const value = previewValue(item[column]); append(row, cell(index === 0 && !(value instanceof Node) ? primaryCell(value) : value, index === 0 ? "primary-cell" : "")); }); return row; }));
-      const controls = el("div", "dialog-actions"); const previous = button("Previous page", "button secondary"); const next = button("Next page", "button secondary");
-      previous.disabled = page.offset <= 0; next.disabled = page.next_offset === null || page.next_offset === undefined;
-      const load = async (offset, control) => { control.disabled = true; try { renderPage((await request(`dataset-releases/${releaseId}/records${queryString({ limit: page.limit || 25, offset })}`)).body); } catch (error) { body.prepend(el("div", "notice warning", `${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`)); control.disabled = false; } };
-      previous.addEventListener("click", () => load(Math.max(0, page.offset - page.limit), previous)); next.addEventListener("click", () => load(page.next_offset, next));
-      append(controls, el("span", "field-help", `Showing ${formatNumber(page.offset + 1)}–${formatNumber(page.offset + page.count)} of ${formatNumber(page.total)}`), previous, next); append(body, controls);
-    };
-    renderPage(initialPage); return host;
-  }
-
   return { renderReleases };
-}
-
-function previewValue(value) {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "object") { const encoded = JSON.stringify(value); return encoded.length > 80 ? technicalDetails(value, "Inspect value") : el("code", "mono", encoded); }
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  return String(value);
 }
 
 export function renderReleaseReviewEvidence(release, predecessor, qualityResults, availability) {

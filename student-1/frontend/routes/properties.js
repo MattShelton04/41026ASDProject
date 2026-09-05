@@ -1,7 +1,9 @@
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { confidenceLabel, coverageRows, displayName, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js";
-import { createSubmissionGuard, propertySearchQuery } from "../core/forms.js";
+import { propertySearchQuery } from "../core/forms.js";
+import { createLatestRequestGuard } from "../core/polling.js";
+import { disposeTableRegions } from "../browser/index.js";
 import { parseRoute, routeQuery } from "../core/router.js";
 import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState } from "../components/states.js";
@@ -47,14 +49,20 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     append(resultHost, emptyState("Search current property records", "Use as much or as little of the address as you know. Add more detail only when you need to narrow the matches."));
     append(view, resultHost);
 
-    let queryGeneration = 0;
-    const submission = createSubmissionGuard(async (query, { preserveReturn = false } = {}) => {
-      const searchGeneration = ++queryGeneration;
+    const searches = createLatestRequestGuard();
+    let pendingQuery = null;
+    const submitSearch = async (query, { preserveReturn = false } = {}) => {
+      if (pendingQuery === query) return;
+      const task = searches.begin();
+      const isCurrent = () => task.isCurrent() && canHydrate(routeEpoch, resultHost, "") && input.value.trim() === query;
+      pendingQuery = query;
+      setSearchPending(true);
       updateSearchHistory(query, { preserveReturn });
+      disposeTableRegions(resultHost);
       resultHost.replaceChildren(el("section", "loading-state", "Searching NSW property records…"));
       try {
-        const result = await request(`properties/search${queryString({ q: query, state: "NSW", limit: PROPERTY_SEARCH_PAGE_SIZE, offset: 0 })}`);
-        if (searchGeneration !== queryGeneration || !canHydrate(routeEpoch, resultHost, "") || input.value.trim() !== query) return;
+        const result = await request(`properties/search${queryString({ q: query, state: "NSW", limit: PROPERTY_SEARCH_PAGE_SIZE, offset: 0 })}`, { signal: task.signal });
+        if (!isCurrent()) return;
         let items = collection(result.body);
         let total = Number(result.body.total ?? items.length);
         let totalIsLowerBound = Boolean(result.body.total_is_lower_bound);
@@ -68,12 +76,13 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
             hasMore: nextOffset !== null,
             routeEpoch,
             onLoadMore: async (control, errorHost) => {
+              if (!isCurrent() || control.disabled) return;
               control.disabled = true;
               control.textContent = "Loading…";
               errorHost.textContent = "";
               try {
-                const page = await request(`properties/search${queryString({ q: query, state: "NSW", limit: PROPERTY_SEARCH_PAGE_SIZE, offset: nextOffset })}`);
-                if (searchGeneration !== queryGeneration || !canHydrate(routeEpoch, resultHost, "") || input.value.trim() !== query) return;
+                const page = await request(`properties/search${queryString({ q: query, state: "NSW", limit: PROPERTY_SEARCH_PAGE_SIZE, offset: nextOffset })}`, { signal: task.signal });
+                if (!isCurrent()) return;
                 const known = new Set(items.map((item) => item.property_ref));
                 items = [...items, ...collection(page.body).filter((item) => !known.has(item.property_ref))];
                 total = Number(page.body.total ?? total);
@@ -82,6 +91,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
                 renderResults();
                 announce(`${items.length} of ${totalIsLowerBound ? "at least " : ""}${total} property matches shown.`);
               } catch (error) {
+                if (!isCurrent()) return;
                 control.disabled = false;
                 control.textContent = "Show more matches";
                 errorHost.textContent = `More matches could not be loaded.${problemSuffix(error)}`;
@@ -92,21 +102,26 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
           announce(`${totalIsLowerBound ? "At least " : ""}${total} property ${total === 1 ? "match" : "matches"} found.`);
         }
       } catch (error) {
-        if (searchGeneration !== queryGeneration || !canHydrate(routeEpoch, resultHost, "") || input.value.trim() !== query) return;
+        if (!isCurrent()) return;
         resultHost.replaceChildren(errorState(error, () => form.requestSubmit()));
+      } finally {
+        if (task.isCurrent()) {
+          pendingQuery = null;
+          setSearchPending(false);
+        }
       }
-    }, (pending) => {
+    };
+    function setSearchPending(pending) {
       if (pending) {
-        search.dataset.label = search.textContent;
         search.style.minWidth = `${Math.ceil(search.offsetWidth)}px`;
         search.textContent = "Searching…";
       } else {
-        search.textContent = search.dataset.label || "Search";
+        search.textContent = "Search";
         search.style.minWidth = "";
       }
       search.setAttribute("aria-disabled", String(pending));
       search.setAttribute("aria-busy", String(pending));
-    });
+    }
     const validateSearchInput = ({ report = false } = {}) => {
       try {
         propertySearchQuery(input.value);
@@ -127,21 +142,27 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     };
     form.addEventListener("submit", (event) => {
       event.preventDefault();
-      if (validateSearchInput({ report: true })) submission.submit(propertySearchQuery(input.value));
+      if (validateSearchInput({ report: true })) submitSearch(propertySearchQuery(input.value));
     });
     form.addEventListener("invalid", (event) => {
       if (event.target !== input) return;
       validateSearchInput();
     }, true);
     input.addEventListener("input", () => {
-      queryGeneration += 1;
+      const wasPending = pendingQuery !== null;
+      searches.cancel();
+      pendingQuery = null;
+      setSearchPending(false);
       validateSearchInput();
-      if (submission.pending) resultHost.replaceChildren(emptyState("Search changed", "Press Search when the address is ready. Results from the earlier request will not replace this query."));
+      if (wasPending || resultHost.querySelector(".property-results")) {
+        disposeTableRegions(resultHost);
+        resultHost.replaceChildren(emptyState("Search changed", "Press Search when the address is ready. Results from the earlier request will not replace this query."));
+      }
     });
 
     if (input.value) queueMicrotask(() => {
-      if (validateSearchInput({ report: true })) {
-        submission.submit(propertySearchQuery(input.value), { preserveReturn: true });
+      if (routeEpoch.isCurrent() && validateSearchInput({ report: true })) {
+        submitSearch(propertySearchQuery(input.value), { preserveReturn: true });
       }
     });
   }
@@ -186,6 +207,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
       append(layout, pagination);
     }
     append(layout, disclosurePanel("Match details", "Property references and recorded coordinates", coordinateRows));
+    disposeTableRegions(host);
     host.replaceChildren(layout);
     restoreSearchReturn(listBody, query, routeEpoch);
   }

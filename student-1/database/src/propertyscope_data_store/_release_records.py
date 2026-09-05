@@ -12,7 +12,7 @@ from typing import Any, Protocol
 
 from psycopg import Connection, errors
 
-from propertyscope_data_store.errors import ConflictError, NotFoundError
+from propertyscope_data_store.errors import ConflictError, NotFoundError, ValidationError
 from propertyscope_data_store.persistence_support import json_document as _json
 from propertyscope_data_store.persistence_support import normalise_row as _dict
 from propertyscope_data_store.query_specs import (
@@ -24,6 +24,11 @@ from propertyscope_data_store.query_specs import (
 )
 
 JsonObject = dict[str, Any]
+RELEASE_LIFECYCLES = {
+    "review": ["validated", "candidate", "review", "review_required", "awaiting_review"],
+    "published": ["accepted"],
+    "rejected": ["rejected"],
+}
 
 
 class _ReleaseRecordOwner(Protocol):
@@ -55,6 +60,8 @@ class _ReleaseRecords:
         target_feature: str | None = None,
         schema_version: str | None = None,
         ingestion_run_id: str | None = None,
+        query_text: str | None = None,
+        lifecycle: str | None = None,
         limit: int,
         offset: int,
     ) -> list[JsonObject]:
@@ -67,6 +74,17 @@ class _ReleaseRecords:
             params.append(status)
         elif not ingestion_run_id:
             predicates.append("release.status<>'abandoned'")
+        if lifecycle and lifecycle != "all":
+            if lifecycle not in RELEASE_LIFECYCLES:
+                raise ValidationError("lifecycle must be all, review, published or rejected")
+            predicates.append("release.status=ANY(%s)")
+            params.append(RELEASE_LIFECYCLES[lifecycle])
+        if query_text:
+            predicates.append(
+                "POSITION(lower(%s) IN lower(concat_ws(' ',release.dataset_id,"
+                "release.release_version,release.target_feature))) > 0"
+            )
+            params.append(query_text)
         for column, value in (
             ("dataset_id", dataset_id),
             ("target_feature", target_feature),
@@ -77,7 +95,7 @@ class _ReleaseRecords:
                 predicates.append(f"release.{column}=%s")
                 params.append(value)
         query += " WHERE " + " AND ".join(predicates)
-        query += " ORDER BY release.created_at DESC LIMIT %s OFFSET %s"
+        query += " ORDER BY release.created_at DESC,release.id DESC LIMIT %s OFFSET %s"
         params.extend((limit, offset))
         return self._owner._fetch_all(query, params)
 
