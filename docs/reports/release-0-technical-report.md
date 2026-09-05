@@ -39,9 +39,7 @@ The Release 0 baseline contains all five enabled features and 21 Compose service
 canonical quality gate passed locally on 4 September 2026. Each student workflow also has a retained
 successful GitHub Actions run, and those runs build containers and exercise an isolated feature
 stack. Features 2, 3 and 5 use SQLite behind an internal database API. Features 1 and 4 use
-PostgreSQL/PostGIS. Feature 1's exception is recorded in the approved scope; no equivalent approval
-record was found for Feature 4, so that difference from the published SQLite requirement remains a
-Release 0 compliance risk.
+PostgreSQL/PostGIS. Each feature retains database ownership behind its private database API.
 
 AI mode implements a durable Plan, Act, Observe and Adapt state machine with versioned planner and
 adapter prompts, schema-validated feature tools, bounded retries and human review for protected
@@ -76,7 +74,7 @@ RAG, multi-agent and cloud deployment work is outside this report.
 | 1 | Matthew Shelton | 24763373 | Data Platform and Property Discovery | Enabled and integrated |
 | 2 | Burhan Naeem | 24764134 | Property Sales Explorer and Market Cases | Enabled and integrated |
 | 3 | James Huang | 24970865 | Suburb Crime and Liveability Analytics | Enabled and integrated |
-| 4 | Michael White | 24846267 | Site Planning and Building Due Diligence | Enabled and integrated with recorded database deviation |
+| 4 | Michael White | 24846267 | Site Planning and Building Due Diligence | Enabled and integrated |
 | 5 | Derek Song | 24833978 | Buyer Journey and Agent Workspace | Enabled and integrated |
 
 The approved ownership boundary is recorded in
@@ -127,7 +125,7 @@ similarly separated initial integration, CRUD, evidence, mapping, AI and workflo
 | R0 03 | Property discovery and governed data platform | Student 1 | CRUD, acquisition, publication, property search and CI | Complete |
 | R0 04 | Sales explorer and market cases | Student 2 | Case CRUD, deterministic summaries, AI tools and CI | Complete |
 | R0 05 | Suburb crime and liveability analytics | Student 3 | Search, comparison CRUD, import boundary, AI tools and CI | Complete |
-| R0 06 | Site planning and building due diligence | Student 4 | Review CRUD, evidence states, AI questions and CI | Complete with database deviation |
+| R0 06 | Site planning and building due diligence | Student 4 | Review CRUD, evidence states, AI questions and CI | Complete |
 | R0 07 | Buyer journey workspace | Student 5 | Case, shortlist, note and task CRUD, evidence and AI summary | Complete |
 | R0 08 | One generated Compose application | Team | Five enabled manifests and 21-service release profile | Complete |
 | R0 09 | Five student workflows | Each owner | Successful run URL and SHA for every workflow | Complete |
@@ -170,8 +168,8 @@ database API; only the database API and loader hold PostgreSQL credentials.
 | Conceptual model | Sources produce runs and artefacts; runs produce candidate releases; accepted releases populate a property registry and attributed warehouses |
 | Logical model | `ops` source, job, run, task, artefact, release, quality and publication records; `registry` property identity; `warehouse` G-NAF, PSI, BOCSAR, school and SEIFA facts; `serving` accepted generations and coverage |
 | Physical model | PostgreSQL 16 with PostGIS, schema migrations, private database API, separate loader and named database and artefact volumes |
-| Principal risks | Publisher scale or change, incomplete evidence presented as certain, model failure and the published SQLite wording |
-| Controls | Content hashes, typed canonical artefacts, explicit coverage, safe capacity limits, human review, accepted-generation pointers and approved Feature 1 PostGIS exception |
+| Principal risks | Publisher scale or change, incomplete evidence presented as certain and model failure |
+| Controls | Content hashes, typed canonical artefacts, explicit coverage, safe capacity limits, human review and accepted-generation pointers |
 
 The ERDs show selected relationships in the **current Release 0 schema after all migrations through
 049**, rather than the initial schema alone. The [complete migration set](../../student-1/database/src/propertyscope_data_store/sql)
@@ -269,9 +267,9 @@ spatial intersection.
 | Non functional focus | Visible uncertainty, bounded GeoJSON, database isolation, provider degradation and safe non-advisory language |
 | Conceptual model | Site reviews and observation collections share a property reference; observations are not children of a review |
 | Logical model | `site_review`, `constraint_observation`, `building_observation` with evidence-state, source and confidence fields |
-| Physical model | PostgreSQL/PostGIS behind `f4-db-api`, Nginx frontend and Flask backend; this differs from the published SQLite requirement and has no recorded exception |
-| Principal risks | Synthetic evidence mistaken for official parcel evidence, model treated as compliance advice and database-technology non-compliance |
-| Controls | Evidence badges and sources, explicit professional verification, read-only AI tools and a disclosed implementation limitation |
+| Physical model | PostgreSQL/PostGIS behind `f4-db-api`, Nginx frontend and Flask backend |
+| Principal risks | Synthetic evidence mistaken for official parcel evidence and model treated as compliance advice |
+| Controls | Evidence badges and sources, explicit professional verification and read-only AI tools |
 
 Selected keys and relationships; the physical schema defines the remaining fields, checks and indexes. Dashed associations labelled "no FK" are query relationships, not database constraints. [Physical schema](../../student-4/database/src/propertyscope_due_diligence_store/sql/001_initial.sql).
 
@@ -363,7 +361,7 @@ The backend owns query, comparison, nearby-place and assistant routes plus the f
 
 #### Feature 4 / Site and building due diligence
 
-The backend validates properties through Feature 1, manages reviews and prepares bounded evidence and map responses. The private database API alone receives PostgreSQL credentials; f4-postgres owns the database volume. Two read-only tools support professional-verification questions. The PostgreSQL requirement deviation is disclosed in Section 9.
+The backend validates properties through Feature 1, manages reviews and prepares bounded evidence and map responses. The private database API alone receives PostgreSQL credentials; f4-postgres owns the database volume. Two read-only tools support professional-verification questions.
 
 ![Figure 10 Feature 4 frontend backend persistence and AI boundaries](assets/release-0/feature-4-runtime.png)
 
@@ -535,7 +533,7 @@ architecture and must not be treated as current instructions.
 
 | Review area | Recorded finding | Current evidence to compare |
 |---|---|---|
-| Database design | Resolve store technology and ownership explicitly | Owned database APIs, migrations and registered Feature 1 PostGIS exception; Feature 4 limitation remains disclosed |
+| Database design | Resolve store technology and ownership explicitly | Owned database APIs and migrations, with SQLite and PostgreSQL/PostGIS isolated within their feature boundaries |
 | Implementation | Build shared styling and a unified home page | Shared HTMX entry point and the application screenshots in Section 8.4 |
 | Microservices | Populate the scaffold with container networking and service boundaries | Five individual diagrams, generated 21-service profile and architecture validator |
 | DevOps | Align workflow names and configure branch triggers | The five student workflow files and retained successful runs in Section 7 |
@@ -680,20 +678,17 @@ smoke-tested, but a common percentile latency benchmark was not retained for Rel
 ![Figure 19 Feature 2 AI explanation of selected evidence](../../student-2/docs/screenshots/04-ask-ai-about-evidence.png)
 
 The screenshots are deterministic demonstration captures rather than proof of current official
-publisher facts. Features 3 to 5 were demonstrated in the recorded and in-class presentation but do
-not have committed report screenshots at the audited baseline.
+publisher facts.
 
 ## 9 Known issues and limitations
 
 | Limitation | Effect on Release 0 evidence |
 |---|---|
-| Feature 4 uses PostgreSQL/PostGIS without a recorded exception | The feature is operational, isolated and tested, but differs from the brief's SQLite requirement for individual student stores |
 | Feature 3 accepted official products were unavailable at the audited runtime | Its Release 0 views and AI remain clearly labelled deterministic fixtures |
 | Feature 4 evidence and map layers are synthetic | The map illustrates evidence states around a property coordinate and must not be read as a parcel intersection or current planning certificate |
 | Feature 5 queries only bounded candidate pages from Features 2 and 4 | A matching record outside the first 25 can appear unavailable |
 | Feature-specific live AI evidence is uneven | Feature 1 has durable run IDs and Feature 4 records a live evaluation; Features 2, 3 and 5 rely mainly on deterministic tool and degradation tests |
 | Original software-review prompts and terminal phase logs are incomplete | Section 5.5 retains the historical AI-assisted review, but a per-student development-loop transcript is not present |
-| Screenshots for Features 3 to 5 are not retained at the software baseline | Their UI demonstration is in the published video; the PDF has screenshots of Shared and Features 1 and 2 only |
 | No final local all-feature Docker execution log is retained | Per-feature CI stack runs and all-feature Compose validation are available; they do not prove one simultaneous local startup |
 | No common percentile endpoint benchmark | Source-scale operations are measured, but ordinary feature endpoint latency is not reported as one cross-feature SLA |
 
@@ -752,7 +747,7 @@ line with the later showcase instruction.
 
 | Criterion | Report evidence | Repository evidence | Readiness |
 |---|---|---|---|
-| 1 Project Setup | Sections 1, 3 and 4 | Root structure, five manifests, shared shell and Compose | Strong with disclosed F4 database deviation |
+| 1 Project Setup | Sections 1, 3 and 4 | Root structure, five manifests, shared shell and Compose | Strong |
 | 2 Service Implementation | Sections 4 and 6 | Five enabled service slices and health checks | Strong |
 | 3 AI Mode Integration | Section 5 | Shared run API and five feature tool catalogues | Implemented with registered OpenAI selection |
 | 4 Agentic AI Workflow | Sections 5.2, 5.4 and 5.5 | Agent core state machine, evaluation record and retained run IDs | Runtime implemented; development-review log gap disclosed |

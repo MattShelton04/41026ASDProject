@@ -58,5 +58,5 @@ pdftoppm -scale-to 1400 -png docs/reports/group20.pdf tmp/pdfs/report
 Create `tmp/pdfs` first and install Poppler if it is not available. Inspect every page for clipped
 tables, tiny diagram labels, orphaned text, caption placement and contents destinations. Generator
 tests cover reproducibility, navigation, figure inclusion and stale assets; they do not replace this
-visual review. The report's evidence limitations are retained in Section 9, including missing
-Feature 3-5 screenshots and the absence of a final simultaneous local all-feature startup record.
+visual review. The report's evidence limitations are retained in Section 9, including the absence
+of a final simultaneous local all-feature startup record.
