@@ -55,17 +55,32 @@ def tool_envelope(upstream: httpx.Response) -> Response:
     """Strip internal pagination fields to match bounded tool output contracts."""
     if upstream.status_code >= 400:
         return forward(upstream)
-    data = upstream.json()
+    data = upstream_json_object(upstream)
     return jsonify({"items": data.get("items", []), "count": data.get("count", 0)})
+
+
+def upstream_json_object(upstream: httpx.Response) -> dict[str, Any]:
+    """Reject broken dependency payloads without blaming the caller or leaking bodies."""
+    try:
+        data = upstream.json()
+    except ValueError as exc:
+        raise DependencyUnavailableError(
+            "A dependency returned an unreadable JSON response"
+        ) from exc
+    if not isinstance(data, dict):
+        raise DependencyUnavailableError("A dependency returned an invalid JSON response")
+    return data
 
 
 def forward(upstream: httpx.Response) -> Response:
     """Project an upstream response and its correlation fields onto Flask."""
-    try:
-        data = upstream.json()
-    except ValueError:
-        data = {"status": upstream.status_code}
-    response = jsonify(data)
+    if upstream.is_redirect:
+        raise DependencyUnavailableError("A dependency returned an unexpected redirect")
+    response = (
+        Response(status=204)
+        if upstream.status_code == 204
+        else jsonify(upstream_json_object(upstream))
+    )
     response.status_code = upstream.status_code
     if upstream.headers.get("content-type", "").split(";", 1)[0] == "application/problem+json":
         response.content_type = "application/problem+json"
@@ -77,8 +92,11 @@ def forward(upstream: httpx.Response) -> Response:
 
 def forward_json_bytes(upstream: httpx.Response) -> Response:
     """Relay a large private JSON page without parsing and serialising it a second time."""
-    if upstream.status_code >= 400:
+    if upstream.status_code >= 400 or upstream.is_redirect or upstream.status_code == 204:
         return forward(upstream)
+    media_type = upstream.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if media_type != "application/json" or not upstream.content:
+        raise DependencyUnavailableError("A dependency returned an invalid JSON page")
     response = Response(
         upstream.content, status=upstream.status_code, content_type="application/json"
     )
@@ -116,4 +134,8 @@ def register_error_handlers(app: Any) -> None:
     )
     app.register_error_handler(
         405, lambda _: problem(405, "method_not_allowed", "Method is not allowed")
+    )
+    app.register_error_handler(
+        413,
+        lambda _: problem(413, "request_too_large", "Request body exceeds the configured limit"),
     )

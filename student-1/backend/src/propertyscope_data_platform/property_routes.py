@@ -7,7 +7,7 @@ import uuid
 from flask import Blueprint, Response, jsonify, request
 
 from propertyscope_data_platform.clients import DataStoreClient
-from propertyscope_data_platform.http_support import forward
+from propertyscope_data_platform.http_support import forward, upstream_json_object
 
 
 def register_property_routes(
@@ -51,7 +51,7 @@ def register_property_routes(
         )
         if upstream.status_code >= 400:
             return forward(upstream)
-        item = upstream.json()["property"]
+        item = upstream_json_object(upstream)["property"]
         return jsonify(
             {
                 "property_ref": str(property_ref),
@@ -97,7 +97,7 @@ def register_property_routes(
         )
         if upstream.status_code >= 400:
             return forward(upstream)
-        snapshot = upstream.json()
+        snapshot = upstream_json_object(upstream)
         property_item = snapshot["property"]
         gnaf_identifier = next(
             (
