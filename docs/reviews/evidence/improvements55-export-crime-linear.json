@@ -1,0 +1,61 @@
+{
+  "scope": "synthetic private page transport and portable product build; no database/network",
+  "rows": 1000,
+  "product": "crime-series",
+  "repetitions": 3,
+  "gzip_sha256": "729f6056a98e72964078977ca3e7bcef9a63a3aa7e3db9967dd6aaf290ce6b74",
+  "gzip_bytes": 2126079,
+  "variants": {
+    "record_pages": {
+      "runs": [
+        {
+          "seconds": 3.0590455000055954,
+          "transport_bytes": 42170921
+        },
+        {
+          "seconds": 2.740679300040938,
+          "transport_bytes": 42170921
+        },
+        {
+          "seconds": 2.7637852000189014,
+          "transport_bytes": 42170921
+        }
+      ],
+      "median_seconds": 2.7637852000189014
+    },
+    "column_pages_prefetched": {
+      "runs": [
+        {
+          "seconds": 3.027771599998232,
+          "transport_bytes": 41910551
+        },
+        {
+          "seconds": 3.418000400008168,
+          "transport_bytes": 41910551
+        },
+        {
+          "seconds": 3.2586249000160024,
+          "transport_bytes": 41910551
+        }
+      ],
+      "median_seconds": 3.2586249000160024
+    },
+    "column_pages_parallel": {
+      "runs": [
+        {
+          "seconds": 3.529243199969642,
+          "transport_bytes": 41910551
+        },
+        {
+          "seconds": 3.5079319999786094,
+          "transport_bytes": 41910551
+        },
+        {
+          "seconds": 3.055678800039459,
+          "transport_bytes": 41910551
+        }
+      ],
+      "median_seconds": 3.5079319999786094
+    }
+  }
+}

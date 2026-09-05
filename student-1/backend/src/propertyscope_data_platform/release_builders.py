@@ -6,10 +6,15 @@ import hashlib
 import json
 import uuid
 import zlib
-from collections.abc import Iterable, Mapping
+from collections import deque
+from collections.abc import Callable, Generator, Iterable, Mapping
+from concurrent.futures import Future, ProcessPoolExecutor
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from itertools import islice
+from multiprocessing import get_context
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal, Protocol, Self, cast
@@ -148,7 +153,8 @@ class CrimeSeriesRecord(ProductModel):
 
     @model_validator(mode="after")
     def coherent_coverage(self) -> CrimeSeriesRecord:
-        if self.observed_months != tuple(sorted(set(self.observed_months))):
+        observed_months = frozenset(self.observed_months)
+        if self.observed_months != tuple(sorted(observed_months)):
             raise ValueError("observed_months must be sorted and unique")
         if self.month_count != len(self.observed_months):
             raise ValueError("month_count must equal the exact observed-month count")
@@ -157,7 +163,7 @@ class CrimeSeriesRecord(ProductModel):
             or self.last_month != self.observed_months[-1]
         ):
             raise ValueError("coverage bounds must match observed_months")
-        if any(item.month not in self.observed_months for item in self.observations):
+        if any(item.month not in observed_months for item in self.observations):
             raise ValueError("an observation month is outside the coverage universe")
         expected_hash = hashlib.sha256(
             json.dumps(self.observed_months, separators=(",", ":")).encode()
@@ -393,6 +399,10 @@ class BuiltProduct:
     manifest: ReleaseManifestV1
 
 
+ReleaseSummary = tuple[set[str], dict[str, str] | None, set[str], set[str], str, tuple[str, ...]]
+ProjectedBatch = tuple[bytes, int, ReleaseSummary]
+
+
 @dataclass(frozen=True, slots=True)
 class ReleaseBuilderSpec:
     key: str
@@ -448,9 +458,9 @@ def _point(row: Mapping[str, Any]) -> tuple[float, float]:
 
 def _provenance(context: BuildContext, row: Mapping[str, Any]) -> dict[str, Any]:
     return {
-        "release_id": str(context.release_id),
+        "release_id": context.release_id,
         "release_version": context.release_version,
-        "candidate_generation_id": str(context.candidate_generation_id),
+        "candidate_generation_id": context.candidate_generation_id,
         "source_record_sha256": str(row["source_row_sha256"]),
         "normalisation_version": str(row["normalisation_version"]),
     }
@@ -523,7 +533,14 @@ class RegisteredReleaseBuilder:
         )
         return BuiltProduct(content=content, manifest=manifest)
 
-    def stream(self, context: BuildContext, rows: Iterable[Mapping[str, Any]]) -> StreamingProduct:
+    def stream(
+        self,
+        context: BuildContext,
+        rows: Iterable[Mapping[str, Any]],
+        *,
+        projection_workers: int = 0,
+        heartbeat: Callable[[], None] | None = None,
+    ) -> StreamingProduct:
         """Build the complete deterministic product without retaining it in memory."""
         if context.import_profile not in self.spec.import_profiles:
             raise ValueError("release builder/import profile mismatch")
@@ -531,7 +548,9 @@ class RegisteredReleaseBuilder:
             raise ValueError("release builder/target feature mismatch")
         if context.redistribution_policy not in self.spec.redistribution_policies:
             raise ValueError("release builder/redistribution policy mismatch")
-        return StreamingProduct(self, context, rows)
+        if not 0 <= projection_workers <= 4:
+            raise ValueError("release projection workers must be between zero and four")
+        return StreamingProduct(self, context, rows, projection_workers, heartbeat)
 
     def _records(
         self, context: BuildContext, rows: Iterable[Mapping[str, Any]]
@@ -556,9 +575,7 @@ class RegisteredReleaseBuilder:
             latitude, longitude = _point(row)
             source_id = str(row["source_address_id"])
             record = PropertySnapshotRecord(
-                property_ref=uuid.UUID(
-                    str(row.get("property_ref") or _stable_property_ref(source_id))
-                ),
+                property_ref=row.get("property_ref") or _stable_property_ref(source_id),
                 source_address_id=source_id,
                 display_address=str(row["address_display"]),
                 flat_type=row.get("flat_type"),
@@ -797,9 +814,7 @@ class RegisteredReleaseBuilder:
             raise ValueError("release product contains duplicate SAL codes")
         return result
 
-    def _summary(
-        self, context: BuildContext, records: list[dict[str, Any]]
-    ) -> tuple[set[str], dict[str, str] | None, set[str], set[str], str, tuple[str, ...]]:
+    def _summary(self, context: BuildContext, records: list[dict[str, Any]]) -> ReleaseSummary:
         if self.spec.key == "property-snapshot":
             return (
                 {f"NSW:{item['locality']}:{item['postcode']}" for item in records},
@@ -887,10 +902,14 @@ class StreamingProduct:
         builder: RegisteredReleaseBuilder,
         context: BuildContext,
         rows: Iterable[Mapping[str, Any]],
+        projection_workers: int = 0,
+        heartbeat: Callable[[], None] | None = None,
     ) -> None:
         self._builder = builder
         self._context = context
         self._rows = rows
+        self._projection_workers = projection_workers
+        self._heartbeat = heartbeat
         self._consumed = False
         self._record_count = 0
         self._geographies: set[str] = set()
@@ -907,28 +926,84 @@ class StreamingProduct:
             raise RuntimeError("release product stream is single-use")
         self._consumed = True
         compressor = zlib.compressobj(level=6, method=zlib.DEFLATED, wbits=31)
-        for row in self._rows:
-            records = self._builder._records(self._context, (row,))
-            if len(records) != 1:
-                raise ValueError("streaming release projection must emit exactly one record")
-            record = records[0]
-            if (
-                self._builder.spec.max_rows is not None
-                and self._record_count >= self._builder.spec.max_rows
-            ):
-                raise ValueError(
-                    "release product exceeds the registered row bound; narrow its scope"
-                )
-            self._observe(record)
-            payload = _canonical_bytes(record) + b"\n"
-            chunk = compressor.compress(payload)
-            if chunk:
-                self._check_byte_bound(len(chunk))
-                yield chunk
+        with closing(self._batches()) as batches:
+            for payload, count, summary in batches:
+                if (
+                    self._builder.spec.max_rows is not None
+                    and self._record_count + count > self._builder.spec.max_rows
+                ):
+                    raise ValueError(
+                        "release product exceeds the registered row bound; narrow its scope"
+                    )
+                self._observe_summary(count, summary)
+                chunk = compressor.compress(payload)
+                if chunk:
+                    self._check_byte_bound(len(chunk))
+                    yield chunk
+        if self._record_count == 0:
+            raise ValueError("release product must not be empty")
         final = compressor.flush()
         if final:
             self._check_byte_bound(len(final))
             yield final
+
+    @property
+    def record_count(self) -> int:
+        return self._record_count
+
+    def _batches(self) -> Generator[ProjectedBatch, None, None]:
+        # Small products avoid process startup. Only registered projection code and
+        # plain input rows enter children; HTTP, artifacts, leases and gzip stay here.
+        batch_size = 32 if self._builder.spec.key == "crime-series" else 5_000
+        rows = iter(self._rows)
+        first = list(islice(rows, batch_size)) if self._projection_workers > 1 else []
+        if self._projection_workers <= 1 or len(first) < batch_size:
+            for row in first:
+                yield _project_batch(self._builder, self._context, [row])
+            for row in rows:
+                yield _project_batch(self._builder, self._context, [row])
+            return
+        # A fixed queue avoids Executor.map's eager input consumption on Python 3.12.
+        executor = ProcessPoolExecutor(
+            max_workers=self._projection_workers, mp_context=get_context("spawn")
+        )
+        pending: deque[Future[ProjectedBatch]] = deque()
+
+        def submit(batch: list[Mapping[str, Any]]) -> None:
+            pending.append(
+                executor.submit(
+                    _project_registered_batch,
+                    self._builder.spec.key,
+                    self._builder.spec.version,
+                    self._context,
+                    batch,
+                )
+            )
+
+        try:
+            submit(first)
+            for _ in range(self._projection_workers - 1):
+                batch = list(islice(rows, batch_size))
+                if not batch:
+                    break
+                submit(batch)
+            while pending:
+                future = pending.popleft()
+                while True:
+                    try:
+                        result = future.result(timeout=1)
+                        break
+                    except TimeoutError:
+                        if future.done():
+                            raise
+                        if self._heartbeat is not None:
+                            self._heartbeat()
+                yield result
+                batch = list(islice(rows, batch_size))
+                if batch:
+                    submit(batch)
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def _check_byte_bound(self, emitted: int) -> None:
         byte_count = self._byte_count + emitted
@@ -936,11 +1011,9 @@ class StreamingProduct:
         if self._builder.spec.max_bytes is not None and byte_count > self._builder.spec.max_bytes:
             raise ValueError("release product exceeds the registered byte bound; narrow its scope")
 
-    def _observe(self, record: dict[str, Any]) -> None:
-        geographies, temporal, measures, entities, count_definition, limitations = (
-            self._builder._summary(self._context, [record])
-        )
-        self._record_count += 1
+    def _observe_summary(self, count: int, summary: ReleaseSummary) -> None:
+        geographies, temporal, measures, entities, count_definition, limitations = summary
+        self._record_count += count
         self._geographies.update(geographies)
         self._measures.update(measures)
         self._entities.update(entities)
@@ -1002,6 +1075,28 @@ class StreamingProduct:
             created_at=created_at,
             supersedes_release_id=self._context.supersedes_release_id,
         )
+
+
+def _project_batch(
+    builder: RegisteredReleaseBuilder, context: BuildContext, rows: list[Mapping[str, Any]]
+) -> ProjectedBatch:
+    records = []
+    for row in rows:
+        projected = builder._records(context, (row,))
+        if len(projected) != 1:
+            raise ValueError("streaming release projection must emit exactly one record")
+        records.append(projected[0])
+    return (
+        b"".join(_canonical_bytes(record) + b"\n" for record in records),
+        len(records),
+        builder._summary(context, records),
+    )
+
+
+def _project_registered_batch(
+    key: str, version: str, context: BuildContext, rows: list[Mapping[str, Any]]
+) -> ProjectedBatch:
+    return _project_batch(resolve_release_builder(key, version), context, rows)
 
 
 def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:

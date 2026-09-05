@@ -426,7 +426,7 @@ class PropertyScopeStore:
             params.append(query_text)
         if predicates:
             query += " WHERE " + " AND ".join(predicates)
-        query += " ORDER BY job.name LIMIT %s OFFSET %s"
+        query += " ORDER BY job.name,job.id LIMIT %s OFFSET %s"
         params.extend((limit, offset))
         return self._fetch_all(query, params)
 
@@ -671,7 +671,13 @@ class PropertyScopeStore:
         return _run_projection(_dict(row)), True
 
     def list_runs(
-        self, *, status: str | None, query_text: str | None, limit: int, offset: int
+        self,
+        *,
+        status: str | None,
+        query_text: str | None,
+        limit: int,
+        offset: int,
+        job_definition_id: uuid.UUID | None = None,
     ) -> list[JsonObject]:
         query = """
             SELECT run.*, job.name AS job_name, source.name AS source_name
@@ -681,17 +687,33 @@ class PropertyScopeStore:
         """
         params: list[Any] = []
         predicates: list[str] = []
-        if status:
+        if status == "running":
+            predicates.append("run.status=ANY(%s)")
+            params.append(
+                [
+                    "planning",
+                    "discovering",
+                    "acquiring",
+                    "staging",
+                    "normalising",
+                    "validating",
+                    "building_release",
+                ]
+            )
+        elif status:
             predicates.append("run.status=%s")
             params.append(status)
+        if job_definition_id is not None:
+            predicates.append("run.job_definition_id=%s")
+            params.append(job_definition_id)
         if query_text:
             predicates.append(
-                "POSITION(lower(%s) IN lower(concat_ws(' ',run.id::text,run.request_id,run.profile_key,run.status,job.name,source.name))) > 0"
+                "POSITION(lower(%s) IN lower(concat_ws(' ',run.id::text,run.request_id,run.profile_key,run.status,job.name,job.dataset_id,source.name))) > 0"
             )
             params.append(query_text)
         if predicates:
             query += " WHERE " + " AND ".join(predicates)
-        query += " ORDER BY run.requested_at DESC LIMIT %s OFFSET %s"
+        query += " ORDER BY run.requested_at DESC,run.id DESC LIMIT %s OFFSET %s"
         params.extend((limit, offset))
         return [_run_projection(item) for item in self._fetch_all(query, params)]
 
@@ -1132,6 +1154,8 @@ class PropertyScopeStore:
         target_feature: str | None = None,
         schema_version: str | None = None,
         ingestion_run_id: str | None = None,
+        query_text: str | None = None,
+        lifecycle: str | None = None,
         limit: int,
         offset: int,
     ) -> list[JsonObject]:
@@ -1141,6 +1165,8 @@ class PropertyScopeStore:
             target_feature=target_feature,
             schema_version=schema_version,
             ingestion_run_id=ingestion_run_id,
+            query_text=query_text,
+            lifecycle=lifecycle,
             limit=limit,
             offset=offset,
         )

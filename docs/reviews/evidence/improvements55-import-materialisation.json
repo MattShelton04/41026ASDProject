@@ -1,0 +1,575 @@
+{
+  "scope": "fully migrated disposable PostGIS; materialisation only; metadata heartbeat every 0.2s stress case",
+  "runs": [
+    {
+      "product": "gnaf",
+      "scale": 100000,
+      "variant": "legacy",
+      "repetition": 0,
+      "seconds": 4.039036700036377,
+      "execution_ms": 4035.544,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 109.885,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41047",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "gnaf_address",
+          "Time": 603.397,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41052",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "gnaf_address",
+          "Time": 576.126,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41057",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "gnaf_address",
+          "Time": 736.41,
+          "Calls": 100000
+        }
+      ]
+    },
+    {
+      "product": "gnaf",
+      "scale": 100000,
+      "variant": "legacy",
+      "repetition": 1,
+      "seconds": 3.719461800006684,
+      "execution_ms": 3717.15,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 111.23,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41047",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "gnaf_address",
+          "Time": 663.745,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41052",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "gnaf_address",
+          "Time": 596.497,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41057",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "gnaf_address",
+          "Time": 740.406,
+          "Calls": 100000
+        }
+      ]
+    },
+    {
+      "product": "gnaf",
+      "scale": 100000,
+      "variant": "legacy",
+      "repetition": 2,
+      "seconds": 3.5643222000217065,
+      "execution_ms": 3562.126,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 97.27,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41047",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "gnaf_address",
+          "Time": 596.75,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41052",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "gnaf_address",
+          "Time": 545.346,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41057",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "gnaf_address",
+          "Time": 645.759,
+          "Calls": 100000
+        }
+      ]
+    },
+    {
+      "product": "gnaf",
+      "scale": 100000,
+      "variant": "batch_provenance",
+      "repetition": 0,
+      "seconds": 1.9525909000076354,
+      "execution_ms": 1950.431,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 54.395,
+          "Calls": 100000
+        }
+      ]
+    },
+    {
+      "product": "gnaf",
+      "scale": 100000,
+      "variant": "batch_provenance",
+      "repetition": 1,
+      "seconds": 1.848532600037288,
+      "execution_ms": 1846.344,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 53.931,
+          "Calls": 100000
+        }
+      ]
+    },
+    {
+      "product": "gnaf",
+      "scale": 100000,
+      "variant": "batch_provenance",
+      "repetition": 2,
+      "seconds": 1.663400300021749,
+      "execution_ms": 1661.164,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 52.565,
+          "Calls": 100000
+        }
+      ]
+    },
+    {
+      "product": "gnaf",
+      "scale": 1000000,
+      "variant": "legacy",
+      "repetition": 0,
+      "seconds": 50.29610750003485,
+      "execution_ms": 50290.558,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 1460.619,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41078",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "gnaf_address",
+          "Time": 6775.257,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41083",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "gnaf_address",
+          "Time": 6180.805,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41088",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "gnaf_address",
+          "Time": 19793.194,
+          "Calls": 1000000
+        }
+      ]
+    },
+    {
+      "product": "gnaf",
+      "scale": 1000000,
+      "variant": "legacy",
+      "repetition": 1,
+      "seconds": 59.75641969998833,
+      "execution_ms": 59754.437,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 1544.559,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41078",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "gnaf_address",
+          "Time": 6793.116,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41083",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "gnaf_address",
+          "Time": 6085.801,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41088",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "gnaf_address",
+          "Time": 24029.18,
+          "Calls": 1000000
+        }
+      ]
+    },
+    {
+      "product": "gnaf",
+      "scale": 1000000,
+      "variant": "legacy",
+      "repetition": 2,
+      "seconds": 62.01057479996234,
+      "execution_ms": 62010.581,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 1510.64,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41078",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "gnaf_address",
+          "Time": 7031.642,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41083",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "gnaf_address",
+          "Time": 6260.127,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_41088",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "gnaf_address",
+          "Time": 25262.895,
+          "Calls": 1000000
+        }
+      ]
+    },
+    {
+      "product": "gnaf",
+      "scale": 1000000,
+      "variant": "batch_provenance",
+      "repetition": 0,
+      "seconds": 29.741795099980664,
+      "execution_ms": 29739.507,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 843.578,
+          "Calls": 1000000
+        }
+      ]
+    },
+    {
+      "product": "gnaf",
+      "scale": 1000000,
+      "variant": "batch_provenance",
+      "repetition": 1,
+      "seconds": 26.487855400016997,
+      "execution_ms": 26483.526,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 1114.677,
+          "Calls": 1000000
+        }
+      ]
+    },
+    {
+      "product": "gnaf",
+      "scale": 1000000,
+      "variant": "batch_provenance",
+      "repetition": 2,
+      "seconds": 25.912331100029405,
+      "execution_ms": 25909.529,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_40633",
+          "Constraint Name": "gnaf_address_property_ref_fkey",
+          "Relation": "gnaf_address",
+          "Time": 885.444,
+          "Calls": 1000000
+        }
+      ]
+    },
+    {
+      "product": "bocsar",
+      "scale": 100000,
+      "variant": "legacy",
+      "repetition": 0,
+      "seconds": 3.687465000024531,
+      "execution_ms": 3683.256,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54720",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "bocsar_observation",
+          "Time": 577.298,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54725",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "bocsar_observation",
+          "Time": 534.495,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54730",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "bocsar_observation",
+          "Time": 667.854,
+          "Calls": 100000
+        }
+      ]
+    },
+    {
+      "product": "bocsar",
+      "scale": 100000,
+      "variant": "legacy",
+      "repetition": 1,
+      "seconds": 4.204463400004897,
+      "execution_ms": 4202.037,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54720",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "bocsar_observation",
+          "Time": 633.465,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54725",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "bocsar_observation",
+          "Time": 578.127,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54730",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "bocsar_observation",
+          "Time": 748.983,
+          "Calls": 100000
+        }
+      ]
+    },
+    {
+      "product": "bocsar",
+      "scale": 100000,
+      "variant": "legacy",
+      "repetition": 2,
+      "seconds": 3.9050855999812484,
+      "execution_ms": 3902.862,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54720",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "bocsar_observation",
+          "Time": 690.428,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54725",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "bocsar_observation",
+          "Time": 639.784,
+          "Calls": 100000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54730",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "bocsar_observation",
+          "Time": 820.363,
+          "Calls": 100000
+        }
+      ]
+    },
+    {
+      "product": "bocsar",
+      "scale": 100000,
+      "variant": "batch_provenance",
+      "repetition": 0,
+      "seconds": 1.8859975999803282,
+      "execution_ms": 1883.396,
+      "triggers": []
+    },
+    {
+      "product": "bocsar",
+      "scale": 100000,
+      "variant": "batch_provenance",
+      "repetition": 1,
+      "seconds": 2.2635506999795325,
+      "execution_ms": 2260.914,
+      "triggers": []
+    },
+    {
+      "product": "bocsar",
+      "scale": 100000,
+      "variant": "batch_provenance",
+      "repetition": 2,
+      "seconds": 1.9084867000347003,
+      "execution_ms": 1905.763,
+      "triggers": []
+    },
+    {
+      "product": "bocsar",
+      "scale": 1000000,
+      "variant": "legacy",
+      "repetition": 0,
+      "seconds": 54.20001779997256,
+      "execution_ms": 54198.413,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54741",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "bocsar_observation",
+          "Time": 7139.691,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54746",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "bocsar_observation",
+          "Time": 6149.163,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54751",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "bocsar_observation",
+          "Time": 17445.698,
+          "Calls": 1000000
+        }
+      ]
+    },
+    {
+      "product": "bocsar",
+      "scale": 1000000,
+      "variant": "legacy",
+      "repetition": 1,
+      "seconds": 54.33137710002484,
+      "execution_ms": 54330.59,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54741",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "bocsar_observation",
+          "Time": 7118.967,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54746",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "bocsar_observation",
+          "Time": 6225.033,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54751",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "bocsar_observation",
+          "Time": 15797.302,
+          "Calls": 1000000
+        }
+      ]
+    },
+    {
+      "product": "bocsar",
+      "scale": 1000000,
+      "variant": "legacy",
+      "repetition": 2,
+      "seconds": 56.49968110001646,
+      "execution_ms": 56498.729,
+      "triggers": [
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54741",
+          "Constraint Name": "bench_dataset_release_id",
+          "Relation": "bocsar_observation",
+          "Time": 6825.395,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54746",
+          "Constraint Name": "bench_artifact_record_id",
+          "Relation": "bocsar_observation",
+          "Time": 5991.232,
+          "Calls": 1000000
+        },
+        {
+          "Trigger Name": "RI_ConstraintTrigger_c_54751",
+          "Constraint Name": "bench_ingestion_run_id",
+          "Relation": "bocsar_observation",
+          "Time": 14918.538,
+          "Calls": 1000000
+        }
+      ]
+    },
+    {
+      "product": "bocsar",
+      "scale": 1000000,
+      "variant": "batch_provenance",
+      "repetition": 0,
+      "seconds": 23.104602799983695,
+      "execution_ms": 23102.445,
+      "triggers": []
+    },
+    {
+      "product": "bocsar",
+      "scale": 1000000,
+      "variant": "batch_provenance",
+      "repetition": 1,
+      "seconds": 24.55063000001246,
+      "execution_ms": 24547.672,
+      "triggers": []
+    },
+    {
+      "product": "bocsar",
+      "scale": 1000000,
+      "variant": "batch_provenance",
+      "repetition": 2,
+      "seconds": 21.908811100001913,
+      "execution_ms": 21907.099,
+      "triggers": []
+    }
+  ]
+}

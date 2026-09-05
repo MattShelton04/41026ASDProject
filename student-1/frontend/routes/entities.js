@@ -7,6 +7,7 @@ import { filterToolbar } from "../components/forms.js";
 import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
 import { actionMenu, cell, makeTable, primaryCell } from "../components/tables.js";
+import { collectionPagination, pageOffset } from "../components/pagination.js";
 
 function operationStep(number, title, description) {
   const item = el("div", "operation-step");
@@ -40,9 +41,10 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
     const params = routeQuery(location.hash);
     const selectedStatus = params.has("status") ? params.get("status") || "all" : "active";
     const filters = { q: params.get("q") || "", status: selectedStatus };
+    const offset = pageOffset(params);
     renderLoading(view, "Loading jobs");
     try {
-      const { body } = await request(`jobs${queryString({ q: filters.q, status: filters.status === "all" ? "" : filters.status, limit: 100 })}`);
+      const { body } = await request(`jobs${queryString({ q: filters.q, status: filters.status === "all" ? "" : filters.status, limit: 100, offset })}`);
       if (!routeEpoch.isCurrent()) return;
       const items = collection(body);
       view.replaceChildren();
@@ -67,6 +69,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
           },
         }),
       );
+      append(view, collectionPagination("jobs", filters, body, offset));
       if (!items.length) {
         append(
           view,

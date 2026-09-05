@@ -96,6 +96,99 @@ def _built_records(product: Any) -> list[dict[str, Any]]:
     return [json.loads(line) for line in gzip.decompress(product.content).splitlines()]
 
 
+def test_parallel_projection_preserves_gzip_bytes_source_order_and_manifest() -> None:
+    builder = default_release_builders()["property-snapshot"]
+    rows = [_property_row(index) for index in range(10_001)]
+    rows[5_000]["address_display"] = "5 Caf\u00e9 Lane, Sydney NSW 2000"
+    outputs = []
+    manifests = []
+    for workers in (0, 2):
+        product = builder.stream(_context(), rows, projection_workers=workers)
+        content = b"".join(product.chunks())
+        outputs.append(content)
+        manifests.append(
+            product.manifest(
+                content_sha256=hashlib.sha256(content).hexdigest(),
+                byte_count=len(content),
+                created_at=FIXED_TIME,
+            )
+        )
+    assert outputs[0] == outputs[1]
+    assert manifests[0] == manifests[1]
+    assert manifests[1].record_count == len(rows)
+    records = [json.loads(line) for line in gzip.decompress(outputs[1]).splitlines()]
+    assert [record["source_address_id"] for record in records] == [
+        row["source_address_id"] for row in rows
+    ]
+
+
+def test_parallel_projection_failure_removes_partial_artifact(tmp_path: Path) -> None:
+    rows = [_property_row(index) for index in range(5_001)]
+    rows[5_000]["postcode"] = "invalid"
+    builder = default_release_builders()["property-snapshot"]
+    product = builder.stream(_context(), rows, projection_workers=2)
+    with pytest.raises(ValueError):
+        LocalArtifactStore(tmp_path).put(product.chunks(), media_type=builder.spec.media_type)
+    assert not any(path.is_file() for path in tmp_path.rglob("*"))
+
+
+def test_empty_stream_does_not_leave_an_unregistered_gzip_artifact(tmp_path: Path) -> None:
+    builder = default_release_builders()["property-snapshot"]
+    with pytest.raises(ValueError, match="must not be empty"):
+        LocalArtifactStore(tmp_path).put(
+            builder.stream(_context(), []).chunks(), media_type=builder.spec.media_type
+        )
+    assert not any(path.is_file() for path in tmp_path.rglob("*"))
+
+
+def test_projection_wait_is_cancellable_and_input_queue_is_bounded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    consumed = 0
+    submitted = 0
+    cleanup = []
+
+    class Pending:
+        def result(self, **kwargs: Any) -> Any:
+            raise TimeoutError
+
+        def done(self) -> bool:
+            return False
+
+    class Executor:
+        def __init__(self, **kwargs: Any) -> None:
+            assert kwargs["max_workers"] == 2
+
+        def submit(self, *args: Any) -> Pending:
+            nonlocal submitted
+            submitted += 1
+            return Pending()
+
+        def shutdown(self, **kwargs: Any) -> None:
+            cleanup.append(kwargs)
+
+    def rows() -> Any:
+        nonlocal consumed
+        for index in range(1_000_000):
+            consumed += 1
+            yield _property_row(index)
+
+    def cancel() -> None:
+        raise TaskCancelledError("cancelled while projecting")
+
+    monkeypatch.setattr(
+        "propertyscope_data_platform.release_builders.ProcessPoolExecutor", Executor
+    )
+    builder = default_release_builders()["property-snapshot"]
+    product = builder.stream(_context(), rows(), projection_workers=2, heartbeat=cancel)
+    with pytest.raises(TaskCancelledError, match="cancelled while projecting"):
+        LocalArtifactStore(tmp_path).put(product.chunks(), media_type=builder.spec.media_type)
+    assert submitted == 2 and consumed == 10_000
+    assert cleanup == [{"wait": False, "cancel_futures": True}]
+    assert not any(path.is_file() for path in tmp_path.rglob("*"))
+
+
 def test_seifa_area_builder_preserves_national_deciles_and_area_limitations() -> None:
     row = {
         "sal_code": "10003",
@@ -452,6 +545,23 @@ def test_crime_builder_preserves_exact_coverage_and_coverage_only_series() -> No
     assert series["observed_months"] == list(months)
     assert series["observations"] == []
     assert series["blank_means_observed_zero"] is True
+
+    # Membership remains exact after the linear-time coverage lookup optimization.
+    observation = {
+        **common,
+        "record_kind": "observation",
+        "month": months[-1],
+        "count": 3,
+        "offence_label": "Synthetic offence",
+        "subcategory_label": "Total",
+        "source_row_sha256": "a" * 64,
+    }
+    included = builder.build(context, [coverage, observation], created_at=FIXED_TIME)
+    assert _built_records(included)[0]["observations"][0]["month"] == months[-1]
+    with pytest.raises(ValueError, match="outside the coverage universe"):
+        builder.build(
+            context, [coverage, {**observation, "month": "2025-03-01"}], created_at=FIXED_TIME
+        )
 
 
 def test_crime_builder_accepts_current_official_coverage_history() -> None:

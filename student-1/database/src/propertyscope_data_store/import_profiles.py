@@ -612,6 +612,14 @@ def execute_stream_import(
     quality_warning_rows = 0
     quality_warning_counts: Counter[str] = Counter()
     with connection.cursor() as cursor:
+        # Constant batch provenance is checked once by the batch's foreign keys.
+        # This transaction also owns the rows; failure rolls back both together.
+        cursor.execute(
+            """INSERT INTO warehouse.import_batch (
+                dataset_release_id,artifact_record_id,ingestion_run_id
+            ) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING""",
+            (release_id, artifact_id, run_id),
+        )
         if profile == "gnaf-nsw":
             cursor.execute(_GNAF_STREAM_STAGE_SQL)
             with cursor.copy(_GNAF_STREAM_COPY_SQL) as copy:

@@ -1408,6 +1408,42 @@ def test_release_collection_excludes_retired_assessment_sources() -> None:
     assert "release.status=%s" in store.query
 
 
+def test_release_filters_apply_before_stable_pagination() -> None:
+    store = PropertyQueryStore()
+    store.list_releases(
+        status=None, query_text="NSW 100%", lifecycle="published", limit=25, offset=100
+    )
+    assert "release.status=ANY(%s)" in store.query
+    assert "POSITION(lower(%s)" in store.query
+    assert "ORDER BY release.created_at DESC,release.id DESC LIMIT %s OFFSET %s" in store.query
+    assert store.params == [["accepted"], "NSW 100%", 25, 100]
+
+
+def test_release_collection_rejects_unknown_lifecycle() -> None:
+    with pytest.raises(ValidationError, match="lifecycle"):
+        PropertyQueryStore().list_releases(status=None, lifecycle="unknown", limit=25, offset=0)
+
+
+def test_running_history_filter_includes_all_active_pipeline_stages() -> None:
+    store = PropertyQueryStore()
+    job = uuid.uuid4()
+    store.list_runs(
+        status="running", query_text="G-NAF", job_definition_id=job, limit=25, offset=100
+    )
+    assert "run.status=ANY(%s)" in store.query
+    assert set(store.params[0]) == {
+        "planning",
+        "discovering",
+        "acquiring",
+        "staging",
+        "normalising",
+        "validating",
+        "building_release",
+    }
+    assert store.params[1:] == [job, "G-NAF", 25, 100]
+    assert "ORDER BY run.requested_at DESC,run.id DESC" in store.query
+
+
 class PreviewStore(PropertyScopeStore):
     def __init__(self) -> None:
         self.required_calls = 0
@@ -1510,8 +1546,9 @@ def test_release_preview_uses_the_same_registered_psi_scope_as_the_export() -> N
 
 
 class SalesSourceStore(PropertyScopeStore):
-    def __init__(self, release_id: uuid.UUID) -> None:
+    def __init__(self, release_id: uuid.UUID, schema_version: str = "v2") -> None:
         self.release_id = release_id
+        self.schema_version = schema_version
         self.required_calls = 0
         self.select_query = ""
         self.select_parameters: Sequence[Any] = ()
@@ -1525,7 +1562,7 @@ class SalesSourceStore(PropertyScopeStore):
                 "dataset_id": "nsw-psi-sales",
                 "release_version": "2026-08",
                 "status": "accepted",
-                "schema_version": "propertyscope.property-sales.v2",
+                "schema_version": f"propertyscope.property-sales.{self.schema_version}",
                 "import_profile_key": "psi-sales",
             }
         return {"count": 12_345}
@@ -1536,9 +1573,10 @@ class SalesSourceStore(PropertyScopeStore):
         return [{"source_business_key": "001:P1:1", "source_revision": 1}]
 
 
-def test_sales_source_feed_pages_complete_accepted_generation_by_year() -> None:
+@pytest.mark.parametrize("schema_version", ["v2", "v3"])
+def test_sales_source_feed_pages_complete_accepted_generation_by_year(schema_version: str) -> None:
     release_id = uuid.uuid4()
-    store = SalesSourceStore(release_id)
+    store = SalesSourceStore(release_id, schema_version)
 
     page = store.release_sales_source_records(release_id, year=1999, limit=1000, offset=2000)
 

@@ -30,6 +30,7 @@ from propertyscope_data_store import import_profiles
 from propertyscope_data_store._consumer_import_operations import _ConsumerImportOperations
 from propertyscope_data_store.errors import ConflictError, NotFoundError
 from propertyscope_data_store.import_profiles import iter_ndjson_import
+from propertyscope_data_store.query_specs import release_export_query
 from propertyscope_data_store.repository import PropertyScopeStore
 from propertyscope_data_store.source_materialisation import (
     BOCSAR_COPY_SQL,
@@ -1093,6 +1094,47 @@ def test_psi_accepts_registered_street_type_equivalences_without_changing_source
     }
 
 
+def test_psi_batch_match_keeps_alias_ambiguity_and_full_name_direction(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    accepted_release = uuid.uuid4()
+    connection.execute(
+        "INSERT INTO serving.accepted_generation VALUES ('gnaf-nsw',%s)",
+        (accepted_release,),
+    )
+    connection.execute(
+        "INSERT INTO warehouse.gnaf_address (dataset_release_id,gnaf_pid,postcode,"
+        "locality,street_name,street_type,street_number_first,published) VALUES "
+        "(%s,'full','2000','SYDNEY','EXAMPLE','STREET',10,TRUE),"
+        "(%s,'short','2000','SYDNEY','EXAMPLE','ST',10,TRUE)",
+        (accepted_release, accepted_release),
+    )
+    # An abbreviation accepts either spelling, making this address ambiguous.
+    # The full spelling only accepts itself, as in the original matching policy.
+    _stage_typed_psi_rows(
+        connection,
+        [_psi_row(key="short"), {**_psi_row(key="full"), "street_type": "STREET"}],
+    )
+    import_profiles._insert_psi_rows(
+        connection.cursor(),
+        release_id=uuid.uuid4(),
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        phase_rows=2,
+        phase_callback=None,
+    )
+    expected_ref = uuid.UUID(hashlib.md5(b"propertyscope-gnaf:full").hexdigest())
+    rows = connection.execute(
+        "SELECT source_business_key,property_ref FROM warehouse.psi_sale "
+        "ORDER BY source_business_key"
+    ).fetchall()
+    assert rows == [
+        {"source_business_key": "full", "property_ref": expected_ref},
+        {"source_business_key": "short", "property_ref": None},
+    ]
+
+
 def test_psi_does_not_reuse_stale_gnaf_anchor_after_accepted_generation_changes(
     isolated_postgres: psycopg.Connection[dict[str, object]],
 ) -> None:
@@ -1323,6 +1365,21 @@ def test_bocsar_earliest_duplicate_zero_missing_coverage_and_replay_semantics(
         "(SELECT count(*) FROM warehouse.bocsar_coverage) AS coverage"
     ).fetchone()
     assert counts == {"observations": 1, "coverage": 1}
+
+    export = release_export_query("bocsar-sparse", release_id, limit=500, cursor=None)
+    series = connection.execute(export.select_sql, export.select_params).fetchone()
+    assert series is not None
+    assert series["offence_label"] == "Assault"
+    assert series["subcategory_label"] == "Total"
+    assert series["observations"] == [
+        {"month": "2026-01-01", "count": 5, "source_row_sha256": "a" * 64}
+    ]
+    connection.execute("DELETE FROM warehouse.bocsar_observation")
+    empty = connection.execute(export.select_sql, export.select_params).fetchone()
+    assert empty is not None
+    assert empty["offence_label"] is None and empty["subcategory_label"] is None
+    assert empty["observations"] == []
+    assert empty["observed_months"] == series["observed_months"]
 
 
 @pytest.mark.parametrize(

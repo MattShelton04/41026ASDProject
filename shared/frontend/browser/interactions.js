@@ -140,6 +140,7 @@ export function createToastController(toast, { duration = 4200 } = {}) {
 
 /** Builds the common bounded, named horizontal-scroll region around a real table. */
 export function createTableRegion(table, label, { className = "" } = {}) {
+  let destroyed = false;
   const documentNode = ownerDocument(table);
   const region = documentNode.createElement("div");
   region.className = ["ps-table-region", className].filter(Boolean).join(" ");
@@ -152,6 +153,7 @@ export function createTableRegion(table, label, { className = "" } = {}) {
   hint.hidden = true;
   region.append(hint, table);
   const syncOverflow = () => {
+    if (destroyed) return;
     const overflows = Number(region.scrollWidth) > Number(region.clientWidth) + 1;
     region.tabIndex = overflows ? 0 : -1;
     region.dataset.overflow = String(overflows);
@@ -160,11 +162,17 @@ export function createTableRegion(table, label, { className = "" } = {}) {
   queueMicrotask(syncOverflow);
   const observer = globalThis.ResizeObserver ? new ResizeObserver(syncOverflow) : null;
   observer?.observe(region);
-  region.destroy = () => observer?.disconnect();
+  observer?.observe(table);
+  region.destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    observer?.disconnect();
+  };
   return region;
 }
 
 /** Dispose observers before replacing a feature view or table collection. */
 export function disposeTableRegions(root) {
+  if (root?.matches?.(".ps-table-region")) root.destroy?.();
   for (const region of root?.querySelectorAll?.(".ps-table-region") || []) region.destroy?.();
 }

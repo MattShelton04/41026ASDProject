@@ -643,11 +643,11 @@ def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions(
     assert "warehouse.gnaf_address" in source
     assert "accepted.dataset_id='gnaf-nsw'" in source
     assert "registry.property" in source
-    assert "count(DISTINCT property.property_ref)=1" in source
+    assert "count(DISTINCT property.property_ref)::integer AS match_count" in source
     assert "exact_address" in source
     assert "LEFT JOIN LATERAL" not in source
     assert "upper(" not in source
-    assert "CASE WHEN count(DISTINCT property.property_ref)=1" in source
+    assert "registry_match.match_count=1" in source
     assert "property.street_number_last" in source
     assert "property.street_number_suffix" in source
     assert "property.unit_number" in source
@@ -705,19 +705,18 @@ def test_psi_source_scale_path_casts_once_and_avoids_a_final_wide_sort() -> None
     assert "SELECT DISTINCT source.postcode" in PSI_ADDRESS_RESOLUTION_SQL
     assert "FROM propertyscope_psi_identity_stage identity" in PSI_ADDRESS_RESOLUTION_SQL
     assert "ON source.ordinal=identity.first_ordinal" in PSI_ADDRESS_RESOLUTION_SQL
-    assert PSI_ADDRESS_RESOLUTION_SQL.count("CROSS JOIN LATERAL") == 2
-    assert "accepted_gnaf_candidates AS MATERIALIZED" not in PSI_ADDRESS_RESOLUTION_SQL
-    assert "registry_fallback_candidates" not in PSI_ADDRESS_RESOLUTION_SQL
-    assert "property_candidates" not in PSI_ADDRESS_RESOLUTION_SQL
+    assert "eligible_addresses AS MATERIALIZED" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "accepted_gnaf_candidates AS MATERIALIZED" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "registry_fallback_candidates AS MATERIALIZED" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "LEFT JOIN accepted_gnaf_candidates gnaf_match" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "LEFT JOIN registry_fallback_candidates registry_match" in PSI_ADDRESS_RESOLUTION_SQL
     assert "WHERE accepted.dataset_id='gnaf-nsw'" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "JOIN registry.property registered_property" not in PSI_ADDRESS_RESOLUTION_SQL
-    assert "md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "WHERE gnaf_match.match_count=0" in PSI_ADDRESS_RESOLUTION_SQL
     assert "identifier.scheme='gnaf_pid'" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "address.street_type=ANY(ARRAY[eligible.street_type," in PSI_ADDRESS_RESOLUTION_SQL
-    assert "address.dataset_release_id=(" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "address.postcode=eligible.postcode" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "property.postcode=eligible.postcode" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "AND gnaf_match.match_count IS NULL" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "WHEN gnaf_match.match_count=1" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "WHEN 'STREET' THEN 'ST'" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "address.postcode=eligible.postcode" not in PSI_ADDRESS_RESOLUTION_SQL
+    assert "property.postcode=eligible.postcode" not in PSI_ADDRESS_RESOLUTION_SQL
     assert "match_count" in PSI_ADDRESS_RESOLUTION_SQL
     assert "COALESCE(source.property_ref,resolution.exact_property_ref)" in source
     assert "JOIN propertyscope_psi_import_stage source" in PSI_TARGET_INSERT_SQL
@@ -760,10 +759,10 @@ def test_bocsar_typed_normal_path_uses_rowcount_without_destination_scans() -> N
     assert "FREEZE TRUE" in BOCSAR_COPY_SQL
     assert "ORDER BY ordinal" not in BOCSAR_OBSERVATION_INSERT_SQL
     assert "ORDER BY ordinal" not in BOCSAR_COVERAGE_INSERT_SQL
-    assert "min(ordinal) AS ordinal" in BOCSAR_OBSERVATION_INSERT_SQL
-    assert "min(ordinal) AS ordinal" in BOCSAR_COVERAGE_INSERT_SQL
-    assert "JOIN propertyscope_bocsar_import_stage source" in BOCSAR_OBSERVATION_INSERT_SQL
-    assert "JOIN propertyscope_bocsar_import_stage source" in BOCSAR_COVERAGE_INSERT_SQL
+    assert "SELECT DISTINCT ON" in BOCSAR_OBSERVATION_INSERT_SQL
+    assert "SELECT DISTINCT ON" in BOCSAR_COVERAGE_INSERT_SQL
+    assert "JOIN propertyscope_bocsar_import_stage" not in BOCSAR_OBSERVATION_INSERT_SQL
+    assert "JOIN propertyscope_bocsar_import_stage" not in BOCSAR_COVERAGE_INSERT_SQL
     assert "observed_months" in BOCSAR_COVERAGE_INSERT_SQL
     assert "blank_means_observed_zero" in BOCSAR_COVERAGE_INSERT_SQL
 

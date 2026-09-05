@@ -51,7 +51,8 @@ def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
     assert 'id="feature-area-list"' in page
     assert fragment.count("Not available yet") == 0
     assert "renderHomeFeatures" not in script
-    assert "The remaining research areas will appear here as their data becomes available." in page
+    assert "Choose an enabled research area" in page
+    assert "planned and not available yet" not in page
     assert "Start a property review" in page
     assert 'id="operations"' in page
 

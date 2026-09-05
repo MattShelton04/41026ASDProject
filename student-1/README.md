@@ -71,10 +71,51 @@ the unchanged PostgreSQL typed staging, identity/revision, address-resolution an
 PostgreSQL remains authoritative, historical JSON/NDJSON stays replayable and complete consumer
 release exports remain gzip NDJSON.
 
+Bulk imports register provenance once per batch in `warehouse.import_batch`, inside the same
+transaction as the facts. Migration 050 backfills existing references and removes the three
+per-row release/artifact/run foreign keys from warehouse facts. The loader owns the relationship
+between facts and their registered batch; direct administrative SQL no longer enforces it.
+Property identity foreign keys, checksums, complete counts and atomic activation remain.
+BOCSAR also deduplicates in one ordered pass instead of grouping and joining the stage again.
+See [ADR-039](../docs/architecture/decisions/ADR-039-batch-provenance-for-bulk-imports.md).
+Refresh the database API and idle loader together after this migration before starting jobs.
+
+Large release builds request a compact private page layout: field names appear once alongside
+arrays of row values. The database API retains its ordinary record layout for older workers;
+the backend relays these private pages without decoding and re-encoding them. The runner reads
+one page ahead while building the current page, with 20,000 address/sale rows or 500 crime series
+per page. Generation, count and cursor checks still fence the whole export.
+
+Two spawned projection workers validate and serialize bounded batches for large flat products. A
+single runner-owned compressor preserves the existing gzip bytes, ordering and checksum; only
+the runner handles HTTP, files, leases and registration. Small products avoid process startup.
+`PROPERTYSCOPE_RELEASE_PROJECTION_WORKERS` accepts 0..4 (default 2); use 0 for serial projection
+on constrained hosts. The Compose CPU/memory limits still apply to the worker children together.
+Crime series retain serial projection: linear-time month membership checks remove repeated scans,
+and measurements showed process transfer overhead outweighed parallel gains for nested series.
+Cancellation stops further scheduling, and unfinished read-only HTTP work retains a 120-second
+transport read timeout. Import and publication transactions remain serial and atomic.
+
+Reproduce the synthetic export measurements without a network or database:
+
+```text
+uv run python scripts/benchmark_feature1_exports.py --product property-snapshot --rows 100000
+uv run python scripts/benchmark_feature1_exports.py --product property-sales --rows 100000
+uv run python scripts/benchmark_feature1_exports.py --product crime-series --rows 1000
+```
+
+These measure transport encoding/decoding and product building, not complete source job duration.
+Each variant must produce identical portable gzip bytes. PSI/BOCSAR Parquet staging now reports
+consumed row checkpoints during COPY, including the final partial batch, rather than leaving
+Update history at zero until materialisation begins.
+
 PSI exact-address matching uses the accepted, published G-NAF generation and recognised street-type
 equivalents. Unique matches create only the missing registry reference anchors needed for the
 sales foreign key; canonical addresses still come from the accepted warehouse generation. See
 [ADR-038](../docs/architecture/decisions/ADR-038-psi-accepted-gnaf-reference-anchors.md).
+Full-history PSI matching builds transaction-local address dictionaries and joins sales addresses
+in batches, avoiding repeated lookup queries against the full property register. Exact matching,
+ambiguity handling and source facts remain unchanged.
 After correcting an import failure, **Use downloaded file** on its run creates a cached reprocess
 with the same scope and lineage. Selected archive-year runs remain partial and non-publishable.
 
@@ -307,6 +348,12 @@ contracts, quality checks, files and coverage remain available as contextual spe
 are not presented as competing top-level workflows. `app.js` is the transition composition root.
 The independently built frontend image copies shared design-system v0.1 assets, while the
 development overlay mounts the same source files for reload.
+
+Data updates, Update history and Published data use bookmarkable previous/next pages. Search,
+status, job and publication-state filters run before database pagination, including matches
+outside the first 100 records. Changing a property query cancels its obsolete read immediately;
+release previews serialize page requests. Route replacement and inner refreshes dispose table
+observers and open action-menu listeners.
 
 ### Source-definition HTMX CRUD
 

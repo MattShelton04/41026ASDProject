@@ -156,6 +156,183 @@ def _abort_external_map(page: Page) -> None:
     page.route("**/tiles.openfreemap.org/**", lambda route: route.abort())
 
 
+def _track_table_observers(page: Page) -> None:
+    page.add_init_script("""
+        const NativeObserver = window.ResizeObserver;
+        window.tableObservers = new Set();
+        window.ResizeObserver = class extends NativeObserver {
+            observe(target, options) {
+                if (target.classList.contains('ps-table-region')) window.tableObservers.add(this);
+                return super.observe(target, options);
+            }
+            disconnect() {
+                window.tableObservers.delete(this);
+                return super.disconnect();
+            }
+        };
+    """)
+
+
+def test_corrected_property_search_cancels_pending_request_without_waiting(
+    page: Page,
+    fixture_origin: str,
+) -> None:
+    held: list[Route] = []
+    failures: list[str] = []
+    page.on("requestfailed", lambda request: failures.append(request.url))
+
+    def hold_first(route: Route) -> None:
+        if not held:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/properties/search?**", hold_first)
+    _open(page, fixture_origin, "properties")
+    query = page.get_by_label("Address, suburb or postcode")
+    query.fill("11 Example Street")
+    query.press("Enter")
+    expect(page.get_by_text("Searching NSW property records…")).to_be_visible()
+    query.fill("22 Replacement Street")
+    query.press("Enter")
+    expect(page.locator(".result-card").first).to_be_visible()
+    expect(page.locator(".property-results-heading")).to_contain_text("22 Replacement Street")
+    expect(page.get_by_role("button", name="Search", exact=True)).to_have_attribute(
+        "aria-busy", "false"
+    )
+    assert any("properties/search" in url for url in failures)
+    held[0].fulfill(json={"items": [], "total": 0})
+    expect(page.locator(".property-results-heading")).to_contain_text("22 Replacement Street")
+
+
+def test_table_observers_are_released_after_search_and_shared_navigation(
+    page: Page,
+    fixture_origin: str,
+) -> None:
+    _track_table_observers(page)
+    _open(page, fixture_origin, "properties")
+    for query in ("11 Example Street", "22 Replacement Street", "Sydney 2000"):
+        page.get_by_label("Address, suburb or postcode").fill(query)
+        page.get_by_label("Address, suburb or postcode").press("Enter")
+        expect(page.locator(".result-card").first).to_be_visible()
+        assert page.evaluate("window.tableObservers.size") == 1
+    page.get_by_role("link", name="Data overview", exact=True).click()
+    expect(page.get_by_role("heading", name="Data overview")).to_be_visible()
+    page.wait_for_function(
+        "window.tableObservers.size === document.querySelectorAll('.ps-table-region').length"
+    )
+    page.goto(f"{fixture_origin}/?scenario=populated#evidence")
+    expect(page.get_by_text("Current records loaded.")).to_be_visible()
+    assert page.evaluate("window.tableObservers.size") > 0
+    page.get_by_role("link", name="Home", exact=True).first.click()
+    expect(
+        page.get_by_role("heading", name="Research a property. See what is known.")
+    ).to_be_visible()
+    assert page.evaluate("window.tableObservers.size") == 0
+
+
+def test_release_preview_serialises_pages_disposes_tables_and_ignores_detached_results(
+    page: Page,
+    fixture_origin: str,
+) -> None:
+    _track_table_observers(page)
+    held: list[Route] = []
+    requests = 0
+
+    def preview(route: Route) -> None:
+        nonlocal requests
+        requests += 1
+        if requests > 1:
+            held.append(route)
+            return
+        route.fulfill(
+            json={
+                "items": [{"address": "First preview row"}],
+                "columns": ["address"],
+                "count": 1,
+                "limit": 1,
+                "offset": 1,
+                "next_offset": 2,
+                "total": 3,
+                "profile": "fixture",
+                "release": {"status": "accepted"},
+            }
+        )
+
+    page.route(f"**/dataset-releases/{ACCEPTED_ID}/records?**", preview)
+    _open(page, fixture_origin, f"releases/{ACCEPTED_ID}")
+    expect(page.get_by_text("First preview row")).to_be_visible()
+    baseline = page.evaluate("window.tableObservers.size")
+    page.get_by_role("button", name="Next page").click()
+    expect(page.get_by_role("button", name="Previous page")).to_be_disabled()
+    expect(page.get_by_role("button", name="Next page")).to_be_disabled()
+    page.wait_for_function("document.querySelector('.panel-body[aria-busy=true]') !== null")
+    assert requests == 2
+    held.pop().fulfill(
+        json={
+            "items": [{"address": "Final preview row"}],
+            "columns": ["address"],
+            "count": 1,
+            "limit": 1,
+            "offset": 2,
+            "next_offset": None,
+            "total": 3,
+            "profile": "fixture",
+            "release": {"status": "accepted"},
+        }
+    )
+    expect(page.get_by_text("Final preview row")).to_be_visible()
+    expect(page.get_by_role("button", name="Next page")).to_be_disabled()
+    expect(page.get_by_text("Showing 3\u20133 of 3")).to_be_focused()
+    assert page.evaluate("window.tableObservers.size") == baseline
+    page.get_by_role("button", name="Previous page").click()
+    expect(page.get_by_role("button", name="Previous page")).to_be_disabled()
+    page.get_by_role("link", name="Property search", exact=True).click()
+    expect(page.get_by_role("heading", name="Find a NSW property")).to_be_visible()
+    held.pop().fulfill(
+        json={
+            "items": [{"address": "Obsolete row"}],
+            "columns": ["address"],
+            "count": 1,
+            "limit": 1,
+            "offset": 1,
+            "next_offset": 2,
+            "total": 3,
+            "profile": "fixture",
+            "release": {"status": "accepted"},
+        }
+    )
+    expect(page.get_by_text("Obsolete row")).to_have_count(0)
+    assert page.evaluate("window.tableObservers.size") == 0
+
+
+def test_open_action_menu_releases_global_listeners_when_route_is_replaced(
+    page: Page,
+    fixture_origin: str,
+) -> None:
+    page.add_init_script("""
+        const listeners = new Set();
+        window.openMenuListeners = listeners;
+        const add = document.addEventListener.bind(document);
+        const remove = document.removeEventListener.bind(document);
+        document.addEventListener = (type, listener, options) => {
+            if (type === 'pointerdown') listeners.add(listener);
+            return add(type, listener, options);
+        };
+        document.removeEventListener = (type, listener, options) => {
+            if (type === 'pointerdown') listeners.delete(listener);
+            return remove(type, listener, options);
+        };
+    """)
+    _open(page, fixture_origin, "jobs")
+    baseline = page.evaluate("window.openMenuListeners.size")
+    _open_row_actions(page, "Example property records update")
+    assert page.evaluate("window.openMenuListeners.size") == baseline + 1
+    page.evaluate("location.hash = '#properties'")
+    expect(page.get_by_role("heading", name="Find a NSW property")).to_be_visible()
+    assert page.evaluate("window.openMenuListeners.size") == baseline
+
+
 def test_property_search_keeps_focus_and_accepts_two_sequential_queries(
     page: Page, fixture_origin: str
 ) -> None:

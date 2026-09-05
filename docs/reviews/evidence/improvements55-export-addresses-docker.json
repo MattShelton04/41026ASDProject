@@ -1,0 +1,61 @@
+{
+  "scope": "synthetic private page transport and portable product build; no database/network",
+  "rows": 100000,
+  "product": "property-snapshot",
+  "repetitions": 3,
+  "gzip_sha256": "64e8d73cbd40af80f1417a805b63b1e47d27b7a8fd3eec4aa82e601ec82246f4",
+  "gzip_bytes": 8307479,
+  "variants": {
+    "record_pages": {
+      "runs": [
+        {
+          "seconds": 8.635825798999576,
+          "transport_bytes": 55823042
+        },
+        {
+          "seconds": 10.31172610700014,
+          "transport_bytes": 55823042
+        },
+        {
+          "seconds": 10.067143993999707,
+          "transport_bytes": 55823042
+        }
+      ],
+      "median_seconds": 10.067143993999707
+    },
+    "column_pages_prefetched": {
+      "runs": [
+        {
+          "seconds": 9.258574808000049,
+          "transport_bytes": 25224842
+        },
+        {
+          "seconds": 8.456483417001436,
+          "transport_bytes": 25224842
+        },
+        {
+          "seconds": 7.590124944001218,
+          "transport_bytes": 25224842
+        }
+      ],
+      "median_seconds": 8.456483417001436
+    },
+    "column_pages_parallel": {
+      "runs": [
+        {
+          "seconds": 6.465924321000784,
+          "transport_bytes": 25224842
+        },
+        {
+          "seconds": 6.739895557999262,
+          "transport_bytes": 25224842
+        },
+        {
+          "seconds": 5.529790348000461,
+          "transport_bytes": 25224842
+        }
+      ],
+      "median_seconds": 6.465924321000784
+    }
+  }
+}

@@ -22,6 +22,11 @@ export function makeTable(columns, rows, rowBuilder, captionText = "Data results
   });
   append(table, caption, thead, tbody);
   const region = createTableRegion(table, captionText, { className: "table-wrap" });
+  const destroyRegion = region.destroy;
+  region.destroy = () => {
+    for (const menu of table.querySelectorAll(".action-menu")) menu.destroy?.();
+    destroyRegion();
+  };
   if (responsive) region.classList.add("table-wrap--responsive");
   return region;
 }
@@ -114,5 +119,6 @@ export function actionMenu(label, controls) {
     if (event.target.closest("a, button")) close();
   });
   append(root, trigger, panel);
+  root.destroy = () => close();
   return root;
 }

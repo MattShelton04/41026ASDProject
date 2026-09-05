@@ -12,7 +12,13 @@ from flask.testing import FlaskClient
 
 from propertyscope_data_platform.app import create_app as create_backend_app
 from propertyscope_data_platform.clients import AiModeClient, DataStoreClient
-from propertyscope_data_platform.http_support import json_body, register_error_handlers
+from propertyscope_data_platform.http_support import (
+    forward,
+    forward_json_bytes,
+    json_body,
+    register_error_handlers,
+    tool_envelope,
+)
 from propertyscope_data_store.api import create_blueprint as create_store_blueprint
 from propertyscope_data_store.api import register_error_handlers as register_store_error_handlers
 from propertyscope_data_store.repository import PropertyScopeStore
@@ -59,6 +65,104 @@ def test_json_body_allows_only_a_truly_absent_optional_payload() -> None:
 
     assert client.post("/optional").get_json() == {}
     assert client.post("/required", json={"valid": True}).get_json() == {"valid": True}
+
+
+@pytest.mark.parametrize("status", [200, 201, 502, 503])
+@pytest.mark.parametrize("body", [b"<html>private upstream error</html>", b"", b"null", b"[]"])
+def test_proxy_never_turns_broken_dependency_json_into_success_or_caller_error(
+    status: int,
+    body: bytes,
+) -> None:
+    app = Flask(__name__)
+    app.add_url_rule("/proxy", view_func=lambda: forward(httpx.Response(status, content=body)))
+    register_error_handlers(app)
+    response = app.test_client().get("/proxy", headers={"X-Request-ID": "boundary-test"})
+    assert response.status_code == 503
+    assert response.content_type == "application/problem+json"
+    assert response.get_json()["code"] == "dependency_unavailable"
+    assert response.get_json()["request_id"] == "boundary-test"
+    assert "private upstream error" not in response.get_data(as_text=True)
+
+
+def test_proxy_preserves_problem_details_and_no_content_responses() -> None:
+    app = Flask(__name__)
+    with app.test_request_context():
+        payload = {"code": "version_conflict", "detail": "Reload before saving"}
+        result = forward(
+            httpx.Response(
+                409,
+                json=payload,
+                headers={
+                    "Content-Type": "application/problem+json",
+                    "X-Request-ID": "upstream-id",
+                },
+            )
+        )
+        assert result.status_code == 409
+        assert result.get_json() == payload
+        assert result.content_type == "application/problem+json"
+        assert result.headers["X-Request-ID"] == "upstream-id"
+        empty = forward(httpx.Response(204, headers={"X-Request-ID": "delete-id"}))
+        assert empty.status_code == 204
+        assert empty.get_data() == b""
+        assert empty.headers["X-Request-ID"] == "delete-id"
+
+
+@pytest.mark.parametrize("adapter", [forward, forward_json_bytes, tool_envelope])
+def test_response_adapters_reject_html_dependency_failures(adapter: Any) -> None:
+    app = Flask(__name__)
+    app.add_url_rule(
+        "/proxy",
+        view_func=lambda: adapter(
+            httpx.Response(
+                200,
+                content=b"<html>private</html>",
+                headers={"Content-Type": "text/html"},
+            )
+        ),
+    )
+    register_error_handlers(app)
+    response = app.test_client().get("/proxy")
+    assert response.status_code == 503
+    assert response.get_json()["code"] == "dependency_unavailable"
+
+
+def test_proxy_rejects_redirects_and_preserves_large_json_page_bytes() -> None:
+    app = Flask(__name__)
+    app.add_url_rule(
+        "/proxy",
+        view_func=lambda: forward_json_bytes(
+            httpx.Response(
+                302,
+                headers={"Location": "http://unexpected/private"},
+            )
+        ),
+    )
+    register_error_handlers(app)
+    assert app.test_client().get("/proxy").status_code == 503
+    with app.test_request_context():
+        original = b'{ "items": [1,2,3] }'
+        result = forward_json_bytes(
+            httpx.Response(
+                200,
+                content=original,
+                headers={
+                    "Content-Type": "application/json; charset=utf-8",
+                    "X-Request-ID": "page-id",
+                },
+            )
+        )
+        assert result.get_data() == original
+        assert result.headers["X-Request-ID"] == "page-id"
+
+
+def test_oversized_request_has_a_structured_problem() -> None:
+    client = _json_boundary_client()
+    client.application.config["MAX_CONTENT_LENGTH"] = 8
+    response = client.post("/required", json={"value": "too much input"})
+    assert response.status_code == 413
+    assert response.content_type == "application/problem+json"
+    assert response.get_json()["code"] == "request_too_large"
 
 
 def _source_payload() -> dict[str, Any]:
@@ -205,6 +309,42 @@ def _store_client(store: StrictScalarStore) -> FlaskClient:
 
 def _internal_headers() -> dict[str, str]:
     return {"X-PropertyScope-Internal-Token": "secret"}
+
+
+def test_private_export_negotiates_compact_pages_without_changing_legacy_clients() -> None:
+    class ExportStore(StrictScalarStore):
+        def release_product_records(self, release_id: uuid.UUID, **kwargs: Any) -> dict[str, Any]:
+            assert kwargs == {"limit": 20000, "cursor": None}
+            return {
+                "release_id": str(release_id),
+                "candidate_generation_id": str(release_id),
+                "items": [{"id": "one", "value": None}],
+                "total": 1,
+                "next_cursor": None,
+            }
+
+    client = _store_client(ExportStore())
+    path = f"/internal/data-platform/v1/releases/{uuid.uuid4()}/product-records"
+    original = client.get(path, headers=_internal_headers())
+    packed = client.get(path + "?layout=columns", headers=_internal_headers())
+    invalid = client.get(path + "?layout=unknown", headers=_internal_headers())
+    assert original.status_code == packed.status_code == 200
+    assert original.get_json()["items"] == [{"id": "one", "value": None}]
+    assert packed.get_json()["columns"] == ["id", "value"]
+    assert packed.get_json()["rows"] == [["one", None]]
+    assert "items" not in packed.get_json()
+    assert invalid.status_code == 422
+
+
+def test_history_job_filter_rejects_invalid_uuid_before_querying() -> None:
+    class HistoryStore(StrictScalarStore):
+        def list_runs(self, **kwargs: Any) -> list[dict[str, Any]]:
+            raise AssertionError("invalid filters must not reach persistence")
+
+    response = _store_client(HistoryStore()).get(
+        "/internal/data-platform/v1/runs?job_definition_id=not-a-uuid", headers=_internal_headers()
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.parametrize("retryable", ["false", 0, 1, None])

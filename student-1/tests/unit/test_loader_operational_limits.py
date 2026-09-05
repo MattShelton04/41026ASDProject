@@ -20,6 +20,7 @@ from propertyscope_data_store.loader import (
     SOURCE_SCALE_WAL_FLOORS_BYTES,
     DatabaseLoader,
     LoaderResourceLimitError,
+    _raise_between_rows,
     _safe_loader_error,
 )
 from propertyscope_data_store.repository import (
@@ -34,6 +35,36 @@ class _RecordingConnection:
 
     def execute(self, query: str) -> None:
         self.queries.append(query)
+
+
+def test_typed_rows_report_consumed_progress_and_keep_cancellation_responsive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = iter([0.0, 0.2, 1.2, 1.3])
+    monkeypatch.setattr("propertyscope_data_store.loader.time.monotonic", lambda: next(clock))
+    reports: list[int] = []
+    checks = 0
+
+    def check() -> None:
+        nonlocal checks
+        checks += 1
+
+    count = sum(
+        1 for _ in _raise_between_rows(({} for _ in range(30_001)), check, progress=reports.append)
+    )
+    assert count == checks == 30_001
+    assert reports == [20_000, 30_001]
+
+
+def test_typed_progress_never_claims_an_unconsumed_or_failed_row() -> None:
+    reports: list[int] = []
+
+    def check() -> None:
+        raise RuntimeError("cancelled")
+
+    with pytest.raises(RuntimeError, match="cancelled"):
+        list(_raise_between_rows([{}], check, progress=reports.append))
+    assert reports == []
 
 
 def test_store_applies_loader_temp_limit_only_to_the_current_transaction() -> None:

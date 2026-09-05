@@ -13,6 +13,7 @@ from propertyscope_data_store.errors import (
     StoreError,
     ValidationError,
 )
+from propertyscope_data_store.export_pages import columnar_export_page
 from propertyscope_data_store.migrations import SCHEMA_FINGERPRINT_POLICY_VERSION
 from propertyscope_data_store.repository import PropertyScopeStore
 
@@ -129,6 +130,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         items = store.list_runs(
             status=request.args.get("status"),
             query_text=optional_query_text(),
+            job_definition_id=optional_uuid_query("job_definition_id"),
             limit=limit,
             offset=offset,
         )
@@ -265,6 +267,8 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             target_feature=request.args.get("target_feature"),
             schema_version=request.args.get("schema_version"),
             ingestion_run_id=request.args.get("ingestion_run_id"),
+            query_text=optional_query_text(),
+            lifecycle=request.args.get("lifecycle"),
             limit=limit,
             offset=offset,
         )
@@ -301,11 +305,13 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     @api.get("/internal/data-platform/v1/releases/<uuid:release_id>/product-records")
     def releases_product_records(release_id: uuid.UUID) -> Response:
         limit = query_integer("limit", minimum=1, maximum=20_000, default=20_000)
-        return jsonify(
-            store.release_product_records(
-                release_id, limit=limit, cursor=request.args.get("cursor") or None
-            )
+        layout = request.args.get("layout", "records")
+        if layout not in {"records", "columns"}:
+            raise ValidationError("export layout must be records or columns")
+        page = store.release_product_records(
+            release_id, limit=limit, cursor=request.args.get("cursor") or None
         )
+        return jsonify(columnar_export_page(page) if layout == "columns" else page)
 
     @api.get("/internal/data-platform/v1/releases/<uuid:release_id>/sales-source-records")
     def releases_sales_source_records(release_id: uuid.UUID) -> Response:
@@ -676,6 +682,16 @@ def optional_query_text() -> str | None:
     if len(value) > 200:
         raise ValidationError("q must be at most 200 characters")
     return value or None
+
+
+def optional_uuid_query(name: str) -> uuid.UUID | None:
+    value = request.args.get(name, "").strip()
+    if not value:
+        return None
+    try:
+        return uuid.UUID(value)
+    except ValueError as exc:
+        raise ValidationError(f"{name} must be a UUID") from exc
 
 
 def bounded_integer(

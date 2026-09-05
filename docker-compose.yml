@@ -220,6 +220,7 @@ services:
       PROPERTYSCOPE_GNAF_CRS: ${PROPERTYSCOPE_GNAF_CRS:-GDA94}
       PROPERTYSCOPE_PSI_ARCHIVE_ROOT: /var/lib/propertyscope/source-cache/psi
       PROPERTYSCOPE_RUNNER_LEASE_SECONDS: "300"
+      PROPERTYSCOPE_RELEASE_PROJECTION_WORKERS: ${PROPERTYSCOPE_RELEASE_PROJECTION_WORKERS:-2}
     depends_on:
       f1-backend:
         condition: service_healthy

@@ -79,10 +79,19 @@ PostgreSQL temporary-file limit and a pre-COPY disk-capacity check bound failure
 changes the database globally. Disposable real-shape benchmarks, not production artifacts, gate
 100,000 then 1,000,000-row evidence and enforce the 30-minute statement ceiling.
 
-PSI resolves unique addresses directly against the accepted G-NAF warehouse identities, including
+ADR-039 moves constant warehouse provenance validation to one `warehouse.import_batch`
+registration per release/artifact/run tuple in the import transaction. Migration 050 retains
+existing tuples and removes the three per-row operational metadata foreign keys from warehouse
+facts. Property identity foreign keys remain. The owning loader guarantees that written facts
+use their registered tuple; direct administrative SQL can bypass that relationship, an accepted
+throughput tradeoff. BOCSAR selects the first source row per natural key in one ordered pass,
+replacing its grouped-ordinal join. Checksums, complete counts and atomic activation remain.
+
+PSI batch-joins unique addresses against materialized dictionaries of accepted G-NAF warehouse identities, including
 the street-type equivalents already recognised by its source parser. Only missing registry anchors
 needed by resolved sales are inserted, with source provenance, inside the atomic candidate import.
-The unchanged foreign key remains enforced. Canonical property reads exclude those registry
+The dictionaries avoid a correlated database search for every sales address while retaining
+exact cardinality and ambiguity checks. The unchanged foreign key remains enforced. Canonical property reads exclude those registry
 snapshots from legacy fallback, so withdrawal or replacement of an accepted address cannot reveal
 stale fields. ADR-038 records this extension to the ADR-028 identity and ADR-032 import boundaries.
 
@@ -115,6 +124,24 @@ run-scope policy and registered source transport from the backend API compositio
 database repository retains atomic PostgreSQL operations but delegates immutable preview/builder
 query registration, retry/task planning, serialization and replay matching to deterministic modules.
 PSI acquisition is disk-backed and member-streamed under the same registered limits.
+
+The September 2026 Feature 1 performance review retains complete gzip-NDJSON products and the
+existing consumer protocol. Only the private database-to-runner export hop negotiates
+`layout=columns` (`propertyscope.export-columns.v1`): an ordered field-name array and row-value
+arrays replace repeated JSON keys. Ordinary object pages remain the compatibility default.
+The runner prefetches at most one page and rejects generation drift, invalid/cyclic cursors,
+malformed rows and inconsistent totals before registering a product. Slow reads and projection
+waits renew the task lease and check cancellation.
+
+Large flat-record builds use a bounded queue of two spawned CPU projection processes by default (configurable
+0..4). Children receive registered builder identity, validated build context and row batches;
+they perform no HTTP, artifact writes, database access or publication. The runner retains ordered
+collection, one deterministic gzip stream, manifest aggregation and artifact registration.
+Address/sale batches contain 5,000 rows. Crime series retain serial projection with linear-time
+coverage membership checks; the benchmark can additionally compare 32-series process batches,
+but that mode is slower for the measured nested workload. Small products retain serial projection. This is intra-task
+CPU parallelism; acquisition tasks and database import/activation ownership remain unchanged.
+See [the review and measured limits](../reviews/shared-feature-1-improvements-55.md).
 
 This does not complete the five-feature shared-foundation definition of done. Features 2–5 now have
 approved owners and domain boundaries in [`registered-feature-scope.md`](registered-feature-scope.md),

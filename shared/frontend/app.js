@@ -7,7 +7,7 @@ import { createRoadmapRoute } from "./routes/roadmap.js";
 import { createStatusRoute } from "./routes/status.js";
 import { findFeature } from "./features.js";
 import { loadFeature1Bridge } from "./feature-1-bridge.js";
-import { createToastController } from "./browser/index.js";
+import { createToastController, disposeTableRegions } from "./browser/index.js";
 
 const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const config = { ...externalConfig };
@@ -111,15 +111,16 @@ function openPrimarySearch(query = "") {
 function bindHomeInteractions() {
   applyConfigLinks(main);
   main.querySelectorAll("[data-planned]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.onclick = () => {
       showToast(button.dataset.planned || "This capability is planned for a later implementation slice.");
       main.querySelector("#research-areas")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    };
   });
-  main.querySelector("#property-search-form")?.addEventListener("submit", (event) => {
+  const searchForm = main.querySelector("#property-search-form");
+  if (searchForm) searchForm.onsubmit = (event) => {
     event.preventDefault();
     openPrimarySearch(String(main.querySelector("#property-search")?.value || "").trim());
-  });
+  };
 }
 
 function closeNavigation({ restoreFocus = false } = {}) {
@@ -161,6 +162,7 @@ async function renderRoute() {
   routeRequests = new AbortController();
   activeRouteController?.destroy?.();
   activeRouteController = null;
+  disposeTableRegions(main);
   const route = parseShellRoute(location.hash);
   updateNavigation(route);
   if (route === "home") {
@@ -190,6 +192,7 @@ async function renderRoute() {
     const renderedController = await routes[route](dashboard) || null;
     if (generation !== renderGeneration) {
       renderedController?.destroy?.();
+      disposeTableRegions(dashboard);
       return;
     }
     activeRouteController = renderedController;
@@ -201,6 +204,7 @@ async function renderRoute() {
     window.scrollTo({ top: 0, behavior: "instant" });
   } catch (error) {
     if (generation !== renderGeneration) return;
+    disposeTableRegions(dashboard);
     dashboard.replaceChildren(notice("warning", "This shared view could not be loaded", `${error.message}. Return home or retry the route.`));
     append(dashboard, Object.assign(el("a", "ps-button", "Return home"), { href: "#home" }));
     announce("The shared view could not be loaded.");
