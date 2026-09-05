@@ -219,13 +219,40 @@ at 1m they were 19.47s/35.59s. This deliberately simple single-locality fixture
 uses the selective exact-component index successfully, so batch aggregation is
 slower there. It establishes correctness and a bounded source-scale execution
 sample, not a general speedup. The live dataset's repeated broad-index searches
-are the reason for changing query shape; the retained full-history replay must
-establish the actual benefit. Temporary reference dictionaries trade extra
+are the reason for changing query shape; the retained full-history replay below
+establishes completion at actual source scale. Temporary reference dictionaries trade extra
 sequential grouping and spill space for removal of per-address search plans.
 
 The final matching follow-up passed `uv run python scripts/check.py`: 1,617 Python
 tests and 192 frontend tests, with 35 opt-in tests skipped. A separate disposable
 PostgreSQL run passed all 33 import/identity/recovery tests, alongside 52 focused
-unit tests. The idle loader was refreshed and a complete retained PSI replay was
-started; its final live timing remains pending. The disposable benchmark server
-was removed after validation.
+unit tests. The idle loader was refreshed before the complete retained PSI replay.
+The disposable benchmark server was removed after validation.
+
+### Completed live replay timings (5 September 2026)
+
+| Complete canonical scope | Imported rows | Import | Build | Execution | Queue wait |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| NSW G-NAF | 5,190,134 | 5m56s | 3m22s | 9m18s | <1s |
+| BOCSAR observations and coverage | 10,114,565 | 13m29s | 3m55s | 17m23s | 9m04s |
+| PSI all history and current weekly | 7,402,643 | 26m11s | 7m19s | 33m30s | <1s |
+
+Durations are independently rounded from persisted timestamps. These successful
+runs all replay complete retained canonical artifacts and skip acquisition.
+PSI's preceding full-refresh attempt prepared that same complete source in 21m39s;
+adding preparation to the successful replay gives roughly 55m09s of measured
+component work across two attempts, not one uninterrupted full-refresh timing.
+There is no successful full-history PSI baseline supporting a percentage speedup.
+The batch matcher did complete the previously cancelled resolution phase, and
+the entire PSI candidate import and release build completed successfully.
+
+The PSI product contains 7,402,643 records in 952,728,964 gzip-NDJSON bytes.
+Property linkage reports 4,940,715 linked and 2,461,928 unmatched records.
+Schema, complete candidate count and property-linkage blocking rules passed;
+four out-of-range derived address numbers produced the existing source-anomaly
+warning, with original records retained. BOCSAR exports 318,122 series rather
+than one portable record per canonical observation/coverage row.
+
+All three releases remain candidates; no publication or accepted-pointer change
+was performed. The authorised 10-minute completion monitor is paused after the
+final result. Complete downstream consumer ingestion remains untested by this run.
