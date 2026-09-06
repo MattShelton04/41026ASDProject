@@ -10,6 +10,8 @@ Store maintained project documentation here throughout all three releases.
 - [Contributing guide](../CONTRIBUTING.md): current developer workflow and canonical commands
 - [Agent instructions](../AGENTS.md): current coding-agent ownership and quality rules
 - [Release 0 index](release-0/README.md): current implementation/evidence navigation and release gates
+- [Release 1 delivery plan](release-1/release-1-delivery-plan.md): course requirements, current gaps,
+  shared and five-feature work, acceptance criteria, dependencies and submission checklist
 - [Release 0 technical report](reports/release-0-technical-report.md): final report source, evidence map,
   rubric traceability, and reproducible [`41026Group20Release0Report.pdf`](reports/41026Group20Release0Report.pdf)
 - [Shared-platform design](architecture/shared-platform-design.md): living cross-release
