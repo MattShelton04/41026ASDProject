@@ -24,7 +24,9 @@ uv run python scripts/build_release0_report.py
 Ordinary PDF builds require no network, browser, model credential or Docker. They use the checked-in
 figures, retain clickable evidence links and PDF bookmarks, and produce byte-identical output for
 the same inputs and locked environment. Repository links retain URL fragments and point to the
-software evidence baseline; rebuilding the report does not refresh historical execution evidence.
+Release 0 commit reference; rebuilding the report does not refresh historical execution evidence.
+Section 5.5 explicitly links later software-review records at a separate immutable commit, without
+attributing those subsequent fixes to the Release 0 implementation.
 
 After changing a diagram, install Node.js with `npx` and refresh all figures and their manifest:
 

@@ -12,15 +12,15 @@ Assessment 1: Agentic AI Foundations, Microservices and DevOps
 |---|---|
 | Due | 6 September 2026, 11:59 pm Sydney time |
 | Repository | [MattShelton04/41026ASDProject](https://github.com/MattShelton04/41026ASDProject) |
-| Demonstration | [Watch the published group demonstration](https://drive.google.com/file/d/1L_S7Ez5-m4EHWBL7_O2PatsyJNqDDASq/view) |
+| Demonstration | [Demonstration link](https://drive.google.com/file/d/1L_S7Ez5-m4EHWBL7_O2PatsyJNqDDASq/view) |
 | Showcase | Recorded and presented in Week 6 on 4 September 2026 |
-| Software baseline | `7d5350d19023fb1e978e85127a72e3500a1556f3` |
+| Commit reference | `7d5350d19023fb1e978e85127a72e3500a1556f3` |
 
 **Five integrated features. One shared application.**
 
 Property discovery / Market intelligence / Suburb analytics / Due diligence / Buyer journey
 
-This report distinguishes implementation, retained execution evidence and remaining limitations. Repository evidence links are pinned to the software baseline above; report figures are regenerated from versioned Mermaid sources.
+This report distinguishes implementation, retained execution evidence and remaining limitations. Unless explicitly identified as later review records, repository evidence links are pinned to the Release 0 commit reference above.
 
 [[PAGEBREAK]]
 
@@ -44,12 +44,13 @@ PostgreSQL/PostGIS. Each feature retains database ownership behind its private d
 AI mode implements a durable Plan, Act, Observe and Adapt state machine with versioned planner and
 adapter prompts, schema-validated feature tools, bounded retries and human review for protected
 actions. OpenAI is the approved Release 0 provider, recorded in the registered feature scope.
-The OpenAI Responses API routes planning to GPT-5.6 Luna and adaptation to GPT-5.6 Terra.
+The OpenAI Responses API routes the implementer/planner role to GPT-5.6 Luna and the
+reviewer/adapter role to GPT-5.6 Terra; feature backends execute the resulting tool actions.
 The team selected this API for low-cost experimentation and its account's data-sharing token allowance (Section 5.1). Deterministic CRUD
 and evidence views continue to work without a model credential.
 
-The recorded demonstration and Week 6 presentation are complete. In accordance with the 30 August
-showcase clarification, the video covers the integrated application, per-feature AI paths, deployment
+The recorded demonstration and Week 6 presentation are complete. The video covers the integrated
+application, per-feature AI paths, deployment
 and CI/CD; the agent-loop execution evidence is retained in this report instead of being repeated in
 the video.
 
@@ -332,14 +333,24 @@ claims acquisition work through the backend's worker HTTP contract and is the on
 writes content-addressed source artefacts. The DB API owns request-time persistence access, while the
 separate credential-owning loader performs durable imports and accepted-generation activation. All
 three services read the artefact volume, but only the runner writes it; only PostgreSQL mounts the
-database volume. Publication remains a reviewed backend action and accepted releases are delivered
-to downstream consumers through idempotent HTTP contracts.
+database volume. These dedicated worker containers keep acquisition, loading and activation off
+browser request paths, so long-running data operations do not tie up the feature's HTTP handlers.
+
+Publication remains a human-reviewed backend action. Configured consumers receive a webhook-style
+POST containing release metadata, a manifest and an immutable artefact path. They acknowledge the
+delivery promptly with a durable operation ID, then download and validate the gzip-NDJSON data in
+their own background workflow and import it through their own database API. Feature 1 polls the
+fixed status endpoint and retains the final receipt. At this commit, a successful consumer receipt
+precedes loader activation and the atomic accepted-generation switch; the previous generation stays
+available until that workflow succeeds. Destinations are registered in code and configuration;
+Release 0 does not expose a self-service dataset subscription API. The
+[consumer guide](../../student-1/DATA_PRODUCT_CONSUMER_GUIDE.md) specifies checksum, schema,
+record-count, idempotency and recovery rules, including accepted-product discovery after downtime.
 
 ![Figure 7 Feature 1 runtime trust boundaries acquisition loading AI callbacks and publication](assets/release-0/individual-boundaries.png)
 
 The Mermaid source for every architecture, state and pipeline figure is retained under
-`docs/reports/diagrams/release-0`. The rendered PNG files are the PDF-compatible derivatives, not
-independent drawings.
+`docs/reports/diagrams/release-0`.
 
 [[PAGEBREAK]]
 
@@ -410,16 +421,16 @@ profile contains 21 services and seven named volumes.
 | Student 4 | `f4-frontend`, `f4-backend`, `f4-db-api`, `f4-postgres` | `f4-postgres-data` |
 | Student 5 | `f5-frontend`, `f5-backend`, `f5-db-api` | `f5-sqlite-data` |
 
-The canonical local deployment command is:
+The team's shared development CLI starts the integrated stack with one command (Section 6.1):
 
 ```text
 uv run scripts/dev.py stack up
 ```
 
-Compose configuration was validated on 4 September with all five features enabled. Docker Desktop
-was unavailable during the final report edit, so this report relies on the retained successful
-student workflow container jobs for runtime startup, health, seed and smoke evidence rather than
-claiming a new local Docker run.
+Compose configuration was validated on 4 September with all five features enabled. A 6 September
+`stack doctor` check again found Docker Engine unavailable. Runtime startup, health, seed and smoke
+evidence therefore comes from the retained successful student workflow container jobs; no new local
+Docker run is claimed.
 
 [[PAGEBREAK]]
 
@@ -435,9 +446,18 @@ automatically; they require a separate reviewed action.
 
 **Provider decision: OpenAI preferred; Gemini supported.** The approved [registered feature scope](../architecture/registered-feature-scope.md#document-control)
 records OpenAI with GPT-5.6 Luna and GPT-5.6 Terra. The remote-standard.v1 profile uses Luna for
-planning and Terra for adaptation through the Responses API. This is the team's settled Release 0
+implementation planning and Terra for adaptation/review through the Responses API. Feature backends
+execute tools; the reviewer model does not replace required human approval. This is the team's settled Release 0
 selection under the approved registration, and replaces the brief's example Ollama runtime. No
 feature selects a concrete model itself.
+
+Using a hosted LLM API removes the team's laptop memory and GPU limits from model selection. The
+design rationale is access to substantially more capable models than could practically run locally,
+with the potential for much faster responses on provider infrastructure. This supports more complex
+multi-step tasks and reasoning across a broader set of feature tools, while the application's
+allowlists and run budgets still control what can execute. No local-versus-API speed benchmark is
+claimed: actual response time depends on the model, generated tokens, network and tool latency, as
+described in OpenAI's [latency guidance](https://developers.openai.com/api/docs/guides/latency-optimization).
 
 The team confirms that its data-sharing opt-in provides **2.5 million complimentary tokens per day
 for its Luna/Terra use**. That account allowance makes repeated prompt refinement, bounded agent runs
@@ -530,6 +550,23 @@ instructs the model to group only independent reads.
 
 [[PAGEBREAK]]
 
+#### Run observability and reusable chat
+
+Shared AI mode exposes a read-only operations interface at `/operations/ai-mode/`. When enabled for
+trusted local development, it lists stored runs across features with filters and cursor pagination.
+Selecting a run shows ordered events, redacted evidence, model and tool timings, limits and
+request/run identifiers. Developers can trace which tools ran, what evidence they returned and where
+a run failed or requested review. The interface reads safe API projections, never the database or
+private model reasoning; its operations endpoints are absent when the flag is disabled. See the
+[AI-mode guide](../../ai-services/ai-mode/README.md#operations-dashboard).
+
+The shared chat component provides transcript rendering, polling, cancellation, accessible states
+and links to run activity. Features compose it through `createFeatureAssistant`, supplying their own
+labels, suggestions, page context and backend API routes. Their backend adapters construct the
+objective and allowed tool scope before calling AI mode, preserving feature ownership of business
+logic and tool policy. The [adoption guide](../release-0/feature-client-adoption.md) documents both
+the browser component and backend contract.
+
 ### 5.3 Prompt engineering and context management
 
 The shared prompt set is stored under `ai-services/ai-mode/src/ai_mode/prompt_assets`. Planner and
@@ -599,6 +636,13 @@ execution evidence. The repository does not retain the complete original special
 and phase-by-phase terminal log for every student. The report therefore does not claim that the
 runtime diagnosis record alone proves every software-development review requirement.
 
+AI-assisted software review continued beyond this early record. Additional findings, fixes and
+validation evidence are retained in the documentation, including the
+[repository health review](https://github.com/MattShelton04/41026ASDProject/blob/178411731f50bded9efac89419ce7370b5c54f9a/docs/reviews/repository-health-review.md)
+and the [Shared and Feature 1 review](https://github.com/MattShelton04/41026ASDProject/blob/178411731f50bded9efac89419ce7370b5c54f9a/docs/reviews/shared-feature-1-improvements-55.md).
+These 5 September records cover many further review findings and are linked at a later documentation
+commit; their subsequent fixes are not claimed as part of the Release 0 commit reference.
+
 ## 6 Implementation summary
 
 ### 6.1 Shared platform
@@ -607,6 +651,14 @@ The shared platform supplies the HTMX entry point, common design tokens, feature
 evidence views, reusable AI chat, mapping components, versioned contracts, consumer protocol,
 testkit, model registry, feature onboarding and generated deployment. The platform exposes only
 manifest-enabled routes, so placeholder folders do not appear as available features.
+
+The team also created `scripts/dev.py`, a shared CLI for recurring development workflows. It
+validates manifests and deployment projections, combines the required Compose files and handles
+runtime environment and file-secret configuration. `stack up`, `status`, `logs`, `restart`,
+`rebuild` and `down` provide a repeatable container lifecycle without reconstructing Compose flags.
+`ui serve` and `ui audit quick` support fixture-based UI work, `data collect` starts a registered
+acquisition, and `operator report` inspects publication readiness. Source quality remains under
+`uv run python scripts/check.py`. See the [scripts guide](../../scripts/README.md).
 
 ### 6.2 Feature capability and CRUD evidence
 
@@ -796,8 +848,7 @@ record because they include workflow checks and the final merge state.
 | Week 6 class presentation | Attended | Attended | Attended | Attended | Attended | Group presentation and Q and A completed 4 September 2026 |
 
 The published video is no longer than ten minutes and demonstrates the integrated product, each
-student feature's AI path, deployment and CI/CD. Agent-loop execution is documented in Section 5 in
-line with the later showcase instruction.
+student feature's AI path, deployment and CI/CD. Agent-loop execution is documented in Section 5.
 
 ## 11 Rubric traceability
 

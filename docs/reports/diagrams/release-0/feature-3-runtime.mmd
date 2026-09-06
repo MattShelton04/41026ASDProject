@@ -7,5 +7,5 @@ flowchart TB
     db -->|sole file owner| volume[("SQLite<br/>f3-suburb-data")]
     end
     back <-->|runs / tools| ai["shared-ai-mode<br/>Plan / Act / Observe / Adapt"]
-    ai -->|Responses API| model["OpenAI API<br/>Luna planner / Terra adapter"]
+    ai -->|Responses API| model["OpenAI API<br/>Luna implementer / planner<br/>Terra reviewer / adapter"]
     back -.->|public HTTP| upstream["Feature 1 public API<br/>property context<br/>accepted products"]

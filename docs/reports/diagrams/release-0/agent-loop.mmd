@@ -2,9 +2,9 @@
 flowchart TB
     queued["Queued / durable run"] --> plan["PLAN<br/>Bounded model plan"]
     plan --> ready["Ready / validate dispatch"]
-    ready -->|read-only| act["ACT<br/>Allowlisted feature HTTP tool"]
-    ready -->|protected write| review["Human review<br/>exact pending action"]
-    review -->|approved| act
+    ready -->|permitted action| act["ACT<br/>Allowlisted feature HTTP tool"]
+    ready -->|approval required| review["Human review<br/>exact pending action"]
+    review -->|approved; revalidate| ready
     act --> observe["OBSERVE<br/>Validate and persist tool evidence"]
     observe --> adapt["ADAPT<br/>Integrate evidence and choose next step"]
     adapt -->|more tools| ready

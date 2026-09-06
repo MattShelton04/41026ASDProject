@@ -5,16 +5,17 @@ flowchart TB
     students["student-1.yml … student-5.yml<br/>path-filtered feature gates"]
 
     quality["Locked workspace<br/>format · Ruff · Mypy · pytest · JS<br/>architecture · packaging · generation drift"]
-    compose["Compose config<br/>and container image builds"]
+    compose["Validate integrated<br/>Compose configuration"]
+    builds["Owned checks / browser tests<br/>and container image builds"]
     smoke["Health · fixture/seed · CRUD<br/>persistence · boundary smoke"]
     evidence["Retained successful workflow runs<br/>URL · SHA · result in Section 7"]
 
     change --> integration --> quality --> compose --> evidence
-    change --> students --> compose --> smoke --> evidence
+    change --> students --> builds --> smoke --> evidence
 
     classDef trigger fill:#faf2e4,stroke:#a67c00,color:#111827;
     classDef gate fill:#eff6f6,stroke:#6b969b,color:#111827;
     classDef proof fill:#d9ead3,stroke:#548235,color:#111827;
     class change trigger;
-    class integration,students,quality,compose,smoke gate;
+    class integration,students,quality,compose,builds,smoke gate;
     class evidence proof;
