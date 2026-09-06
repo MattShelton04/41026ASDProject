@@ -8,7 +8,7 @@ limitations without treating deterministic fixtures as current official data.
 
 - [`../reports/release-0-technical-report.md`](../reports/release-0-technical-report.md): final
   assignment-aligned report source, evidence map and rubric traceability
-- [`../reports/group20.pdf`](../reports/group20.pdf): generated Canvas submission artefact
+- [`../reports/41026Group20Release0Report.pdf`](../reports/41026Group20Release0Report.pdf): generated Canvas submission artefact
 - [`feature-onboarding.md`](feature-onboarding.md): requirements and executable onboarding checks for
   an approved student vertical slice
 - [`feature-client-adoption.md`](feature-client-adoption.md): independent data-client and Shared

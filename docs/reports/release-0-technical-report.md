@@ -20,7 +20,7 @@ Assessment 1: Agentic AI Foundations, Microservices and DevOps
 
 Property discovery / Market intelligence / Suburb analytics / Due diligence / Buyer journey
 
-This report distinguishes implementation, retained execution evidence and remaining limitations. Unless explicitly identified as later review records, repository evidence links are pinned to the Release 0 commit reference above.
+This report distinguishes implementation, retained execution evidence and remaining limitations. Unless explicitly identified as later review or execution records, repository evidence links are pinned to the Release 0 commit reference above.
 
 [[PAGEBREAK]]
 
@@ -427,10 +427,10 @@ The team's shared development CLI starts the integrated stack with one command (
 uv run scripts/dev.py stack up
 ```
 
-Compose configuration was validated on 4 September with all five features enabled. A 6 September
-`stack doctor` check again found Docker Engine unavailable. Runtime startup, health, seed and smoke
-evidence therefore comes from the retained successful student workflow container jobs; no new local
-Docker run is claimed.
+Compose configuration was validated on 4 September with all five features enabled. On 6 September,
+the exact Release 0 commit was rebuilt and started locally as an isolated 21-service stack. All
+19 configured healthchecks passed and both background workers were running. Section 8.2 retains
+the status and fixture execution extracts alongside the existing student workflow evidence.
 
 [[PAGEBREAK]]
 
@@ -756,6 +756,66 @@ internet access.
 | Persistence | Migration tests prove idempotency; Student 5 restarts without deleting its volume and checks created and deleted state |
 | Docker Compose | Every student workflow builds its images; the generated all-feature profile validates to 21 services |
 
+[[PAGEBREAK]]
+
+#### Local all-feature Compose execution / 6 September 2026
+
+A clean detached checkout of `7d5350d` was run on Windows with Docker Engine 29.2.1 and Compose
+5.0.2. The isolated project `ps-release0-evidence` used seven fresh named volumes and the three
+unchanged versioned Compose files. These dev-helper commands all exited successfully:
+
+```text
+uv run scripts/dev.py stack up --offline --build
+uv run scripts/dev.py stack status
+uv run scripts/dev.py data collect fixture-property
+```
+
+At 11:56:55 Sydney time, all 21 services were running simultaneously. The status extract preserves
+the service, state and health columns; the runner and loader have no Docker healthcheck, so their
+health cells are empty. The other 19 services reported healthy.
+
+```text
+SERVICE              STATE    HEALTH
+f1-backend           running  healthy
+f1-db-api            running  healthy
+f1-db-loader         running
+f1-frontend          running  healthy
+f1-postgres          running  healthy
+f1-runner            running
+f2-backend           running  healthy
+f2-db-api            running  healthy
+f2-frontend          running  healthy
+f3-backend           running  healthy
+f3-database          running  healthy
+f3-frontend          running  healthy
+f4-backend           running  healthy
+f4-db-api            running  healthy
+f4-frontend          running  healthy
+f4-postgres          running  healthy
+f5-backend           running  healthy
+f5-db-api            running  healthy
+f5-frontend          running  healthy
+shared-ai-mode       running  healthy
+shared-frontend      running  healthy
+```
+
+The fixture collection exercised the control API, acquisition runner, loader and persisted candidate.
+Selected exact dev-helper output:
+
+```text
+Collection run queued: dba21177-a26c-41b2-af5f-2b5f3b143041
+Collection run dba21177-a26c-41b2-af5f-2b5f3b143041: staging
+Collection run dba21177-a26c-41b2-af5f-2b5f3b143041: succeeded
+Candidate release ready: a5ac859d-322a-4d7e-9850-905723a82fc2 (candidate, 10 records).
+```
+
+The shared home, all five feature entrypoints and `/operations/ai-mode/` also returned HTTP 200.
+The [retained execution record](https://github.com/MattShelton04/41026ASDProject/blob/79d7da2354245c72dcc971f61614d1cf78e4de5d/docs/reports/evidence/release-0-compose-2026-09-06.md)
+includes startup output and timestamped access logs. This later capture runs the original software
+commit in offline provider mode; it does not publish the candidate or claim a new live-model run.
+
+[[PAGEBREAK]]
+
 ### 8.3 Non functional testing
 
 | Quality characteristic | Test or measure | Result and limit |
@@ -797,7 +857,6 @@ publisher facts.
 | Feature 5 queries only bounded candidate pages from Features 2 and 4 | A matching record outside the first 25 can appear unavailable |
 | Feature-specific live AI evidence is uneven | Feature 1 has durable run IDs and Feature 4 records a live evaluation; Features 2, 3 and 5 rely mainly on deterministic tool and degradation tests |
 | Original software-review prompts and terminal phase logs are incomplete | Section 5.5 retains the historical AI-assisted review, but a per-student development-loop transcript is not present |
-| No final local all-feature Docker execution log is retained | Per-feature CI stack runs and all-feature Compose validation are available; they do not prove one simultaneous local startup |
 | No common percentile endpoint benchmark | Source-scale operations are measured, but ordinary feature endpoint latency is not reported as one cross-feature SLA |
 
 These limitations preserve the distinction between implemented behaviour, deterministic fixture
@@ -860,7 +919,7 @@ student feature's AI path, deployment and CI/CD. Agent-loop execution is documen
 | 4 Agentic AI Workflow | Sections 5.2, 5.4 and 5.5 | Agent core state machine, evaluation record and retained run IDs | Runtime implemented; development-review log gap disclosed |
 | 5 Prompt Engineering and Context | Section 5.3 | Versioned shared prompts and feature objectives and schemas | Strong, feature assets are split between templates and routes |
 | 6 DevOps and GitHub Actions | Section 7 | Five student workflows and Integration CI | Strong |
-| 7 Docker Compose Integration | Sections 4.3 and 8.2 | One 21-service profile and successful feature stack jobs | Strong; no final local Docker rerun |
+| 7 Docker Compose Integration | Sections 4.3 and 8.2 | Local 21-service startup, status and fixture logs plus successful feature stack jobs | Strong; simultaneous local execution retained |
 | 8 Working Software | Section 6 | CRUD tests, feature smokes, seeds and presentation | Strong |
 | 9 Technical Report | Sections 1 to 11 | Five individual architectures and ERDs; tests, screenshots, logs and contributions | Covered; evidence gaps disclosed in Section 9 |
 | 10 Project Demonstration | Section 10.3 and cover link | Published recording and completed Week 6 presentation | Complete when URL access is verified |
@@ -906,8 +965,3 @@ To regenerate this report from a clean checkout:
 uv sync --locked --all-packages --all-groups
 uv run python scripts/build_release0_report.py
 ```
-
-When Mermaid sources change, install Node.js and run the builder with --render-diagrams.
-The pinned renderer refreshes PNGs and their content-hash manifest before generating the PDF.
-Normal builds use those checked-in assets offline and reject stale figures. Review the rendered
-pages after changing Markdown, figures or layout; a successful build alone is not a visual check.

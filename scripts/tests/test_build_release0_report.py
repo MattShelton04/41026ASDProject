@@ -13,6 +13,20 @@ from scripts import build_release0_report as report
 BASELINE = "7d5350d19023fb1e978e85127a72e3500a1556f3"
 
 
+def test_default_output_uses_submission_filename(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[Path, Path, str]] = []
+    monkeypatch.setattr(report, "build", lambda *args: calls.append(args))
+
+    assert report.main([]) == 0
+    assert calls == [
+        (
+            report.REPORT_DIR / "release-0-technical-report.md",
+            report.REPORT_DIR / "41026Group20Release0Report.pdf",
+            BASELINE,
+        )
+    ]
+
+
 def test_evidence_links_preserve_pinned_ref_and_section() -> None:
     source = report.REPORT_DIR / "release-0-technical-report.md"
     url = report._resolve_link(
