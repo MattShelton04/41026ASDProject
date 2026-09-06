@@ -620,7 +620,9 @@ def build(source: Path, output: Path, baseline: str) -> None:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, default=REPORT_DIR / "release-0-technical-report.md")
-    parser.add_argument("--output", type=Path, default=REPORT_DIR / "group20.pdf")
+    parser.add_argument(
+        "--output", type=Path, default=REPORT_DIR / "41026Group20Release0Report.pdf"
+    )
     parser.add_argument("--baseline", default="7d5350d19023fb1e978e85127a72e3500a1556f3")
     parser.add_argument(
         "--render-diagrams",
