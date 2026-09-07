@@ -228,7 +228,8 @@ async function renderRoute({ focus = false } = {}) {
   const requestedHash = location.hash;
   const { route, id } = parseRoute(requestedHash); setActiveNavigation(route); view.setAttribute("aria-busy", "true");
   const researchMode = ["properties", "assistant"].includes(route);
-  view.dataset.density = researchMode ? "comfortable" : "compact";
+  view.dataset.density = route === "properties" ? "comfortable" : "compact";
+  if (researchMode) view.dataset.density = "comfortable";
   document.body.dataset.workspaceMode = researchMode ? "research" : "operations";
   const contextLabel = document.querySelector("[data-workspace-context]");
   if (contextLabel) contextLabel.textContent = researchMode ? "Property research" : "Data operations";
