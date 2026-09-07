@@ -923,7 +923,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             print(render_operator_report(report), flush=True)
         elif command == ("ai", "start"):
-            if not ai_runtime.STATE_PATH.exists():
+            if not ai_runtime.STATE_PATH.exists() and ai_runtime.selection() != "host":
                 raise RuntimeError(
                     "Run stack up first to establish AI placement and backend routing"
                 )

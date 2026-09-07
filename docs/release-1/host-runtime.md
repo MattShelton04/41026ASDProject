@@ -41,6 +41,12 @@ routing. AI history and RAG state remain in their existing owner directories. `a
 `ai stop`, `ai status` and `ai logs` follow the selected placement. `PROPERTYSCOPE_AI_RUNTIME`
 can also explicitly select `docker` or `host`; avoid a stale shell override when switching.
 
+Isolated integrations such as Student 5 CI may set `PROPERTYSCOPE_AI_RUNTIME=host` and run
+`ai start --mode direct --offline` on a fresh checkout before launching their own feature
+containers. This records host placement without starting the full application. Fresh Docker
+placement still requires `stack up` first; changing an existing placement requires the integrated
+switch command above. MCP and RAG remain disabled in CI.
+
 Frontend source edits need a browser refresh. Feature HTTP services reload; AI workers in either
 placement require an explicit stop/start after Python source edits. Host status checks process
 ownership; Docker status reports the selected containers. Service liveness and

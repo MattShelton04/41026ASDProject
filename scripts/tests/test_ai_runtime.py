@@ -225,7 +225,7 @@ def lifecycle(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
     monkeypatch.setattr(
         dev, "_resolved_host_ports", lambda _services: {"shared-frontend": ("port", 5100)}
     )
-    monkeypatch.setattr(host_runtime, "stop", lambda: calls.append(("host-stop",)))
+    monkeypatch.setattr(host_runtime, "stop", lambda *_args: calls.append(("host-stop",)))
     monkeypatch.setattr(
         host_runtime, "start", lambda *_args, **_kwargs: calls.append(("host-start",))
     )
@@ -336,6 +336,31 @@ def test_ai_start_requires_established_backend_routing(
     assert "Run stack up first" in capsys.readouterr().err
     assert lifecycle == []
     assert not ai_runtime.STATE_PATH.exists()
+
+
+def test_student5_ci_can_bootstrap_explicit_host_mode_without_full_stack(
+    lifecycle: list[tuple[str, ...]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = yaml.safe_load(
+        (ai_runtime.REPOSITORY_ROOT / ".github/workflows/student-5.yml").read_text(encoding="utf-8")
+    )
+    assert workflow["env"]["PROPERTYSCOPE_AI_RUNTIME"] == "host"
+    for key, value in workflow["env"].items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("CI", "true")
+    modes: list[str] = []
+    monkeypatch.setattr(host_runtime, "start", lambda _environment, *, mode: modes.append(mode))
+
+    assert not ai_runtime.STATE_PATH.exists()
+    assert dev.main(["ai", "start", "--mode", "direct", "--offline"]) == 0
+    assert modes == ["direct"]
+    assert ("migrate",) in lifecycle
+    assert not any("docker" in call for call in lifecycle)
+    assert ai_runtime.selection({}) == "host"
+    assert ai_runtime.capability_mode() == "direct"
+    assert dev.main(["ai", "stop"]) == 0
+    assert lifecycle[-1] == ("host-stop",)
 
 
 def test_ai_start_offline_forces_direct_and_preserves_legacy_migration(
