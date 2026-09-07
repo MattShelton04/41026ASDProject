@@ -98,6 +98,7 @@ function renderState(state, heading, detail, retry = false) {
   view.innerHTML = `<div class="state-panel" data-state="${state}">
     <p class="ps-eyebrow">${escapeHtml(state.toUpperCase())}</p>
     <h2>${escapeHtml(heading)}</h2><p>${escapeHtml(detail)}</p>
+    ${state === "loading" ? '<div class="ps-skeleton-lines" aria-hidden="true"><span class="ps-skeleton"></span><span class="ps-skeleton"></span><span class="ps-skeleton"></span></div>' : ""}
     ${retry ? '<button class="ps-button" type="button" data-retry>Try again</button>' : ""}
   </div>`;
   view.querySelector("[data-retry]")?.addEventListener("click", () => route(false));
@@ -146,7 +147,7 @@ export function renderPropertyItems(items) {
   if (!items.length) return '<p class="empty-inline">No shortlisted properties yet.</p>';
   return items.map((property) => `<article class="workspace-item" data-property-id="${escapeHtml(property.id)}">
     <div><h4>${escapeHtml(property.property_label || property.property_ref)}</h4>
-    <p class="item-reference">${escapeHtml(property.property_ref)}</p></div>
+    <details class="item-reference"><summary>Property reference</summary><code>${escapeHtml(property.property_ref)}</code></details></div>
     <ul class="case-meta"><li class="ps-badge">${escapeHtml(property.journey_stage)}</li><li class="ps-badge">${escapeHtml(property.priority)} priority</li><li class="ps-badge">${property.rating == null ? "Not rated" : `${property.rating}/5`}</li><li class="ps-badge">${escapeHtml(property.property_validation_state)}</li></ul>
     <div class="item-actions"><button class="ps-button" type="button" data-edit-property="${escapeHtml(property.id)}">Edit journey</button><button class="ps-button ps-button--danger" type="button" data-delete-property="${escapeHtml(property.id)}">Remove</button></div>
   </article>`).join("");
@@ -187,16 +188,14 @@ export function renderEvidence(value) {
     const section = sections[key] || { state: "unavailable", items: [], limitations: [] };
     const items = Array.isArray(section.items) ? section.items : [];
     const limitations = Array.isArray(section.limitations) ? section.limitations : [];
-    const visibleLimitations = limitations.filter((item) => !(
-      key === "feature_3" && item === "Feature 3 has no available Release 0 public API."
-    ));
+    const visibleLimitations = limitations.map((item) => key === "feature_3" && item === "Feature 3 has no available Release 0 public API." ? "No suburb evidence was returned to this buyer case." : item);
     return `<article class="evidence-card"><header><h4>${escapeHtml(title)}</h4><span class="ps-badge evidence-${escapeHtml(section.state)}">${escapeHtml(evidenceStateLabel(section.state))}</span></header>
-      ${items.length ? `<ul>${items.map((item) => `<li><code>${escapeHtml(item.property_ref || "Unknown property")}</code>: ${escapeHtml(evidenceStateLabel(item.state))}${item.address_display ? `: ${escapeHtml(item.address_display)}` : ""}</li>`).join("")}</ul>` : "<p>No evidence records returned.</p>"}
+      ${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item.address_display || item.property_ref || "Unknown property")} · ${escapeHtml(evidenceStateLabel(item.state))}</li>`).join("")}</ul>` : "<p>No evidence records returned.</p>"}
       ${visibleLimitations.map((item) => `<p class="item-reference">${escapeHtml(item)}</p>`).join("")}</article>`;
   }).join("");
   const limitations = Array.isArray(value?.limitations) ? value.limitations : [];
   const references = Array.isArray(value?.evidence_references) ? value.evidence_references : [];
-  return `${cards}<div class="evidence-references"><h4>Evidence references</h4>${references.length ? `<ul>${references.map((item) => `<li><code>${escapeHtml(item)}</code></li>`).join("")}</ul>` : "<p>No evidence references available.</p>"}</div>
+  return `${cards}<details class="evidence-references"><summary>Evidence references</summary>${references.length ? `<ul>${references.map((item) => `<li><code>${escapeHtml(item)}</code></li>`).join("")}</ul>` : "<p>No evidence references available.</p>"}</details>
     <div class="evidence-limitations"><h4>Evidence limitations</h4><ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
 }
 
@@ -221,16 +220,20 @@ export function summaryWorkflowView(run) {
       : "The case summary could not be generated.";
   }
 
+  if (status === "cancelled") statusText = "Case summary cancelled. Your saved case is unchanged.";
+  if (["review_required", "waiting_for_review"].includes(status)) statusText = "The workflow requires human review; no final summary is available.";
   return { statusText };
 }
 
 export function renderSummaryRun(run, workflowView = summaryWorkflowView(run)) {
+  const phases = Array.isArray(run?.phases) ? run.phases : [];
   const actions = Array.isArray(run?.suggested_next_actions) ? run.suggested_next_actions : [];
   const evidenceUsed = Array.isArray(run?.evidence_used) ? run.evidence_used : [];
   const references = Array.isArray(run?.evidence_references) ? run.evidence_references : [];
   const limitations = Array.isArray(run?.limitations) ? run.limitations : [];
   if (!run?.status) return `<p class="workflow-status" role="status" aria-live="polite" data-workflow-status>${escapeHtml(workflowView.statusText)}</p>`;
   return `<p class="workflow-status" role="status" aria-live="polite" data-workflow-status>${escapeHtml(workflowView.statusText)}</p>
+    ${phases.length ? `<ol class="workflow-phases" aria-label="Recorded workflow phases">${phases.map(phase => `<li><strong>${escapeHtml(workflowPhaseLabel(phase.name))}</strong><span>${escapeHtml(workflowPhaseLabel(phase.status))}</span></li>`).join("")}</ol>` : ""}
     ${run?.summary ? `<h4>Case summary</h4><p>${escapeHtml(run.summary)}</p>` : `<p>${run?.error ? escapeHtml(run.error) : "Summary generation is in progress."}</p>`}
     <h4>Suggested next actions</h4>${actions.length ? `<ol>${actions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : "<p>No suggested actions yet.</p>"}
     <h4>Evidence used</h4>${evidenceUsed.length ? `<ul>${evidenceUsed.map((item) => `<li><strong>${escapeHtml(item?.label || "Evidence source")}</strong>: ${escapeHtml(item?.status || "Unavailable")}${item?.detail ? `; ${escapeHtml(item.detail)}` : ""}</li>`).join("")}</ul>` : "<p>No evidence summary is available. Review the bounded evidence above.</p>"}
@@ -238,8 +241,24 @@ export function renderSummaryRun(run, workflowView = summaryWorkflowView(run)) {
     <h4>Limitations</h4>${limitations.length ? `<ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "<p>No additional AI limitations reported.</p>"}`;
 }
 
-function updateSummaryRegion(target, run) {
-  target.innerHTML = renderSummaryRun(run);
+const summaryMarkup = new WeakMap();
+export function updateSummaryRegion(target, run) {
+  const markup = renderSummaryRun(run);
+  if (summaryMarkup.get(target) === markup) return;
+  const audit = target.querySelector(".technical-audit");
+  const open = Boolean(audit?.open);
+  const restoreFocus = audit?.contains(target.ownerDocument?.activeElement);
+  const before = restoreFocus ? audit.getBoundingClientRect().top : null;
+  target.innerHTML = markup;
+  summaryMarkup.set(target, markup);
+  const updated = target.querySelector(".technical-audit");
+  if (updated) {
+    updated.open = open;
+    if (restoreFocus) {
+      updated.querySelector("summary")?.focus({ preventScroll: true });
+      globalThis.scrollBy?.(0, updated.getBoundingClientRect().top - before);
+    }
+  }
 }
 
 function renderDetail(item) {
@@ -267,11 +286,18 @@ function renderDetail(item) {
       <div class="detail-actions"><button class="ps-button" type="button" data-edit>Edit case</button>
       <button class="ps-button ps-button--danger" type="button" data-delete>Delete case</button></div>
     </article>
+    <nav class="workspace-jumps" aria-label="Within this buyer case">${[["properties", "Shortlist"], ["tasks", "Tasks"], ["notes", "Notes"], ["evidence", "Evidence"], ["summary", "AI summary"]].map(([id, label]) => `<button type="button" data-jump="${id}-heading">${label}</button>`).join("")}</nav>
     <section class="workspace-section" aria-labelledby="properties-heading"><header><div><p class="ps-eyebrow">SHORTLIST</p><h3 id="properties-heading">Properties</h3></div><button class="ps-button ps-button--primary" type="button" data-add-property>Add property</button></header><div class="workspace-items">${renderPropertyItems(properties)}</div></section>
-    <section class="workspace-section" aria-labelledby="notes-heading"><header><div><p class="ps-eyebrow">OBSERVATIONS</p><h3 id="notes-heading">Notes</h3></div><button class="ps-button ps-button--primary" type="button" data-add-note>Add note</button></header><div class="workspace-items">${renderNoteItems(notes, propertyName)}</div></section>
     <section class="workspace-section" aria-labelledby="tasks-heading"><header><div><p class="ps-eyebrow">NEXT STEPS</p><h3 id="tasks-heading">Tasks</h3></div><button class="ps-button ps-button--primary" type="button" data-add-task>Add task</button></header><div class="workspace-items">${renderTaskItems(tasks, propertyName)}</div></section>
+    <section class="workspace-section" aria-labelledby="notes-heading"><header><div><p class="ps-eyebrow">OBSERVATIONS</p><h3 id="notes-heading">Notes</h3></div><button class="ps-button ps-button--primary" type="button" data-add-note>Add note</button></header><div class="workspace-items">${renderNoteItems(notes, propertyName)}</div></section>
     <section class="workspace-section" aria-labelledby="evidence-heading"><header><div><p class="ps-eyebrow">CROSS-FEATURE EVIDENCE</p><h3 id="evidence-heading">Bounded evidence</h3></div><button class="ps-button" type="button" data-refresh-evidence>Refresh evidence</button></header><div data-evidence aria-live="polite"><p>Loading evidence…</p></div></section>
     <section class="workspace-section" aria-labelledby="summary-heading"><header><div><p class="ps-eyebrow">AI ASSISTANCE</p><h3 id="summary-heading">Buyer case summary</h3></div><button class="ps-button ps-button--primary" type="button" data-generate-summary>Generate case summary</button></header><p class="item-reference">AI output is advisory. Confirm evidence and important decisions yourself.</p><div data-summary-run>${renderSummaryRun(null)}</div></section>`;
+  view.querySelectorAll("[data-jump]").forEach(button => button.addEventListener("click", () => {
+    const heading = view.querySelector(`#${button.dataset.jump}`);
+    if (!heading) return;
+    heading.tabIndex = -1;
+    heading.scrollIntoView({block: "start"}); heading.focus({preventScroll: true});
+  }));
   view.querySelector("[data-edit]")?.addEventListener("click", () => openCaseForm(item));
   view.querySelector("[data-delete]")?.addEventListener("click", () => openDeleteDialog(`buyer case “${item.name}”`, () => api.delete(item.id), "#buyer-cases"));
   view.querySelector("[data-add-property]")?.addEventListener("click", () => openPropertyForm());
@@ -301,12 +327,19 @@ async function loadEvidence(caseId) {
   const task = evidenceTask.start();
   const target = document.querySelector("[data-evidence]");
   if (!target) return;
-  target.innerHTML = "<p>Loading bounded evidence…</p>";
+  target.setAttribute("aria-busy", "true");
+  if (!target.querySelector(".evidence-card")) target.innerHTML = "<p>Loading bounded evidence…</p>";
+  showNotice("Refreshing evidence. Any existing evidence remains the last retrieved result.", "info");
   try {
     const value = await api.evidence(caseId, {signal: task.signal});
-    if (task.isCurrent() && target.isConnected && currentCase?.id === caseId) target.innerHTML = renderEvidence(value);
+    if (task.isCurrent() && target.isConnected && currentCase?.id === caseId) { target.innerHTML = renderEvidence(value); showNotice("Evidence refreshed. Review each source’s coverage and limitations.", "info"); }
   } catch (error) {
-    if (task.isCurrent() && target.isConnected && currentCase?.id === caseId) target.innerHTML = '<div data-state="unavailable"><p>Evidence services are unavailable. Buyer-case editing is still available.</p></div>';
+    if (task.isCurrent() && target.isConnected && currentCase?.id === caseId) {
+      showNotice("Evidence could not be refreshed. Any existing evidence is the last retrieved result. Buyer-case editing remains available.", "error");
+      if (!target.querySelector(".evidence-card")) target.innerHTML = '<div data-state="unavailable"><p>No evidence could be retrieved. Use Refresh evidence to try again.</p></div>';
+    }
+  } finally {
+    if (task.isCurrent()) target.setAttribute("aria-busy", "false");
   }
 }
 
@@ -324,11 +357,11 @@ async function generateSummary(caseId) {
     if (!isCurrent()) return;
     updateSummaryRegion(target, initial);
     await pollUntilSettled((signal) => api.summaries.read(caseId, initial.id, {signal}), {
-      task, initial, isSettled: (run) => ["succeeded", "failed", "cancelled", "timed_out", "waiting_for_review"].includes(run.status),
+      task, initial, isSettled: (run) => ["succeeded", "failed", "cancelled", "timed_out", "waiting_for_review", "review_required"].includes(run.status),
       onUpdate: (run) => { if (isCurrent()) updateSummaryRegion(target, run); },
     });
   } catch (error) {
-    if (isCurrent()) target.textContent = error.message + " Your buyer case is unchanged. Open AI activity for the durable run status.";
+    if (isCurrent()) target.textContent = error.message + " Your saved buyer case is unchanged. A workflow may still be active; do not assume this network error cancelled it.";
   } finally {
     if (isCurrent()) button.disabled = false;
   }

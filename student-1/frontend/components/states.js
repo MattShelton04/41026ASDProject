@@ -5,11 +5,16 @@ export function renderLoading(view, title = "Loading evidence") {
   view.replaceChildren();
   const section = el("section", "loading-state");
   section.setAttribute("role", "status");
+  section.setAttribute("aria-busy", "true");
   section.setAttribute("aria-live", "polite");
   const box = el("div");
   const spinner = el("div", "spinner");
   spinner.setAttribute("aria-hidden", "true");
   append(box, spinner, el("h2", "", title), el("p", "", "Loading the latest available information…"));
+  const skeleton = el("div", "ps-skeleton-lines");
+  skeleton.setAttribute("aria-hidden", "true");
+  append(skeleton, el("span", "ps-skeleton"), el("span", "ps-skeleton"), el("span", "ps-skeleton"));
+  append(box, skeleton);
   append(section, box);
   append(view, section);
 }

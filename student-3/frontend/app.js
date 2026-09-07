@@ -1,5 +1,5 @@
 import { trendPath } from "./trend.js";
-import { escapeHtml, requestJsonResponse } from "./browser/index.js";
+import { escapeHtml, requestJsonResponse, createLatestTask } from "./browser/index.js";
 import { createMap, createOpenFreeMapProvider, featureCollection, pointFeature } from "./mapping/index.js";
 import { createFeatureAssistant } from "./ai-chat/index.js";
 
@@ -10,6 +10,8 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 let suburbSelection = 0;
 let suburbFilterGeneration = 0;
 let suburbSearchTimer;
+const trendTask = createLatestTask();
+let comparisonSaving = false;
 const BOOKMARK_KEY = "propertyscope.suburb-analytics.bookmarks.v1";
 let bookmarks = [];
 
@@ -80,7 +82,11 @@ function chooseSuburb(locality) {
   return selectSuburb(locality).catch((error) => {
     if (state.selectedLocality !== locality) return;
     announce(`Could not load ${locality}: ${error.message}`);
-    toast(`Could not load ${locality}. Please try again.`);
+    const detail = $("#suburb-detail");
+    detail.hidden = false;
+    detail.setAttribute("aria-busy", "false");
+    detail.innerHTML = `<div class="suburb-detail__body" role="alert"><h3>Could not load ${escapeHtml(locality)}</h3><p>${escapeHtml(error.message)}</p><button class="ps-button" type="button" data-retry-suburb>Try again</button></div>`;
+    detail.querySelector("[data-retry-suburb]").onclick = () => chooseSuburb(locality);
   });
 }
 
@@ -96,6 +102,7 @@ function toast(message) { clearTimeout(toastTimer); const node = $("#toast"); no
 function route() {
   const requested = location.hash.slice(1) || "explore";
   const selected = ["explore", "trends", "published", "comparisons", "assistant"].includes(requested) ? requested : "explore";
+  $(".hero").hidden = selected === "assistant";
   $$("[data-view]").forEach((view) => { view.hidden = view.dataset.view !== selected; });
   $$("[data-route]").forEach((link) => link.setAttribute("aria-current", link.dataset.route === selected ? "page" : "false"));
   if (selected === "comparisons") loadComparisons();
@@ -135,8 +142,8 @@ async function initialiseMap() {
   const suburbPoints = suburbFeatures(state.suburbs);
   try {
     state.map = await createMap({ container: $("#map"), provider: createOpenFreeMapProvider(), layers: [
-      { id: "suburbs", label: "Supported suburbs", kind: "point", data: suburbPoints, style: { color: "#086d70", radius: 7 }, onSelect: (feature) => chooseSuburb(feature.properties.name) },
-      { id: "places", label: "Filtered places", kind: "point", data: featureCollection([]), style: { color: "#d67359", radius: 6 }, popup: { title: "name", fields: [{ label: "Type", property: "type" }] } },
+      { id: "suburbs", label: "Supported suburbs", kind: "point", data: suburbPoints, style: { color: getComputedStyle(document.documentElement).getPropertyValue("--ps-ocean-700").trim(), radius: 7 }, onSelect: (feature) => chooseSuburb(feature.properties.name) },
+      { id: "places", label: "Filtered places", kind: "point", data: featureCollection([]), style: { color: getComputedStyle(document.documentElement).getPropertyValue("--ps-coral-700").trim(), radius: 6 }, popup: { title: "name", fields: [{ label: "Type", property: "type" }] } },
     ], view: { center: [151.12, -33.88], zoom: 9 } });
     $("#map-legend").innerHTML = `<span>● Supported suburb</span><span>◆ Place</span>`;
   } catch (error) {
@@ -151,7 +158,9 @@ async function selectSuburb(locality) {
   const selection = ++suburbSelection;
   state.selectedLocality = locality;
   state.places = [];
-  $("#suburb-detail").hidden = true;
+  $("#suburb-detail").hidden = false;
+  $("#suburb-detail").setAttribute("aria-busy", "true");
+  $("#suburb-detail").innerHTML = `<div class="suburb-detail__body"><h3>Loading ${escapeHtml(locality)}</h3><p role="status">Reading the available suburb and amenity evidence…</p><div class="ps-skeleton-lines" aria-hidden="true"><span class="ps-skeleton"></span><span class="ps-skeleton"></span></div></div>`;
   state.map?.setLayerData("places", featureCollection([]));
   state.map?.flyTo({ longitude: suburb.longitude, latitude: suburb.latitude, zoom: 14 });
   announce(`Loading amenities for ${locality}…`);
@@ -182,13 +191,14 @@ async function selectSuburb(locality) {
 
 function renderSuburbDetail(suburb, metrics) {
   const values = [
-    [Number(suburb.population).toLocaleString("en-AU"), "Fixture population"],
+    [Number.isFinite(suburb.population) ? suburb.population.toLocaleString("en-AU") : "Not available", "Fixture population"],
     [`${suburb.area_km2} km²`, "Recorded area"],
     [metrics.density?.value?.toLocaleString?.("en-AU") ?? "—", metrics.density?.unit || "Population density"],
-    [`${metrics.amenities?.value ?? 0}`, "Mapped amenity observations"],
+    [`${metrics.amenities?.value ?? "Not available"}`, "Mapped amenity observations"],
   ];
   const detail = $("#suburb-detail");
   detail.hidden = false;
+  detail.setAttribute("aria-busy", "false");
   detail.innerHTML = `<div class="suburb-detail__body"><div class="suburb-detail__heading"><div><p class="ps-eyebrow">Selected suburb</p><h3>${escapeHtml(suburb.locality)} · ${escapeHtml(suburb.postcode)}</h3><p>${escapeHtml(suburb.description)}</p></div><button class="ps-button ps-button--small" data-compare-locality="${escapeHtml(suburb.locality)}">Use in comparison</button></div><div class="context-grid">${values.map(([value, label]) => `<article class="context-metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div><div class="evidence-strip"><span class="ps-badge ps-badge--partial">${escapeHtml(suburb.coverage_status)} coverage</span><span>Source release ${escapeHtml(suburb.source_release)}</span><span>Observed ${escapeHtml(suburb.observed_at.slice(0, 10))}</span><span>${metrics.schools?.value ?? 0} school and ${metrics.transport?.value ?? 0} transport observations; no catchment claim</span></div></div>`;
   detail.querySelector("[data-compare-locality]").addEventListener("click", () => {
     $("#locality-a").value = suburb.locality;
@@ -242,14 +252,29 @@ async function filterSuburbs(query = $("#search").value.trim()) {
 async function compareTrends(event) {
   event?.preventDefault();
   const values = { a: $("#locality-a").value, b: $("#locality-b").value, from: $("#from-month").value, to: $("#to-month").value, measure: $("#measure").value, offence: $("#offence").value };
-  if (values.a === values.b) { $("#trend-notice").textContent = "Choose two different suburbs."; return; }
+  const task = trendTask.start();
+  const notice = $("#trend-notice");
+  const chart = $(".chart-card");
+  chart.setAttribute("aria-busy", "false");
+  if (!values.a || !values.b || values.a === values.b) { notice.textContent = "Choose two different supported suburbs."; return; }
+  if (!values.from || !values.to || values.from > values.to) { notice.textContent = "Choose a valid period with the start month before the end month."; $("#from-month").focus(); return; }
+  chart.setAttribute("aria-busy", "true");
+  notice.textContent = "Loading the requested comparison. Any chart still visible is the previously applied result.";
   try {
-    const payload = await api(`/crime/compare?localities=${encodeURIComponent(values.a + "," + values.b)}&from=${values.from}&to=${values.to}&measure=${values.measure}&offence=${values.offence}`);
-    renderTrend(payload); $("#trend-notice").textContent = payload.limitations.join(" ");
-  } catch (error) { $("#trend-notice").textContent = error.message; }
+    const payload = await api(`/crime/compare?localities=${encodeURIComponent(values.a + "," + values.b)}&from=${values.from}&to=${values.to}&measure=${values.measure}&offence=${values.offence}`, { signal: task.signal });
+    if (!task.isCurrent()) return;
+    if (!Array.isArray(payload.series) || payload.series.length < 2) throw new Error("The service did not return both requested suburb series.");
+    renderTrend(payload);
+    notice.textContent = `${values.a} and ${values.b} · ${values.from} to ${values.to}. ${(payload.limitations || []).join(" ")}`;
+  } catch (error) {
+    if (task.isCurrent()) notice.textContent = `${error.message} Any chart still shown is the previous result, not the requested comparison. Retry with Compare trends.`;
+  } finally {
+    if (task.isCurrent()) chart.setAttribute("aria-busy", "false");
+  }
 }
 
 function renderTrend(payload) {
+  $("#chart-legend").innerHTML = payload.series.map((series, index) => `<span><i class="legend-line legend-line--${index ? "b" : "a"}" aria-hidden="true"></i>${escapeHtml(series.locality)} · ${index ? "dashed" : "solid"} line</span>`).join("");
   const all = payload.series.flatMap((series) => series.items.map((item) => item.value).filter(Number.isFinite));
   const maximum = Math.max(...all, 1); const months = [...new Set(payload.series.flatMap((series) => series.items.map((item) => item.month)))].sort();
   const sourceUnit = payload.series.flatMap((series) => series.items).find((item) => item.unit)?.unit;
@@ -304,14 +329,21 @@ function loadComparison(item) {
 function openDialog(item = null) {
   $("#dialog-title").textContent = item ? "Edit comparison" : "New comparison"; $("#comparison-id").value = item?.id || ""; $("#comparison-version").value = item?.version ?? "";
   $("#comparison-name").value = item?.name || ""; $("#comparison-a").innerHTML = optionMarkup(item?.localities?.[0]); $("#comparison-b").innerHTML = optionMarkup(item?.localities?.[1] || state.suburbs[1]?.locality);
-  $("#comparison-from").value = item?.from_month || "2026-01"; $("#comparison-to").value = item?.to_month || "2026-06"; $("#comparison-measure").value = item?.measure || "count"; $("#comparison-status").value = item?.status || "saved"; $("#comparison-notes").value = item?.notes || ""; $("#form-error").textContent = ""; $("#comparison-dialog").showModal();
+  $("#comparison-from").value = item?.from_month || "2026-01"; $("#comparison-to").value = item?.to_month || "2026-06"; $("#comparison-measure").value = item?.measure || "count"; $("#comparison-status").value = item?.status || "saved"; $("#comparison-notes").value = item?.notes || ""; $("#form-error").textContent = ""; $("#comparison-dialog").showModal(); $("#comparison-name").focus();
 }
 
 async function saveComparison(event) {
   event.preventDefault(); if (event.submitter?.value !== "save") { $("#comparison-dialog").close(); return; }
+  if (comparisonSaving) return;
   const id = $("#comparison-id").value; const payload = { name: $("#comparison-name").value.trim(), localities: [$("#comparison-a").value, $("#comparison-b").value], from_month: $("#comparison-from").value, to_month: $("#comparison-to").value, measure: $("#comparison-measure").value, selected_indicators: ["recorded_offences"], priorities: [], notes: $("#comparison-notes").value.trim(), status: $("#comparison-status").value };
+  if (payload.localities[0] === payload.localities[1] || payload.from_month > payload.to_month) {
+    $("#form-error").textContent = "Choose two different suburbs and a valid date period.";
+    $("#form-error").focus(); return;
+  }
+  comparisonSaving = true;
+  $("#save-comparison").disabled = true;
   if (id) payload.version = Number($("#comparison-version").value);
-  try { await api(id ? `/suburb-comparisons/${id}` : "/suburb-comparisons", { method: id ? "PUT" : "POST", body: JSON.stringify(payload) }); $("#comparison-dialog").close(); toast(id ? "Comparison updated." : "Comparison created."); loadComparisons(); } catch (error) { $("#form-error").textContent = error.message; }
+  try { await api(id ? `/suburb-comparisons/${id}` : "/suburb-comparisons", { method: id ? "PUT" : "POST", body: JSON.stringify(payload) }); $("#comparison-dialog").close(); toast(id ? "Comparison updated." : "Comparison created."); loadComparisons(); } catch (error) { $("#form-error").textContent = error.message; $("#form-error").focus(); } finally { comparisonSaving = false; $("#save-comparison").disabled = false; }
 }
 
 async function deleteComparison(id) { if (!confirm("Delete this saved comparison?")) return; try { await api(`/suburb-comparisons/${id}`, { method: "DELETE" }); toast("Comparison deleted."); loadComparisons(); } catch (error) { toast(error.message); } }
@@ -360,6 +392,7 @@ async function init() {
     if (current) chooseSuburb(current);
   }));
   try { const [health, suburbs] = await Promise.all([requestJsonResponse(fetch, new URL("./health/ready", import.meta.url)).then(({body}) => body), api("/suburbs?limit=50")]); state.suburbs = suburbs.items; $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = ["ready", "healthy"].includes(health.status) ? "Data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
+  addEventListener("pagehide", () => { trendTask.cancel(); clearTimeout(suburbSearchTimer); state.assistant?.destroy?.(); state.map?.destroy(); }, { once: true });
   route();
 }
 

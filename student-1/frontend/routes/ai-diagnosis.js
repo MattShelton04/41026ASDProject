@@ -1,3 +1,4 @@
+import { propertyActivityUrl } from "../integration/activity.js";
 import { collection, entity, queryString } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { formatDate, formatNumber, humanise, researchAreaLabel, stateLabel, statusTone } from "../core/formats.js";
@@ -8,10 +9,6 @@ import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetail
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
 
-const AGENT_ACTIVITY_URL = window.PROPERTYSCOPE_AGENT_ACTIVITY_URL
-  || (window.location.pathname.startsWith("/features/data-platform/")
-    ? "/operations/ai-mode/"
-    : `${window.location.protocol}//${window.location.hostname}:5005/operations/ai-mode/`);
 const OBJECTIVES = Object.freeze({
   compare: "Compare this unpublished version with the current published version. Check schema, record count, coverage, quality and publishing differences. Make clear when information is missing. Recommend one next step for human review. Do not publish or change data.",
   quality: "Review this unpublished version and its exact data update. Explain each required or failed data check and its impact. Make clear when information is missing. Recommend one retry option for human review. Do not execute it.",
@@ -261,12 +258,10 @@ function diagnosisTitle(run) {
   return "Data review";
 }
 function activityUrl(runId = "") {
-  const url = new URL(AGENT_ACTIVITY_URL, window.location.href);
-  url.searchParams.set("feature_key", "student-1-propertyscope-data-platform");
-  url.searchParams.set("feature_label", "Property data");
-  url.searchParams.set("return_to", "/features/data-platform/#properties");
-  if (runId) url.searchParams.set("run", runId);
-  return url.href;
+  return propertyActivityUrl(runId, {
+    baseUrl: document.baseURI,
+    activityUrl: window.PROPERTYSCOPE_AGENT_ACTIVITY_URL,
+  });
 }
 function sharedRunLink(runId, label) { return link(label, activityUrl(runId), "button secondary"); }
 function problemSuffix(error) { return error?.requestId ? ` Request ID ${error.requestId}.` : ""; }

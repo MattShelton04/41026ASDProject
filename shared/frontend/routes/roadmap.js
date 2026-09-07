@@ -17,10 +17,15 @@ export function createRoadmapRoute({ config }) {
   return function renderRoadmap(root) {
     const manifest = capabilityManifest(config);
     append(root, pageHeader("PropertyScope", "What’s available", "See which research tools you can use today and what is coming later.", [link("View data status", "#system-status", "ps-button ps-button--primary")]));
-    const mode = notice("success", "Property data is available", "Address search, source details, data updates and AI review history are ready to use.");
+    const mode = notice("success", "Workspaces, not a service-health guarantee", "Enabled research areas are listed below. Open Data status to check their current service availability.");
     append(root, mode);
     const stages = el("div", "ps-grid ps-grid-3 roadmap-grid");
-    append(stages, ...RELEASE_STAGES.map(stageCard));
+    append(stages, ...RELEASE_STAGES.map((stage) => stageCard(stage.state === "current" ? {
+      ...stage,
+      label: "Evidence-led research",
+      summary: "The research workspaces enabled in this deployment. Source coverage and live service health are separate checks.",
+      capabilities: manifest.features.filter((item) => item.implemented && item.enabled).map((item) => item.label),
+    } : stage)));
     append(root, stages);
 
     const capabilityPanel = panel("Detailed availability", "Planned tools are shown separately from services that are temporarily unavailable.");

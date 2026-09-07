@@ -14,11 +14,14 @@ from propertyscope_data_platform.assistant import (
 def test_capability_guide_is_bounded_and_honest_about_availability() -> None:
     guide = capability_guide()
 
-    assert guide["revision"] == "2026-08-31.v3"
+    assert guide["revision"] == "2026-09-07.v4"
     features = guide["features"]
     assert isinstance(features, list)
     assert len(features) == 5
     assert [item["status"] for item in features].count("available") == 1
+    assert [item["status"] for item in features].count("not_connected_to_this_assistant") == 4
+    assert "not whether a research workspace" in str(guide["feature_status_meaning"])
+    assert "Only Property data is implemented" not in str(guide)
     assistant = guide["assistant"]
     assert isinstance(assistant, dict)
     limitations = assistant["limitations"]

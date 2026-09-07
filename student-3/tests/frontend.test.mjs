@@ -1,5 +1,5 @@
 import { trendPath } from "../frontend/trend.js";
-import { escapeHtml, requestJsonResponse } from "../../shared/frontend/browser/index.js";
+import { createLatestTask, escapeHtml, requestJsonResponse } from "../../shared/frontend/browser/index.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -28,7 +28,8 @@ test("live search filters only the suburb list, preserves selection and ignores 
   const timers = new Map();
   let timerId = 0;
   const context = vm.createContext({
-    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    getComputedStyle: () => ({getPropertyValue: () => "#34684f"}),
     document: {querySelector: (id) => { if (!nodes.has(id)) nodes.set(id, {value: ""}); return nodes.get(id); }},
     URLSearchParams,
     setTimeout: (callback) => { timers.set(++timerId, callback); return timerId; },
@@ -92,12 +93,12 @@ test("live search filters only the suburb list, preserves selection and ignores 
   assert.deepEqual(selections, [], "filtering must not change the selected suburb");
 });
 
-test("suburb search belongs only to overview, below the map and above suburb cards", () => {
+test("suburb search belongs only to overview, before the map and suburb cards", () => {
   const overview = html.split('id="explore-view"')[1].split('id="trends-view"')[0];
   const hero = html.split('<section class="hero">')[1].split('</section>')[0];
   assert.doesNotMatch(hero, /id="search-form"/);
   assert.equal(html.match(/id="search-form"/g).length, 1);
-  assert.ok(overview.indexOf('id="search-form"') > overview.indexOf('id="suburb-detail"'));
+  assert.ok(overview.indexOf('id="search-form"') < overview.indexOf('id="suburb-detail"'));
   assert.ok(overview.indexOf('id="search-form"') < overview.indexOf('id="suburb-cards"'));
   assert.ok(overview.indexOf('id="lga-filter"') > overview.indexOf('id="search-form"'));
   assert.ok(overview.indexOf('id="sort-filter"') < overview.indexOf('id="suburb-cards"'));
@@ -117,7 +118,8 @@ test("published evidence has its own tab and routes independently of overview", 
   const views = ["explore", "published", "trends", "comparisons", "assistant"].map((name) => ({dataset: {view: name}}));
   const links = views.map((view) => ({dataset: {route: view.dataset.view}, setAttribute(_key, value) { this.current = value; }}));
   const context = vm.createContext({
-    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    getComputedStyle: () => ({getPropertyValue: () => "#34684f"}),
     location: {hash: "#published"},
     document: {querySelector: () => ({focus() {}}), querySelectorAll: (selector) => selector === "[data-view]" ? views : links},
   });
@@ -152,7 +154,8 @@ test("bookmarks persist, deduplicate, reopen and remove with storage failures ha
   nodes.get("#bookmark-suburb").dataset.locality = "Newtown";
   let stored = '["Newtown","Newtown",null,3]';
   const context = vm.createContext({
-    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    getComputedStyle: () => ({getPropertyValue: () => "#34684f"}),
     document: {querySelector: (id) => nodes.get(id), createElement: node},
     localStorage: {getItem: () => stored, setItem: (_key, value) => { stored = value; }},
     setTimeout: () => {},
@@ -191,8 +194,9 @@ test("map pin selection loads amenities and zooms without rebuilding the map", a
   let creations = 0;
   const controller = { layerIds: ["suburbs", "places"], setLayerData: (id, data) => updates.push({id, data}), flyTo: (view) => flights.push(view) };
   const context = vm.createContext({
-    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
-    document: {querySelector: (id) => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); }, querySelectorAll: () => [{value: "school"}]},
+    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    getComputedStyle: () => ({getPropertyValue: () => "#34684f"}),
+    document: {querySelector: (id) => { if (!nodes.has(id)) nodes.set(id, {setAttribute() {}, removeAttribute() {}}); return nodes.get(id); }, querySelectorAll: () => [{value: "school"}]},
     createMap: async (options) => { definition = options; creations++; return controller; },
     createOpenFreeMapProvider: () => ({}),
     featureCollection: (features) => ({features}),
@@ -226,11 +230,12 @@ test("map pin selection loads amenities and zooms without rebuilding the map", a
 });
 
 test("crime trends expose units in suburb summaries, chart axes and table", () => {
-  const nodes = new Map(["#chart", "#summary-cards", "#trend-head", "#trend-body"].map((id) => [id, {innerHTML: ""}]));
+  const nodes = new Map(["#chart", "#chart-legend", "#summary-cards", "#trend-head", "#trend-body"].map((id) => [id, {innerHTML: ""}]));
   const caption = {textContent: ""};
   nodes.get("#trend-head").closest = () => ({querySelector: () => caption});
   const context = vm.createContext({
-    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    getComputedStyle: () => ({getPropertyValue: () => "#34684f"}),
     document: {
       querySelector: (id) => nodes.get(id),
       createElement: () => ({set textContent(value) { this.innerHTML = String(value); }, innerHTML: ""}),
@@ -264,7 +269,8 @@ test("saved comparisons load into trend controls and navigate to crime trends", 
   const nodes = new Map(["#locality-a", "#locality-b", "#from-month", "#to-month", "#measure", "#offence", "#trend-notice", "#toast"].map((id) => [id, {value: "", dataset: {}}]));
   const location = {hash: "#comparisons"};
   const context = vm.createContext({
-    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    getComputedStyle: () => ({getPropertyValue: () => "#34684f"}),
     location,
     document: {querySelector: (id) => nodes.get(id)},
     setTimeout: () => {},
@@ -328,7 +334,8 @@ test("missing observations break a trend rather than joining across missing mont
 test("trend rendering escapes API labels in SVG descriptions and table headings", () => {
   const nodes = new Map();
   const context = vm.createContext({
-    requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    getComputedStyle: () => ({getPropertyValue: () => "#34684f"}),
     document: {querySelector: (id) => {
       if (!nodes.has(id)) nodes.set(id, {innerHTML: "", value: "count"});
       return nodes.get(id);

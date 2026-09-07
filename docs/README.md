@@ -33,5 +33,6 @@ status/date rather than treating historical statements as current implementation
 - `architecture/`: individual and integrated architecture diagrams
 - `reports/`: working report content and final group technical reports
 - `release-0/`, `release-1/`, `release-2/`: release-specific plans and evidence
+- `deliverables/`: independent deliverable packages and cross-cutting overhaul records
 
 Do not commit secrets, private credentials, or disposable generated files.

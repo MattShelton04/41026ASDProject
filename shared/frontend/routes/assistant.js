@@ -2,7 +2,7 @@ import { createAiChat, createAssistantClient } from "../ai-chat/index.js";
 import { notice } from "../core.js";
 
 export const SHARED_ASSISTANT_SCOPES = Object.freeze([
-  { id: "application", label: "All of PropertyScope", description: "Website guidance plus every currently available research area." },
+  { id: "application", label: "Application guidance", description: "Help navigating PropertyScope. This assistant’s evidence tools currently cover Property data, not every research area." },
   { id: "feature", label: "Property data", description: "Property records, sources, updates, releases, quality and coverage." },
 ]);
 
@@ -35,6 +35,7 @@ export function createAssistantRoute({ announce = () => {} } = {}) {
     active = createAiChat({
       root,
       client,
+      draftKey: "propertyscope:shared-assistant",
       initialScope: assistantScope(location.hash),
       scopes: SHARED_ASSISTANT_SCOPES,
       suggestions: sharedAssistantSuggestions,
@@ -52,7 +53,7 @@ export function createAssistantRoute({ announce = () => {} } = {}) {
     }).catch(() => {
       if (active !== controller) return;
       root.querySelector(".ps-ai-chat__intro")?.after(
-        notice("warning", "Capability guide unavailable", "The assistant can still start a turn, but current scope guidance could not be refreshed."),
+        notice("warning", "Capability guide unavailable", "Current scope guidance could not be refreshed. You can try a question, but service availability has not been confirmed."),
       );
     });
     return controller;

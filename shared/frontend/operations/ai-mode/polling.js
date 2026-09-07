@@ -111,3 +111,17 @@ export async function requestJson(fetcher, url, options = {}) {
     externalSignal?.removeEventListener("abort", onExternalAbort);
   }
 }
+
+// Cursor persistence is an optional convenience, never a prerequisite for audit access.
+// The storage getter itself can throw in private or restricted browser contexts.
+export function createCursorStore(storage = () => globalThis.sessionStorage) {
+  const key = (runId) => `ai-mode-operations:${runId}:cursor`;
+  return {
+    read(runId) {
+      try { return restoreCursor(storage().getItem(key(runId))); } catch { return 0; }
+    },
+    write(runId, cursor) {
+      try { storage().setItem(key(runId), String(restoreCursor(cursor))); } catch { /* Optional. */ }
+    },
+  };
+}
