@@ -15,11 +15,11 @@ the OpenAI Responses API, and a containerised Feature 1 data platform using Post
 ## Fieldbook UI/UX overhaul
 
 The implemented cross-feature redesign and its evidence are documented in
-[`deliverables/propertyscope-ux-overhaul`](deliverables/propertyscope-ux-overhaul/00_EXECUTIVE_SUMMARY.md).
-Start with the [before/after gallery](deliverables/propertyscope-ux-overhaul/SCREENSHOT_GALLERY.html),
-[design system](deliverables/propertyscope-ux-overhaul/03_DESIGN_SYSTEM.md),
-[assistant experience](deliverables/propertyscope-ux-overhaul/06_AI_ASSISTANT_EXPERIENCE.md) and
-[validation boundaries](deliverables/propertyscope-ux-overhaul/10_VALIDATION_REPORT.md).
+[`docs/deliverables/propertyscope-ux-overhaul`](docs/deliverables/propertyscope-ux-overhaul/00_EXECUTIVE_SUMMARY.md).
+Start with the [before/after gallery](docs/deliverables/propertyscope-ux-overhaul/SCREENSHOT_GALLERY.html),
+[design system](docs/deliverables/propertyscope-ux-overhaul/03_DESIGN_SYSTEM.md),
+[assistant experience](docs/deliverables/propertyscope-ux-overhaul/06_AI_ASSISTANT_EXPERIENCE.md) and
+[validation boundaries](docs/deliverables/propertyscope-ux-overhaul/10_VALIDATION_REPORT.md).
 The injected-document browser evidence does not replace real-origin or full-stack validation.
 
 ## Team

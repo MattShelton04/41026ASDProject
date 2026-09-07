@@ -5,7 +5,7 @@ frontend microservices. The system standardises visual language and accessibilit
 the shared directory into a domain-component monolith.
 
 The implementation and validation record for this direction is in
-[`deliverables/propertyscope-ux-overhaul`](../../../deliverables/propertyscope-ux-overhaul/00_EXECUTIVE_SUMMARY.md).
+[`docs/deliverables/propertyscope-ux-overhaul`](../../../docs/deliverables/propertyscope-ux-overhaul/00_EXECUTIVE_SUMMARY.md).
 It distinguishes real browser rendering from the restricted injected-document test profile.
 
 ## Import order
