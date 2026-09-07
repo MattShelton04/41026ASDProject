@@ -17,7 +17,7 @@ independently buildable `student-N/frontend/` services.
 - `ai-chat/index.js` — reusable assistant client, polling, formatting, semantic states, accessible transcript controller and `createFeatureAssistant` route factory; feature vocabulary is injected by route wrappers.
 - `feature-1-bridge.js` — bounded, failure-safe loading for Feature 1's public shell adapter.
 - `core.js` — safe DOM, formatting, table and correlated public-request helpers.
-- `capabilities.js` — static Release 0 deployment capability manifest; implemented and enabled remain separate.
+- `capabilities.js` — Release 1 implementation manifest with observed local MCP/RAG configuration and health; implementation, enablement and readiness remain separate.
 - `routes/status.js` — live health summary for implemented shared and Property records services.
 - `routes/evidence.js` — read-only accepted-release and durable agent-run reference index.
 - `routes/roadmap.js` — honest current/planned capability roadmap.
@@ -111,6 +111,14 @@ Any later feature bridge requires a reviewed real call site and a separately all
 Assistant adoption does not require a Shared shell bridge. Feature-owned assistant routes use the
 domain-neutral `createFeatureAssistant` export and the independent backend recipe in
 [`docs/release-0/feature-client-adoption.md`](../../docs/release-0/feature-client-adoption.md).
+
+Release 1 grounded answers use the same controller: typed guidance findings link to native source
+disclosures and tool facts retain recorded call IDs. The server supplies citations; the browser
+renders their text, excerpts, source/index dates, evidence kind and pinned corpus version without
+HTML interpretation. Source links require credential-free HTTP(S). Confidence is an evidence-support
+category, never a similarity score or probability. Empty, unavailable and historical context retain
+visible qualifications; legacy answers keep their existing layout. Poll updates preserve source
+disclosure and keyboard focus while updating changed citation content.
 
 ## Shared dashboards
 

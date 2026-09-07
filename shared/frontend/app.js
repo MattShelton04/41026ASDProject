@@ -168,7 +168,7 @@ const routes = {
     announce,
     requestJson: routeRequestJson,
   }),
-  "release-roadmap": createRoadmapRoute({ config }),
+  "release-roadmap": createRoadmapRoute({ config, requestJson: routeRequestJson }),
 };
 
 async function renderRoute() {

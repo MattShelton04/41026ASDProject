@@ -35,10 +35,22 @@ function stringValues(value) {
 
 export function answerSections(result) {
   if (!result || typeof result !== "object") return [];
+  if (typeof result.grounding_status === "string") {
+    return [
+      { key: "summary", label: "Answer", values: stringValues(result.summary) },
+      { key: "findings", label: "Key findings", values: (Array.isArray(result.findings) ? result.findings : []).flatMap((item) => stringValues(item?.text)) },
+      { key: "confidence", label: "Evidence support", values: stringValues([result.confidence, result.confidence_reason]) },
+      { key: "evidence_gaps", label: "Evidence gaps", values: stringValues(result.evidence_gaps) },
+      { key: "next_step", label: "Useful next step", values: stringValues(result.next_step) },
+      { key: "safety_boundary", label: "Safety boundary", values: stringValues(result.safety_boundary) },
+    ].filter((section) => section.values.length);
+  }
   const sections = [];
   const consumed = new Set();
   for (const [key, label] of PREFERRED_RESULT_KEYS) {
-    const values = stringValues(result[key]);
+    const values = key === "findings" && Array.isArray(result.findings)
+      ? result.findings.flatMap((item) => typeof item?.text === "string" ? [item.text] : stringValues(item)).slice(0, 20)
+      : stringValues(result[key]);
     if (values.length) sections.push({ key, label, values });
     consumed.add(key);
   }

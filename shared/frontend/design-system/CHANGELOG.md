@@ -1,5 +1,14 @@
 # Design-system changelog
 
+## 2026-09-07 — Release 1 grounded evidence
+
+The shared assistant extends Fieldbook with typed findings, keyboard-accessible source inspection,
+source/index dates, evidence-kind and corpus-version labels, confidence rationale and explicit
+insufficient-context states. It uses existing public tokens and native disclosures; no migration
+or token changes are required. Availability views now distinguish implemented MCP/RAG from observed
+configuration and health. Grounding Node behavior tests cover safe links, text-only rendering,
+source focus and changed-evidence presentation; browser fixture checks exercise narrow layouts.
+
 ## 2026-09-07 — Fieldbook
 
 Evergreen/mineral evidence palette, outlined parcel identity, shared navigation, research/operator density,

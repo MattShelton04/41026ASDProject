@@ -7,6 +7,7 @@ export function turnPresentationKey(turn) {
     context: turn.context, status: turn.run?.status,
     created: turn.run?.created_at,
     answer: answerSections(turn.run?.final_result),
+    grounding: turn.run?.final_result,
     evidence: evidenceSteps(turn.run, turn.events),
     error: turn.error ? [turn.error.message, turn.error.requestId] : turn.run?.error?.message,
     pollWarning: Boolean(turn.pollWarning), cancelWarning: Boolean(turn.cancelWarning),

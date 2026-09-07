@@ -1,12 +1,25 @@
 import { append, badge, cell, el, formatDate, link, notice, pageHeader, panel, requestJson, requestText, table } from "../core.js";
 import { featureRegistry } from "../features.js";
+import { capabilityManifest, capabilityState } from "../capabilities.js";
 
 export function classifyHealth(payload) {
   const raw = String(payload?.status || "unknown").toLowerCase();
   if (["healthy", "ready", "ok"].includes(raw)) return { readiness: "ready", label: "Ready", tone: "confirmed" };
   if (["degraded", "partial"].includes(raw)) return { readiness: "degraded", label: "Degraded", tone: "partial" };
-  if (["unhealthy", "failed", "error"].includes(raw)) return { readiness: "unavailable", label: "Unavailable", tone: "partial" };
+  if (["unhealthy", "failed", "error", "unavailable"].includes(raw)) return { readiness: "unavailable", label: "Unavailable", tone: "partial" };
   return { readiness: "unknown", label: "Unknown", tone: "unknown" };
+}
+
+export function researchServiceComponents(snapshot, config = {}) {
+  return capabilityManifest(config, snapshot).services.filter((item) => ["mcp", "rag"].includes(item.id)).map((item) => {
+    const state = capabilityState(item);
+    return {
+      name: item.label, kind: "Local research dependency", owner: "Shared platform",
+      detail: item.detail, enabled: item.enabled !== false, latency: null, requestId: "Not supplied",
+      readiness: item.enabled === false ? "disabled" : classifyHealth({ status: item.status }).readiness,
+      ...state,
+    };
+  });
 }
 
 export function overallReadiness(components) {
@@ -104,7 +117,11 @@ export function createStatusRoute({
         if (error.name === "AbortError") throw error;
         return { name: "Shared product shell", kind: "Frontend", owner: "Shared platform", detail: `The shell health check failed: ${error.message}.`, href: "#home", enabled: true, latency: null, requestId: "Browser-local check", readiness: "unavailable", label: "Unavailable", tone: "partial" };
       });
-      const primaryComponents = await Promise.all([
+      const capabilityCheck = requestJsonFn("/api/ai-mode/capabilities").then((result) => result.body).catch((error) => {
+        if (error.name === "AbortError") throw error;
+        return null;
+      });
+      const [primaryComponents, capabilitySnapshot] = await Promise.all([Promise.all([
         shellCheck,
         ...enabledFeatures.map((feature) => check(
           requestJsonFn,
@@ -116,7 +133,7 @@ export function createStatusRoute({
           feature.href,
         )),
         check(requestJsonFn, "AI review history", "Shared API", "Shared platform", "/api/shared-health/ai-mode", "Recorded AI reviews and the configured model connection.", config.agentRuns),
-      ]);
+      ]), capabilityCheck]);
       const shellApi = primaryComponents[0];
       const featureApis = primaryComponents.slice(1, 1 + enabledFeatures.length);
       const agentApi = primaryComponents.at(-1);
@@ -138,9 +155,10 @@ export function createStatusRoute({
           detail: agentApi.payload?.checks?.llm_provider?.detail,
         }),
       );
+      components.push(...researchServiceComponents(capabilitySnapshot, config));
       const overall = overallReadiness(components);
       const checkedAt = new Date().toISOString();
-      summary.replaceChildren(notice(overall === "ready" ? "success" : "warning", overall === "ready" ? "PropertyScope is ready" : "Some live services need attention", `Checked ${formatDate(checkedAt)}. Planned research areas are not counted as failures.`));
+      summary.replaceChildren(notice(overall === "ready" ? "success" : "warning", overall === "ready" ? "Checked services are ready" : "Some live services need attention", `Checked ${formatDate(checkedAt)}. Planned and deliberately disabled services are not counted as failures. Research dependency health is separate from ordinary feature access and evidence coverage.`));
       cards.replaceChildren(...components.map(healthCard));
 
       const planned = [
@@ -149,7 +167,6 @@ export function createStatusRoute({
           feature.implemented ? "Disabled" : "Planned",
           feature.implemented ? "Temporarily disabled" : "Coming later",
         ]),
-        ["Cited document research", "Planned", "Coming later"],
         ["Coordinated research roles", "Planned", "Coming later"],
       ];
       contracts.body.querySelector(".dashboard-table-wrap")?.remove();

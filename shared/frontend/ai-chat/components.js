@@ -1,5 +1,6 @@
 import { append, el } from "../browser/index.js";
 import { assistantStatus, ACTIVE_ASSISTANT_STATES } from "./definitions.js";
+import { isGroundedAnswer, renderGroundedAnswer } from "./grounding.js";
 import {
   answerSections, evidenceSteps, formatAssistantDate, humaniseAssistantValue, shortRunId,
 } from "./formats.js";
@@ -26,6 +27,7 @@ export function contextSummary(context = {}) {
 }
 
 function answerContent(run) {
+  if (isGroundedAnswer(run.final_result)) return renderGroundedAnswer(run.final_result);
   const host = el("div", "ps-ai-chat__answer");
   const sections = answerSections(run.final_result);
   if (!sections.length) {

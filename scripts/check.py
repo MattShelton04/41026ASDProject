@@ -30,6 +30,7 @@ FRONTEND_TEST_PATHS = (
     "shared/frontend/browser/browser.test.mjs",
     "shared/frontend/dashboard.test.mjs",
     "shared/frontend/ai-chat/ai-chat.test.mjs",
+    "shared/frontend/ai-chat/grounding.test.mjs",
     "shared/frontend/mapping/mapping.test.mjs",
     "shared/frontend/operations/ai-mode/polling.test.mjs",
 )

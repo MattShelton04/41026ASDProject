@@ -91,3 +91,22 @@
   .ps-ai-chat__composer-footer .ps-button { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .ps-ai-chat__typing-dots i { animation: none; opacity: .7; } }
+
+/* Recorded grounding uses the existing Fieldbook disclosure and evidence vocabulary. */
+.ps-ai-chat__grounding-labels { display: flex; flex-wrap: wrap; gap: var(--ps-space-2); margin-block: var(--ps-space-3); }
+.ps-ai-chat__grounding-note, .ps-ai-chat__finding-kind { color: var(--ps-color-text-muted); font-size: var(--ps-text-caption); }
+.ps-ai-chat__findings { display: grid; gap: var(--ps-space-4); padding-left: var(--ps-space-5); }
+.ps-ai-chat__finding-kind { display: block; margin-top: var(--ps-space-2); }
+.ps-ai-chat__source { min-width: 0; margin-top: var(--ps-space-3); border: var(--ps-border-width) solid var(--ps-color-border); border-radius: var(--ps-radius-sm); background: var(--ps-color-surface); }
+.ps-ai-chat__source summary, .ps-ai-chat__tool-support summary { min-height: var(--ps-control-height); padding: var(--ps-space-3); color: var(--ps-color-accent); font-size: var(--ps-text-label); cursor: pointer; overflow-wrap: anywhere; }
+.ps-ai-chat__source-body { display: grid; gap: var(--ps-space-3); min-width: 0; padding: 0 var(--ps-space-4) var(--ps-space-4); }
+.ps-ai-chat__source-body > .ps-badge { justify-self: start; }
+.ps-ai-chat__source-excerpt { margin: 0; padding: var(--ps-space-3); border-left: var(--ps-border-width-strong) solid var(--ps-color-border-strong); background: var(--ps-color-surface-subtle); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ps-ai-chat__source-facts { display: grid; gap: var(--ps-space-2); margin: 0; font-size: var(--ps-text-caption); }
+.ps-ai-chat__source-facts > div { display: grid; grid-template-columns: minmax(5rem, 1fr) minmax(0, 3fr); gap: var(--ps-space-3); }
+.ps-ai-chat__source-facts dt { color: var(--ps-color-text-muted); }
+.ps-ai-chat__source-facts dd { margin: 0; overflow-wrap: anywhere; }
+.ps-ai-chat__source-link, .ps-ai-chat__source-inspect { display: inline-flex; align-items: center; min-height: var(--ps-control-height); color: var(--ps-color-accent); font: inherit; font-size: var(--ps-text-label); text-align: left; text-decoration: underline; overflow-wrap: anywhere; }
+.ps-ai-chat__source-inspect { display: block; padding: var(--ps-space-2) 0; border: 0; background: transparent; cursor: pointer; }
+.ps-ai-chat__tool-support { margin-top: var(--ps-space-2); font-size: var(--ps-text-caption); }
+.ps-ai-chat__tool-support summary { padding-inline: 0; }
