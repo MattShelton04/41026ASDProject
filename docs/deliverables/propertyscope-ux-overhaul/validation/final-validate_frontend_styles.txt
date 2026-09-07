@@ -1,1 +1,0 @@
-Frontend styles match the reviewed semantic-token baseline.

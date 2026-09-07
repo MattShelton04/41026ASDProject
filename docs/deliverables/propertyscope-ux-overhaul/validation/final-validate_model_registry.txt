@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "<workspace>/scripts/validate_model_registry.py", line 5, in <module>
-    from ai_mode.model_registry import DEFAULT_MODEL_REGISTRY_PATH, load_model_registry
-  File "<workspace>/ai-services/ai-mode/src/ai_mode/__init__.py", line 3, in <module>
-    from ai_mode.app import create_app
-  File "<workspace>/ai-services/ai-mode/src/ai_mode/app.py", line 9, in <module>
-    from flask import Flask, Response, g, jsonify, request
-ModuleNotFoundError: No module named 'flask'

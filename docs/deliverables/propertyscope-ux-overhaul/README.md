@@ -16,6 +16,6 @@ Start with [the visual before/after gallery](SCREENSHOT_GALLERY.html). All evide
 - [11 KNOWN LIMITATIONS AND FOLLOWUPS](11_KNOWN_LIMITATIONS_AND_FOLLOWUPS.md)
 - [12 SCREENSHOT INDEX](12_SCREENSHOT_INDEX.md)
 
-Additional references: [exact tokens](TOKEN_REFERENCE.md), [observed route controls](ROUTE_CONTROL_INVENTORY.md), [machine-readable validation summary](validation/SUMMARY.json), and [brand assets](brand/).
+Additional references: [exact tokens](TOKEN_REFERENCE.md), [observed route controls](ROUTE_CONTROL_INVENTORY.md), and [brand assets](brand/).
 
 The separately delivered apply bundle is the portable entry point; it contains the exact patch, manifest, payload and its own verified usage instructions. Do not copy random feature folders over a different release.
