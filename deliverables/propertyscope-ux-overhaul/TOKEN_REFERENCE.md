@@ -1,0 +1,213 @@
+# Exact production token reference
+
+Generated from `shared/frontend/design-system/tokens.css` in the delivered tree.
+
+```css
+:root {
+  color-scheme: light;
+
+  /* Typography */
+  --ps-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --ps-font-display: var(--ps-font-sans);
+  --ps-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --ps-type-xs: 0.75rem;
+  --ps-type-sm: 0.875rem;
+  --ps-type-body: 1rem;
+  --ps-type-lg: 1.12rem;
+  --ps-type-title: clamp(1.875rem, 3vw, 2.75rem);
+  --ps-type-display: clamp(2.5rem, 4.7vw, 4rem);
+  --ps-leading-tight: 1.08;
+  --ps-leading-body: 1.5;
+  --ps-leading-relaxed: 1.65;
+  --ps-weight-medium: 600;
+  --ps-weight-bold: 650;
+  --ps-weight-heavy: 700;
+
+  /* Semantic type roles. Palette-scale tokens above remain available for composition. */
+  --ps-text-caption: var(--ps-type-xs);
+  --ps-text-label: var(--ps-type-sm);
+  --ps-text-body: var(--ps-type-body);
+  --ps-text-body-large: var(--ps-type-lg);
+  --ps-text-heading-small: 1.05rem;
+  --ps-text-heading-medium: clamp(1.375rem, 2.2vw, 1.875rem);
+  --ps-text-heading-large: var(--ps-type-title);
+  --ps-text-display: var(--ps-type-display);
+
+  --ps-font-editorial: Georgia, "Times New Roman", serif;
+
+  /* Ink and surfaces */
+  --ps-ink-950: #192d27;
+  --ps-ink-900: #263b33;
+  --ps-ink-800: #344b41;
+  --ps-ink-700: #4c6056;
+  --ps-ink-600: #617168;
+  --ps-ink-500: #65736b;
+  --ps-ink-400: #8a968e;
+  --ps-ink-300: #b9c2ba;
+  --ps-ink-200: #d6dcd5;
+  --ps-ink-150: #e3e7df;
+  --ps-ink-100: #eef0e9;
+  --ps-ink-50: #f7f8f3;
+
+  /* Fieldbook evergreen. The ocean names remain stable public aliases, not separate colours. */
+  --ps-ocean-800: #1b4032;
+  --ps-ocean-700: #285442;
+  --ps-ocean-600: #34684f;
+  --ps-ocean-500: #477c62;
+  --ps-ocean-300: #9bbfa9;
+  --ps-ocean-200: #c2d8c8;
+  --ps-ocean-100: #e1ebe0;
+  --ps-ocean-50: #f0f5ee;
+
+  --ps-eucalypt-700: #496c5f;
+  --ps-eucalypt-500: #66877b;
+  --ps-eucalypt-200: #c9d8d1;
+  --ps-eucalypt-100: #e5ece8;
+
+  --ps-sand-700: #7d6847;
+  --ps-sand-500: #a28b67;
+  --ps-sand-300: #d0bea1;
+  --ps-sand-200: #e3d7c3;
+  --ps-sand-100: #f0e8db;
+  --ps-sand-50: #f8f4ed;
+
+  --ps-coral-700: #a84f3d;
+  --ps-coral-500: #d67359;
+  --ps-coral-100: #f9e3dd;
+  --ps-amber-700: #8a5a0a;
+  --ps-amber-100: #fbefd7;
+  --ps-red-700: #9c3f45;
+  --ps-red-100: #f8e2e4;
+  --ps-blue-700: #275f89;
+  --ps-blue-100: #e1eef7;
+
+  --ps-canvas: #f5f4ee;
+  --ps-paper: #ffffff;
+  --ps-paper-warm: #fffef9;
+  --ps-line: #dce1d8;
+  --ps-line-strong: #b9c4b8;
+  --ps-line-inverse: rgba(255, 255, 255, 0.15);
+
+  /* Semantic colour roles used by Shared and feature aliases. */
+  --ps-color-background: var(--ps-canvas);
+  --ps-color-surface: var(--ps-paper);
+  --ps-color-surface-elevated: var(--ps-paper-warm);
+  --ps-color-surface-subtle: var(--ps-ink-50);
+  --ps-color-text: var(--ps-ink-900);
+  --ps-color-text-strong: var(--ps-ink-950);
+  --ps-color-text-muted: var(--ps-ink-700);
+  --ps-color-text-subtle: var(--ps-ink-500);
+  --ps-color-border: var(--ps-line);
+  --ps-color-border-strong: var(--ps-line-strong);
+  --ps-color-focus: var(--ps-ocean-800);
+  --ps-color-focus-inverse: var(--ps-ocean-200);
+  --ps-color-accent: var(--ps-ocean-700);
+  --ps-color-accent-hover: var(--ps-ocean-800);
+  --ps-color-success: var(--ps-confirmed);
+  --ps-color-success-surface: var(--ps-confirmed-bg);
+  --ps-color-success-on-inverse: var(--ps-ocean-300);
+  --ps-color-warning: var(--ps-partial);
+  --ps-color-warning-surface: var(--ps-partial-bg);
+  --ps-color-warning-on-inverse: var(--ps-sand-300);
+  --ps-color-danger: var(--ps-danger);
+  --ps-color-danger-surface: var(--ps-danger-bg);
+  --ps-color-danger-on-inverse: var(--ps-coral-500);
+  --ps-color-disabled-text: var(--ps-ink-500);
+  --ps-color-disabled-surface: var(--ps-ink-100);
+  --ps-color-disabled-border: var(--ps-ink-200);
+  --ps-color-inverse: var(--ps-paper);
+  --ps-color-inverse-muted: rgb(255 255 255 / 72%);
+  --ps-color-inverse-subtle: rgb(255 255 255 / 58%);
+  --ps-color-inverse-border: rgb(255 255 255 / 20%);
+  --ps-color-inverse-hover: rgb(255 255 255 / 10%);
+  --ps-color-overlay: rgb(16 41 52 / 60%);
+
+  /* Semantic evidence states */
+  --ps-confirmed: var(--ps-ocean-700);
+  --ps-confirmed-bg: var(--ps-ocean-50);
+  --ps-partial: var(--ps-amber-700);
+  --ps-partial-bg: var(--ps-amber-100);
+  --ps-conflicting: var(--ps-coral-700);
+  --ps-conflicting-bg: var(--ps-coral-100);
+  --ps-unknown: var(--ps-ink-600);
+  --ps-unknown-bg: var(--ps-ink-100);
+  --ps-danger: var(--ps-red-700);
+  --ps-danger-bg: var(--ps-red-100);
+  --ps-info: var(--ps-blue-700);
+  --ps-info-bg: var(--ps-blue-100);
+
+  /* Shape, elevation and rhythm */
+  --ps-shadow-xs: 0 1px 2px rgba(13, 38, 47, 0.05);
+  --ps-shadow-sm: 0 3px 10px rgba(13, 38, 47, 0.07);
+  --ps-shadow-md: 0 12px 32px rgba(13, 38, 47, 0.10);
+  --ps-shadow-lg: 0 24px 64px rgba(13, 38, 47, 0.16);
+  --ps-border-width: 1px;
+  --ps-border-width-strong: 2px;
+  --ps-radius-xs: 4px;
+  --ps-radius-sm: 6px;
+  --ps-radius-md: 8px;
+  --ps-radius-lg: 12px;
+  --ps-radius-xl: 16px;
+  --ps-radius-pill: 999px;
+  --ps-space-1: 0.25rem;
+  --ps-space-2: 0.5rem;
+  --ps-space-3: 0.75rem;
+  --ps-space-4: 1rem;
+  --ps-space-5: 1.25rem;
+  --ps-space-6: 1.5rem;
+  --ps-space-8: 2rem;
+  --ps-space-10: 2.5rem;
+  --ps-space-12: 3rem;
+  --ps-space-16: 4rem;
+  --ps-layout-gap-small: var(--ps-space-2);
+  --ps-layout-gap: var(--ps-space-4);
+  --ps-layout-gap-large: var(--ps-space-6);
+  --ps-content-max: 1240px;
+  --ps-content-wide: 1460px;
+  --ps-content-readable: 760px;
+  --ps-page-gutter: clamp(var(--ps-space-4), 3vw, var(--ps-space-8));
+  --ps-control-height-compact: 38px;
+  --ps-control-height-comfortable: 44px;
+  --ps-control-height: var(--ps-control-height-comfortable);
+  --ps-control-height-large: 56px;
+  --ps-shell-topbar-height: 72px;
+  --ps-shell-rail-width: 216px;
+  --ps-motion-fast: 100ms;
+  --ps-motion-normal: 160ms;
+  --ps-motion-slow: 240ms;
+  --ps-duration: var(--ps-motion-normal);
+  --ps-ease-standard: cubic-bezier(.2, .8, .2, 1);
+  --ps-ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --ps-ease: var(--ps-ease-standard);
+  --ps-focus-outline: 3px solid var(--ps-color-focus);
+  --ps-focus-outline-inverse: 3px solid var(--ps-color-focus-inverse);
+  --ps-focus-offset: 2px;
+  --ps-z-shell: 20;
+  --ps-z-sticky: 30;
+  --ps-z-navigation: var(--ps-z-sticky);
+  --ps-z-dropdown: 40;
+  --ps-z-popover: 50;
+  --ps-z-drawer: 60;
+  --ps-z-dialog: 70;
+  --ps-z-toast: 80;
+  --ps-z-skip-link: 1000;
+
+  /* Shared geometry: icons, skeletons, navigation and meaningful motion. */
+  --ps-icon-small: 16px;
+  --ps-icon: 20px;
+  --ps-icon-large: 24px;
+  --ps-brand-size: 36px;
+  --ps-motion-distance: 4px;
+  --ps-motion-progress: 1200ms;
+  --ps-color-skeleton: var(--ps-ink-150);
+  --ps-color-skeleton-highlight: var(--ps-ink-50);
+  --ps-color-chart-primary: var(--ps-ocean-700);
+  --ps-color-chart-secondary: var(--ps-blue-700);
+  --ps-color-chart-tertiary: var(--ps-sand-700);
+  --ps-color-chart-grid: var(--ps-ink-150);
+  --ps-composer-max-height: 200px;
+  --ps-dialog-max-width: 720px;
+  --ps-color-scrim: rgb(25 45 39 / 48%);
+}
+
+```

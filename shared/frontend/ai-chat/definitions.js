@@ -14,10 +14,10 @@ const STATUS_DEFINITIONS = Object.freeze({
   acting: { label: "Checking a source", detail: "Calling an allowlisted PropertyScope tool.", tone: "info" },
   observing: { label: "Recording evidence", detail: "Saving the source result before deciding what follows.", tone: "info" },
   adapting: { label: "Preparing answer", detail: "Comparing the evidence with the question.", tone: "info" },
-  review_required: { label: "Needs human review", detail: "A protected proposal is paused; no action has run.", tone: "partial" },
+  review_required: { label: "Needs human review", detail: "A protected proposal is paused for human review. No approval is implied.", tone: "partial" },
   succeeded: { label: "Complete", detail: "The answer and its activity record are available.", tone: "confirmed" },
   failed: { label: "Could not complete", detail: "The recorded activity shows where the turn stopped.", tone: "danger" },
-  cancelled: { label: "Cancelled", detail: "The turn stopped without changing source data.", tone: "unknown" },
+  cancelled: { label: "Cancelled", detail: "This turn is cancelled. Recorded activity shows any checks completed before it stopped.", tone: "unknown" },
 });
 
 export function assistantStatus(status) {

@@ -12,11 +12,12 @@ const money = new Intl.NumberFormat("en-AU", {
   maximumFractionDigits: 0,
 });
 
-const state = { cases: [], selectedId: null, evidence: null, editing: false };
+const state = { cases: [], selectedId: null, evidence: null, evidenceLoading: false, evidenceError: null, editing: false };
 const evidenceTask = createLatestTask();
 const assistantTask = createLatestTask();
 let saving = false;
 let deleting = false;
+let asking = false;
 const byId = (id) => document.getElementById(id);
 
 function text(node, value) {
@@ -76,6 +77,7 @@ function notify(message, isError = false) {
 function renderCases() {
   const list = byId("case-list");
   clear(list);
+  if (!state.cases.length) list.append(el("p", "case-list-empty", "No saved cases yet. Create a case to begin."));
   for (const item of state.cases) {
     const button = el("button", "case-item");
     button.type = "button";
@@ -99,10 +101,9 @@ function renderVolume(items) {
   for (const item of items) {
     const column = el("div", "volume-column");
     const count = el("strong", "", item.transactions);
-    const level = Math.max(1, Math.ceil((Number(item.transactions) / maximum) * 6));
-    const bar = el("div", `volume-bar volume-bar--${level}`);
-    bar.setAttribute("role", "img");
-    bar.setAttribute("aria-label", `${item.transactions} transactions in ${item.period}`);
+    const bar = el("div", "volume-bar");
+    bar.style.setProperty("--volume-ratio", String(Math.max(0, Number(item.transactions) || 0) / maximum));
+    bar.setAttribute("aria-hidden", "true");
     column.append(count, bar, el("span", "", item.period));
     chart.append(column);
   }
@@ -123,6 +124,10 @@ function renderLimitations(summary) {
 function renderSales(sales) {
   const body = byId("sales-body");
   clear(body);
+  if (!sales.length) {
+    const row = el("tr"); const cell = el("td", "muted", "No eligible source observations in this date window.");
+    cell.colSpan = 5; row.append(cell); body.append(row);
+  }
   for (const sale of sales) {
     const row = document.createElement("tr");
     const values = [
@@ -140,7 +145,13 @@ function renderSales(sales) {
 
 function renderEvidence() {
   const evidence = state.evidence;
-  byId("empty-state").hidden = Boolean(evidence);
+  const waiting = state.evidenceLoading || Boolean(state.evidenceError);
+  byId("evidence-state").hidden = !waiting;
+  byId("evidence-state").setAttribute("aria-busy", String(state.evidenceLoading));
+  text(byId("evidence-state-title"), state.evidenceError ? "Case evidence could not be loaded" : "Loading case evidence");
+  text(byId("evidence-state-copy"), state.evidenceError || "Reading the saved case and source observations.");
+  byId("retry-evidence").hidden = !state.evidenceError;
+  byId("empty-state").hidden = Boolean(evidence) || waiting;
   byId("case-detail").hidden = !evidence;
   if (!evidence) return;
   const item = evidence.market_case;
@@ -148,6 +159,8 @@ function renderEvidence() {
   text(byId("case-title"), item.name);
   text(byId("case-address"), item.address_display);
   text(byId("case-status"), humanise(item.status));
+  byId("case-status").dataset.state = item.status;
+  byId("validation-state").dataset.state = item.property_validation_state;
   text(byId("validation-state"), `Property: ${humanise(item.property_validation_state)}`);
   text(byId("sale-count"), summary.eligible_sale_count);
   text(byId("median-price"), summary.median_price_aud == null ? "Insufficient data" : money.format(summary.median_price_aud));
@@ -173,6 +186,13 @@ async function loadEvidence() {
   assistantTask.cancel();
   const id = state.selectedId;
   state.evidence = null;
+  state.evidenceError = null;
+  state.evidenceLoading = Boolean(id);
+  asking = false;
+  byId("assistant-form").querySelector("button").disabled = false;
+  byId("assistant-activity").hidden = true;
+  byId("assistant-status").textContent = "";
+  text(byId("assistant-answer"), "No question sent for this case. Your saved research works independently of the assistant.");
   renderCases();
   renderEvidence();
   if (!id) return;
@@ -181,11 +201,16 @@ async function loadEvidence() {
     const evidence = await api(`/market-cases/${encodeURIComponent(id)}/evidence`, { signal: task.signal });
     if (!task.isCurrent()) return;
     state.evidence = evidence;
+    state.evidenceLoading = false;
     renderEvidence();
   } catch (error) {
-    if (task.isCurrent()) throw error;
+    if (task.isCurrent()) state.evidenceError = error.message;
   } finally {
-    if (task.isCurrent()) byId("case-detail").setAttribute("aria-busy", "false");
+    if (task.isCurrent()) {
+      state.evidenceLoading = false;
+      byId("case-detail").setAttribute("aria-busy", "false");
+      renderEvidence();
+    }
   }
 }
 
@@ -199,7 +224,9 @@ function openCreate() {
   byId("form-from").value = "2019-01-01";
   byId("form-to").value = "2026-12-31";
   byId("form-tier").value = "B";
+  byId("form-error").hidden = true;
   byId("case-dialog").showModal();
+  byId("form-name").focus();
 }
 
 function openEdit() {
@@ -216,7 +243,9 @@ function openEdit() {
   byId("form-status").value = item.status;
   byId("form-tier").value = item.filters?.minimum_match_tier || "B";
   byId("form-notes").value = item.notes;
+  byId("form-error").hidden = true;
   byId("case-dialog").showModal();
+  byId("form-name").focus();
 }
 
 function formPayload() {
@@ -254,6 +283,7 @@ async function saveCase(event) {
   } catch (error) {
     text(byId("form-error"), error.message);
     byId("form-error").hidden = false;
+    byId("form-error").focus();
   } finally {
     saving = false;
     if (button) button.disabled = false;
@@ -275,14 +305,14 @@ async function deleteCase() {
 
 function answerText(result) {
   if (!result || typeof result !== "object") return "The run completed without a displayable answer.";
-  const preferred = ["summary", "findings", "recommended_next_step", "safety_note", "evidence"];
+  const preferred = ["summary", "findings", "limitations", "recommended_next_step", "safety_note", "evidence"];
   const lines = [];
   for (const key of preferred) {
     const value = result[key];
     if (value == null) continue;
     lines.push(`${humanise(key)}:\n${redactInternalIdentifiers(Array.isArray(value) ? value.join("\n") : value)}`);
   }
-  return lines.join("\n\n") || redactInternalIdentifiers(JSON.stringify(result, null, 2));
+  return lines.join("\n\n") || "The run has no displayable answer. Open recorded activity to inspect the public result.";
 }
 
 async function pollAssistant(runId, task) {
@@ -290,7 +320,7 @@ async function pollAssistant(runId, task) {
     const detail = await api(`/assistant/turns/${encodeURIComponent(runId)}`, { signal: task.signal });
     if (!task.isCurrent()) return;
     const run = detail.run || detail;
-    text(byId("assistant-answer"), `${humanise(run.status)} · run ${runId.slice(0, 8)}…`);
+    text(byId("assistant-status"), `${humanise(run.status)} · recorded AI activity`);
     if (run.status === "succeeded") {
       text(byId("assistant-answer"), answerText(run.final_result));
       return;
@@ -298,7 +328,7 @@ async function pollAssistant(runId, task) {
     if (["failed", "cancelled", "timed_out"].includes(run.status)) {
       throw new Error(run.error?.message || `AI run ${humanise(run.status)}`);
     }
-    if (run.status === "waiting_for_review") {
+    if (["waiting_for_review", "review_required"].includes(run.status)) {
       text(byId("assistant-answer"), "This run needs human review. Open AI activity to continue; your saved case is unchanged.");
       return;
     }
@@ -309,25 +339,37 @@ async function pollAssistant(runId, task) {
 
 async function askAssistant(event) {
   event.preventDefault();
-  if (!state.selectedId) return;
+  if (!state.selectedId || asking) return;
+  const question = byId("assistant-message").value.trim();
+  if (question.length < 2) { byId("assistant-message").focus(); return; }
+  asking = true;
   const task = assistantTask.start();
-  const button = event.submitter;
+  const button = event.submitter || byId("assistant-form").querySelector("button");
   button.disabled = true;
-  text(byId("assistant-answer"), "Starting a bounded Plan → Act → Observe → Adapt run…");
+  text(byId("assistant-status"), "Sending this question for the selected case…");
+  text(byId("assistant-answer"), "The assistant will inspect the case through its read-only tools. No answer has been recorded yet.");
   try {
     const run = await api("/assistant/turns", {
       method: "POST", signal: task.signal,
-      body: JSON.stringify({ case_id: state.selectedId, message: byId("assistant-message").value }),
+      body: JSON.stringify({ case_id: state.selectedId, message: question }),
     });
-    if (task.isCurrent()) await pollAssistant(run.id, task);
+    if (task.isCurrent()) {
+      const runId = run.id || run.run?.id;
+      if (!runId) throw new Error("The service did not return a recorded run reference.");
+      const params = new URLSearchParams({feature_key: "student-2-market-intelligence", run: runId, return_to: "/features/market-intelligence/#market-cases"});
+      byId("assistant-activity").href = `/operations/ai-mode/?${params}`;
+      byId("assistant-activity").hidden = false;
+      await pollAssistant(runId, task);
+    }
   } catch (error) {
     if (task.isCurrent()) text(byId("assistant-answer"), `${error.message}\n\nThe deterministic case summary above remains available.`);
   } finally {
-    button.disabled = false;
+    if (task.isCurrent()) { asking = false; button.disabled = false; }
   }
 }
 
 function initialise() {
+byId("retry-evidence").addEventListener("click", () => loadEvidence());
 byId("case-list").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-case-id]");
   if (!button) return;
@@ -345,7 +387,9 @@ byId("case-form").addEventListener("submit", (event) => saveCase(event).catch((e
 byId("assistant-form").addEventListener("submit", askAssistant);
 
 loadCases().catch((error) => {
-  notify(`Feature 2 could not load: ${error.message}`, true);
+  notify(`Sales & market could not be loaded: ${error.message}`, true);
+  state.evidenceLoading = false;
+  state.evidenceError = error.message;
   state.evidence = null;
   renderEvidence();
 });

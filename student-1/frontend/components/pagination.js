@@ -9,7 +9,7 @@ export function pageOffset(params) {
 
 /** Keep list navigation bounded and filters encoded in native, bookmarkable links. */
 export function collectionPagination(route, filters, body, offset) {
-  const root = el("nav", "dialog-actions");
+  const root = el("nav", "collection-pagination");
   root.setAttribute("aria-label", "Result pages");
   const count = Number(body.count ?? body.items?.length ?? 0);
   const limit = Number(body.limit || 100);

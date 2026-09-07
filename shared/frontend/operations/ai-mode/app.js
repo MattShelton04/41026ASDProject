@@ -8,12 +8,13 @@ import {
   nextDetailDelay,
   nextListDelay,
   requestJson,
-  restoreCursor,
+  createCursorStore,
   shouldRefreshDetail,
   statusesForFilter,
 } from "/operations/ai-mode/assets/polling.js";
-import { resolveResearchAreaContext } from "/operations/ai-mode/assets/contexts.js";
+import { resolveResearchAreaContext, activityAreaLabel } from "/operations/ai-mode/assets/contexts.js";
 
+const cursorStore = createCursorStore();
 const API_ROOT = "/api/v1";
 const EVENT_LIMIT = 200;
 const REQUEST_TIMEOUT_MS = 8000;
@@ -22,7 +23,16 @@ function researchAreaLabel(value) {
   const option = [...document.querySelectorAll("#feature-filter option")].find((item) => (
     item.value === value || String(item.dataset.aliases || "").split(" ").includes(value)
   ));
-  return option?.textContent || String(value || "Unknown area").replaceAll("_", " ").replaceAll("-", " ");
+  return option?.textContent || activityAreaLabel(value);
+}
+
+function addAreaFilter(value) {
+  if (!value || value.length > 100) return;
+  if ([...ui["feature-filter"].options].some((option) => option.value === value)) return;
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = activityAreaLabel(value);
+  ui["feature-filter"].append(option);
 }
 
 function applyResearchAreaContext(params) {
@@ -183,7 +193,7 @@ function syncFilterUrl() {
   for (const [key, value] of filters) {
     if (key !== "status" || ui["status-filter"].value) url.searchParams.append(key, value);
   }
-  history.replaceState(null, "", url);
+  try { history.replaceState(null, "", url); } catch { /* Restricted embedding: activity remains readable. */ }
 }
 
 function scheduleList(delay = nextListDelay(state.runs, state.listFailures, document.hidden)) {
@@ -211,6 +221,7 @@ async function loadRuns({ append = false } = {}) {
     const byId = new Map((append ? state.runs : []).map((run) => [run.id, run]));
     for (const run of body.items) byId.set(run.id, run);
     state.runs = [...byId.values()];
+    state.runs.forEach((run) => addAreaFilter(run.feature_key));
     state.nextCursor = body.next_cursor;
     state.listFailures = 0;
     renderRunList({ removeStale: !append });
@@ -312,13 +323,13 @@ async function selectRun(runId) {
   state.etag = null;
   state.eventItems = [];
   state.eventCursor = 0;
-  state.restoredCursor = restoreCursor(sessionStorage.getItem(`ai-mode-operations:${runId}:cursor`));
+  state.restoredCursor = cursorStore.read(runId);
   state.detailFailures = 0;
   state.detailRefreshPending = false;
   clearTimeout(state.detailTimer);
   const url = new URL(window.location.href);
   url.searchParams.set("run", runId);
-  history.replaceState(null, "", url);
+  try { history.replaceState(null, "", url); } catch { /* Restricted embedding: activity remains readable. */ }
   ui.workspace.classList.add("show-detail");
   renderRunList();
   ui["empty-detail"].hidden = true;
@@ -344,7 +355,7 @@ function acceptEvents(items) {
   state.eventItems = merged.items;
   state.eventCursor = Math.max(state.eventCursor, merged.cursor);
   if (state.selectedId) {
-    sessionStorage.setItem(`ai-mode-operations:${state.selectedId}:cursor`, String(state.eventCursor));
+    cursorStore.write(state.selectedId, state.eventCursor);
   }
   renderEvents();
 }
@@ -364,7 +375,7 @@ async function hydrateEventHistory(controller, generation) {
     if (!advanced || body.items.length < EVENT_LIMIT || terminal || after >= state.restoredCursor) break;
   }
   state.eventCursor = Math.max(state.eventCursor, state.restoredCursor);
-  sessionStorage.setItem(`ai-mode-operations:${state.selectedId}:cursor`, String(state.eventCursor));
+  cursorStore.write(state.selectedId, state.eventCursor);
   renderEvents();
   return { eventCount, terminal };
 }
@@ -976,6 +987,7 @@ document.addEventListener("visibilitychange", () => {
 async function start() {
   const initial = new URL(window.location.href).searchParams;
   applyResearchAreaContext(initial);
+  addAreaFilter(initial.get("feature_key"));
   ui["feature-filter"].value = initial.get("feature_key") || "";
   ui["model-filter"].value = initial.get("model_profile") || "";
   const initialStatuses = initial.getAll("status");
@@ -991,3 +1003,20 @@ async function start() {
 }
 
 start();
+
+// Account for the responsive two-row header rather than subtracting an assumed height.
+const topbar = document.querySelector(".topbar");
+const measureTopbar = () => document.documentElement.style.setProperty(
+  "--topbar-height", `${Math.ceil(topbar.getBoundingClientRect().height)}px`,
+);
+const topbarObserver = new ResizeObserver(measureTopbar);
+topbarObserver.observe(topbar);
+measureTopbar();
+const navigation = document.querySelector(".operations-navigation");
+navigation.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && navigation.open) {
+    navigation.open = false;
+    navigation.querySelector("summary").focus();
+  }
+});
+window.addEventListener("pagehide", () => topbarObserver.disconnect(), { once: true });

@@ -15,8 +15,9 @@
     <header class="gallery-header">
       <div class="ps-container ps-stack">
         <p class="ps-eyebrow">Development reference</p>
-        <h1>Design foundation</h1>
-        <p>Domain-neutral semantic tokens and layout primitives shared by the product shell, Property Discovery and Data Operations.</p>
+        <img src="brand/propertyscope-logo.svg" width="232" height="44" alt="PropertyScope NSW">
+        <h1>Fieldbook design system</h1>
+        <p>One evidence-led product: calm research workspaces, compact data operations, and auditable AI assistance. These examples use production CSS, not a separate prototype.</p>
       </div>
     </header>
     <main class="ps-container ps-stack gallery-main" id="gallery-main">
@@ -94,6 +95,13 @@
         <div class="ps-cluster"><span class="ps-badge ps-badge--confirmed">Confirmed</span><span class="ps-badge ps-badge--partial">Partial</span><span class="ps-badge ps-badge--info">Information</span><span class="ps-badge ps-badge--planned">Planned</span></div>
         <div class="ps-cluster"><button class="ps-button ps-button--primary" type="button">Default</button><button class="ps-button" type="button" disabled>Disabled</button><a class="ps-button ps-button--quiet" href="#colour-heading">Quiet link</a></div>
         <p class="gallery-layer-note">Layer order: shell → sticky → dropdown → popover → drawer → dialog → toast → skip link.</p>
+      </section>
+      <section class="gallery-panel ps-stack" aria-labelledby="trust-heading">
+        <div><p class="ps-eyebrow">Evidence before confidence</p><h2 id="trust-heading">States and disclosure</h2></div>
+        <div class="ps-cluster"><span class="ps-badge ps-badge--success">Accepted</span><span class="ps-badge ps-badge--partial">Coverage incomplete</span><span class="ps-badge">Candidate · not published</span></div>
+        <p>An accepted dataset can still have missing evidence. Acceptance, freshness, coverage and model completion are separate claims.</p>
+        <details><summary>Source and observation details</summary><p>Production surfaces show the dates, source references and limitations actually returned by their service. This is a design example, not a property record.</p></details>
+        <div aria-busy="true" role="status"><p>Loading evidence…</p><div class="ps-skeleton-lines" aria-hidden="true"><span class="ps-skeleton"></span><span class="ps-skeleton"></span><span class="ps-skeleton"></span></div></div>
       </section>
     </main>
   </body>

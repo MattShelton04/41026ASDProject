@@ -12,7 +12,7 @@ test("market page exposes CRUD, evidence and AI regions", () => {
   }
   assert.match(page, /not a valuation or buying recommendation/i);
   assert.match(page, /Selected property/);
-  assert.match(page, /Internal references stay hidden/);
+  assert.match(page, /The service checks the reference when you save/);
   assert.doesNotMatch(page, /property reference|UUID/i);
 });
 

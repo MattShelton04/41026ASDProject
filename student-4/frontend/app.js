@@ -12,6 +12,7 @@ async function requestResponse(path, options = {}) {
 
 const routeTask = createLatestTask();
 const questionTask = createLatestTask();
+const propertySearchTask = createLatestTask();
 let activeMap = null;
 
 export const API_BASE = "/api/due-diligence/v1";
@@ -57,8 +58,20 @@ function badge(modifier, text) {
   return el("span", ["ps-badge", modifier].filter(Boolean).join(" "), text);
 }
 
-function renderMessage(container, text) {
-  container.replaceChildren(el("p", "empty", text));
+function renderMessage(container, text, { loading = false, retry = false } = {}) {
+  const region = el("section", "review-state");
+  region.setAttribute("role", loading ? "status" : "region");
+  region.setAttribute("aria-busy", String(loading));
+  region.append(el(container.id === "view" ? "h1" : "h2", "", "Site reviews"), el("p", "empty", text));
+  if (loading) {
+    const skeleton = el("div", "ps-skeleton-lines"); skeleton.setAttribute("aria-hidden", "true");
+    skeleton.append(el("span", "ps-skeleton"), el("span", "ps-skeleton"), el("span", "ps-skeleton")); region.append(skeleton);
+  }
+  if (retry) {
+    const button = el("button", "ps-button", "Try again"); button.type = "button";
+    button.addEventListener("click", () => route()); region.append(button);
+  }
+  container.replaceChildren(region);
 }
 
 function setServiceState(state, label) {
@@ -125,7 +138,7 @@ function renderListView(view) {
 
 async function ensureReviews(view, task) {
   if (reviewsLoaded) return true;
-  renderMessage(view, "Loading site reviews\u2026");
+  renderMessage(view, "Loading site reviews\u2026", { loading: true });
   try {
     const response = await requestResponse(`${API_BASE}/site-reviews`, { signal: task.signal });
     if (!task.isCurrent()) return false;
@@ -137,7 +150,7 @@ async function ensureReviews(view, task) {
     return true;
   } catch (error) {
     if (!task.isCurrent()) return false;
-    renderMessage(view, "Could not load site reviews. Is the due-diligence service running?");
+    renderMessage(view, "The review service is temporarily unavailable. Your saved reviews have not been changed.", { retry: true });
     setServiceState("offline", "Service unavailable");
     return false;
   }
@@ -171,7 +184,7 @@ function evidenceCard(item, kind) {
   if (observed) body.append(el("p", "evidence-observed", observed));
 
   const footer = el("div", "evidence-footer");
-  if (item.source_url) {
+  if (item.source_url && /^https?:\/\//i.test(item.source_url)) {
     const source = el("a", "evidence-source", item.source_name || "Source");
     source.href = item.source_url;
     source.target = "_blank";
@@ -185,6 +198,8 @@ function evidenceCard(item, kind) {
       el("span", "evidence-confidence", `${Math.round(Number(item.confidence) * 100)}% match confidence`),
     );
   }
+  const observedDate = item.observed_on || item.observed_at;
+  footer.append(el("span", "evidence-date", observedDate ? `Observed ${String(observedDate).slice(0, 10)}` : "Observation date not supplied"));
   if (footer.childNodes.length) body.append(footer);
 
   card.append(body);
@@ -260,12 +275,15 @@ function questionsCard(review) {
   const body = el("div", "ps-card__body");
   const head = el("div", "questions-head");
   head.append(el("h2", "card-title", "Professional-verification questions"));
-  const generate = el("button", "ps-button ps-button--primary ps-button--small", "Generate with AI");
+  const generate = el("button", "ps-button ps-button--primary ps-button--small", "Generate & save questions");
   generate.type = "button";
   head.append(generate);
   body.append(head);
+  body.append(el("p", "questions-help", "Generate questions from this review’s evidence and save them to the review. Verify AI suggestions with a qualified professional."));
 
   const status = el("p", "questions-status");
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
   status.hidden = true;
   body.append(status);
 
@@ -297,7 +315,7 @@ async function generateQuestions(review, button, status, listHost) {
   const task = questionTask.start();
   button.disabled = true;
   status.hidden = false;
-  status.textContent = "Starting a bounded Plan \u2192 Act \u2192 Observe \u2192 Adapt run\u2026";
+  status.textContent = "Starting a recorded question-pack review…";
   try {
     const start = await requestResponse(`${API_BASE}/assistant/turns`, {
       method: "POST",
@@ -313,7 +331,13 @@ async function generateQuestions(review, button, status, listHost) {
       );
     }
     const run = await start.json();
-    const questions = await pollAssistant(run.id, status, task);
+    const runId = run.id || run.run?.id;
+    if (!runId) throw new Error("The service did not return a recorded run reference.");
+    let activity = status.parentNode.querySelector(".question-activity");
+    if (!activity) { activity = el("a", "question-activity", "Open recorded AI activity →"); status.after(activity); }
+    const params = new URLSearchParams({feature_key: "student-4-due-diligence", run: runId, return_to: `/${"features/due-diligence/"}#site-reviews/${review.id}`});
+    activity.href = `/operations/ai-mode/?${params}`;
+    const questions = await pollAssistant(runId, status, task);
     if (!task.isCurrent() || !listHost.isConnected) return;
     if (questions.length === 0) {
       status.textContent = "The AI run finished without a clear question list. Try again.";
@@ -337,10 +361,10 @@ async function pollAssistant(runId, status, task) {
     return detail.run || detail;
   }, {
     task, intervalMs: 1200,
-    onUpdate: (value) => { status.textContent = `AI run: ${value.status}…`; },
-    isSettled: (value) => ["succeeded", "failed", "cancelled", "timed_out", "waiting_for_review"].includes(value.status),
+    onUpdate: (value) => { status.textContent = `Recorded AI activity: ${String(value.status).replaceAll("_", " ")}…`; },
+    isSettled: (value) => ["succeeded", "failed", "cancelled", "timed_out", "waiting_for_review", "review_required"].includes(value.status),
   });
-  if (run.status === "waiting_for_review") throw new Error("This run needs human review. Open AI activity to continue.");
+  if (["waiting_for_review", "review_required"].includes(run.status)) throw new Error("This run needs human review. Open AI activity to continue.");
   if (run.status !== "succeeded") throw new Error(run.error?.message || `AI run ${run.status}. The evidence remains usable.`);
   return extractQuestions(run.final_result);
 }
@@ -435,7 +459,7 @@ async function loadMap(reviewId, canvas, statusNode) {
 }
 
 async function renderDetailView(view, id, task) {
-  renderMessage(view, "Loading review\u2026");
+  renderMessage(view, "Loading review\u2026", { loading: true });
   let data;
   try {
     const response = await requestResponse(`${API_BASE}/site-reviews/${encodeURIComponent(id)}/evidence`, { signal: task.signal });
@@ -450,10 +474,8 @@ async function renderDetailView(view, id, task) {
     setServiceState("online", "Review service available");
   } catch (error) {
     if (!task.isCurrent()) return;
-    view.replaceChildren(
-      backLink(),
-      el("p", "empty", "Could not load this review. Is the due-diligence service running?"),
-    );
+    renderMessage(view, "This review could not be loaded. Your saved review has not been changed.", { retry: true });
+    view.prepend(backLink());
     setServiceState("offline", "Service unavailable");
     return;
   }
@@ -481,16 +503,15 @@ async function renderDetailView(view, id, task) {
   heading.append(actions);
   view.append(heading);
 
+  const evidence = el("div", "review-evidence-first");
+  evidence.append(evidenceSection("Planning & environmental constraints", data.constraints, "constraint"));
+  evidence.append(evidenceSection("Strata & building records", data.buildings, "building"));
+  view.append(evidence, mapCard(review));
   const stack = el("div", "detail-stack");
-  if (review.notes) stack.append(notesCard(review.notes));
   stack.append(checklistCard(review));
-  stack.append(questionsCard(review));
-  view.append(stack);
+  if (review.notes) stack.append(notesCard(review.notes));
+  view.append(stack, questionsCard(review));
 
-  view.append(mapCard(review));
-
-  view.append(evidenceSection("Planning & environmental constraints", data.constraints, "constraint"));
-  view.append(evidenceSection("Strata & building records", data.buildings, "building"));
 }
 
 // --- create / edit / delete dialogs ---
@@ -536,10 +557,14 @@ function propertyOption(item) {
 }
 
 async function runPropertySearch(query, results) {
+  const task = propertySearchTask.start();
+  results.setAttribute("aria-busy", "true");
+  results.replaceChildren(el("p", "search-hint", "Checking available property records…"));
   try {
-    const response = await requestResponse(`${API_BASE}/properties/search?q=${encodeURIComponent(query)}`);
+    const response = await requestResponse(`${API_BASE}/properties/search?q=${encodeURIComponent(query)}`, { signal: task.signal });
+    if (!task.isCurrent()) return;
     if (!response.ok) {
-      results.replaceChildren(el("p", "search-hint", "Enter at least three characters to search."));
+      results.replaceChildren(el("p", "search-hint", "Property search could not complete. Edit the address to retry."));
       return;
     }
     const payload = await response.json();
@@ -554,11 +579,14 @@ async function runPropertySearch(query, results) {
     }
     results.replaceChildren(...items.map((item) => propertyOption(item)));
   } catch (error) {
-    results.replaceChildren(el("p", "search-hint", "Property search is unavailable right now."));
+    if (task.isCurrent()) results.replaceChildren(el("p", "search-hint", "Property search is unavailable right now. Edit the address to retry."));
+  } finally {
+    if (task.isCurrent()) results.setAttribute("aria-busy", "false");
   }
 }
 
 function selectProperty(item) {
+  propertySearchTask.cancel();
   selectedProperty = { property_ref: item.property_ref, address_display: item.address_display };
   const results = document.querySelector("#property-results");
   const input = document.querySelector("#property-search");
@@ -582,6 +610,8 @@ function initPropertySearch() {
     const selected = document.querySelector("#selected-property");
     if (selected) selected.hidden = true;
     clearTimeout(searchTimer);
+    propertySearchTask.cancel();
+    results.setAttribute("aria-busy", "false");
     const query = input.value.trim();
     if (query.length < 3) {
       results.replaceChildren();
@@ -636,6 +666,8 @@ function openEditDialog(review) {
 }
 
 function closeDialog() {
+  clearTimeout(searchTimer);
+  propertySearchTask.cancel();
   const dialog = document.querySelector("#review-dialog");
   if (dialog && dialog.open) dialog.close();
 }
@@ -787,10 +819,11 @@ function initialise() {
     });
   }
   window.addEventListener("hashchange", () => route({ focus: true }));
-  window.addEventListener("pagehide", () => { routeTask.cancel(); questionTask.cancel(); activeMap?.destroy(); clearTimeout(toastTimer); clearTimeout(searchTimer); }, { once: true });
+  window.addEventListener("pagehide", () => { routeTask.cancel(); questionTask.cancel(); propertySearchTask.cancel(); activeMap?.destroy(); clearTimeout(toastTimer); clearTimeout(searchTimer); }, { once: true });
 
   const dialog = document.querySelector("#review-dialog");
   if (dialog) {
+    dialog.addEventListener("close", () => { propertySearchTask.cancel(); clearTimeout(searchTimer); });
     const reviewForm = document.querySelector("#review-form");
     if (reviewForm) reviewForm.addEventListener("submit", submitReview);
     dialog

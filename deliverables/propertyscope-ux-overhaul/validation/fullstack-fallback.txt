@@ -1,0 +1,14 @@
+> /opt/pyvenv/bin/python scripts/generate_deployment.py --check
+Validated generated enabled-feature projections
+> /opt/pyvenv/bin/python scripts/validate_architecture.py
+Validated workspace dependency, import, credential, and volume boundaries
+> /opt/pyvenv/bin/python scripts/validate_tool_catalogs.py
+Traceback (most recent call last):
+  File "<workspace>/scripts/validate_tool_catalogs.py", line 10, in <module>
+    from ai_mode.tool_catalog import ToolCatalog, build_tool_runtime, load_tool_catalog
+  File "<workspace>/ai-services/ai-mode/src/ai_mode/__init__.py", line 3, in <module>
+    from ai_mode.app import create_app
+  File "<workspace>/ai-services/ai-mode/src/ai_mode/app.py", line 9, in <module>
+    from flask import Flask, Response, g, jsonify, request
+ModuleNotFoundError: No module named 'flask'
+Development command failed with exit code 1.

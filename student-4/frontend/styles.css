@@ -17,7 +17,6 @@
 body {
   min-height: 100vh;
   margin:0;
-  overflow-x: clip;
 }
 a {
   color: var(--ocean-dark);
@@ -49,7 +48,7 @@ a {
   border-radius: var(--ps-radius-sm);
   background: var(--ps-color-surface-subtle);
   color: var(--ps-ink-950);
-  font-size: 0.82rem;
+  font-size: var(--ps-text-label);
 }
 
 .topbar-actions {
@@ -66,7 +65,7 @@ a {
   border: 1px solid var(--ps-color-inverse-border);
   border-radius: var(--ps-radius-pill);
   color: var(--ps-ink-200);
-  font-size: 0.74rem;
+  font-size: var(--ps-text-caption);
   font-weight: 650;
   white-space: nowrap;
 }
@@ -99,7 +98,7 @@ a {
   border-bottom: 1px solid var(--line);
   background: var(--paper);
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: var(--ps-text-caption);
   font-weight: 650;
 }
 .workspace-strip span {
@@ -160,11 +159,11 @@ a {
 .context-card small {
   display: block;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: var(--ps-text-caption);
 }
 .context-card strong {
   display: block;
-  font-size: 0.9rem;
+  font-size: var(--ps-text-body);
 }
 .context-icon {
   display: grid;
@@ -174,12 +173,12 @@ a {
   border-radius: var(--ps-radius-sm);
   background: var(--ocean);
   color: var(--ps-color-inverse);
-  font-size: 1rem;
+  font-size: var(--ps-text-body);
 }
 .nav-label {
   margin:var(--ps-space-3) var(--ps-space-2) var(--ps-space-1);
   color: var(--ps-color-text-subtle);
-  font-size: 0.62rem;
+  font-size: var(--ps-text-caption);
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -193,7 +192,7 @@ a {
   padding:0.5rem var(--ps-space-2);
   border-radius: var(--ps-radius-sm);
   color: var(--ps-ink-700);
-  font-size: 0.8rem;
+  font-size: var(--ps-text-label);
   font-weight: 650;
   text-decoration: none;
 }
@@ -217,7 +216,7 @@ a {
   padding:1rem 0 var(--ps-space-1);
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: var(--ps-text-caption);
   line-height: 1.45;
 }
 .sidebar-note a {
@@ -263,14 +262,14 @@ main {
 .review-card__eyebrow {
   margin:0 0 var(--ps-space-2);
   color: var(--ps-ocean-700);
-  font-size: 0.72rem;
+  font-size: var(--ps-text-caption);
   font-weight: 810;
   letter-spacing: 0.095em;
   text-transform: uppercase;
 }
 .review-address {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--ps-text-body);
 }
 .review-meta {
   display: flex;
@@ -281,7 +280,7 @@ main {
 }
 .review-disposition {
   color: var(--ps-ink-600);
-  font-size: 0.78rem;
+  font-size: var(--ps-text-label);
   font-weight: 650;
 }
 
@@ -302,12 +301,13 @@ a.review-card:hover {
 
 /* Detail view */
 .back-link {
+  min-height: var(--ps-control-height);
   display: inline-flex;
   align-items: center;
   gap:var(--ps-space-1);
   margin-bottom:var(--ps-space-4);
   color: var(--ocean-dark);
-  font-size: 0.82rem;
+  font-size: var(--ps-text-label);
   font-weight: 700;
   text-decoration: none;
 }
@@ -354,7 +354,7 @@ a.review-card:hover {
 .map-intro {
   margin:0 0 var(--ps-space-3);
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--ps-text-label);
 }
 .questions-head {
   display: flex;
@@ -373,7 +373,7 @@ a.review-card:hover {
   border-radius: var(--ps-radius-sm);
   background: var(--ps-color-surface-subtle);
   color: var(--ps-ink-700);
-  font-size: 0.82rem;
+  font-size: var(--ps-text-label);
 }
 .checklist {
   display: grid;
@@ -435,7 +435,7 @@ a.review-card:hover {
 .evidence-observed {
   margin:0 0 0.5rem;
   color: var(--navy);
-  font-size: 0.9rem;
+  font-size: var(--ps-text-body);
   font-weight: 650;
 }
 .evidence-footer {
@@ -445,7 +445,7 @@ a.review-card:hover {
   gap:0.5rem var(--ps-space-3);
   padding-top:0.5rem;
   border-top: 1px solid var(--line);
-  font-size: 0.78rem;
+  font-size: var(--ps-text-label);
 }
 .evidence-source {
   color: var(--ocean-dark);
@@ -503,7 +503,7 @@ a.review-card:hover {
   border: 0;
   background: transparent;
   color: var(--muted);
-  font-size: 1.5rem;
+  font-size: var(--ps-text-heading-small);
   line-height: 1;
   cursor: pointer;
 }
@@ -534,7 +534,7 @@ a.review-card:hover {
 }
 .field label {
   color: var(--ps-ink-700);
-  font-size: 0.8rem;
+  font-size: var(--ps-text-label);
   font-weight: 700;
 }
 .field input,
@@ -575,25 +575,25 @@ a.review-card:hover {
   background: var(--sky);
 }
 .property-option__address {
-  font-size: 0.85rem;
+  font-size: var(--ps-text-label);
   font-weight: 650;
 }
 .property-option__status {
   color: var(--ps-color-success);
-  font-size: 0.7rem;
+  font-size: var(--ps-text-caption);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .selected-property {
   margin:0;
   color: var(--ps-color-success);
-  font-size: 0.8rem;
+  font-size: var(--ps-text-label);
   font-weight: 650;
 }
 .search-hint {
   margin:0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--ps-text-label);
 }
 .form-error {
   margin:0;
@@ -601,7 +601,7 @@ a.review-card:hover {
   border-radius: var(--ps-radius-sm);
   background: var(--ps-danger-bg);
   color: var(--ps-danger);
-  font-size: 0.82rem;
+  font-size: var(--ps-text-label);
 }
 @media (max-width: 560px) {
   .field-row {
@@ -628,3 +628,17 @@ a.review-card:hover {
 
 
 }
+
+.review-state { min-height: 18rem; padding: var(--ps-space-6) 0; }
+.review-state .empty { padding-inline: 0; text-align: left; }
+.review-evidence-first { display: grid; gap: var(--ps-space-6); margin-top: var(--ps-space-6); }
+.review-evidence-first .evidence-section { margin-top: 0; }
+.evidence-card { box-shadow: none; border-radius: var(--ps-radius-md); }
+.evidence-footer { align-items: baseline; line-height: var(--ps-leading-relaxed); }
+.evidence-date { color: var(--ps-color-text-muted); font-size: var(--ps-text-caption); }
+.questions-help { max-width: var(--ps-content-readable); color: var(--ps-color-text-muted); font-size: var(--ps-text-label); }
+.question-activity { display: inline-flex; min-height: var(--ps-control-height); align-items: center; margin-bottom: var(--ps-space-3); }
+.checklist__label { min-height: var(--ps-control-height); }
+.dialog-close { min-height: var(--ps-control-height); min-width: var(--ps-control-height); }
+#property-results { max-height: 16rem; overflow-y: auto; }
+@media (min-width: 1100px) { .detail-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--ps-space-6); } }

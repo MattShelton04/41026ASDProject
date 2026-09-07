@@ -1,0 +1,1 @@
+Validated uv workspace lock and Docker manifest inputs

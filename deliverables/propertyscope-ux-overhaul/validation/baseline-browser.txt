@@ -1,0 +1,122 @@
+[
+  {
+    "name": "home",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/#home\nCall log:\n  - navigating to \"http://127.0.0.1:5300/#home\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "areas",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/#features\nCall log:\n  - navigating to \"http://127.0.0.1:5300/#features\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "status",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/#system-status\nCall log:\n  - navigating to \"http://127.0.0.1:5300/#system-status\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "assistant",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/#assistant\nCall log:\n  - navigating to \"http://127.0.0.1:5300/#assistant\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "properties",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/data-platform/#properties\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/data-platform/#properties\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "overview",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/data-platform/#overview\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/data-platform/#overview\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "runs",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/data-platform/#runs\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/data-platform/#runs\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "ai-activity",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/operations/ai-mode/\nCall log:\n  - navigating to \"http://127.0.0.1:5300/operations/ai-mode/\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "market",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/market-intelligence/#market-cases\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/market-intelligence/#market-cases\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "suburbs",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/suburb-analytics/#explore\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/suburb-analytics/#explore\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "due-diligence",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/due-diligence/#site-reviews\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/due-diligence/#site-reviews\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "buyer",
+    "width": 1440,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/buyer-workspaces/#buyer-cases\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/buyer-workspaces/#buyer-cases\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "home",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/#home\nCall log:\n  - navigating to \"http://127.0.0.1:5300/#home\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "areas",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/#features\nCall log:\n  - navigating to \"http://127.0.0.1:5300/#features\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "status",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/#system-status\nCall log:\n  - navigating to \"http://127.0.0.1:5300/#system-status\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "assistant",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/#assistant\nCall log:\n  - navigating to \"http://127.0.0.1:5300/#assistant\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "properties",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/data-platform/#properties\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/data-platform/#properties\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "overview",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/data-platform/#overview\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/data-platform/#overview\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "runs",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/data-platform/#runs\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/data-platform/#runs\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "ai-activity",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/operations/ai-mode/\nCall log:\n  - navigating to \"http://127.0.0.1:5300/operations/ai-mode/\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "market",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/market-intelligence/#market-cases\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/market-intelligence/#market-cases\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "suburbs",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/suburb-analytics/#explore\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/suburb-analytics/#explore\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "due-diligence",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/due-diligence/#site-reviews\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/due-diligence/#site-reviews\", waiting until \"networkidle\"\n"
+  },
+  {
+    "name": "buyer",
+    "width": 390,
+    "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:5300/features/buyer-workspaces/#buyer-cases\nCall log:\n  - navigating to \"http://127.0.0.1:5300/features/buyer-workspaces/#buyer-cases\", waiting until \"networkidle\"\n"
+  }
+]

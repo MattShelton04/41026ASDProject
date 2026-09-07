@@ -283,7 +283,7 @@ test("bounded evidence renderer exposes all states and limitations safely", () =
   assert.match(html, /&lt;Address&gt;/);
   assert.match(html, /Bounded to 10 properties/);
   assert.match(html, /feature_1:property_ref:property-1/);
-  assert.match(html, /<code>property-1<\/code>: Complete/);
+  assert.match(html, /&lt;Address&gt; · Complete/);
   assert.match(html, /Suburb analytics evidence/);
   assert.match(html, /Suburb analytics evidence<\/h4><span class="ps-badge evidence-unavailable">Unavailable/);
   assert.doesNotMatch(html, /Feature 3 evidence/);
@@ -342,7 +342,7 @@ test("AI workflow presents a compact accessible idle status", () => {
 });
 
 test("AI workflow uses one concise processing status for every phase", () => {
-  for (const status of ["queued", "planning", "acting", "observing", "adapting", "review_required"]) {
+  for (const status of ["queued", "planning", "acting", "observing", "adapting"]) {
     const run = { status, phases: [{ name: "adapt", status: "running" }] };
     assert.equal(summaryWorkflowView(run).statusText, "Generating case summary");
   }
@@ -404,4 +404,9 @@ test("buyer reads accept cancellation without relabelling it as database unavail
   controller.abort();
   await assert.rejects(reading, {name: "AbortError"});
   assert.equal(requestedSignal.aborted, true);
+});
+
+test("review-required summary is paused, not described as still generating", () => {
+  assert.match(summaryWorkflowView({status: "review_required", phases: []}).statusText, /review/i);
+  assert.doesNotMatch(summaryWorkflowView({status: "review_required", phases: []}).statusText, /Generating/);
 });

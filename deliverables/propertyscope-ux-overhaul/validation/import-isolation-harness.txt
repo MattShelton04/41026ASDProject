@@ -1,0 +1,16 @@
+"""Execute the original pure-domain tests without Flask package initialisation.
+This is deliberately not evidence of backend HTTP or full-stack integration.
+"""
+import sys
+import types
+from pathlib import Path
+import pytest
+
+root = Path('<workspace>')
+package = types.ModuleType('propertyscope_data_platform')
+package.__path__ = [str(root / 'student-1/backend/src/propertyscope_data_platform')]
+sys.modules['propertyscope_data_platform'] = package
+raise SystemExit(pytest.main([
+    str(root / 'student-1/tests/unit/test_assistant.py'),
+    '--noconftest', '-q', '-o', 'addopts=',
+]))

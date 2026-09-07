@@ -1,0 +1,328 @@
+{
+  "scope": "Production assets with empty/unavailable APIs; not live Docker or CRUD",
+  "document_mode": "injected about:blank",
+  "cases": [
+    {
+      "feature": "data-platform",
+      "mode": "empty",
+      "width": 320,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "data-platform",
+      "mode": "empty",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "data-platform",
+      "mode": "empty",
+      "width": 768,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "data-platform",
+      "mode": "empty",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "data-platform",
+      "mode": "unavailable",
+      "width": 320,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "data-platform",
+      "mode": "unavailable",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "data-platform",
+      "mode": "unavailable",
+      "width": 768,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "data-platform",
+      "mode": "unavailable",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "market-intelligence",
+      "mode": "empty",
+      "width": 320,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "market-intelligence",
+      "mode": "empty",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "market-intelligence",
+      "mode": "empty",
+      "width": 768,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "market-intelligence",
+      "mode": "empty",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "market-intelligence",
+      "mode": "unavailable",
+      "width": 320,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "market-intelligence",
+      "mode": "unavailable",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "market-intelligence",
+      "mode": "unavailable",
+      "width": 768,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "market-intelligence",
+      "mode": "unavailable",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "suburb-analytics",
+      "mode": "empty",
+      "width": 320,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "suburb-analytics",
+      "mode": "empty",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "suburb-analytics",
+      "mode": "empty",
+      "width": 768,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "suburb-analytics",
+      "mode": "empty",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "suburb-analytics",
+      "mode": "unavailable",
+      "width": 320,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "suburb-analytics",
+      "mode": "unavailable",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "suburb-analytics",
+      "mode": "unavailable",
+      "width": 768,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "suburb-analytics",
+      "mode": "unavailable",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "due-diligence",
+      "mode": "empty",
+      "width": 320,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "due-diligence",
+      "mode": "empty",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "due-diligence",
+      "mode": "empty",
+      "width": 768,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "due-diligence",
+      "mode": "empty",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "due-diligence",
+      "mode": "unavailable",
+      "width": 320,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "due-diligence",
+      "mode": "unavailable",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "due-diligence",
+      "mode": "unavailable",
+      "width": 768,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "due-diligence",
+      "mode": "unavailable",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "buyer-workspaces",
+      "mode": "empty",
+      "width": 320,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "buyer-workspaces",
+      "mode": "empty",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "buyer-workspaces",
+      "mode": "empty",
+      "width": 768,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "buyer-workspaces",
+      "mode": "empty",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "buyer-workspaces",
+      "mode": "unavailable",
+      "width": 320,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "buyer-workspaces",
+      "mode": "unavailable",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "buyer-workspaces",
+      "mode": "unavailable",
+      "width": 768,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    },
+    {
+      "feature": "buyer-workspaces",
+      "mode": "unavailable",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "status": "passed",
+      "page_errors": []
+    }
+  ],
+  "passed": 40,
+  "failed": 0
+}

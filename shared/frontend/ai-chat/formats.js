@@ -91,7 +91,7 @@ export function evidenceSteps(detail, events = []) {
         label: humaniseAssistantValue(call.tool_name),
         summary: result?.outcome === "succeeded"
           ? "Recorded an allowlisted source result."
-          : result?.error?.message || step.error?.message || "The source check did not complete.",
+          : result?.error?.message || step.error?.message || (["failed", "cancelled"].includes(result?.outcome || step.status) ? "The source check did not complete." : "Waiting for the recorded source result."),
         status: result?.outcome || step.status,
         references: Array.isArray(result?.evidence_references) ? result.evidence_references : [],
       };

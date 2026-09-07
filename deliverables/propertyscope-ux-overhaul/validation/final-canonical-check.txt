@@ -1,0 +1,4 @@
+error: No interpreter found for Python 3.12 in managed installations or search path
+
+hint: A managed Python download is available for Python 3.12, but Python downloads are set to 'never'
+exit=2

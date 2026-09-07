@@ -1,8 +1,12 @@
-# PropertyScope frontend design system
+# PropertyScope frontend design system — Fieldbook
 
 A dependency-free, CSS-first foundation for the shared shell and the five independently owned
 frontend microservices. The system standardises visual language and accessibility without turning
 the shared directory into a domain-component monolith.
+
+The implementation and validation record for this direction is in
+[`deliverables/propertyscope-ux-overhaul`](../../../deliverables/propertyscope-ux-overhaul/00_EXECUTIVE_SUMMARY.md).
+It distinguishes real browser rendering from the restricted injected-document test profile.
 
 ## Import order
 
@@ -96,7 +100,7 @@ and mutation lifecycle.
 - native buttons, links, forms, dialogs and headings before custom interaction;
 - visible keyboard focus;
 - text labels in addition to colour/icon states;
-- minimum 42px interactive target height where practical;
+- 44px comfortable controls; 38px dense desktop controls with adequate spacing;
 - reduced-motion support;
 - responsive layouts down to 320px; and
 - status announcements through an appropriate live region.

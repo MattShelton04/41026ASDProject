@@ -3,8 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#10262e" />
+    <meta name="theme-color" content="#285442" />
     <meta name="description" content="PropertyScope site, planning and building due diligence" />
+    <link rel="icon" type="image/svg+xml" href="./design-system/brand/favicon.svg">
     <title>PropertyScope | Site and planning</title>
     <link rel="stylesheet" href="./design-system/tokens.css" />
     <link rel="stylesheet" href="./design-system/base.css" />
@@ -19,8 +20,8 @@
     <a class="ps-skip-link" href="#main-content">Skip to main content</a>
     <header class="topbar ps-feature-header">
       <a class="ps-feature-brand" data-product-home href="/" aria-label="PropertyScope product home">
-        <span class="ps-feature-brand-mark" aria-hidden="true">PS</span>
-        <span><strong>PropertyScope NSW</strong><small>Property research workspace</small></span>
+        <img class="ps-feature-brand-mark" src="./design-system/brand/propertyscope-mark.svg" alt="" width="36" height="36">
+        <span><strong>PropertyScope NSW</strong><small>Site &amp; planning</small></span>
       </a>
       <form class="topbar-search" id="review-filter-form" role="search">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
@@ -32,13 +33,9 @@
         <a data-product-path="#features" href="/#features">Research areas</a>
         <a data-product-path="#system-status" href="/#system-status">Data status</a>
         <a data-product-path="#evidence" href="/#evidence">Sources &amp; history</a>
+        <a data-product-path="#assistant" href="/#assistant">Ask PropertyScope</a>
       </nav>
-      <div class="topbar-actions">
-        <div id="service-state" class="service-state checking" role="status">
-          <span class="status-dot" aria-hidden="true"></span>
-          <span data-service-label>Checking service</span>
-        </div>
-      </div>
+
     </header>
 
     <div class="workspace-strip" aria-label="Current research area and evidence status">
@@ -46,7 +43,10 @@
       <span><i aria-hidden="true"></i> Evidence-led review</span>
       <span>Planning, environmental, strata &amp; building</span>
       <span>Evidence states shown</span>
-    </div>
+    <div id="service-state" class="service-state checking" role="status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span data-service-label>Checking service</span>
+        </div></div>
 
     <div class="app-shell">
       <aside class="sidebar" aria-label="Primary navigation">

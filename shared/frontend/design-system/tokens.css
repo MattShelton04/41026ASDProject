@@ -2,21 +2,21 @@
   color-scheme: light;
 
   /* Typography */
-  --ps-font-sans: Inter, "Avenir Next", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --ps-font-display: "Avenir Next", "Segoe UI", var(--ps-font-sans);
+  --ps-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --ps-font-display: var(--ps-font-sans);
   --ps-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --ps-type-xs: 0.75rem;
   --ps-type-sm: 0.875rem;
   --ps-type-body: 1rem;
   --ps-type-lg: 1.12rem;
-  --ps-type-title: clamp(2rem, 4vw, 3.3rem);
-  --ps-type-display: clamp(2.55rem, 7vw, 5.5rem);
+  --ps-type-title: clamp(1.875rem, 3vw, 2.75rem);
+  --ps-type-display: clamp(2.5rem, 4.7vw, 4rem);
   --ps-leading-tight: 1.08;
   --ps-leading-body: 1.5;
   --ps-leading-relaxed: 1.65;
-  --ps-weight-medium: 650;
-  --ps-weight-bold: 750;
-  --ps-weight-heavy: 810;
+  --ps-weight-medium: 600;
+  --ps-weight-bold: 650;
+  --ps-weight-heavy: 700;
 
   /* Semantic type roles. Palette-scale tokens above remain available for composition. */
   --ps-text-caption: var(--ps-type-xs);
@@ -24,33 +24,35 @@
   --ps-text-body: var(--ps-type-body);
   --ps-text-body-large: var(--ps-type-lg);
   --ps-text-heading-small: 1.05rem;
-  --ps-text-heading-medium: clamp(1.7rem, 3vw, 2.5rem);
+  --ps-text-heading-medium: clamp(1.375rem, 2.2vw, 1.875rem);
   --ps-text-heading-large: var(--ps-type-title);
   --ps-text-display: var(--ps-type-display);
 
-  /* Ink and surfaces */
-  --ps-ink-950: #10262e;
-  --ps-ink-900: #17333d;
-  --ps-ink-800: #23444e;
-  --ps-ink-700: #385a63;
-  --ps-ink-600: #557078;
-  --ps-ink-500: #71868c;
-  --ps-ink-400: #96a7aa;
-  --ps-ink-300: #bac7c9;
-  --ps-ink-200: #d5dede;
-  --ps-ink-150: #e2e9e8;
-  --ps-ink-100: #edf2f1;
-  --ps-ink-50: #f6f8f7;
+  --ps-font-editorial: Georgia, "Times New Roman", serif;
 
-  /* Product accents: NSW-inspired, deliberately not government branding */
-  --ps-ocean-800: #075a5d;
-  --ps-ocean-700: #086d70;
-  --ps-ocean-600: #087f81;
-  --ps-ocean-500: #159495;
-  --ps-ocean-300: #72c4c1;
-  --ps-ocean-200: #a9dcda;
-  --ps-ocean-100: #d8efed;
-  --ps-ocean-50: #eef8f7;
+  /* Ink and surfaces */
+  --ps-ink-950: #192d27;
+  --ps-ink-900: #263b33;
+  --ps-ink-800: #344b41;
+  --ps-ink-700: #4c6056;
+  --ps-ink-600: #617168;
+  --ps-ink-500: #65736b;
+  --ps-ink-400: #8a968e;
+  --ps-ink-300: #b9c2ba;
+  --ps-ink-200: #d6dcd5;
+  --ps-ink-150: #e3e7df;
+  --ps-ink-100: #eef0e9;
+  --ps-ink-50: #f7f8f3;
+
+  /* Fieldbook evergreen. The ocean names remain stable public aliases, not separate colours. */
+  --ps-ocean-800: #1b4032;
+  --ps-ocean-700: #285442;
+  --ps-ocean-600: #34684f;
+  --ps-ocean-500: #477c62;
+  --ps-ocean-300: #9bbfa9;
+  --ps-ocean-200: #c2d8c8;
+  --ps-ocean-100: #e1ebe0;
+  --ps-ocean-50: #f0f5ee;
 
   --ps-eucalypt-700: #496c5f;
   --ps-eucalypt-500: #66877b;
@@ -74,11 +76,11 @@
   --ps-blue-700: #275f89;
   --ps-blue-100: #e1eef7;
 
-  --ps-canvas: #f3f6f5;
+  --ps-canvas: #f5f4ee;
   --ps-paper: #ffffff;
-  --ps-paper-warm: #fffdf9;
-  --ps-line: rgba(23, 51, 61, 0.13);
-  --ps-line-strong: rgba(23, 51, 61, 0.22);
+  --ps-paper-warm: #fffef9;
+  --ps-line: #dce1d8;
+  --ps-line-strong: #b9c4b8;
   --ps-line-inverse: rgba(255, 255, 255, 0.15);
 
   /* Semantic colour roles used by Shared and feature aliases. */
@@ -136,11 +138,11 @@
   --ps-shadow-lg: 0 24px 64px rgba(13, 38, 47, 0.16);
   --ps-border-width: 1px;
   --ps-border-width-strong: 2px;
-  --ps-radius-xs: 5px;
-  --ps-radius-sm: 8px;
-  --ps-radius-md: 12px;
-  --ps-radius-lg: 18px;
-  --ps-radius-xl: 26px;
+  --ps-radius-xs: 4px;
+  --ps-radius-sm: 6px;
+  --ps-radius-md: 8px;
+  --ps-radius-lg: 12px;
+  --ps-radius-xl: 16px;
   --ps-radius-pill: 999px;
   --ps-space-1: 0.25rem;
   --ps-space-2: 0.5rem;
@@ -162,9 +164,9 @@
   --ps-control-height-compact: 38px;
   --ps-control-height-comfortable: 44px;
   --ps-control-height: var(--ps-control-height-comfortable);
-  --ps-control-height-large: 58px;
-  --ps-shell-topbar-height: 66px;
-  --ps-shell-rail-width: 224px;
+  --ps-control-height-large: 56px;
+  --ps-shell-topbar-height: 72px;
+  --ps-shell-rail-width: 216px;
   --ps-motion-fast: 100ms;
   --ps-motion-normal: 160ms;
   --ps-motion-slow: 240ms;
@@ -184,4 +186,21 @@
   --ps-z-dialog: 70;
   --ps-z-toast: 80;
   --ps-z-skip-link: 1000;
+
+  /* Shared geometry: icons, skeletons, navigation and meaningful motion. */
+  --ps-icon-small: 16px;
+  --ps-icon: 20px;
+  --ps-icon-large: 24px;
+  --ps-brand-size: 36px;
+  --ps-motion-distance: 4px;
+  --ps-motion-progress: 1200ms;
+  --ps-color-skeleton: var(--ps-ink-150);
+  --ps-color-skeleton-highlight: var(--ps-ink-50);
+  --ps-color-chart-primary: var(--ps-ocean-700);
+  --ps-color-chart-secondary: var(--ps-blue-700);
+  --ps-color-chart-tertiary: var(--ps-sand-700);
+  --ps-color-chart-grid: var(--ps-ink-150);
+  --ps-composer-max-height: 200px;
+  --ps-dialog-max-width: 720px;
+  --ps-color-scrim: rgb(25 45 39 / 48%);
 }

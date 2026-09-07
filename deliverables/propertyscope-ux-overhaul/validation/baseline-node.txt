@@ -1,0 +1,1180 @@
+TAP version 13
+# Subtest: assistant scope semantics are injected and validated by the shared package
+ok 1 - assistant scope semantics are injected and validated by the shared package
+  ---
+  duration_ms: 1.052053
+  type: 'test'
+  ...
+# Subtest: structured answers prefer user-facing sections and omit nested opaque state
+ok 2 - structured answers prefer user-facing sections and omit nested opaque state
+  ---
+  duration_ms: 0.799242
+  type: 'test'
+  ...
+# Subtest: completed turns become bounded alternating follow-up history
+ok 3 - completed turns become bounded alternating follow-up history
+  ---
+  duration_ms: 1.749552
+  type: 'test'
+  ...
+# Subtest: context editor definitions remain injected and domain neutral
+ok 4 - context editor definitions remain injected and domain neutral
+  ---
+  duration_ms: 0.19972
+  type: 'test'
+  ...
+# Subtest: run details and evidence normalize without a private-reasoning field
+ok 5 - run details and evidence normalize without a private-reasoning field
+  ---
+  duration_ms: 0.271018
+  type: 'test'
+  ...
+# Subtest: event cursors merge duplicate pages and terminal polling stops
+ok 6 - event cursors merge duplicate pages and terminal polling stops
+  ---
+  duration_ms: 0.29283
+  type: 'test'
+  ...
+# Subtest: assistant client uses the wrapper-supplied same-origin API root
+ok 7 - assistant client uses the wrapper-supplied same-origin API root
+  ---
+  duration_ms: 19.851195
+  type: 'test'
+  ...
+# Subtest: feature assistant activity links retain independently supplied ownership
+ok 8 - feature assistant activity links retain independently supplied ownership
+  ---
+  duration_ms: 0.367673
+  type: 'test'
+  ...
+# Subtest: feature assistant activity links fail closed without ownership inputs
+ok 9 - feature assistant activity links fail closed without ownership inputs
+  ---
+  duration_ms: 0.388375
+  type: 'test'
+  ...
+# Subtest: component source preserves disclosure/focus state and surfaces polling warnings
+ok 10 - component source preserves disclosure/focus state and surfaces polling warnings
+  ---
+  duration_ms: 11.291863
+  type: 'test'
+  ...
+# Subtest: destroying an assistant client aborts its in-flight requests
+ok 11 - destroying an assistant client aborts its in-flight requests
+  ---
+  duration_ms: 0.719453
+  type: 'test'
+  ...
+# Subtest: JSON requests cover the body read, not just response headers
+ok 12 - JSON requests cover the body read, not just response headers
+  ---
+  duration_ms: 31.533189
+  type: 'test'
+  ...
+# Subtest: pre-aborted requests never invoke their operation
+ok 13 - pre-aborted requests never invoke their operation
+  ---
+  duration_ms: 0.518179
+  type: 'test'
+  ...
+# Subtest: aborting a caller bounds an operation even when a test double ignores the signal
+ok 14 - aborting a caller bounds an operation even when a test double ignores the signal
+  ---
+  duration_ms: 0.24623
+  type: 'test'
+  ...
+# Subtest: duplicated abort sources install one listener and clean it after completion
+ok 15 - duplicated abort sources install one listener and clean it after completion
+  ---
+  duration_ms: 0.254443
+  type: 'test'
+  ...
+# Subtest: timeout has a distinct type and retains its duration
+ok 16 - timeout has a distinct type and retains its duration
+  ---
+  duration_ms: 10.810663
+  type: 'test'
+  ...
+# Subtest: JSON headers merge case-insensitively without dropping idempotency or request identity
+ok 17 - JSON headers merge case-insensitively without dropping idempotency or request identity
+  ---
+  duration_ms: 0.525581
+  type: 'test'
+  ...
+# Subtest: Headers objects and raw JSON strings are supported
+ok 18 - Headers objects and raw JSON strings are supported
+  ---
+  duration_ms: 0.932173
+  type: 'test'
+  ...
+# Subtest: 204 deletes succeed without attempting JSON decoding
+ok 19 - 204 deletes succeed without attempting JSON decoding
+  ---
+  duration_ms: 1.29613
+  type: 'test'
+  ...
+# Subtest: successful but unreadable JSON is not mistaken for empty data
+ok 20 - successful but unreadable JSON is not mistaken for empty data
+  ---
+  duration_ms: 0.371258
+  type: 'test'
+  ...
+# Subtest: HTTP problems retain response correlation, status, code and detail
+ok 21 - HTTP problems retain response correlation, status, code and detail
+  ---
+  duration_ms: 0.598821
+  type: 'test'
+  ...
+# Subtest: transport failures never silently retry mutations
+ok 22 - transport failures never silently retry mutations
+  ---
+  duration_ms: 0.244248
+  type: 'test'
+  ...
+# Subtest: feature client supplies its namespace without importing feature semantics
+ok 23 - feature client supplies its namespace without importing feature semantics
+  ---
+  duration_ms: 0.694605
+  type: 'test'
+  ...
+# Subtest: starting a new task aborts and invalidates the previous result
+ok 24 - starting a new task aborts and invalidates the previous result
+  ---
+  duration_ms: 0.356497
+  type: 'test'
+  ...
+# Subtest: terminal initial runs do not poll
+ok 25 - terminal initial runs do not poll
+  ---
+  duration_ms: 0.307553
+  type: 'test'
+  ...
+# Subtest: polling has a wall-clock bound even if the reader ignores cancellation
+ok 26 - polling has a wall-clock bound even if the reader ignores cancellation
+  ---
+  duration_ms: 10.590493
+  type: 'test'
+  ...
+# Subtest: cancelled polling never renders a late result
+ok 27 - cancelled polling never renders a late result
+  ---
+  duration_ms: 0.436667
+  type: 'test'
+  ...
+# Subtest: polling stops at its attempt budget
+ok 28 - polling stops at its attempt budget
+  ---
+  duration_ms: 3.514387
+  type: 'test'
+  ...
+# Subtest: product home resolves http://127.0.0.1:5600/\#explore without a hardcoded localhost host
+ok 29 - product home resolves http://127.0.0.1:5600/\#explore without a hardcoded localhost host
+  ---
+  duration_ms: 0.454734
+  type: 'test'
+  ...
+# Subtest: product home resolves http://localhost:5500/ without a hardcoded localhost host
+ok 30 - product home resolves http://localhost:5500/ without a hardcoded localhost host
+  ---
+  duration_ms: 0.066319
+  type: 'test'
+  ...
+# Subtest: product home resolves http://[::1]:5500/ without a hardcoded localhost host
+ok 31 - product home resolves http://[::1]:5500/ without a hardcoded localhost host
+  ---
+  duration_ms: 0.12645
+  type: 'test'
+  ...
+# Subtest: product home resolves http://127.0.0.1:8765/features/data-platform/\#properties without a hardcoded localhost host
+ok 32 - product home resolves http://127.0.0.1:8765/features/data-platform/\#properties without a hardcoded localhost host
+  ---
+  duration_ms: 0.052949
+  type: 'test'
+  ...
+# Subtest: product home resolves https://example.test/features/buyer-workspaces/ without a hardcoded localhost host
+ok 33 - product home resolves https://example.test/features/buyer-workspaces/ without a hardcoded localhost host
+  ---
+  duration_ms: 0.037967
+  type: 'test'
+  ...
+# Subtest: product home resolves https://example.test/ without a hardcoded localhost host
+ok 34 - product home resolves https://example.test/ without a hardcoded localhost host
+  ---
+  duration_ms: 0.038207
+  type: 'test'
+  ...
+# Subtest: explicit product deployment base is preserved and unsafe schemes are rejected
+ok 35 - explicit product deployment base is preserved and unsafe schemes are rejected
+  ---
+  duration_ms: 0.238038
+  type: 'test'
+  ...
+# Subtest: status-driven adapters can inspect a valid HTTP error body without accepting malformed JSON
+ok 36 - status-driven adapters can inspect a valid HTTP error body without accepting malformed JSON
+  ---
+  duration_ms: 0.578641
+  type: 'test'
+  ...
+# Subtest: template escaping covers text and quoted attributes
+ok 37 - template escaping covers text and quoted attributes
+  ---
+  duration_ms: 7.526594
+  type: 'test'
+  ...
+# Subtest: shared hash routes are bounded and unknown fragments return home
+ok 38 - shared hash routes are bounded and unknown fragments return home
+  ---
+  duration_ms: 0.825161
+  type: 'test'
+  ...
+# Subtest: shared assistant wrapper owns product and feature vocabulary
+ok 39 - shared assistant wrapper owns product and feature vocabulary
+  ---
+  duration_ms: 0.793163
+  type: 'test'
+  ...
+# Subtest: feature registry is the bounded source for shell routes and availability
+ok 40 - feature registry is the bounded source for shell routes and availability
+  ---
+  duration_ms: 0.346271
+  type: 'test'
+  ...
+# Subtest: shared navigation distinguishes global destinations from research-area transitions
+ok 41 - shared navigation distinguishes global destinations from research-area transitions
+  ---
+  duration_ms: 0.227502
+  type: 'test'
+  ...
+# Subtest: shared home loads the pinned local HTMX build with a strict configuration
+ok 42 - shared home loads the pinned local HTMX build with a strict configuration
+  ---
+  duration_ms: 1.199815
+  type: 'test'
+  ...
+# Subtest: research-area fragment stays in exact parity with the feature registry
+ok 43 - research-area fragment stays in exact parity with the feature registry
+  ---
+  duration_ms: 1.19621
+  type: 'test'
+  ...
+# Subtest: capability manifest separates implemented, enabled and planned states
+ok 44 - capability manifest separates implemented, enabled and planned states
+  ---
+  duration_ms: 0.267392
+  type: 'test'
+  ...
+# Subtest: status aggregation ignores deliberate capability gates
+ok 45 - status aggregation ignores deliberate capability gates
+  ---
+  duration_ms: 0.160601
+  type: 'test'
+  ...
+# Subtest: research area labels come from the bounded registry
+ok 46 - research area labels come from the bounded registry
+  ---
+  duration_ms: 0.226942
+  type: 'test'
+  ...
+# Subtest: the Feature 1 bridge validates its complete nested contract
+ok 47 - the Feature 1 bridge validates its complete nested contract
+  ---
+  duration_ms: 378.632095
+  type: 'test'
+  ...
+# Subtest: the optional shell evidence adapter is domain-neutral, closed, and manifest-loaded
+ok 48 - the optional shell evidence adapter is domain-neutral, closed, and manifest-loaded
+  ---
+  duration_ms: 1.919538
+  type: 'test'
+  ...
+# Subtest: the shell renders before its optional Feature 1 projection loads
+ok 49 - the shell renders before its optional Feature 1 projection loads
+  ---
+  duration_ms: 0.27929
+  type: 'test'
+  ...
+# Subtest: AI activity context accepts only the bounded Feature 1 transition
+ok 50 - AI activity context accepts only the bounded Feature 1 transition
+  ---
+  duration_ms: 0.452771
+  type: 'test'
+  ...
+# Subtest: shared routes use public same-origin projections and safe DOM rendering
+ok 51 - shared routes use public same-origin projections and safe DOM rendering
+  ---
+  duration_ms: 0.329766
+  type: 'test'
+  ...
+# Subtest: design tokens expose shared type, control, focus and layering contracts
+ok 52 - design tokens expose shared type, control, focus and layering contracts
+  ---
+  duration_ms: 0.213561
+  type: 'test'
+  ...
+# Subtest: AI workload dashboard leads with outcome and bounded recovery evidence
+ok 53 - AI workload dashboard leads with outcome and bounded recovery evidence
+  ---
+  duration_ms: 0.51884
+  type: 'test'
+  ...
+# Subtest: the map host remains full-size after the renderer stylesheet loads
+ok 54 - the map host remains full-size after the renderer stylesheet loads
+  ---
+  duration_ms: 6.226958
+  type: 'test'
+  ...
+# Subtest: map help reveals compact guidance on hover, focus, click, and keyboard input
+ok 55 - map help reveals compact guidance on hover, focus, click, and keyboard input
+  ---
+  duration_ms: 0.846183
+  type: 'test'
+  ...
+# Subtest: the vendored renderer is loaded once on first map use
+ok 56 - the vendored renderer is loaded once on first map use
+  ---
+  duration_ms: 0.942328
+  type: 'test'
+  ...
+# Subtest: point helpers enforce WGS84 longitude-latitude coordinates
+ok 57 - point helpers enforce WGS84 longitude-latitude coordinates
+  ---
+  duration_ms: 0.600453
+  type: 'test'
+  ...
+# Subtest: polygons are closed and bounds cover points, lines, and areas
+ok 58 - polygons are closed and bounds cover points, lines, and areas
+  ---
+  duration_ms: 0.666122
+  type: 'test'
+  ...
+# Subtest: layer validation rejects mixed geometry and bounded browser limits
+ok 59 - layer validation rejects mixed geometry and bounded browser limits
+  ---
+  duration_ms: 0.544319
+  type: 'test'
+  ...
+# Subtest: the default provider is swappable and always has a local fallback
+ok 60 - the default provider is swappable and always has a local fallback
+  ---
+  duration_ms: 0.35927
+  type: 'test'
+  ...
+# Subtest: viewport queries are deterministic, bounded, and encode filters
+ok 61 - viewport queries are deterministic, bounded, and encode filters
+  ---
+  duration_ms: 0.370507
+  type: 'test'
+  ...
+# Subtest: viewport loader requests named GeoJSON with cancellation and safe errors
+ok 62 - viewport loader requests named GeoJSON with cancellation and safe errors
+  ---
+  duration_ms: 0.994877
+  type: 'test'
+  ...
+# Subtest: custom providers render validated attribution through MapLibre
+ok 63 - custom providers render validated attribution through MapLibre
+  ---
+  duration_ms: 1.156049
+  type: 'test'
+  ...
+# Subtest: map controller keeps polygons below points and supports data, visibility, camera, and cleanup
+ok 64 - map controller keeps polygons below points and supports data, visibility, camera, and cleanup
+  ---
+  duration_ms: 1.101817
+  type: 'test'
+  ...
+# Subtest: map navigation leaves Ctrl primary, ordinary primary, and right drag renderer-native
+ok 65 - map navigation leaves Ctrl primary, ordinary primary, and right drag renderer-native
+  ---
+  duration_ms: 0.271658
+  type: 'test'
+  ...
+# Subtest: a basemap load error activates the neutral fallback without losing layers
+ok 66 - a basemap load error activates the neutral fallback without losing layers
+  ---
+  duration_ms: 0.409536
+  type: 'test'
+  ...
+# Subtest: viewport layers clear outside their zoom gate and reload when re-enabled
+ok 67 - viewport layers clear outside their zoom gate and reload when re-enabled
+  ---
+  duration_ms: 6.934683
+  type: 'test'
+  ...
+# Subtest: an obsolete refresh cannot clear the replacement request's loading state
+ok 68 - an obsolete refresh cannot clear the replacement request's loading state
+  ---
+  duration_ms: 3.356951
+  type: 'test'
+  ...
+# Subtest: aborting startup removes a map that has not loaded its style
+ok 69 - aborting startup removes a map that has not loaded its style
+  ---
+  duration_ms: 0.586573
+  type: 'test'
+  ...
+# Subtest: adaptive polling is fast only while useful and backs off when hidden
+ok 70 - adaptive polling is fast only while useful and backs off when hidden
+  ---
+  duration_ms: 0.844961
+  type: 'test'
+  ...
+# Subtest: generation guards reject late out-of-order work
+ok 71 - generation guards reject late out-of-order work
+  ---
+  duration_ms: 0.11989
+  type: 'test'
+  ...
+# Subtest: requestJson applies a client timeout and aborts the transport
+ok 72 - requestJson applies a client timeout and aborts the transport
+  ---
+  duration_ms: 5.980217
+  type: 'test'
+  ...
+# Subtest: external cancellation wins without being reported as a timeout
+ok 73 - external cancellation wins without being reported as a timeout
+  ---
+  duration_ms: 0.549617
+  type: 'test'
+  ...
+# Subtest: requestJson preserves conditional responses and safe API errors
+ok 74 - requestJson preserves conditional responses and safe API errors
+  ---
+  duration_ms: 0.240652
+  type: 'test'
+  ...
+# Subtest: cursor restoration is safe and duplicate events stay bounded
+ok 75 - cursor restoration is safe and duplicate events stay bounded
+  ---
+  duration_ms: 0.607865
+  type: 'test'
+  ...
+# Subtest: terminal events trigger one authoritative detail refresh then stop
+ok 76 - terminal events trigger one authoritative detail refresh then stop
+  ---
+  duration_ms: 0.644259
+  type: 'test'
+  ...
+# Subtest: quick-filter status sets round-trip without inventing statuses
+ok 77 - quick-filter status sets round-trip without inventing statuses
+  ---
+  duration_ms: 0.218539
+  type: 'test'
+  ...
+# Subtest: collection and entity tolerate the documented response envelopes
+ok 78 - collection and entity tolerate the documented response envelopes
+  ---
+  duration_ms: 1.920228
+  type: 'test'
+  ...
+# Subtest: publication retries retain one key until the outcome is definitive
+ok 79 - publication retries retain one key until the outcome is definitive
+  ---
+  duration_ms: 0.187231
+  type: 'test'
+  ...
+# Subtest: publication timeout reconciliation distinguishes durable progress from failure
+ok 80 - publication timeout reconciliation distinguishes durable progress from failure
+  ---
+  duration_ms: 0.183446
+  type: 'test'
+  ...
+# Subtest: consumer import delivery states reconcile without claiming activation completed
+ok 81 - consumer import delivery states reconcile without claiming activation completed
+  ---
+  duration_ms: 0.281614
+  type: 'test'
+  ...
+# Subtest: publication polling backs off, pauses while hidden, and follows long imports
+ok 82 - publication polling backs off, pauses while hidden, and follows long imports
+  ---
+  duration_ms: 0.134542
+  type: 'test'
+  ...
+# Subtest: a retried consumer delivery takes precedence over its historical failed activation
+ok 83 - a retried consumer delivery takes precedence over its historical failed activation
+  ---
+  duration_ms: 0.08588
+  type: 'test'
+  ...
+# Subtest: publication labels reflect approval and background work without changing review controls
+ok 84 - publication labels reflect approval and background work without changing review controls
+  ---
+  duration_ms: 0.144428
+  type: 'test'
+  ...
+# Subtest: publication operation selection and status paths use the durable fixed resource
+ok 85 - publication operation selection and status paths use the durable fixed resource
+  ---
+  duration_ms: 0.135694
+  type: 'test'
+  ...
+# Subtest: publication response messaging distinguishes completed from queued work
+ok 86 - publication response messaging distinguishes completed from queued work
+  ---
+  duration_ms: 0.513313
+  type: 'test'
+  ...
+# Subtest: failed publication timeout reconciliation permits a fresh retry
+ok 87 - failed publication timeout reconciliation permits a fresh retry
+  ---
+  duration_ms: 0.573523
+  type: 'test'
+  ...
+# Subtest: publication timeout reconciliation recognizes durable consumer delivery
+ok 88 - publication timeout reconciliation recognizes durable consumer delivery
+  ---
+  duration_ms: 0.283506
+  type: 'test'
+  ...
+# Subtest: requestJson adds correlation and idempotency-compatible JSON headers
+ok 89 - requestJson adds correlation and idempotency-compatible JSON headers
+  ---
+  duration_ms: 16.784721
+  type: 'test'
+  ...
+# Subtest: Problem Details are safe errors with request IDs
+ok 90 - Problem Details are safe errors with request IDs
+  ---
+  duration_ms: 0.325901
+  type: 'test'
+  ...
+# Subtest: successful no-content deletion does not attempt to parse a body
+ok 91 - successful no-content deletion does not attempt to parse a body
+  ---
+  duration_ms: 0.173261
+  type: 'test'
+  ...
+# Subtest: timeouts abort transport and return a bounded safe error
+ok 92 - timeouts abort transport and return a bounded safe error
+  ---
+  duration_ms: 11.005347
+  type: 'test'
+  ...
+# Subtest: query construction excludes empty values and remains encoded
+ok 93 - query construction excludes empty values and remains encoded
+  ---
+  duration_ms: 0.190967
+  type: 'test'
+  ...
+# Subtest: hash routing is isolated, bounded, and preserves encoded query values
+ok 94 - hash routing is isolated, bounded, and preserves encoded query values
+  ---
+  duration_ms: 0.368194
+  type: 'test'
+  ...
+# Subtest: Feature 1 assistant wrapper projects only allowlisted typed page context
+ok 95 - Feature 1 assistant wrapper projects only allowlisted typed page context
+  ---
+  duration_ms: 0.534253
+  type: 'test'
+  ...
+# Subtest: failed update summary prefers specific step evidence over a generic run error
+ok 96 - failed update summary prefers specific step evidence over a generic run error
+  ---
+  duration_ms: 0.209795
+  type: 'test'
+  ...
+# Subtest: cached replay guidance is limited to the proven PSI postcode compatibility case
+ok 97 - cached replay guidance is limited to the proven PSI postcode compatibility case
+  ---
+  duration_ms: 0.0796
+  type: 'test'
+  ...
+# Subtest: terminal parent state closes a stale active timeline task
+ok 98 - terminal parent state closes a stale active timeline task
+  ---
+  duration_ms: 0.107261
+  type: 'test'
+  ...
+# Subtest: failure explanation draft carries classified evidence and a read-only instruction
+ok 99 - failure explanation draft carries classified evidence and a read-only instruction
+  ---
+  duration_ms: 0.15303
+  type: 'test'
+  ...
+# Subtest: JSON form fields reject arrays and invalid input
+ok 100 - JSON form fields reject arrays and invalid input
+  ---
+  duration_ms: 0.235955
+  type: 'test'
+  ...
+# Subtest: Feature 1 form parsers reject coercion and explain the required correction
+ok 101 - Feature 1 form parsers reject coercion and explain the required correction
+  ---
+  duration_ms: 0.636998
+  type: 'test'
+  ...
+# Subtest: the mobile drawer removes closed links from the focus order and restores focus on Escape
+ok 102 - the mobile drawer removes closed links from the focus order and restores focus on Escape
+  ---
+  duration_ms: 0.600974
+  type: 'test'
+  ...
+# Subtest: shared feedback and table helpers are bounded
+ok 103 - shared feedback and table helpers are bounded
+  ---
+  duration_ms: 0.881837
+  type: 'test'
+  ...
+# Subtest: dialog keyboard submission is single-flight and closes only after success
+ok 104 - dialog keyboard submission is single-flight and closes only after success
+  ---
+  duration_ms: 6.87949
+  type: 'test'
+  ...
+# Subtest: dialog validation focuses the first invalid field before allowing retry
+ok 105 - dialog validation focuses the first invalid field before allowing retry
+  ---
+  duration_ms: 1.167686
+  type: 'test'
+  ...
+# Subtest: recoverable server failure retains values and supports retry without double submit
+ok 106 - recoverable server failure retains values and supports retry without double submit
+  ---
+  duration_ms: 1.630603
+  type: 'test'
+  ...
+# Subtest: Escape and close warn only after meaningful values change
+ok 107 - Escape and close warn only after meaningful values change
+  ---
+  duration_ms: 1.992478
+  type: 'test'
+  ...
+# Subtest: dirty dialogs use the native discard confirmation without losing the open form
+ok 108 - dirty dialogs use the native discard confirmation without losing the open form
+  ---
+  duration_ms: 0.337928
+  type: 'test'
+  ...
+# Subtest: the latest guarded close observes a declined or accepted discard decision
+ok 109 - the latest guarded close observes a declined or accepted discard decision
+  ---
+  duration_ms: 0.839844
+  type: 'test'
+  ...
+# Subtest: job source detection and explicit year partitions are bounded
+ok 110 - job source detection and explicit year partitions are bounded
+  ---
+  duration_ms: 0.349135
+  type: 'test'
+  ...
+# Subtest: run action policy exposes only state-safe controls
+ok 111 - run action policy exposes only state-safe controls
+  ---
+  duration_ms: 0.123315
+  type: 'test'
+  ...
+# Subtest: polling stops for terminal states and backs off when hidden
+ok 112 - polling stops for terminal states and backs off when hidden
+  ---
+  duration_ms: 0.100601
+  type: 'test'
+  ...
+# Subtest: interrupted detail reconciliation is slow and explicitly bounded
+ok 113 - interrupted detail reconciliation is slow and explicitly bounded
+  ---
+  duration_ms: 0.102615
+  type: 'test'
+  ...
+# Subtest: agent polling follows active and review states without refreshing terminal runs
+ok 114 - agent polling follows active and review states without refreshing terminal runs
+  ---
+  duration_ms: 0.083756
+  type: 'test'
+  ...
+# Subtest: generation guards reject late route and polling work
+ok 115 - generation guards reject late route and polling work
+  ---
+  duration_ms: 0.250767
+  type: 'test'
+  ...
+# Subtest: latest-request guards reject slow refreshes after a newer refresh starts
+ok 116 - latest-request guards reject slow refreshes after a newer refresh starts
+  ---
+  duration_ms: 0.155384
+  type: 'test'
+  ...
+# Subtest: recent feed caches evict the least recently used run
+ok 117 - recent feed caches evict the least recently used run
+  ---
+  duration_ms: 0.114052
+  type: 'test'
+  ...
+# Subtest: the application shell exposes keyboard landmarks, live status and native dialogs
+ok 118 - the application shell exposes keyboard landmarks, live status and native dialogs
+  ---
+  duration_ms: 3.744223
+  type: 'test'
+  ...
+# Subtest: tables use named contained scroll regions and native links instead of interactive rows
+ok 119 - tables use named contained scroll regions and native links instead of interactive rows
+  ---
+  duration_ms: 1.591925
+  type: 'test'
+  ...
+# Subtest: the frontend proxy keeps browser traffic on the public backend boundary
+ok 120 - the frontend proxy keeps browser traffic on the public backend boundary
+  ---
+  duration_ms: 1.917855
+  type: 'test'
+  ...
+# Subtest: the frontend exposes only fixed JSON health routes
+ok 121 - the frontend exposes only fixed JSON health routes
+  ---
+  duration_ms: 0.693383
+  type: 'test'
+  ...
+# Subtest: Source CRUD is exclusively wired through local HTMX fragments
+ok 122 - Source CRUD is exclusively wired through local HTMX fragments
+  ---
+  duration_ms: 2.960194
+  type: 'test'
+  ...
+# Subtest: property discovery uses the shared mapping public entrypoint
+ok 123 - property discovery uses the shared mapping public entrypoint
+  ---
+  duration_ms: 0.976919
+  type: 'test'
+  ...
+# Subtest: Feature 1 owns its Shared-shell response and workflow adapter
+ok 124 - Feature 1 owns its Shared-shell response and workflow adapter
+  ---
+  duration_ms: 0.617829
+  type: 'test'
+  ...
+# Subtest: coverage matrices flatten into accessible table rows
+ok 125 - coverage matrices flatten into accessible table rows
+  ---
+  duration_ms: 0.182805
+  type: 'test'
+  ...
+# Subtest: formatting pairs states with text and handles byte boundaries
+ok 126 - formatting pairs states with text and handles byte boundaries
+  ---
+  duration_ms: 0.487644
+  type: 'test'
+  ...
+# Subtest: release comparison keeps candidate and accepted evidence visibly distinct
+ok 127 - release comparison keeps candidate and accepted evidence visibly distinct
+  ---
+  duration_ms: 0.267432
+  type: 'test'
+  ...
+# Subtest: report-section release evidence is bounded and defensively normalized
+ok 128 - report-section release evidence is bounded and defensively normalized
+  ---
+  duration_ms: 0.089365
+  type: 'test'
+  ...
+# Subtest: release details render bounded paginated dataset records
+ok 129 - release details render bounded paginated dataset records
+  ---
+  duration_ms: 1.624264
+  type: 'test'
+  ...
+# Subtest: release publication renders durable delivery evidence and polls only pending work
+ok 130 - release publication renders durable delivery evidence and polls only pending work
+  ---
+  duration_ms: 0.87031
+  type: 'test'
+  ...
+# Subtest: production frontend imports focused core and component modules
+ok 131 - production frontend imports focused core and component modules
+  ---
+  duration_ms: 1.555881
+  type: 'test'
+  ...
+# Subtest: live acquisition controls default to full data and offer bounded PSI archive years
+ok 132 - live acquisition controls default to full data and offer bounded PSI archive years
+  ---
+  duration_ms: 0.758401
+  type: 'test'
+  ...
+# Subtest: Feature 1 exports the manifest-declared domain-neutral evidence hook
+ok 133 - Feature 1 exports the manifest-declared domain-neutral evidence hook
+  ---
+  duration_ms: 0.640334
+  type: 'test'
+  ...
+# Subtest: overview problem notice uses a labelled responsive list
+ok 134 - overview problem notice uses a labelled responsive list
+  ---
+  duration_ms: 4.678368
+  type: 'test'
+  ...
+# Subtest: producer publication remains independent of downstream delivery
+ok 135 - producer publication remains independent of downstream delivery
+  ---
+  duration_ms: 0.18608
+  type: 'test'
+  ...
+# Subtest: market page exposes CRUD, evidence and AI regions
+ok 136 - market page exposes CRUD, evidence and AI regions
+  ---
+  duration_ms: 0.833755
+  type: 'test'
+  ...
+# Subtest: browser code uses the owned API and all CRUD verbs
+ok 137 - browser code uses the owned API and all CRUD verbs
+  ---
+  duration_ms: 0.143075
+  type: 'test'
+  ...
+# Subtest: research area fragment replaces the planned sales row
+ok 138 - research area fragment replaces the planned sales row
+  ---
+  duration_ms: 0.100912
+  type: 'test'
+  ...
+# Subtest: published evidence distinguishes zero, missing and incompatible population
+ok 139 - published evidence distinguishes zero, missing and incompatible population
+  ---
+  duration_ms: 17.2759
+  type: 'test'
+  ...
+# Subtest: live search filters only the suburb list, preserves selection and ignores stale responses
+ok 140 - live search filters only the suburb list, preserves selection and ignores stale responses
+  ---
+  duration_ms: 20.77196
+  type: 'test'
+  ...
+# Subtest: suburb search belongs only to overview, below the map and above suburb cards
+ok 141 - suburb search belongs only to overview, below the map and above suburb cards
+  ---
+  duration_ms: 0.288684
+  type: 'test'
+  ...
+# Subtest: published evidence has its own tab and routes independently of overview
+ok 142 - published evidence has its own tab and routes independently of overview
+  ---
+  duration_ms: 1.425985
+  type: 'test'
+  ...
+# Subtest: map fallback remains hidden until the map fails
+ok 143 - map fallback remains hidden until the map fails
+  ---
+  duration_ms: 0.222946
+  type: 'test'
+  ...
+# Subtest: bookmarks persist, deduplicate, reopen and remove with storage failures handled
+ok 144 - bookmarks persist, deduplicate, reopen and remove with storage failures handled
+  ---
+  duration_ms: 1.685146
+  type: 'test'
+  ...
+# Subtest: map pin selection loads amenities and zooms without rebuilding the map
+ok 145 - map pin selection loads amenities and zooms without rebuilding the map
+  ---
+  duration_ms: 2.657428
+  type: 'test'
+  ...
+# Subtest: crime trends expose units in suburb summaries, chart axes and table
+ok 146 - crime trends expose units in suburb summaries, chart axes and table
+  ---
+  duration_ms: 1.374347
+  type: 'test'
+  ...
+# Subtest: saved comparisons load into trend controls and navigate to crime trends
+ok 147 - saved comparisons load into trend controls and navigate to crime trends
+  ---
+  duration_ms: 1.919598
+  type: 'test'
+  ...
+# Subtest: sync controls are optional collapsed operator tools
+ok 148 - sync controls are optional collapsed operator tools
+  ---
+  duration_ms: 0.300282
+  type: 'test'
+  ...
+# Subtest: readiness follows the feature ingress on both direct and shared hosts
+ok 149 - readiness follows the feature ingress on both direct and shared hosts
+  ---
+  duration_ms: 0.138559
+  type: 'test'
+  ...
+# Subtest: frontend exposes map, chart table, CRUD and responsible-use language
+ok 150 - frontend exposes map, chart table, CRUD and responsible-use language
+  ---
+  duration_ms: 0.173861
+  type: 'test'
+  ...
+# Subtest: missing observations break a trend rather than joining across missing months
+ok 151 - missing observations break a trend rather than joining across missing months
+  ---
+  duration_ms: 0.111287
+  type: 'test'
+  ...
+# Subtest: trend rendering escapes API labels in SVG descriptions and table headings
+ok 152 - trend rendering escapes API labels in SVG descriptions and table headings
+  ---
+  duration_ms: 0.761095
+  type: 'test'
+  ...
+# Subtest: status labels map known and unknown values
+ok 153 - status labels map known and unknown values
+  ---
+  duration_ms: 1.727389
+  type: 'test'
+  ...
+# Subtest: disposition labels map known and unknown values
+ok 154 - disposition labels map known and unknown values
+  ---
+  duration_ms: 0.214363
+  type: 'test'
+  ...
+# Subtest: evidence state labels map the four supported states
+ok 155 - evidence state labels map the four supported states
+  ---
+  duration_ms: 0.134953
+  type: 'test'
+  ...
+# Subtest: summariseReview composes a readable single line
+ok 156 - summariseReview composes a readable single line
+  ---
+  duration_ms: 0.088313
+  type: 'test'
+  ...
+# Subtest: API base is a same-origin versioned path
+ok 157 - API base is a same-origin versioned path
+  ---
+  duration_ms: 0.143135
+  type: 'test'
+  ...
+# Subtest: status badge class maps to shared evidence modifiers
+ok 158 - status badge class maps to shared evidence modifiers
+  ---
+  duration_ms: 0.087021
+  type: 'test'
+  ...
+# Subtest: evidence badge class maps evidence states to shared modifiers
+ok 159 - evidence badge class maps evidence states to shared modifiers
+  ---
+  duration_ms: 0.076696
+  type: 'test'
+  ...
+# Subtest: formatType turns snake_case into a readable label
+ok 160 - formatType turns snake_case into a readable label
+  ---
+  duration_ms: 0.13904
+  type: 'test'
+  ...
+# Subtest: parseRoute distinguishes the list and detail routes
+ok 161 - parseRoute distinguishes the list and detail routes
+  ---
+  duration_ms: 1.145324
+  type: 'test'
+  ...
+# Subtest: buildReviewPayload trims fields and keeps a checklist
+ok 162 - buildReviewPayload trims fields and keeps a checklist
+  ---
+  duration_ms: 0.364919
+  type: 'test'
+  ...
+# Subtest: buildReviewPayload applies safe defaults
+ok 163 - buildReviewPayload applies safe defaults
+  ---
+  duration_ms: 0.107231
+  type: 'test'
+  ...
+# Subtest: problemMessage maps known error codes
+ok 164 - problemMessage maps known error codes
+  ---
+  duration_ms: 0.149706
+  type: 'test'
+  ...
+# Subtest: buildUpdatePayload trims text and defaults status/disposition
+ok 165 - buildUpdatePayload trims text and defaults status/disposition
+  ---
+  duration_ms: 0.09972
+  type: 'test'
+  ...
+# Subtest: toggleChecklist flips one item without mutating the input
+ok 166 - toggleChecklist flips one item without mutating the input
+  ---
+  duration_ms: 0.109084
+  type: 'test'
+  ...
+# Subtest: mapLayerDefinitions builds a point layer plus a polygon layer per hazard
+ok 167 - mapLayerDefinitions builds a point layer plus a polygon layer per hazard
+  ---
+  duration_ms: 0.185839
+  type: 'test'
+  ...
+# Subtest: extractQuestions prefers an explicit questions array
+ok 168 - extractQuestions prefers an explicit questions array
+  ---
+  duration_ms: 0.198449
+  type: 'test'
+  ...
+# Subtest: extractQuestions uses default.v7 findings plus the recommended next step
+ok 169 - extractQuestions uses default.v7 findings plus the recommended next step
+  ---
+  duration_ms: 0.097236
+  type: 'test'
+  ...
+# Subtest: extractQuestions falls back to question-like lines in text
+ok 170 - extractQuestions falls back to question-like lines in text
+  ---
+  duration_ms: 0.165399
+  type: 'test'
+  ...
+# Subtest: malformed percent escapes fall back to the review list
+ok 171 - malformed percent escapes fall back to the review list
+  ---
+  duration_ms: 0.156285
+  type: 'test'
+  ...
+# Subtest: default checklists are not shared mutable state between reviews
+ok 172 - default checklists are not shared mutable state between reviews
+  ---
+  duration_ms: 0.086981
+  type: 'test'
+  ...
+# Subtest: API base is a same-origin versioned public path
+ok 173 - API base is a same-origin versioned public path
+  ---
+  duration_ms: 1.174927
+  type: 'test'
+  ...
+# Subtest: target suburb text becomes unique NSW state/locality objects
+ok 174 - target suburb text becomes unique NSW state/locality objects
+  ---
+  duration_ms: 0.679943
+  type: 'test'
+  ...
+# Subtest: buyer case payload defaults active and includes update version
+ok 175 - buyer case payload defaults active and includes update version
+  ---
+  duration_ms: 0.35198
+  type: 'test'
+  ...
+# Subtest: preferences are bounded, deduplicated, projected and round-trip unknown keys
+ok 176 - preferences are bounded, deduplicated, projected and round-trip unknown keys
+  ---
+  duration_ms: 0.907545
+  type: 'test'
+  ...
+# Subtest: preference validation rejects excessive counts and lengths
+ok 177 - preference validation rejects excessive counts and lengths
+  ---
+  duration_ms: 0.297277
+  type: 'test'
+  ...
+# Subtest: client-side validation covers invalid name and budget
+ok 178 - client-side validation covers invalid name and budget
+  ---
+  duration_ms: 0.131788
+  type: 'test'
+  ...
+# Subtest: public API client performs list, create, read, update and delete
+ok 179 - public API client performs list, create, read, update and delete
+  ---
+  duration_ms: 17.492416
+  type: 'test'
+  ...
+# Subtest: API problems map to conflict and invalid UI states
+ok 180 - API problems map to conflict and invalid UI states
+  ---
+  duration_ms: 0.61833
+  type: 'test'
+  ...
+# Subtest: network failures map to the unavailable UI state
+ok 181 - network failures map to the unavailable UI state
+  ---
+  duration_ms: 0.403818
+  type: 'test'
+  ...
+# Subtest: routes, labels, formatting and escaping are deterministic
+ok 182 - routes, labels, formatting and escaping are deterministic
+  ---
+  duration_ms: 13.668733
+  type: 'test'
+  ...
+# Subtest: mutation follow-up navigation performs exactly one read
+ok 183 - mutation follow-up navigation performs exactly one read
+  ---
+  duration_ms: 0.366792
+  type: 'test'
+  ...
+# Subtest: property, note and task payloads validate Release 0 fields
+ok 184 - property, note and task payloads validate Release 0 fields
+  ---
+  duration_ms: 1.02354
+  type: 'test'
+  ...
+# Subtest: child resource API covers CRUD through public routes
+ok 185 - child resource API covers CRUD through public routes
+  ---
+  duration_ms: 1.585535
+  type: 'test'
+  ...
+# Subtest: evidence and summary APIs stay behind the Student 5 public boundary
+ok 186 - evidence and summary APIs stay behind the Student 5 public boundary
+  ---
+  duration_ms: 0.535605
+  type: 'test'
+  ...
+# Subtest: bounded evidence renderer exposes all states and limitations safely
+ok 187 - bounded evidence renderer exposes all states and limitations safely
+  ---
+  duration_ms: 0.489627
+  type: 'test'
+  ...
+# Subtest: AI summary renderer preserves its user-facing result without phase cards
+ok 188 - AI summary renderer preserves its user-facing result without phase cards
+  ---
+  duration_ms: 0.657629
+  type: 'test'
+  ...
+# Subtest: AI workflow presents a compact accessible idle status
+ok 189 - AI workflow presents a compact accessible idle status
+  ---
+  duration_ms: 0.149274
+  type: 'test'
+  ...
+# Subtest: AI workflow uses one concise processing status for every phase
+ok 190 - AI workflow uses one concise processing status for every phase
+  ---
+  duration_ms: 0.101523
+  type: 'test'
+  ...
+# Subtest: successful workflow status is concise
+ok 191 - successful workflow status is concise
+  ---
+  duration_ms: 0.064597
+  type: 'test'
+  ...
+# Subtest: failed workflow status identifies the failed phase without rendering phase cards
+ok 192 - failed workflow status identifies the failed phase without rendering phase cards
+  ---
+  duration_ms: 0.153962
+  type: 'test'
+  ...
+# Subtest: workspace renderers show journey, ratings, associations and completion controls safely
+ok 193 - workspace renderers show journey, ratings, associations and completion controls safely
+  ---
+  duration_ms: 0.308023
+  type: 'test'
+  ...
+# Subtest: task due dates reject impossible calendar days
+ok 194 - task due dates reject impossible calendar days
+  ---
+  duration_ms: 0.184728
+  type: 'test'
+  ...
+# Subtest: buyer reads accept cancellation without relabelling it as database unavailability
+ok 195 - buyer reads accept cancellation without relabelling it as database unavailability
+  ---
+  duration_ms: 0.348955
+  type: 'test'
+  ...
+1..195
+# tests 195
+# suites 0
+# pass 195
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 688.980593
