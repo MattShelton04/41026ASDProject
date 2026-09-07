@@ -121,8 +121,8 @@ All routes below are relative to `/api/data-platform/v1` and are described in Op
   consumer product or an export mechanism.
 - `POST /dataset-releases/{release_id}/submit-review`, `/publish`, and `/reject` implement the
   version-checked review lifecycle. Publish also requires an `Idempotency-Key` and explicit human
-  approval. A valid publish returns `202` with a durable consumer import or accepted-version
-  activation; the prior accepted version remains live until the complete workflow succeeds.
+  approval. A valid publish returns `202` with durable accepted-version activation; the prior
+  accepted version remains live until local activation succeeds. Downstream imports run separately.
 - Property identity consumers use `GET /properties/search`, `/properties/{property_ref}`,
   `/properties/{property_ref}/map-context`, `/properties/{property_ref}/coverage`,
   `/properties/{property_ref}/seifa`, and `/properties/{property_ref}/report-section`. The SEIFA
@@ -156,9 +156,10 @@ discover → acquire → source verification → canonical import artifact
 → isolated candidate import → deterministic quality checks
 → registered builder → schema-valid bounded release_export
 → atomic schema/hash/count/manifest/artifact binding → candidate
-→ awaiting_review → consumer validation → durable receipt
-→ queued loader activation → atomic accepted pointer
+→ awaiting_review → producer verification receipt
+→ queued loader activation → atomic accepted pointer + downstream delivery outbox
   (prior accepted release becomes superseded)
+→ independent downstream delivery → consumer validation → genuine consumer receipt
 ```
 
 The runner pages a private release projection over HTTP. Every response declares the same release
@@ -166,7 +167,13 @@ and candidate-generation ID, and a count or generation change aborts constructio
 no database credentials. Candidate data does not enter accepted property search. The public API
 does not advertise a draft as current.
 
-Publication creates or resumes a durable consumer-import operation containing the immutable release
+Publication verifies Feature 1's immutable artifact/manifest binding and records a labelled
+`feature-1-local:` producer verification receipt before queueing activation. This receipt attests
+producer verification; it does not claim downstream acceptance. For an external target, the atomic
+accepted-pointer transaction creates a durable delivery outbox. Outbox persistence failure rolls
+back that transaction. Successful producer publication does not wait for consumer import.
+
+The independent delivery operation contains the immutable release
 and dataset IDs, target, schema, exact byte SHA-256, record count, manifest, provider-relative
 artifact path, and delivery idempotency key. The HTTP connect and status exchanges each have a
 five-second timeout, reject redirects, and accept at most 64 KiB of response JSON. They return a
@@ -183,8 +190,10 @@ checks the compressed bytes, SHA-256, gzip framing, NDJSON records, product sche
 an atomic import handoff. A leased Feature 1 worker polls durable progress and makes at most five
 delivery attempts; an expired lease resumes the recorded phase rather than restarting accepted work.
 
-Feature 1 records the final receipt before queueing activation. A rejected, malformed, mismatched,
-unavailable, timed-out, or exhausted operation leaves the predecessor active. Accepted property
+New outbox operations have `delivery_only=true`; consumer acceptance finishes them as `delivered`
+without requesting another producer activation. Rejected, malformed, mismatched, unavailable,
+timed-out or exhausted downstream operations leave producer publication and its accepted pointer
+unchanged. The UI reports downstream progress/failure separately. Accepted property
 reads resolve the immutable warehouse generation selected by the accepted pointer, so candidate
 address fields cannot leak through a global registry update. The loader's final pointer transaction
 contains no source-scale DML.
@@ -196,16 +205,25 @@ The activation loader later streams the physical artifact and rechecks its exact
 before materialisation. Self-publication persists its own operation identity; it does not fabricate
 one from the browser idempotency key or synthesize acceptance from release metadata alone.
 
-Replaying an operation that produced an accepted receipt returns that retained receipt and
-reconciles the durable activation without a duplicate download. A new delivery key for the same
+Legacy delivery/activation operations retain their recorded replay semantics, including activation
+reconciliation after their accepted receipt; ADR-041 does not rewrite historical operations.
+Replaying a completed new delivery returns its retained receipt without republishing or performing
+a duplicate import. A new delivery key for the same
 release, dataset, target, schema, checksum and record count resumes the original durable operation;
 mismatched evidence conflicts. A rejected, failed, or unavailable operation remains inspectable and
-can retry only through its bounded durable lifecycle. A consumer that missed the push calls the
+can retry only through its bounded durable lifecycle. **Retry publication** addresses failed local
+activation and retains prior receipts with a fresh attempt key. **Retry downstream import** on a
+published release addresses independent failed delivery; it cannot undo producer publication.
+A consumer that missed the push calls the
 accepted-product endpoint repeatedly; lookups are stable and do not mutate state.
 
 Accepted artifacts and manifests are immutable. Corrections are new releases with a supersession
 reference. Cached reprocessing creates a new candidate from retained verified evidence and cannot
 replace an accepted artifact in place.
+
+This current lifecycle supersedes the consumer-acceptance publication gate in ADR-033/ADR-040.
+See [ADR-041](../docs/architecture/decisions/ADR-041-producer-owned-publication.md). Each consumer
+still owns its accepted generation; there is no distributed atomicity across feature databases.
 
 ## Gzip-NDJSON framing, hashing, and downstream product projections
 
