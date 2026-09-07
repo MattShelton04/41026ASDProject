@@ -252,7 +252,7 @@ def protect_host_entry(application: Flask, token: str) -> None:
         if request.path == "/health/live":
             return None
         supplied = request.headers.get("X-PropertyScope-AI-Token", "")
-        if not secrets.compare_digest(supplied, token):
+        if not secrets.compare_digest(supplied.encode("utf-8"), token.encode("utf-8")):
             return jsonify(
                 {"code": "unauthorized", "detail": "Host service authentication required"}
             ), 401

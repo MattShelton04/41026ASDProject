@@ -38,6 +38,7 @@ def test_suburb_services_use_http_and_exclusively_owned_storage() -> None:
         "SUBURB_STORE_URL": "http://f3-database:5302",
         "SUBURB_IMPORT_WORKER": "1",
         "AI_MODE_URL": "http://host.docker.internal:${AI_MODE_PORT:-5005}",
+        "AI_MODE_SERVICE_TOKEN": "${AI_MODE_SERVICE_TOKEN:-}",
         "PROPERTY_DATA_URL": "http://f1-backend:5201",
     }
     assert "host.docker.internal:host-gateway" in base["f3-backend"]["extra_hosts"]

@@ -219,6 +219,7 @@ def test_host_entry_requires_credential_for_runs_reviews_and_history() -> None:
     ):
         assert client.post(path).status_code == 401
         assert client.post(path, headers={"X-PropertyScope-AI-Token": "invalid"}).status_code == 401
+        assert client.post(path, headers={"X-PropertyScope-AI-Token": "é"}).status_code == 401
         assert client.post(path, headers={"X-PropertyScope-AI-Token": "a" * 43}).status_code == 200
     with pytest.raises(RuntimeError, match="service token"):
         runtime.protect_host_entry(Flask("unconfigured"), "")
