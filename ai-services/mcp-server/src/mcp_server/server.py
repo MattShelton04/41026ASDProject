@@ -191,9 +191,13 @@ class ProtocolEndpoint:
 
 
 def create_app(
-    catalog: ToolCatalog, *, service_token: str, executor: HttpToolExecutor | None = None
+    catalog: ToolCatalog,
+    *,
+    service_token: str,
+    executor: HttpToolExecutor | None = None,
+    allowed_hosts: tuple[str, ...] = ("127.0.0.1:*", "localhost:*", "[::1]:*"),
 ) -> Starlette:
-    """Compose a non-containerised loopback ASGI service with bounded protocol input."""
+    """Compose a local ASGI service with explicitly bounded protocol origins."""
     owned_executor = executor is None
     selected_executor = executor or build_http_executor(catalog)
     server = create_server(catalog, service_token=service_token, executor=selected_executor)
@@ -203,7 +207,7 @@ def create_app(
         json_response=True,
         max_request_body_size=300_000,
         security_settings=TransportSecuritySettings(
-            allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*"],
+            allowed_hosts=list(allowed_hosts),
             allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"],
         ),
     )

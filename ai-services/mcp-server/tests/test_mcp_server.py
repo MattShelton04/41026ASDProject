@@ -281,6 +281,62 @@ def test_client_rejects_unapproved_endpoint(url: str) -> None:
         McpToolExecutor(base_url=url, service_token=TOKEN)
 
 
+def test_client_compose_origin_requires_explicit_opt_in() -> None:
+    from ai_mode.adapters.mcp_tools import McpToolExecutor
+
+    url = "http://mcp-server:5011/mcp"
+    with pytest.raises(ValueError, match="allowlisted"):
+        McpToolExecutor(base_url=url, service_token=TOKEN)
+    client = McpToolExecutor(base_url=url, service_token=TOKEN, local_compose=True)
+    client.close()
+    for rejected in ("http://mcp-server:5012/mcp", "http://mcp-server.attacker.test:5011/mcp"):
+        with pytest.raises(ValueError, match="allowlisted"):
+            McpToolExecutor(base_url=rejected, service_token=TOKEN, local_compose=True)
+
+
+@pytest.mark.parametrize("compose", [False, True])
+def test_transport_compose_host_is_explicit_and_keeps_origin_protection(compose: bool) -> None:
+    options = {"allowed_hosts": ("mcp-server:5011",)} if compose else {}
+    app = create_app(catalog(), service_token=TOKEN, executor=executor([]), **options)
+
+    async def scenario() -> None:
+        async with (
+            app.router.lifespan_context(app),
+            httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://mcp-server:5011",
+                headers={
+                    "Authorization": f"Bearer {TOKEN}",
+                    "Accept": "application/json, text/event-stream",
+                },
+            ) as client,
+        ):
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-03-26",
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "1"},
+                },
+            }
+            assert (await client.post("/mcp", json=payload)).status_code == (
+                200 if compose else 421
+            )
+            assert (
+                await client.post("/mcp", json=payload, headers={"Host": "attacker.example"})
+            ).status_code == 421
+            if compose:
+                assert (
+                    await client.post(
+                        "/mcp", json=payload, headers={"Origin": "https://attacker.example"}
+                    )
+                ).status_code == 403
+
+    asyncio.run(scenario())
+
+
 def test_client_policy_and_deadline_fail_before_transport() -> None:
     from ai_mode.adapters.mcp_tools import McpToolExecutor
 

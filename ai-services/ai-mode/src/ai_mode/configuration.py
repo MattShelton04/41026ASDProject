@@ -84,15 +84,33 @@ class Settings:
         _require_positive_finite(self.openai_health_timeout_seconds, "OpenAI health timeout")
         if self.environment not in {"local", "compose"} and (self.mcp_enabled or self.rag_enabled):
             raise ConfigurationError("MCP and RAG are local-only capabilities")
-        for enabled, token, url in (
-            (self.mcp_enabled, self.mcp_service_token, self.mcp_server_url),
-            (self.rag_enabled, self.rag_service_token, self.rag_server_url),
+        for enabled, token, url, compose_url in (
+            (
+                self.mcp_enabled,
+                self.mcp_service_token,
+                self.mcp_server_url,
+                "http://mcp-server:5011/mcp",
+            ),
+            (
+                self.rag_enabled,
+                self.rag_service_token,
+                self.rag_server_url,
+                "http://rag-server:5012",
+            ),
         ):
             if enabled and (not token or len(token) < 32):
                 raise ConfigurationError("Enabled local AI services require a 32-character token")
             parsed = urlparse(url)
-            if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
-                raise ConfigurationError("Shared MCP/RAG URLs must be loopback HTTP endpoints")
+            is_loopback = parsed.scheme == "http" and parsed.hostname in {
+                "127.0.0.1",
+                "localhost",
+                "::1",
+            }
+            if not is_loopback and not (self.environment == "compose" and url == compose_url):
+                raise ConfigurationError(
+                    "Shared MCP/RAG URLs must be loopback HTTP endpoints or exact local "
+                    "Compose service URLs in the compose environment"
+                )
             if parsed.username or parsed.password or parsed.query or parsed.fragment:
                 raise ConfigurationError("Shared service URL cannot contain credentials or query")
         _require_positive_finite(

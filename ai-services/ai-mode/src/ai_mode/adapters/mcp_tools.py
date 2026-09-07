@@ -67,19 +67,23 @@ class McpToolExecutor:
         max_response_bytes: int = 1_048_576,
         max_request_bytes: int = 262_144,
         feature_key: str | None = None,
+        local_compose: bool = False,
     ) -> None:
         validate_service_token(service_token)
         parsed = urlsplit(base_url)
         if (
             parsed.scheme != "http"
-            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or (
+                parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+                and not (local_compose and base_url == "http://mcp-server:5011/mcp")
+            )
             or parsed.username
             or parsed.password
             or parsed.query
             or parsed.fragment
             or parsed.path not in {"", "/", "/mcp"}
         ):
-            raise ValueError("MCP must use an allowlisted loopback HTTP endpoint")
+            raise ValueError("MCP must use an allowlisted loopback or local Compose HTTP endpoint")
         if max_response_bytes < 1 or max_request_bytes < 1:
             raise ValueError("MCP message limits must be positive")
         self._url = base_url.rstrip("/")
