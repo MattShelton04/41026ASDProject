@@ -37,6 +37,20 @@ from shared_contracts.agent import Identifier
 ALLOWED_QUERY_PARAMETERS = frozenset({"status", "feature_key", "model_profile", "cursor", "limit"})
 ALLOWED_ASSETS = frozenset({"app.js", "contexts.js", "polling.js", "styles.css"})
 ALLOWED_DESIGN_SYSTEM_ASSETS = frozenset({"tokens.css"})
+ALLOWED_SHARED_ASSETS = frozenset(
+    {
+        "ai-chat/grounding.js",
+        "ai-chat/formats.js",
+        "ai-chat/styles.css",
+        "browser/index.js",
+        "browser/dom.js",
+        "browser/interactions.js",
+        "browser/request.js",
+        "browser/http.js",
+        "browser/tasks.js",
+        "browser/shell.js",
+    }
+)
 IDENTIFIER_ADAPTER = TypeAdapter(Identifier)
 OPERATIONS_PROJECTION_VERSION = 2
 
@@ -132,6 +146,14 @@ def create_operations_blueprint(assets_path: Path) -> Blueprint:
         if filename not in ALLOWED_DESIGN_SYSTEM_ASSETS:
             abort(404)
         response = send_from_directory(design_system_path, filename)
+        response.headers["Cache-Control"] = "public, max-age=300"
+        return _secure_static_response(response)
+
+    @blueprint.get("/operations/ai-mode/shared/<path:filename>")
+    def dashboard_shared_asset(filename: str) -> Response:
+        if filename not in ALLOWED_SHARED_ASSETS:
+            abort(404)
+        response = send_from_directory(assets_path.parent.parent, filename)
         response.headers["Cache-Control"] = "public, max-age=300"
         return _secure_static_response(response)
 

@@ -250,3 +250,14 @@ fixes are listed in the reviewed plan. The PR associated with branch
 `Matt/Release_1_Shared_and_Feature_1` carries the final GitHub Actions results and review discussion.
 Those runs validate CI configuration with MCP/RAG disabled; the local captures validate the enabled runtime.
 
+Activity-history follow-up (7 September): the shared operations page now reuses the grounded
+chat renderer for findings, confidence, gaps, tool references and expandable citations. The
+existing run `e3889f10-a094-4e85-bfe0-165a4c8ae18c` was inspected live through port 5100;
+findings display as text and source inspection expands the recorded excerpt and provenance.
+The homepage now explains that both assistant scopes use the Property data backend. Routing
+and mandatory retrieval for configured grounded Feature 1 runs remain unchanged.
+The canonical gate passed all static checks and 1,840 Python tests (38 expected skips).
+Its only frontend failure was an assertion for the previous asset cache version; after updating
+that assertion, the complete frontend stage passed all 209 tests. Local logs are
+`.propertyscope-runtime/release-1/history-quality-gate.log` and `history-frontend-recheck.log`.
+

@@ -86,7 +86,13 @@ write, retry, and provider request-ID evidence is retained with the run.
 The domain-neutral, read-only operations dashboard lists durable runs and follows a selected
 run's safe cursor events at `/operations/ai-mode/`. It displays policy-projected evidence,
 model/tool timings, limits, and correlation identifiers; it never reads SQLite or calls OpenAI from
-the browser. Enable it only for trusted local development or demonstrations:
+the browser.
+
+Grounded results use the same structured answer renderer as the feature chat, including
+confidence, findings, tool references, evidence gaps and expandable source citations.
+The recorded activity steps below the answer retain the corresponding tool results.
+
+Enable it only for trusted local development or demonstrations:
 
 ```text
 AI_MODE_OPERATIONS_ENABLED=true uv run flask --app ai_mode:create_app run --port 5005

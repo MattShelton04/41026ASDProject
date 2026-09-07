@@ -79,7 +79,7 @@ function citationCard(citation) {
   return details;
 }
 
-export function renderGroundedAnswer(result) {
+export function renderGroundedAnswer(result, { inActivityHistory = false } = {}) {
   const host = el("div", "ps-ai-chat__answer ps-ai-chat__answer--grounded");
   append(host, paragraphSection("summary", "Answer", [result.summary]));
   const state = groundingState(result);
@@ -111,7 +111,7 @@ export function renderGroundedAnswer(result) {
       if (ids.length) {
         const support = el("details", "ps-ai-chat__tool-support");
         support.dataset.disclosure = `tool-support:${index}`;
-        append(support, el("summary", "", `Recorded tool support · ${ids.length} call${ids.length === 1 ? "" : "s"}`), el("p", "", "These calls support this finding. Open full activity below to inspect their recorded results."));
+        append(support, el("summary", "", `Recorded tool support · ${ids.length} call${ids.length === 1 ? "" : "s"}`), el("p", "", inActivityHistory ? "These calls support this finding. Inspect their recorded results in the activity steps below." : "These calls support this finding. Open full activity below to inspect their recorded results."));
         for (const id of ids) append(support, el("code", "ps-ai-chat__reference", id));
         append(item, support);
       }

@@ -32,11 +32,19 @@ class Node {
   focus() { this.focused = true; }
 }
 function walk(node) { return [node, ...node.children.flatMap(walk)]; }
-function render(value) {
+function render(value, options) {
   const previous = globalThis.document;
   globalThis.document = { createElement: (tag) => new Node(tag) };
-  try { return renderGroundedAnswer(value); } finally { globalThis.document = previous; }
+  try { return renderGroundedAnswer(value, options); } finally { globalThis.document = previous; }
 }
+
+test("activity history shares structured findings and directs tool inspection to recorded steps", () => {
+  const nodes = walk(render(answer, { inActivityHistory: true }));
+  const text = nodes.map((node) => node.textContent).join(" ");
+  assert.match(text, /A candidate needs review/);
+  assert.match(text, /activity steps below/);
+  assert.doesNotMatch(text, /\[object Object\]|Open full activity below/);
+});
 
 test("citation links reject executable, credential-bearing and ambiguous addresses", () => {
   for (const value of ["javascript:alert(1)", "data:text/html,<h1>x</h1>", "//evil.test", "/api/delete", "https://user:pass@example.org", "https://example.org\\x", "https://example.org/\nfoo", "file:///tmp/guide", "not a URL", null]) {

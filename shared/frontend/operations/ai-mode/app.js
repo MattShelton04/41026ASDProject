@@ -13,6 +13,7 @@ import {
   statusesForFilter,
 } from "/operations/ai-mode/assets/polling.js";
 import { resolveResearchAreaContext, activityAreaLabel } from "/operations/ai-mode/assets/contexts.js";
+import { isGroundedAnswer, renderGroundedAnswer } from "/operations/ai-mode/shared/ai-chat/grounding.js";
 
 const cursorStore = createCursorStore();
 const API_ROOT = "/api/v1";
@@ -660,7 +661,11 @@ function renderValue(value) {
 
 function appendList(target, values, className = "plain-list") {
   const list = node("ul", className);
-  for (const value of values) list.append(node("li", "", String(value)));
+  for (const value of values) {
+    const item = node("li");
+    item.append(renderValue(value));
+    list.append(item);
+  }
   target.append(list);
 }
 
@@ -676,6 +681,11 @@ function renderOutcome(run, finalResult, error) {
   if (finalResult) {
     ui["outcome-eyebrow"].textContent = "AI review result";
     ui["outcome-title"].textContent = "Review summary";
+    if (isGroundedAnswer(finalResult)) {
+      ui["outcome-title"].textContent = "Grounded answer";
+      ui["outcome-content"].append(renderGroundedAnswer(finalResult, { inActivityHistory: true }));
+      return;
+    }
     const summary = typeof finalResult.summary === "string" ? finalResult.summary : null;
     if (summary) ui["outcome-content"].append(node("p", "outcome-lede", summary));
 
