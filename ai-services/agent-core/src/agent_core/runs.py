@@ -22,6 +22,7 @@ def create_run(
         traceparent=traceparent,
         feature_key=request.feature_key,
         objective=request.objective,
+        grounding=request.grounding,
         status=RunStatus.QUEUED,
         prompt_set=request.prompt_set,
         model_profile=request.model_profile,

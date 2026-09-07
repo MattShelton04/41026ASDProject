@@ -1,0 +1,72 @@
+{
+  "additionalProperties": false,
+  "description": "A bounded query for one registered corpus; filters cannot widen feature scope.",
+  "properties": {
+    "corpus_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Corpus Id",
+      "type": "string"
+    },
+    "document_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 100,
+        "minLength": 1,
+        "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+        "type": "string"
+      },
+      "maxItems": 200,
+      "title": "Document Ids",
+      "type": "array"
+    },
+    "feature_key": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Feature Key",
+      "type": "string"
+    },
+    "max_context_chars": {
+      "default": 5000,
+      "maximum": 12000,
+      "minimum": 100,
+      "title": "Max Context Chars",
+      "type": "integer"
+    },
+    "min_score": {
+      "default": 0.35,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Min Score",
+      "type": "number"
+    },
+    "query": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Query",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "top_k": {
+      "default": 5,
+      "maximum": 10,
+      "minimum": 1,
+      "title": "Top K",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "feature_key",
+    "corpus_id",
+    "query"
+  ],
+  "title": "RetrievalRequest",
+  "type": "object"
+}

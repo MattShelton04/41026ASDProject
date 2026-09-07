@@ -21,6 +21,9 @@ CORE_TEST_PATHS = (
     "shared/testkit/tests",
     "ai-services/agent-core/tests",
     "ai-services/ai-mode/tests",
+    "ai-services/mcp-server/tests",
+    "ai-services/rag-server/tests",
+    "shared/tool-runtime/tests",
     "scripts/tests",
 )
 FRONTEND_TEST_PATHS = (
@@ -61,6 +64,9 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "shared/testkit/python/shared_testkit",
         "ai-services/agent-core/src/agent_core",
         "ai-services/ai-mode/src/ai_mode",
+        "ai-services/mcp-server/src/mcp_server",
+        "ai-services/rag-server/src/rag_server",
+        "shared/tool-runtime/src/shared_tool_runtime",
         "student-1/backend/src/propertyscope_data_platform",
         "student-1/database/src/propertyscope_data_store",
         "student-1/tests",
@@ -97,6 +103,9 @@ SHARED_TEST_COMMAND: Command = (
     "--cov=shared_contracts",
     "--cov=shared_consumer_protocol",
     "--cov=shared_testkit",
+    "--cov=shared_tool_runtime",
+    "--cov=mcp_server",
+    "--cov=rag_server",
     "--cov-report=term-missing",
     *CORE_TEST_PATHS,
 )

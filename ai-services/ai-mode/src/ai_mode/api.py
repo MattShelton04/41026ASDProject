@@ -17,6 +17,7 @@ from agent_core import (
     apply_human_review,
     create_run,
 )
+from ai_mode.adapters.retrieval import RETRIEVAL_TOOL
 from ai_mode.http import problem_response as _problem
 from ai_mode.http import validation_issues
 from ai_mode.persistence import IdempotencyConflictError, PersistenceError
@@ -47,7 +48,11 @@ def _services() -> AppServices:
 
 def _request_hash(command: AgentRunRequest) -> str:
     """Preserve hashes for legacy requests that predate the empty trust ledger field."""
-    exclude = {"trusted_identifiers"} if not command.trusted_identifiers else None
+    exclude = set()
+    if not command.trusted_identifiers:
+        exclude.add("trusted_identifiers")
+    if command.grounding is None:
+        exclude.add("grounding")
     payload = command.model_dump_json(exclude=exclude)
     return sha256(payload.encode("utf-8")).hexdigest()
 
@@ -63,6 +68,13 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
     services = _services()
     effective_payload = dict(payload)
     effective_payload.setdefault("model_profile", services.default_model_profile)
+    corpus = dict(services.rag_corpora).get(str(effective_payload.get("feature_key", "")))
+    if corpus is not None:
+        effective_payload.setdefault("grounding", {"corpus_id": corpus})
+        effective_payload["prompt_set"] = "default.v8"
+        allowlist = effective_payload.get("tool_allowlist")
+        if isinstance(allowlist, list) and RETRIEVAL_TOOL not in allowlist:
+            effective_payload["tool_allowlist"] = [*allowlist, RETRIEVAL_TOOL]
     try:
         command = AgentRunRequest.model_validate(effective_payload)
     except ValidationError as exc:
@@ -71,6 +83,10 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
             "validation_failed",
             "Request validation failed",
             errors=validation_issues(exc),
+        )
+    if command.grounding is not None and command.grounding.corpus_id != corpus:
+        return _problem(
+            422, "grounding_scope_unavailable", "Grounding scope is not enabled for this feature"
         )
 
     if services.model_registry is not None:

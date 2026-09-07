@@ -6,6 +6,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Advanced services run only in the local demonstration, never in CI/CD.
+env:
+  AI_MODE_MCP_ENABLED: "false"
+  AI_MODE_RAG_ENABLED: "false"
+
 permissions:
   contents: read
 
@@ -60,8 +65,6 @@ jobs:
         run: uv run --locked python scripts/check.py
 
       - name: Validate integrated Compose model
-        env:
-          OPENAI_API_KEY_FILE: /dev/null
         run: |
           docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 config --quiet
           docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --file docker-compose.dev.yml --profile release-0 config --quiet

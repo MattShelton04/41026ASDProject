@@ -1,0 +1,17 @@
+{
+  "additionalProperties": false,
+  "description": "Public guidance scope fixed by the caller, never by retrieved instructions.",
+  "properties": {
+    "corpus_id": {
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Corpus Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "corpus_id"
+  ],
+  "title": "GroundingRequest",
+  "type": "object"
+}

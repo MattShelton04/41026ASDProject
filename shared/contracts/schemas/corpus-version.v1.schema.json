@@ -1,0 +1,72 @@
+{
+  "additionalProperties": false,
+  "description": "Immutable activated corpus identity, including embedding/preprocessing identity.",
+  "properties": {
+    "chunk_count": {
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "Chunk Count",
+      "type": "integer"
+    },
+    "corpus_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Corpus Id",
+      "type": "string"
+    },
+    "corpus_version": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Corpus Version",
+      "type": "string"
+    },
+    "document_count": {
+      "maximum": 200,
+      "minimum": 0,
+      "title": "Document Count",
+      "type": "integer"
+    },
+    "embedding_dimensions": {
+      "maximum": 4096,
+      "minimum": 1,
+      "title": "Embedding Dimensions",
+      "type": "integer"
+    },
+    "embedding_model": {
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Embedding Model",
+      "type": "string"
+    },
+    "feature_key": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Feature Key",
+      "type": "string"
+    },
+    "ingested_at": {
+      "format": "date-time",
+      "title": "Ingested At",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "feature_key",
+    "corpus_id",
+    "corpus_version",
+    "document_count",
+    "chunk_count",
+    "embedding_model",
+    "embedding_dimensions",
+    "ingested_at"
+  ],
+  "title": "CorpusVersion",
+  "type": "object"
+}

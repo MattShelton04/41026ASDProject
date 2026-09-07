@@ -1,0 +1,87 @@
+{
+  "additionalProperties": false,
+  "description": "A normalized document supplied by its owning feature; URLs are never fetched.",
+  "properties": {
+    "access_class": {
+      "const": "public_project_guidance",
+      "default": "public_project_guidance",
+      "title": "Access Class",
+      "type": "string"
+    },
+    "document_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Document Id",
+      "type": "string"
+    },
+    "evidence_kind": {
+      "default": "project_guidance",
+      "enum": [
+        "project_guidance",
+        "fixture",
+        "official"
+      ],
+      "title": "Evidence Kind",
+      "type": "string"
+    },
+    "license": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "License",
+      "type": "string"
+    },
+    "location": {
+      "default": "",
+      "maxLength": 200,
+      "title": "Location",
+      "type": "string"
+    },
+    "source_date": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Date"
+    },
+    "source_uri": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Source Uri",
+      "type": "string"
+    },
+    "status": {
+      "const": "active",
+      "default": "active",
+      "title": "Status",
+      "type": "string"
+    },
+    "text": {
+      "maxLength": 60000,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 240,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "document_id",
+    "title",
+    "source_uri",
+    "text",
+    "license"
+  ],
+  "title": "CorpusDocument",
+  "type": "object"
+}

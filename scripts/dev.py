@@ -27,6 +27,7 @@ import yaml
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.devtools import host_runtime
 from scripts.devtools.cli import build_parser
 from scripts.devtools.config import (
     APPLICATION_SERVICES,
@@ -59,6 +60,7 @@ ENVIRONMENT_FILE_COMMANDS = frozenset(
         ("stack", "rebuild"),
         ("stack", "restart"),
         ("stack", "doctor"),
+        ("ai", "start"),
     }
 )
 
@@ -461,6 +463,8 @@ def _up(*, offline: bool, build: bool = False) -> None:
     _stop_disabled_feature_services()
     _preflight_compose_host_ports(services=APPLICATION_SERVICES)
     compose_environment = _compose_environment(offline=offline)
+    host_runtime.migrate_legacy_state()
+    host_runtime.start(compose_environment, mode="direct" if offline else "combined")
     feature_1_enabled = FEATURE_1_KEY in ENABLED_FEATURE_KEYS
     if feature_1_enabled:
         print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
@@ -479,7 +483,8 @@ def _up(*, offline: bool, build: bool = False) -> None:
     _run(_compose_command(*up_arguments), environment=compose_environment)
     _reload_shared_edge(environment=compose_environment)
     ports = _resolved_host_ports(APPLICATION_SERVICES)
-    print(f"\nAI-mode health:     http://localhost:{ports['shared-ai-mode'][1]}/health/ready")
+    ai_port = host_runtime.port_for("ai-mode", os.environ)
+    print(f"\nAI-mode health:     http://localhost:{ai_port}/health/ready")
     print(f"PropertyScope home: http://localhost:{ports['shared-frontend'][1]}")
     if "f1-frontend" in ports:
         print(f"PropertyScope:      http://localhost:{ports['f1-frontend'][1]}")
@@ -530,6 +535,7 @@ def _production_build(services: Sequence[str]) -> None:
 
 
 def _down(*, remove_volumes: bool = False) -> None:
+    host_runtime.stop()
     _ensure_docker()
     arguments = ["down", "--remove-orphans"]
     if remove_volumes:
@@ -773,6 +779,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif command == ("stack", "doctor"):
             _doctor()
         elif command == ("stack", "status"):
+            print(json.dumps(host_runtime.status(), indent=2))
             _ensure_docker()
             _run(_compose_command("ps"))
         elif command == ("stack", "config"):
@@ -803,7 +810,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if "f1-frontend" not in ports:
                 raise RuntimeError("Feature 1 is not enabled in the deployment projection")
             feature_port = ports["f1-frontend"][1]
-            ai_port = ports["shared-ai-mode"][1]
+            ai_port = host_runtime.port_for("ai-mode", os.environ)
             with httpx.Client(follow_redirects=False) as client:
                 report = collect_operator_report(
                     client,
@@ -820,6 +827,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                     ),
                 )
             print(render_operator_report(report), flush=True)
+        elif command == ("ai", "start"):
+            environment = _compose_environment(offline=arguments.offline)
+            host_runtime.migrate_legacy_state()
+            host_runtime.start(environment, mode=arguments.mode)
+            print(json.dumps(host_runtime.status(), indent=2))
+        elif command == ("ai", "stop"):
+            host_runtime.stop(tuple(arguments.services) or host_runtime.SERVICES)
+        elif command == ("ai", "status"):
+            print(json.dumps(host_runtime.status(), indent=2))
+        elif command == ("ai", "logs"):
+            print(host_runtime.logs(tuple(arguments.services) or host_runtime.SERVICES))
+        elif command == ("ai", "serve"):
+            host_runtime.serve(arguments.service)
         elif command == ("ui", "serve"):
             _run(
                 (

@@ -61,6 +61,9 @@ from shared_contracts import (
     ToolResult,
 )
 
+from agent_core.grounding import validate_adaptation_grounding
+from agent_core.ports import GroundingVerifier
+
 BLOCKED_STATUSES = TERMINAL_STATUSES | {RunStatus.REVIEW_REQUIRED}
 
 
@@ -77,6 +80,7 @@ class AgentRunner:
         tool_executor: ToolExecutor,
         clock: Clock,
         ids: IdGenerator,
+        grounding_verifier: GroundingVerifier | None = None,
     ) -> None:
         self._store = store
         self._provider = provider
@@ -85,6 +89,7 @@ class AgentRunner:
         self._tool_executor = tool_executor
         self._clock = clock
         self._ids = ids
+        self._grounding_verifier = grounding_verifier
 
     def run_until_blocked(self, run_id: UUID) -> AgentRun:
         """Advance until terminal state or human review, never beyond configured limits."""
@@ -686,6 +691,9 @@ class AgentRunner:
                     request,
                     Adaptation,
                     max_repairs=run.limits.max_model_repairs,
+                    validate=lambda value: validate_adaptation_grounding(
+                        in_progress, tool_results, value
+                    ),
                 )
             except (AgentCoreError, ValueError) as exc:
                 return self._fail_with_step(in_progress, step, exc, code=self._error_code(exc))
@@ -696,6 +704,22 @@ class AgentRunner:
                 "model_invocation": self._invocation_summary(request, generated),
             }
 
+        if adaptation.final_result is not None and in_progress.grounding is not None:
+            from agent_core.grounding import validate_grounded_answer
+
+            try:
+                if (
+                    self._grounding_verifier is not None
+                    and not self._grounding_verifier.verify_current(in_progress, tool_results)
+                ):
+                    raise ValueError(
+                        "retrieved corpus changed or became unavailable; start a fresh grounded run"
+                    )
+                final = validate_grounded_answer(in_progress, adaptation.final_result, tool_results)
+                adaptation = adaptation.evolve(final_result=final)
+                output["adaptation"] = adaptation.model_dump(mode="json")
+            except ValueError as exc:
+                return self._fail_with_step(in_progress, step, exc, code="invalid_grounding")
         completed = self._complete_step(
             step,
             now=self._clock.now(),
@@ -819,6 +843,10 @@ class AgentRunner:
         prior_steps: tuple[AgentStep, ...] = (),
     ) -> None:
         """Return tool-name and argument mistakes to bounded model repair before execution."""
+        if run.grounding is not None and not any(
+            action.tool_name == "context.retrieve.v1" for action in plan.actions
+        ):
+            raise ModelOutputValidationError("grounded plans require context.retrieve.v1")
         successful_calls = self._successful_call_signatures(prior_steps)
         try:
             stage_definitions: dict[int, list[ToolDefinition]] = {}
@@ -831,7 +859,7 @@ class AgentRunner:
                     action.tool_name,
                     json.dumps(action.arguments, sort_keys=True, separators=(",", ":")),
                 )
-                if signature in successful_calls:
+                if signature in successful_calls and action.tool_name != "context.retrieve.v1":
                     raise ModelOutputValidationError(
                         "plan repeats a tool call that already succeeded in this run"
                     )

@@ -126,6 +126,17 @@
             "default": null,
             "title": "Final Result"
           },
+          "grounding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroundingRequest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -517,6 +528,17 @@
             "title": "Feature Key",
             "type": "string"
           },
+          "grounding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroundingRequest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "limits": {
             "$ref": "#/components/schemas/RunLimits"
           },
@@ -543,7 +565,8 @@
               "default.v4",
               "default.v5",
               "default.v6",
-              "default.v7"
+              "default.v7",
+              "default.v8"
             ],
             "title": "Prompt Set",
             "type": "string"
@@ -1030,6 +1053,206 @@
         "title": "BackendOnboarding",
         "type": "object"
       },
+      "CorpusDocument": {
+        "additionalProperties": false,
+        "description": "A normalized document supplied by its owning feature; URLs are never fetched.",
+        "properties": {
+          "access_class": {
+            "const": "public_project_guidance",
+            "default": "public_project_guidance",
+            "title": "Access Class",
+            "type": "string"
+          },
+          "document_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "evidence_kind": {
+            "default": "project_guidance",
+            "enum": [
+              "project_guidance",
+              "fixture",
+              "official"
+            ],
+            "title": "Evidence Kind",
+            "type": "string"
+          },
+          "license": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "License",
+            "type": "string"
+          },
+          "location": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Location",
+            "type": "string"
+          },
+          "source_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Date"
+          },
+          "source_uri": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Source Uri",
+            "type": "string"
+          },
+          "status": {
+            "const": "active",
+            "default": "active",
+            "title": "Status",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 60000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "title",
+          "source_uri",
+          "text",
+          "license"
+        ],
+        "title": "CorpusDocument",
+        "type": "object"
+      },
+      "CorpusIngestRequest": {
+        "additionalProperties": false,
+        "description": "Complete replacement; an empty document batch explicitly withdraws a corpus.",
+        "properties": {
+          "corpus_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Corpus Id",
+            "type": "string"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/CorpusDocument"
+            },
+            "maxItems": 200,
+            "title": "Documents",
+            "type": "array"
+          },
+          "feature_key": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Feature Key",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "feature_key",
+          "corpus_id",
+          "documents"
+        ],
+        "title": "CorpusIngestRequest",
+        "type": "object"
+      },
+      "CorpusVersion": {
+        "additionalProperties": false,
+        "description": "Immutable activated corpus identity, including embedding/preprocessing identity.",
+        "properties": {
+          "chunk_count": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "corpus_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Corpus Id",
+            "type": "string"
+          },
+          "corpus_version": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Corpus Version",
+            "type": "string"
+          },
+          "document_count": {
+            "maximum": 200,
+            "minimum": 0,
+            "title": "Document Count",
+            "type": "integer"
+          },
+          "embedding_dimensions": {
+            "maximum": 4096,
+            "minimum": 1,
+            "title": "Embedding Dimensions",
+            "type": "integer"
+          },
+          "embedding_model": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Embedding Model",
+            "type": "string"
+          },
+          "feature_key": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Feature Key",
+            "type": "string"
+          },
+          "ingested_at": {
+            "format": "date-time",
+            "title": "Ingested At",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "feature_key",
+          "corpus_id",
+          "corpus_version",
+          "document_count",
+          "chunk_count",
+          "embedding_model",
+          "embedding_dimensions",
+          "ingested_at"
+        ],
+        "title": "CorpusVersion",
+        "type": "object"
+      },
       "DatabaseOnboarding": {
         "additionalProperties": false,
         "description": "One database service and the named volumes it exclusively owns.",
@@ -1248,6 +1471,132 @@
           "path"
         ],
         "title": "EvidenceAdapterOnboarding",
+        "type": "object"
+      },
+      "EvidenceCitation": {
+        "additionalProperties": false,
+        "description": "Self-contained untrusted source excerpt pinned to one complete corpus version.",
+        "properties": {
+          "chunk_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "citation_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Citation Id",
+            "type": "string"
+          },
+          "content_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "corpus_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Corpus Id",
+            "type": "string"
+          },
+          "corpus_version": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Corpus Version",
+            "type": "string"
+          },
+          "document_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "evidence_kind": {
+            "enum": [
+              "project_guidance",
+              "fixture",
+              "official"
+            ],
+            "title": "Evidence Kind",
+            "type": "string"
+          },
+          "excerpt": {
+            "maxLength": 1600,
+            "minLength": 1,
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "feature_key": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Feature Key",
+            "type": "string"
+          },
+          "ingested_at": {
+            "format": "date-time",
+            "title": "Ingested At",
+            "type": "string"
+          },
+          "location": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Location",
+            "type": "string"
+          },
+          "score": {
+            "maximum": 1,
+            "minimum": -1,
+            "title": "Score",
+            "type": "number"
+          },
+          "source_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Date"
+          },
+          "source_uri": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Source Uri",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "citation_id",
+          "feature_key",
+          "corpus_id",
+          "corpus_version",
+          "document_id",
+          "chunk_id",
+          "title",
+          "source_uri",
+          "content_hash",
+          "location",
+          "ingested_at",
+          "evidence_kind",
+          "excerpt",
+          "score"
+        ],
+        "title": "EvidenceCitation",
         "type": "object"
       },
       "EvidenceSource": {
@@ -1531,6 +1880,135 @@
           "host_port_default"
         ],
         "title": "FrontendOnboarding",
+        "type": "object"
+      },
+      "GroundedAnswer": {
+        "additionalProperties": false,
+        "description": "Typed R1 completion, validated against actual persisted evidence before success.",
+        "properties": {
+          "confidence": {
+            "enum": [
+              "high",
+              "moderate",
+              "low",
+              "insufficient"
+            ],
+            "title": "Confidence",
+            "type": "string"
+          },
+          "confidence_reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Confidence Reason",
+            "type": "string"
+          },
+          "evidence_gaps": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Evidence Gaps",
+            "type": "array"
+          },
+          "findings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GroundedClaim"
+            },
+            "maxItems": 10,
+            "title": "Findings",
+            "type": "array"
+          },
+          "next_step": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Next Step",
+            "type": "string"
+          },
+          "safety_boundary": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Safety Boundary",
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary",
+          "confidence",
+          "confidence_reason",
+          "next_step",
+          "safety_boundary"
+        ],
+        "title": "GroundedAnswer",
+        "type": "object"
+      },
+      "GroundedClaim": {
+        "additionalProperties": false,
+        "description": "A claim with a distinct support boundary for guidance and current tool facts.",
+        "properties": {
+          "citation_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Citation Ids",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "guidance",
+              "tool_fact"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 1500,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "tool_call_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Tool Call Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "text",
+          "kind"
+        ],
+        "title": "GroundedClaim",
+        "type": "object"
+      },
+      "GroundingRequest": {
+        "additionalProperties": false,
+        "description": "Public guidance scope fixed by the caller, never by retrieved instructions.",
+        "properties": {
+          "corpus_id": {
+            "maxLength": 100,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Corpus Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "corpus_id"
+        ],
+        "title": "GroundingRequest",
         "type": "object"
       },
       "HealthCheck": {
@@ -2433,6 +2911,149 @@
           "status"
         ],
         "title": "ReadinessCheckProjection",
+        "type": "object"
+      },
+      "RetrievalRequest": {
+        "additionalProperties": false,
+        "description": "A bounded query for one registered corpus; filters cannot widen feature scope.",
+        "properties": {
+          "corpus_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Corpus Id",
+            "type": "string"
+          },
+          "document_ids": {
+            "default": [],
+            "items": {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "title": "Document Ids",
+            "type": "array"
+          },
+          "feature_key": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Feature Key",
+            "type": "string"
+          },
+          "max_context_chars": {
+            "default": 5000,
+            "maximum": 12000,
+            "minimum": 100,
+            "title": "Max Context Chars",
+            "type": "integer"
+          },
+          "min_score": {
+            "default": 0.35,
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Min Score",
+            "type": "number"
+          },
+          "query": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "top_k": {
+            "default": 5,
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Top K",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "feature_key",
+          "corpus_id",
+          "query"
+        ],
+        "title": "RetrievalRequest",
+        "type": "object"
+      },
+      "RetrievalResponse": {
+        "additionalProperties": false,
+        "description": "Explicit outcomes distinguish absent context from a failed retrieval dependency.",
+        "properties": {
+          "citations": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvidenceCitation"
+            },
+            "maxItems": 10,
+            "title": "Citations",
+            "type": "array"
+          },
+          "corpus_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Corpus Id",
+            "type": "string"
+          },
+          "corpus_version": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Corpus Version"
+          },
+          "detail": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Detail",
+            "type": "string"
+          },
+          "feature_key": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Feature Key",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "no_match",
+              "empty",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "feature_key",
+          "corpus_id",
+          "status"
+        ],
+        "title": "RetrievalResponse",
         "type": "object"
       },
       "ReviewDecision": {

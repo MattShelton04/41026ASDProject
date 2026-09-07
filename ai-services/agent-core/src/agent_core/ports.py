@@ -123,6 +123,14 @@ class ToolExecutor(Protocol):
         ...
 
 
+class GroundingVerifier(Protocol):
+    """Revalidate external corpus currency through an explicitly injected boundary."""
+
+    def verify_current(self, run: AgentRun, results: tuple[ToolResult, ...]) -> bool:
+        """Return false if active context was withdrawn, superseded or cannot be verified."""
+        ...
+
+
 class PromptBuilder(Protocol):
     """Port separating versioned prompt rendering from orchestration policy."""
 

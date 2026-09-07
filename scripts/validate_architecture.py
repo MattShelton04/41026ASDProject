@@ -61,7 +61,10 @@ ALLOWED_WORKSPACE_DEPENDENCIES: Mapping[str, frozenset[str]] = {
     SHARED_CONSUMER_PROTOCOL: frozenset({SHARED_CONTRACTS}),
     SHARED_TESTKIT: frozenset({SHARED_CONTRACTS, AGENT_CORE}),
     AGENT_CORE: frozenset({SHARED_CONTRACTS}),
-    AI_MODE: frozenset({SHARED_CONTRACTS, AGENT_CORE}),
+    AI_MODE: frozenset({SHARED_CONTRACTS, AGENT_CORE, "shared-tool-runtime"}),
+    "shared-tool-runtime": frozenset({SHARED_CONTRACTS}),
+    "mcp-server": frozenset({SHARED_CONTRACTS, "shared-tool-runtime"}),
+    "rag-server": frozenset({SHARED_CONTRACTS}),
 }
 
 PRODUCTION_IMPORT_DENYLISTS: Mapping[str, frozenset[str]] = {
@@ -70,6 +73,9 @@ PRODUCTION_IMPORT_DENYLISTS: Mapping[str, frozenset[str]] = {
     SHARED_TESTKIT: frozenset({"ai_mode"}),
     AGENT_CORE: frozenset({"shared_testkit", "ai_mode"}),
     AI_MODE: frozenset({"shared_testkit"}),
+    "shared-tool-runtime": frozenset({"shared_testkit", "agent_core", "ai_mode", "rag_server", "mcp_server"}),
+    "mcp-server": frozenset({"shared_testkit", "agent_core", "ai_mode", "rag_server"}),
+    "rag-server": frozenset({"shared_testkit", "agent_core", "ai_mode", "mcp_server"}),
 }
 
 

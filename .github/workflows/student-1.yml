@@ -17,6 +17,9 @@ on:
       - "scripts/dev.py"
       - "scripts/devtools/**"
       - "shared/contracts/**"
+      - "shared/tool-runtime/**"
+      - "ai-services/mcp-server/**"
+      - "ai-services/rag-server/**"
       - "shared/frontend/**"
       - "student-1/**"
       - "student-2/pyproject.toml"
@@ -38,6 +41,9 @@ on:
       - "scripts/dev.py"
       - "scripts/devtools/**"
       - "shared/contracts/**"
+      - "shared/tool-runtime/**"
+      - "ai-services/mcp-server/**"
+      - "ai-services/rag-server/**"
       - "shared/frontend/**"
       - "student-1/**"
       - "student-2/pyproject.toml"
@@ -46,6 +52,11 @@ on:
       - "student-5/pyproject.toml"
       - "uv.lock"
   workflow_dispatch:
+
+# Advanced services run only in the local demonstration, never in CI/CD.
+env:
+  AI_MODE_MCP_ENABLED: "false"
+  AI_MODE_RAG_ENABLED: "false"
 
 permissions:
   contents: read
@@ -76,6 +87,8 @@ jobs:
           cache-dependency-glob: uv.lock
       - name: Install locked workspace
         run: uv sync --locked --all-packages --all-groups
+      - name: Validate R1 contracts and disabled runtime with deterministic doubles
+        run: uv run --locked pytest scripts/tests/test_host_runtime.py shared/contracts/tests/test_retrieval.py shared/tool-runtime/tests ai-services/rag-server/tests/test_embeddings.py --no-cov -q
       - name: Install Chromium for required form checks
         run: uv run --locked playwright install --with-deps chromium
       - name: Run required Feature 1 form behavior checks
@@ -86,7 +99,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      OPENAI_API_KEY_FILE: /dev/null
       AI_MODE_REQUIRE_PROVIDER_READY: "false"
       # The fixture import has ten rows; keep its explicit CI budget bounded without
       # weakening the source-scale Compose defaults used by real PSI/BOCSAR runs.
@@ -116,13 +128,11 @@ jobs:
         with:
           source: .
           files: docker-compose.yml
-          targets: shared-frontend,shared-ai-mode,f1-db-api,f1-db-loader,f1-backend,f1-runner,f1-frontend
+          targets: shared-frontend,f1-db-api,f1-db-loader,f1-backend,f1-runner,f1-frontend
           load: true
           set: |
             shared-frontend.cache-from=type=gha,scope=student1-shared-frontend
             shared-frontend.cache-to=type=gha,mode=max,scope=student1-shared-frontend
-            shared-ai-mode.cache-from=type=gha,scope=student1-ai-mode
-            shared-ai-mode.cache-to=type=gha,mode=max,scope=student1-ai-mode
             f1-db-api.cache-from=type=gha,scope=student1-database-api
             f1-db-api.cache-to=type=gha,mode=max,scope=student1-database-api
             f1-db-loader.cache-from=type=gha,scope=student1-database-loader
@@ -135,7 +145,7 @@ jobs:
             f1-frontend.cache-to=type=gha,mode=max,scope=student1-frontend
       - name: Start bounded fixture stack
         run: |
-          docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 up --detach --wait --wait-timeout 180 shared-frontend shared-ai-mode f1-db-api f1-db-loader f1-backend f1-runner f1-frontend
+          docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 up --detach --wait --wait-timeout 180 shared-frontend f1-db-api f1-db-loader f1-backend f1-runner f1-frontend
       - name: Run the code-driven fixture acquisition pipeline
         run: |
           uv sync --locked --all-packages --all-groups

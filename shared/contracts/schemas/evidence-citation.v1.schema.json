@@ -1,0 +1,126 @@
+{
+  "additionalProperties": false,
+  "description": "Self-contained untrusted source excerpt pinned to one complete corpus version.",
+  "properties": {
+    "chunk_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Chunk Id",
+      "type": "string"
+    },
+    "citation_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Citation Id",
+      "type": "string"
+    },
+    "content_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "corpus_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Corpus Id",
+      "type": "string"
+    },
+    "corpus_version": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Corpus Version",
+      "type": "string"
+    },
+    "document_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Document Id",
+      "type": "string"
+    },
+    "evidence_kind": {
+      "enum": [
+        "project_guidance",
+        "fixture",
+        "official"
+      ],
+      "title": "Evidence Kind",
+      "type": "string"
+    },
+    "excerpt": {
+      "maxLength": 1600,
+      "minLength": 1,
+      "title": "Excerpt",
+      "type": "string"
+    },
+    "feature_key": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Feature Key",
+      "type": "string"
+    },
+    "ingested_at": {
+      "format": "date-time",
+      "title": "Ingested At",
+      "type": "string"
+    },
+    "location": {
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Location",
+      "type": "string"
+    },
+    "score": {
+      "maximum": 1,
+      "minimum": -1,
+      "title": "Score",
+      "type": "number"
+    },
+    "source_date": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Date"
+    },
+    "source_uri": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Source Uri",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 240,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "citation_id",
+    "feature_key",
+    "corpus_id",
+    "corpus_version",
+    "document_id",
+    "chunk_id",
+    "title",
+    "source_uri",
+    "content_hash",
+    "location",
+    "ingested_at",
+    "evidence_kind",
+    "excerpt",
+    "score"
+  ],
+  "title": "EvidenceCitation",
+  "type": "object"
+}

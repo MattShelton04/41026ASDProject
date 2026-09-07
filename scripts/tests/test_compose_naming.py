@@ -49,16 +49,14 @@ def test_enabled_build_services_have_a_live_development_source_policy() -> None:
     enabled = json.loads(
         (REPOSITORY_ROOT / "deployment/enabled-services.v1.json").read_text(encoding="utf-8")
     )
-    expected = {"shared-frontend", "shared-ai-mode", *enabled["build_services"]}
+    expected = {"shared-frontend", *enabled["build_services"]}
     development = _compose("docker-compose.dev.yml")["services"]
 
     assert expected <= set(development)
     assert all(development[service].get("volumes") for service in expected)
 
     python_http_services = {
-        service
-        for service in expected
-        if service == "shared-ai-mode" or service.endswith(("-backend", "-db-api"))
+        service for service in expected if service.endswith(("-backend", "-db-api"))
     }
     for service in python_http_services:
         assert "--reload" in development[service].get("command", [])

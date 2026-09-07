@@ -12,10 +12,7 @@ COMPOSE_FILES = (
 )
 PRODUCTION_COMPOSE_FILES = COMPOSE_FILES[:-1]
 PROFILES = ("release-0",)
-SHARED_APPLICATION_SERVICES = (
-    "shared-frontend",
-    "shared-ai-mode",
-)
+SHARED_APPLICATION_SERVICES = ("shared-frontend",)
 _ENABLED_SERVICES_PATH = REPOSITORY_ROOT / "deployment" / "enabled-services.v1.json"
 _ENABLED_FEATURES_PATH = REPOSITORY_ROOT / "deployment" / "enabled-features.v1.json"
 

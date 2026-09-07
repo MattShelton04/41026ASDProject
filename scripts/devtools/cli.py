@@ -153,6 +153,21 @@ def _operator_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]
     report.add_argument("--ai-health-url")
 
 
+def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    ai = root.add_parser("ai", help="Operate non-containerised local AI services")
+    commands = ai.add_subparsers(dest="action", required=True)
+    start = commands.add_parser("start", help="Start managed host services")
+    start.add_argument("--mode", choices=("direct", "mcp", "rag", "combined"), default="combined")
+    _add_offline_option(start)
+    _add_env_file_option(start)
+    commands.add_parser("status", help="Show managed host process state")
+    for action in ("stop", "logs"):
+        command = commands.add_parser(action, help=f"{action.title()} managed host services")
+        command.add_argument("services", nargs="*", choices=("ai-mode", "mcp", "rag"))
+    foreground = commands.add_parser("serve", help="Run one service in the foreground")
+    foreground.add_argument("service", choices=("ai-mode", "mcp", "rag"))
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the discoverable development command tree."""
     parser = argparse.ArgumentParser(
@@ -164,4 +179,5 @@ def build_parser() -> argparse.ArgumentParser:
     _ui_commands(groups)
     _data_commands(groups)
     _operator_commands(groups)
+    _ai_commands(groups)
     return parser

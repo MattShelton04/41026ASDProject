@@ -139,6 +139,10 @@ class RegistryPromptBuilder(PromptBuilder):
             ModelRole.PLANNER: ("planner", "v7"),
             ModelRole.ADAPTER: ("adapter", "v7"),
         },
+        "default.v8": {
+            ModelRole.PLANNER: ("planner", "v8"),
+            ModelRole.ADAPTER: ("adapter", "v8"),
+        },
     }
 
     def __init__(self, registry: PromptRegistry) -> None:
@@ -161,7 +165,7 @@ class RegistryPromptBuilder(PromptBuilder):
         prior_steps: tuple[AgentStep, ...] = (),
     ) -> StructuredModelRequest:
         prompt = self._load_for(run, ModelRole.PLANNER)
-        if prompt.metadata.version == "v7":
+        if prompt.metadata.version in {"v7", "v8"}:
             dynamic = {
                 "feature_key": run.feature_key,
                 "trusted_identifiers": [
@@ -215,7 +219,7 @@ class RegistryPromptBuilder(PromptBuilder):
             "observation": observation.model_dump(mode="json"),
             "iteration_count": run.iteration_count,
         }
-        if prompt.metadata.version != "v7":
+        if prompt.metadata.version not in {"v7", "v8"}:
             dynamic.pop("limits")
             dynamic = {
                 "objective": dynamic.pop("objective"),
@@ -240,14 +244,14 @@ class RegistryPromptBuilder(PromptBuilder):
         bounded_dynamic = _bounded_json_value(dict(dynamic), MAX_RENDERED_INPUT_CHARS)
         serialized_input = json.dumps(
             bounded_dynamic,
-            sort_keys=prompt.metadata.version != "v7",
+            sort_keys=prompt.metadata.version not in {"v7", "v8"},
             separators=(",", ":"),
         )
         if len(serialized_input) > MAX_RENDERED_INPUT_CHARS:
             raise PromptRegistryError("bounded prompt input still exceeds the model message limit")
         system_prefix = (
             _static_tool_prefix(prompt.content, definitions)
-            if prompt.metadata.version == "v7"
+            if prompt.metadata.version in {"v7", "v8"}
             else prompt.content
         )
         return StructuredModelRequest(
@@ -269,7 +273,7 @@ class RegistryPromptBuilder(PromptBuilder):
             prompt_version=prompt.metadata.version,
             prompt_hash=(
                 hashlib.sha256(system_prefix.encode("utf-8")).hexdigest()
-                if prompt.metadata.version == "v7"
+                if prompt.metadata.version in {"v7", "v8"}
                 else prompt.content_hash
             ),
             rendered_input_hash=hashlib.sha256(serialized_input.encode("utf-8")).hexdigest(),

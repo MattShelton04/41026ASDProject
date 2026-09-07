@@ -2,7 +2,8 @@
 FROM nginxinc/nginx-unprivileged:1.29.1-alpine3.22-slim
 
 COPY shared/frontend /usr/share/nginx/html
-COPY shared/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY shared/frontend/nginx.conf /etc/nginx/templates/default.conf.template
+ENV AI_MODE_PORT=5005 NGINX_ENVSUBST_FILTER=AI_MODE_PORT
 
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=20 \
