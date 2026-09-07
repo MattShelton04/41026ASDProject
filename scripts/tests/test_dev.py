@@ -339,7 +339,7 @@ def test_up_prints_configured_urls(
 
     output = capsys.readouterr().out
     assert "http://localhost:5310" in output
-    assert "http://localhost:5311/health/ready" in output
+    assert "http://localhost:5310/api/shared-health/ai-mode" in output
     assert "http://localhost:5313" in output
 
 
@@ -731,3 +731,26 @@ def test_collection_rejects_a_job_without_complete_scope(
 
     with pytest.raises(RuntimeError, match="does not define"):
         dev._collection_definition("fixture-property")
+
+
+@pytest.mark.parametrize("override", [None, "http://127.0.0.1:6500/custom-health"])
+def test_operator_health_uses_authenticated_edge_without_exposing_host_token(
+    monkeypatch: pytest.MonkeyPatch, override: str | None
+) -> None:
+    monkeypatch.setenv("PROPERTYSCOPE_SHARED_PORT", "6100")
+    observed: dict[str, object] = {}
+
+    def collect(client: httpx.Client, **kwargs: object) -> dict[str, object]:
+        observed.update(kwargs)
+        assert "X-PropertyScope-AI-Token" not in client.headers
+        return {}
+
+    monkeypatch.setattr(dev, "collect_operator_report", collect)
+    monkeypatch.setattr(dev, "render_operator_report", lambda _: "report")
+    args = ["operator", "report"]
+    if override:
+        args.extend(["--ai-health-url", override])
+    assert dev.main(args) == 0
+    assert observed["ai_health_url"] == (
+        override or "http://127.0.0.1:6100/api/shared-health/ai-mode"
+    )

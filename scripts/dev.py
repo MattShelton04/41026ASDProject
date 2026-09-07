@@ -485,8 +485,8 @@ def _up(*, offline: bool, build: bool = False) -> None:
     _run(_compose_command(*up_arguments), environment=compose_environment)
     _reload_shared_edge(environment=compose_environment)
     ports = _resolved_host_ports(APPLICATION_SERVICES)
-    ai_port = host_runtime.port_for("ai-mode", os.environ)
-    print(f"\nAI-mode health:     http://localhost:{ai_port}/health/ready")
+    shared_port = ports["shared-frontend"][1]
+    print(f"\nAI-mode health:     http://localhost:{shared_port}/api/shared-health/ai-mode")
     print(f"PropertyScope home: http://localhost:{ports['shared-frontend'][1]}")
     if "f1-frontend" in ports:
         print(f"PropertyScope:      http://localhost:{ports['f1-frontend'][1]}")
@@ -812,7 +812,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if "f1-frontend" not in ports:
                 raise RuntimeError("Feature 1 is not enabled in the deployment projection")
             feature_port = ports["f1-frontend"][1]
-            ai_port = host_runtime.port_for("ai-mode", os.environ)
+            shared_port = ports["shared-frontend"][1]
             with httpx.Client(follow_redirects=False) as client:
                 report = collect_operator_report(
                     client,
@@ -825,7 +825,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                         or f"http://127.0.0.1:{feature_port}/health/ready"
                     ),
                     ai_health_url=(
-                        arguments.ai_health_url or f"http://127.0.0.1:{ai_port}/health/ready"
+                        arguments.ai_health_url
+                        or f"http://127.0.0.1:{shared_port}/api/shared-health/ai-mode"
                     ),
                 )
             print(render_operator_report(report), flush=True)
