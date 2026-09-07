@@ -1,0 +1,241 @@
+{
+  "evidence_boundary": "Actual provider/UI runs after service authentication, citation preservation and deadline fixes. Public final answers only; no model prompts/private reasoning.",
+  "host_auth_checks": {
+    "unauthenticated_host": 401,
+    "authenticated_host": 200,
+    "edge_capabilities": 200,
+    "feature_sources": 200,
+    "durable_turn": 200
+  },
+  "runs": [
+    {
+      "run": {
+        "id": "6debe532-4a0c-4f44-9ae3-3e86caf24bd2",
+        "status": "succeeded",
+        "feature_key": "student-1-propertyscope-data-platform",
+        "created_at": "2026-09-07T10:21:43.327159Z",
+        "updated_at": "2026-09-07T10:22:02.320389Z",
+        "model_profile": "remote-standard.v1",
+        "prompt_set": "default.v8",
+        "tool_call_count": 4,
+        "final_result": {
+          "citations": [
+            {
+              "chunk_id": "70a6cd0fd8ffe9bdf209b2d463451c6ec0ee2b275c778798b7c4300f3d7737cb",
+              "citation_id": "cite-603db372664b792cd4dd415431d0acc032b51a682259478a11dc32986131c280",
+              "content_hash": "a8ad30a7be668ab0a7bd551903068b1e612a3d43b33b18eee5f68ef46cbf8b35",
+              "corpus_id": "operator-guidance",
+              "corpus_version": "4ec85c9da899a9c086a76bed335aeaa1419793df2110bb2df8eed5a0d510f8c9",
+              "document_id": "crime-coverage",
+              "evidence_kind": "project_guidance",
+              "excerpt": "# Crime observations and coverage\n\nThe crime-series product preserves sparse positive observations and explicit coverage, including coverage-only series. A blank can mean observed zero only where the product's blank_means_observed_zero flag is true and the month is inside declared coverage. Outside-coverage months are unavailable, not zero.\n\nMissing coverage is not proof that an offence never occurred. Feature 1 does not calculate crime rates or infer suburb safety from missing observations; interpretation belongs to the owning analytics feature. Keep source period, geography and coverage visible and distinguish null or unavailable evidence from measured zero.\n\nBasis: data-product consumer guide, crime-series product semantics. These are project data-contract rules, not official publisher methodology or a current crime assessment.",
+              "feature_key": "student-1-propertyscope-data-platform",
+              "ingested_at": "2026-09-07T10:01:33.959429Z",
+              "location": "Operator guidance: crime-coverage; chars 1-842",
+              "score": 0.7229357140064587,
+              "source_date": "2026-09-07",
+              "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/crime-coverage.md",
+              "title": "Crime observations and coverage"
+            },
+            {
+              "chunk_id": "4a8feb2aeb8c507ca07459acdde5cda36064a410e82778e73d7fb618c220a272",
+              "citation_id": "cite-f540a95bc649e1973ce5c521e8aadc103d76d6434ce7c7bc38e5adcb4345e530",
+              "content_hash": "8ae70f01b28a2c76841d3650e1d7f948e69303145ec547fcd4caf70f05d7bb11",
+              "corpus_id": "operator-guidance",
+              "corpus_version": "4ec85c9da899a9c086a76bed335aeaa1419793df2110bb2df8eed5a0d510f8c9",
+              "document_id": "missing-evidence",
+              "evidence_kind": "project_guidance",
+              "excerpt": "# Missing property evidence is unknown\n\nProperty evidence comes from accepted published datasets with explicit source and coverage limits. A missing record, unmatched address or unavailable dataset is a gap in available evidence. It is not proof that no sale occurred, no hazard exists, a property is safe, or an area has zero crime. Report the missing source or field and the available coverage rather than inventing a value.\n\nFeature 1 owns acquisition, canonical addresses, publication and bounded discovery. It does not decide planning approval, structural safety, property valuation or personal buying advice. Project operator guidance cannot establish a property's current condition. A factual property answer requires the current owning tool's evidence; when that evidence is absent, state what cannot be concluded.\n\nBasis: registered feature scope; student-1 README; data-product consumer guide, missing values and product semantics.",
+              "feature_key": "student-1-propertyscope-data-platform",
+              "ingested_at": "2026-09-07T10:01:33.959429Z",
+              "location": "Operator guidance: missing-evidence; chars 1-941",
+              "score": 0.7982679381311398,
+              "source_date": "2026-09-07",
+              "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/missing-evidence.md",
+              "title": "Missing property evidence is unknown"
+            }
+          ],
+          "confidence": "low",
+          "confidence_reason": "The answer identifies material evidence gaps or conflicts.",
+          "corpus_version": "4ec85c9da899a9c086a76bed335aeaa1419793df2110bb2df8eed5a0d510f8c9",
+          "evidence_gaps": [
+            "The available release and succeeded-run list items omit visible status, record-count, requested-scope, and quality fields, so no source can be described as fully loaded or accepted from this response.",
+            "No specific source, release, locality, or property was supplied for a narrower coverage review."
+          ],
+          "findings": [
+            {
+              "citation_ids": [],
+              "kind": "tool_fact",
+              "text": "The current register lists six active sources: ABS SEIFA 2021 NSW Suburbs and Localities; BOCSAR recorded crime data; Example NSW property records; G-NAF Open NSW; NSW government school locations and attributes; and NSW Valuer General property sales information.",
+              "tool_call_ids": [
+                "c293a329-c060-4805-b3f8-23c111ef82a2"
+              ]
+            },
+            {
+              "citation_ids": [],
+              "kind": "tool_fact",
+              "text": "Registration and active status do not establish that a source is loaded, accepted, complete, or available to property reads. The release and succeeded-run lists show related records, but their status, record-count and requested-scope fields were truncated here; load extent is therefore unknown from this evidence.",
+              "tool_call_ids": [
+                "2132a6a4-4979-407b-8c44-9da8317efe72",
+                "4dd3eea4-4a82-499c-b415-e43554eb2d0e"
+              ]
+            },
+            {
+              "citation_ids": [
+                "cite-f540a95bc649e1973ce5c521e8aadc103d76d6434ce7c7bc38e5adcb4345e530"
+              ],
+              "kind": "guidance",
+              "text": "Report missing coverage as unknown: a missing record, unmatched address, or unavailable dataset is a gap in available evidence, not proof that no sale, hazard, or other event exists. State the missing source or field and the available coverage rather than inventing a value.",
+              "tool_call_ids": []
+            },
+            {
+              "citation_ids": [
+                "cite-603db372664b792cd4dd415431d0acc032b51a682259478a11dc32986131c280"
+              ],
+              "kind": "guidance",
+              "text": "For coverage-based observations, unavailable or outside-coverage data must be distinguished from measured zero; a blank is zero only where the product explicitly declares that meaning within stated coverage.",
+              "tool_call_ids": []
+            }
+          ],
+          "grounding_status": "ready",
+          "next_step": "Provide a source or exact release ID if you want its current acceptance state, record count, coverage limits, and quality evidence checked separately.",
+          "safety_boundary": "Protected actions still require their existing human review",
+          "summary": "Six data sources are currently registered and all are marked active. Missing coverage must be reported as unknown because an absent record or unavailable dataset is only a gap in the available evidence, not proof of absence or complete coverage."
+        }
+      },
+      "phases": [
+        "plan",
+        "act",
+        "observe",
+        "adapt"
+      ]
+    },
+    {
+      "run": {
+        "id": "f3372765-d9cd-49b7-a792-bc6d2d516b35",
+        "status": "succeeded",
+        "feature_key": "student-1-propertyscope-data-platform",
+        "created_at": "2026-09-07T10:24:29.858924Z",
+        "updated_at": "2026-09-07T10:24:42.310660Z",
+        "model_profile": "remote-standard.v1",
+        "prompt_set": "default.v8",
+        "tool_call_count": 3,
+        "final_result": {
+          "citations": [
+            {
+              "chunk_id": "6ec02a489d45aca0d2f9a0d763d80c568a20c0352ad0d7bab6a929948e1e3434",
+              "citation_id": "cite-89f2f9eab948ed97838c09af040e7fd625e79ccd4a1720d214519948e128d55c",
+              "content_hash": "b9cd9abb06415a0e1ded9fb49401d2de4ebfc84016246c23e9d20a97120e0e4c",
+              "corpus_id": "operator-guidance",
+              "corpus_version": "4ec85c9da899a9c086a76bed335aeaa1419793df2110bb2df8eed5a0d510f8c9",
+              "document_id": "import-diagnosis",
+              "evidence_kind": "project_guidance",
+              "excerpt": "# Diagnose an acquisition or import failure\n\nRead the failed run's phase, structured error, task progress, source scope and artifact evidence before naming a cause. Acquisition, artifact verification, typed staging, candidate materialisation, quality checks and release construction are distinct stages. A failure label alone does not prove a checksum error, network fault or exhausted disk space.\n\nAfter correcting an import failure, Use downloaded file creates a cached reprocess from retained verified evidence with the same scope and lineage. It creates a new candidate, does not redownload by default, and cannot overwrite an accepted artifact. A partial PSI scope remains partial and non-publishable after reprocessing. A failed or cancelled candidate import does not activate candidate data. Report unavailable diagnostic evidence instead of guessing a repair or issuing destructive database commands.\n\nBasis: student-1 README, cached reprocessing and durable worker phases; ADR-035.",
+              "feature_key": "student-1-propertyscope-data-platform",
+              "ingested_at": "2026-09-07T10:01:33.959429Z",
+              "location": "Operator guidance: import-diagnosis; chars 1-990",
+              "score": 0.7493940040136192,
+              "source_date": "2026-09-07",
+              "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/import-diagnosis.md",
+              "title": "Diagnose an acquisition or import failure"
+            },
+            {
+              "chunk_id": "622172cea04832e47335f49a34d84d01b623334f530ab69ac588bf76489cacd7",
+              "citation_id": "cite-a318ccc6e9b8a396dc7962a2237b152560a8c74bdf720cf8538ab445d2bcec65",
+              "content_hash": "9be8a7ec0c52f12ec2f837e76697020b6783a6a4e442e3e175ef0b583d52b29d",
+              "corpus_id": "operator-guidance",
+              "corpus_version": "4ec85c9da899a9c086a76bed335aeaa1419793df2110bb2df8eed5a0d510f8c9",
+              "document_id": "partial-psi",
+              "evidence_kind": "project_guidance",
+              "excerpt": "# Selected PSI archive years are partial\n\nPSI full-data acquisition remains the default. The optional psi-year-range selects an inclusive range of completed publisher archive years from 1990 through the previous calendar year. Archive partitions are not exact contract-date intervals; observed temporal coverage is reported separately.\n\nA selected-year run consumes every record in its selected archives but records complete: false and coverage_status: partial. Retry, resume and Use downloaded file preserve that exact scope and lineage. Its isolated candidate may be inspected, but both publication and activation reject it. It cannot replace the accepted complete sales-history generation. More rows or a successful import do not make a partial candidate complete.\n\nBasis: ADR-035, bounded PSI publisher-year acquisition; student-1 README. Current scope and accepted generation must be read from owning tools.",
+              "feature_key": "student-1-propertyscope-data-platform",
+              "ingested_at": "2026-09-07T10:01:33.959429Z",
+              "location": "Operator guidance: partial-psi; chars 1-912",
+              "score": 0.7830641048318178,
+              "source_date": "2026-09-07",
+              "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/partial-psi.md",
+              "title": "Selected PSI archive years are partial"
+            },
+            {
+              "chunk_id": "40add3c8a7c1f5dde38044384535d30998432fcd038e0429b549887d584ab8e6",
+              "citation_id": "cite-cd0a763863ce72ec1c5839a28828593b31db4245d471afd36460d4b6fffaf095",
+              "content_hash": "b4759e730b8d94eae353c7712f931bc5fe69048cfdaa42617b7a7197bfefa224",
+              "corpus_id": "operator-guidance",
+              "corpus_version": "4ec85c9da899a9c086a76bed335aeaa1419793df2110bb2df8eed5a0d510f8c9",
+              "document_id": "publication",
+              "evidence_kind": "project_guidance",
+              "excerpt": "# Producer publication and downstream import\n\nFeature 1 publishes a reviewed, verified release independently of downstream imports. Producer verification checks the immutable artifact and manifest binding and queues local activation. The activation worker verifies bytes and prepares required indexes before atomically switching the accepted generation. While Publishing, the previous accepted generation remains live.\n\nFor an external target, that same transaction creates a durable delivery outbox. The runner separately delivers the release and records the consumer's genuine receipt. Consumer rejection, unavailability or exhausted delivery retries cannot roll back producer publication. A producer verification receipt is labelled feature-1-local; it does not prove a downstream import succeeded. Inspect publication state and downstream import status separately.\n\nBasis: ADR-041, Producer-owned publication; student-1 README, operator workflow. This project guidance describes behavior, not the current state of any release.",
+              "feature_key": "student-1-propertyscope-data-platform",
+              "ingested_at": "2026-09-07T10:01:33.959429Z",
+              "location": "Operator guidance: publication; chars 1-1030",
+              "score": 0.7428894365359584,
+              "source_date": "2026-09-07",
+              "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/publication.md",
+              "title": "Producer publication and downstream import"
+            },
+            {
+              "chunk_id": "cf171ada24a5082c7797222bb3e19809a49fd3ddc2b63f8cd905d0eeecb10d65",
+              "citation_id": "cite-f6fc5a075eff3d9b6d9783de3ed3ff74b044ac16b88862c0372f50f3bc104d20",
+              "content_hash": "e6fc7f5c7f2d32ceffff134e73a8e6e5fdc7e92c603e58ee361f3d7dfe050b86",
+              "corpus_id": "operator-guidance",
+              "corpus_version": "4ec85c9da899a9c086a76bed335aeaa1419793df2110bb2df8eed5a0d510f8c9",
+              "document_id": "provenance",
+              "evidence_kind": "project_guidance",
+              "excerpt": "# Release provenance and artifact verification\n\nAccepted manifests and artifacts are immutable. Corrections produce new releases with supersession references. Record the dataset and release identifiers, source scope, schema, checksum, record count and accepted generation when explaining provenance. Never present a candidate artifact as accepted data.\n\nCurrent release exports are gzip-compressed UTF-8 NDJSON. SHA-256 and byte_count describe the exact compressed downloadable bytes; record_count counts decompressed nonempty records. Consumers discover producer-owned schemas through the product-contracts/v1 HTTP resource and its digest-bound ZIP, then validate the artifact before their own atomic import. A download alone is not evidence that a consumer accepted it.\n\nBasis: student-1 README and data-product consumer guide, framing, hashes and contract discovery. Source dates, corpus ingestion time and operational release timestamps have distinct meanings.",
+              "feature_key": "student-1-propertyscope-data-platform",
+              "ingested_at": "2026-09-07T10:01:33.959429Z",
+              "location": "Operator guidance: provenance; chars 1-964",
+              "score": 0.7343222618182784,
+              "source_date": "2026-09-07",
+              "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/provenance.md",
+              "title": "Release provenance and artifact verification"
+            }
+          ],
+          "confidence": "low",
+          "confidence_reason": "The answer identifies material evidence gaps or conflicts.",
+          "corpus_version": "4ec85c9da899a9c086a76bed335aeaa1419793df2110bb2df8eed5a0d510f8c9",
+          "evidence_gaps": [
+            "No exact release or ingestion-run ID was supplied, so this does not establish the status, quality results or coverage of any particular import. The bounded release listing was truncated and did not expose statuses or record counts."
+          ],
+          "findings": [
+            {
+              "citation_ids": [
+                "cite-a318ccc6e9b8a396dc7962a2237b152560a8c74bdf720cf8538ab445d2bcec65"
+              ],
+              "kind": "guidance",
+              "text": "Selecting PSI archive years consumes the chosen archives but records the scope as complete: false and coverage_status: partial. Publication and activation reject that candidate, and a successful import or higher row count does not change its completeness.",
+              "tool_call_ids": []
+            },
+            {
+              "citation_ids": [
+                "cite-89f2f9eab948ed97838c09af040e7fd625e79ccd4a1720d214519948e128d55c"
+              ],
+              "kind": "guidance",
+              "text": "Retrying, resuming or reprocessing retained PSI evidence preserves the original scope and lineage, so it cannot turn a partial PSI candidate into a publishable complete release.",
+              "tool_call_ids": []
+            },
+            {
+              "citation_ids": [
+                "cite-cd0a763863ce72ec1c5839a28828593b31db4245d471afd36460d4b6fffaf095",
+                "cite-f6fc5a075eff3d9b6d9783de3ed3ff74b044ac16b88862c0372f50f3bc104d20"
+              ],
+              "kind": "guidance",
+              "text": "Publication is a separate reviewed and verified release process; local activation verifies the artifact and required indexes before switching the accepted generation. A candidate must not be presented as accepted data.",
+              "tool_call_ids": []
+            }
+          ],
+          "grounding_status": "ready",
+          "next_step": "For a specific import, provide its exact release ID or ingestion-run ID so its recorded scope, quality evidence and current status can be inspected read-only.",
+          "safety_boundary": "No protected action was performed; publication, activation and other protected actions still require their existing human review.",
+          "summary": "A successful partial PSI archive-year import remains non-publishable because it is deliberately recorded as incomplete and is only an inspectable candidate, not an accepted sales-history generation."
+        }
+      },
+      "phases": [
+        "plan",
+        "act",
+        "observe",
+        "adapt"
+      ]
+    }
+  ]
+}

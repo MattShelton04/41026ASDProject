@@ -193,3 +193,29 @@ All eight findings were checked against the named source seams and accepted:
 8. Separate local real-service validation modes from CI; canonical tests use in-process
    doubles and static disabled-runtime assertions. Capture both named modes plus combined
    Feature 1 live-provider/UI evidence locally.
+
+## Implementation review resolution (7 September)
+
+The interrupted implementation was preserved in `035b8ff`; latest `main` (Fieldbook UI,
+`a102bff`) was merged by `d10d103`. Continuation commits retain that merged design.
+Two final reviewers independently inspected the runtime and implementation. Their confirmed
+findings were reproduced and fixed:
+
+- Host AI-mode's Docker-reachable listener requires a dedicated service token on every route
+  except liveness. Backend adapters and the loopback shared edge supply it; browser content
+  never receives the credential. Direct unauthenticated access returns 401.
+- Corpus-version verification consumes the remaining run budget and a cumulative bounded
+  stream deadline. Slow metadata cannot hold the serial runner indefinitely.
+- Reactivating a retained A→B→A corpus restores its original metadata/citations without
+  reembedding or replacing its ingestion timestamp.
+- The validation command now honours its advertised explicit environment-file option.
+
+Live integration additionally found and fixed Feature 1's exact ownership allowlist rejecting
+RAG-extended runs, catalogue output drift after the UI merge, and generic prompt bounding
+truncating citation evidence. Grounded context receives a separate reserved message budget.
+The semantic evaluation exposed unrelated high-similarity passages; actual answer validation
+now permits explicit insufficient context even for ready retrieval, and the provider-backed
+negative/adversarial set records both successful refusals and bounded repair attempts.
+
+The [handoff and evidence](shared-feature-1-handoff.md) records final checks, actual local
+provider/browser runs, remaining external submission evidence and the PR.

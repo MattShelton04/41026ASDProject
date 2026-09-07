@@ -1,0 +1,126 @@
+{
+  "schema_version": "1.0",
+  "evidence_boundary": "Actual provider run while managed RAG was stopped on 7 September 2026. MCP remained ready and ordinary Feature 1 sources returned HTTP 200. Captured before final service-auth/current-version hardening; final-head rerun is tracked in the handoff.",
+  "run": {
+    "id": "c680054c-7129-4665-9bf6-e2e83b4ab5c0",
+    "feature_key": "student-1-propertyscope-data-platform",
+    "request_id": "617432a5-c433-436a-bfd5-dde216b4ef30",
+    "status": "succeeded",
+    "created_at": "2026-09-07T10:11:59.377976Z",
+    "updated_at": "2026-09-07T10:12:13.016136Z",
+    "model_profile": "remote-standard.v1",
+    "prompt_set": "default.v8",
+    "grounding": {
+      "corpus_id": "operator-guidance"
+    },
+    "tool_call_count": 2,
+    "final_result": {
+      "citations": [],
+      "confidence": "insufficient",
+      "confidence_reason": "Relevant document context is unavailable or insufficient.",
+      "corpus_version": null,
+      "evidence_gaps": [
+        "Document retrieval is unavailable; current feature records remain separate evidence.",
+        "Missing accessible guidance on PSI archive-year scope, completeness, lineage, temporal coverage, consumer impact, and publication criteria.",
+        "No exact release ID or ingestion run ID was supplied to inspect the recorded scope, quality results, acceptance state, predecessor, receipts, or activations."
+      ],
+      "findings": [
+        {
+          "citation_ids": [],
+          "kind": "tool_fact",
+          "text": "PropertyScope can inspect update runs, dataset releases, release comparisons, coverage and quality evidence, but protected data actions remain separate human-reviewed operations.",
+          "tool_call_ids": [
+            "d69944a8-342e-4466-af0e-1b4269cdc10d"
+          ]
+        }
+      ],
+      "grounding_status": "insufficient_context",
+      "next_step": "Provide the relevant release ID or ingestion run ID for a factual, read-only review of its recorded scope, quality evidence, accepted predecessor and publication status.",
+      "safety_boundary": "Protected actions still require their existing human review",
+      "summary": "Insufficient context to provide a grounded explanation."
+    }
+  },
+  "elapsed_ms": 13638,
+  "phases": [
+    "plan",
+    "act",
+    "observe",
+    "adapt"
+  ],
+  "model_invocations": [
+    {
+      "metrics": {
+        "cache_write_prompt_tokens": 0,
+        "cached_prompt_tokens": 5938,
+        "eval_duration_ms": null,
+        "load_duration_ms": null,
+        "output_tokens": 617,
+        "prompt_eval_duration_ms": null,
+        "prompt_tokens": 6991,
+        "reasoning_tokens": 285,
+        "retry_count": 0,
+        "total_duration_ms": 7702
+      },
+      "model": "gpt-5.6-luna",
+      "model_digest": null,
+      "prompt_hash": "e532f9a3c8f4247e5b39c41fbd4d82ef6f65ac26db428a1c0b02bab5dfc84135",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "provider": "openai",
+      "provider_request_id": "req_4eaf4234bd3442a2ae69d6dc41994ad5",
+      "provider_retry_count": 0,
+      "rendered_input_hash": "8cf4470bcca6503aab04648e0233770cc255dcc86d6e742f4674158c2a332a3f",
+      "repair_count": 0
+    },
+    {
+      "metrics": {
+        "cache_write_prompt_tokens": 0,
+        "cached_prompt_tokens": 5457,
+        "eval_duration_ms": null,
+        "load_duration_ms": null,
+        "output_tokens": 292,
+        "prompt_eval_duration_ms": null,
+        "prompt_tokens": 8623,
+        "reasoning_tokens": 0,
+        "retry_count": 0,
+        "total_duration_ms": 3765
+      },
+      "model": "gpt-5.6-terra",
+      "model_digest": null,
+      "prompt_hash": "a33dc803d5346e90499eb5ea9a6644dec29d564539e2aeed3b6a0500e255735c",
+      "prompt_id": "adapter",
+      "prompt_version": "v8",
+      "provider": "openai",
+      "provider_request_id": "req_13169fb3981e4a7f9c32b14830218b44",
+      "provider_retry_count": 0,
+      "rendered_input_hash": "6d39718f9b1df46521412c70babdc98b76d2cb3e3c04e9405320bbb21599e1a4",
+      "repair_count": 0
+    }
+  ],
+  "health_observation": {
+    "capabilities": {
+      "deployment_mode": "local",
+      "grounding_features": [
+        "student-1-propertyscope-data-platform"
+      ],
+      "release": "release-1",
+      "services": [
+        {
+          "detail": "Local service is ready.",
+          "enabled": true,
+          "id": "mcp",
+          "implemented": true,
+          "status": "ready"
+        },
+        {
+          "detail": "Local service is unavailable; ordinary feature records remain accessible.",
+          "enabled": true,
+          "id": "rag",
+          "implemented": true,
+          "status": "unavailable"
+        }
+      ]
+    },
+    "sources_status": 200
+  }
+}

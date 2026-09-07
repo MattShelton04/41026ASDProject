@@ -1,0 +1,148 @@
+{
+  "schema_version": "1.0",
+  "mode": "mcp",
+  "passed": true,
+  "decision_provider": "deterministic-validation",
+  "transport": "live-local-services",
+  "run_id": "56776025-5b0f-4388-978e-f89e850b6137",
+  "request_id": "r1-mcp-db22febd-569a-46e9-bf50-c7105d60b1da",
+  "status": "succeeded",
+  "phases": [
+    "plan",
+    "act",
+    "observe",
+    "adapt"
+  ],
+  "tool_results": [
+    {
+      "call_id": "682da423-2244-4f70-898a-11509761cbfb",
+      "outcome": "succeeded",
+      "content": {
+        "application": {
+          "name": "PropertyScope NSW",
+          "routes": [
+            {
+              "href": "/#home",
+              "label": "Home"
+            },
+            {
+              "href": "/#features",
+              "label": "Research areas"
+            },
+            {
+              "href": "/#system-status",
+              "label": "Data status"
+            },
+            {
+              "href": "/#evidence",
+              "label": "Sources and history"
+            },
+            {
+              "href": "/operations/ai-mode/",
+              "label": "AI activity"
+            }
+          ],
+          "summary": "A property research workspace that keeps source coverage, uncertainty, dataset operations and recorded AI activity visible."
+        },
+        "assistant": {
+          "context_options": [
+            {
+              "id": "none",
+              "label": "No specific record",
+              "parameter": null,
+              "route": null
+            },
+            {
+              "id": "release",
+              "label": "Dataset release",
+              "parameter": "release_id",
+              "route": "releases/detail"
+            },
+            {
+              "id": "run",
+              "label": "Data update",
+              "parameter": "ingestion_run_id",
+              "route": "runs/detail"
+            },
+            {
+              "id": "property",
+              "label": "Property record",
+              "parameter": "property_ref",
+              "route": "properties/detail"
+            }
+          ],
+          "evidence": "Answers can use only recorded allowlisted HTTP tool results and this guide.",
+          "limitations": [
+            "It is research support, not professional advice.",
+            "It does not have arbitrary repository, filesystem, database or shell access.",
+            "Protected data actions remain separate human-reviewed operations.",
+            "This assistant can inspect only Property data. Other research areas have separate workspaces and adapters; consult Research areas for deployment availability."
+          ],
+          "memory": "Up to four completed visible exchanges are sent explicitly by the browser with a follow-up. This is bounded convenience context, not durable server-side conversation memory.",
+          "turn_model": "Each submitted message creates one durable AI-mode AgentRun."
+        },
+        "feature_status_meaning": "Status describes access through this assistant, not whether a research workspace is implemented or enabled. The shared Research areas page reports availability.",
+        "features": [
+          {
+            "capabilities": [
+              "Explain PropertyScope and the website",
+              "Describe registered datasets and sources",
+              "Search accepted NSW property address evidence",
+              "Count accepted NSW addresses by locality or postcode",
+              "Inspect an exact property and its accepted sale history",
+              "Inspect an update run or dataset release",
+              "Explain the current stage and saved progress of an exact data update",
+              "Compare candidate and accepted dataset releases",
+              "Explain coverage and quality evidence"
+            ],
+            "feature_key": "student-1-propertyscope-data-platform",
+            "href": "/features/data-platform/#properties",
+            "label": "Property data",
+            "status": "available"
+          },
+          {
+            "feature_key": "feature-2",
+            "label": "Market intelligence",
+            "status": "not_connected_to_this_assistant"
+          },
+          {
+            "feature_key": "feature-3",
+            "label": "Suburb context",
+            "status": "not_connected_to_this_assistant"
+          },
+          {
+            "feature_key": "feature-4",
+            "label": "Due diligence",
+            "status": "not_connected_to_this_assistant"
+          },
+          {
+            "feature_key": "feature-5",
+            "label": "Buyer workspace",
+            "status": "not_connected_to_this_assistant"
+          }
+        ],
+        "revision": "2026-09-07.v4",
+        "suggested_questions": [
+          "What can PropertyScope help me research?",
+          "Which datasets and sources are available?",
+          "How does AI activity stay reviewable?",
+          "Find an accepted property record in Parramatta.",
+          "How many registered addresses are in Sutherland 2232?"
+        ]
+      },
+      "error": null,
+      "duration_ms": 16,
+      "retryable": false,
+      "evidence_references": [
+        "service:propertyscope-data-platform-backend",
+        "status:200"
+      ],
+      "retrieval": null
+    }
+  ],
+  "final_result": {
+    "summary": "Registered MCP tool returned structured evidence."
+  },
+  "error": null,
+  "evidence_boundary": "Actual local service and production four-phase runner; deterministic extractive-validation.v1 model decisions. Not live model or semantic-quality evidence."
+}

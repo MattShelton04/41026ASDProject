@@ -36,7 +36,9 @@ but it is not automatically the current implementation contract.
 Feature 1-only PostgreSQL/PostGIS exception (ADR-016), OpenAI Responses provider (ADR-017), shared
 mapping seam (ADR-020), typed source materialisation (ADR-032), supported consumer publication
 (ADR-033), manifest-driven onboarding/health (ADR-034), and bounded non-publishable PSI publisher
-archive-year acquisition (ADR-035).
+archive-year acquisition (ADR-035). [ADR-043](decisions/ADR-043-local-grounded-runtime.md) defines
+the Release 1 host-only AI/MCP/RAG runtime, grounded support boundary and disabled-CI requirement;
+it supersedes earlier local AI Compose topology guidance.
 
 `reviews/` retains external or adversarial review inputs. Findings become authoritative only after
 they are verified and incorporated into a living design or ADR.
