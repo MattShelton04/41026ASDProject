@@ -42,7 +42,7 @@ export function createAssistantRoute({ announce = () => {} } = {}) {
       activityHref,
       announce,
       title: "Ask PropertyScope",
-      description: "Ask about the application or use the currently available Property data tools. Every message creates one durable run with visible status, evidence and a full activity record.",
+      description: "This currently uses the Property data assistant. Application guidance changes the question context; it does not switch to other research areas’ tools. Every message creates a durable activity record with visible evidence.",
     });
     const controller = active;
     client.capabilities().then(({ body }) => {

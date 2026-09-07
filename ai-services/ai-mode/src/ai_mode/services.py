@@ -18,6 +18,8 @@ from agent_core import (
     ToolExecutor,
     ToolRegistry,
 )
+from ai_mode.adapters.mcp_tools import McpToolExecutor
+from ai_mode.adapters.retrieval import RETRIEVAL_TOOL, RetrievalToolExecutor, retrieval_definition
 from ai_mode.adapters.system import SystemClock, UUID4Generator
 from ai_mode.configuration import Settings
 from ai_mode.operations import RunReader
@@ -71,6 +73,8 @@ class AppServices:
     model_registry: ModelRegistry | None = None
     run_reader: RunReader | None = None
     closeables: tuple[object, ...] = ()
+    rag_corpora: tuple[tuple[str, str], ...] = ()
+    mcp_enabled: bool = False
 
     def close(self) -> None:
         """Best-effort cleanup of owned queues, clients, and providers."""
@@ -97,15 +101,44 @@ def build_services(settings: Settings) -> AppServices:
     prompt_builder = RegistryPromptBuilder(registry)
     prompt_builder.validate_declared()
     catalog_paths = settings.configured_tool_catalog_paths
+    definitions: tuple[ToolDefinition, ...] = ()
+    shared_tools: tuple[str, ...] = ()
     if not catalog_paths:
         tools = ToolRegistry(())
         tool_executor: ToolExecutor = UnconfiguredToolExecutor()
     else:
+        catalog = load_tool_catalogs(catalog_paths)
+        definitions = tuple(item.definition for item in catalog.tools)
+        shared_tools = catalog.shared_tools
         tools, tool_executor = build_tool_runtime(
-            load_tool_catalogs(catalog_paths),
+            catalog,
             max_request_bytes=settings.max_tool_request_bytes,
             max_response_bytes=settings.max_tool_response_bytes,
         )
+    if settings.mcp_enabled:
+        close = getattr(tool_executor, "close", None)
+        if callable(close):
+            close()
+        assert settings.mcp_service_token is not None
+        tool_executor = McpToolExecutor(
+            base_url=settings.mcp_server_url,
+            service_token=settings.mcp_service_token,
+            max_response_bytes=settings.max_tool_response_bytes,
+            local_compose=settings.environment == "compose",
+        )
+    retrieval_executor = None
+    if settings.rag_enabled:
+        assert settings.rag_service_token is not None
+        tools = ToolRegistry(
+            (*definitions, retrieval_definition()), shared_tools=(*shared_tools, RETRIEVAL_TOOL)
+        )
+        retrieval_executor = RetrievalToolExecutor(
+            tool_executor,
+            store,
+            base_url=settings.rag_server_url,
+            service_token=settings.rag_service_token,
+        )
+        tool_executor = retrieval_executor
     runner = AgentRunner(
         store=store,
         provider=provider,
@@ -114,6 +147,7 @@ def build_services(settings: Settings) -> AppServices:
         tool_executor=tool_executor,
         clock=clock,
         ids=ids,
+        grounding_verifier=retrieval_executor,
     )
 
     def discover_resumable() -> Iterable[UUID]:
@@ -138,4 +172,6 @@ def build_services(settings: Settings) -> AppServices:
         run_reader=store,
         default_model_profile=default_model_profile,
         closeables=(queue, tool_executor, provider),
+        rag_corpora=settings.rag_corpora if settings.rag_enabled else (),
+        mcp_enabled=settings.mcp_enabled,
     )

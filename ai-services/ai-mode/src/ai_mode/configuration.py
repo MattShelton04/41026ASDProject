@@ -70,11 +70,49 @@ class Settings:
     operations_assets_path: Path = DEFAULT_OPERATIONS_ASSETS_PATH
     environment: str = DEFAULT_ENVIRONMENT
     log_level: str = DEFAULT_LOG_LEVEL
+    mcp_enabled: bool = False
+    rag_enabled: bool = False
+    mcp_server_url: str = "http://127.0.0.1:5011/mcp"
+    rag_server_url: str = "http://127.0.0.1:5012"
+    mcp_service_token: str | None = field(default=None, repr=False)
+    rag_service_token: str | None = field(default=None, repr=False)
+    rag_corpora: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         """Keep safety-critical timing invariants true for injected settings too."""
         _require_positive_finite(self.openai_timeout_seconds, "OpenAI timeout")
         _require_positive_finite(self.openai_health_timeout_seconds, "OpenAI health timeout")
+        if self.environment not in {"local", "compose"} and (self.mcp_enabled or self.rag_enabled):
+            raise ConfigurationError("MCP and RAG are local-only capabilities")
+        for enabled, token, url, compose_url in (
+            (
+                self.mcp_enabled,
+                self.mcp_service_token,
+                self.mcp_server_url,
+                "http://mcp-server:5011/mcp",
+            ),
+            (
+                self.rag_enabled,
+                self.rag_service_token,
+                self.rag_server_url,
+                "http://rag-server:5012",
+            ),
+        ):
+            if enabled and (not token or len(token) < 32):
+                raise ConfigurationError("Enabled local AI services require a 32-character token")
+            parsed = urlparse(url)
+            is_loopback = parsed.scheme == "http" and parsed.hostname in {
+                "127.0.0.1",
+                "localhost",
+                "::1",
+            }
+            if not is_loopback and not (self.environment == "compose" and url == compose_url):
+                raise ConfigurationError(
+                    "Shared MCP/RAG URLs must be loopback HTTP endpoints or exact local "
+                    "Compose service URLs in the compose environment"
+                )
+            if parsed.username or parsed.password or parsed.query or parsed.fragment:
+                raise ConfigurationError("Shared service URL cannot contain credentials or query")
         _require_positive_finite(
             self.queue_reconcile_interval_seconds,
             "queue reconcile interval",
@@ -258,6 +296,17 @@ class Settings:
             ),
             environment=environment,
             log_level=log_level,
+            mcp_enabled=_boolean(values.get("AI_MODE_MCP_ENABLED", "false"), "AI_MODE_MCP_ENABLED"),
+            rag_enabled=_boolean(values.get("AI_MODE_RAG_ENABLED", "false"), "AI_MODE_RAG_ENABLED"),
+            mcp_server_url=values.get("MCP_SERVER_URL", "http://127.0.0.1:5011/mcp"),
+            rag_server_url=values.get("RAG_SERVER_URL", "http://127.0.0.1:5012"),
+            mcp_service_token=values.get("MCP_SERVICE_TOKEN"),
+            rag_service_token=values.get("RAG_SERVICE_TOKEN"),
+            rag_corpora=_corpus_scopes(
+                values.get(
+                    "AI_MODE_RAG_CORPORA", "student-1-propertyscope-data-platform:operator-guidance"
+                )
+            ),
         )
 
     @property
@@ -382,6 +431,19 @@ def _boolean(value: str, label: str) -> bool:
     if normalized in {"false", "0", "no"}:
         return False
     raise ConfigurationError(f"{label} must be true or false")
+
+
+def _corpus_scopes(value: str) -> tuple[tuple[str, str], ...]:
+    scopes: dict[str, str] = {}
+    for item in value.split(",") if value.strip() else ():
+        parts = item.strip().split(":")
+        if len(parts) != 2 or not all(_identifier(part) for part in parts):
+            raise ConfigurationError("AI_MODE_RAG_CORPORA must contain feature:corpus pairs")
+        feature, corpus = parts
+        if feature in scopes:
+            raise ConfigurationError("Only one default corpus is permitted per feature")
+        scopes[feature] = corpus
+    return tuple(scopes.items())
 
 
 def _identifier(value: str) -> bool:

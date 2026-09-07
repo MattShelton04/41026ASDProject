@@ -1,0 +1,5 @@
+prompt_id: planner
+version: v8
+role: planner
+template: v8.system.j2
+description: Grounded R1 planning with mandatory scoped context retrieval.

@@ -15,6 +15,9 @@ COPY ai-services/ai-mode/pyproject.toml ai-services/ai-mode/pyproject.toml
 COPY shared/consumer-protocol/pyproject.toml shared/consumer-protocol/pyproject.toml
 COPY shared/contracts/pyproject.toml shared/contracts/pyproject.toml
 COPY shared/testkit/pyproject.toml shared/testkit/pyproject.toml
+COPY shared/tool-runtime/pyproject.toml shared/tool-runtime/pyproject.toml
+COPY ai-services/mcp-server/pyproject.toml ai-services/mcp-server/pyproject.toml
+COPY ai-services/rag-server/pyproject.toml ai-services/rag-server/pyproject.toml
 COPY student-1/pyproject.toml student-1/pyproject.toml
 COPY student-2/pyproject.toml student-2/pyproject.toml
 COPY student-3/pyproject.toml student-3/pyproject.toml

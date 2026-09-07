@@ -9,7 +9,9 @@ from uuid import UUID
 from pydantic import AwareDatetime, Field, JsonValue, field_validator, model_validator
 
 from shared_contracts.base import ContractModel
+from shared_contracts.grounding import GroundingRequest
 from shared_contracts.http import IdempotencyKey, RequestId, Traceparent
+from shared_contracts.retrieval import RetrievalResponse
 
 Identifier = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-z0-9][a-z0-9_.-]*$")]
 JsonObject = dict[str, JsonValue]
@@ -21,6 +23,7 @@ PromptSet = Literal[
     "default.v5",
     "default.v6",
     "default.v7",
+    "default.v8",
 ]
 SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = (
     "default.v1",
@@ -30,6 +33,7 @@ SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = (
     "default.v5",
     "default.v6",
     "default.v7",
+    "default.v8",
 )
 DEFAULT_PROMPT_SET: PromptSet = "default.v7"
 DEFAULT_EVENT_PAGE_SIZE = 100
@@ -136,6 +140,7 @@ class AgentRunRequest(ContractModel):
 
     feature_key: Identifier
     objective: str = Field(min_length=1, max_length=16_000)
+    grounding: GroundingRequest | None = None
     prompt_set: PromptSet = DEFAULT_PROMPT_SET
     model_profile: Identifier = "remote-standard.v1"
     limits: RunLimits = Field(default_factory=RunLimits)
@@ -236,6 +241,7 @@ class ToolResult(ContractModel):
     duration_ms: int = Field(ge=0)
     retryable: bool = False
     evidence_references: tuple[str, ...] = Field(default=(), max_length=20)
+    retrieval: RetrievalResponse | None = None
 
     @model_validator(mode="after")
     def error_matches_outcome(self) -> ToolResult:
@@ -342,6 +348,7 @@ class AgentRun(ContractModel):
     created_at: AwareDatetime
     updated_at: AwareDatetime
     final_result: JsonObject | None = None
+    grounding: GroundingRequest | None = None
     error: ToolError | None = None
 
     @model_validator(mode="after")

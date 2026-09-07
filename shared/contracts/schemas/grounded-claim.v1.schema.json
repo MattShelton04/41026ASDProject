@@ -1,0 +1,45 @@
+{
+  "additionalProperties": false,
+  "description": "A claim with a distinct support boundary for guidance and current tool facts.",
+  "properties": {
+    "citation_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "title": "Citation Ids",
+      "type": "array"
+    },
+    "kind": {
+      "enum": [
+        "guidance",
+        "tool_fact"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "text": {
+      "maxLength": 1500,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    },
+    "tool_call_ids": {
+      "default": [],
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 5,
+      "title": "Tool Call Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "text",
+    "kind"
+  ],
+  "title": "GroundedClaim",
+  "type": "object"
+}

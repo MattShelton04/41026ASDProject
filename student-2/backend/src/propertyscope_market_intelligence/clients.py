@@ -78,9 +78,13 @@ class Feature1Client:
 
 
 class AiModeClient:
-    def __init__(self, base_url: str, *, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self, base_url: str, *, service_token: str = "", client: httpx.Client | None = None
+    ) -> None:
         self._origin = base_url.rstrip("/")
         self._client = client or httpx.Client(timeout=10, follow_redirects=False)
+        if service_token:
+            self._client.headers["X-PropertyScope-AI-Token"] = service_token
 
     def create_run(self, payload: Mapping[str, Any]) -> httpx.Response:
         return self._request("POST", "/api/v1/agent-runs", json=payload)

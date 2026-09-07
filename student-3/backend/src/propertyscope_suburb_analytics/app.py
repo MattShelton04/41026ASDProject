@@ -88,7 +88,11 @@ def create_app(
     property_data: HttpClient | None = None,
 ) -> Callable[..., Iterable[bytes]]:
     data = store or HttpClient(os.getenv("SUBURB_STORE_URL", "http://f3-database:5302"))
-    ai = ai_mode or HttpClient(os.getenv("AI_MODE_URL", "http://ai-mode:5005"), timeout=8.0)
+    ai = ai_mode or HttpClient(
+        os.getenv("AI_MODE_URL", "http://ai-mode:5005"),
+        timeout=8.0,
+        service_token=os.getenv("AI_MODE_SERVICE_TOKEN", ""),
+    )
     properties = property_data or HttpClient(
         os.getenv("PROPERTY_DATA_URL", "http://f1-backend:5201"), timeout=4.0
     )

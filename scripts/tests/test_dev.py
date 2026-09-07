@@ -21,6 +21,13 @@ def isolate_local_development_state(
     monkeypatch.setattr(dev, "_host_port_is_available", lambda _port: True)
     monkeypatch.setattr(dev, "_validate_deployment_inputs", lambda: None)
     monkeypatch.setattr(dev, "DEFAULT_ENV_FILE", tmp_path / ".env")
+    monkeypatch.setenv("PROPERTYSCOPE_AI_RUNTIME", "host")
+    monkeypatch.setattr(dev.ai_runtime, "STATE_PATH", tmp_path / "ai-runtime.json")
+    monkeypatch.setattr(dev.ai_runtime, "RUNTIME_DIRECTORY", tmp_path)
+    monkeypatch.setattr(dev.ai_runtime, "remember", lambda *_args: None)
+    monkeypatch.setattr(dev.host_runtime, "start", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(dev.host_runtime, "stop", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(dev.host_runtime, "migrate_legacy_state", lambda: None)
 
 
 @pytest.fixture
@@ -195,7 +202,7 @@ def test_up_starts_complete_stack(
     )
     assert "exec" in captured_commands[2]
     assert "--no-TTY" in captured_commands[2]
-    assert "shared-ai-mode" in captured_commands[1]
+    assert "shared-ai-mode" not in captured_commands[1]
     assert "f1-backend" in captured_commands[1]
     assert "f1-postgres" in dev.APPLICATION_SERVICES
     assert "f1-postgres" not in dev.BUILD_SERVICES
@@ -336,7 +343,7 @@ def test_up_prints_configured_urls(
 
     output = capsys.readouterr().out
     assert "http://localhost:5310" in output
-    assert "http://localhost:5311/health/ready" in output
+    assert "http://localhost:5310/api/shared-health/ai-mode" in output
     assert "http://localhost:5313" in output
 
 
@@ -728,3 +735,26 @@ def test_collection_rejects_a_job_without_complete_scope(
 
     with pytest.raises(RuntimeError, match="does not define"):
         dev._collection_definition("fixture-property")
+
+
+@pytest.mark.parametrize("override", [None, "http://127.0.0.1:6500/custom-health"])
+def test_operator_health_uses_authenticated_edge_without_exposing_host_token(
+    monkeypatch: pytest.MonkeyPatch, override: str | None
+) -> None:
+    monkeypatch.setenv("PROPERTYSCOPE_SHARED_PORT", "6100")
+    observed: dict[str, object] = {}
+
+    def collect(client: httpx.Client, **kwargs: object) -> dict[str, object]:
+        observed.update(kwargs)
+        assert "X-PropertyScope-AI-Token" not in client.headers
+        return {}
+
+    monkeypatch.setattr(dev, "collect_operator_report", collect)
+    monkeypatch.setattr(dev, "render_operator_report", lambda _: "report")
+    args = ["operator", "report"]
+    if override:
+        args.extend(["--ai-health-url", override])
+    assert dev.main(args) == 0
+    assert observed["ai_health_url"] == (
+        override or "http://127.0.0.1:6100/api/shared-health/ai-mode"
+    )

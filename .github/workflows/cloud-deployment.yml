@@ -3,6 +3,11 @@ name: Cloud Deployment (Release 2 scaffold)
 on:
   workflow_dispatch:
 
+# Advanced services run only in the local demonstration, never in CI/CD.
+env:
+  AI_MODE_MCP_ENABLED: "false"
+  AI_MODE_RAG_ENABLED: "false"
+
 permissions:
   contents: read
 

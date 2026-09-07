@@ -8,7 +8,7 @@ import { parseShellRoute } from "./core.js";
 import { featureRegistry, findFeature, researchAreaLabel } from "./features.js";
 import { loadFeature1Bridge, validateFeature1Adapter } from "./feature-1-bridge.js";
 import { resolveResearchAreaContext } from "./operations/ai-mode/contexts.js";
-import { classifyHealth, overallReadiness } from "./routes/status.js";
+import { classifyHealth, overallReadiness, researchServiceComponents } from "./routes/status.js";
 import { SHARED_ASSISTANT_SCOPES, sharedAssistantSuggestions } from "./routes/assistant.js";
 import { loadEvidenceAdapter, projectEvidenceRows, validateEvidenceAdapter } from "./routes/evidence.js";
 
@@ -144,14 +144,32 @@ test("research-area fragment stays in exact parity with the feature registry", (
 
 test("capability manifest separates implemented, enabled and planned states", () => {
   const manifest = capabilityManifest({ featureHrefs: { "property-records": "/properties" }, agentRuns: "/runs" });
-  assert.equal(manifest.release, "release-0");
+  assert.equal(manifest.release, "release-1");
   assert.equal(manifest.features.filter((item) => item.enabled).length, 5);
   assert.equal(manifest.features.find((item) => item.id === "property-records").href, "/properties");
   assert.equal(
     manifest.features.find((item) => item.id === "sales-market").href,
     "/features/market-intelligence/#market-cases",
   );
-  assert.deepEqual(capabilityState(manifest.services.find((item) => item.id === "rag")), { label: "Planned", tone: "planned" });
+  assert.deepEqual(capabilityState(manifest.services.find((item) => item.id === "rag")), { label: "Runtime unknown", tone: "unknown" });
+  assert.deepEqual(capabilityState(manifest.services.find((item) => item.id === "multi-agent")), { label: "Planned", tone: "planned" });
+});
+
+test("local research service configuration, observation and feature readiness stay distinct", () => {
+  const services = researchServiceComponents({ services: [
+    { id: "mcp", implemented: true, enabled: false, status: "disabled", detail: "Disabled in this mode." },
+    { id: "rag", implemented: true, enabled: true, status: "unavailable", detail: "Retrieval is down." },
+  ] });
+  assert.equal(services[0].enabled, false);
+  assert.equal(services[0].label, "Disabled by configuration");
+  assert.equal(services[1].readiness, "unavailable");
+  assert.equal(overallReadiness(services), "unavailable");
+  const unknown = researchServiceComponents(null);
+  assert.ok(unknown.every((item) => item.label === "Runtime unknown" && item.readiness === "unknown"));
+  assert.equal(overallReadiness(unknown), "degraded");
+  const ready = researchServiceComponents({ services: [{ id: "rag", enabled: true, status: "ready" }] });
+  assert.equal(ready[1].label, "Ready when checked");
+  assert.equal(ready[0].label, "Runtime unknown");
 });
 
 test("status aggregation ignores deliberate capability gates", () => {
@@ -339,7 +357,7 @@ test("design tokens expose shared type, control, focus and layering contracts", 
 test("AI workload dashboard leads with outcome and bounded recovery evidence", () => {
   const html = readFileSync(new URL("./operations/ai-mode/index.html", import.meta.url), "utf8");
   const app = readFileSync(new URL("./operations/ai-mode/app.js", import.meta.url), "utf8");
-  assert.match(html, /assets\/app\.js\?v=12/);
+  assert.match(html, /assets\/app\.js\?v=13/);
   assert.match(html, /AI review result/);
   assert.match(html, /aria-label="PropertyScope navigation"/);
   assert.match(html, /class="research-area-return"/);

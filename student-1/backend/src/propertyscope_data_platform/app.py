@@ -39,7 +39,8 @@ def create_app(
         os.environ.get("PROPERTYSCOPE_INTERNAL_TOKEN", "local-development-only"),
     )
     ai_mode = ai_mode_client or AiModeClient(
-        os.environ.get("AI_MODE_BASE_URL", "http://shared-ai-mode:5005")
+        os.environ.get("AI_MODE_BASE_URL", "http://shared-ai-mode:5005"),
+        service_token=os.environ.get("AI_MODE_SERVICE_TOKEN", ""),
     )
     consumers = consumer_client or ConsumerImportClient(
         {

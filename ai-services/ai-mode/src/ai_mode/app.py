@@ -11,6 +11,7 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from agent_core import ConcurrentRunUpdateError
 from ai_mode.api import api
+from ai_mode.capabilities import capability_snapshot
 from ai_mode.configuration import ConfigurationError, Settings
 from ai_mode.evidence import create_evidence_blueprint
 from ai_mode.http import problem_response as _problem_response
@@ -159,6 +160,11 @@ def create_app(
             },
         )
         return jsonify(response.model_dump(mode="json")), response.http_status
+
+    @app.get("/api/v1/capabilities")
+    def capabilities() -> tuple[Response, int]:
+        """Expose observed local services without credentials or internal target URLs."""
+        return jsonify(capability_snapshot(runtime_settings)), 200
 
     @app.errorhandler(RequestEntityTooLarge)
     def request_too_large(_: RequestEntityTooLarge) -> tuple[Response, int]:

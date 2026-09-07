@@ -1,0 +1,10 @@
+[project]
+name = "shared-tool-runtime"
+version = "0.1.0"
+description = "Shared Release 1 tool runtime"
+requires-python = ">=3.12,<3.13"
+dependencies = ["shared-contracts", "httpx>=0.28,<1", "jsonschema>=4.25,<5", "pyyaml>=6,<7"]
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"

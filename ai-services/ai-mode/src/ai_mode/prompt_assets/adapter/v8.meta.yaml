@@ -1,0 +1,5 @@
+prompt_id: adapter
+version: v8
+role: adapter
+template: v8.system.j2
+description: Typed grounded claims with distinct tool and guidance support.

@@ -5,6 +5,9 @@ on:
     paths:
       - "student-2/**"
       - "shared/contracts/**"
+      - "shared/tool-runtime/**"
+      - "ai-services/mcp-server/**"
+      - "ai-services/rag-server/**"
       - "shared/frontend/**"
       - "deployment/**"
       - "docker-compose*.yml"
@@ -17,6 +20,9 @@ on:
     paths:
       - "student-2/**"
       - "shared/contracts/**"
+      - "shared/tool-runtime/**"
+      - "ai-services/mcp-server/**"
+      - "ai-services/rag-server/**"
       - "shared/frontend/**"
       - "deployment/**"
       - "docker-compose*.yml"
@@ -24,6 +30,11 @@ on:
       - "uv.lock"
       - "scripts/**"
   workflow_dispatch:
+
+# Advanced services run only in the local demonstration, never in CI/CD.
+env:
+  AI_MODE_MCP_ENABLED: "false"
+  AI_MODE_RAG_ENABLED: "false"
 
 permissions:
   contents: read
@@ -53,6 +64,8 @@ jobs:
           node-version: "20"
       - name: Install locked workspace
         run: uv sync --locked --all-packages --all-groups
+      - name: Validate R1 contracts and disabled runtime with deterministic doubles
+        run: uv run --locked pytest scripts/tests/test_host_runtime.py scripts/tests/test_release1_validation.py shared/contracts/tests/test_retrieval.py shared/tool-runtime/tests ai-services/rag-server/tests/test_embeddings.py --no-cov -q
       - name: Lint and format Feature 2
         run: |
           uv run ruff format --check student-2

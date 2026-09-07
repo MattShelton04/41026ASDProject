@@ -207,11 +207,18 @@ def main() -> None:
     parser.add_argument("phase", choices=("initial", "verify-restart"))
     parser.add_argument("--frontend", default="http://127.0.0.1:5500")
     parser.add_argument("--shared", default="http://127.0.0.1:5100")
-    parser.add_argument("--ai-mode", default="http://127.0.0.1:5005")
+    parser.add_argument(
+        "--ai-mode", help="AI API origin; defaults to the authenticated shared edge"
+    )
     parser.add_argument("--state", type=Path, required=True)
     arguments = parser.parse_args()
     if arguments.phase == "initial":
-        initial(arguments.frontend, arguments.shared, arguments.ai_mode, arguments.state)
+        initial(
+            arguments.frontend,
+            arguments.shared,
+            arguments.ai_mode or arguments.shared,
+            arguments.state,
+        )
     else:
         time.sleep(1)
         verify_restart(arguments.frontend, arguments.state)

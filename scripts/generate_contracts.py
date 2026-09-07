@@ -38,12 +38,30 @@ from shared_contracts import (
     ToolDefinition,
     TypedHealthProjection,
 )
+from shared_contracts.grounding import GroundedAnswer, GroundedClaim, GroundingRequest
+from shared_contracts.retrieval import (
+    CorpusDocument,
+    CorpusIngestRequest,
+    CorpusVersion,
+    EvidenceCitation,
+    RetrievalRequest,
+    RetrievalResponse,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_ROOT = REPOSITORY_ROOT / "shared" / "contracts" / "schemas"
 OPENAPI_ROOT = REPOSITORY_ROOT / "shared" / "contracts" / "openapi"
 
 SCHEMA_MODELS: dict[str, type[BaseModel]] = {
+    "grounding-request.v1.schema.json": GroundingRequest,
+    "grounded-claim.v1.schema.json": GroundedClaim,
+    "grounded-answer.v1.schema.json": GroundedAnswer,
+    "corpus-document.v1.schema.json": CorpusDocument,
+    "corpus-ingest-request.v1.schema.json": CorpusIngestRequest,
+    "corpus-version.v1.schema.json": CorpusVersion,
+    "evidence-citation.v1.schema.json": EvidenceCitation,
+    "retrieval-request.v1.schema.json": RetrievalRequest,
+    "retrieval-response.v1.schema.json": RetrievalResponse,
     "agent-run-request.schema.json": AgentRunRequest,
     "agent-run.schema.json": AgentRun,
     "agent-run-detail.schema.json": AgentRunDetail,

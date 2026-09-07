@@ -299,9 +299,15 @@ class AiModeClient:
     """HTTP adapter for the shared AI-mode run API."""
 
     def __init__(
-        self, base_url: str, *, transport: HttpTransport | None = None, timeout_seconds: float = 5
+        self,
+        base_url: str,
+        *,
+        service_token: str = "",
+        transport: HttpTransport | None = None,
+        timeout_seconds: float = 5,
     ) -> None:
         self._origin = base_url.rstrip("/")
+        self._service_token = service_token
         self._transport = transport or UrllibTransport()
         self._timeout = timeout_seconds
 
@@ -315,6 +321,8 @@ class AiModeClient:
         idempotency_key: str | None = None,
     ) -> ClientResponse:
         headers = {"X-Request-ID": request_id}
+        if self._service_token:
+            headers["X-PropertyScope-AI-Token"] = self._service_token
         if idempotency_key:
             headers["Idempotency-Key"] = idempotency_key
         try:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from flask import Flask
 
 from propertyscope_buyer_workspaces.api import register_api
@@ -34,7 +36,9 @@ def create_app(
         runtime_settings.market_intelligence_url,
         runtime_settings.due_diligence_url,
     )
-    runtime_ai_mode = ai_mode or AiModeClient(runtime_settings.ai_mode_url)
+    runtime_ai_mode = ai_mode or AiModeClient(
+        runtime_settings.ai_mode_url, service_token=os.environ.get("AI_MODE_SERVICE_TOKEN", "")
+    )
     app = Flask("propertyscope-buyer-workspaces")
     app.config["MAX_CONTENT_LENGTH"] = runtime_settings.max_request_bytes
     app.extensions["propertyscope_buyer_store_client"] = runtime_store

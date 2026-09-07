@@ -11,6 +11,13 @@ is explicitly a deterministic demonstration fixture, not current official eviden
 The implemented baseline includes a reproducible Python workspace, strict shared contracts,
 manifest-driven feature onboarding, a shared HTMX product shell, bounded AI-mode orchestration over
 the OpenAI Responses API, and a containerised Feature 1 data platform using PostgreSQL/PostGIS.
+Release 1 adds local MCP tool dispatch, versioned semantic retrieval and grounded Feature 1
+answers with inspectable sources, confidence categories and insufficient-context handling.
+Fresh developer setups run AI-mode, MCP and RAG in Docker for visibility. The launcher also retains
+an explicit host mode for the Release 1 non-containerisation requirement; the agent loop runs
+inside AI-mode in either placement. The shared frontend and student services remain containerised.
+The [Shared/Feature 1 handoff](docs/release-1/shared-feature-1-handoff.md)
+maps this increment to the rubric, evidence and remaining owner responsibilities.
 
 ## Fieldbook UI/UX overhaul
 
@@ -44,8 +51,11 @@ implementation; the application exposes only manifest-enabled features.
 | Release 1 | Release 0 plus MCP, RAG, and grounded AI responses |
 | Release 2 | Release 1 plus multi-agent orchestration, advanced testing, and Azure deployment |
 
-MCP, RAG, and multi-agent services are intended for local execution. The course specification
-requires them to remain disabled in the Release 2 cloud deployment.
+MCP and RAG run locally for Release 1 and remain disabled during CI/CD. Multi-agent orchestration
+is planned for Release 2; all three advanced capabilities must remain disabled in its cloud
+deployment. The supplied Release 1 rubric requires all shared AI services and the loop outside
+containers; use `stack up --ai-runtime host` for that assessment topology. The optional Docker
+development mode does not satisfy that requirement. Release 2 cloud hosting remains a future decision.
 
 ## Application preview
 
@@ -73,10 +83,10 @@ uv run scripts/dev.py ui readme-screenshots
 ## Repository guide
 
 - `.github/workflows/`: canonical integration CI and student workflow files
-- `ai-services/`: the deterministic agent core and shared AI-mode service
+- `ai-services/`: deterministic agent core, AI-mode, MCP and RAG services
 - `deployment/`: validated feature selection and generated runtime projections
 - `docs/`: living architecture, release evidence, reports, and dated historical records
-- `shared/`: contracts, consumer protocol, testkit, product shell, and shared browser capabilities
+- `shared/`: contracts, bounded tool transport, consumer protocol, testkit, product shell and browser capabilities
 - `student-1/` to `student-5/`: independently owned feature workspaces
 - `scripts/`: quality, development, acquisition, fixture, and UI-audit commands
 - `docker-compose.yml`: base service definitions; enabled feature profiles are generated from manifests
@@ -116,10 +126,41 @@ uv run scripts/dev.py stack up --offline
 
 `stack up` validates the enabled feature manifests and Compose/route projections, then starts or
 reuses only approved enabled services. Missing images are built automatically; pass `--build` only
-when Docker or dependency inputs changed. Credentials are materialised as a
-Git-ignored file secret for AI-mode; they are not embedded in images or rendered Compose config.
+when Docker or dependency inputs changed. AI placement defaults to Docker on a fresh setup and
+is remembered for subsequent commands. Switch explicitly with:
+
+```text
+uv run scripts/dev.py stack up --ai-runtime host    # Release 1 assessment topology
+uv run scripts/dev.py stack up --ai-runtime docker  # Docker Desktop development visibility
+```
+
+The launcher stops the previous AI owners before starting the selected placement and recreates
+backend/proxy routing. Both placements use the same exclusive history and RAG state directories
+under `.propertyscope-runtime/host/`; switching does not copy or reset their databases.
+Only AI-mode receives the provider credential, through a runtime secret file in Docker or its
+host environment. Credentials never enter the image. An internal service token protects AI-mode;
+backend clients and the shared proxy attach it without exposing it to browser code. Use `stack up`
+after rotating that token so every caller receives the updated configuration.
 OpenAI configuration, the opt-in Gemini compatibility profile, and provider diagnostics are in the
 [OpenAI API operations guide](docs/release-0/openai-api-operations.md).
+
+For semantic document research, prepare the local embedding model explicitly, then follow the
+token and ingestion instructions in the [local AI runtime guide](docs/release-1/host-runtime.md) and
+[Feature 1 corpus recipe](student-1/config/rag/README.md):
+
+```text
+uv run rag-server prepare-model
+uv run scripts/dev.py ai stop
+uv run scripts/dev.py ai start --mode combined
+# With the managed RAG_SERVICE_TOKEN in this shell:
+uv run rag-server ingest student-1/config/rag/corpus.json
+uv run scripts/dev.py ai validate mcp
+uv run scripts/dev.py ai validate rag
+```
+
+Ordinary startup never downloads model weights or ingests documents. Missing assets/corpus produce
+visible unavailable or insufficient-context states. Named validation modes use deterministic model
+decisions with real local services; actual provider and browser evidence is recorded separately.
 
 Common lifecycle commands:
 
@@ -127,6 +168,8 @@ Common lifecycle commands:
 |---|---|
 | Inspect prerequisites | `uv run scripts/dev.py stack doctor` |
 | Show service state | `uv run scripts/dev.py stack status` |
+| Show selected AI service state | `uv run scripts/dev.py ai status` |
+| Read selected AI service logs | `uv run scripts/dev.py ai logs` |
 | Follow logs | `uv run scripts/dev.py stack logs` |
 | Read release/publication readiness | `uv run scripts/dev.py operator report` |
 | Stop while preserving data | `uv run scripts/dev.py stack down` |

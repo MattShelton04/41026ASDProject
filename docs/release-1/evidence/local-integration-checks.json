@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "captured_date": "2026-09-07",
+  "evidence_boundary": "Actual local host restart/outages and synthetic Feature 1 source CRUD. Captured before final managed host-auth hardening; final-head verification remains separate.",
+  "checks": {
+    "restart-persistence": {
+      "corpus_version_after_restart": {
+        "chunk_count": 10,
+        "corpus_id": "operator-guidance",
+        "corpus_version": "4ec85c9da899a9c086a76bed335aeaa1419793df2110bb2df8eed5a0d510f8c9",
+        "document_count": 10,
+        "embedding_dimensions": 384,
+        "embedding_model": "BAAI/bge-small-en-v1.5@0511f78a94d45299a943282bdc513475ededebbcefcf156b39758f5fe7a1945b",
+        "feature_key": "student-1-propertyscope-data-platform",
+        "ingested_at": "2026-09-07T10:01:33.959429Z",
+        "schema_version": "1.0"
+      },
+      "durable_run_status": "succeeded",
+      "durable_citation_count": 4
+    },
+    "mcp-outage-health": {
+      "capabilities": {
+        "deployment_mode": "local",
+        "grounding_features": [
+          "student-1-propertyscope-data-platform"
+        ],
+        "release": "release-1",
+        "services": [
+          {
+            "detail": "Local service is unavailable; ordinary feature records remain accessible.",
+            "enabled": true,
+            "id": "mcp",
+            "implemented": true,
+            "status": "unavailable"
+          },
+          {
+            "detail": "Local service is ready.",
+            "enabled": true,
+            "id": "rag",
+            "implemented": true,
+            "status": "ready"
+          }
+        ]
+      },
+      "sources_status": 200
+    },
+    "validation-mcp-outage": {
+      "schema_version": "1.0",
+      "mode": "mcp",
+      "passed": false,
+      "decision_provider": "deterministic-validation",
+      "transport": "live-local-services",
+      "run_id": "205395ab-d1af-400f-9125-b49fca5c1df3",
+      "request_id": "r1-mcp-a9012d69-f534-4e59-87d9-c291f5bb8302",
+      "status": "failed",
+      "phases": [
+        "plan",
+        "act",
+        "observe",
+        "adapt"
+      ],
+      "tool_results": [
+        {
+          "call_id": "ac87c07e-cbf4-4051-981d-1bdf0368b23a",
+          "outcome": "failed",
+          "content": {},
+          "error": {
+            "code": "mcp_unavailable",
+            "message": "MCP tool service is unavailable"
+          },
+          "duration_ms": 2156,
+          "retryable": false,
+          "evidence_references": [],
+          "retrieval": null
+        }
+      ],
+      "final_result": null,
+      "error": {
+        "code": "adaptation_failed",
+        "message": "The validation tool failed"
+      }
+    },
+    "live-source-crud": {
+      "create_status": 201,
+      "source_id": "5ee343b4-e0ba-48f2-8f5d-1d7747e8547b",
+      "read_status": 200,
+      "update_status": 200,
+      "delete_status": 204,
+      "read_after_delete_status": 404
+    }
+  }
+}

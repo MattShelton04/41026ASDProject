@@ -6,6 +6,7 @@ import argparse
 import os
 from pathlib import Path
 
+from scripts.devtools.ai_runtime import DOCKER_SERVICES
 from scripts.devtools.config import (
     APPLICATION_SERVICES,
     BUILD_SERVICES,
@@ -44,23 +45,31 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
     )
     _add_offline_option(up)
     _add_env_file_option(up)
+    up.add_argument(
+        "--ai-runtime",
+        choices=("docker", "host"),
+        default=None,
+        help="Select and remember AI placement; fresh setups default to Docker",
+    )
 
     build = commands.add_parser(
         "build", help="Build production-like Release 0 images without starting containers"
     )
-    build.add_argument("services", nargs="*", choices=PRODUCTION_BUILD_SERVICES)
+    build.add_argument(
+        "services", nargs="*", choices=(*PRODUCTION_BUILD_SERVICES, *DOCKER_SERVICES)
+    )
 
     rebuild = commands.add_parser(
         "rebuild", help="Rebuild and recreate changed development services"
     )
-    rebuild.add_argument("services", nargs="*", choices=BUILD_SERVICES)
+    rebuild.add_argument("services", nargs="*", choices=(*BUILD_SERVICES, *DOCKER_SERVICES))
     _add_offline_option(rebuild)
     _add_env_file_option(rebuild)
 
     restart = commands.add_parser(
         "restart", help="Recreate application containers without rebuilding images"
     )
-    restart.add_argument("services", nargs="*", choices=APPLICATION_SERVICES)
+    restart.add_argument("services", nargs="*", choices=(*APPLICATION_SERVICES, *DOCKER_SERVICES))
     _add_offline_option(restart)
     _add_env_file_option(restart)
 
@@ -76,7 +85,7 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
     _add_env_file_option(doctor)
 
     logs = commands.add_parser("logs", help="Follow recent application logs")
-    logs.add_argument("services", nargs="*", choices=APPLICATION_SERVICES)
+    logs.add_argument("services", nargs="*", choices=(*APPLICATION_SERVICES, *DOCKER_SERVICES))
 
 
 def _ui_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -153,6 +162,31 @@ def _operator_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]
     report.add_argument("--ai-health-url")
 
 
+def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    ai = root.add_parser("ai", help="Operate AI services in the selected runtime")
+    commands = ai.add_subparsers(dest="action", required=True)
+    start = commands.add_parser("start", help="Start AI services in the selected placement")
+    start.add_argument("--mode", choices=("direct", "mcp", "rag", "combined"), default="combined")
+    _add_offline_option(start)
+    _add_env_file_option(start)
+    commands.add_parser("status", help="Show AI container or host process state")
+    validate = commands.add_parser(
+        "validate", help="Capture a local MCP or RAG four-phase validation"
+    )
+    validate.add_argument("mode", choices=("mcp", "rag"))
+    validate.add_argument("--output", type=Path, default=None)
+    validate.add_argument("--query", default=None)
+    validate.add_argument("--corpus", default="operator-guidance")
+    _add_env_file_option(validate)
+    for action in ("stop", "logs"):
+        command = commands.add_parser(
+            action, help=f"{action.title()} AI services in the selected placement"
+        )
+        command.add_argument("services", nargs="*", choices=("ai-mode", "mcp", "rag"))
+    foreground = commands.add_parser("serve", help="Run one service in the foreground")
+    foreground.add_argument("service", choices=("ai-mode", "mcp", "rag"))
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the discoverable development command tree."""
     parser = argparse.ArgumentParser(
@@ -164,4 +198,5 @@ def build_parser() -> argparse.ArgumentParser:
     _ui_commands(groups)
     _data_commands(groups)
     _operator_commands(groups)
+    _ai_commands(groups)
     return parser

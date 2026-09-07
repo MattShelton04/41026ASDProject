@@ -12,10 +12,7 @@ COMPOSE_FILES = (
 )
 PRODUCTION_COMPOSE_FILES = COMPOSE_FILES[:-1]
 PROFILES = ("release-0",)
-SHARED_APPLICATION_SERVICES = (
-    "shared-frontend",
-    "shared-ai-mode",
-)
+SHARED_APPLICATION_SERVICES = ("shared-frontend",)
 _ENABLED_SERVICES_PATH = REPOSITORY_ROOT / "deployment" / "enabled-services.v1.json"
 _ENABLED_FEATURES_PATH = REPOSITORY_ROOT / "deployment" / "enabled-features.v1.json"
 
@@ -65,6 +62,8 @@ TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
 HOST_PORTS: dict[str, tuple[str, int]] = {
     "shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),
     "shared-ai-mode": ("AI_MODE_PORT", 5005),
+    "mcp-server": ("MCP_PORT", 5011),
+    "rag-server": ("RAG_PORT", 5012),
 }
 for _feature in _json_object(_ENABLED_FEATURES_PATH).get("features", []):
     if not isinstance(_feature, dict) or not isinstance(_feature.get("frontend"), dict):

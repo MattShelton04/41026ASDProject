@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0",
+  "evidence_boundary": "Actual provider run through Feature 1 UI/backend on 7 September 2026. Public result/metrics only; original prompts and step payloads omitted. The insufficient probe explicitly requested refusal when project sources did not cover the topic.",
+  "run": {
+    "id": "8ce0978e-7e48-4e49-b95c-f51d60c4b5ac",
+    "feature_key": "student-1-propertyscope-data-platform",
+    "request_id": "76a3f449-9772-4590-8651-154d7e5b41cb",
+    "status": "succeeded",
+    "created_at": "2026-09-07T10:07:53.485356Z",
+    "updated_at": "2026-09-07T10:08:02.542859Z",
+    "model_profile": "remote-standard.v1",
+    "prompt_set": "default.v8",
+    "grounding": {
+      "corpus_id": "operator-guidance"
+    },
+    "tool_call_count": 1,
+    "final_result": {
+      "citations": [],
+      "confidence": "insufficient",
+      "confidence_reason": "Relevant document context is unavailable or insufficient.",
+      "corpus_version": "4ec85c9da899a9c086a76bed335aeaa1419793df2110bb2df8eed5a0d510f8c9",
+      "evidence_gaps": [
+        "Similarity measures retrieval relevance, not factual confidence",
+        "No project source covering chocolate-cake ingredients, quantities, method, oven temperature or food-safety advice was retrieved."
+      ],
+      "findings": [],
+      "grounding_status": "insufficient_context",
+      "next_step": "Use a trusted recipe source or ask a cooking-focused assistant for a chocolate-cake recipe.",
+      "safety_boundary": "Protected actions still require their existing human review",
+      "summary": "Insufficient context to provide a grounded explanation."
+    }
+  },
+  "elapsed_ms": 9058,
+  "phases": [
+    "plan",
+    "act",
+    "observe",
+    "adapt"
+  ],
+  "model_invocations": [
+    {
+      "metrics": {
+        "cache_write_prompt_tokens": 0,
+        "cached_prompt_tokens": 5938,
+        "eval_duration_ms": null,
+        "load_duration_ms": null,
+        "output_tokens": 333,
+        "prompt_eval_duration_ms": null,
+        "prompt_tokens": 6862,
+        "reasoning_tokens": 116,
+        "retry_count": 0,
+        "total_duration_ms": 4750
+      },
+      "model": "gpt-5.6-luna",
+      "model_digest": null,
+      "prompt_hash": "e532f9a3c8f4247e5b39c41fbd4d82ef6f65ac26db428a1c0b02bab5dfc84135",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "provider": "openai",
+      "provider_request_id": "req_cf7111187c684908bb45b1d73d1512ae",
+      "provider_retry_count": 0,
+      "rendered_input_hash": "b0c35744e97569012b52d9182b98d84123339451e2891dd94914190d4844f5ee",
+      "repair_count": 0
+    },
+    {
+      "metrics": {
+        "cache_write_prompt_tokens": 0,
+        "cached_prompt_tokens": 5457,
+        "eval_duration_ms": null,
+        "load_duration_ms": null,
+        "output_tokens": 157,
+        "prompt_eval_duration_ms": null,
+        "prompt_tokens": 12028,
+        "reasoning_tokens": 0,
+        "retry_count": 0,
+        "total_duration_ms": 4077
+      },
+      "model": "gpt-5.6-terra",
+      "model_digest": null,
+      "prompt_hash": "a33dc803d5346e90499eb5ea9a6644dec29d564539e2aeed3b6a0500e255735c",
+      "prompt_id": "adapter",
+      "prompt_version": "v8",
+      "provider": "openai",
+      "provider_request_id": "req_13683eded8be4c2e9b0c329c2a25c00b",
+      "provider_retry_count": 0,
+      "rendered_input_hash": "5651cf16567d800a4c52b894dd93ba020f486687d3de7bb2a1915bed68910406",
+      "repair_count": 0
+    }
+  ]
+}

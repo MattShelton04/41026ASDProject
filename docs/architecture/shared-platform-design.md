@@ -4,13 +4,51 @@
 
 | Field | Value |
 |---|---|
-| Status | Living architecture; approved five-feature allocation, Release 0 shared baseline and Feature 1 integrated |
-| Last verified | 1 September 2026 |
+| Status | Living architecture; Release 1 Shared/Feature 1 implementation, all five existing feature slices retained |
+| Last verified | 7 September 2026; current implementation summary below, release evidence tracked separately |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related records | `docs/architecture/registered-feature-scope.md`, `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
 
-### Implementation status (15 August 2026)
+### Local placement and Release 1 implementation (7 September 2026)
+
+The launcher supports reversible Docker and host placement for AI-mode, MCP and RAG. Fresh
+developer setups default to Docker; `stack up --ai-runtime host` selects the assessment topology
+and `stack up --ai-runtime docker` restores Docker visibility. Selection is persisted.
+[ADR-044](decisions/ADR-044-dual-ai-runtime.md) records this user-authorised development alternative;
+[the plan](../release-1/dual-ai-runtime-plan.md) defines its validation. Docker uses an optional
+overlay; base and CI models retain the host topology. Both placements use the same exclusive
+history and RAG index/model directories, stopping previous owners before switching. The loop
+remains part of AI-mode, not a fourth service.
+
+The user-supplied 6 September Release 1 marking rubric requires **AI-mode, MCP, RAG and the
+shared agent loop to run locally outside containers**, with MCP/RAG disabled during CI/CD.
+[ADR-043](decisions/ADR-043-local-grounded-runtime.md) records that assessment topology. Optional
+Docker development placement does not satisfy its non-containerisation clause. The
+[reviewed implementation plan](../release-1/shared-feature-1-implementation-plan.md),
+[runtime guide](../release-1/host-runtime.md) and [handoff/evidence map](../release-1/shared-feature-1-handoff.md)
+separate implemented behavior from validation and assessment items still owned by people.
+
+The local topology retains the shared frontend and every enabled feature's independently owned
+containers. AI-mode owns the same four-phase runner and durable SQLite run store in either placement.
+MCP exposes
+enabled catalogues through authenticated Streamable HTTP and invokes the existing owning backend
+endpoints; it does not implement CRUD. RAG owns a separate bounded SQLite metadata/vector index
+and prepared CPU embedding assets. Neither can open an AI-mode or student database.
+
+Feature 1's first corpus contains ten explicitly licensed project-guidance topics about coverage,
+publication and import diagnosis. It contains no private notes, warehouse data or current property
+facts. Grounded runs retrieve this fixed feature/corpus scope, combine passages with successful
+owning-tool results and validate citation/call IDs before completion. Server projections supply
+source metadata and confidence policy; the shared assistant renders text-only findings, sources,
+gaps and insufficient-context states within the Fieldbook experience. Legacy runs remain readable.
+
+The shared transport/contracts, corpus recipe, browser component and disabled-CI configuration
+are available to the other feature owners. Their existing enabled applications remain operational;
+their individual MCP/RAG corpus integration, model evidence and submission sign-off are separate
+owner responsibilities. Multi-agent runtime and Azure deployment remain Release 2 work.
+
+### Retained Release 0 foundation
 
 The redesigned shared shell is now a first-class, independently built Release 0 service in the
 canonical root Compose and `scripts/dev.py` workflow. Feature 1 consumes the shared design tokens
@@ -36,9 +74,9 @@ ports, bounded four-phase runner, deterministic fake provider, SQLite run/step/r
 store, prompt registry, OpenAI Responses API adapter, opt-in Gemini development compatibility,
 serial worker, and
 create/read/cancel/review HTTP endpoints. JSON Schema and OpenAPI artefacts are generated
-and drift-checked by the canonical quality gate. A pinned non-root AI-mode image and
-real structured provider diagnostic supply the shared Release 0 container boundary;
-no model runtime is deployed in the application Compose topology.
+and drift-checked by the canonical quality gate. The historical Release 0 AI-mode image is
+superseded by the host process required for Release 1 assessment and the optional unified Docker
+AI image recorded in ADR-044; remote model inference remains outside the application topology.
 
 A subsequent domain-neutral Release 0 increment added validated feature manifests,
 feature-scoped/versioned tool registration, fail-fast YAML tool composition, a bounded
@@ -150,13 +188,10 @@ but that mode is slower for the measured nested workload. Small products retain 
 CPU parallelism; acquisition tasks and database import/activation ownership remain unchanged.
 See [the review and measured limits](../reviews/shared-feature-1-improvements-55.md).
 
-This does not complete the five-feature shared-foundation definition of done. Features 2–5 now have
-approved owners and domain boundaries in [`registered-feature-scope.md`](registered-feature-scope.md),
-but their owners must still supply implemented manifests and endpoints; the product edge, complete
-five-slice topology and team-owned release evidence remain. The optional live
-API diagnostic remains useful shared-boundary evidence, not a substitute for assessed product
-evidence. MCP, RAG, and multi-agent runtime behavior remains
-disabled and unclaimed.
+The five feature slices now have implemented manifests and enabled routes. Their approved owners
+and boundaries remain in [`registered-feature-scope.md`](registered-feature-scope.md). This shared
+increment does not establish each owner's complete Release 1 submission evidence. Live diagnostics
+prove the particular boundary exercised, not every feature's assessed behavior or future runtime.
 
 This document is both a high-level design and a detailed build guide. The shared platform was
 deliberately defined before the project domain and five feature schemas were known; the approved
@@ -195,8 +230,8 @@ student-owned feature slices and a small set of shared integration services.
 
 Each feature slice owns its frontend, backend/API, database service, tests, and
 container artefacts. Shared services provide the unified web entry point, agentic
-orchestration, remote model access, common contracts, test utilities, and later MCP, RAG,
-multi-agent, and Azure integration. Shared services must not absorb feature business
+orchestration, remote model access, common contracts, test utilities, MCP and RAG. Multi-agent and
+Azure integration remain Release 2 extensions. Shared services must not absorb feature business
 logic or erase evidence of individual ownership.
 
 The central design pattern is a deterministic state machine around a probabilistic
@@ -235,6 +270,8 @@ The main architectural constraints are:
 - one shared Docker Compose application;
 - a shared Plan -> Act -> Observe -> Adapt loop in every release;
 - local MCP and RAG in Release 1;
+- non-containerised local AI-mode, MCP, RAG and shared loop in Release 1, with MCP/RAG
+  disabled during CI/CD, as clarified by the 6 September marking rubric;
 - local Planner, Worker, Reviewer, and human review in Release 2;
 - Azure or AWS deployment in Release 2;
 - AI-mode with remote OpenAI model access enabled in the cloud while MCP, RAG, and multi-agent services are
@@ -357,14 +394,18 @@ flowchart LR
     F1 --> O[Agent orchestrator / AI-mode]
     FN --> O
     O --> L[Remote model API: OpenAI default / Gemini dev]
-    O -. Release 1 local .-> M[MCP server]
-    O -. Release 1 local .-> R[RAG server]
+    O --> M[Host MCP server]
+    O --> R[Host RAG server]
     O -. Release 2 local .-> A[Multi-agent roles]
     M --> F1
     M --> FN
     R --> C[(Retrieval corpus)]
-    E -. public ingress .-> AZ[Azure Container Apps]
 ```
+
+The edge and feature slices are containers; AI-mode (including the loop), MCP and RAG are local
+host processes. Azure is a separate future topology, not an extra destination in this runtime.
+Feature 1's PostgreSQL/PostGIS exception replaces the generic SQLite branch below only within
+its credential-owning database API/loader boundary.
 
 One feature slice is repeated five times:
 
@@ -384,11 +425,12 @@ flowchart LR
 | `shared/frontend` edge | 0 | Unified home page, shared assets, same-origin routing, health landing page | Feature business rules |
 | `shared/contracts` | 0 | Pydantic/JSON Schema types, error envelope, identifiers, headers | Feature entities |
 | `shared/testkit` | 0 | Fake model, contract fixtures, factories, assertion helpers | Production orchestration |
+| `shared/tool-runtime` | 1 | Neutral catalogue parsing, bounded HTTP dispatch and signed MCP context | Feature rules or orchestration implementation |
 | `ai-services/agent-core` | 0 | State machine, policies, provider/tool ports, cache interfaces | Flask routes or feature code |
 | `ai-services/ai-mode` | 0 | Orchestrator API, run persistence, remote-provider adapter, prompt registry | Direct feature DB access |
 | OpenAI API | 0 | Remote model inference | Application workflow state or feature data |
 | Gemini API | 0 dev | Opt-in local model inference through OpenAI-compatible Chat Completions | Production default or application workflow state |
-| `ai-services/mcp-server` | 1 | MCP tools/resources/prompts over existing contracts | Duplicate CRUD logic |
+| `ai-services/mcp-server` | 1 | Host MCP tools and approved catalogue metadata resource | Duplicate CRUD logic or arbitrary URL dispatch |
 | `ai-services/rag-server` | 1 | Ingestion, chunking, retrieval, citations, corpus versions | Final response authority |
 | `ai-services/multi-agent-server` | 2 | Planner/Worker/Reviewer coordination and human-review API | A second incompatible run model |
 | Optional OTel collector | 0+ | Local trace/metric export when enabled | Required runtime dependency |
@@ -421,8 +463,9 @@ There are two different shared elements and they must not be confused:
 1. **Shared packages** are small compile-time dependencies. Student services and shared
    AI services may import `shared_contracts`; tests may also import `shared_testkit`.
    Student services do not import `agent-core` or another student's package.
-2. **Shared services** are independently running containers. Student backends call the
-   shared orchestrator over HTTP; they do not embed its implementation.
+2. **Shared services** are independent runtime processes. The edge is containerised;
+   AI-mode, MCP and RAG run on the local host. Student backends call the shared orchestrator
+   over HTTP; they do not embed its implementation.
 
 The normal runtime flow is:
 
@@ -430,7 +473,8 @@ The normal runtime flow is:
 student frontend
   -> student backend starts an agent run
   -> shared orchestrator plans and selects an allowlisted feature tool
-  -> shared orchestrator calls that student's backend tool endpoint
+  -> shared orchestrator calls MCP with signed invocation context
+  -> MCP dispatches to that student's owning backend tool endpoint
   -> student backend applies its business rules and calls its database service
   -> tool result returns to the orchestrator
   -> orchestrator observes/adapts and returns the final result
@@ -439,8 +483,9 @@ student frontend
 This controlled callback is intentional. The feature initiates the run, while the
 orchestrator may call feature-owned capabilities as tools. The orchestrator never calls
 a student database directly, and a feature never imports orchestration implementation.
-Release 1 may expose the same feature tools through MCP without changing their owner or
-duplicating their business logic.
+Release 1 exposes the same tools through MCP without changing their owner or duplicating business
+logic. Direct mode retains Release 0 HTTP dispatch. Read-only RAG retrieval is a separate bounded
+tool path inside the same Act phase; its corpus scope comes from the persisted run, not model text.
 
 ### 6.4 Frontend ownership and public exports
 
@@ -508,18 +553,21 @@ the service key below the descriptive `propertyscope/` namespace, and
 durable volumes use the same ownership prefix.
 
 Do not set `container_name`. Compose-generated names preserve project isolation and produce
-scannable container names such as `ps-dev-shared-ai-mode-1` and `ps-dev-f1-backend-1`. The
+scannable container names such as `ps-dev-shared-frontend-1` and `ps-dev-f1-backend-1`. The
 canonical gate verifies project names, ownership
 prefixes, overlay membership, image alignment, and the absence of hard-coded container names.
 
-The developer entry point mirrors those boundaries: `scripts/dev.py stack` owns container
-lifecycle, `scripts/dev.py ui` owns deterministic browser fixtures, and `scripts/dev.py data` owns
+The developer entry point mirrors those boundaries: `scripts/dev.py stack` coordinates container
+and host lifecycle, `scripts/dev.py ai` manages the host services and local validation modes,
+`scripts/dev.py ui` owns deterministic browser fixtures, and `scripts/dev.py data` owns
 source acquisition. `scripts/check.py` remains the single source-quality runner instead of being
 proxied through the lifecycle command. The development overlay bind-mounts every enabled built
 service. Static frontend source is visible on refresh and request-serving Python processes reload
 workers in place. Durable background workers require an explicit targeted restart so an edit cannot
 silently interrupt an active job. Ordinary `stack up` reuses images and containers; image rebuilds
 remain explicit after dependency or Docker input changes.
+Host Python source changes require an explicit `ai stop` / `ai start`; they do not inherit the
+container reload mounts. Ordinary shutdown preserves host state and all Docker data.
 
 ## 7. Shared contracts
 
@@ -825,7 +873,7 @@ under `docs/evaluations/`.
 
 ### 10.2 Agent state
 
-`ai-mode` owns a separate SQLite file and volume for runs, steps, invocations, reviews,
+`ai-mode` owns a separate host SQLite file for runs, steps, invocations, reviews,
 and cache metadata. This is operational workflow state, not a sixth student feature
 database. It does not require another public database API or separately assessed
 database microservice: only the `ai-mode` process opens the file. Large artefacts live
@@ -839,8 +887,11 @@ transaction. Optimistic version numbers prevent two workers advancing the same r
 The event decision and cursor semantics are recorded in
 [`ADR-014`](decisions/ADR-014-append-only-safe-agent-run-events.md).
 
-Later MCP, RAG, and multi-agent services do not mount this file. They interact through
+MCP, RAG and future multi-agent services do not open this file. They interact through
 the orchestrator's internal contracts, leaving `ai-mode` as the single state owner.
+The host launcher preserves historical Compose-volume state through consistency-checked migration
+and never overwrites an existing host store. RAG owns its own index/model directory. Lifecycle
+ownership checks include PID creation time and command identity before signalling a process.
 
 ### 10.3 Azure persistence constraint
 
@@ -862,17 +913,18 @@ production correction. It is not the baseline until that permission exists.
 
 ### 11.1 MCP
 
-The MCP server is an adapter over the existing tool registry:
+The host server uses the official Python MCP SDK and stateless Streamable HTTP at loopback
+`/mcp`. Enabled tool definitions retain their owning catalogue's JSON Schemas and side-effect
+annotations. The `propertyscope://tools/catalog` resource contains public approved metadata;
+it does not expose service origins or database records. No MCP prompt registry is needed for
+this increment: versioned model prompts remain owned by AI-mode.
 
-- **Tools** expose allowlisted actions with JSON Schema input and output.
-- **Resources** expose contextual, read-only material such as approved feature metadata
-  or indexed documents.
-- **Prompts** expose user-selected reusable templates where genuinely useful.
-
-Use the official Python SDK and pin a tested protocol revision. Validate capability and
-protocol-version negotiation. Local Compose uses Streamable HTTP for service-to-service
-communication; stdio remains useful for isolated tests. MCP tool authorization is no
-weaker than the underlying backend authorization.
+Bearer authentication and signed short-lived invocation metadata bind feature/run/step/call,
+tool/version, argument hash, approval, idempotency and deadline outside the model's arguments.
+The server rechecks schema/scope/approval and dispatches through `shared-tool-runtime` to fixed
+startup-defined feature HTTP origins. No mutation is automatically replayed or routed through a
+fallback transport. The owning backend's durable idempotency and human-review policy remain
+authoritative across MCP restarts. See [the MCP contract](../../ai-services/mcp-server/README.md).
 
 ### 11.2 RAG
 
@@ -887,7 +939,6 @@ approved source
   -> embed
   -> index under corpus version
   -> retrieve
-  -> rerank if justified
   -> return citations
 ```
 
@@ -896,9 +947,37 @@ time, and corpus version. Responses must cite retrieved chunks; missing evidence
 reported rather than invented. Retrieved text is untrusted data, not executable
 instructions. Ingestion and retrieval are independently testable.
 
-Start with a simple local vector store supported by the chosen Python stack. Do not add
-a separate distributed vector database until corpus size or measured performance
-requires it.
+The implemented index is single-owner SQLite with bounded local CPU FastEmbed
+`BAAI/bge-small-en-v1.5` embeddings (384 dimensions). Preparation explicitly downloads and hashes
+model artifacts; ordinary startup loads prepared files offline and never substitutes fixtures.
+Fixture embeddings are injected only for tests or explicitly labelled mechanical validation.
+Ingestion accepts a complete approved feature/corpus batch; URLs are display metadata and never
+fetched. Unicode/newline normalization, bounded character chunks, source metadata, model hashes
+and preprocessing identity determine the immutable corpus version. Identical replay preserves the
+original ingestion timestamp; changed content activates atomically; failed refresh retains the
+previous active version; omitted documents are withdrawn. Only registered public project guidance
+is admitted. See [the RAG bounds and HTTP contract](../../ai-services/rag-server/README.md).
+
+### 11.3 Grounded completion and evidence limits
+
+`GroundingRequest` fixes the corpus on an eligible run. Every grounded plan must retrieve again;
+the latest response controls the usable citations. `GroundedAnswer` distinguishes document
+`guidance` with retrieved citation IDs from `tool_fact` findings with successful owning call IDs.
+Scope/version checks and a current-corpus recheck prevent invented references or silently current
+claims from withdrawn context. Citation metadata is projected from persisted retrieval results,
+never accepted from model-authored source cards. Citations cannot authorize mutations.
+
+No matching/available context produces `insufficient` confidence and no guidance findings. A model
+may also refuse when high-ranked retrieved text does not answer the question, with explicit gaps.
+The server caps high confidence at moderate; recorded material gaps cap it at low. Confidence
+describes evidence support, not cosine similarity or numeric model probability. Validation binds
+references; it cannot prove semantic entailment. The [measured evaluation](../release-1/retrieval-evaluation.md)
+records both source recall and irrelevant, historical and malicious passages ranking highly.
+
+The shared UI renders text-only findings, literal excerpts, evidence kind, source date, indexing
+date and version, with safe HTTP(S) links and native keyboard disclosures. Polling preserves focus
+and open sources. Capability health is separately observed at `/api/v1/capabilities` (shared edge:
+`/api/ai-mode/capabilities`); healthy MCP/RAG does not establish per-feature corpus coverage.
 
 ## 12. Security and responsible-AI baseline
 
@@ -1001,7 +1080,7 @@ but never replace deterministic assertions or human review.
 - no migration that fails on a copy of the prior release database;
 - every enabled feature passes CRUD and AI interaction smoke tests;
 - advanced services are enabled locally in their release and provably disabled in
-  cloud; and
+  CI/CD and cloud; and
 - reports and screenshots are generated from the same release commit/tag.
 
 ## 15. CI/CD and evidence production
@@ -1011,6 +1090,13 @@ but never replace deterministic assertions or human review.
 `student-N.yml` uses path filters for `student-N/**` plus relevant shared contracts. It
 runs lint, type checks, unit/component tests, schema validation, image build, and
 container health checks. Shared-contract changes deliberately trigger all consumers.
+
+The current canonical quality gate is centralised in `integration-ci.yml`; student workflows add
+their owned browser/build/integration checks. All explicitly disable MCP/RAG. Tests may exercise
+real SDK objects through in-process transports and inject embedders without starting shared
+servers, downloading weights or using provider credentials. Separate local named `ai validate mcp`
+and `ai validate rag` commands exercise the production loop with real services and deterministic
+model decisions; actual provider/browser evidence remains a separate requirement.
 
 ### 15.2 Integration workflow
 
@@ -1042,23 +1128,30 @@ target. Use GitHub OIDC to Azure rather than long-lived cloud credentials.
 
 ## 16. Local and Azure deployment
 
-### 16.1 Compose profiles
+### 16.1 Local Compose and host modes
 
-Maintain one root `docker-compose.yml` with clearly named profiles:
+The base model, enabled-feature projection and development overlay contain only the shared frontend
+and student feature services. The retained `release-0` profile name selects the feature application;
+it does not containerise the release's AI services. There are no AI-mode, MCP, RAG or loop Compose
+service definitions. `stack up` coordinates these containers with host `ai start --mode combined`.
 
-| Profile | Contents |
-|---|---|
-| default / `release-0` | Edge, five feature slices, AI-mode; OpenAI is an external dependency |
-| `release-1` | Release 0 plus MCP and RAG |
-| `release-2-local` | Release 1 plus multi-agent service |
-| `observability` | Optional collector/viewer |
+| Host mode | AI-mode dispatch | MCP | RAG |
+|---|---|---|---|
+| `direct` / `stack up --offline` | Direct owning HTTP tools | Stopped | Stopped |
+| `mcp` | MCP owning tools | Running | Stopped |
+| `rag` | Direct owning tools plus retrieval | Stopped | Running |
+| `combined` / normal `stack up` | MCP owning tools plus retrieval | Running | Running |
 
-The selected provider credential is injected at runtime and is never built into an image or committed.
-Compose uses the same HTTPS API root and logical model registry as host execution.
-
-Use health checks, `depends_on` health conditions where supported, explicit internal
-networks, named volumes, resource limits, and non-root application users. Do not expose
-student databases or internal AI services to the host by default.
+Host AI-mode binds port 5005 for Docker access through `host.docker.internal`; generated container
+configuration includes Linux `host-gateway`. MCP (5011) and RAG (5012) bind authenticated loopback
+only. Host tool catalogue copies resolve approved owning APIs through published feature frontend
+ports. Listener ports remain configurable. Provider credentials stay in the host environment;
+local service tokens and state are ignored by Git. Managed AI-mode requires an internal
+`X-PropertyScope-AI-Token` header on every route except `/health/live`; backend clients and the
+shared nginx proxy attach it. It never enters browser assets. Token rotation requires `stack up`
+to align container and host configuration. This service authentication does not add production
+end-user identity to the trusted local demo. [Host lifecycle documentation](../release-1/host-runtime.md)
+defines stop/restart, migration and diagnosis without killing unrelated processes or deleting history.
 
 ### 16.2 Azure target
 
@@ -1079,100 +1172,58 @@ and Bicep under `infra/azure`.
 - Infrastructure parameters, not source edits, select environment names, image tags,
   and capacities.
 
-The Azure configuration is a demonstration architecture, not a claim that SQLite on
+These are Release 2 design targets, not implemented Release 1 deployment evidence. The planned Azure
+configuration is a demonstration architecture, not a claim that SQLite on
 Azure Files is a high-availability production design.
 
-## 17. Target repository structure
+## 17. Current Release 1 repository structure
 
-The current standard top-level structure remains intact and is extended as follows:
+The assessment-facing structure retains each owner's independent slice and makes the shared
+runtime additions explicit. This is a bounded directory map; individual feature READMEs own their
+internal modules. Future Azure/multi-agent folders are placeholders, not deployed R1 services.
 
 ```text
 .
-|-- .github/
-|   `-- workflows/
-|       |-- student-1.yml ... student-5.yml
-|       |-- integration-ci.yml
-|       `-- cloud-deployment.yml
-|-- docs/
-|   |-- architecture/
-|   |   |-- decisions/
-|   |   |-- diagrams/
-|   |   |-- repository-architecture.md
-|   |   `-- shared-platform-design.md
-|   |-- evaluations/
-|   |-- evidence/
-|   |   `-- .gitkeep
-|   |-- reports/
-|   `-- release-0/ release-1/ release-2/
-|-- shared/
-|   |-- contracts/
-|   |   |-- openapi/
-|   |   |-- schemas/
-|   |   `-- python/shared_contracts/
-|   |-- frontend/
-|   |   |-- index.html
-|   |   |-- css/ js/ assets/
-|   |   `-- edge.conf
-|   |-- testkit/
-|   |   `-- python/shared_testkit/
-|   `-- configuration/
-|       |-- .env.example
-|       |-- features.yaml
-|       `-- logging.yaml
-|-- student-N/
-|   |-- feature.yaml
-|   |-- frontend/
-|   |   |-- src/
-|   |   `-- tests/
-|   |-- backend/
-|   |   |-- src/student_n_backend/
-|   |   |   |-- api/ application/ domain/ infrastructure/
-|   |   |   `-- create_app.py
-|   |   `-- tests/
-|   |-- database/
-|   |   |-- src/student_n_database/
-|   |   |-- migrations/ seeds/
-|   |   `-- tests/
-|   |-- tests/
-|   |   |-- contract/ integration/ e2e/
-|   |   `-- fixtures/
-|   |-- pyproject.toml
-|   `-- Dockerfile
+|-- .github/workflows/             # integration-ci.yml and student-1.yml ... student-5.yml
 |-- ai-services/
-|   |-- agent-core/
-|   |   |-- src/agent_core/
-|   |   |   |-- model/ ports/ policies/ state_machine/
-|   |   `-- tests/
-|   |-- ai-mode/
-|   |   |-- src/ai_mode/
-|   |   |   |-- api/ application/ adapters/ persistence/
-|   |   |   `-- prompt_assets/
-|   |   |-- migrations/
-|   |   `-- tests/
-|   |-- mcp-server/
-|   |-- rag-server/
-|   `-- multi-agent-server/
-|-- infra/
-|   `-- azure/
-|       |-- modules/
-|       |-- main.bicep
-|       `-- parameters/
+|   |-- agent-core/                # deterministic Plan / Act / Observe / Adapt and grounding policy
+|   |-- ai-mode/                   # host HTTP API, provider adapters, prompts, exclusive run store
+|   |-- mcp-server/                # host SDK transport and registered tool dispatch
+|   |-- rag-server/                # host ingestion, local embeddings, exclusive index
+|   `-- multi-agent-server/        # Release 2 placeholder
+|-- shared/
+|   |-- contracts/                 # Python contracts, generated schemas/OpenAPI
+|   |-- tool-runtime/              # neutral catalogues, HTTP boundaries, signed invocation metadata
+|   |-- consumer-protocol/         # domain-neutral publication consumer protocol
+|   |-- testkit/
+|   `-- frontend/                  # container edge, Fieldbook shell and public browser/AI components
+|-- student-1/
+|   |-- backend/ database/ frontend/ # acquisition runner is owned by the backend package
+|   |-- config/rag/                # complete corpus manifest, authored guidance and evaluation cases
+|   |-- tests/
+|   |-- feature.yaml
+|   `-- tool-catalog.yaml
+|-- student-2/ ... student-5/       # separately owned feature containers and databases
+|-- deployment/                    # enablement, generated routes and Compose projection
 |-- scripts/
 |   |-- check.py
 |   |-- dev.py
-|   |-- devtools/
-|   |-- ui_audit/
-|   `-- tests/
+|   |-- devtools/host_runtime.py
+|   |-- release1_validation.py
+|   `-- evaluate_release1_retrieval.py
+|-- docs/architecture/decisions/ADR-043-local-grounded-runtime.md
+|-- docs/release-1/                # reviewed plan, runtime, adoption and evidence
+|-- infra/azure/                   # Release 2 target
 |-- pyproject.toml
 |-- uv.lock
 |-- docker-compose.yml
-`-- README.md
+`-- docker-compose.dev.yml
 ```
 
-Use a root Python workspace and lock file for consistent versions, while preserving
-separate importable packages and test ownership. A student package may depend on
-`shared_contracts` and `shared_testkit` (tests only); it may not depend on another
-student package.
+A root Python workspace and lock keep versions consistent without merging service ownership.
+Students may import `shared_contracts` and test-only `shared_testkit`; HTTP crosses service
+boundaries. The ignored `.propertyscope-runtime/host/` directory contains only local state,
+prepared model assets, tokens and process metadata and must never be committed.
 
 ### 17.1 Recommended technology baseline
 
@@ -1283,9 +1334,9 @@ The foundation is complete when:
 - fake-model tests cover success, invalid schema, tool failure, timeout, approval,
   cancellation, retry, and loop limit;
 - schema and OpenAPI artefacts validate in CI;
-- host and full Compose provider configuration are documented and tested;
+- host provider and container-to-host configuration are documented and tested;
 - the full topology starts on the nominated integration machine;
-- advanced services are disabled by default and cloud exclusions are machine-tested;
+- advanced services follow explicit local modes and remain disabled in CI/CD and cloud;
 - cache metrics exist before caching is claimed as an optimisation;
 - architecture diagrams can be regenerated from version-controlled sources; and
 - the release evidence checklist maps every course requirement to a file, test, log,
@@ -1296,7 +1347,8 @@ The foundation is complete when:
 - Bounded Release 0 datasets, routes and schema details within each approved feature boundary.
 - Team ownership of each shared service and review responsibility.
 - Authentication/identity needs implied by the eventual domain.
-- Retrieval document types, corpus size, and data licensing.
+- Additional feature-owned corpora, private-scope authentication and source licensing beyond the
+  bounded Feature 1 public-guidance corpus.
 - Measured model profiles and context sizes on representative low-end and showcase
   machines.
 - Azure subscription limits, GPU quota, budget alert, region, and final persistence

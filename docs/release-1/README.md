@@ -4,7 +4,20 @@ Release 1 retains Release 0 and adds MCP, RAG, grounded AI responses, updated
 local integration, CI, architecture, testing evidence, report content, and
 showcase evidence.
 
-Start with the [Release 1 delivery plan and completion checklist](release-1-delivery-plan.md).
-It reconciles the course archive and current repository as of 6 September 2026, covering shared
-services, all five features, dependencies, acceptance gates and submission evidence. The detailed
-Release 1 Canvas brief still needs checking against the archive's 3 September publication state.
+Start with the [Shared/Feature 1 handoff and evidence map](shared-feature-1-handoff.md), the
+[reviewed implementation plan](shared-feature-1-implementation-plan.md), and
+[ADR-043](../architecture/decisions/ADR-043-local-grounded-runtime.md). The marking rubric supplied
+on 6 September requires non-containerised local AI-mode, MCP, RAG and agent loop; MCP/RAG stay
+disabled during CI/CD. Those requirements supersede the older Compose assumptions.
+
+- [Host runtime](host-runtime.md): lifecycle, networking, history migration and named loop validations.
+- [Feature adoption](feature-adoption.md): existing tools/backend boundary, owned corpus registration,
+  grounded-run ownership and shared source UI for other feature owners.
+- [Retrieval evaluation](retrieval-evaluation.md): versioned source recall and negative-case limitations.
+- [Captured public outputs](evidence/README.md): real local transport modes and actual provider summaries.
+- [Five-feature delivery plan](release-1-delivery-plan.md): archived-course interpretation, wider group
+  requirements and submission checklist; not a claim that every owner's R1 work is complete.
+
+Other students' feature acceptance, full group report/video, tutor decisions and individual Q&A
+remain owner/human evidence. The shared/F1 increment supplies the common foundation without
+claiming those separate responsibilities.

@@ -16,13 +16,17 @@ dev = [
     "pillow>=11,<13",
     "playwright>=1.55,<2",
     "pre-commit>=4.3,<5",
+    "psutil>=7.2.2",
     "pypdf>=6,<7",
     "pytest>=8.4,<9",
     "pytest-cov>=7,<8",
     "reportlab>=4.4,<5",
     "ruff>=0.14,<1",
     "types-jsonschema>=4.25,<5",
+    "types-psutil>=7.2.2.20260906",
     "types-pyyaml>=6.0,<7",
+    "types-waitress>=3.0.1.20260724",
+    "waitress>=3.0.2",
 ]
 
 [tool.uv]
@@ -34,6 +38,9 @@ members = [
     "shared/contracts",
     "shared/consumer-protocol",
     "shared/testkit",
+    "shared/tool-runtime",
+    "ai-services/mcp-server",
+    "ai-services/rag-server",
     "student-1",
     "student-2",
     "student-3",
@@ -48,6 +55,7 @@ agent-core = { workspace = true }
 shared-contracts = { workspace = true }
 shared-consumer-protocol = { workspace = true }
 shared-testkit = { workspace = true }
+shared-tool-runtime = { workspace = true }
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers", "-ra"]
@@ -57,6 +65,9 @@ testpaths = [
     "shared/testkit/tests",
     "ai-services/agent-core/tests",
     "ai-services/ai-mode/tests",
+    "ai-services/mcp-server/tests",
+    "ai-services/rag-server/tests",
+    "shared/tool-runtime/tests",
     "student-1/tests",
     "student-2/tests",
     "student-3/tests",
@@ -67,7 +78,7 @@ testpaths = [
 
 [tool.coverage.run]
 branch = true
-source = ["agent_core", "ai_mode", "shared_consumer_protocol", "shared_contracts", "shared_testkit"]
+source = ["agent_core", "ai_mode", "shared_consumer_protocol", "shared_contracts", "shared_testkit", "shared_tool_runtime", "mcp_server", "rag_server"]
 
 [tool.coverage.report]
 exclude_also = [

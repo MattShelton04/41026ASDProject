@@ -171,14 +171,6 @@ def _compose_payload(root: Path) -> str:
     services: dict[str, object] = {}
     for service in _enabled_compose_services(root):
         services[service] = {"profiles": ["release-0"]}
-    catalog_paths = [feature.ai for feature in projection.features if feature.ai is not None]
-    if catalog_paths:
-        services["shared-ai-mode"] = {
-            "environment": {
-                "AI_MODE_TOOL_CATALOG_PATHS": ",".join(item.runtime_path for item in catalog_paths)
-            },
-            "volumes": [f"./{item.tool_catalog}:{item.runtime_path}:ro" for item in catalog_paths],
-        }
     for feature in projection.features:
         if feature.frontend is None:
             continue

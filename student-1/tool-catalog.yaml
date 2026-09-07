@@ -20,6 +20,7 @@ tools:
           assistant: {type: object}
           features: {type: array, maxItems: 5, items: {type: object}}
           suggested_questions: {type: array, maxItems: 10, items: {type: string}}
+          feature_status_meaning: {type: string}
         required: [revision, application, assistant, features, suggested_questions]
         additionalProperties: false
       side_effect: read_only

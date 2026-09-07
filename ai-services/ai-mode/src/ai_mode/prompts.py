@@ -139,6 +139,10 @@ class RegistryPromptBuilder(PromptBuilder):
             ModelRole.PLANNER: ("planner", "v7"),
             ModelRole.ADAPTER: ("adapter", "v7"),
         },
+        "default.v8": {
+            ModelRole.PLANNER: ("planner", "v8"),
+            ModelRole.ADAPTER: ("adapter", "v8"),
+        },
     }
 
     def __init__(self, registry: PromptRegistry) -> None:
@@ -161,7 +165,7 @@ class RegistryPromptBuilder(PromptBuilder):
         prior_steps: tuple[AgentStep, ...] = (),
     ) -> StructuredModelRequest:
         prompt = self._load_for(run, ModelRole.PLANNER)
-        if prompt.metadata.version == "v7":
+        if prompt.metadata.version in {"v7", "v8"}:
             dynamic = {
                 "feature_key": run.feature_key,
                 "trusted_identifiers": [
@@ -215,7 +219,21 @@ class RegistryPromptBuilder(PromptBuilder):
             "observation": observation.model_dump(mode="json"),
             "iteration_count": run.iteration_count,
         }
-        if prompt.metadata.version != "v7":
+        if run.grounding is not None:
+            # Reserve the authoritative response outside generic recursive truncation.
+            # Other tool payloads may be shortened, but citation IDs and excerpts must
+            # reach adaptation intact even for a maximum-size multi-action plan.
+            latest = next(
+                (result for result in reversed(tool_results) if result.retrieval is not None),
+                None,
+            )
+            if latest is not None:
+                assert latest.retrieval is not None
+                dynamic["retrieved_context"] = {
+                    "call_id": str(latest.call_id),
+                    "response": latest.retrieval.model_dump(mode="json"),
+                }
+        if prompt.metadata.version not in {"v7", "v8"}:
             dynamic.pop("limits")
             dynamic = {
                 "objective": dynamic.pop("objective"),
@@ -237,17 +255,29 @@ class RegistryPromptBuilder(PromptBuilder):
         dynamic: Mapping[str, object],
         definitions: tuple[ToolDefinition, ...],
     ) -> StructuredModelRequest:
-        bounded_dynamic = _bounded_json_value(dict(dynamic), MAX_RENDERED_INPUT_CHARS)
+        ordinary = dict(dynamic)
+        context = ordinary.pop("retrieved_context", None)
+        reserved = (
+            len(json.dumps({"retrieved_context": context}, separators=(",", ":"))) + 128
+            if context is not None
+            else 0
+        )
+        if reserved >= MAX_RENDERED_INPUT_CHARS:
+            raise PromptRegistryError("retrieved context exceeds the model message limit")
+        bounded_dynamic = _bounded_json_value(ordinary, MAX_RENDERED_INPUT_CHARS - reserved)
+        if context is not None:
+            assert isinstance(bounded_dynamic, dict)
+            bounded_dynamic["retrieved_context"] = context
         serialized_input = json.dumps(
             bounded_dynamic,
-            sort_keys=prompt.metadata.version != "v7",
+            sort_keys=prompt.metadata.version not in {"v7", "v8"},
             separators=(",", ":"),
         )
         if len(serialized_input) > MAX_RENDERED_INPUT_CHARS:
             raise PromptRegistryError("bounded prompt input still exceeds the model message limit")
         system_prefix = (
             _static_tool_prefix(prompt.content, definitions)
-            if prompt.metadata.version == "v7"
+            if prompt.metadata.version in {"v7", "v8"}
             else prompt.content
         )
         return StructuredModelRequest(
@@ -269,7 +299,7 @@ class RegistryPromptBuilder(PromptBuilder):
             prompt_version=prompt.metadata.version,
             prompt_hash=(
                 hashlib.sha256(system_prefix.encode("utf-8")).hexdigest()
-                if prompt.metadata.version == "v7"
+                if prompt.metadata.version in {"v7", "v8"}
                 else prompt.content_hash
             ),
             rendered_input_hash=hashlib.sha256(serialized_input.encode("utf-8")).hexdigest(),

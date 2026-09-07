@@ -10,6 +10,7 @@ import pytest
 import yaml
 
 from propertyscope_data_platform.app import create_app as create_backend_app
+from propertyscope_data_platform.assistant import ASSISTANT_TOOL_ALLOWLIST
 from propertyscope_data_platform.clients import (
     AiModeClient,
     ConsumerEndpoint,
@@ -1792,3 +1793,40 @@ def test_downstream_retry_requires_current_published_release(
         assert writes[0]["expected_release_version"] == 5
     else:
         assert not writes
+
+
+@pytest.mark.parametrize("suffix,method", [("", "GET"), ("/events", "GET"), ("/cancel", "POST")])
+@pytest.mark.parametrize("retrieval", [False, True])
+def test_assistant_routes_preserve_access_to_grounded_and_legacy_runs(
+    suffix: str, method: str, retrieval: bool
+) -> None:
+    run_id = "70000000-0000-0000-0000-000000000004"
+    run = {
+        "feature_key": "student-1-propertyscope-data-platform",
+        "tool_allowlist": [
+            *ASSISTANT_TOOL_ALLOWLIST,
+            *(["context.retrieve.v1"] if retrieval else []),
+        ],
+        "grounding": {"corpus_id": "operator-guidance"} if retrieval else None,
+    }
+    calls: list[str] = []
+
+    def upstream(request: httpx.Request) -> httpx.Response:
+        calls.append(f"{request.method} {request.url.path}")
+        return httpx.Response(200, json={"run": run, "steps": [], "reviews": []})
+
+    app = create_backend_app(
+        store_client=DataStoreClient(
+            "http://database",
+            "secret",
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
+        ),
+        ai_mode_client=AiModeClient(
+            "http://ai", client=httpx.Client(transport=httpx.MockTransport(upstream))
+        ),
+    )
+    response = app.test_client().open(
+        f"/api/data-platform/v1/assistant/turns/{run_id}{suffix}", method=method
+    )
+    assert response.status_code == 200
+    assert calls[-1] == f"{method} /api/v1/agent-runs/{run_id}{suffix}"

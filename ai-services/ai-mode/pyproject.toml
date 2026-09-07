@@ -8,9 +8,11 @@ dependencies = [
     "flask>=3.1,<4",
     "gunicorn>=23,<24",
     "httpx>=0.28,<1",
+    "mcp>=1.28,<2",
     "openai>=2.0,<3",
     "pyyaml>=6.0,<7",
     "shared-contracts",
+    "shared-tool-runtime",
 ]
 
 [project.scripts]
@@ -19,3 +21,6 @@ ai-mode-provider-smoke = "ai_mode.provider_diagnostics:main"
 [build-system]
 requires = ["uv_build>=0.12,<0.13"]
 build-backend = "uv_build"
+
+[tool.uv.sources]
+shared-tool-runtime = { workspace = true }

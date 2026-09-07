@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0",
+  "feature_key": "student-1-propertyscope-data-platform",
+  "corpus_id": "operator-guidance",
+  "documents": [
+    {
+      "document_id": "accepted-discovery",
+      "title": "Accepted addresses and ambiguous discovery",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/accepted-discovery.md",
+      "source_date": "2026-09-07",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: accepted-discovery",
+      "path": "documents/accepted-discovery.md"
+    },
+    {
+      "document_id": "consumer-boundary",
+      "title": "Consumer contracts and database ownership",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/consumer-boundary.md",
+      "source_date": "2026-09-07",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: consumer-boundary",
+      "path": "documents/consumer-boundary.md"
+    },
+    {
+      "document_id": "crime-coverage",
+      "title": "Crime observations and coverage",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/crime-coverage.md",
+      "source_date": "2026-09-07",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: crime-coverage",
+      "path": "documents/crime-coverage.md"
+    },
+    {
+      "document_id": "guidance-limits",
+      "title": "Operator guidance, freshness and trust",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/guidance-limits.md",
+      "source_date": "2026-09-07",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: guidance-limits",
+      "path": "documents/guidance-limits.md"
+    },
+    {
+      "document_id": "import-diagnosis",
+      "title": "Diagnose an acquisition or import failure",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/import-diagnosis.md",
+      "source_date": "2026-09-07",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: import-diagnosis",
+      "path": "documents/import-diagnosis.md"
+    },
+    {
+      "document_id": "missing-evidence",
+      "title": "Missing property evidence is unknown",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/missing-evidence.md",
+      "source_date": "2026-09-07",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: missing-evidence",
+      "path": "documents/missing-evidence.md"
+    },
+    {
+      "document_id": "partial-psi",
+      "title": "Selected PSI archive years are partial",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/partial-psi.md",
+      "source_date": "2026-09-07",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: partial-psi",
+      "path": "documents/partial-psi.md"
+    },
+    {
+      "document_id": "provenance",
+      "title": "Release provenance and artifact verification",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/provenance.md",
+      "source_date": "2026-09-07",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: provenance",
+      "path": "documents/provenance.md"
+    },
+    {
+      "document_id": "publication",
+      "title": "Producer publication and downstream import",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/publication.md",
+      "source_date": "2026-09-07",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: publication",
+      "path": "documents/publication.md"
+    },
+    {
+      "document_id": "recovery",
+      "title": "Recover publication and downstream delivery separately",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/Matt/Release_1_Shared_and_Feature_1/student-1/config/rag/documents/recovery.md",
+      "source_date": "2026-09-07",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: recovery",
+      "path": "documents/recovery.md"
+    }
+  ]
+}

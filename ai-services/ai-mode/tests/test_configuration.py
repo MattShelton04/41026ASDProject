@@ -201,3 +201,38 @@ def test_legacy_single_tool_catalog_path_remains_supported() -> None:
 def test_invalid_multi_catalog_settings_fail_fast(values: dict[str, str], message: str) -> None:
     with pytest.raises(ConfigurationError, match=message):
         Settings.from_env(values)
+
+
+def test_local_compose_allows_only_the_registered_shared_service_origins() -> None:
+    settings = Settings.from_env(
+        {
+            "AI_MODE_ENVIRONMENT": "compose",
+            "AI_MODE_MCP_ENABLED": "true",
+            "AI_MODE_RAG_ENABLED": "true",
+            "MCP_SERVICE_TOKEN": "m" * 32,
+            "RAG_SERVICE_TOKEN": "r" * 32,
+            "MCP_SERVER_URL": "http://mcp-server:5011/mcp",
+            "RAG_SERVER_URL": "http://rag-server:5012",
+        }
+    )
+    assert settings.mcp_enabled and settings.rag_enabled
+
+
+@pytest.mark.parametrize(
+    ("environment", "name", "url"),
+    [
+        ("local", "MCP_SERVER_URL", "http://mcp-server:5011/mcp"),
+        ("local", "RAG_SERVER_URL", "http://rag-server:5012"),
+        ("compose", "MCP_SERVER_URL", "http://rag-server:5012"),
+        ("compose", "RAG_SERVER_URL", "http://mcp-server:5011/mcp"),
+        ("compose", "MCP_SERVER_URL", "http://mcp-server:5012/mcp"),
+        ("compose", "MCP_SERVER_URL", "http://mcp-server:5011/other"),
+        ("compose", "RAG_SERVER_URL", "http://rag-server:5012?token=x"),
+        ("compose", "RAG_SERVER_URL", "http://rag-server.attacker.test:5012"),
+    ],
+)
+def test_compose_service_url_exception_does_not_expand_other_boundaries(
+    environment: str, name: str, url: str
+) -> None:
+    with pytest.raises(ConfigurationError, match="Shared MCP/RAG URLs"):
+        Settings.from_env({"AI_MODE_ENVIRONMENT": environment, name: url})

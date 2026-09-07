@@ -1,0 +1,114 @@
+{
+  "$defs": {
+    "GroundedClaim": {
+      "additionalProperties": false,
+      "description": "A claim with a distinct support boundary for guidance and current tool facts.",
+      "properties": {
+        "citation_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Citation Ids",
+          "type": "array"
+        },
+        "kind": {
+          "enum": [
+            "guidance",
+            "tool_fact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 1500,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "tool_call_ids": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Tool Call Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "kind"
+      ],
+      "title": "GroundedClaim",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Typed R1 completion, validated against actual persisted evidence before success.",
+  "properties": {
+    "confidence": {
+      "enum": [
+        "high",
+        "moderate",
+        "low",
+        "insufficient"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    },
+    "confidence_reason": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Confidence Reason",
+      "type": "string"
+    },
+    "evidence_gaps": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Evidence Gaps",
+      "type": "array"
+    },
+    "findings": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/GroundedClaim"
+      },
+      "maxItems": 10,
+      "title": "Findings",
+      "type": "array"
+    },
+    "next_step": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Next Step",
+      "type": "string"
+    },
+    "safety_boundary": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Safety Boundary",
+      "type": "string"
+    },
+    "summary": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "summary",
+    "confidence",
+    "confidence_reason",
+    "next_step",
+    "safety_boundary"
+  ],
+  "title": "GroundedAnswer",
+  "type": "object"
+}

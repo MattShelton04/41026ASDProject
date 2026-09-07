@@ -2,11 +2,18 @@ name: ps
 
 services:
   shared-frontend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
     profiles: [release-0]
     build:
       context: .
       dockerfile: shared/frontend/Dockerfile
     image: propertyscope/shared-frontend:dev
+    environment:
+      AI_MODE_HOST: host.docker.internal
+      AI_MODE_PORT: ${AI_MODE_PORT:-5005}
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
+      NGINX_ENVSUBST_FILTER: AI_MODE_(HOST|PORT|SERVICE_TOKEN)
     init: true
     restart: unless-stopped
     ports:
@@ -17,58 +24,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-
-  shared-ai-mode:
-    profiles: [release-0]
-    build:
-      context: .
-      dockerfile: ai-services/ai-mode/Dockerfile
-    image: propertyscope/shared-ai-mode:dev
-    init: true
-    restart: unless-stopped
-    environment:
-      AI_MODE_DATABASE_PATH: /var/lib/ai-mode/agent-state.sqlite3
-      AI_MODE_MAX_REQUEST_BYTES: ${AI_MODE_MAX_REQUEST_BYTES:-65536}
-      AI_MODE_MAX_MODEL_RESPONSE_BYTES: ${AI_MODE_MAX_MODEL_RESPONSE_BYTES:-1048576}
-      AI_MODE_MAX_TOOL_REQUEST_BYTES: ${AI_MODE_MAX_TOOL_REQUEST_BYTES:-262144}
-      AI_MODE_MAX_TOOL_RESPONSE_BYTES: ${AI_MODE_MAX_TOOL_RESPONSE_BYTES:-1048576}
-      AI_MODE_QUEUE_CAPACITY: ${AI_MODE_QUEUE_CAPACITY:-100}
-      AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS: ${AI_MODE_QUEUE_RECONCILE_INTERVAL_SECONDS:-1}
-      AI_MODE_ENVIRONMENT: compose
-      AI_MODE_LOG_LEVEL: ${AI_MODE_LOG_LEVEL:-INFO}
-      # Feature 1 consumes the durable, redacted run index for diagnosis history.
-      AI_MODE_OPERATIONS_ENABLED: ${AI_MODE_OPERATIONS_ENABLED:-true}
-      AI_MODE_LLM_PROVIDER: ${AI_MODE_LLM_PROVIDER:-openai}
-      AI_MODE_REQUIRE_PROVIDER_READY: ${AI_MODE_REQUIRE_PROVIDER_READY:-true}
-      AI_MODE_DEFAULT_MODEL_PROFILE: ${AI_MODE_DEFAULT_MODEL_PROFILE:-remote-standard.v1}
-      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
-      GEMINI_API_KEY_FILE: /run/secrets/openai_api_key
-      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
-      OPENAI_HEALTH_TIMEOUT_SECONDS: ${OPENAI_HEALTH_TIMEOUT_SECONDS:-2}
-      OPENAI_HEALTH_CACHE_SECONDS: ${OPENAI_HEALTH_CACHE_SECONDS:-60}
-      OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-120}
-      OPENAI_MAX_RETRIES: ${OPENAI_MAX_RETRIES:-2}
-      OPENAI_PROMPT_CACHE_ENABLED: ${OPENAI_PROMPT_CACHE_ENABLED:-true}
-      OPENAI_ALLOW_INSECURE_HTTP: ${OPENAI_ALLOW_INSECURE_HTTP:-false}
-    ports:
-      - 127.0.0.1:${AI_MODE_PORT:-5005}:5005
-    secrets:
-      - openai_api_key
-    volumes:
-      - shared-ai-mode-state:/var/lib/ai-mode
-    networks:
-      - shared-platform
-    mem_limit: ${AI_MODE_MEMORY_LIMIT:-512m}
-    cpus: ${AI_MODE_CPU_LIMIT:-1.0}
-    pids_limit: 256
-    read_only: true
-    tmpfs:
-      - /tmp:size=64m,mode=1777
-    cap_drop: [ALL]
-    security_opt:
-      - no-new-privileges:true
-    stop_grace_period: 35s
 
   f1-postgres:
     profiles: [feature-base]
@@ -166,6 +121,8 @@ services:
     cpus: ${PROPERTYSCOPE_LOADER_CPU_LIMIT:-2.0}
 
   f1-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
     profiles: [feature-base]
     labels:
       propertyscope.feature-key: student-1-propertyscope-data-platform
@@ -180,7 +137,8 @@ services:
       PROPERTYSCOPE_DATABASE_API_URL: http://f1-db-api:5202
       PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
       PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
-      AI_MODE_BASE_URL: http://shared-ai-mode:5005
+      AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
       PROPERTYSCOPE_PSI_CACHED_YEARS: ${PROPERTYSCOPE_PSI_CACHED_YEARS:-}
       PROPERTYSCOPE_PSI_CACHED_WEEKS: ${PROPERTYSCOPE_PSI_CACHED_WEEKS:-}
@@ -282,6 +240,8 @@ services:
     stop_grace_period: 20s
 
   f2-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
     profiles: [feature-base]
     labels:
       propertyscope.feature-key: student-2-market-intelligence
@@ -296,7 +256,8 @@ services:
       PROPERTYSCOPE_DATABASE_API_URL: http://f2-db-api:5302
       PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
       PROPERTYSCOPE_DATA_PLATFORM_URL: http://f1-backend:5201
-      AI_MODE_BASE_URL: http://shared-ai-mode:5005
+      AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
     depends_on:
       f2-db-api:
         condition: service_healthy
@@ -349,6 +310,8 @@ services:
     stop_grace_period: 20s
 
   f3-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
     profiles: [feature-base]
     labels:
       propertyscope.feature-key: student-3-suburb-analytics
@@ -362,7 +325,8 @@ services:
     environment:
       SUBURB_STORE_URL: http://f3-database:5302
       SUBURB_IMPORT_WORKER: "1"
-      AI_MODE_URL: http://shared-ai-mode:5005
+      AI_MODE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
       PROPERTY_DATA_URL: http://f1-backend:5201
     depends_on:
       f3-database:
@@ -437,6 +401,8 @@ services:
     stop_grace_period: 35s
 
   f4-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
     profiles: [feature-base]
     labels:
       propertyscope.feature-key: student-4-due-diligence
@@ -451,7 +417,8 @@ services:
       PROPERTYSCOPE_DATABASE_API_URL: http://f4-db-api:5402
       PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
       PROPERTYSCOPE_DATA_PLATFORM_URL: http://f1-backend:5201
-      AI_MODE_BASE_URL: http://shared-ai-mode:5005
+      AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
     depends_on:
       f4-db-api:
         condition: service_healthy
@@ -513,6 +480,8 @@ services:
     stop_grace_period: 20s
 
   f5-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
     profiles: [feature-base]
     labels:
       propertyscope.feature-key: student-5-buyer-journey
@@ -530,7 +499,8 @@ services:
       PROPERTYSCOPE_DATA_PLATFORM_URL: http://f1-backend:5201
       PROPERTYSCOPE_MARKET_INTELLIGENCE_URL: http://f2-backend:5301
       PROPERTYSCOPE_DUE_DILIGENCE_URL: http://f4-backend:5401
-      AI_MODE_BASE_URL: http://shared-ai-mode:5005
+      AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
     depends_on:
       f5-db-api:
         condition: service_healthy
@@ -567,14 +537,7 @@ services:
 networks:
   shared-platform:
 
-secrets:
-  openai_api_key:
-    # scripts/dev.py materialises the shell credential into this ignored runtime file.
-    # A file-backed secret works with read-only containers across Compose implementations.
-    file: ${OPENAI_API_KEY_FILE:-.propertyscope-runtime/openai_api_key}
-
 volumes:
-  shared-ai-mode-state:
   f1-artifacts:
   f1-postgres-data:
   f2-sqlite-data:

@@ -1,0 +1,17 @@
+[project]
+name = "rag-server"
+version = "0.1.0"
+description = "Host-local bounded retrieval and public guidance index"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "shared-contracts",
+    "flask>=3.1,<4",
+    "fastembed==0.7.4",
+]
+
+[project.scripts]
+rag-server = "rag_server.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"

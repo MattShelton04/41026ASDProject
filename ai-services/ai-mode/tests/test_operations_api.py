@@ -7,6 +7,7 @@ from flask import Flask
 
 from ai_mode import create_app
 from ai_mode.configuration import ConfigurationError, Settings
+from ai_mode.operations_api import ALLOWED_SHARED_ASSETS
 from ai_mode.services import AppServices
 from shared_contracts import REQUEST_ID_HEADER
 from shared_testkit import assert_problem_detail
@@ -119,3 +120,17 @@ def test_enabled_dashboard_fails_fast_when_assets_are_missing(
         assert "operations assets are unavailable" in str(exc)
     else:
         raise AssertionError("missing operations assets must fail startup")
+
+
+def test_history_serves_grounded_renderer_dependencies_but_not_arbitrary_shared_files(
+    app_services: AppServices,
+) -> None:
+    client = _enabled_app(app_services).test_client()
+    page = client.get("/operations/ai-mode/")
+    assert b"/operations/ai-mode/shared/ai-chat/styles.css" in page.data
+    for filename in ALLOWED_SHARED_ASSETS:
+        response = client.get(f"/operations/ai-mode/shared/{filename}")
+        assert response.status_code == 200, filename
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+    for filename in ("README.md", "ai-chat/grounding.test.mjs", "../README.md", "app.js"):
+        assert client.get(f"/operations/ai-mode/shared/{filename}").status_code == 404
