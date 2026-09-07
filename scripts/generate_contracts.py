@@ -8,8 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
-from shared_contracts.grounding import GroundingRequest, GroundedClaim, GroundedAnswer
-from shared_contracts.retrieval import CorpusDocument, CorpusIngestRequest, CorpusVersion, EvidenceCitation, RetrievalRequest, RetrievalResponse
 
 from shared_contracts import (
     DEFAULT_EVENT_PAGE_SIZE,
@@ -39,6 +37,15 @@ from shared_contracts import (
     ProblemDetail,
     ToolDefinition,
     TypedHealthProjection,
+)
+from shared_contracts.grounding import GroundedAnswer, GroundedClaim, GroundingRequest
+from shared_contracts.retrieval import (
+    CorpusDocument,
+    CorpusIngestRequest,
+    CorpusVersion,
+    EvidenceCitation,
+    RetrievalRequest,
+    RetrievalResponse,
 )
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]

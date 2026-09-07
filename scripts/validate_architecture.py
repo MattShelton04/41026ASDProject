@@ -73,7 +73,9 @@ PRODUCTION_IMPORT_DENYLISTS: Mapping[str, frozenset[str]] = {
     SHARED_TESTKIT: frozenset({"ai_mode"}),
     AGENT_CORE: frozenset({"shared_testkit", "ai_mode"}),
     AI_MODE: frozenset({"shared_testkit"}),
-    "shared-tool-runtime": frozenset({"shared_testkit", "agent_core", "ai_mode", "rag_server", "mcp_server"}),
+    "shared-tool-runtime": frozenset(
+        {"shared_testkit", "agent_core", "ai_mode", "rag_server", "mcp_server"}
+    ),
     "mcp-server": frozenset({"shared_testkit", "agent_core", "ai_mode", "rag_server"}),
     "rag-server": frozenset({"shared_testkit", "agent_core", "ai_mode", "mcp_server"}),
 }

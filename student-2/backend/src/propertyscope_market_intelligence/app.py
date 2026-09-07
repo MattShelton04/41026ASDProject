@@ -28,7 +28,10 @@ def create_app(*, store: Any = None, feature1: Any = None, ai_mode: Any = None) 
             os.environ.get("PROPERTYSCOPE_DATA_PLATFORM_URL", "http://f1-backend:5201")
         )
     if ai_mode is None:
-        ai_mode = AiModeClient(os.environ.get("AI_MODE_BASE_URL", "http://shared-ai-mode:5005"))
+        ai_mode = AiModeClient(
+            os.environ.get("AI_MODE_BASE_URL", "http://shared-ai-mode:5005"),
+            service_token=os.environ.get("AI_MODE_SERVICE_TOKEN", ""),
+        )
     app = Flask("propertyscope-market-intelligence")
     app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024
     register_health(app, store)

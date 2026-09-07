@@ -11,7 +11,8 @@ services:
     image: propertyscope/shared-frontend:dev
     environment:
       AI_MODE_PORT: ${AI_MODE_PORT:-5005}
-      NGINX_ENVSUBST_FILTER: AI_MODE_PORT
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
+      NGINX_ENVSUBST_FILTER: AI_MODE_(PORT|SERVICE_TOKEN)
     init: true
     restart: unless-stopped
     ports:
@@ -136,6 +137,7 @@ services:
       PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
       PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
       AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
       PROPERTYSCOPE_PSI_CACHED_YEARS: ${PROPERTYSCOPE_PSI_CACHED_YEARS:-}
       PROPERTYSCOPE_PSI_CACHED_WEEKS: ${PROPERTYSCOPE_PSI_CACHED_WEEKS:-}
@@ -254,6 +256,7 @@ services:
       PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
       PROPERTYSCOPE_DATA_PLATFORM_URL: http://f1-backend:5201
       AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
     depends_on:
       f2-db-api:
         condition: service_healthy
@@ -322,6 +325,7 @@ services:
       SUBURB_STORE_URL: http://f3-database:5302
       SUBURB_IMPORT_WORKER: "1"
       AI_MODE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
       PROPERTY_DATA_URL: http://f1-backend:5201
     depends_on:
       f3-database:
@@ -413,6 +417,7 @@ services:
       PROPERTYSCOPE_INTERNAL_TOKEN: ${PROPERTYSCOPE_INTERNAL_TOKEN:-propertyscope-local-development-only}
       PROPERTYSCOPE_DATA_PLATFORM_URL: http://f1-backend:5201
       AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
     depends_on:
       f4-db-api:
         condition: service_healthy
@@ -494,6 +499,7 @@ services:
       PROPERTYSCOPE_MARKET_INTELLIGENCE_URL: http://f2-backend:5301
       PROPERTYSCOPE_DUE_DILIGENCE_URL: http://f4-backend:5401
       AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
     depends_on:
       f5-db-api:
         condition: service_healthy

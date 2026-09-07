@@ -15,8 +15,9 @@ class ServiceError(RuntimeError):
 
 
 class HttpClient:
-    def __init__(self, base_url: str, timeout: float = 4.0) -> None:
+    def __init__(self, base_url: str, timeout: float = 4.0, *, service_token: str = "") -> None:
         self.base_url, self.timeout = base_url.rstrip("/"), timeout
+        self._service_token = service_token
 
     def request(
         self, method: str, path: str, payload: dict[str, Any] | None = None
@@ -26,7 +27,13 @@ class HttpClient:
             self.base_url + path,
             data=data,
             method=method,
-            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                **(
+                    {"X-PropertyScope-AI-Token": self._service_token} if self._service_token else {}
+                ),
+            },
         )
         try:
             with urlopen(request, timeout=self.timeout) as response:

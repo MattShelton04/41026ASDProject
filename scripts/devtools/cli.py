@@ -161,6 +161,14 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     _add_offline_option(start)
     _add_env_file_option(start)
     commands.add_parser("status", help="Show managed host process state")
+    validate = commands.add_parser(
+        "validate", help="Capture a local MCP or RAG four-phase validation"
+    )
+    validate.add_argument("mode", choices=("mcp", "rag"))
+    validate.add_argument("--output", type=Path, default=None)
+    validate.add_argument("--query", default=None)
+    validate.add_argument("--corpus", default="operator-guidance")
+    _add_env_file_option(validate)
     for action in ("stop", "logs"):
         command = commands.add_parser(action, help=f"{action.title()} managed host services")
         command.add_argument("services", nargs="*", choices=("ai-mode", "mcp", "rag"))

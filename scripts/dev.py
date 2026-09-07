@@ -61,6 +61,7 @@ ENVIRONMENT_FILE_COMMANDS = frozenset(
         ("stack", "restart"),
         ("stack", "doctor"),
         ("ai", "start"),
+        ("ai", "validate"),
     }
 )
 
@@ -436,6 +437,7 @@ def _sync_psi(*, years: Sequence[int], weeks: Sequence[date]) -> None:
 def _compose_environment(*, offline: bool) -> Mapping[str, str]:
     credential = _openai_credential(offline=offline)
     environment = os.environ.copy()
+    environment["AI_MODE_SERVICE_TOKEN"] = host_runtime.ai_service_token(environment)
     environment.pop("OPENAI_API_KEY", None)
     environment.pop("GEMINI_API_KEY", None)
     secret_path = str(_write_openai_secret(credential))
@@ -840,6 +842,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(host_runtime.logs(tuple(arguments.services) or host_runtime.SERVICES))
         elif command == ("ai", "serve"):
             host_runtime.serve(arguments.service)
+        elif command == ("ai", "validate"):
+            from scripts.release1_validation import QUERY, validate
+
+            evidence = validate(
+                arguments.mode,
+                os.environ,
+                output=arguments.output,
+                query=arguments.query or QUERY,
+                corpus=arguments.corpus,
+            )
+            print(json.dumps(evidence, indent=2))
+            return 0 if evidence["passed"] else 1
         elif command == ("ui", "serve"):
             _run(
                 (

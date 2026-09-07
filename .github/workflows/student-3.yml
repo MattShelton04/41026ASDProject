@@ -81,7 +81,7 @@ jobs:
       - name: Reproduce locked workspace
         run: uv sync --locked --all-packages --all-groups
       - name: Validate R1 contracts and disabled runtime with deterministic doubles
-        run: uv run --locked pytest scripts/tests/test_host_runtime.py shared/contracts/tests/test_retrieval.py shared/tool-runtime/tests ai-services/rag-server/tests/test_embeddings.py --no-cov -q
+        run: uv run --locked pytest scripts/tests/test_host_runtime.py scripts/tests/test_release1_validation.py shared/contracts/tests/test_retrieval.py shared/tool-runtime/tests ai-services/rag-server/tests/test_embeddings.py --no-cov -q
       - name: Check Feature 3 formatting and lint
         run: |
           uv run --locked ruff format --check student-3

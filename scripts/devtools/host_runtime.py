@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import socket
 import sqlite3
@@ -19,6 +20,7 @@ from tempfile import TemporaryDirectory
 import httpx
 import psutil
 import yaml
+from flask import Flask, Response
 
 from scripts.devtools.config import DEFAULT_PROJECT_NAME, REPOSITORY_ROOT, RUNTIME_DIRECTORY
 
@@ -222,6 +224,41 @@ def _catalogues(environment: Mapping[str, str]) -> tuple[str, ...]:
     return tuple(paths)
 
 
+def ai_service_token(environment: Mapping[str, str]) -> str:
+    """Return the dedicated host entry credential shared only with backend proxies."""
+    value = environment.get("AI_MODE_SERVICE_TOKEN", "")
+    if not value:
+        HOST_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        path = HOST_DIRECTORY / "ai-mode.token"
+        if not path.exists():
+            with path.open("x", encoding="utf-8") as stream:
+                stream.write(secrets.token_urlsafe(32))
+            os.chmod(path, 0o600)
+        value = path.read_text(encoding="utf-8").strip()
+    if re.fullmatch(r"[A-Za-z0-9_-]{32,128}", value) is None:
+        raise RuntimeError("AI_MODE_SERVICE_TOKEN must contain 32-128 URL-safe characters")
+    return value
+
+
+def protect_host_entry(application: Flask, token: str) -> None:
+    """Protect every host API and history route; leave only process liveness public."""
+    from flask import jsonify, request
+
+    if not token:
+        raise RuntimeError("Managed host AI-mode requires its service token")
+
+    @application.before_request
+    def authenticate_host_request() -> tuple[Response, int] | None:
+        if request.path == "/health/live":
+            return None
+        supplied = request.headers.get("X-PropertyScope-AI-Token", "")
+        if not secrets.compare_digest(supplied, token):
+            return jsonify(
+                {"code": "unauthorized", "detail": "Host service authentication required"}
+            ), 401
+        return None
+
+
 def prepare_environment(
     environment: Mapping[str, str], *, mode: str = "combined"
 ) -> dict[str, str]:
@@ -231,6 +268,7 @@ def prepare_environment(
     if environment.get("AI_MODE_ENVIRONMENT", "local") not in {"local", "development"}:
         raise RuntimeError("Managed host AI services are available only for the local deployment")
     result = dict(environment)
+    result["AI_MODE_SERVICE_TOKEN"] = ai_service_token(result)
     HOST_DIRECTORY.mkdir(parents=True, exist_ok=True)
     result["AI_MODE_ENVIRONMENT"] = "local"
     result["AI_MODE_DATABASE_PATH"] = str(HOST_DIRECTORY / "ai-mode" / "agent-state.sqlite3")
@@ -253,7 +291,7 @@ def prepare_environment(
     result["MCP_SERVER_URL"] = f"http://127.0.0.1:{port_for('mcp', result)}/mcp"
     result["RAG_SERVER_URL"] = f"http://127.0.0.1:{port_for('rag', result)}"
     result.setdefault("RAG_DATABASE_PATH", str(HOST_DIRECTORY / "rag" / "index.sqlite3"))
-    result.setdefault("RAG_MODEL_CACHE_PATH", str(HOST_DIRECTORY / "models"))
+    result.setdefault("RAG_MODEL_CACHE_PATH", str(HOST_DIRECTORY / "rag" / "models"))
     corpora = "student-1-propertyscope-data-platform:operator-guidance"
     result.setdefault("RAG_ALLOWED_CORPORA", corpora)
     result.setdefault("AI_MODE_RAG_CORPORA", corpora)
@@ -360,6 +398,7 @@ def serve(service: str) -> None:
         from ai_mode import create_app as create_ai_app
 
         application = create_ai_app()
+        protect_host_entry(application, os.environ.get("AI_MODE_SERVICE_TOKEN", ""))
     else:
         from rag_server import create_app as create_rag_app
 

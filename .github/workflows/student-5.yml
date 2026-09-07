@@ -37,6 +37,7 @@ on:
 env:
   AI_MODE_MCP_ENABLED: "false"
   AI_MODE_RAG_ENABLED: "false"
+  AI_MODE_SERVICE_TOKEN: "isolated-student5-ci-host-credential-only"
 
 permissions:
   contents: read
@@ -67,7 +68,7 @@ jobs:
       - name: Install locked workspace
         run: uv sync --locked --all-packages --all-groups
       - name: Validate R1 contracts and disabled runtime with deterministic doubles
-        run: uv run --locked pytest scripts/tests/test_host_runtime.py shared/contracts/tests/test_retrieval.py shared/tool-runtime/tests ai-services/rag-server/tests/test_embeddings.py --no-cov -q
+        run: uv run --locked pytest scripts/tests/test_host_runtime.py scripts/tests/test_release1_validation.py shared/contracts/tests/test_retrieval.py shared/tool-runtime/tests ai-services/rag-server/tests/test_embeddings.py --no-cov -q
       - name: Format and lint Student 5
         run: |
           uv run ruff format --check student-5/backend/src student-5/database/src student-5/tests student-5/scripts

@@ -82,7 +82,7 @@ def test_host_catalogue_remaps_only_enabled_features_and_preserves_tools(isolate
     assert repeated["MCP_SERVICE_TOKEN"] == result["MCP_SERVICE_TOKEN"]
     assert repeated["AI_MODE_MCP_ENABLED"] == repeated["AI_MODE_RAG_ENABLED"] == "false"
     assert "agent-state.sqlite3" in result["AI_MODE_DATABASE_PATH"]
-    assert "RAG_MODEL_CACHE_PATH" in result
+    assert result["RAG_MODEL_CACHE_PATH"] == str(runtime.HOST_DIRECTORY / "rag" / "models")
 
 
 def test_legacy_migration_preserves_data_and_never_overwrites(
@@ -143,6 +143,17 @@ def test_compose_has_no_ai_service_or_provider_secret() -> None:
         assert not any(
             name in model["services"] for name in ("shared-ai-mode", "mcp-server", "rag-server")
         )
+        # Renaming an AI service must not bypass the non-containerised boundary.
+        for name, service in model["services"].items():
+            build = service.get("build", {})
+            build_text = str(build).lower().replace("\\", "/")
+            command_text = str(service.get("command", "")).lower()
+            image_text = str(service.get("image", "")).lower()
+            for component in ("ai-mode", "mcp-server", "rag-server", "agent-core"):
+                assert f"ai-services/{component}" not in build_text, (filename, name)
+                assert component not in image_text, (filename, name)
+            for module in ("ai_mode", "mcp_server", "rag_server", "agent_core"):
+                assert module not in command_text, (filename, name)
     base = yaml.safe_load(
         (runtime.REPOSITORY_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     )
@@ -181,3 +192,84 @@ def test_all_workflows_disable_mcp_and_rag_without_starting_them() -> None:
                 assert "shared/contracts/tests/test_retrieval.py" in workflow_text
                 assert "shared/tool-runtime/tests" in workflow_text
                 assert "ai-services/rag-server/tests/test_embeddings.py" in workflow_text
+
+
+def test_host_entry_requires_credential_for_runs_reviews_and_history() -> None:
+    from flask import Flask
+
+    application = Flask(__name__)
+    for path in (
+        "/api/v1/agent-runs",
+        "/api/v1/agent-runs/run/reviews",
+        "/operations/ai-mode/",
+        "/health/ready",
+        "/health/live",
+    ):
+        application.add_url_rule(
+            path, endpoint=path, view_func=lambda: "permitted", methods=["GET", "POST"]
+        )
+    runtime.protect_host_entry(application, "a" * 43)
+    client = application.test_client()
+    assert client.get("/health/live").status_code == 200
+    for path in (
+        "/api/v1/agent-runs",
+        "/api/v1/agent-runs/run/reviews",
+        "/operations/ai-mode/",
+        "/health/ready",
+    ):
+        assert client.post(path).status_code == 401
+        assert client.post(path, headers={"X-PropertyScope-AI-Token": "invalid"}).status_code == 401
+        assert client.post(path, headers={"X-PropertyScope-AI-Token": "a" * 43}).status_code == 200
+    with pytest.raises(RuntimeError, match="service token"):
+        runtime.protect_host_entry(Flask("unconfigured"), "")
+
+
+def test_host_entry_token_is_persisted_and_safe_for_proxy_config(isolated: Path) -> None:
+    token = runtime.ai_service_token({})
+    assert len(token) >= 32
+    assert runtime.ai_service_token({}) == token
+    assert runtime.prepare_environment({}, mode="direct")["AI_MODE_SERVICE_TOKEN"] == token
+    for invalid in ("short", "a" * 32 + '"; injection', "a" * 129):
+        with pytest.raises(RuntimeError, match="URL-safe"):
+            runtime.ai_service_token({"AI_MODE_SERVICE_TOKEN": invalid})
+
+
+def test_compose_and_edge_keep_host_credential_on_server_side() -> None:
+    compose = yaml.safe_load((runtime.REPOSITORY_ROOT / "docker-compose.yml").read_text())
+    for service in (
+        "shared-frontend",
+        "f1-backend",
+        "f2-backend",
+        "f3-backend",
+        "f4-backend",
+        "f5-backend",
+    ):
+        assert (
+            compose["services"][service]["environment"]["AI_MODE_SERVICE_TOKEN"]
+            == "${AI_MODE_SERVICE_TOKEN:-}"
+        )
+    nginx = (runtime.REPOSITORY_ROOT / "shared/frontend/nginx.conf").read_text()
+    assert nginx.count('proxy_set_header X-PropertyScope-AI-Token "${AI_MODE_SERVICE_TOKEN}";') == 4
+    assert (
+        "AI_MODE_(PORT|SERVICE_TOKEN)"
+        in compose["services"]["shared-frontend"]["environment"]["NGINX_ENVSUBST_FILTER"]
+    )
+
+
+def test_named_validation_loads_its_explicit_environment_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from scripts import dev, release1_validation
+
+    environment_file = tmp_path / "validation.env"
+    environment_file.write_text("RAG_PORT=6502\n", encoding="utf-8")
+    monkeypatch.delenv("RAG_PORT", raising=False)
+    observed: list[str] = []
+
+    def validate(*args: object, **kwargs: object) -> dict[str, object]:
+        observed.append(os.environ["RAG_PORT"])
+        return {"passed": True}
+
+    monkeypatch.setattr(release1_validation, "validate", validate)
+    assert dev.main(["ai", "validate", "rag", "--env-file", str(environment_file)]) == 0
+    assert observed == ["6502"]

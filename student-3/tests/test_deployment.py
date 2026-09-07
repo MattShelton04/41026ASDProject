@@ -25,10 +25,11 @@ def test_suburb_frontend_is_enabled_on_a_unique_host_port() -> None:
     ]
     for name in ("f3-frontend", "f3-backend", "f3-database"):
         assert services[name]["profiles"] == ["release-0"]
-    assert (
-        "./student-3/tool-catalog.yaml:/etc/ai-mode/suburb-analytics-tools.yaml:ro"
-        in (services["shared-ai-mode"]["volumes"])
+    assert "shared-ai-mode" not in services
+    feature = next(
+        item for item in projection["features"] if item["frontend"]["service"] == "f3-frontend"
     )
+    assert feature["ai"]["tool_catalog"] == "student-3/tool-catalog.yaml"
 
 
 def test_suburb_services_use_http_and_exclusively_owned_storage() -> None:
@@ -36,9 +37,10 @@ def test_suburb_services_use_http_and_exclusively_owned_storage() -> None:
     assert base["f3-backend"]["environment"] == {
         "SUBURB_STORE_URL": "http://f3-database:5302",
         "SUBURB_IMPORT_WORKER": "1",
-        "AI_MODE_URL": "http://shared-ai-mode:5005",
+        "AI_MODE_URL": "http://host.docker.internal:${AI_MODE_PORT:-5005}",
         "PROPERTY_DATA_URL": "http://f1-backend:5201",
     }
+    assert "host.docker.internal:host-gateway" in base["f3-backend"]["extra_hosts"]
     owners = [
         name
         for name, service in base.items()

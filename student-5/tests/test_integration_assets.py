@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import yaml
@@ -44,19 +45,22 @@ def test_nginx_exposes_only_public_buyer_routes_and_shared_assets() -> None:
     assert "shared/frontend/design-system" in dockerfile
 
 
-def test_generated_projection_enables_student_five_and_mounts_catalogue() -> None:
+def test_generated_projection_enables_student_five_and_registers_host_catalogue() -> None:
     projection = yaml.safe_load(
         (ROOT / "deployment" / "enabled-features.compose.yml").read_text(encoding="utf-8")
     )
     services = projection["services"]
     for service in ("f5-db-api", "f5-backend", "f5-frontend"):
         assert services[service]["profiles"] == ["release-0"]
-    ai_mode = services["shared-ai-mode"]
-    assert (
-        "./student-5/tool-catalog.yaml:/etc/ai-mode/buyer-workspace-tools.yaml:ro"
-        in ai_mode["volumes"]
+    assert "shared-ai-mode" not in services
+    runtime = json.loads((ROOT / "deployment/enabled-features.v1.json").read_text("utf-8"))
+    feature = next(
+        item for item in runtime["features"] if item["frontend"]["service"] == "f5-frontend"
     )
+    assert feature["ai"]["tool_catalog"] == "student-5/tool-catalog.yaml"
+    base = yaml.safe_load((ROOT / "docker-compose.yml").read_text("utf-8"))["services"]
     assert (
-        "/etc/ai-mode/buyer-workspace-tools.yaml"
-        in ai_mode["environment"]["AI_MODE_TOOL_CATALOG_PATHS"]
+        base["f5-backend"]["environment"]["AI_MODE_BASE_URL"]
+        == "http://host.docker.internal:${AI_MODE_PORT:-5005}"
     )
+    assert "host.docker.internal:host-gateway" in base["f5-backend"]["extra_hosts"]

@@ -88,7 +88,7 @@ jobs:
       - name: Install locked workspace
         run: uv sync --locked --all-packages --all-groups
       - name: Validate R1 contracts and disabled runtime with deterministic doubles
-        run: uv run --locked pytest scripts/tests/test_host_runtime.py shared/contracts/tests/test_retrieval.py shared/tool-runtime/tests ai-services/rag-server/tests/test_embeddings.py --no-cov -q
+        run: uv run --locked pytest scripts/tests/test_host_runtime.py scripts/tests/test_release1_validation.py shared/contracts/tests/test_retrieval.py shared/tool-runtime/tests ai-services/rag-server/tests/test_embeddings.py --no-cov -q
       - name: Install Chromium for required form checks
         run: uv run --locked playwright install --with-deps chromium
       - name: Run required Feature 1 form behavior checks
