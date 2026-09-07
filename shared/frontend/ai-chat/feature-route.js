@@ -62,6 +62,7 @@ export function createFeatureAssistant({
   const controller = createAiChat({
     root,
     client,
+    draftKey: `${resolvedApiRoot}:${featureKey}`,
     initialScope,
     context,
     contextOptions,

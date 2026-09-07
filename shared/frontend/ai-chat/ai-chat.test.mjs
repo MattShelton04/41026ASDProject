@@ -141,7 +141,7 @@ test("component source preserves disclosure/focus state and surfaces polling war
   assert.match(components, /retry automatically/);
   assert.match(source, /turn\.run\.status !== previousStatus/);
   assert.match(source, /turn\.cancelWarning = error;\s+renderTurn\(turn\)/);
-  assert.match(components, /Cancellation could not be requested/);
+  assert.match(components, /Cancellation could not be confirmed/);
   assert.match(components, /turn\.run\?\.error\?\.message/);
   assert.match(components, /ps-ai-chat__typing-dots/);
   assert.match(source, /initialMessage\.trim\(\)\.slice\(0, 2000\)/);
@@ -163,4 +163,45 @@ test("destroying an assistant client aborts its in-flight requests", async () =>
 
   await assert.rejects(pending, { name: "AbortError" });
   assert.equal(observedAbort, true);
+});
+
+// Presentation state is independent from the authoritative run and its permissions.
+import { createDraftStore, draftContextKey, turnPresentationKey } from "./experience.js";
+
+test("drafts are opt-in, context-isolated, bounded, truncated and removable", () => {
+  const drafts = createDraftStore(2);
+  assert.equal(draftContextKey("", "feature", {}), "");
+  drafts.write("", "not retained");
+  assert.equal(drafts.read(""), "");
+  const recordA = draftContextKey("workspace-a", "feature", { route: "record", id: "a" });
+  assert.equal(recordA, draftContextKey("workspace-a", "feature", { id: "a", route: "record", empty: "" }));
+  const recordB = draftContextKey("workspace-a", "feature", { route: "record", id: "b" });
+  const scopeB = draftContextKey("workspace-a", "application", { route: "record", id: "a" });
+  assert.notEqual(recordA, recordB);
+  assert.notEqual(recordA, scopeB);
+  drafts.write(recordA, "First question");
+  drafts.write(recordB, "x".repeat(3000));
+  assert.equal(drafts.read(recordB).length, 2000);
+  drafts.write(scopeB, "Another scope");
+  assert.equal(drafts.read(recordA), "");
+  drafts.write(recordB, "");
+  assert.equal(drafts.read(recordB), "");
+  drafts.clear();
+  assert.equal(drafts.read(scopeB), "");
+});
+
+test("identical visible polls retain their presentation identity; changed evidence does not", () => {
+  const turn = { id: "run-a", scope: "feature", context: {}, message: "Evidence?", run: { status: "planning", updated_at: "one" }, events: [] };
+  const key = turnPresentationKey(turn);
+  assert.equal(key, turnPresentationKey({ ...turn, run: { ...turn.run, updated_at: "two", internal_budget: 4 } }));
+  assert.notEqual(key, turnPresentationKey({ ...turn, cancelPending: true }));
+  assert.notEqual(key, turnPresentationKey({ ...turn, pollWarning: new Error("offline") }));
+  assert.notEqual(key, turnPresentationKey({ ...turn, run: { status: "succeeded", final_result: { summary: "Recorded answer" } } }));
+  assert.notEqual(key, turnPresentationKey({ ...turn, context: { property_ref: "another" } }));
+});
+
+test("an in-flight source check is not misreported as a failed check", () => {
+  const steps = evidenceSteps({ steps: [{ phase: "act", status: "running", input: { tool_call: { tool_name: "feature.search.v1" } }, output: null }] });
+  assert.match(steps[0].summary, /Waiting for the recorded source result/);
+  assert.doesNotMatch(steps[0].summary, /did not complete|failed/);
 });

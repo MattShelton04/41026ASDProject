@@ -1,3 +1,4 @@
+import { propertyActivityUrl } from "../integration/activity.js";
 import { createAiChat, createAssistantClient } from "../ai-chat/index.js";
 import {
   FEATURE_ASSISTANT_SCOPES,
@@ -8,15 +9,11 @@ import {
 } from "../integration/assistant.js";
 
 function activityHref(runId) {
-  const integrated = window.location.pathname.startsWith("/features/data-platform/");
-  const root = window.PROPERTYSCOPE_AGENT_ACTIVITY_URL
-    || (integrated ? "/operations/ai-mode/" : `${window.location.protocol}//${window.location.hostname}:5005/operations/ai-mode/`);
-  const url = new URL(root, window.location.href);
-  url.searchParams.set("feature_key", "student-1-propertyscope-data-platform");
-  url.searchParams.set("feature_label", "Property data");
-  url.searchParams.set("return_to", "/features/data-platform/#assistant");
-  url.searchParams.set("run", runId);
-  return url.href;
+  return propertyActivityUrl(runId, {
+    baseUrl: document.baseURI,
+    activityUrl: window.PROPERTYSCOPE_AGENT_ACTIVITY_URL,
+    returnTo: "/features/data-platform/#assistant",
+  });
 }
 
 export function createFeatureAssistantRoute({ view, announce = () => {} }) {
@@ -26,6 +23,7 @@ export function createFeatureAssistantRoute({ view, announce = () => {} }) {
       active?.destroy();
       active = createAiChat({
         root: view,
+        draftKey: "propertyscope:property-data-assistant",
         client: createAssistantClient({ apiRoot: "/api/data-platform/v1/assistant" }),
         initialScope: "feature",
         scopes: FEATURE_ASSISTANT_SCOPES,

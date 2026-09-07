@@ -5,6 +5,10 @@ const CONTEXTS = Object.freeze({
     key: "student-1-propertyscope-data-platform",
     label: "Property data",
     returnTo: "/features/data-platform/#properties",
+    returnPaths: Object.freeze([
+      "/features/data-platform/#properties", "/features/data-platform/#assistant",
+      "/features/data-platform/#ai", "/#assistant",
+    ]),
     aliases: Object.freeze(["feature-1"]),
   }),
 });
@@ -23,6 +27,23 @@ export function resolveResearchAreaContext(params) {
   const returnTo = params.get("return_to") || "";
   if (key.length > 100 || label.length > 80 || !safeLocalPath(returnTo)) return null;
   const context = CONTEXTS[key];
-  if (!context || label !== context.label || returnTo !== context.returnTo) return null;
-  return context;
+  if (!context || label !== context.label || !context.returnPaths.includes(returnTo)) return null;
+  return Object.freeze({ ...context, returnTo });
+}
+
+/** Friendly labels do not grant a scope or authorise a return URL. */
+const AREA_LABELS = Object.freeze({
+  "student-1-propertyscope-data-platform": "Property data",
+  "feature-1": "Property data",
+  "student-2-market-intelligence": "Market intelligence",
+  "feature-2": "Market intelligence",
+  "student-3-suburb-analytics": "Suburb context",
+  "feature-3": "Suburb context",
+  "student-4-due-diligence": "Site due diligence",
+  "feature-4": "Site due diligence",
+  "student-5-buyer-journey": "Buyer workspaces",
+  "feature-5": "Buyer workspaces"
+});
+export function activityAreaLabel(value) {
+  return AREA_LABELS[value] || String(value || "Unknown area").replaceAll("_", " ").replaceAll("-", " ");
 }

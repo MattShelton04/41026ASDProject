@@ -1094,3 +1094,31 @@ test("producer publication remains independent of downstream delivery", () => {
     assert.equal(reconcilePublication({ ...body, activations: [{ status: "failed" }] }), "failed");
   }
 });
+
+test("activity handoff uses the mounted document base and preserves explicit scope", async () => {
+  const { propertyActivityUrl } = await import("../../frontend/integration/activity.js");
+  const integrated = new URL(propertyActivityUrl("run-one", {baseUrl: "https://example.test/features/data-platform/#assistant"}));
+  assert.equal(integrated.origin, "https://example.test");
+  assert.equal(integrated.pathname, "/operations/ai-mode/");
+  assert.equal(integrated.searchParams.get("run"), "run-one");
+  assert.equal(integrated.searchParams.get("feature_key"), "student-1-propertyscope-data-platform");
+  const standalone = new URL(propertyActivityUrl("", {baseUrl: "http://localhost:5010/"}));
+  assert.equal(standalone.port, "5005");
+  const overridden = new URL(propertyActivityUrl("run", {baseUrl: "https://example.test/", activityUrl: "https://audit.test/operations/ai-mode/"}));
+  assert.equal(overridden.origin, "https://audit.test");
+  assert.throws(() => propertyActivityUrl("run", {baseUrl: "https://example.test/", activityUrl: "javascript:alert(1)"}), /HTTP/);
+});
+
+
+test("optional history denial cannot stop property search or return-context rendering", async () => {
+  const { readHistoryState, replaceHistoryState } = await import("../../frontend/core/router.js");
+  const denied = { get history() { throw new Error("History unavailable"); } };
+  assert.deepEqual(readHistoryState(denied), {});
+  assert.equal(replaceHistoryState({}, "#properties", denied), false);
+  assert.equal(replaceHistoryState({}, "#properties", {}), false);
+  const calls = [];
+  const browser = { history: { state: { query: "2000" }, replaceState: (...args) => calls.push(args) } };
+  assert.deepEqual(readHistoryState(browser), { query: "2000" });
+  assert.equal(replaceHistoryState({ query: "2010" }, "#properties?q=2010", browser), true);
+  assert.deepEqual(calls, [[{ query: "2010" }, "", "#properties?q=2010"]]);
+});

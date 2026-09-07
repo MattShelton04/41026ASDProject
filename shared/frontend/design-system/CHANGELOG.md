@@ -1,5 +1,12 @@
 # Design-system changelog
 
+## 2026-09-07 — Fieldbook
+
+Evergreen/mineral evidence palette, outlined parcel identity, shared navigation, research/operator density,
+44px comfortable controls, 100/160/240ms motion, reduced-motion-safe skeletons and consistent evidence grammar.
+Public token names and independent frontend ownership remain compatible. See the overhaul deliverables
+for the route inventory, assistant interaction contract, browser findings and explicit validation limits.
+
 All notable changes to the shared PropertyScope frontend design system are recorded here.
 
 ## 0.5.0 — 2026-08-26

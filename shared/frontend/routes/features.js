@@ -16,7 +16,6 @@ function featureCard(feature) {
   const actions = el("div", "feature-directory-card__actions");
   append(actions, badge(state.label, state.tone));
   if (feature.href) append(actions, link(`Open ${feature.label}`, feature.href, "ps-button ps-button--primary"));
-  else if (feature.id === "suburb-context") append(actions, link("Open Suburb context", "http://localhost:5300/#suburbs", "ps-button ps-button--primary"));
   else append(actions, el("span", "feature-directory-card__unavailable", "Coming later"));
   append(body, actions);
   append(card, body);
@@ -25,13 +24,13 @@ function featureCard(feature) {
 
 export function createFeaturesRoute({ config }) {
   return function renderFeatures(root) {
-    append(root, pageHeader("Research workspace", "PropertyScope research areas", "Start with a verified property record, then add market, suburb, site and planning context as those research tools become available.", [link("Check what’s available", "#release-roadmap", "ps-button")]));
+    append(root, pageHeader("Research workspace", "PropertyScope research areas", "Start with a property record, then explore the enabled research areas. Each area keeps its own evidence, saved work and coverage limits visible.", [link("Check what’s available", "#release-roadmap", "ps-button")]));
     const grid = el("div", "ps-grid ps-grid-2 feature-directory-grid");
     append(grid, ...featureRegistry(config).map(featureCard));
     append(root, grid);
 
     const boundary = el("aside", "product-disclaimer feature-directory-boundary");
-    append(boundary, el("strong", "", "Property data is available now."), document.createTextNode(" Other research areas are clearly marked as planned and cannot be opened until they are ready."));
+    append(boundary, el("strong", "", "One product, explicit evidence boundaries."), document.createTextNode(" Enabled areas can be opened above. Availability of a workspace does not guarantee coverage for a particular property or suburb."));
     append(root, boundary);
   };
 }

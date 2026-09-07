@@ -3,9 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#102f36">
+    <meta name="theme-color" content="#285442">
     <meta name="description" content="PropertyScope NSW — research a property and understand the evidence behind it">
     <meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false}'>
+    <link rel="icon" type="image/svg+xml" href="./design-system/brand/favicon.svg">
     <title>PropertyScope NSW</title>
     <link rel="stylesheet" href="styles.css?v=6">
     <link rel="stylesheet" href="ai-chat/styles.css?v=3">
@@ -19,16 +20,14 @@
     <header class="topbar">
       <div class="topbar__inner">
         <a class="brand" href="#home" aria-label="PropertyScope NSW home" data-shell-route="home">
-          <span class="brand__mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-8 4 8 4 8-4-8-4Z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg>
-          </span>
-          <span class="brand__copy"><strong>PropertyScope NSW</strong><span>Property research workspace</span></span>
+          <img class="brand__mark" src="./design-system/brand/propertyscope-mark.svg" alt="" width="36" height="36">
+          <span class="brand__copy"><strong>PropertyScope NSW</strong><span>Evidence-led property research</span></span>
         </a>
         <form class="topbar__search" id="header-search-form" role="search">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-          <span class="topbar__search-area" aria-hidden="true">Property data</span>
+
           <label class="ps-sr-only" for="header-search">Search Property data</label>
-          <input id="header-search" type="search" placeholder="Search an address or PropertyScope reference" autocomplete="street-address">
+          <input id="header-search" type="search" placeholder="Search a NSW address" autocomplete="street-address">
         </form>
         <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">
           <span class="ps-sr-only">Toggle navigation</span>
@@ -41,16 +40,16 @@
           <a href="#evidence" data-shell-route="evidence">Sources &amp; history</a>
           <a href="#assistant" data-shell-route="assistant">Ask AI</a>
           <a class="area-launcher" data-config-link="propertyDiscovery" href="/features/data-platform/#properties" aria-label="Open the Property data research area">
-            <span class="area-launcher__icon" aria-hidden="true">⌁</span>
-            <span><small>Open research area</small><strong>Property data</strong></span>
+            <span><strong>Property data</strong></span>
             <b aria-hidden="true">→</b>
           </a>
         </nav>
+        <button class="ps-nav-scrim" id="navigation-scrim" type="button" tabindex="-1" aria-label="Close navigation" hidden></button>
       </div>
-      <div class="environment-strip" aria-label="Workspace status">
-        <span><i aria-hidden="true"></i> Property records available</span>
-        <span>NSW coverage</span>
-        <span>Sources and uncertainty shown</span>
+      <div class="environment-strip" aria-label="Research principles">
+        <span>Independent NSW property research</span>
+        <span>Sources before assumptions</span>
+        <span>Coverage and uncertainty in view</span>
       </div>
     </header>
 
@@ -58,25 +57,25 @@
       <div class="product-layout">
         <aside class="product-rail" aria-label="PropertyScope areas">
           <nav>
-            <p>Workspace</p>
-            <a class="is-current" href="#home"><span aria-hidden="true">⌂</span>Home</a>
-            <a href="#features"><span aria-hidden="true">◇</span>Research areas</a>
+            <p>Your workspace</p>
+            <a class="is-current" href="#home">Home</a>
+            <a href="#features">Research areas</a>
             <p>About the data</p>
-            <a href="#evidence"><span aria-hidden="true">≡</span>Sources &amp; history</a>
-            <a href="#system-status"><span aria-hidden="true">◫</span>Data status</a>
-            <a href="#assistant"><span aria-hidden="true">✦</span>Ask PropertyScope</a>
+            <a href="#evidence">Sources &amp; history</a>
+            <a href="#system-status">Data status</a>
+            <a href="#assistant">Ask PropertyScope</a>
             <p>Research areas</p>
-            <a class="rail-area-link" data-config-link="propertyDiscovery" href="/features/data-platform/#properties">
-              <span class="rail-area-link__icon" aria-hidden="true">⌁</span>
-              <span class="rail-area-link__copy"><strong>Property data</strong><small>Search and data management</small></span>
-              <em aria-hidden="true">→</em>
-            </a>
+            <div data-research-navigation>
+              <a class="rail-area-link" data-config-link="propertyDiscovery" href="/features/data-platform/#properties">Property data</a>
+            </div>
+            <p>Data operations</p>
+            <a data-config-link="dataOperations" href="/features/data-platform/#overview">Data overview</a>
             <p>Shared activity</p>
-            <a data-config-link="agentRuns" href="/operations/ai-mode/"><span aria-hidden="true">↗</span>Activity history</a>
+            <a data-config-link="agentRuns" href="/operations/ai-mode/">Activity history</a>
           </nav>
           <div class="rail-foot">
             <strong>Research workspace</strong>
-            <span>Property data available</span>
+            <span>Evidence, context, decisions</span>
           </div>
         </aside>
 
@@ -85,12 +84,12 @@
             <div class="home-hero__copy">
               <p class="ps-eyebrow">NSW property research</p>
               <h1>Research a property.<br>See what is known.</h1>
-              <p>Find a stable property record, then inspect the source evidence, coverage and uncertainty attached to it. PropertyScope keeps what is known separate from what still needs checking.</p>
+              <p>Start with an address. Bring together recorded sales, suburb context and site evidence—without losing sight of what still needs checking.</p>
               <p class="feature-transition-note"><span aria-hidden="true">⌁</span> Address search continues in the <strong>Property data</strong> research area.</p>
               <form class="hero-search" id="property-search-form" role="search">
                 <label class="ps-sr-only" for="property-search">Search a NSW address or PropertyScope reference</label>
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-                <input id="property-search" type="search" placeholder="Try 11 Example Street, Sydney NSW 2000" autocomplete="street-address">
+                <input id="property-search" type="search" placeholder="Enter a NSW address or property reference" autocomplete="street-address">
                 <button class="ps-button ps-button--primary" type="submit">Search in Property data</button>
               </form>
               <div class="hero-actions">
@@ -103,7 +102,7 @@
             </div>
             <aside class="journey-card" aria-labelledby="journey-heading">
               <p class="ps-eyebrow">Start a property review</p>
-              <h2 id="journey-heading">One address. A traceable record.</h2>
+              <h2 id="journey-heading">A record, not a guess.</h2>
               <ol>
                 <li><span>1</span><div><strong>Find the property</strong><p>Resolve an address to a stable PropertyScope reference.</p></div></li>
                 <li><span>2</span><div><strong>Review identity evidence</strong><p>See identifiers, aliases, coordinates and match confidence.</p></div></li>
@@ -156,7 +155,7 @@
             </div>
             <p class="research-area-loading htmx-indicator" id="research-areas-loading" role="status">Loading the current research areas…</p>
             <p class="ps-sr-only" id="research-areas-status" role="status" aria-live="polite"></p>
-            <noscript><p class="dashboard-notice dashboard-notice--warning">The live directory refresh needs JavaScript. Property data remains available from the link above; the other four research areas are planned.</p></noscript>
+            <noscript><p class="dashboard-notice dashboard-notice--warning">The live directory refresh needs JavaScript. Property data remains available from the link above. Use Research areas to inspect the enabled directory.</p></noscript>
           </section>
 
           <section class="home-section operations-strip" id="operations" aria-labelledby="operations-heading">

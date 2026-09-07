@@ -60,7 +60,7 @@ test("shared navigation distinguishes global destinations from research-area tra
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   assert.match(html, /src="app\.js\?v=18"/);
   assert.match(html, /class="area-launcher"/);
-  assert.match(html, /Open research area/);
+  assert.match(html, /aria-label="Open the Property data research area"/);
   assert.match(html, /class="rail-area-link"/);
   assert.match(html, /Address search continues in the <strong>Property data<\/strong> research area/);
   assert.doesNotMatch(html, /<a data-config-link="propertyDiscovery"[^>]*>Property search<\/a>/);

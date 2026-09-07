@@ -1,3 +1,5 @@
+import { createDrawerController } from "./interactions.js";
+
 /** Product navigation is shared; each feature retains its own work area and routes. */
 export function resolveProductHome(location, configured = "") {
   const current = new URL(location.href);
@@ -26,6 +28,35 @@ export function initialiseFeatureShell({ root = document, location = globalThis.
   }
   const header = root.querySelector(".ps-feature-header");
   const strip = root.querySelector(".workspace-strip");
+  const nav = root.querySelector(".ps-product-nav");
+  // Progressive enhancement: without JS, the ordinary product links still wrap visibly.
+  let navigation = null;
+  let toggle = null;
+  let scrim = null;
+  if (header && nav && root.createElement && globalThis.matchMedia) {
+    nav.id ||= "ps-product-navigation";
+    toggle = root.createElement("button");
+    toggle.type = "button";
+    toggle.className = "ps-product-menu-toggle";
+    toggle.textContent = "Navigate";
+    toggle.setAttribute("aria-controls", nav.id);
+    toggle.setAttribute("aria-expanded", "false");
+    header.insertBefore(toggle, nav);
+    scrim = root.createElement("button");
+    scrim.type = "button";
+    scrim.className = "ps-product-menu-scrim";
+    scrim.tabIndex = -1;
+    scrim.hidden = true;
+    scrim.setAttribute("aria-label", "Close product navigation");
+    header.append(scrim);
+    header.dataset.navigationEnhanced = "true";
+    navigation = createDrawerController({
+      drawer: nav, toggle, scrim,
+      mediaQuery: globalThis.matchMedia("(max-width: 1100px)"),
+      openClass: "ps-product-nav--open", lockClass: "ps-product-menu-open",
+      openLabel: "Open product navigation", closeLabel: "Close product navigation",
+    });
+  }
   const layout = root.documentElement;
   const measure = () => {
     if (header && layout) layout.style.setProperty("--ps-feature-header-height", `${header.getBoundingClientRect().height}px`);
@@ -35,7 +66,13 @@ export function initialiseFeatureShell({ root = document, location = globalThis.
   const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
   if (header) observer?.observe(header);
   if (strip) observer?.observe(strip);
-  return () => observer?.disconnect();
+  return () => {
+    observer?.disconnect();
+    navigation?.destroy();
+    toggle?.remove();
+    scrim?.remove();
+    if (header) delete header.dataset.navigationEnhanced;
+  };
 }
 
 /** Isolated entry point for feature HTML; the public barrel stays side-effect free. */

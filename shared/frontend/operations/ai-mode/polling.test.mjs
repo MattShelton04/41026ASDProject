@@ -122,3 +122,34 @@ test("quick-filter status sets round-trip without inventing statuses", () => {
   assert.equal(filterForStatuses(active), "active");
   assert.deepEqual(statusesForFilter("unknown"), []);
 });
+
+test("optional cursor storage tolerates denied access and corrupt values", async () => {
+  const { createCursorStore } = await import("./polling.js");
+  const denied = createCursorStore(() => { throw new Error("SecurityError"); });
+  assert.equal(denied.read("run"), 0);
+  assert.doesNotThrow(() => denied.write("run", 42));
+  const values = new Map();
+  const available = createCursorStore(() => ({getItem: (key) => values.get(key), setItem: (key, value) => values.set(key, value)}));
+  available.write("run", 42);
+  assert.equal(available.read("run"), 42);
+  available.write("run", -8);
+  assert.equal(available.read("run"), 0);
+});
+
+
+test("activity handoff preserves only approved assistant return destinations", async () => {
+  const { resolveResearchAreaContext, activityAreaLabel } = await import("./contexts.js");
+  const params = new URLSearchParams({
+    feature_key: "student-1-propertyscope-data-platform", feature_label: "Property data",
+    return_to: "/features/data-platform/#assistant",
+  });
+  assert.equal(resolveResearchAreaContext(params).returnTo, "/features/data-platform/#assistant");
+  params.set("return_to", "/#assistant");
+  assert.equal(resolveResearchAreaContext(params).returnTo, "/#assistant");
+  for (const unsafe of ["//external.invalid/", "/unapproved", "https://external.invalid/"]) {
+    params.set("return_to", unsafe);
+    assert.equal(resolveResearchAreaContext(params), null);
+  }
+  assert.equal(activityAreaLabel("feature-1"), "Property data");
+  assert.equal(activityAreaLabel("unregistered-key"), "unregistered key");
+});

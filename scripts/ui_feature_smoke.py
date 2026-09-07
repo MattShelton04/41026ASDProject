@@ -173,8 +173,18 @@ def run(
                                 )
                                 page.wait_for_timeout(150)
                                 nav = page.locator(".ps-product-nav a")
-                                assert nav.count() == 4, "Expected four shared product links"
-                                assert all(nav.nth(i).is_visible() for i in range(4))
+                                assert nav.count() == 5, "Expected five shared product links"
+                                toggle = page.locator(".ps-product-menu-toggle")
+                                if toggle.is_visible():
+                                    assert not nav.first.is_visible()
+                                    toggle.click()
+                                    assert toggle.get_attribute("aria-expanded") == "true"
+                                    assert all(nav.nth(i).is_visible() for i in range(5))
+                                    page.keyboard.press("Escape")
+                                    assert toggle.get_attribute("aria-expanded") == "false"
+                                    assert toggle.evaluate("el => el === document.activeElement")
+                                else:
+                                    assert all(nav.nth(i).is_visible() for i in range(5))
                                 for href in nav.evaluate_all("links => links.map(a => a.href)"):
                                     assert href.startswith(f"{base}/#"), href
                                 overflow = page.evaluate(
@@ -200,6 +210,7 @@ def run(
                             print(row.get("status"), row.get("error", ""), flush=True)
                             row["page_errors"] = errors
                             cases.append(row)
+                            context.unroute_all(behavior="ignoreErrors")
                             context.close()
             finally:
                 browser.close()

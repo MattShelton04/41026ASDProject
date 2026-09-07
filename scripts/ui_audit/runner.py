@@ -65,8 +65,7 @@ def source_digest() -> tuple[str, str]:
         cwd=REPOSITORY_ROOT,
         check=True,
         capture_output=True,
-        text=True,
-    ).stdout.encode()
+    ).stdout
     untracked = subprocess.run(
         ("git", "ls-files", "--others", "--exclude-standard", "-z"),
         cwd=REPOSITORY_ROOT,

@@ -129,7 +129,7 @@ class AssistantTurnRequest(BaseModel):
 def capability_guide() -> dict[str, object]:
     """Return the small, versioned source of truth used by UI and model tooling."""
     return {
-        "revision": "2026-08-31.v3",
+        "revision": "2026-09-07.v4",
         "application": {
             "name": "PropertyScope NSW",
             "summary": (
@@ -158,7 +158,9 @@ def capability_guide() -> dict[str, object]:
                 "It is research support, not professional advice.",
                 "It does not have arbitrary repository, filesystem, database or shell access.",
                 "Protected data actions remain separate human-reviewed operations.",
-                "Only Property data is implemented; other research areas are visibly planned.",
+                "This assistant can inspect only Property data. Other research areas have "
+                "separate workspaces and adapters; consult Research areas for deployment "
+                "availability.",
             ],
             "context_options": [
                 {
@@ -187,6 +189,10 @@ def capability_guide() -> dict[str, object]:
                 },
             ],
         },
+        "feature_status_meaning": (
+            "Status describes access through this assistant, not whether a research workspace "
+            "is implemented or enabled. The shared Research areas page reports availability."
+        ),
         "features": [
             {
                 "feature_key": ASSISTANT_FEATURE_KEY,
@@ -205,10 +211,26 @@ def capability_guide() -> dict[str, object]:
                     "Explain coverage and quality evidence",
                 ],
             },
-            {"feature_key": "feature-2", "label": "Market intelligence", "status": "planned"},
-            {"feature_key": "feature-3", "label": "Suburb context", "status": "planned"},
-            {"feature_key": "feature-4", "label": "Due diligence", "status": "planned"},
-            {"feature_key": "feature-5", "label": "Buyer workspace", "status": "planned"},
+            {
+                "feature_key": "feature-2",
+                "label": "Market intelligence",
+                "status": "not_connected_to_this_assistant",
+            },
+            {
+                "feature_key": "feature-3",
+                "label": "Suburb context",
+                "status": "not_connected_to_this_assistant",
+            },
+            {
+                "feature_key": "feature-4",
+                "label": "Due diligence",
+                "status": "not_connected_to_this_assistant",
+            },
+            {
+                "feature_key": "feature-5",
+                "label": "Buyer workspace",
+                "status": "not_connected_to_this_assistant",
+            },
         ],
         "suggested_questions": [
             "What can PropertyScope help me research?",

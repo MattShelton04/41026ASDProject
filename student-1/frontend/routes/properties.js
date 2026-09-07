@@ -4,7 +4,7 @@ import { confidenceLabel, coverageRows, displayName, formatDate, formatNumber, h
 import { propertySearchQuery } from "../core/forms.js";
 import { createLatestRequestGuard } from "../core/polling.js";
 import { disposeTableRegions } from "../browser/index.js";
-import { parseRoute, routeQuery } from "../core/router.js";
+import { parseRoute, routeQuery, readHistoryState as historyState, replaceHistoryState } from "../core/router.js";
 import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
@@ -217,7 +217,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     const searchOrigin = matchingSearchOrigin(historyState().propertyDiscoveryOrigin || pendingSearchOrigin, { query, propertyRef });
     pendingSearchOrigin = null;
     if (searchOrigin) {
-      history.replaceState({ ...historyState(), propertyDiscoveryOrigin: searchOrigin }, "", location.href);
+      replaceHistoryState({ ...historyState(), propertyDiscoveryOrigin: searchOrigin }, location.href);
     }
     view.replaceChildren(el("section", "loading-state", "Loading property details…"));
     const encodedRef = encodeURIComponent(propertyRef);
@@ -399,17 +399,17 @@ function updateSearchHistory(query, { preserveReturn }) {
   if (!preserveReturn || next.propertyDiscoveryReturn?.query !== query) {
     delete next.propertyDiscoveryReturn;
   }
-  history.replaceState(next, "", `#properties${queryString({ q: query })}`);
+  replaceHistoryState(next, `#properties${queryString({ q: query })}`);
 }
 
 function rememberSearchReturn(event, { query, propertyRef }) {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
   if (routeQuery(location.hash).get("q") !== query) return null;
   const context = { query, propertyRef, scrollY: window.scrollY };
-  history.replaceState({
+  replaceHistoryState({
     ...historyState(),
     propertyDiscoveryReturn: context,
-  }, "", location.href);
+  }, location.href);
   return context;
 }
 
@@ -426,10 +426,6 @@ function propertyBackLink(query, propertyRef) {
     history.back();
   });
   return back;
-}
-
-function historyState() {
-  return history.state && typeof history.state === "object" ? history.state : {};
 }
 
 function isCurrentRoute(routeEpoch, propertyRef) {
@@ -639,7 +635,7 @@ function propertyMap({ property, latitude, longitude, announce, routeEpoch }) {
       if (error?.name === "AbortError" || !routeEpoch.isCurrent()) return;
       status.dataset.state = "error";
       status.textContent = "The interactive map could not start; coordinates remain available below.";
-      console.error("property map failed", error);
+      console.warn("Interactive map unavailable; coordinate fallback is active.", error);
     }
   });
   return host;

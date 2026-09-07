@@ -5,9 +5,9 @@ import { createAssistantRoute } from "./routes/assistant.js";
 import { createFeaturesRoute } from "./routes/features.js";
 import { createRoadmapRoute } from "./routes/roadmap.js";
 import { createStatusRoute } from "./routes/status.js";
-import { findFeature } from "./features.js";
+import { featureRegistry, findFeature } from "./features.js";
 import { loadFeature1Bridge } from "./feature-1-bridge.js";
-import { createToastController, disposeTableRegions } from "./browser/index.js";
+import { createDrawerController, createToastController, disposeTableRegions } from "./browser/index.js";
 
 const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const config = { ...externalConfig };
@@ -15,12 +15,29 @@ const feature1Enabled = Boolean(findFeature("student-1-propertyscope-data-platfo
 let feature1Adapter = null;
 const evidenceAdapters = new Map();
 const main = document.querySelector("#main-content");
+// Project the current enabled registry; never infer capability from old design documents.
+const researchNavigation = main.querySelector("[data-research-navigation]");
+if (researchNavigation) {
+  researchNavigation.replaceChildren(...featureRegistry(config).filter((feature) => feature.href).map((feature, index) => {
+    const item = link(feature.label, feature.href, "rail-area-link");
+    const number = el("span", "rail-area-link__number", String(index + 1).padStart(2, "0"));
+    number.setAttribute("aria-hidden", "true");
+    item.prepend(number);
+    return item;
+  }));
+}
 const homeMarkup = main.innerHTML;
 const homeRail = main.querySelector(".product-rail")?.cloneNode(true);
 const toast = document.querySelector("#toast");
 const announcement = document.querySelector("#route-announcement");
 const navToggle = document.querySelector("#nav-toggle");
 const primaryNav = document.querySelector("#primary-navigation");
+const navigationController = createDrawerController({
+  drawer: primaryNav, toggle: navToggle,
+  mediaQuery: window.matchMedia("(max-width: 960px)"),
+  openClass: "topbar__nav--open", lockClass: "ps-product-menu-open",
+  scrim: document.querySelector("#navigation-scrim"),
+});
 const toastController = createToastController(toast, { duration: 3600 });
 let renderGeneration = 0;
 let activeRouteController = null;
@@ -104,7 +121,7 @@ function openPrimarySearch(query = "") {
     return;
   }
   const target = feature1Adapter?.primarySearchHref(query, window.location.href)
-    || new URL(findFeature("property-records").href, window.location.href).href;
+    || new URL(findFeature("property-records").href, document.baseURI).href;
   window.location.assign(target);
 }
 
@@ -124,9 +141,7 @@ function bindHomeInteractions() {
 }
 
 function closeNavigation({ restoreFocus = false } = {}) {
-  navToggle?.setAttribute("aria-expanded", "false");
-  primaryNav?.classList.remove("topbar__nav--open");
-  if (restoreFocus) navToggle?.focus();
+  navigationController.close({ restoreFocus });
 }
 
 function updateNavigation(route) {
@@ -164,11 +179,13 @@ async function renderRoute() {
   activeRouteController = null;
   disposeTableRegions(main);
   const route = parseShellRoute(location.hash);
+  main.dataset.route = route;
   updateNavigation(route);
   if (route === "home") {
     const restoredHome = !main.querySelector("#top");
     if (restoredHome) main.innerHTML = homeMarkup;
     bindHomeInteractions();
+    if (restoredHome) { main.tabIndex = -1; main.focus({ preventScroll: true }); announce("Home loaded."); }
     if (restoredHome) window.htmx?.process(main);
     document.title = "PropertyScope NSW";
     const anchor = location.hash.replace(/^#/, "");
@@ -179,7 +196,7 @@ async function renderRoute() {
   }
 
   const dashboardShell = el("div", "product-layout product-layout--dashboard");
-  const dashboard = el("div", "ps-container dashboard");
+  const dashboard = el("div", "ps-container dashboard ps-enter");
   const rail = homeRail?.cloneNode(true);
   if (rail) {
     rail.querySelectorAll("a").forEach((item) => item.classList.toggle("is-current", item.getAttribute("href") === `#${route}`));
@@ -211,20 +228,9 @@ async function renderRoute() {
   }
 }
 
-navToggle?.addEventListener("click", () => {
-  const open = navToggle.getAttribute("aria-expanded") !== "true";
-  navToggle.setAttribute("aria-expanded", String(open));
-  primaryNav?.classList.toggle("topbar__nav--open", open);
-});
-primaryNav?.addEventListener("click", (event) => {
-  if (event.target.closest("a")) closeNavigation();
-});
 document.querySelector("#header-search-form")?.addEventListener("submit", (event) => {
   event.preventDefault();
   openPrimarySearch(String(document.querySelector("#header-search")?.value || "").trim());
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && navToggle?.getAttribute("aria-expanded") === "true") closeNavigation({ restoreFocus: true });
 });
 window.addEventListener("hashchange", renderRoute);
 applyConfigLinks();
@@ -275,3 +281,5 @@ for (const feature of ENABLED_FEATURES.filter((item) => item.evidenceAdapterPath
     .then((adapter) => installEvidenceAdapter(feature.featureKey, adapter))
     .catch((error) => reportEvidenceAdapterError(feature.featureKey, error));
 }
+
+window.addEventListener("pagehide", () => navigationController.destroy(), { once: true });
