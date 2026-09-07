@@ -10,17 +10,28 @@
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related records | `docs/architecture/registered-feature-scope.md`, `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
 
-### Release 1 implementation (7 September 2026)
+### Local placement and Release 1 implementation (7 September 2026)
+
+The launcher supports reversible Docker and host placement for AI-mode, MCP and RAG. Fresh
+developer setups default to Docker; `stack up --ai-runtime host` selects the assessment topology
+and `stack up --ai-runtime docker` restores Docker visibility. Selection is persisted.
+[ADR-044](decisions/ADR-044-dual-ai-runtime.md) records this user-authorised development alternative;
+[the plan](../release-1/dual-ai-runtime-plan.md) defines its validation. Docker uses an optional
+overlay; base and CI models retain the host topology. Both placements use the same exclusive
+history and RAG index/model directories, stopping previous owners before switching. The loop
+remains part of AI-mode, not a fourth service.
 
 The user-supplied 6 September Release 1 marking rubric requires **AI-mode, MCP, RAG and the
 shared agent loop to run locally outside containers**, with MCP/RAG disabled during CI/CD.
-[ADR-043](decisions/ADR-043-local-grounded-runtime.md) records this correction to the earlier
-Compose design. The [reviewed implementation plan](../release-1/shared-feature-1-implementation-plan.md),
+[ADR-043](decisions/ADR-043-local-grounded-runtime.md) records that assessment topology. Optional
+Docker development placement does not satisfy its non-containerisation clause. The
+[reviewed implementation plan](../release-1/shared-feature-1-implementation-plan.md),
 [runtime guide](../release-1/host-runtime.md) and [handoff/evidence map](../release-1/shared-feature-1-handoff.md)
 separate implemented behavior from validation and assessment items still owned by people.
 
 The local topology retains the shared frontend and every enabled feature's independently owned
-containers. Host AI-mode owns the same four-phase runner and durable SQLite run store. MCP exposes
+containers. AI-mode owns the same four-phase runner and durable SQLite run store in either placement.
+MCP exposes
 enabled catalogues through authenticated Streamable HTTP and invokes the existing owning backend
 endpoints; it does not implement CRUD. RAG owns a separate bounded SQLite metadata/vector index
 and prepared CPU embedding assets. Neither can open an AI-mode or student database.
@@ -63,9 +74,9 @@ ports, bounded four-phase runner, deterministic fake provider, SQLite run/step/r
 store, prompt registry, OpenAI Responses API adapter, opt-in Gemini development compatibility,
 serial worker, and
 create/read/cancel/review HTTP endpoints. JSON Schema and OpenAPI artefacts are generated
-and drift-checked by the canonical quality gate. The historical Release 0 AI-mode image has been
-replaced in local orchestration by the host process required for Release 1; remote model inference
-remains outside the application topology.
+and drift-checked by the canonical quality gate. The historical Release 0 AI-mode image is
+superseded by the host process required for Release 1 assessment and the optional unified Docker
+AI image recorded in ADR-044; remote model inference remains outside the application topology.
 
 A subsequent domain-neutral Release 0 increment added validated feature manifests,
 feature-scoped/versioned tool registration, fail-fast YAML tool composition, a bounded

@@ -1,6 +1,6 @@
 # Local MCP server
 
-This shared non-containerised process exposes enabled feature catalogues through the official
+This shared local service exposes enabled feature catalogues through the official
 Python MCP SDK (`mcp>=1.28,<2`, exact resolution in `uv.lock`). The upstream v1 line continues
 to receive security fixes: [official SDK compatibility policy](https://github.com/modelcontextprotocol/python-sdk).
 Its stateless Streamable HTTP endpoint is `/mcp`; all requests, including `/health`, require
@@ -11,8 +11,10 @@ The supported lifecycle is the shared `scripts/dev.py` local stack workflow. For
 diagnosis, configure `MCP_SERVICE_TOKEN`, `MCP_TOOL_CATALOG_PATHS` (comma-separated validated
 host catalogue paths), optional `MCP_PORT` (5011), then run `uv run python -m mcp_server`.
 `MCP_HOST` defaults to `127.0.0.1` and only accepts loopback addresses. Host projections map
-feature service origins to published loopback API routes. No MCP Compose service exists;
-CI and cloud runtime keep MCP disabled.
+feature service origins to published loopback API routes. The optional Docker development
+overlay instead uses the authenticated container entrypoint and fixed internal service origin;
+base Compose retains the host assessment topology. CI and cloud runtime keep MCP disabled.
+Select placement through the [runtime guide](../../docs/release-1/host-runtime.md).
 
 Protocol discovery exposes original input/output schemas and side-effect annotations.
 The `propertyscope://tools/catalog` resource exposes public tool definitions only, without

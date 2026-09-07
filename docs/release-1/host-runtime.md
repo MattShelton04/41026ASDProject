@@ -1,9 +1,16 @@
-# Local host AI runtime
+# Local AI runtime: Docker and host placement
 
-Release 1 runs AI-mode, the agent loop, MCP and RAG as host Python processes. Compose
-contains the shared edge and feature services. No AI-mode, MCP or RAG service is defined
-in the base, development or generated Compose model. This follows the updated Release 1
-brief supplied on 6 September 2026; older containerised AI-mode instructions are historical.
+The launcher supports the same AI-mode, MCP and RAG services in two local placements.
+Fresh developer setups default to Docker so all three appear alongside the feature services
+in Docker Desktop. Host placement runs them as managed Python processes and satisfies the
+supplied Release 1 non-containerisation requirement. The agent loop is AI-mode's worker/library,
+not a fourth service. Docker placement is a user-authorised development convenience; it does
+not satisfy that rubric clause. See [ADR-044](../architecture/decisions/ADR-044-dual-ai-runtime.md)
+and the [implementation plan](dual-ai-runtime-plan.md).
+
+The base, development and generated Compose files retain the host/CI topology. Docker placement
+adds the optional `docker-compose.ai.yml`; use the launcher so routing, credentials and exclusive
+state ownership are configured together.
 
 ## Start and inspect
 
@@ -19,9 +26,24 @@ uv run scripts/dev.py ai logs
 uv run scripts/dev.py ai logs mcp rag
 ```
 
-`stack up` starts the managed host services and containerised features. Source changes
-reload in the feature development containers; host Python services require an explicit
-stop/start after changes. Host status checks process ownership. Service liveness and
+`stack up` starts the selected AI placement and containerised features. Selection defaults to
+Docker when no placement is recorded, and is persisted in `.propertyscope-runtime/ai-runtime.json`.
+Switch with:
+
+```text
+uv run scripts/dev.py stack up --ai-runtime host
+uv run scripts/dev.py stack up --ai-runtime docker
+```
+
+The first command selects the assessment topology; the second returns to Docker. Switching
+stops the previous AI owners before starting their replacements and recreates backend/proxy
+routing. AI history and RAG state remain in their existing owner directories. `ai start`,
+`ai stop`, `ai status` and `ai logs` follow the selected placement. `PROPERTYSCOPE_AI_RUNTIME`
+can also explicitly select `docker` or `host`; avoid a stale shell override when switching.
+
+Frontend source edits need a browser refresh. Feature HTTP services reload; AI workers in either
+placement require an explicit stop/start after Python source edits. Host status checks process
+ownership; Docker status reports the selected containers. Service liveness and
 readiness are separate: an unprepared embedding model leaves RAG alive but unavailable
 for semantic retrieval. Startup never downloads model assets or acquires feature datasets.
 
@@ -40,8 +62,10 @@ The mode changes AI-mode's tool dispatch/retrieval configuration and starts only
 selected advanced services. `--offline` disables provider readiness requirements; it does
 not substitute synthetic embedding quality for real semantic retrieval.
 
-For host source changes, use `ai stop` then `ai start --mode combined`. The `ai serve
-ai-mode`, `ai serve mcp` and `ai serve rag` commands run a single foreground process using
+For AI source changes, use `ai stop` then `ai start --mode combined`; after dependencies or
+Dockerfile changes use `stack rebuild`. For environment/token changes use `stack up` to keep
+backend and proxy configuration aligned. The host-only `ai serve ai-mode`, `ai serve mcp` and
+`ai serve rag` commands run a single foreground process using
 already configured environment variables. Normal managed startup is preferable because
 it generates local catalogue projections, state paths and service tokens consistently.
 
@@ -54,6 +78,16 @@ uv run rag-server prepare-model
 uv run scripts/dev.py ai stop
 uv run scripts/dev.py ai start --mode combined
 ```
+
+Preparation runs through the locked host CLI in both placements. The default cache at
+`.propertyscope-runtime/host/rag/models` is also mounted into the RAG container. Restarting
+the selected RAG service loads the prepared model; startup itself never downloads weights.
+Ingestion continues to call the authenticated host-loopback RAG port in either placement.
+
+The managed Docker profile uses the canonical index/cache directories and bundled model registry
+and operations assets. Custom `RAG_DATABASE_PATH`, `RAG_MODEL_CACHE_PATH`,
+`AI_MODE_MODEL_REGISTRY_PATH` or `AI_MODE_OPERATIONS_ASSETS_PATH` overrides require host placement;
+the launcher rejects unsupported overrides before stopping its active host services.
 
 If the launcher generated the default RAG token, load it into the ingestion shell without
 printing it. For PowerShell:
@@ -78,38 +112,44 @@ verify identical version and ingestion time before claiming idempotent replay.
 
 ## Networking and credentials
 
-| Process | Default address | Reachability |
+| Service | Docker placement | Host placement |
 |---|---|---|
-| AI-mode | port 5005, host bind `0.0.0.0` | Docker feature backends and shared edge use `host.docker.internal` |
-| MCP | `127.0.0.1:5011/mcp` | Authenticated host AI-mode only |
-| RAG | `127.0.0.1:5012` | Authenticated host AI-mode and explicit ingestion tooling |
+| AI-mode | `shared-ai-mode:5005`, published on host `127.0.0.1:5005` | Host bind `0.0.0.0:5005`; backends/edge use `host.docker.internal` |
+| MCP | `mcp-server:5011/mcp`, published on host `127.0.0.1:5011/mcp` | `127.0.0.1:5011/mcp` |
+| RAG | `rag-server:5012`, published on host `127.0.0.1:5012` | `127.0.0.1:5012` |
 
-`AI_MODE_PORT`, `MCP_PORT` and `RAG_PORT` configure the host listeners. Feature HTTP ports
+`AI_MODE_PORT`, `MCP_PORT` and `RAG_PORT` configure host listeners or Docker's published ports;
+container-internal ports remain 5005/5011/5012. Feature HTTP ports
 come from the existing manifest variables. The launcher derives host catalogue copies
 from enabled feature manifests and maps their fixed service origins to the published
 feature frontend ports. Tool names, schemas, approval classification and owning backend
-paths are preserved. Original feature catalogues continue to describe the domain boundary.
+paths are preserved. Docker catalogue projections retain the original fixed backend service
+origins. Original feature catalogues continue to describe the domain boundary.
 
 Compose sets `host.docker.internal:host-gateway` for the shared edge and feature backends,
 including Linux Docker Engine. The edge resolves its configured host upstream at nginx
-startup. MCP/RAG do not need container access and retain loopback binding. Managed host
-AI-mode requires `X-PropertyScope-AI-Token` on every route except exact `/health/live`.
+startup. In host mode MCP/RAG retain loopback binding. In Docker mode all three bind inside
+their containers, with MCP Host-header validation allowing only the fixed service name and
+loopback. AI-mode permits the fixed MCP/RAG service URLs only in its local Compose environment.
+Managed AI-mode requires `X-PropertyScope-AI-Token` on every route except exact `/health/live`.
 The launcher generates `.propertyscope-runtime/host/ai-mode.token` or accepts an explicit
 `AI_MODE_SERVICE_TOKEN` containing 32–128 URL-safe letters, digits, underscores or hyphens.
 All five backend HTTP clients and the shared nginx proxy receive the same service token
 internally; it is never delivered as browser configuration, HTML or a model argument.
-This protects the Docker-reachable host listener, including run history and readiness.
+This protects the managed AI listener, including run history and readiness, in both placements.
 
 Changing the token requires `stack up` to recreate container configuration as well as
-the host process. Ordinary stop/start reuses the persisted token. The standalone Flask
+the AI process. Ordinary stop/start reuses the persisted token. The standalone Flask
 application factory retains its existing loopback development behavior; use managed
 startup for the integrated authenticated listener. The managed `ai serve ai-mode` command
 requires the token explicitly. Service authentication is not end-user authentication:
 the browser application remains the trusted local demonstration profile. Managed startup
 rejects non-local deployment environments; production identity is a separate future boundary.
 
-Provider credentials remain in an ignored file loaded by the host process, never in a
-Compose secret, image, process command or printed environment. The launcher creates
+Provider credentials remain in ignored local files. Docker AI-mode alone receives the configured
+provider key as a runtime-mounted secret file; host AI-mode loads its configured environment.
+Neither MCP nor RAG receives provider credentials. Keys are never baked into the image or
+included in process commands or printed configuration. The launcher creates
 independent MCP/RAG bearer tokens under the ignored host directory unless explicitly
 configured with `MCP_SERVICE_TOKEN` and `RAG_SERVICE_TOKEN`. Source ingestion clients must
 use the same RAG token. Do not publish token files or runtime logs as assessment evidence
@@ -117,10 +157,14 @@ without checking/redacting their contents.
 
 ## Durable state and shutdown
 
-The ignored `.propertyscope-runtime/host/` directory owns the AI-mode SQLite store, RAG
-index/model cache, generated catalogue copies, tokens, bounded log views and process
-identity records. AI-mode alone opens its run database; RAG alone opens its index.
-Before first host startup, the launcher finds the old `ps-dev` AI-state volume, stops any
+The ignored `.propertyscope-runtime/host/` directory retains its historical name in both
+placements. Its `ai-mode/` directory owns the run database; `rag/` owns the index/model cache.
+Docker bind-mounts each directory only into its owning service. Host processes open those same
+files after the containers stop, so switching requires no recurring migration or duplicate store.
+Tokens and host process records remain there; Docker environment/catalogue projections live in
+the ignored `.propertyscope-runtime/docker-ai/` directory. Never start both owners manually.
+
+On initial setup, the legacy-history migration can find the old `ps-dev` AI-state volume, stop any
 owning historical container, and copies the volume read-only through a helper container
 that is never started. SQLite's backup API incorporates the copied WAL and verifies the
 result before installing the host database. Existing host state is never overwritten and
@@ -133,7 +177,7 @@ uv run scripts/dev.py ai stop
 uv run scripts/dev.py stack down
 ```
 
-Stopping preserves host databases, model assets and Docker volumes. The launcher checks
+Stopping preserves AI databases, model assets and Docker volumes. For host services the launcher checks
 PID creation time, command and recorded checkout identity before signalling a process,
 and accounts for the Windows virtualenv child interpreter. It never terminates an
 unmanaged process just because that process occupies an expected port. Use `ai logs`
@@ -157,10 +201,12 @@ uv run python scripts/generate_deployment.py --check
 ```
 
 These deterministic tests cover process identity rejection, idempotent history migration,
-wrong-volume-owner rejection, host catalogue projection and workflow/Compose exclusions.
-An isolated Windows host AI-mode start, liveness and stop was exercised during implementation.
-Real protocol, semantic retrieval, integrated browser and provider evidence are recorded
-separately in the release evidence index; passing unit tests does not establish those results.
+wrong-volume-owner rejection, host catalogue projection and workflow/Compose exclusions. The
+Docker placement adds selection/transition and container-entry checks in
+`scripts/tests/test_ai_runtime.py` and `scripts/tests/test_container_entry.py`. Existing Release 1
+host evidence remains separate from the new placement's validation. Real protocol, semantic
+retrieval, integrated browser, placement-switch and provider evidence must be recorded separately;
+passing unit tests does not establish those results.
 
 ## Named agent-loop validation modes
 

@@ -83,7 +83,8 @@ only for documented, non-secret defaults.
 | Start the AI-mode service | `uv run flask --app ai_mode:create_app run --port 5005` |
 | Start the complete reloadable stack | `uv run scripts/dev.py stack up` |
 | Start data flows without a live model | `uv run scripts/dev.py stack up --offline` |
-| Inspect / stop host AI services | `uv run scripts/dev.py ai status` / `uv run scripts/dev.py ai stop` |
+| Inspect / stop selected AI services | `uv run scripts/dev.py ai status` / `uv run scripts/dev.py ai stop` |
+| Select Docker / host AI placement | `uv run scripts/dev.py stack up --ai-runtime docker` / `uv run scripts/dev.py stack up --ai-runtime host` |
 | Start local MCP + RAG + AI-mode | `uv run scripts/dev.py ai start --mode combined` |
 | Validate MCP / RAG through the agent loop | `uv run scripts/dev.py ai validate mcp` / `uv run scripts/dev.py ai validate rag` |
 | Check Docker and Compose prerequisites | `uv run scripts/dev.py stack doctor` |
@@ -126,7 +127,10 @@ command used by that check. Compose readiness and a deterministic fixture collec
 service pipeline; a short inline smoke then checks the shared Feature 1 route/proxy and migrated
 database schema fingerprint.
 
-Release 1 keeps AI-mode, the agent loop, MCP and RAG outside Compose. Every student workflow and
+The Release 1 assessment topology keeps AI-mode, the agent loop, MCP and RAG outside Compose;
+select it with `stack up --ai-runtime host`. Fresh developer setups instead default to the optional
+Docker placement for all three services. Docker placement is a development convenience and does
+not meet the rubric's non-containerisation clause. Every student workflow and
 the canonical integration workflow explicitly disables MCP/RAG with `AI_MODE_MCP_ENABLED=false`
 and `AI_MODE_RAG_ENABLED=false`. CI validates contracts, policy, ingestion and transport mechanics
 with deterministic doubles and static topology assertions; it does not launch advanced services,
@@ -138,10 +142,13 @@ create/read/cancel/review surface. Enabled feature manifests contribute only the
 allowlisted HTTP tool catalogues; disabled placeholders do not enter the runtime registry.
 
 The development command composes the base model, generated enabled-feature projection, and
-`docker-compose.dev.yml`. The final overlay bind-mounts source and enables reload without changing
+`docker-compose.dev.yml`, adding `docker-compose.ai.yml` only for Docker AI placement. The selected
+placement is persisted in the ignored runtime directory. The development overlays bind-mount source
+without changing
 the production-like HTTP or database-ownership boundaries. Frontend edits need only a browser
-refresh, and containerised Python HTTP services reload automatically. Host AI services require
-`ai stop` followed by `ai start --mode combined` after source/configuration changes. Long-running workers do not auto-restart
+refresh, and feature Python HTTP services reload automatically. AI services in either placement require
+`ai stop` followed by `ai start --mode combined` after source changes. Use `stack up` for environment
+or proxy configuration changes. Long-running workers do not auto-restart
 because that could interrupt an active durable job; use targeted `stack restart <service>` when a
 worker is idle. Use `stack rebuild <service>` after dependency, lockfile or Dockerfile changes.
 Starting the stack does not acquire
@@ -150,14 +157,15 @@ review path. PSI can instead create an explicitly partial candidate from complet
 years; that candidate cannot replace accepted complete history. The label-scoped `reset` removes
 stack volumes but preserves the host source cache.
 
-The [host runtime guide](docs/release-1/host-runtime.md) owns model preparation, token handling,
-legacy-history migration, listener ports and foreground diagnosis. Feature backend requests cross
-the Docker boundary through `host.docker.internal`; MCP/RAG remain authenticated loopback
-dependencies. `stack down` preserves both host state and Docker data. Neither model preparation
+The [local AI runtime guide](docs/release-1/host-runtime.md) owns placement, model preparation,
+token handling, legacy-history migration and listener ports. Docker mode uses fixed internal service
+names; host mode routes feature requests through `host.docker.internal` with MCP/RAG on loopback.
+Switching stops the previous AI owners, reuses the same exclusive history/index directories and
+recreates backend/proxy routing. `stack down` preserves AI state and Docker data. Neither model preparation
 nor corpus ingestion happens as a side effect of startup.
 Managed AI-mode protects every route except `/health/live` with an internal service token passed
 by the feature clients/shared proxy. Do not add this token to public browser configuration. Use
-`stack up` after rotating `AI_MODE_SERVICE_TOKEN`; restarting only the host would leave stale
+`stack up` after rotating `AI_MODE_SERVICE_TOKEN`; restarting only AI-mode would leave stale
 container credentials. The standalone Flask factory remains a loopback development entrypoint.
 
 ## Dependencies and workspace projects

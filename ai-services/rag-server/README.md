@@ -1,9 +1,13 @@
 # Local retrieval service
 
-This host-only Flask service owns a bounded SQLite vector/metadata index. Feature backends reach it
+This local Flask service owns a bounded SQLite vector/metadata index. Feature backends reach it
 through authenticated AI-mode retrieval; no feature database is opened and no document URL is fetched.
 Only registered public project-guidance corpora are admitted. Private notes, case documents and raw
 warehouse records require a future owner-scoped contract and are rejected today.
+
+The launcher defaults to Docker placement and supports the non-containerised assessment mode via
+`stack up --ai-runtime host`. Both placements reuse the same index/model directories; see the
+[runtime guide](../../docs/release-1/host-runtime.md). Custom index/cache paths remain host-only.
 
 ## Prepare and run
 

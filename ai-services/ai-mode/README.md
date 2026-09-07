@@ -3,7 +3,7 @@
 `ai-mode` owns the HTTP orchestration boundary, workflow-state SQLite database,
 versioned prompts, OpenAI Responses API integration, an opt-in Gemini Chat Completions-compatible
 development path, and concurrency-one background worker.
-The name follows the assignment's **AI mode** capability; operationally this container
+The name follows the assignment's **AI mode** capability; operationally this service
 is the shared agent orchestrator. The selected remote provider owns inference; AI-mode owns all
 application orchestration, validation, persistence, and tool policy.
 
@@ -176,9 +176,8 @@ uv run python scripts/validate_model_registry.py
 
 Its public JSON Schema and the endpoint's OpenAPI definition are generated from the
 Pydantic contract and drift-checked by `scripts/generate_contracts.py --check` in CI.
-For a containerised custom registry, mount the file read-only and set
-`AI_MODE_MODEL_REGISTRY_PATH` to its path inside the container; a host path is not
-implicitly visible in Docker.
+The managed Docker runtime uses the bundled registry. Use host placement for
+`AI_MODE_MODEL_REGISTRY_PATH` overrides; a host path is not implicitly visible in Docker.
 
 The default `default.v7` prompt set keeps explicit generic output skeletons, maps every
 objective requirement to observable success criteria, and keeps untrusted objective prose
