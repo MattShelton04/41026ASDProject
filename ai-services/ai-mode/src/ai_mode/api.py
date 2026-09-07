@@ -70,7 +70,8 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
     effective_payload.setdefault("model_profile", services.default_model_profile)
     corpus = dict(services.rag_corpora).get(str(effective_payload.get("feature_key", "")))
     if corpus is not None:
-        effective_payload.setdefault("grounding", {"corpus_id": corpus})
+        if effective_payload.get("grounding") is None:
+            effective_payload["grounding"] = {"corpus_id": corpus}
         effective_payload["prompt_set"] = "default.v8"
         allowlist = effective_payload.get("tool_allowlist")
         if isinstance(allowlist, list) and RETRIEVAL_TOOL not in allowlist:

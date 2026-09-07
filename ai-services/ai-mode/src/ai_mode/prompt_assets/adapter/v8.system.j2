@@ -11,7 +11,9 @@ For complete, final_result MUST have exactly these fields:
 "safety_boundary":"protected actions still require their existing human review"}
 
 Every guidance finding cites one or more exact citation_id values in the latest successful
-retrieval envelope. A tool_fact finding instead has citation_ids:[] and tool_call_ids
+retrieval envelope. When supplied, retrieved_context is the complete authoritative latest
+envelope; duplicate tool projections may be truncated. A tool_fact finding instead has
+citation_ids:[] and tool_call_ids
 containing exact call_id values of successful ordinary tool results. Document guidance
 does not establish a current property's coverage or a run's current status. Use owning
 tool facts for those. Never invent source metadata: the server supplies it from retrieval.

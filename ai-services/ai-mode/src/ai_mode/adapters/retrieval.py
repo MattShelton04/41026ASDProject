@@ -124,22 +124,30 @@ class RetrievalToolExecutor:
             evidence_references=("service:rag",),
         )
 
-    def current_version(self, feature: str, corpus: str) -> str | None:
+    def current_version(self, feature: str, corpus: str, *, timeout_ms: int = 2000) -> str | None:
         """Recheck active identity before completion without refreshing source content."""
+        budget_ms = min(timeout_ms, 2000)
+        if budget_ms <= 0:
+            return None
+        deadline = monotonic() + budget_ms / 1000
         try:
             with self.client.stream(
                 "GET",
                 f"{self.base_url}/api/v1/corpora/{feature}/{corpus}",
                 headers={"Authorization": f"Bearer {self.token}"},
-                timeout=2,
+                timeout=budget_ms / 1000,
             ) as response:
                 if response.status_code != 200:
                     return None
                 raw = bytearray()
                 for chunk in response.iter_bytes():
+                    if monotonic() >= deadline:
+                        return None
                     raw.extend(chunk)
                     if len(raw) > 10000:
                         return None
+                if monotonic() >= deadline:
+                    return None
                 version = CorpusVersion.model_validate_json(raw)
                 if (version.feature_key, version.corpus_id) == (feature, corpus):
                     return version.corpus_version
@@ -147,13 +155,15 @@ class RetrievalToolExecutor:
             pass
         return None
 
-    def verify_current(self, run: AgentRun, results: tuple[ToolResult, ...]) -> bool:
+    def verify_current(
+        self, run: AgentRun, results: tuple[ToolResult, ...], *, timeout_ms: int
+    ) -> bool:
         if run.grounding is None:
             return True
         retrieved = [result.retrieval for result in results if result.retrieval is not None]
         if not retrieved or retrieved[-1].status != "ready":
             return True  # Insufficient-context completion remains useful during an outage.
         return (
-            self.current_version(run.feature_key, run.grounding.corpus_id)
+            self.current_version(run.feature_key, run.grounding.corpus_id, timeout_ms=timeout_ms)
             == retrieved[-1].corpus_version
         )

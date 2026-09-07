@@ -707,16 +707,24 @@ class AgentRunner:
             from agent_core.grounding import validate_grounded_answer
 
             try:
+                ensure_time_remaining(in_progress, now=self._clock.now())
                 if (
                     self._grounding_verifier is not None
-                    and not self._grounding_verifier.verify_current(in_progress, tool_results)
+                    and not self._grounding_verifier.verify_current(
+                        in_progress,
+                        tool_results,
+                        timeout_ms=remaining_time_ms(in_progress, now=self._clock.now()),
+                    )
                 ):
                     raise ValueError(
                         "retrieved corpus changed or became unavailable; start a fresh grounded run"
                     )
+                ensure_time_remaining(in_progress, now=self._clock.now())
                 final = validate_grounded_answer(in_progress, adaptation.final_result, tool_results)
                 adaptation = adaptation.evolve(final_result=final)
                 output["adaptation"] = adaptation.model_dump(mode="json")
+            except RunLimitExceededError as exc:
+                return self._fail_with_step(in_progress, step, exc, code="run_limit_reached")
             except ValueError as exc:
                 return self._fail_with_step(in_progress, step, exc, code="invalid_grounding")
         completed = self._complete_step(

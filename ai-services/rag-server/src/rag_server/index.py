@@ -146,6 +146,19 @@ class CorpusIndex:
             current = self.current(request.feature_key, request.corpus_id)
             if current is not None and current.corpus_version == version:
                 return current
+            retained = self._db.execute(
+                "SELECT metadata FROM versions WHERE feature=? AND corpus=? AND version=?",
+                (request.feature_key, request.corpus_id, version),
+            ).fetchone()
+            if retained is not None:
+                metadata = CorpusVersion.model_validate_json(retained[0])
+                with self._db:
+                    self._db.execute(
+                        "INSERT INTO active VALUES(?,?,?) ON CONFLICT(feature,corpus) "
+                        "DO UPDATE SET version=excluded.version",
+                        (request.feature_key, request.corpus_id, version),
+                    )
+                return metadata
             chunks = [
                 (document, *chunk) for document in documents for chunk in chunk_document(document)
             ]
@@ -203,14 +216,10 @@ class CorpusIndex:
                     )
                 )
             with self._db:
-                # Existing historical content can be reactivated without duplicate records.
+                # New content is committed atomically; retained versions are reused above.
                 self._db.execute(
                     "DELETE FROM active WHERE feature=? AND corpus=?",
                     (request.feature_key, request.corpus_id),
-                )
-                self._db.execute(
-                    "DELETE FROM versions WHERE feature=? AND corpus=? AND version=?",
-                    (request.feature_key, request.corpus_id, version),
                 )
                 self._db.execute(
                     "INSERT INTO versions(feature,corpus,version,metadata) VALUES(?,?,?,?)",

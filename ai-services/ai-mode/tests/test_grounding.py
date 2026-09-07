@@ -331,3 +331,26 @@ def test_legacy_grounding_defaults_remain_readable(tmp_path: Path):
     assert validate_grounded_answer(old, {"summary": "Legacy answer"}, ()) == {
         "summary": "Legacy answer"
     }
+
+
+def test_rendered_prompt_reserves_complete_citations_under_large_tool_payloads(tmp_path: Path):
+    _, run = setup_run(tmp_path)
+    registry = PromptRegistry(Path("ai-services/ai-mode/src/ai_mode/prompt_assets"))
+    context = {
+        "call_id": str(uuid4()),
+        "response": retrieval().model_dump(mode="json"),
+    }
+    request = RegistryPromptBuilder._request(
+        run,
+        registry.load("adapter", "v8"),
+        {
+            "completed_actions": [{"content": "x" * 8000} for _ in range(20)],
+            "objective": run.objective,
+            "retrieved_context": context,
+        },
+        (),
+    )
+    rendered = json.loads(request.messages[1].content.split("\n", 1)[1])
+    assert rendered["retrieved_context"] == context
+    assert len(request.messages[1].content) < 90100
+    assert "truncated" in request.messages[1].content

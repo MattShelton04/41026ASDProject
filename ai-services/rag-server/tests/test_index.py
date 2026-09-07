@@ -93,15 +93,20 @@ def test_normalization_and_order_are_idempotent(index: CorpusIndex) -> None:
 
 def test_replace_withdraw_and_reactivate(index: CorpusIndex) -> None:
     initial = index.ingest(batch(document("a"), document("b")))
+    initial_citations = index.retrieve(query()).citations
     replaced = index.ingest(batch(document("b")))
     assert replaced.document_count == 1
     assert index.retrieve(query(document_ids=("a",))).status == "no_match"
     withdrawn = index.ingest(batch())
     assert withdrawn.chunk_count == 0
     assert index.retrieve(query()).status == "empty"
+    original_embedder = index.embedder
+    # Retained reactivation is a pointer update, even if fresh embedding is broken.
+    index.embedder = InvalidEmbedder([])
     restored = index.ingest(batch(document("a"), document("b")))
-    assert restored.corpus_version == initial.corpus_version
-    assert len(index.retrieve(query()).citations) == 2
+    assert restored == initial
+    index.embedder = original_embedder
+    assert index.retrieve(query()).citations == initial_citations
 
 
 class InvalidEmbedder(FixtureEmbedder):
