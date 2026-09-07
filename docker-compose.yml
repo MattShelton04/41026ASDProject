@@ -10,9 +10,10 @@ services:
       dockerfile: shared/frontend/Dockerfile
     image: propertyscope/shared-frontend:dev
     environment:
+      AI_MODE_HOST: host.docker.internal
       AI_MODE_PORT: ${AI_MODE_PORT:-5005}
       AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
-      NGINX_ENVSUBST_FILTER: AI_MODE_(PORT|SERVICE_TOKEN)
+      NGINX_ENVSUBST_FILTER: AI_MODE_(HOST|PORT|SERVICE_TOKEN)
     init: true
     restart: unless-stopped
     ports:

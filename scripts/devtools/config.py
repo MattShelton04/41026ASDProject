@@ -62,6 +62,8 @@ TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
 HOST_PORTS: dict[str, tuple[str, int]] = {
     "shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),
     "shared-ai-mode": ("AI_MODE_PORT", 5005),
+    "mcp-server": ("MCP_PORT", 5011),
+    "rag-server": ("RAG_PORT", 5012),
 }
 for _feature in _json_object(_ENABLED_FEATURES_PATH).get("features", []):
     if not isinstance(_feature, dict) or not isinstance(_feature.get("frontend"), dict):

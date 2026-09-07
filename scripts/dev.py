@@ -27,7 +27,7 @@ import yaml
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.devtools import host_runtime
+from scripts.devtools import ai_runtime, host_runtime
 from scripts.devtools.cli import build_parser
 from scripts.devtools.config import (
     APPLICATION_SERVICES,
@@ -66,10 +66,12 @@ ENVIRONMENT_FILE_COMMANDS = frozenset(
 )
 
 
-def _compose_command(*arguments: str) -> tuple[str, ...]:
+def _compose_command(*arguments: str, placement: str | None = None) -> tuple[str, ...]:
     command = ["docker", "compose"]
     for filename in COMPOSE_FILES:
         command.extend(("--file", filename))
+    if (placement or ai_runtime.selection()) == "docker":
+        command.extend(("--file", ai_runtime.OVERLAY))
     for profile in PROFILES:
         command.extend(("--profile", profile))
     command.extend(arguments)
@@ -102,7 +104,7 @@ def _stop_disabled_feature_services() -> None:
         _run(_compose_command("stop", *DISABLED_FEATURE_SERVICES))
 
 
-def _reload_shared_edge(*, environment: Mapping[str, str]) -> None:
+def _reload_shared_edge(*, environment: Mapping[str, str], placement: str | None = None) -> None:
     """Reparse bind-mounted route projections without recreating the edge container."""
     _run(
         _compose_command(
@@ -112,6 +114,7 @@ def _reload_shared_edge(*, environment: Mapping[str, str]) -> None:
             "nginx",
             "-s",
             "reload",
+            placement=placement,
         ),
         environment=environment,
     )
@@ -458,15 +461,55 @@ def _compose_environment(*, offline: bool) -> Mapping[str, str]:
     return environment
 
 
-def _up(*, offline: bool, build: bool = False) -> None:
+def _up(*, offline: bool, build: bool = False, placement: str | None = None) -> None:
     _openai_credential(offline=offline)
     _validate_deployment_inputs()
     _ensure_docker()
     _stop_disabled_feature_services()
     _preflight_compose_host_ports(services=APPLICATION_SERVICES)
     compose_environment = _compose_environment(offline=offline)
+    selected_placement = placement or ai_runtime.selection()
+    mode = "direct" if offline else "combined"
+    if selected_placement == "docker":
+        compose_environment = ai_runtime.prepare(compose_environment, mode=mode)
+        # Only verified managed processes are stopped. Never copy or open a live store.
+        host_runtime.stop()
+        _preflight_compose_host_ports(services=ai_runtime.services(mode))
+    elif ai_runtime.has_container_configuration():
+        _run(
+            _compose_command("stop", *ai_runtime.DOCKER_SERVICES, placement="docker"),
+            environment=compose_environment,
+        )
     host_runtime.migrate_legacy_state()
-    host_runtime.start(compose_environment, mode="direct" if offline else "combined")
+    ai_runtime.remember(selected_placement, mode)
+    if selected_placement == "host":
+        host_runtime.start(compose_environment, mode=mode)
+    else:
+        inactive = tuple(
+            service
+            for service in ai_runtime.DOCKER_SERVICES
+            if service not in ai_runtime.services(mode)
+        )
+        if inactive:
+            _run(
+                _compose_command("stop", *inactive, placement=selected_placement),
+                environment=compose_environment,
+            )
+        # Recreate file-secret consumers so rotation cannot retain an old mounted inode.
+        _run(
+            _compose_command(
+                "up",
+                *(("--build",) if build else ()),
+                "--detach",
+                "--force-recreate",
+                "--wait",
+                "--wait-timeout",
+                "180",
+                *ai_runtime.services(mode),
+                placement=selected_placement,
+            ),
+            environment=compose_environment,
+        )
     feature_1_enabled = FEATURE_1_KEY in ENABLED_FEATURE_KEYS
     if feature_1_enabled:
         print(f"Official PSI cache: {', '.join(map(str, _psi_cache_years()))}", flush=True)
@@ -479,11 +522,16 @@ def _up(*, offline: bool, build: bool = False) -> None:
             "--wait",
             "--wait-timeout",
             "180",
+            *(ai_runtime.services(mode) if selected_placement == "docker" else ()),
             *APPLICATION_SERVICES,
         )
     )
-    _run(_compose_command(*up_arguments), environment=compose_environment)
-    _reload_shared_edge(environment=compose_environment)
+    _run(
+        _compose_command(*up_arguments, placement=selected_placement),
+        environment=compose_environment,
+    )
+    _reload_shared_edge(environment=compose_environment, placement=selected_placement)
+    print(f"AI runtime:         {selected_placement} ({mode})", flush=True)
     ports = _resolved_host_ports(APPLICATION_SERVICES)
     shared_port = ports["shared-frontend"][1]
     print(f"\nAI-mode health:     http://localhost:{shared_port}/api/shared-health/ai-mode")
@@ -499,13 +547,20 @@ def _up(*, offline: bool, build: bool = False) -> None:
 
 
 def _rebuild(services: Sequence[str], *, offline: bool) -> None:
+    if offline and ai_runtime.selection() == "docker" and ai_runtime.capability_mode() != "direct":
+        _up(offline=True, build=True)
+        return
     _openai_credential(offline=offline)
     _validate_deployment_inputs()
     _ensure_docker()
     _stop_disabled_feature_services()
-    selected = tuple(services) or BUILD_SERVICES
+    selected = tuple(services) or (*BUILD_SERVICES, *_selected_ai_services())
     _preflight_compose_host_ports(services=selected)
     compose_environment = _compose_environment(offline=offline)
+    if ai_runtime.selection() == "docker":
+        compose_environment = ai_runtime.prepare(
+            compose_environment, mode=ai_runtime.capability_mode()
+        )
     _run(
         _compose_command("build", *selected),
         environment=compose_environment,
@@ -528,12 +583,30 @@ def _production_build(services: Sequence[str]) -> None:
     """Build immutable Release 0 images without starting or changing a runtime."""
     _validate_deployment_inputs()
     _ensure_docker()
-    selected = tuple(services) or PRODUCTION_BUILD_SERVICES
+    selected = tuple(services) or (*PRODUCTION_BUILD_SERVICES, *_selected_ai_services())
     command = ["docker", "compose"]
     for filename in PRODUCTION_COMPOSE_FILES:
         command.extend(("--file", filename))
+    if ai_runtime.selection() == "docker":
+        command.extend(("--file", ai_runtime.OVERLAY))
     command.extend(("--profile", "release-0", "build", *selected))
     _run(tuple(command))
+
+
+def _selected_ai_services() -> tuple[str, ...]:
+    return (
+        ai_runtime.services(ai_runtime.capability_mode())
+        if ai_runtime.selection() == "docker"
+        else ()
+    )
+
+
+def _ai_status() -> None:
+    print(f"AI runtime: {ai_runtime.selection()}")
+    if ai_runtime.selection() == "docker":
+        _run(_compose_command("ps", "--all", *ai_runtime.DOCKER_SERVICES))
+    else:
+        print(json.dumps(host_runtime.status(), indent=2))
 
 
 def _down(*, remove_volumes: bool = False) -> None:
@@ -743,8 +816,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         command = (arguments.group, arguments.action)
         if command in ENVIRONMENT_FILE_COMMANDS:
             _load_development_environment(arguments.env_file)
+        if arguments.group in {"stack", "ai"} and command != ("stack", "up"):
+            ai_runtime.require_same_placement()
         if command == ("stack", "up"):
-            _up(offline=arguments.offline, build=arguments.build)
+            _up(offline=arguments.offline, build=arguments.build, placement=arguments.ai_runtime)
         elif command == ("stack", "build"):
             _production_build(arguments.services)
         elif command == ("stack", "rebuild"):
@@ -753,15 +828,29 @@ def main(argv: Sequence[str] | None = None) -> int:
                 offline=arguments.offline,
             )
         elif command == ("stack", "restart"):
+            if offline := (
+                arguments.offline
+                and ai_runtime.selection() == "docker"
+                and ai_runtime.capability_mode() != "direct"
+            ):
+                _up(offline=offline)
+                return 0
             _openai_credential(offline=arguments.offline)
             _validate_deployment_inputs()
             _ensure_docker()
             _stop_disabled_feature_services()
-            selected = tuple(arguments.services) or APPLICATION_SERVICES
+            selected = tuple(arguments.services) or (
+                *APPLICATION_SERVICES,
+                *_selected_ai_services(),
+            )
             _preflight_compose_host_ports(services=selected)
             compose_environment = _compose_environment(
                 offline=arguments.offline,
             )
+            if ai_runtime.selection() == "docker":
+                compose_environment = ai_runtime.prepare(
+                    compose_environment, mode=ai_runtime.capability_mode()
+                )
             _run(
                 _compose_command(
                     "up",
@@ -781,7 +870,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif command == ("stack", "doctor"):
             _doctor()
         elif command == ("stack", "status"):
-            print(json.dumps(host_runtime.status(), indent=2))
+            _ai_status()
             _ensure_docker()
             _run(_compose_command("ps"))
         elif command == ("stack", "config"):
@@ -790,7 +879,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             _run(_compose_command("config", "--quiet"))
         elif command == ("stack", "logs"):
             _ensure_docker()
-            selected = tuple(arguments.services) or APPLICATION_SERVICES
+            selected = tuple(arguments.services) or (
+                *APPLICATION_SERVICES,
+                *_selected_ai_services(),
+            )
             _run(
                 _compose_command(
                     "logs",
@@ -831,17 +923,61 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             print(render_operator_report(report), flush=True)
         elif command == ("ai", "start"):
+            if not ai_runtime.STATE_PATH.exists():
+                raise RuntimeError(
+                    "Run stack up first to establish AI placement and backend routing"
+                )
+            mode = "direct" if arguments.offline else arguments.mode
             environment = _compose_environment(offline=arguments.offline)
-            host_runtime.migrate_legacy_state()
-            host_runtime.start(environment, mode=arguments.mode)
-            print(json.dumps(host_runtime.status(), indent=2))
+            if ai_runtime.selection() == "docker":
+                _ensure_docker()
+                environment = ai_runtime.prepare(environment, mode=mode)
+                host_runtime.stop()
+                _preflight_compose_host_ports(services=ai_runtime.services(mode))
+                host_runtime.migrate_legacy_state()
+                inactive = tuple(
+                    service
+                    for service in ai_runtime.DOCKER_SERVICES
+                    if service not in ai_runtime.services(mode)
+                )
+                if inactive:
+                    _run(_compose_command("stop", *inactive), environment=environment)
+                _run(
+                    _compose_command(
+                        "up", "--detach", "--force-recreate", "--wait", *ai_runtime.services(mode)
+                    ),
+                    environment=environment,
+                )
+            else:
+                host_runtime.migrate_legacy_state()
+                host_runtime.start(environment, mode=mode)
+            ai_runtime.remember(ai_runtime.selection(), mode)
+            _ai_status()
         elif command == ("ai", "stop"):
-            host_runtime.stop(tuple(arguments.services) or host_runtime.SERVICES)
+            if ai_runtime.selection() == "docker":
+                selected_ai = tuple(arguments.services) or host_runtime.SERVICES
+                names = dict(zip(host_runtime.SERVICES, ai_runtime.DOCKER_SERVICES, strict=True))
+                _run(_compose_command("stop", *(names[service] for service in selected_ai)))
+            else:
+                host_runtime.stop(tuple(arguments.services) or host_runtime.SERVICES)
         elif command == ("ai", "status"):
-            print(json.dumps(host_runtime.status(), indent=2))
+            _ai_status()
         elif command == ("ai", "logs"):
-            print(host_runtime.logs(tuple(arguments.services) or host_runtime.SERVICES))
+            if ai_runtime.selection() == "docker":
+                selected_ai = tuple(arguments.services) or host_runtime.SERVICES
+                names = dict(zip(host_runtime.SERVICES, ai_runtime.DOCKER_SERVICES, strict=True))
+                _run(
+                    _compose_command(
+                        "logs", "--tail", "200", *(names[service] for service in selected_ai)
+                    )
+                )
+            else:
+                print(host_runtime.logs(tuple(arguments.services) or host_runtime.SERVICES))
         elif command == ("ai", "serve"):
+            if ai_runtime.selection() != "host":
+                raise RuntimeError(
+                    "Foreground host serving requires stack up --ai-runtime host first"
+                )
             host_runtime.serve(arguments.service)
         elif command == ("ai", "validate"):
             from scripts.release1_validation import QUERY, validate

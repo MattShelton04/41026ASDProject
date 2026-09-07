@@ -252,7 +252,7 @@ def test_compose_and_edge_keep_host_credential_on_server_side() -> None:
     nginx = (runtime.REPOSITORY_ROOT / "shared/frontend/nginx.conf").read_text()
     assert nginx.count('proxy_set_header X-PropertyScope-AI-Token "${AI_MODE_SERVICE_TOKEN}";') == 4
     assert (
-        "AI_MODE_(PORT|SERVICE_TOKEN)"
+        "AI_MODE_(HOST|PORT|SERVICE_TOKEN)"
         in compose["services"]["shared-frontend"]["environment"]["NGINX_ENVSUBST_FILTER"]
     )
 
