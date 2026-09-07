@@ -11,8 +11,8 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from agent_core import ConcurrentRunUpdateError
 from ai_mode.api import api
-from ai_mode.configuration import ConfigurationError, Settings
 from ai_mode.capabilities import capability_snapshot
+from ai_mode.configuration import ConfigurationError, Settings
 from ai_mode.evidence import create_evidence_blueprint
 from ai_mode.http import problem_response as _problem_response
 from ai_mode.observability import configure_structured_logging

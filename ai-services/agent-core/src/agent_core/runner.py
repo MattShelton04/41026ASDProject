@@ -22,6 +22,7 @@ from agent_core.errors import (
     UnknownToolError,
 )
 from agent_core.generation import ValidatedModelOutput, generate_validated
+from agent_core.grounding import validate_adaptation_grounding
 from agent_core.identifier_schema import identifier_candidates
 from agent_core.limits import (
     ensure_time_remaining,
@@ -31,6 +32,7 @@ from agent_core.limits import (
 )
 from agent_core.ports import (
     Clock,
+    GroundingVerifier,
     IdGenerator,
     LLMProvider,
     PromptBuilder,
@@ -60,9 +62,6 @@ from shared_contracts import (
     ToolOutcome,
     ToolResult,
 )
-
-from agent_core.grounding import validate_adaptation_grounding
-from agent_core.ports import GroundingVerifier
 
 BLOCKED_STATUSES = TERMINAL_STATUSES | {RunStatus.REVIEW_REQUIRED}
 

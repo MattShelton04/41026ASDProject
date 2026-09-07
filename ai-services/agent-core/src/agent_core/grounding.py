@@ -59,7 +59,12 @@ def validate_grounded_answer(
         if not set(claim.tool_call_ids).issubset(tool_ids):
             raise ValueError("claim references an unsuccessful or unrelated tool call")
         used.update(claim.citation_ids)
-    if latest.status != "ready" or not citations:
+    insufficient = latest.status != "ready" or not citations or answer.confidence == "insufficient"
+    if insufficient:
+        if latest.status == "ready" and not answer.evidence_gaps:
+            raise ValueError("insufficient answers must explain the missing relevant context")
+        if any(claim.kind == "guidance" for claim in answer.findings):
+            raise ValueError("insufficient answers cannot assert grounded guidance findings")
         # An insufficient response can retain current tool facts, but cannot imply that
         # document context exists. The server owns the confidence and missing-context text.
         answer = answer.evolve(
@@ -70,15 +75,24 @@ def validate_grounded_answer(
         )
     elif not used:
         raise ValueError("grounded explanation must cite at least one retrieved passage")
+    elif answer.evidence_gaps and answer.confidence in {"high", "moderate"}:
+        answer = answer.evolve(
+            confidence="low",
+            confidence_reason="The answer identifies material evidence gaps or conflicts.",
+        )
     elif answer.confidence == "high":
         # Retrieved project guidance plus tool references establishes identifiable support,
         # not verified semantic entailment. Keep the category conservative.
         answer = answer.evolve(
             confidence="moderate",
-            confidence_reason="Sources are identified; claim support still needs human verification.",
+            confidence_reason=(
+                "Sources are identified; claim support still needs human verification."
+            ),
         )
     payload = cast(dict[str, JsonValue], answer.model_dump(mode="json"))
     payload["citations"] = [citations[key].model_dump(mode="json") for key in sorted(used)]
-    payload["grounding_status"] = latest.status
+    payload["grounding_status"] = (
+        "insufficient_context" if insufficient and latest.status == "ready" else latest.status
+    )
     payload["corpus_version"] = latest.corpus_version
     return payload

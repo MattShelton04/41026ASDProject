@@ -202,9 +202,12 @@ def test_asgi_authentication_and_sdk_streamable_protocol_without_network() -> No
     app = create_app(catalog(), service_token=TOKEN, executor=executor(requests))
 
     async def scenario() -> None:
-        async with app.router.lifespan_context(app), httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:5011"
-        ) as client:
+        async with (
+            app.router.lifespan_context(app),
+            httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:5011"
+            ) as client,
+        ):
             assert (await client.get("/health")).status_code == 401
             assert (
                 await client.get("/health", headers={"Authorization": "Bearer wrong"})

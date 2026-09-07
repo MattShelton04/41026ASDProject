@@ -26,7 +26,12 @@ ASSISTANT_TOOL_ALLOWLIST = (
     *ASSISTANT_TOOL_ALLOWLIST_V1,
     "property.locality_summary.v1",
 )
-ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS = (ASSISTANT_TOOL_ALLOWLIST_V1, ASSISTANT_TOOL_ALLOWLIST)
+ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS = (
+    ASSISTANT_TOOL_ALLOWLIST_V1,
+    ASSISTANT_TOOL_ALLOWLIST,
+    (*ASSISTANT_TOOL_ALLOWLIST_V1, "context.retrieve.v1"),
+    (*ASSISTANT_TOOL_ALLOWLIST, "context.retrieve.v1"),
+)
 AssistantScope = Literal["application", "feature"]
 AssistantHistoryRole = Literal["user", "assistant"]
 AssistantContextRoute = Literal["releases/detail", "runs/detail", "properties/detail"]
