@@ -32,7 +32,9 @@ are directly accessible from the list, while editing and destructive confirmatio
 existing guarded forms. The overview links to actual versions needing preparation or review.
 
 Property records provide keyboard-accessible Research, Sale history, Area context and Sources
-sections. Switching sections retains loaded evidence and the search-return context; the selected
+sections beneath a full-width identity-and-location row. A larger map sits to the right of
+Property at a glance on desktop; the cards stack before the research sections on mobile.
+Switching sections retains loaded evidence and the search-return context; the selected
 section is represented in the URL for reloads. Empty sale history remains explicitly unknown.
 `frontend/fieldbook.css` owns this feature's composition using public Shared tokens. The source
 HTMX lifecycle, map provider, acquisition, review, publication and assistant contracts are unchanged.

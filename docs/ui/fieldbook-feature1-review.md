@@ -57,3 +57,12 @@ The revised interactive prototype collection remains at
 The [Shared review](fieldbook-implementation-review.md) records the seven Shared comparisons
 and the separate full-audit/AI-provider limitations. These checks do not claim a successful live
 model-backed assistant turn or a successful full cross-feature fixture matrix.
+
+## Property layout refinement
+
+Following the user's review, the property summary and Location card now share the top row, with
+the map occupying the larger right-hand column. Research sections span the full width below.
+The map is at least 440px tall on desktop and 340px on mobile, where summary, map and research
+stack in that order. The live 111 Phillip Street property was inspected with its actual map;
+desktop/mobile captures are in the design lab's `property-layout-refinement/` directory.
+The original ten-pair gallery above records the initial implementation before this refinement.

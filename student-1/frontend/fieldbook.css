@@ -91,8 +91,10 @@ table td.numeric { white-space: nowrap; }
 .property-identity-hero .page-heading h1 { font-size: clamp(1.875rem, 3vw, 2.625rem); }
 .property-reference-strip { gap: var(--ps-space-3); }
 .property-reference-strip span { border-radius: var(--ps-radius-xs); background: var(--ps-ocean-100); font-size: .6875rem; padding: var(--ps-space-2); }
-.property-detail-grid { grid-template-columns: minmax(220px, .65fr) minmax(0, 1.35fr); gap: var(--ps-space-6); }
-.property-summary-column .map-context { min-height: 280px; }
+.property-detail-grid { grid-template-columns: minmax(0, 1fr); gap: var(--ps-space-6); }
+.property-summary-column { grid-template-columns: minmax(240px, .65fr) minmax(0, 1.35fr); align-items: stretch; gap: var(--ps-space-6); }
+.property-summary-column > .panel { margin: 0; }
+.property-summary-column .map-context { min-height: 440px; }
 .property-summary-column .panel-heading h2 { font-size: 1.25rem; }
 .property-sections { min-width: 0; }
 .property-section-tabs { display: flex; gap: var(--ps-space-4); overflow-x: auto; border-bottom: 1px solid var(--line); margin-bottom: var(--ps-space-5); }
@@ -115,9 +117,6 @@ table td.numeric { white-space: nowrap; }
   .page-heading { align-items: flex-start; flex-direction: column; gap: var(--ps-space-4); }
   .heading-actions { max-width: none; justify-content: flex-start; }
   .dashboard-grid { grid-template-columns: 1fr; }
-  .property-detail-grid { grid-template-columns: 1fr; }
-  .property-summary-column { grid-template-columns: 1fr 1fr; align-items: start; }
-  .property-summary-column .map-context { min-height: 220px; }
   .discovery-hero { gap: var(--ps-space-5); }
 }
 @media (max-width: 780px) {
@@ -143,8 +142,7 @@ table td.numeric { white-space: nowrap; }
   .discovery-illustration { display: none; }
   .discovery-hero--results h1 { font-size: 2.25rem; }
   .property-summary-column { grid-template-columns: 1fr; }
-  .property-content-column { order: -1; }
-  .property-summary-column .map-context { min-height: 240px; }
+  .property-summary-column .map-context { min-height: 340px; }
   .property-section-tabs { gap: var(--ps-space-3); }
   .property-section-tab { font-size: .8125rem; }
 }
