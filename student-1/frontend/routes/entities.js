@@ -118,9 +118,9 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
           backfill.disabled = item.status !== "active";
           append(
             actions,
+            viewDetails,
             runNow,
             actionMenu(`More actions for ${item.name}`, [
-              viewDetails,
               link("View history", `#runs${queryString({ job: item.id })}`, "button secondary small"),
               backfill,
               edit,
@@ -132,7 +132,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
           }
           append(
             row,
-            cell(primaryCell(displayName(item.name), displayName(item.profile_key))),
+            cell(primaryCell(link(displayName(item.name), `#jobs/${item.id}`), displayName(item.profile_key))),
             cell(
               primaryCell(
                 displayName(item.dataset_id || item.target?.contract),

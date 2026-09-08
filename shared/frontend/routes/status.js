@@ -29,12 +29,14 @@ export function overallReadiness(components) {
   return enabled.length ? "ready" : "unknown";
 }
 
-function healthCard(component) {
-  const card = el("article", "ps-card health-card");
-  const body = el("div", "ps-card__body");
-  const top = el("div", "health-card__top");
-  append(top, el("span", "health-card__kind", component.kind), badge(component.label, component.tone));
-  append(body, top, el("h2", "", component.name), el("p", "", component.detail));
+export function healthCard(component) {
+  const card = el("details", "health-row");
+  const summary = el("summary", "health-row__summary");
+  const identity = el("span", "health-row__identity");
+  append(identity, el("strong", "", component.name), el("span", "health-card__kind", component.kind));
+  append(summary, identity, badge(component.label, component.tone), el("span", "health-row__latency", component.latency === null ? "Not observed" : `${component.latency} ms`));
+  const body = el("div", "health-row__detail");
+  append(body, el("p", "", component.detail));
   const facts = el("dl", "health-card__facts");
   for (const [term, value] of [["Response time", component.latency === null ? "Not observed" : `${component.latency} ms`], ["Request ID", component.requestId || "Not supplied"]]) {
     const row = el("div");
@@ -46,7 +48,7 @@ function healthCard(component) {
     const action = component.kind === "Feature API" ? `Open ${component.name}` : component.name === "AI review history" ? "Open Activity history" : "Open workspace";
     append(body, link(action, component.href, "ps-button ps-button--quiet health-card__link"));
   }
-  append(card, body);
+  append(card, summary, body);
   return card;
 }
 
@@ -92,9 +94,10 @@ export function createStatusRoute({
   return async function renderStatus(root) {
     const refresh = el("button", "ps-button ps-button--primary", "Refresh status");
     refresh.type = "button";
-    append(root, pageHeader("PropertyScope", "Data status", "Check whether property search, published data and AI review history are available.", [refresh]));
+    append(root, pageHeader("Live service availability", "Data status", "A clear view of what is responding, what needs attention and what has not been checked. Service availability is separate from evidence coverage.", [refresh]));
     const summary = el("section", "status-summary");
-    const cards = el("div", "ps-grid ps-grid-3 health-grid");
+    const cards = el("div", "health-grid");
+    cards.setAttribute("aria-label", "Live service checks");
     const contracts = panel("Research area availability", "Planned areas stay unavailable until their data and workflows are ready.");
     append(root, summary, cards, contracts.card);
 
@@ -159,6 +162,18 @@ export function createStatusRoute({
       const overall = overallReadiness(components);
       const checkedAt = new Date().toISOString();
       summary.replaceChildren(notice(overall === "ready" ? "success" : "warning", overall === "ready" ? "Checked services are ready" : "Some live services need attention", `Checked ${formatDate(checkedAt)}. Planned and deliberately disabled services are not counted as failures. Research dependency health is separate from ordinary feature access and evidence coverage.`));
+      const metrics = el("dl", "status-metrics");
+      for (const [label, value] of [
+        ["Ready", components.filter((item) => item.enabled && item.readiness === "ready").length],
+        ["Needs attention", components.filter((item) => item.enabled && ["degraded", "unavailable"].includes(item.readiness)).length],
+        ["Not observed", components.filter((item) => item.enabled && item.readiness === "unknown").length],
+        ["Disabled", components.filter((item) => !item.enabled).length],
+      ]) {
+        const metric = el("div");
+        append(metric, el("dt", "", label), el("dd", "", String(value)));
+        append(metrics, metric);
+      }
+      append(summary, metrics);
       cards.replaceChildren(...components.map(healthCard));
 
       const planned = [

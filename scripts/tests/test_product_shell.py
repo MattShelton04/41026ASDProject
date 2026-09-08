@@ -41,10 +41,10 @@ def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
     script = _read("shared/frontend/app.js")
     fragment = _read("shared/frontend/fragments/research-areas.html")
 
-    assert "Research a property." in page
-    assert "See what is known." in page
+    assert "A clearer view" in page
+    assert "your next move." in page
     assert 'id="property-search-form"' in page
-    assert "Build the picture around a property" in page
+    assert 'aria-labelledby="research-heading"' in page
     assert registry.count('featureKey: "') == 5
     assert registry.count("implemented: false") == 4
     assert enabled_registry.count('"featureKey"') == 5
@@ -53,7 +53,10 @@ def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
     assert "renderHomeFeatures" not in script
     assert "Choose an enabled research area" in page
     assert "planned and not available yet" not in page
-    assert "Start a property review" in page
+    assert "ILLUSTRATION · NOT PROPERTY EVIDENCE" in page
+    assert page.count('data-story-area="') == 5
+    assert page.count('data-scene-target="') == 5
+    assert 'style="--h:' not in page  # The deployed CSP rejects inline chart styles.
     assert 'id="operations"' in page
 
     for assignment_copy in (
@@ -115,7 +118,8 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "Data status" in status
     assert "Published datasets" in evidence
     assert "Detailed availability" in roadmap
-    assert "PropertyScope research areas" in features
+    assert "The research directory" in features
+    assert "featureRegistry(config).map(featureCard)" in features
     assert "resolver 127.0.0.11" in nginx
     assert "proxy_pass $enabled_feature_0_backend" in enabled_nginx
     assert "proxy_pass $ai_mode_upstream" in nginx

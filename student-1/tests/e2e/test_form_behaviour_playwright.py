@@ -225,9 +225,7 @@ def test_table_observers_are_released_after_search_and_shared_navigation(
     expect(page.get_by_text("Current records loaded.")).to_be_visible()
     assert page.evaluate("window.tableObservers.size") > 0
     page.get_by_role("link", name="Home", exact=True).first.click()
-    expect(
-        page.get_by_role("heading", name="Research a property. See what is known.")
-    ).to_be_visible()
+    expect(page.get_by_role("heading", name="A clearer view of your next move.")).to_be_visible()
     assert page.evaluate("window.tableObservers.size") == 0
 
 
@@ -472,14 +470,59 @@ def test_property_identity_renders_before_optional_calls_settle(
 
     page.evaluate("window.__releasePropertyOptional()")
     expect(page.get_by_role("heading", name="Research available")).to_be_visible()
+    page.get_by_role("tab", name="Sale history", exact=True).click()
     expect(page.get_by_role("heading", name="Sale history")).to_be_visible()
     expect(page.get_by_text("$760,000", exact=True)).to_be_visible()
+    page.get_by_role("tab", name="Area context", exact=True).click()
     expect(page.get_by_role("heading", name="Socio-economic area context")).to_be_visible()
     expect(page.get_by_text("10 of 10", exact=True).first).to_be_visible()
     expect(page.get_by_text("Based on Australian Bureau of Statistics data")).to_be_visible()
     expect(page.locator(".map-context")).to_be_visible()
-    page.get_by_text("Sources and identifiers", exact=True).click()
+    page.get_by_role("tab", name="Sources and identifiers", exact=True).click()
     expect(page.get_by_role("heading", name="Source summary")).to_be_visible()
+
+
+def test_property_sections_keep_loaded_evidence_and_restore_deep_link(
+    page: Page, fixture_origin: str
+) -> None:
+    _abort_external_map(page)
+    reads: list[str] = []
+    page.on("request", lambda request: reads.append(request.url))
+    _open(page, fixture_origin, f"properties/{PROPERTY_ID}?q=Sydney&section=sales")
+    expect(page.get_by_role("tab", name="Sale history", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(page.get_by_text("$760,000", exact=True)).to_be_visible()
+    initial_reads = len([url for url in reads if f"/properties/{PROPERTY_ID}" in url])
+    page.get_by_role("tab", name="Sale history", exact=True).press("ArrowRight")
+    expect(page.get_by_role("tab", name="Area context", exact=True)).to_be_focused()
+    expect(page.get_by_text("10 of 10", exact=True).first).to_be_visible()
+    page.get_by_role("tab", name="Area context", exact=True).press("End")
+    expect(page.get_by_role("heading", name="Source summary")).to_be_visible()
+    assert len([url for url in reads if f"/properties/{PROPERTY_ID}" in url]) == initial_reads
+    assert "q=Sydney" in page.url and "section=sources" in page.url
+    page.reload()
+    expect(page.get_by_role("tab", name="Sources and identifiers", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(page.get_by_role("heading", name="Source summary")).to_be_visible()
+
+
+def test_evidence_pages_retain_the_selected_update(page: Page, fixture_origin: str) -> None:
+    _open(page, fixture_origin, f"quality/{RUN_ID}")
+    navigation = page.get_by_role("navigation", name="Evidence pages")
+    expect(navigation.get_by_role("link", name="Files & history")).to_have_attribute(
+        "href", f"#artifacts/{RUN_ID}"
+    )
+    navigation.get_by_role("link", name="Files & history").click()
+    expect(page.get_by_role("heading", name="Files and history", exact=True)).to_be_visible()
+    expect(page.get_by_role("link", name="← Back to this update")).to_have_attribute(
+        "href", f"#runs/{RUN_ID}"
+    )
+    page.get_by_role("navigation", name="Evidence pages").get_by_role(
+        "link", name="Published coverage"
+    ).click()
+    expect(page.get_by_role("heading", name="Data coverage", exact=True)).to_be_visible()
 
 
 @pytest.mark.parametrize("width", [1440, 1024, 768, 390])
@@ -522,16 +565,12 @@ def test_property_sources_stay_readable_when_expanded(
         page.route(f"**/properties/{PROPERTY_ID}/report-section", extend_records)
 
     _open(page, fixture_origin, f"properties/{PROPERTY_ID}")
-    disclosure = page.locator(".property-summary-column > details")
-    toggle = disclosure.locator(":scope > summary")
+    disclosure = page.locator("#property-section-sources")
+    toggle = page.get_by_role("tab", name="Sources and identifiers", exact=True)
     toggle.focus()
     toggle.press("Enter")
-    expect(disclosure).to_have_attribute("open", "")
-    expect(toggle).to_have_accessible_name(
-        "Sources and identifiers References, coordinates, aliases and report evidence"
-    )
-    expect(toggle.locator(".disclosure-hide")).to_be_visible()
-    expect(toggle.locator(".disclosure-show")).to_be_hidden()
+    expect(toggle).to_have_attribute("aria-selected", "true")
+    expect(disclosure).to_be_visible()
     expect(disclosure.get_by_role("heading", name="Source summary")).to_be_visible()
     expect(disclosure.get_by_text("GNAF-FIXTURE-0001", exact=True)).to_have_count(2)
     expect(disclosure.get_by_text("-33.8688", exact=True)).to_be_visible()
@@ -568,11 +607,11 @@ def test_property_sources_stay_readable_when_expanded(
         "parseFloat(getComputedStyle(element).fontSize) <= 16)"
     )
     toggle.focus()
-    toggle.press("Enter")
-    expect(disclosure).not_to_have_attribute("open", "")
-    expect(toggle).to_be_focused()
-    expect(toggle.locator(".disclosure-show")).to_be_visible()
-    expect(toggle.locator(".disclosure-hide")).to_be_hidden()
+    toggle.press("Home")
+    expect(disclosure).to_be_hidden()
+    research = page.get_by_role("tab", name="Research available", exact=True)
+    expect(research).to_be_focused()
+    expect(research).to_have_attribute("aria-selected", "true")
 
 
 def test_property_partial_and_fatal_states_keep_local_recovery(
@@ -588,7 +627,7 @@ def test_property_partial_and_fatal_states_keep_local_recovery(
     expect(
         page.get_by_text("Coverage details are temporarily unavailable", exact=False)
     ).to_be_visible()
-    page.get_by_text("Sources and identifiers", exact=True).click()
+    page.get_by_role("tab", name="Sources and identifiers", exact=True).click()
     expect(
         page.get_by_text("The source summary is temporarily unavailable", exact=False)
     ).to_be_visible()
@@ -1641,16 +1680,19 @@ def test_jobs_list_secondary_actions_use_keyboard_accessible_overflow(
     ).to_be_hidden()
 
     more = page.get_by_role("button", name="More actions for Example property records update")
+    details = page.get_by_role("link", name="View details Example property records update")
+    expect(details).to_be_visible()
     more.focus()
     more.press("ArrowDown")
 
-    details = page.get_by_role("link", name="View details Example property records update")
-    expect(details).to_be_visible()
-    expect(details).to_be_focused()
+    history = page.get_by_role("link", name="View history Example property records update")
+    expect(history).to_be_visible()
+    expect(history).to_be_focused()
     expect(more).to_have_attribute("aria-expanded", "true")
 
-    details.press("Escape")
-    expect(details).to_be_hidden()
+    history.press("Escape")
+    expect(history).to_be_hidden()
+    expect(details).to_be_visible()
     expect(more).to_be_focused()
     expect(more).to_have_attribute("aria-expanded", "false")
 

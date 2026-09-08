@@ -6,6 +6,17 @@ import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell } from "../components/tables.js";
 
 export function createEvidenceRoutes({ view, request, loading, generationGuard, rerender }) {
+  function evidenceNavigation(kind, runId = "") {
+    const nav = el("nav", "evidence-navigation state-tabs");
+    nav.setAttribute("aria-label", "Evidence pages");
+    for (const [route, label] of [["quality", "Data checks"], ["artifacts", "Files & history"], ["coverage", "Published coverage"]]) {
+      const target = route === "coverage" || !runId ? `#${route}` : `#${route}/${encodeURIComponent(runId)}`;
+      const item = link(label, target, "state-tab");
+      if (route === kind) item.setAttribute("aria-current", "page");
+      append(nav, item);
+    }
+    return nav;
+  }
   async function renderEvidenceExplorer(kind, runId = "") {
     const routeEpoch = generationGuard.capture();
     loading(kind === "quality" ? "Loading data checks" : "Loading files");
@@ -18,6 +29,7 @@ export function createEvidenceRoutes({ view, request, loading, generationGuard, 
       if (!routeEpoch.isCurrent()) return;
       view.replaceChildren();
       append(view, pageHeading("Update details", kind === "quality" ? "Data checks" : "Files and history", kind === "quality" ? "Review the checks and samples recorded for one data update." : "Review the files, checksums and source history recorded for one data update.", [link("Choose another update", `#${kind}`, "button secondary")]));
+      append(view, evidenceNavigation(kind, runId), link("← Back to this update", `#runs/${encodeURIComponent(runId)}`, "text-button"));
       if (runResult.status === "fulfilled") {
         const run = runResult.value.body.run || runResult.value.body;
         append(view, el("div", "notice", `Update ${run.id || runId} · ${humanise(run.status)} · started ${formatDate(run.requested_at || run.created_at)}.`));
@@ -38,6 +50,7 @@ export function createEvidenceRoutes({ view, request, loading, generationGuard, 
     const runs = collection(result.body);
     view.replaceChildren();
     append(view, pageHeading("Update details", kind === "quality" ? "Data checks" : "Files and history", `Choose a data update to inspect its ${kind === "quality" ? "check results" : "files"}.`));
+    append(view, evidenceNavigation(kind));
     if (!runs.length) { append(view, emptyState("No data updates", `There are no updates with ${kind === "quality" ? "data checks" : "files"} yet.`)); return; }
     append(view, panel("Choose a data update", `${runs.length} recent updates`, makeTable(
       [{ label: "Update" }, { label: "State" }, { label: "Step" }, { label: "Started" }, { label: "Details" }], runs,
@@ -57,6 +70,7 @@ export function createEvidenceRoutes({ view, request, loading, generationGuard, 
       });
       view.replaceChildren();
       append(view, pageHeading("Published data", "Data coverage", "See where each published dataset applies and whether its coverage is complete, partial, stale or unavailable."));
+      append(view, evidenceNavigation("coverage"));
       append(view, el("div", "notice", `Coverage comes from published dataset details. Request ID ${result.requestId}. Missing entries mean coverage has not been recorded.`));
       if (!rows.length) { append(view, emptyState("No published coverage details", "Coverage appears after a dataset version is published.")); return; }
       append(view, panel(`${rows.length} coverage entries`, "Every colour is paired with a written status", makeTable(

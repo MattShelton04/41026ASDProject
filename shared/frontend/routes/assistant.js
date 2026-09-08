@@ -1,5 +1,5 @@
 import { createAiChat, createAssistantClient } from "../ai-chat/index.js";
-import { notice } from "../core.js";
+import { append, el, link, notice } from "../core.js";
 
 export const SHARED_ASSISTANT_SCOPES = Object.freeze([
   { id: "application", label: "Application guidance", description: "Help navigating PropertyScope. This assistant’s evidence tools currently cover Property data, not every research area." },
@@ -31,6 +31,7 @@ export function createAssistantRoute({ announce = () => {} } = {}) {
   let active = null;
   return (root) => {
     active?.destroy();
+    root.classList.add("shared-assistant-page");
     const client = createAssistantClient({ apiRoot: "/api/data-platform/v1/assistant" });
     active = createAiChat({
       root,
@@ -41,9 +42,23 @@ export function createAssistantRoute({ announce = () => {} } = {}) {
       suggestions: sharedAssistantSuggestions,
       activityHref,
       announce,
-      title: "Ask PropertyScope",
-      description: "This currently uses the Property data assistant. Application guidance changes the question context; it does not switch to other research areas’ tools. Every message creates a durable activity record with visible evidence.",
+      title: "Better questions. Visible evidence.",
+      description: "Ask PropertyScope about your workspace and Property data. Follow the sources, keep the limits in view and inspect the activity behind each answer.",
     });
+    const guide = el("aside", "assistant-guide");
+    guide.setAttribute("aria-label", "Assistant scope and evidence guide");
+    append(guide, el("p", "ps-eyebrow", "Alongside the answer"), el("h2", "", "Keep the evidence close."));
+    for (const [number, title, copy] of [
+      ["01", "Check the scope", "Application guidance and Property data currently use the Property data assistant. Other research areas’ tools are not connected here."],
+      ["02", "Follow the source", "Source references appear with a supported answer. Open a reference to inspect the evidence used for that turn."],
+      ["03", "Leave room for unknown", "Missing or partial evidence stays explicit. An unanswered question is a useful next step."],
+    ]) {
+      const item = el("section", "assistant-guide__item");
+      append(item, el("span", "mono", number), el("h3", "", title), el("p", "", copy));
+      append(guide, item);
+    }
+    append(guide, link("Sources & history →", "#evidence"), link("Check data status →", "#system-status"));
+    append(root.querySelector(".ps-ai-chat"), guide);
     const controller = active;
     client.capabilities().then(({ body }) => {
       if (active !== controller || !body?.suggested_questions?.length) return;

@@ -11,8 +11,13 @@ function featureCard(feature) {
   const copy = el("div");
   append(copy, el("p", "ps-card__eyebrow", feature.shortLabel), el("h2", "", feature.label));
   append(heading, icon, copy);
+  const illustration = el("img", "feature-directory-visual");
+  illustration.src = `./design-system/illustrations/${feature.id}.svg`;
+  illustration.alt = "";
+  illustration.width = 300;
+  illustration.height = 110;
   const state = capabilityState(feature);
-  append(body, heading, el("p", "", feature.summary));
+  append(body, heading, illustration, el("p", "", feature.summary));
   const actions = el("div", "feature-directory-card__actions");
   append(actions, badge(state.label, state.tone));
   if (feature.href) append(actions, link(`Open ${feature.label}`, feature.href, "ps-button ps-button--primary"));
@@ -24,7 +29,7 @@ function featureCard(feature) {
 
 export function createFeaturesRoute({ config }) {
   return function renderFeatures(root) {
-    append(root, pageHeader("Research workspace", "PropertyScope research areas", "Start with a property record, then explore the enabled research areas. Each area keeps its own evidence, saved work and coverage limits visible.", [link("Check what’s available", "#release-roadmap", "ps-button")]));
+    append(root, pageHeader("The research directory", "A place is more than a property.", "Choose a perspective. Each research area keeps its own sources, saved work and coverage limits visible.", [link("What’s available →", "#release-roadmap", "ps-button")]));
     const grid = el("div", "ps-grid ps-grid-2 feature-directory-grid");
     append(grid, ...featureRegistry(config).map(featureCard));
     append(root, grid);

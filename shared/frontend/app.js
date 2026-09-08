@@ -1,13 +1,14 @@
 import { append, el, link, notice, parseShellRoute, requestJson, requestText } from "./core.js";
 import { ENABLED_FEATURES } from "./generated/enabled-features.js";
-import { createEvidenceRoute, loadEvidenceAdapter } from "./routes/evidence.js";
-import { createAssistantRoute } from "./routes/assistant.js";
-import { createFeaturesRoute } from "./routes/features.js";
-import { createRoadmapRoute } from "./routes/roadmap.js";
-import { createStatusRoute } from "./routes/status.js";
+import { createEvidenceRoute, loadEvidenceAdapter } from "./routes/evidence.js?v=3";
+import { createAssistantRoute } from "./routes/assistant.js?v=3";
+import { createFeaturesRoute } from "./routes/features.js?v=3";
+import { createRoadmapRoute } from "./routes/roadmap.js?v=3";
+import { createStatusRoute } from "./routes/status.js?v=3";
 import { featureRegistry, findFeature } from "./features.js";
 import { loadFeature1Bridge } from "./feature-1-bridge.js";
 import { createDrawerController, createToastController, disposeTableRegions } from "./browser/index.js";
+import { createHomeStory } from "./home-story.js?v=2";
 
 const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const config = { ...externalConfig };
@@ -25,6 +26,10 @@ if (researchNavigation) {
     item.prepend(number);
     return item;
   }));
+}
+const mobileResearchNavigation = document.querySelector("[data-mobile-research-navigation]");
+if (mobileResearchNavigation && researchNavigation) {
+  mobileResearchNavigation.replaceChildren(...[...researchNavigation.children].map((item) => item.cloneNode(true)));
 }
 const homeMarkup = main.innerHTML;
 const homeRail = main.querySelector(".product-rail")?.cloneNode(true);
@@ -185,6 +190,7 @@ async function renderRoute() {
     const restoredHome = !main.querySelector("#top");
     if (restoredHome) main.innerHTML = homeMarkup;
     bindHomeInteractions();
+    activeRouteController = createHomeStory(main, featureRegistry(config));
     if (restoredHome) { main.tabIndex = -1; main.focus({ preventScroll: true }); announce("Home loaded."); }
     if (restoredHome) window.htmx?.process(main);
     document.title = "PropertyScope NSW";
@@ -199,7 +205,12 @@ async function renderRoute() {
   const dashboard = el("div", "ps-container dashboard ps-enter");
   const rail = homeRail?.cloneNode(true);
   if (rail) {
-    rail.querySelectorAll("a").forEach((item) => item.classList.toggle("is-current", item.getAttribute("href") === `#${route}`));
+    rail.querySelectorAll("a").forEach((item) => {
+      const selected = item.getAttribute("href") === `#${route}`;
+      item.classList.toggle("is-current", selected);
+      if (selected) item.setAttribute("aria-current", "page");
+      else item.removeAttribute("aria-current");
+    });
     append(dashboardShell, rail);
   }
   append(dashboardShell, dashboard);

@@ -8,6 +8,7 @@ import { parseRoute, routeQuery, readHistoryState as historyState, replaceHistor
 import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
+import { propertySections } from "../components/property-sections.js";
 import { createMap, createOpenFreeMapProvider, featureCollection, mountMapHelp, pointFeature } from "../mapping/index.js";
 
 const PROPERTY_SEARCH_PAGE_SIZE = 25;
@@ -20,7 +21,8 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     if (propertyRef) return renderPropertyDetail(propertyRef, routeEpoch);
     view.replaceChildren();
     const hero = el("section", "discovery-hero");
-    append(hero, el("p", "eyebrow", "Property search"), el("h1", "", "Find a NSW property"), el("p", "", "Search the current published address register by street, suburb, postcode or any combination you know."));
+    const searchCopy = el("div", "discovery-copy");
+    append(searchCopy, el("p", "eyebrow", "Property data / Start with a place"), el("h1", "", "Find a NSW property"), el("p", "", "Search the current published address register by street, suburb, postcode or any combination you know."));
     const form = el("form", "search-box");
     form.setAttribute("role", "search");
     const searchField = el("label", "search-field");
@@ -43,7 +45,14 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     append(form, searchField, search);
     const searchError = el("p", "form-error"); searchError.id = "property-search-error"; searchError.setAttribute("role", "alert");
     const searchHelp = el("p", "search-help", "Use a postcode, a distinctive locality, or a fuller street address. Punctuation is optional."); searchHelp.id = "property-search-help";
-    append(hero, form, searchError, searchHelp);
+    append(searchCopy, form, searchError, searchHelp);
+    const illustration = el("aside", "discovery-illustration");
+    illustration.setAttribute("aria-hidden", "true");
+    const parcels = el("div", "discovery-parcels");
+    for (let index = 0; index < 12; index += 1) append(parcels, el("i"));
+    append(illustration, el("span", "eyebrow", "Illustrative parcel view / NSW"), parcels, el("p", "", "A place. A record. A source."));
+    append(hero, searchCopy, illustration);
+    hero.classList.toggle("discovery-hero--results", Boolean(input.value));
     append(view, hero);
     const resultHost = el("div");
     append(resultHost, emptyState("Search current property records", "Use as much or as little of the address as you know. Add more detail only when you need to narrow the matches."));
@@ -56,6 +65,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
       const task = searches.begin();
       const isCurrent = () => task.isCurrent() && canHydrate(routeEpoch, resultHost, "") && input.value.trim() === query;
       pendingQuery = query;
+      hero.classList.add("discovery-hero--results");
       setSearchPending(true);
       updateSearchHistory(query, { preserveReturn });
       disposeTableRegions(resultHost);
@@ -234,7 +244,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
       const initialCoverage = detailPayload.coverage || [];
       view.replaceChildren();
       const identityHero = el("section", "property-identity-hero");
-      append(identityHero, pageHeading("Verified NSW property", property.address_display || property.display_address || "Property record", `${property.locality || "NSW"} · ${property.state || "NSW"} ${property.postcode || ""} · Updated ${formatDate(property.updated_at)}`, [propertyBackLink(query, propertyRef)]));
+      append(identityHero, pageHeading("Published property record", property.address_display || property.display_address || "Property record", `${property.locality || "NSW"} · ${property.state || "NSW"} ${property.postcode || ""} · Updated ${formatDate(property.updated_at)}`, [propertyBackLink(query, propertyRef)]));
       const referenceStrip = el("div", "property-reference-strip");
       const coverageCount = el("span", "", `${initialCoverage.length} research datasets available`);
       append(referenceStrip, el("span", "", humanise(property.resolution_status || "unknown")), el("span", "", `${detailPayload.identifiers?.length || 0} source identifiers checked`), coverageCount);
@@ -246,14 +256,13 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
       append(summaryColumn, panel("Property at a glance", "Canonical identity from current published records", summaryBody));
       const contentColumn = el("div", "property-content-column");
       const mapHost = pendingSection("Loading spatial context…");
-      append(contentColumn, panel("Location", "Verified property point and surrounding street context", mapHost));
+      append(summaryColumn, panel("Location", "Recorded property point and surrounding street context", mapHost));
       const coverageHost = pendingSection("Loading available research coverage…");
-      append(contentColumn, panel("Research available", "Published datasets currently linked to this property", coverageHost));
+      const coveragePanel = panel("Research available", "Published datasets currently linked to this property", coverageHost);
       const seifaHost = pendingSection("Loading accepted ABS SEIFA area evidence…");
-      append(contentColumn, panel("Socio-economic area context", "ABS SEIFA 2021 evidence for the matched Suburb and Locality area", seifaHost));
+      const seifaPanel = panel("Socio-economic area context", "ABS SEIFA 2021 evidence for the matched Suburb and Locality area", seifaHost);
       const saleHistoryHost = pendingSection("Loading accepted sale history…");
       const saleHistoryPanel = panel("Sale history", "Recorded transactions from the current published NSW sales release", saleHistoryHost);
-      append(contentColumn, saleHistoryPanel);
       const technicalBody = el("div", "stack property-sources");
       append(technicalBody, detailList([["PropertyScope reference", el("code", "mono", property.property_ref)], ["Request ID", el("code", "mono", detailResult.requestId)]]));
       const coordinateHost = pendingSection("Loading recorded coordinates…");
@@ -266,7 +275,13 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
       ], "No address aliases are recorded for this property."));
       const reportHost = pendingSection("Loading source summary…");
       append(technicalBody, reportHost);
-      append(summaryColumn, disclosurePanel("Sources and identifiers", "References, coordinates, aliases and report evidence", technicalBody));
+      const sourcesPanel = panel("Sources and identifiers", "References, coordinates, aliases and report evidence", technicalBody);
+      append(contentColumn, propertySections([
+        { key: "research", label: "Research available", content: coveragePanel },
+        { key: "sales", label: "Sale history", content: saleHistoryPanel },
+        { key: "area", label: "Area context", content: seifaPanel },
+        { key: "sources", label: "Sources and identifiers", content: sourcesPanel },
+      ]));
       append(detailGrid, summaryColumn, contentColumn);
       append(view, detailGrid);
 
@@ -300,7 +315,8 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
         }
         const items = collection(result.value.body);
         if (!result.value.body.supported || !items.length) {
-          saleHistoryPanel.remove();
+          resolvePendingSection(saleHistoryHost);
+          saleHistoryHost.replaceChildren(emptyState("No published sale history", "No supported sale records were returned for this property. This does not establish that the property has never sold."));
           return;
         }
         resolvePendingSection(saleHistoryHost);

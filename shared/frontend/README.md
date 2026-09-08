@@ -9,6 +9,8 @@ independently buildable `student-N/frontend/` services.
 
 - `index.html` — unified entry point covering all five features and shared operational surfaces.
 - `app.js` — shell composition root for home/search, bounded hash routing and mobile navigation.
+- `home-story.js` — disposable scroll/chapter enhancement of the five authored conceptual scenes;
+  links resolve through the feature registry and reduced-motion preferences are respected.
 - `features.js` — the bounded five-area navigation registry and canonical feature ingress paths.
 - `fragments/research-areas.html` — same-origin HTMX projection of the five approved research areas.
 - `vendor/htmx-2.0.10.min.js` — pinned local HTMX production build; provenance, licence and
@@ -23,6 +25,10 @@ independently buildable `student-N/frontend/` services.
 - `routes/roadmap.js` — honest current/planned capability roadmap.
 - `routes/features.js` — registry-driven research-area directory without domain data composition.
 - `styles.css` — shell-specific composition.
+- `fieldbook.css` — Shared-only editorial, sidebar, working-view and responsive composition.
+- `fieldbook-illustrations.css` and `design-system/illustrations/` — authored conceptual diagrams,
+  never geographic, sales or other observed evidence. Illustrative bar geometry lives in the
+  stylesheet to satisfy the production `style-src 'self'` policy.
 - `Dockerfile` and `nginx.conf` — unprivileged static shell container with health and security headers.
 - `design-system/tokens.css` — colour, typography, spacing, radius, shadow and evidence-state tokens.
 - `design-system/base.css` — reset, typography, focus, skip-link and reduced-motion foundations.

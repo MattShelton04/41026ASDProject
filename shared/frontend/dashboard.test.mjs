@@ -58,7 +58,7 @@ test("feature registry is the bounded source for shell routes and availability",
 
 test("shared navigation distinguishes global destinations from research-area transitions", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  assert.match(html, /src="app\.js\?v=18"/);
+  assert.match(html, /src="app\.js\?v=20"/);
   assert.match(html, /class="area-launcher"/);
   assert.match(html, /aria-label="Open the Property data research area"/);
   assert.match(html, /class="rail-area-link"/);
@@ -74,7 +74,7 @@ test("shared home loads the pinned local HTMX build with a strict configuration"
   const provenance = readFileSync(new URL("./vendor/README.md", import.meta.url), "utf8");
 
   assert.match(html, /src="vendor\/htmx-2\.0\.10\.min\.js"/);
-  assert.ok(html.indexOf("htmx-2.0.10.min.js") < html.indexOf("app.js?v=18"));
+  assert.ok(html.indexOf("htmx-2.0.10.min.js") < html.indexOf("app.js?v=20"));
   assert.match(html, /"allowEval":false/);
   assert.match(html, /"allowScriptTags":false/);
   assert.doesNotMatch(html, /https?:\/\/[^"']*htmx/i);
