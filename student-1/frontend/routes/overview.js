@@ -77,6 +77,15 @@ export async function renderOverview({ view, request, generationGuard, rerender 
   }
   append(view, stats);
 
+  const reviewable = releases.filter((release) => ["draft", "candidate", "awaiting_review"].includes(release.status));
+  if (reviewable.length) {
+    const attention = el("section", "notice warning fieldbook-review-attention");
+    const copy = el("div");
+    append(copy, el("strong", "", `${reviewable.length} ${reviewable.length === 1 ? "version needs" : "versions need"} preparation or review`), el("p", "", "Current published data stays available. Inspect each candidate’s checks and scope before publication."));
+    append(attention, copy, link("Review versions →", "#releases?state=review", "button secondary"));
+    append(view, attention);
+  }
+
   const problemRuns = latestByJob.filter((run) => ["failed", "interrupted"].includes(String(run.status).toLowerCase()));
   if (problemRuns.length) {
     const alert = el("section", "notice negative overview-problems");
@@ -119,7 +128,7 @@ export async function renderOverview({ view, request, generationGuard, rerender 
     const release = releases.find((candidate) => candidate.source_definition_id === source.id && candidate.status === "accepted");
     item.classList.add(statusTone(release?.freshness_status || (release ? "accepted" : "unavailable")));
     const publication = !releasesAvailable ? "Publication status unavailable" : release ? `${release.release_version} · published ${formatDate(release.accepted_at)}` : "No published data";
-    append(item, el("strong", "", displayName(source.name)), el("span", "", publication));
+    append(item, link(displayName(source.name), release ? `#releases/${release.id}` : `#sources/${source.id}`), el("span", "", publication));
     append(sourceBody, item);
   }
   const coverageBody = el("div", "coverage-grid");
@@ -130,7 +139,7 @@ export async function renderOverview({ view, request, generationGuard, rerender 
   }
   if (!releasesAvailable) append(coverageBody, el("div", "notice warning", "Published coverage is temporarily unavailable. No coverage record has been changed."));
   else if (!coverage.length) append(coverageBody, el("p", "", "Coverage evidence is not available from this deployment."));
-  append(freshness, panel("Current published data", "Latest version available from each source", sourceBody), panel("NSW coverage", "Areas represented in published data", coverageBody));
+  append(freshness, panel("Current published data", "Latest version available from each source", sourceBody, link("View versions →", "#releases")), panel("NSW coverage", "Areas represented in published data", coverageBody, link("Inspect coverage →", "#coverage")));
   append(grid, panel("Recent updates", "Latest data processing activity", recentBody, link("View update history", "#runs")), freshness);
   append(view, grid);
 }

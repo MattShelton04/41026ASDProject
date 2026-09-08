@@ -34,7 +34,7 @@ export function createFeatureAssistantRoute({ view, announce = () => {} }) {
         activityHref,
         announce,
         title: "Ask about Property data",
-        description: "Ask a general question or inspect a page-linked property, update or dataset. This assistant is separate from the fixed Data review workflow and each message creates one durable activity run.",
+        description: "Ask about property records, sources, updates and published data. Link a page to keep the answer close to its evidence.",
       });
       return active;
     },
