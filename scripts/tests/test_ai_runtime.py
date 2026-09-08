@@ -353,6 +353,34 @@ def test_offline_docker_stops_advanced_services_and_starts_only_ai_mode(
     assert ai_runtime.capability_mode() == "direct"
 
 
+@pytest.mark.parametrize("placement", ["host", "docker"])
+@pytest.mark.parametrize("mode", ["direct", "combined"])
+@pytest.mark.parametrize("remove_volumes", [False, True])
+def test_shutdown_includes_every_selected_ai_owner_and_preserves_volume_policy(
+    lifecycle: list[tuple[str, ...]],
+    monkeypatch: pytest.MonkeyPatch,
+    placement: str,
+    mode: str,
+    remove_volumes: bool,
+) -> None:
+    ai_runtime.remember(placement, mode)
+    monkeypatch.setattr(dev, "_remove_openai_secret", lambda: lifecycle.append(("remove-secret",)))
+    dev._down(remove_volumes=remove_volumes)
+    command = next(call for call in lifecycle if "down" in call)
+    if placement == "docker":
+        assert ai_runtime.OVERLAY in command
+        profile_index = command.index("ai-container")
+        assert command[profile_index - 1] == "--profile"
+        assert profile_index < command.index("down")
+    else:
+        assert ai_runtime.OVERLAY not in command
+        assert "ai-container" not in command
+    assert ("--volumes" in command) is remove_volumes
+    assert "--remove-orphans" in command
+    assert lifecycle.index(("host-stop",)) < lifecycle.index(command)
+    assert lifecycle.index(command) < lifecycle.index(("remove-secret",))
+
+
 def test_failed_docker_stop_prevents_host_start_and_preserves_selection(
     lifecycle: list[tuple[str, ...]], monkeypatch: pytest.MonkeyPatch
 ) -> None:

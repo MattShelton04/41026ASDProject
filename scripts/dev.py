@@ -617,7 +617,9 @@ def _ai_status() -> None:
 def _down(*, remove_volumes: bool = False) -> None:
     host_runtime.stop()
     _ensure_docker()
-    arguments = ["down", "--remove-orphans"]
+    # Explicit service startup bypasses profiles; shutdown must select those owners too.
+    arguments = ["--profile", "ai-container"] if ai_runtime.selection() == "docker" else []
+    arguments.extend(("down", "--remove-orphans"))
     if remove_volumes:
         arguments.append("--volumes")
     _run(_compose_command(*arguments))
