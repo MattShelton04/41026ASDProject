@@ -1,5 +1,15 @@
 # Design-system changelog
 
+## 2026-09-08 — Fieldbook production composition
+
+Shared adopts the approved editorial prototypes with persistent desktop side navigation, a
+mobile drawer, parcel illustration and five-scene research tour. Five optional illustration
+colour roles extend the token set; existing public tokens and feature-facing components remain
+compatible. Status uses native expandable rows and observed counts; sources retain their complete
+index beside a featured publication; assistant and activity keep real state and source disclosures.
+All illustration motion respects reduced-motion preferences and uses CSP-compatible styles.
+See `docs/ui/fieldbook-implementation-plan.md` for scope and verification.
+
 ## 2026-09-07 — Release 1 grounded evidence
 
 The shared assistant extends Fieldbook with typed findings, keyboard-accessible source inspection,

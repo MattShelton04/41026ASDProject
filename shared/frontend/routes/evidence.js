@@ -220,7 +220,8 @@ export function createEvidenceRoute({ getEvidenceAdapters, announce, requestJson
           const releases = projectEvidenceRows(evidence.published, releasesResult.value.body, window.location.href);
           if (releases.length) {
             const publications = el("div", "publication-list");
-            append(publications, ...releases.map((release) => publicationCard(release, copy.transitionLabel)));
+            // Lead with the provider's first reference; the complete index stays directly below.
+            append(publications, publicationCard(releases[0], copy.transitionLabel));
             append(releasePanel.body, publications);
           }
           if (releases.length) append(releasePanel.body, table(["Dataset", "Research area", "Published version", "Records", "Coverage", "Published"], releases, ({ item, href }) => {

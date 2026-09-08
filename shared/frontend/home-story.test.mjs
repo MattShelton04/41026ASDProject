@@ -36,7 +36,7 @@ test('chapter navigation respects motion preference, disabled routes and teardow
   assert.equal(visual.dataset.scene, '0');
   assert.equal(attributes.get('aria-pressed'), 'true');
   buttonEvents.get('click')();
-  assert.deepEqual(scrolled, { block: 'center', behavior: 'instant' });
+  assert.deepEqual(scrolled, { block: 'start', behavior: 'instant' });
   events.get('scroll')();
   controller.destroy();
   assert.equal(cancelled, 42);

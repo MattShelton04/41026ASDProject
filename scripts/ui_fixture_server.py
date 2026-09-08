@@ -20,6 +20,7 @@ from urllib.error import URLError
 from urllib.parse import parse_qs, unquote, urlsplit
 from urllib.request import urlopen
 
+from ai_mode.operations_api import ALLOWED_SHARED_ASSETS
 from scripts.onboarding import load_enabled_projection
 from scripts.ui_fixtures import (
     REQUEST_ID,
@@ -372,12 +373,18 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
         decoded = unquote(request_path)
         operations_assets = "/operations/ai-mode/assets/"
         operations_tokens = "/operations/ai-mode/design-system/"
+        operations_shared = "/operations/ai-mode/shared/"
         if decoded.startswith(operations_assets):
             relative = decoded.removeprefix(operations_assets)
             root = SHARED_FRONTEND / "operations" / "ai-mode"
         elif decoded.startswith(operations_tokens):
             relative = decoded.removeprefix(operations_tokens)
             root = SHARED_FRONTEND / "design-system"
+        elif decoded.startswith(operations_shared):
+            relative = decoded.removeprefix(operations_shared)
+            if relative not in ALLOWED_SHARED_ASSETS:
+                return None
+            root = SHARED_FRONTEND
         elif matched := next(
             ((prefix, root) for prefix, root in FEATURE_FRONTENDS if decoded.startswith(prefix)),
             None,

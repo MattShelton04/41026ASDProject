@@ -1,14 +1,14 @@
 import { append, el, link, notice, parseShellRoute, requestJson, requestText } from "./core.js";
 import { ENABLED_FEATURES } from "./generated/enabled-features.js";
-import { createEvidenceRoute, loadEvidenceAdapter } from "./routes/evidence.js?v=2";
-import { createAssistantRoute } from "./routes/assistant.js?v=2";
-import { createFeaturesRoute } from "./routes/features.js?v=2";
-import { createRoadmapRoute } from "./routes/roadmap.js?v=2";
-import { createStatusRoute } from "./routes/status.js?v=2";
+import { createEvidenceRoute, loadEvidenceAdapter } from "./routes/evidence.js?v=3";
+import { createAssistantRoute } from "./routes/assistant.js?v=3";
+import { createFeaturesRoute } from "./routes/features.js?v=3";
+import { createRoadmapRoute } from "./routes/roadmap.js?v=3";
+import { createStatusRoute } from "./routes/status.js?v=3";
 import { featureRegistry, findFeature } from "./features.js";
 import { loadFeature1Bridge } from "./feature-1-bridge.js";
 import { createDrawerController, createToastController, disposeTableRegions } from "./browser/index.js";
-import { createHomeStory } from "./home-story.js";
+import { createHomeStory } from "./home-story.js?v=2";
 
 const externalConfig = Object.freeze({ ...(window.PROPERTYSCOPE_CONFIG || {}) });
 const config = { ...externalConfig };

@@ -524,6 +524,26 @@ def fixture_response(
         )
     if path == "/api/shared-health/ai-mode":
         return FixtureResponse(200, _ai_health(), delay_seconds=delay)
+    if path in {"/api/ai-mode/capabilities", "/api/v1/capabilities"}:
+        return FixtureResponse(
+            200,
+            {
+                "release": "release-1",
+                "deployment_mode": "local",
+                "services": [
+                    {
+                        "id": name,
+                        "implemented": True,
+                        "enabled": False,
+                        "status": "disabled",
+                        "detail": "This optional service is disabled in the deterministic fixture.",
+                    }
+                    for name in ("mcp", "rag")
+                ],
+                "grounding_features": [],
+            },
+            delay_seconds=delay,
+        )
     if path in {
         "/api/ai-mode/agent-runs",
         "/api/data-platform/v1/agent-runs",

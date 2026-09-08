@@ -78,6 +78,19 @@ def fixture_origin() -> Iterator[str]:
         thread.join(timeout=5)
 
 
+@pytest.mark.parametrize(
+    ("asset", "content_type"),
+    [("ai-chat/styles.css", "text/css"), ("ai-chat/grounding.js", "javascript")],
+)
+def test_activity_fixture_serves_its_public_shared_assets(
+    fixture_origin: str, asset: str, content_type: str
+) -> None:
+    with urlopen(f"{fixture_origin}/operations/ai-mode/shared/{asset}") as response:
+        assert response.status == 200
+        assert content_type in response.headers["Content-Type"]
+        assert response.read()
+
+
 def _json(url: str, *, cookie: str | None = None) -> tuple[dict[str, object], object]:
     headers = {"Cookie": cookie} if cookie else {}
     with urlopen(Request(url, headers=headers), timeout=2) as response:
@@ -373,6 +386,20 @@ def test_every_enabled_frontend_has_shared_health_fixture(scenario: str) -> None
 
     unknown = fixture_response("GET", "/api/shared-health/unregistered", "", "populated")
     assert unknown.status == 404
+
+
+@pytest.mark.parametrize("path", ["/api/ai-mode/capabilities", "/api/v1/capabilities"])
+def test_shared_capability_fixture_keeps_disabled_and_failed_checks_distinct(path: str) -> None:
+    response = fixture_response("GET", path, "", "populated")
+    assert response.status == 200
+    assert response.body["grounding_features"] == []
+    assert {item["id"] for item in response.body["services"]} == {"mcp", "rag"}
+    assert all(
+        item["implemented"] and not item["enabled"] and item["status"] == "disabled"
+        for item in response.body["services"]
+    )
+    assert fixture_response("GET", path, "", "slow").delay_seconds == 1.25
+    assert fixture_response("GET", path, "", "error").status == 503
 
 
 def test_shared_health_evidence_and_ai_operations_projections_are_contract_valid() -> None:

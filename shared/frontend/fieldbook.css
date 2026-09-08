@@ -2,6 +2,7 @@
 .topbar { background: var(--ps-color-background); }
 .topbar__inner { padding-inline: var(--ps-space-6); }
 .brand__copy strong { font-size: 1.125rem; letter-spacing: -.04em; }
+.brand { min-height: var(--ps-control-height); }
 .brand__copy span { font-size: .6875rem; letter-spacing: .04em; }
 .topbar__search { margin-left: auto; max-width: 22rem; background: var(--ps-color-surface-elevated); }
 .topbar a:focus-visible, .topbar button:focus-visible { outline: var(--ps-focus-outline); }
@@ -151,10 +152,10 @@
 .publication-card__title { padding-bottom: var(--ps-space-4); }
 .publication-card__title h3 { font: 400 clamp(1.5rem, 2.4vw, 2rem)/1.2 var(--ps-font-editorial); letter-spacing: -.025em; margin: var(--ps-space-3) 0 var(--ps-space-2); overflow-wrap: anywhere; }
 .publication-card__title > p:last-child { font-size: .6875rem; margin: 0; }
-.publication-facts { display: grid; grid-template-columns: .7fr .8fr 1.2fr 1.2fr; gap: var(--ps-space-4); margin: 0; padding: var(--ps-space-4) 0; border-block: 1px solid var(--ps-color-border); }
+.publication-facts { display: grid; grid-template-columns: minmax(140px, 1fr) .8fr 1.2fr 1.2fr; gap: var(--ps-space-4); margin: 0; padding: var(--ps-space-4) 0; border-block: 1px solid var(--ps-color-border); }
 .publication-facts dt { text-transform: uppercase; letter-spacing: .08em; font-size: .5625rem; color: var(--ps-color-text-muted); }
 .publication-facts dd { margin: var(--ps-space-2) 0 0; font-size: .8125rem; color: var(--ps-color-text-strong); overflow-wrap: anywhere; }
-.publication-facts > div:first-child dd { font: 400 2rem/1 var(--ps-font-editorial); }
+.publication-facts > div:first-child dd { font: 400 clamp(1.375rem, 2.6vw, 2rem)/1 var(--ps-font-editorial); white-space: nowrap; }
 .publication-card__footer { display: flex; justify-content: space-between; gap: var(--ps-space-4); align-items: center; padding-top: var(--ps-space-4); }
 .publication-card__footer span { font-size: .625rem; color: var(--ps-color-text-muted); }
 .publication-card__footer .ps-button { background: transparent; border: 0; padding-inline: 0; color: var(--ps-color-accent); font-size: .6875rem; }
@@ -256,24 +257,24 @@
   .area-row { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); padding: var(--ps-space-5); border-right: 0; gap: var(--ps-space-3); }
   .area-row:last-child { border: 0; }
   .area-row > :last-child { grid-column: 2; }
-  .area-row .ps-button { min-height: 32px; }
+  .area-row .ps-button { min-height: 44px; }
   .area-row h3 { font-size: 1rem; }
   .area-row p { font-size: .75rem; }
   .feature-story { padding-top: var(--ps-space-12); }
   .story-intro { grid-template-columns: 1fr; gap: var(--ps-space-4); padding-bottom: var(--ps-space-8); }
   .story-intro h2 { font-size: 2.5rem; }
   .story-layout { display: flex; flex-direction: column; gap: 0; }
-  .story-sticky { order: -1; top: 80px; height: min(43vh, 340px); min-height: 260px; width: 100%; margin-top: 0; z-index: 2; }
+  .story-sticky { order: -1; top: 80px; height: min(46vh, 360px); min-height: 300px; width: 100%; margin-top: 0; z-index: 2; }
   .story-visual { box-shadow: var(--ps-shadow-sm); }
-  .story-step { min-height: 66vh; padding: var(--ps-space-8) 0 var(--ps-space-16); justify-content: flex-start; scroll-margin-top: 380px; }
+  .story-step { min-height: 66vh; padding: var(--ps-space-8) 0 var(--ps-space-16); justify-content: flex-start; scroll-margin-top: calc(96px + clamp(300px, 46vh, 360px)); }
   .story-step h2 { font-size: 2.25rem; }
   .story-step > p:not(.ps-eyebrow) { font-size: .875rem; }
   .story-tags { margin: var(--ps-space-5) 0; }
-  .scene { inset: 40px 0 40px; }
+  .scene { inset: 40px 0 64px; }
   .visual-head { top: 16px; font-size: .5rem; left: 16px; right: 16px; }
-  .visual-foot { bottom: 4px; left: 16px; right: 12px; font-size: .4375rem; }
+  .visual-foot { bottom: 4px; left: 16px; right: 12px; font-size: .4375rem; flex-direction: column; gap: 0; align-items: start; }
   .visual-foot > span { max-width: none; }
-  .scene-dots button, .scene-dots button[aria-pressed='true'] { width: 24px; }
+  .scene-dots button, .scene-dots button[aria-pressed='true'] { width: 44px; height: 44px; }
   .floating-card { padding: var(--ps-space-3); gap: var(--ps-space-2); }
   .floating-card strong { font-size: .75rem; }
   .floating-card small { font-size: .4375rem; }

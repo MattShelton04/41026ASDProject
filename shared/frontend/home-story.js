@@ -53,7 +53,7 @@ export function createHomeStory(root, features, { host = window } = {}) {
   const listeners = buttons.map((button) => {
     const listener = () => {
       const step = steps.find((item) => item.dataset.step === button.dataset.sceneTarget);
-      step?.scrollIntoView({ block: 'center', behavior: reducedMotion.matches ? 'instant' : 'smooth' });
+      step?.scrollIntoView({ block: mobile.matches ? 'start' : 'center', behavior: reducedMotion.matches ? 'instant' : 'smooth' });
     };
     button.addEventListener('click', listener);
     return [button, listener];
