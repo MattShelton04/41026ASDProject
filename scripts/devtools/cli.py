@@ -15,6 +15,7 @@ from scripts.devtools.config import (
     PROPERTYSCOPE_API_URL,
     UI_FIXTURE_SCENARIOS,
 )
+from scripts.devtools.runtime_settings import AI_CAPABILITY_MODES, AI_PLACEMENTS
 
 
 def _add_offline_option(command: argparse.ArgumentParser) -> None:
@@ -47,7 +48,7 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
     _add_env_file_option(up)
     up.add_argument(
         "--ai-runtime",
-        choices=("docker", "host"),
+        choices=AI_PLACEMENTS,
         default=None,
         help="Select and remember AI placement; fresh setups default to Docker",
     )
@@ -166,7 +167,7 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     ai = root.add_parser("ai", help="Operate AI services in the selected runtime")
     commands = ai.add_subparsers(dest="action", required=True)
     start = commands.add_parser("start", help="Start AI services in the selected placement")
-    start.add_argument("--mode", choices=("direct", "mcp", "rag", "combined"), default="combined")
+    start.add_argument("--mode", choices=AI_CAPABILITY_MODES, default="combined")
     _add_offline_option(start)
     _add_env_file_option(start)
     commands.add_parser("status", help="Show AI container or host process state")

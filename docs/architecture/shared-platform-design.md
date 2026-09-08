@@ -353,7 +353,7 @@ The main architectural constraints are:
 | Idempotency | Retried mutation tool calls do not create duplicate effects |
 | Portability | One documented command path each for Windows PowerShell, macOS/Linux, and Compose |
 | Testability | Shared core tests use a deterministic fake model; real-model tests are a separate suite |
-| Coverage | At least 85% branch coverage for new shared core code, with no unexplained regression |
+| Coverage | At least 90% shared/AI core branch coverage in the canonical gate; isolated feature ratchets |
 | Traceability | Every run, step, model call, tool call, and retrieval item has a correlation/run identifier |
 | Maintainability | No feature imports another feature's Python package or accesses another database directly |
 | Security | Only allowlisted typed tools; destructive effects require policy approval and idempotency |
@@ -394,16 +394,18 @@ flowchart LR
     F1 --> O[Agent orchestrator / AI-mode]
     FN --> O
     O --> L[Remote model API: OpenAI default / Gemini dev]
-    O --> M[Host MCP server]
-    O --> R[Host RAG server]
+    O --> M[Local MCP server]
+    O --> R[Local RAG server]
     O -. Release 2 local .-> A[Multi-agent roles]
     M --> F1
     M --> FN
     R --> C[(Retrieval corpus)]
 ```
 
-The edge and feature slices are containers; AI-mode (including the loop), MCP and RAG are local
-host processes. Azure is a separate future topology, not an extra destination in this runtime.
+The edge and feature slices are containers. The Release 1 assessment topology runs AI-mode
+(including the loop), MCP and RAG as local host processes. Fresh developer setups default to the
+optional Docker AI placement; `stack up --ai-runtime host` selects the assessment topology.
+Azure is a separate future topology, not an extra destination in this runtime.
 Feature 1's PostgreSQL/PostGIS exception replaces the generic SQLite branch below only within
 its credential-owning database API/loader boundary.
 
@@ -464,7 +466,7 @@ There are two different shared elements and they must not be confused:
    AI services may import `shared_contracts`; tests may also import `shared_testkit`.
    Student services do not import `agent-core` or another student's package.
 2. **Shared services** are independent runtime processes. The edge is containerised;
-   AI-mode, MCP and RAG run on the local host. Student backends call the shared orchestrator
+   AI-mode, MCP and RAG run in the selected local host or Docker placement. Student backends call the shared orchestrator
    over HTTP; they do not embed its implementation.
 
 The normal runtime flow is:
@@ -522,7 +524,7 @@ parameters are not a general-purpose branding or redirect contract.
 
 The integrated shared shell serves a pinned local HTMX 2.0.10 asset and replaces its home-page
 research-area fallback with `/fragments/research-areas.html`. Registry/fragment parity is executable,
-so Feature 1 remains the only enabled link and Features 2–5 remain honest planned content.
+so only manifest-enabled features expose live links. All five research areas are currently enabled.
 
 Feature 1 demonstrates the assessed write path without changing service ownership:
 
@@ -558,7 +560,7 @@ canonical gate verifies project names, ownership
 prefixes, overlay membership, image alignment, and the absence of hard-coded container names.
 
 The developer entry point mirrors those boundaries: `scripts/dev.py stack` coordinates container
-and host lifecycle, `scripts/dev.py ai` manages the host services and local validation modes,
+and host lifecycle, `scripts/dev.py ai` manages the selected AI placement and local validation modes,
 `scripts/dev.py ui` owns deterministic browser fixtures, and `scripts/dev.py data` owns
 source acquisition. `scripts/check.py` remains the single source-quality runner instead of being
 proxied through the lifecycle command. The development overlay bind-mounts every enabled built
@@ -566,8 +568,8 @@ service. Static frontend source is visible on refresh and request-serving Python
 workers in place. Durable background workers require an explicit targeted restart so an edit cannot
 silently interrupt an active job. Ordinary `stack up` reuses images and containers; image rebuilds
 remain explicit after dependency or Docker input changes.
-Host Python source changes require an explicit `ai stop` / `ai start`; they do not inherit the
-container reload mounts. Ordinary shutdown preserves host state and all Docker data.
+AI Python source changes in either placement require an explicit `ai stop` / `ai start`; bind
+mounts alone do not restart AI workers. Ordinary shutdown preserves AI state and all Docker data.
 
 ## 7. Shared contracts
 
@@ -873,7 +875,7 @@ under `docs/evaluations/`.
 
 ### 10.2 Agent state
 
-`ai-mode` owns a separate host SQLite file for runs, steps, invocations, reviews,
+`ai-mode` owns a separate SQLite file for runs, steps, invocations, reviews,
 and cache metadata. This is operational workflow state, not a sixth student feature
 database. It does not require another public database API or separately assessed
 database microservice: only the `ai-mode` process opens the file. Large artefacts live
@@ -1130,12 +1132,21 @@ target. Use GitHub OIDC to Azure rather than long-lived cloud credentials.
 
 ### 16.1 Local Compose and host modes
 
-The base model, enabled-feature projection and development overlay contain only the shared frontend
-and student feature services. The retained `release-0` profile name selects the feature application;
-it does not containerise the release's AI services. There are no AI-mode, MCP, RAG or loop Compose
-service definitions. `stack up` coordinates these containers with host `ai start --mode combined`.
+The base model, enabled-feature projection and development overlay contain the shared frontend
+and student feature services. The retained `release-0` profile selects that feature application.
+`docker-compose.ai.yml` adds AI-mode (with its loop), MCP and RAG under the `ai-container` profile
+for optional local development. `stack up` defaults to Docker on a fresh setup and remembers the
+selection. Use `stack up --ai-runtime host` for the required non-containerised Release 1 assessment
+topology. Docker placement is a development convenience and does not satisfy that rubric clause.
 
-| Host mode | AI-mode dispatch | MCP | RAG |
+Both placements reuse `.propertyscope-runtime/host/ai-mode/` and `host/rag/` under exclusive
+service ownership. Switching stops the previous owners before opening those stores; no database
+copy or reset is implied. Saved placement/mode metadata is validated before lifecycle effects.
+An unreadable or malformed state file must be repaired from known ownership evidence, not deleted
+to force a guessed placement. Configuration and authentication helpers are shared by both entries,
+while configurable published host ports remain distinct from fixed container listener ports.
+
+| Capability mode (either placement) | AI-mode dispatch | MCP | RAG |
 |---|---|---|---|
 | `direct` / `stack up --offline` | Direct owning HTTP tools | Stopped | Stopped |
 | `mcp` | MCP owning tools | Running | Stopped |
@@ -1145,10 +1156,12 @@ service definitions. `stack up` coordinates these containers with host `ai start
 Host AI-mode binds port 5005 for Docker access through `host.docker.internal`; generated container
 configuration includes Linux `host-gateway`. MCP (5011) and RAG (5012) bind authenticated loopback
 only. Host tool catalogue copies resolve approved owning APIs through published feature frontend
-ports. Listener ports remain configurable. Provider credentials stay in the host environment;
-local service tokens and state are ignored by Git. Managed AI-mode requires an internal
+ports. Host listener ports remain configurable. Docker catalogues retain internal service origins;
+only AI-mode receives the file-mounted provider secret. Host placement uses its process environment.
+Local service tokens and state are ignored by Git. Managed AI-mode requires an internal
 `X-PropertyScope-AI-Token` header on every route except `/health/live`; backend clients and the
-shared nginx proxy attach it. It never enters browser assets. Token rotation requires `stack up`
+shared nginx proxy attach it. It never enters browser assets. Both managed entrypoints require 32–128 URL-safe token characters
+and return the same unauthorized response. Token rotation requires `stack up`
 to align container and host configuration. This service authentication does not add production
 end-user identity to the trusted local demo. [Host lifecycle documentation](../release-1/host-runtime.md)
 defines stop/restart, migration and diagnosis without killing unrelated processes or deleting history.
@@ -1187,9 +1200,9 @@ internal modules. Future Azure/multi-agent folders are placeholders, not deploye
 |-- .github/workflows/             # integration-ci.yml and student-1.yml ... student-5.yml
 |-- ai-services/
 |   |-- agent-core/                # deterministic Plan / Act / Observe / Adapt and grounding policy
-|   |-- ai-mode/                   # host HTTP API, provider adapters, prompts, exclusive run store
-|   |-- mcp-server/                # host SDK transport and registered tool dispatch
-|   |-- rag-server/                # host ingestion, local embeddings, exclusive index
+|   |-- ai-mode/                   # HTTP API, provider adapters, prompts, exclusive run store
+|   |-- mcp-server/                # local SDK transport and registered tool dispatch
+|   |-- rag-server/                # local ingestion, embeddings, exclusive index
 |   `-- multi-agent-server/        # Release 2 placeholder
 |-- shared/
 |   |-- contracts/                 # Python contracts, generated schemas/OpenAPI
@@ -1217,7 +1230,8 @@ internal modules. Future Azure/multi-agent folders are placeholders, not deploye
 |-- pyproject.toml
 |-- uv.lock
 |-- docker-compose.yml
-`-- docker-compose.dev.yml
+|-- docker-compose.dev.yml
+`-- docker-compose.ai.yml          # optional local Docker AI placement
 ```
 
 A root Python workspace and lock keep versions consistent without merging service ownership.

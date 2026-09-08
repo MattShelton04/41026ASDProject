@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import secrets
 import socket
 import sqlite3
@@ -20,13 +19,15 @@ from tempfile import TemporaryDirectory
 import httpx
 import psutil
 import yaml
-from flask import Flask, Response
 
 from scripts.devtools.config import DEFAULT_PROJECT_NAME, REPOSITORY_ROOT, RUNTIME_DIRECTORY
+from scripts.devtools.runtime_settings import AI_SERVICE_PORTS, validate_capability_mode
+from scripts.devtools.service_auth import protect_entry as protect_host_entry
+from scripts.devtools.service_auth import validate_service_token
 
 HOST_DIRECTORY = RUNTIME_DIRECTORY / "host"
-SERVICES = ("ai-mode", "mcp", "rag")
-PORTS = {"ai-mode": ("AI_MODE_PORT", 5005), "mcp": ("MCP_PORT", 5011), "rag": ("RAG_PORT", 5012)}
+SERVICES = tuple(AI_SERVICE_PORTS)
+PORTS = AI_SERVICE_PORTS
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -235,34 +236,15 @@ def ai_service_token(environment: Mapping[str, str]) -> str:
                 stream.write(secrets.token_urlsafe(32))
             os.chmod(path, 0o600)
         value = path.read_text(encoding="utf-8").strip()
-    if re.fullmatch(r"[A-Za-z0-9_-]{32,128}", value) is None:
-        raise RuntimeError("AI_MODE_SERVICE_TOKEN must contain 32-128 URL-safe characters")
+    validate_service_token(value)
     return value
-
-
-def protect_host_entry(application: Flask, token: str) -> None:
-    """Protect every host API and history route; leave only process liveness public."""
-    from flask import jsonify, request
-
-    if not token:
-        raise RuntimeError("Managed host AI-mode requires its service token")
-
-    @application.before_request
-    def authenticate_host_request() -> tuple[Response, int] | None:
-        if request.path == "/health/live":
-            return None
-        supplied = request.headers.get("X-PropertyScope-AI-Token", "")
-        if not secrets.compare_digest(supplied.encode("utf-8"), token.encode("utf-8")):
-            return jsonify(
-                {"code": "unauthorized", "detail": "Host service authentication required"}
-            ), 401
-        return None
 
 
 def prepare_environment(
     environment: Mapping[str, str], *, mode: str = "combined"
 ) -> dict[str, str]:
     """Build host-only paths/tokens and an explicit local capability selection."""
+    validate_capability_mode(mode)
     if environment.get("CI", "").lower() in {"true", "1"} and mode != "direct":
         raise RuntimeError("MCP and RAG must remain disabled in CI; use direct mode")
     if environment.get("AI_MODE_ENVIRONMENT", "local") not in {"local", "development"}:

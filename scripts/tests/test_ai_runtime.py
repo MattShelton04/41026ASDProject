@@ -29,6 +29,64 @@ def test_fresh_selection_defaults_to_docker_and_explicit_choice_wins() -> None:
     assert ai_runtime.selection({"PROPERTYSCOPE_AI_RUNTIME": "docker"}) == "docker"
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"{",
+        b"[]",
+        b"null",
+        b"{}",
+        b' {"placement":"docker"}',
+        b'{"placement":[],"mode":"direct"}',
+        b'{"placement":"host","mode":true}',
+        b'{"placement":"azure","mode":"direct"}',
+        b'{"placement":"host","mode":"direct","unexpected":1}',
+        b"\xff",
+    ],
+)
+def test_corrupt_state_blocks_readers_and_explicit_switch_before_effects(
+    raw: bytes,
+    lifecycle: list[tuple[str, ...]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    ai_runtime.STATE_PATH.write_bytes(raw)
+    for read in (
+        lambda: ai_runtime.selection({}),
+        lambda: ai_runtime.selection({"PROPERTYSCOPE_AI_RUNTIME": "docker"}),
+        ai_runtime.capability_mode,
+        ai_runtime.require_same_placement,
+    ):
+        with pytest.raises(RuntimeError, match="state"):
+            read()
+
+    def unexpected(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("corrupt state must be rejected before lifecycle effects")
+
+    for name in ("_openai_credential", "_compose_environment", "_stop_disabled_feature_services"):
+        monkeypatch.setattr(dev, name, unexpected)
+    for command in (
+        ["stack", "up", "--offline"],
+        ["stack", "up", "--offline", "--ai-runtime", "host"],
+        ["ai", "stop"],
+        ["stack", "restart"],
+    ):
+        assert dev.main(command) == 1
+        assert "state" in capsys.readouterr().err
+    assert lifecycle == []
+    assert ai_runtime.STATE_PATH.read_bytes() == raw
+
+
+def test_unreadable_state_has_safe_diagnostic(monkeypatch: pytest.MonkeyPatch) -> None:
+    def denied(*_args: object, **_kwargs: object) -> str:
+        raise PermissionError("private operating system detail")
+
+    monkeypatch.setattr(Path, "read_text", denied)
+    with pytest.raises(RuntimeError, match="Cannot read AI runtime state") as failure:
+        ai_runtime.read_state()
+    assert "private" not in str(failure.value)
+
+
 @pytest.mark.parametrize("placement", ["Docker", "HOST", "azure", "docker "])
 def test_invalid_runtime_is_rejected_instead_of_selecting_another(placement: str) -> None:
     with pytest.raises(RuntimeError, match="docker or host"):
@@ -293,6 +351,34 @@ def test_offline_docker_stops_advanced_services_and_starts_only_ai_mode(
     assert "mcp-server" not in start
     assert "rag-server" not in start
     assert ai_runtime.capability_mode() == "direct"
+
+
+@pytest.mark.parametrize("placement", ["host", "docker"])
+@pytest.mark.parametrize("mode", ["direct", "combined"])
+@pytest.mark.parametrize("remove_volumes", [False, True])
+def test_shutdown_includes_every_selected_ai_owner_and_preserves_volume_policy(
+    lifecycle: list[tuple[str, ...]],
+    monkeypatch: pytest.MonkeyPatch,
+    placement: str,
+    mode: str,
+    remove_volumes: bool,
+) -> None:
+    ai_runtime.remember(placement, mode)
+    monkeypatch.setattr(dev, "_remove_openai_secret", lambda: lifecycle.append(("remove-secret",)))
+    dev._down(remove_volumes=remove_volumes)
+    command = next(call for call in lifecycle if "down" in call)
+    if placement == "docker":
+        assert ai_runtime.OVERLAY in command
+        profile_index = command.index("ai-container")
+        assert command[profile_index - 1] == "--profile"
+        assert profile_index < command.index("down")
+    else:
+        assert ai_runtime.OVERLAY not in command
+        assert "ai-container" not in command
+    assert ("--volumes" in command) is remove_volumes
+    assert "--remove-orphans" in command
+    assert lifecycle.index(("host-stop",)) < lifecycle.index(command)
+    assert lifecycle.index(command) < lifecycle.index(("remove-secret",))
 
 
 def test_failed_docker_stop_prevents_host_start_and_preserves_selection(

@@ -2,6 +2,9 @@
 
 Store maintained project documentation here throughout all three releases.
 
+- [Shared setup refinement audit](reviews/shared-setup-refinement-2026-09-08.md): reviewed
+  findings, implementation plan, regression evidence and runtime validation.
+
 ## First-class documentation map
 
 - [Root README](../README.md): current repository status, approved team allocation, and quick start

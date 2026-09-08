@@ -40,8 +40,11 @@ Use `uv run python scripts/check.py` for source quality; `dev.py` does not proxy
 | `check.py` | `format`, `lint`, `architecture`, `styles`, `typecheck`, `compile`, `test` | Deterministic source-quality stages and the aggregate pre-PR gate |
 
 Run `uv run python scripts/check.py --help` for the composable source-quality stages. JavaScript
-`compile` uses Node directly against every first-party Shared and Feature 1 browser module; the
-checked-in MapLibre vendor module is excluded and behavior tests cover its integration boundary.
+`compile` uses Node directly against first-party `.js`, `.mjs` and `.cjs` modules under Shared,
+all student frontends and `scripts/`. Vendor and dependency directories are excluded. Shared
+`*.test.js`, `*.test.mjs` and `*.test.cjs` behavior tests are discovered automatically; enabled
+feature tests remain selected by their owned manifests. Unrelated quality stages do not discover
+JavaScript or feature test inputs.
 `uv run scripts/dev.py stack build` uses the reviewed base Compose model plus the generated enabled-
 feature overlay to build the production-like Release 0 application images; it excludes the development
 bind-mount overlay and never starts or recreates a container. `stack rebuild` remains the development
@@ -84,3 +87,9 @@ PropertyScope's official connectors and deterministic finite fixture are availab
 stack at <http://localhost:5200>. Starting the stack performs no acquisition. Each browser or CLI
 job explicitly starts a complete registered-source import and writes candidates through the same
 durable database and human-review boundary.
+
+AI runtime identities and fixed container ports live in `devtools/runtime_settings.py`;
+`devtools/service_auth.py` applies the same internal proxy authentication in either placement.
+Both are packaged explicitly in the AI image and do not load host process management. Corrupt
+saved runtime selection stops lifecycle commands before effects. Restore its known placement and
+mode after verifying the active owner; do not delete the selection file to force a default.

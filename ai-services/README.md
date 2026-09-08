@@ -25,8 +25,11 @@ feature data or business rules.
 ports, and human-review rules. `ai-mode` supplies the SQLite, prompt-registry,
 OpenAI Responses, background-queue, and versioned HTTP adapters. See each package README
 for implemented behavior and operating instructions. The Release 0 vertical path is integrated;
-remaining work is implementation and onboarding of the approved Features 2–5 plus release evidence,
-not missing AI-mode plumbing.
+all five feature slices are manifest-enabled. Their owners retain responsibility for datasets,
+feature behavior and remaining release evidence.
 
-MCP, RAG, and multi-agent directories remain placeholders. Those services are required
-locally in their applicable releases and disabled in the cloud.
+MCP and RAG are implemented local Release 1 services; multi-agent remains a Release 2 placeholder.
+Fresh developer setups run AI services in Docker. Select `stack up --ai-runtime host` for the
+Release 1 assessment topology, which requires AI services outside containers. Both placements use
+the same exclusive AI history and RAG state directories. MCP/RAG remain disabled in CI/CD and cloud.
+See the [runtime guide](../docs/release-1/host-runtime.md) for lifecycle and configuration.

@@ -95,4 +95,8 @@ def test_canonical_ci_validates_the_enabled_feature_projection() -> None:
     )
     commands = "\n".join(str(step.get("run", "")) for step in workflow["jobs"]["quality"]["steps"])
 
-    assert commands.count("--file deployment/enabled-features.compose.yml") == 2
+    compose_checks = [line for line in commands.splitlines() if "docker compose" in line]
+    assert compose_checks
+    assert all(
+        "--file deployment/enabled-features.compose.yml" in command for command in compose_checks
+    )

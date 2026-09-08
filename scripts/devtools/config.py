@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from scripts.devtools.runtime_settings import AI_CONTAINER_SERVICES, AI_SERVICE_PORTS
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILES = (
     "docker-compose.yml",
@@ -61,9 +63,7 @@ COLLECTION_JOBS = (
 TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
 HOST_PORTS: dict[str, tuple[str, int]] = {
     "shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),
-    "shared-ai-mode": ("AI_MODE_PORT", 5005),
-    "mcp-server": ("MCP_PORT", 5011),
-    "rag-server": ("RAG_PORT", 5012),
+    **{AI_CONTAINER_SERVICES[service]: ports for service, ports in AI_SERVICE_PORTS.items()},
 }
 for _feature in _json_object(_ENABLED_FEATURES_PATH).get("features", []):
     if not isinstance(_feature, dict) or not isinstance(_feature.get("frontend"), dict):
