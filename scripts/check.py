@@ -26,18 +26,14 @@ CORE_TEST_PATHS = (
     "shared/tool-runtime/tests",
     "scripts/tests",
 )
-FRONTEND_TEST_PATHS = (
-    "shared/frontend/browser/browser.test.mjs",
-    "shared/frontend/dashboard.test.mjs",
-    "shared/frontend/ai-chat/ai-chat.test.mjs",
-    "shared/frontend/ai-chat/grounding.test.mjs",
-    "shared/frontend/mapping/mapping.test.mjs",
-    "shared/frontend/operations/ai-mode/polling.test.mjs",
-)
 JAVASCRIPT_SOURCE_ROOTS = (
     REPOSITORY_ROOT / "shared" / "frontend",
+    REPOSITORY_ROOT / "scripts",
     *sorted(REPOSITORY_ROOT.glob("student-*/frontend")),
 )
+
+JAVASCRIPT_SUFFIXES = frozenset({".js", ".mjs", ".cjs"})
+JAVASCRIPT_EXCLUDED_DIRECTORIES = frozenset({"vendor", "node_modules", "__pycache__"})
 
 Command = tuple[str, ...]
 
@@ -138,7 +134,7 @@ def test_commands() -> tuple[Command, ...]:
                 *feature.python_test_paths,
             )
         )
-    node_tests = (*FRONTEND_TEST_PATHS, *feature_inputs.node_test_files)
+    node_tests = (*shared_frontend_tests(), *feature_inputs.node_test_files)
     if node_tests:
         commands.append(
             ("node", "--import", "./scripts/frontend-test-bootstrap.mjs", "--test", *node_tests)
@@ -146,16 +142,32 @@ def test_commands() -> tuple[Command, ...]:
     return tuple(commands)
 
 
+def _javascript_paths(roots: Sequence[Path]) -> tuple[str, ...]:
+    paths: set[str] = set()
+    for root in roots:
+        for directory, children, files in root.walk():
+            children[:] = sorted(
+                name for name in children if name not in JAVASCRIPT_EXCLUDED_DIRECTORIES
+            )
+            for name in files:
+                path = directory / name
+                if path.suffix in JAVASCRIPT_SUFFIXES:
+                    paths.add(path.relative_to(REPOSITORY_ROOT).as_posix())
+    return tuple(sorted(paths))
+
+
 def javascript_sources() -> tuple[str, ...]:
-    """Return first-party browser modules as stable repository-relative paths."""
-    sources: list[str] = []
-    for root in JAVASCRIPT_SOURCE_ROOTS:
-        for path in root.rglob("*.js"):
-            relative = path.relative_to(REPOSITORY_ROOT)
-            if "vendor" in relative.parts:
-                continue
-            sources.append(relative.as_posix())
-    return tuple(sorted(sources))
+    """Discover first-party browser and tooling modules without dependency trees."""
+    return _javascript_paths(JAVASCRIPT_SOURCE_ROOTS)
+
+
+def shared_frontend_tests() -> tuple[str, ...]:
+    """Automatically include Shared behavior tests; feature tests remain manifest-owned."""
+    return tuple(
+        path
+        for path in _javascript_paths((REPOSITORY_ROOT / "shared" / "frontend",))
+        if Path(path).stem.endswith(".test")
+    )
 
 
 def compile_commands() -> tuple[Command, ...]:
@@ -165,30 +177,23 @@ def compile_commands() -> tuple[Command, ...]:
 
 def commands_for(stage: str, *, write: bool = False) -> tuple[Command, ...]:
     """Return the commands for one public quality stage."""
-    discovered_tests = test_commands() if stage in {"test", "check"} else ()
+    if stage == "check":
+        return tuple(
+            command
+            for name in ("format", "lint", "architecture", "styles", "typecheck", "compile", "test")
+            for command in commands_for(name)
+        )
+    if stage == "test":
+        return test_commands()
+    if stage == "compile":
+        return compile_commands()
     stages: dict[str, tuple[Command, ...]] = {
         "format": FORMAT_WRITE_COMMANDS if write else FORMAT_CHECK_COMMANDS,
         "lint": LINT_COMMANDS,
         "architecture": ARCHITECTURE_COMMANDS,
         "styles": STYLE_COMMANDS,
         "typecheck": TYPECHECK_COMMANDS,
-        "compile": compile_commands(),
-        "test": discovered_tests,
     }
-    if stage == "check":
-        return tuple(
-            command
-            for name in (
-                "format",
-                "lint",
-                "architecture",
-                "styles",
-                "typecheck",
-                "compile",
-                "test",
-            )
-            for command in stages[name]
-        )
     return stages[stage]
 
 

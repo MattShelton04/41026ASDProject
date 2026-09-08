@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from collections.abc import Sequence
+from pathlib import Path
 
 import pytest
 from scripts import check
@@ -23,6 +24,54 @@ def test_javascript_compile_sources_are_first_party_and_repository_relative() ->
     assert all(not source.startswith(("/", "C:/", "C:\\")) for source in sources)
     assert all("/vendor/" not in source for source in sources)
     assert sources == tuple(sorted(set(sources)))
+    assert "scripts/frontend-test-loader.mjs" in sources
+
+
+def test_module_discovery_includes_supported_sources_and_shared_tests_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    files = (
+        "shared/frontend/new.test.mjs",
+        "shared/frontend/nested/module.cjs",
+        "shared/frontend/classic.test.js",
+        "shared/frontend/common.test.cjs",
+        "shared/frontend/vendor/ignored.test.mjs",
+        "shared/frontend/node_modules/ignored.js",
+        "shared/frontend/readme.md",
+        "student-1/frontend/unregistered.test.mjs",
+        "scripts/tool.mjs",
+    )
+    for name in files:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
+    monkeypatch.setattr(check, "REPOSITORY_ROOT", tmp_path)
+    roots = tuple(tmp_path / name for name in ("shared/frontend", "student-1/frontend", "scripts"))
+    monkeypatch.setattr(check, "JAVASCRIPT_SOURCE_ROOTS", (*roots, roots[0]))
+    monkeypatch.setattr(
+        check, "discover_quality_inputs", lambda _root: FeatureQualityInputs(features=())
+    )
+    assert check.javascript_sources() == tuple(
+        sorted((files[0], files[1], files[2], files[3], files[7], files[8]))
+    )
+    assert check.shared_frontend_tests() == tuple(sorted((files[0], files[2], files[3])))
+    node_command = check.test_commands()[-1]
+    assert files[0] in node_command
+    assert files[7] not in node_command
+
+
+@pytest.mark.parametrize("stage", ["format", "lint", "architecture", "styles", "typecheck"])
+def test_static_stages_do_not_discover_unrelated_inputs(
+    stage: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected(*_args: object) -> None:
+        pytest.fail("unrelated discovery was invoked")
+
+    monkeypatch.setattr(check, "compile_commands", unexpected)
+    monkeypatch.setattr(check, "test_commands", unexpected)
+    assert check.commands_for(stage)
 
 
 def test_named_stages_are_composable_and_check_preserves_order() -> None:
