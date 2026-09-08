@@ -45,4 +45,6 @@ Each implementation stage will be committed separately on the user's current bra
 - Narrow viewport layout, focus visibility, meaningful headings and colour-independent states.
 - `uv run python scripts/check.py`; focused Shared browser audit; real-origin Docker inspection.
 
-Completion evidence and any remaining limitations will be recorded alongside this plan.
+Shared implementation is complete. See [the implementation review](fieldbook-implementation-review.md)
+for evidence and limitations. The user subsequently authorised the same design direction for
+Feature 1's production interfaces, preserving their real workflows and service boundaries.
