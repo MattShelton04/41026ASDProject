@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createHomeStory, nearestStoryStep } from './home-story.js';
+
+test('the illustrated chapter follows the nearest visible text, including reverse scroll', () => {
+  let scroll = 0;
+  const steps = [0, 1, 2].map((index) => ({ getBoundingClientRect: () => ({ top: index * 700 - scroll, height: 700 }) }));
+  assert.equal(nearestStoryStep(steps, 900), steps[0]);
+  scroll = 700;
+  assert.equal(nearestStoryStep(steps, 900), steps[1]);
+  scroll = 1400;
+  assert.equal(nearestStoryStep(steps, 900), steps[2]);
+  scroll = 200;
+  assert.equal(nearestStoryStep(steps, 900), steps[0]);
+  assert.equal(nearestStoryStep([], 900), null);
+});
+
+test('chapter navigation respects motion preference, disabled routes and teardown', () => {
+  const events = new Map();
+  const mediaEvents = new Map();
+  let cancelled = null;
+  let frameCallback;
+  let scrolled;
+  const step = { dataset: { step: '0' }, getBoundingClientRect: () => ({ top: 200, height: 600 }), querySelector: () => ({ textContent: '01 / Property data' }), scrollIntoView: (options) => { scrolled = options; } };
+  const attributes = new Map();
+  const buttonEvents = new Map();
+  const button = { dataset: { sceneTarget: '0' }, setAttribute: (key, value) => attributes.set(key, value), addEventListener: (key, fn) => buttonEvents.set(key, fn), removeEventListener: (key) => buttonEvents.delete(key) };
+  const action = { dataset: { storyArea: '0' }, removeAttribute: (name) => { delete action[name]; }, classList: { add() {} } };
+  const visual = { dataset: {} };
+  const label = {};
+  const story = { querySelector: (selector) => selector === '.story-visual' ? visual : label, querySelectorAll: (selector) => selector === '[data-step]' ? [step] : selector === '[data-scene-target]' ? [button] : [action] };
+  const root = { querySelector: (selector) => selector === '.feature-story' ? story : null };
+  const host = { innerHeight: 900, matchMedia: () => ({ matches: true, addEventListener: (key, fn) => mediaEvents.set(key, fn), removeEventListener: (key) => mediaEvents.delete(key) }), addEventListener: (key, fn) => events.set(key, fn), removeEventListener: (key) => events.delete(key), requestAnimationFrame: (fn) => { frameCallback = fn; return 42; }, cancelAnimationFrame: (id) => { cancelled = id; } };
+  const controller = createHomeStory(root, [{ implemented: true, href: '/real-workspace/' }], { host });
+  assert.equal(action.href, '/real-workspace/');
+  assert.equal(visual.dataset.scene, '0');
+  assert.equal(attributes.get('aria-pressed'), 'true');
+  buttonEvents.get('click')();
+  assert.deepEqual(scrolled, { block: 'center', behavior: 'instant' });
+  events.get('scroll')();
+  controller.destroy();
+  assert.equal(cancelled, 42);
+  assert.equal(events.size, 0);
+  assert.equal(mediaEvents.size, 0);
+  assert.equal(buttonEvents.size, 0);
+  frameCallback();
+  const disabled = createHomeStory(root, [{ implemented: true, href: null }], { host });
+  assert.equal(action.href, undefined);
+  assert.equal(action.textContent, 'Currently disabled');
+  disabled.destroy();
+});

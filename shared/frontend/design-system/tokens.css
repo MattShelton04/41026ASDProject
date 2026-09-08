@@ -203,4 +203,11 @@
   --ps-composer-max-height: 200px;
   --ps-dialog-max-width: 720px;
   --ps-color-scrim: rgb(25 45 39 / 48%);
+
+  /* Authored conceptual illustrations, distinct from observed data/evidence states. */
+  --ps-color-illustration-canvas: #e9ece2;
+  --ps-color-illustration-parcel: #d9dfd0;
+  --ps-color-illustration-line: #aaba9f;
+  --ps-color-illustration-water: #afc8b9;
+  --ps-color-illustration-highlight: #e7b778;
 }
