@@ -31,9 +31,10 @@
 .stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); background: var(--paper); border-radius: var(--ps-radius-xs); overflow: hidden; margin-bottom: var(--ps-space-6); }
 .stat-card { display: block; padding: var(--ps-space-5); border: 0; border-right: 1px solid var(--line); background: transparent; }
 .stat-card:last-child { border-right: 0; }
-.stat-card::before, .stat-icon { display: none; }
+.stat-card::before { display: none; }
+.stat-icon { display: block; position: absolute; top: var(--ps-space-5); right: var(--ps-space-5); width: 2rem; height: 2rem; padding: var(--ps-space-2); border-radius: var(--ps-radius-xs); }
 .stat-value { font-family: var(--ps-font-editorial); font-size: 2.5rem; line-height: 1.2; font-weight: 400; margin: var(--ps-space-3) 0; overflow-wrap: anywhere; }
-.stat-label { font-size: .75rem; font-weight: 500; }
+.stat-label { min-height: 2rem; padding-right: 2.5rem; font-size: .75rem; font-weight: 500; }
 .stat-note { font-size: .6875rem; line-height: 1.6; }
 .stat-card.negative .stat-value { color: var(--negative); }
 .stat-card.warning .stat-value { color: var(--warning); }
@@ -129,6 +130,7 @@ table td.numeric { white-space: nowrap; }
   .page-heading h1 { font-size: 2.25rem; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .stat-card { padding: var(--ps-space-4); border-bottom: 1px solid var(--line); }
+  .stat-icon { top: var(--ps-space-4); right: var(--ps-space-4); }
   .stat-card:nth-child(2) { border-right: 0; }
   .stat-card:nth-last-child(-n+2) { border-bottom: 0; }
   .fieldbook-review-attention { align-items: flex-start; flex-direction: column; }
