@@ -65,6 +65,13 @@ def test_ci_and_cloud_reject_advanced_startup_before_files(isolated: Path) -> No
     assert not runtime.HOST_DIRECTORY.exists()
 
 
+@pytest.mark.parametrize("mode", ["", "Combined", "unknown"])
+def test_unknown_mode_cannot_create_state(isolated: Path, mode: str) -> None:
+    with pytest.raises(RuntimeError, match="capability mode"):
+        runtime.prepare_environment({}, mode=mode)
+    assert not runtime.HOST_DIRECTORY.exists()
+
+
 def test_host_catalogue_remaps_only_enabled_features_and_preserves_tools(isolated: Path) -> None:
     result = runtime.prepare_environment({"PROPERTYSCOPE_PORT": "6200"}, mode="rag")
     assert result["AI_MODE_MCP_ENABLED"] == "false"
@@ -221,7 +228,7 @@ def test_host_entry_requires_credential_for_runs_reviews_and_history() -> None:
         assert client.post(path, headers={"X-PropertyScope-AI-Token": "invalid"}).status_code == 401
         assert client.post(path, headers={"X-PropertyScope-AI-Token": "é"}).status_code == 401
         assert client.post(path, headers={"X-PropertyScope-AI-Token": "a" * 43}).status_code == 200
-    with pytest.raises(RuntimeError, match="service token"):
+    with pytest.raises(RuntimeError, match="AI_MODE_SERVICE_TOKEN"):
         runtime.protect_host_entry(Flask("unconfigured"), "")
 
 

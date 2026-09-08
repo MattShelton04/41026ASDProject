@@ -51,6 +51,7 @@ from scripts.devtools.config import (
     TERMINAL_COLLECTION_STATES,
 )
 from scripts.devtools.operator_report import collect_operator_report, render_operator_report
+from scripts.devtools.runtime_settings import AI_PLACEMENTS
 
 FEATURE_1_KEY = "student-1-propertyscope-data-platform"
 DEFAULT_ENV_FILE = REPOSITORY_ROOT / ".env"
@@ -462,13 +463,17 @@ def _compose_environment(*, offline: bool) -> Mapping[str, str]:
 
 
 def _up(*, offline: bool, build: bool = False, placement: str | None = None) -> None:
+    # Validate even an explicit switch before touching credentials or existing owners.
+    ai_runtime.read_state()
+    selected_placement = placement or ai_runtime.selection()
+    if selected_placement not in AI_PLACEMENTS:
+        raise RuntimeError("PROPERTYSCOPE_AI_RUNTIME must be docker or host")
     _openai_credential(offline=offline)
     _validate_deployment_inputs()
     _ensure_docker()
     _stop_disabled_feature_services()
     _preflight_compose_host_ports(services=APPLICATION_SERVICES)
     compose_environment = _compose_environment(offline=offline)
-    selected_placement = placement or ai_runtime.selection()
     mode = "direct" if offline else "combined"
     if selected_placement == "docker":
         compose_environment = ai_runtime.prepare(compose_environment, mode=mode)

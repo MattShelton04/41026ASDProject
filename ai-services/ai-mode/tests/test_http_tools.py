@@ -159,7 +159,9 @@ def test_injected_client_cannot_enable_redirects_or_change_ownership() -> None:
             ],
             client=client,
         )
-        result = executor.execute(_call(idempotency_key="stable-key"), _definition(), timeout_ms=1000)
+        result = executor.execute(
+            _call(idempotency_key="stable-key"), _definition(), timeout_ms=1000
+        )
         executor.close()
         assert not client.is_closed
         assert client.follow_redirects is True

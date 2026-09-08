@@ -36,6 +36,8 @@ COPY shared/frontend shared/frontend
 COPY scripts/__init__.py scripts/__init__.py
 COPY scripts/devtools/__init__.py scripts/devtools/__init__.py
 COPY scripts/devtools/container_entry.py scripts/devtools/container_entry.py
+COPY scripts/devtools/runtime_settings.py scripts/devtools/runtime_settings.py
+COPY scripts/devtools/service_auth.py scripts/devtools/service_auth.py
 RUN uv sync --locked --no-dev --package ai-mode --package mcp-server --package rag-server && uv cache clean
 
 FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime

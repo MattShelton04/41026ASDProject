@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
-import secrets
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask
 
-PORTS = {"ai-mode": 5005, "mcp": 5011, "rag": 5012}
+from scripts.devtools.runtime_settings import AI_CONTAINER_SERVICES, AI_SERVICE_PORTS
+from scripts.devtools.service_auth import protect_entry as protect_entry
+
+PORTS = {service: default for service, (_, default) in AI_SERVICE_PORTS.items()}
 
 
 def validate_environment(service: str, environment: Mapping[str, str]) -> None:
@@ -29,23 +30,6 @@ def validate_environment(service: str, environment: Mapping[str, str]) -> None:
         )
     ):
         raise RuntimeError("MCP and RAG must remain disabled in CI")
-
-
-def protect_entry(application: Flask, token: str) -> None:
-    """Apply the same dedicated proxy credential as the host entrypoint."""
-    if re.fullmatch(r"[A-Za-z0-9_-]{32,128}", token) is None:
-        raise RuntimeError("AI_MODE_SERVICE_TOKEN must contain 32-128 URL-safe characters")
-
-    @application.before_request
-    def authenticate_request() -> tuple[Response, int] | None:
-        if request.path == "/health/live":
-            return None
-        supplied = request.headers.get("X-PropertyScope-AI-Token", "")
-        if not secrets.compare_digest(supplied.encode("utf-8"), token.encode("utf-8")):
-            return jsonify(
-                {"code": "unauthorized", "detail": "Service authentication required"}
-            ), 401
-        return None
 
 
 def create_wsgi_app(service: str) -> Flask:
@@ -80,7 +64,12 @@ def serve(service: str) -> None:
         application = create_app(
             load_tool_catalogs(paths),
             service_token=os.environ["MCP_SERVICE_TOKEN"],
-            allowed_hosts=("127.0.0.1:*", "localhost:*", "[::1]:*", "mcp-server:5011"),
+            allowed_hosts=(
+                "127.0.0.1:*",
+                "localhost:*",
+                "[::1]:*",
+                f"{AI_CONTAINER_SERVICES[service]}:{PORTS[service]}",
+            ),
         )
         uvicorn.run(application, host="0.0.0.0", port=PORTS[service])
         return

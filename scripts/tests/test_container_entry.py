@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 from flask import Flask
 from scripts.devtools import container_entry as entry
+from scripts.devtools import host_runtime
 
 
 @pytest.mark.parametrize("service", ["ai-mode", "mcp", "rag"])
@@ -35,24 +40,74 @@ def test_advanced_container_services_remain_disabled_in_ci(
     entry.validate_environment("ai-mode", {"AI_MODE_ENVIRONMENT": "compose", "CI": "1"})
 
 
-def test_container_ai_protects_api_and_history_but_allows_liveness() -> None:
+@pytest.mark.parametrize("protect", [entry.protect_entry, host_runtime.protect_host_entry])
+def test_container_ai_protects_api_and_history_but_allows_liveness(protect) -> None:
     app = Flask(__name__)
     for path in ("/health/live", "/health/ready", "/operations/ai-mode/", "/api/v1/agent-runs"):
         app.add_url_rule(path, endpoint=path, view_func=lambda: "ok")
     token = "test-container-token-1234567890123456"
-    entry.protect_entry(app, token)
+    protect(app, token)
     client = app.test_client()
     assert client.get("/health/live").status_code == 200
     for path in ("/health/ready", "/operations/ai-mode/", "/api/v1/agent-runs"):
         assert client.get(path).status_code == 401
         assert client.get(path, headers={"X-PropertyScope-AI-Token": "wrong"}).status_code == 401
+        assert (
+            client.get(path, headers={"X-PropertyScope-AI-Token": "\u00e9" * 32}).status_code == 401
+        )
         assert client.get(path, headers={"X-PropertyScope-AI-Token": token}).status_code == 200
 
 
 @pytest.mark.parametrize("token", ["", "short", "bad token" * 10, "x" * 129])
-def test_container_ai_requires_a_valid_proxy_credential(token: str) -> None:
+@pytest.mark.parametrize("protect", [entry.protect_entry, host_runtime.protect_host_entry])
+def test_container_ai_requires_a_valid_proxy_credential(token: str, protect) -> None:
     with pytest.raises(RuntimeError, match="AI_MODE_SERVICE_TOKEN"):
-        entry.protect_entry(Flask(__name__), token)
+        protect(Flask(__name__), token)
+
+
+def test_packaged_container_entry_imports_without_host_runtime(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    dockerfile = (root / "ai-services/Dockerfile").read_text(encoding="utf-8")
+    for line in dockerfile.splitlines():
+        if line.startswith("COPY scripts/"):
+            _, source, destination = line.split()
+            target = tmp_path / destination
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(root / source, target)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; from scripts.devtools import container_entry; "
+                "assert 'scripts.devtools.host_runtime' not in sys.modules; "
+                "assert 'scripts.devtools.config' not in sys.modules; "
+                "container_entry.validate_environment('ai-mode', "
+                "{'AI_MODE_ENVIRONMENT': 'compose'})"
+            ),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_fixed_container_ports_match_compose_and_host_defaults() -> None:
+    import yaml
+    from scripts.devtools.config import HOST_PORTS
+    from scripts.devtools.runtime_settings import AI_CONTAINER_SERVICES, AI_SERVICE_PORTS
+
+    root = Path(__file__).resolve().parents[2]
+    model = yaml.safe_load((root / "docker-compose.ai.yml").read_text(encoding="utf-8"))
+    for service, (variable, default) in AI_SERVICE_PORTS.items():
+        container = AI_CONTAINER_SERVICES[service]
+        assert HOST_PORTS[container] == (variable, default)
+        assert entry.PORTS[service] == default
+        assert model["services"][container]["ports"] == [
+            f"127.0.0.1:${{{variable}:-{default}}}:{default}"
+        ]
 
 
 @pytest.mark.parametrize("service", ["ai-mode", "rag"])
