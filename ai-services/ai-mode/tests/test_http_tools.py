@@ -1,5 +1,6 @@
 """Contract tests for the allowlisted feature HTTP tool adapter."""
 
+import gzip
 from uuid import uuid4
 
 import httpx
@@ -135,6 +136,59 @@ def test_timeout_and_redirect_fail_closed() -> None:
     assert timed_out.outcome is ToolOutcome.TIMED_OUT
     assert timed_out.error is not None and timed_out.error.code == "tool_timeout"
     assert redirected.error is not None and redirected.error.code == "tool_redirect_rejected"
+
+
+def test_injected_client_cannot_enable_redirects_or_change_ownership() -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(307, headers={"Location": "http://unapproved.internal/private"})
+
+    with httpx.Client(transport=httpx.MockTransport(respond), follow_redirects=True) as client:
+        executor = HttpToolExecutor(
+            service_base_urls={"reference-backend": "http://reference.internal:5101"},
+            bindings=[
+                HttpToolBinding(
+                    tool_name=_definition().name,
+                    tool_version="v1",
+                    service="reference-backend",
+                    method="POST",
+                    path="/api/v1/tools/records.search.v1",
+                )
+            ],
+            client=client,
+        )
+        result = executor.execute(_call(idempotency_key="stable-key"), _definition(), timeout_ms=1000)
+        executor.close()
+        assert not client.is_closed
+        assert client.follow_redirects is True
+    assert len(requests) == 1
+    assert requests[0].url.host == "reference.internal"
+    assert result.error is not None and result.error.code == "tool_redirect_rejected"
+
+
+@pytest.mark.parametrize("valid", [False, True])
+def test_streamed_compressed_response_has_a_typed_result(valid: bool) -> None:
+    body = gzip.compress(b'{"count":1}') if valid else b"private malformed gzip content"
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            headers={"content-type": "application/json", "content-encoding": "gzip"},
+            stream=httpx.ByteStream(body),
+        )
+    )
+    result = _executor(transport).execute(_call(), _definition(), timeout_ms=1000)
+    if valid:
+        assert result.outcome is ToolOutcome.SUCCEEDED
+        assert result.content == {"count": 1}
+    else:
+        assert result.outcome is ToolOutcome.FAILED
+        assert result.error is not None
+        assert result.error.code == "tool_response_invalid_encoding"
+        assert result.error.message == "Tool response encoding is invalid"
+        assert result.retryable is False
+        assert "private" not in result.model_dump_json()
 
 
 @pytest.mark.parametrize(

@@ -136,6 +136,7 @@ class HttpToolExecutor:
                 content=payload,
                 headers=headers,
                 timeout=timeout_ms / 1_000,
+                follow_redirects=False,
             ) as response:
                 status_evidence = (*evidence, f"status:{response.status_code}")
                 if response.is_redirect:
@@ -168,6 +169,14 @@ class HttpToolExecutor:
                 "Tool request timed out",
                 outcome=ToolOutcome.TIMED_OUT,
                 retryable=True,
+                evidence=evidence,
+            )
+        except httpx.DecodingError:
+            return self._failure(
+                call,
+                started,
+                "tool_response_invalid_encoding",
+                "Tool response encoding is invalid",
                 evidence=evidence,
             )
         except httpx.TransportError:
