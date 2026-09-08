@@ -1,5 +1,8 @@
 # Fieldbook Shared implementation review — 8 September 2026
 
+The subsequent [Feature 1 implementation review](fieldbook-feature1-review.md) covers the user's
+follow-up request to align its production working screens with the revised prototype.
+
 The seven Shared surfaces now follow the selected Fieldbook direction: home, research areas,
 Data Status, Sources & history, roadmap, assistant and AI activity. The requested persistent
 sidebar replaces the prototype's horizontal primary navigation. Public Shared tokens and

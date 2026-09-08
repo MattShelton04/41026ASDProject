@@ -24,9 +24,7 @@ submission-complete.
 This ownership and feature boundary are part of the tutor-approved team allocation recorded in the
 [approved feature scope](../docs/architecture/registered-feature-scope.md).
 
-## Feature boundary
-
-### Working interface
+## Working interface
 
 The Fieldbook interface keeps a persistent Property data sidebar and compact operational pages.
 Sources, data checks, files and published coverage have dedicated destinations. Update details
@@ -38,6 +36,8 @@ sections. Switching sections retains loaded evidence and the search-return conte
 section is represented in the URL for reloads. Empty sale history remains explicitly unknown.
 `frontend/fieldbook.css` owns this feature's composition using public Shared tokens. The source
 HTMX lifecycle, map provider, acquisition, review, publication and assistant contracts are unchanged.
+
+## Feature boundary
 
 PropertyScope owns registered source acquisition, reproducible ingestion evidence, the
 canonical property/address registry, quality-gated immutable dataset releases, and bounded

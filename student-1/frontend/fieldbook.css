@@ -28,7 +28,7 @@
 .panel-heading > a { flex-shrink: 0; font-size: .6875rem; }
 .panel-body { padding: 0 var(--ps-space-5) var(--ps-space-5); }
 .panel + .panel { margin-top: var(--ps-space-5); }
-.stat-grid { gap: 0; border: 1px solid var(--line); background: var(--paper); border-radius: var(--ps-radius-xs); overflow: hidden; margin-bottom: var(--ps-space-6); }
+.stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); background: var(--paper); border-radius: var(--ps-radius-xs); overflow: hidden; margin-bottom: var(--ps-space-6); }
 .stat-card { display: block; padding: var(--ps-space-5); border: 0; border-right: 1px solid var(--line); background: transparent; }
 .stat-card:last-child { border-right: 0; }
 .stat-card::before, .stat-icon { display: none; }
@@ -106,6 +106,11 @@ table td.numeric { white-space: nowrap; }
 .ps-ai-chat__welcome { padding: var(--ps-space-5); border-radius: var(--ps-radius-xs); }
 .ps-ai-chat__scope { padding-block: var(--ps-space-4); }
 .ps-ai-chat__intro { border-radius: var(--ps-radius-xs); box-shadow: none; }
+@media (min-width: 561px) {
+  .view[data-density="compact"] table td:first-child { min-width: 180px; }
+  #source-crud-region td:first-child { min-width: 220px; }
+  #source-crud-region td > small.mono { width: 188px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
 @media (max-width: 1100px) {
   .page-heading { align-items: flex-start; flex-direction: column; gap: var(--ps-space-4); }
   .heading-actions { max-width: none; justify-content: flex-start; }
@@ -129,6 +134,7 @@ table td.numeric { white-space: nowrap; }
   .stat-card:nth-last-child(-n+2) { border-bottom: 0; }
   .fieldbook-review-attention { align-items: flex-start; flex-direction: column; }
   .button, .button.small, .button.overview-action { min-height: 44px; }
+  .primary-cell > a, .coverage-card > a { min-height: 44px; }
   .panel-heading { padding: var(--ps-space-4); flex-wrap: wrap; }
   .panel-heading h2 { font-size: 1.375rem; }
   .panel-body { padding: 0 var(--ps-space-4) var(--ps-space-4); }
