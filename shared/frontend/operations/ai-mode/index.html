@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light">
     <title>PropertyScope | Activity history</title>
     <link rel="stylesheet" href="/operations/ai-mode/design-system/tokens.css">
-    <link rel="stylesheet" href="/operations/ai-mode/assets/styles.css?v=7">
+    <link rel="stylesheet" href="/operations/ai-mode/assets/styles.css?v=8">
     <link rel="stylesheet" href="/operations/ai-mode/shared/ai-chat/styles.css">
   </head>
   <body>
@@ -32,6 +32,7 @@
         <a href="/#system-status">Data status</a>
         <a href="/#evidence">Sources &amp; history</a>
         <a href="/#assistant">Ask PropertyScope</a>
+        <a href="/#release-roadmap">Product roadmap</a>
       </nav></details>
       <a id="research-area-return" class="research-area-return" href="/#features" aria-label="Back to research areas">
         <span aria-hidden="true">←</span>
@@ -45,6 +46,24 @@
     </header>
 
     <p id="feedback" class="inline-feedback" hidden></p>
+    <div class="activity-shell">
+      <aside class="activity-rail" aria-label="PropertyScope areas">
+        <nav aria-label="Shared workspace">
+          <p>Your workspace</p>
+          <a href="/#home">Home</a>
+          <a href="/#features">Research areas</a>
+          <p>About the data</p>
+          <a href="/#evidence">Sources &amp; history</a>
+          <a href="/#system-status">Data status</a>
+          <a href="/#assistant">Ask PropertyScope</a>
+          <p>Research workspace</p>
+          <a href="/#features">Explore research areas <span aria-hidden="true">↗</span></a>
+          <a href="/#release-roadmap">Product roadmap</a>
+          <p>Shared activity</p>
+          <a href="/operations/ai-mode/" class="is-current" aria-current="page">Activity history</a>
+        </nav>
+        <div class="activity-rail__foot"><strong>Research workspace</strong><span>Evidence, context, decisions</span></div>
+      </aside>
     <main id="workspace" class="workspace">
       <aside class="run-browser" aria-label="AI review browser">
         <div class="run-browser-toolbar">
@@ -210,6 +229,7 @@
         </div>
       </section>
     </main>
+    </div>
 
     <div id="announcement" class="visually-hidden" role="status" aria-live="polite"></div>
     <script type="module" src="/operations/ai-mode/assets/app.js?v=13"></script>

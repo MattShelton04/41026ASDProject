@@ -135,6 +135,22 @@ function statusTone(value) {
   return "unknown";
 }
 
+function publicationCard({ item, href }, transitionLabel) {
+  const card = el("article", "publication-card");
+  const title = el("div", "publication-card__title");
+  append(title, el("p", "ps-eyebrow", "Published reference"), el("h3", "", item.dataset), el("p", "", item.area));
+  const facts = el("dl", "publication-facts");
+  for (const [term, value] of [["Records", formatNumber(item.records)], ["Coverage", humanise(item.coverage)], ["Published", formatDate(item.acceptedAt)], ["Version", item.version]]) {
+    const fact = el("div");
+    append(fact, el("dt", "", term), el("dd", "", value));
+    append(facts, fact);
+  }
+  const footer = el("div", "publication-card__footer");
+  append(footer, el("span", "", transitionLabel), link("Inspect published record →", href, "ps-button"));
+  append(card, title, facts, footer);
+  return card;
+}
+
 export function createEvidenceRoute({ getEvidenceAdapters, announce, requestJson: request = requestJson }) {
   return async function renderEvidence(root) {
     const candidates = getEvidenceAdapters?.();
@@ -202,6 +218,11 @@ export function createEvidenceRoute({ getEvidenceAdapters, announce, requestJson
       if (releasesResult.status === "fulfilled") {
         try {
           const releases = projectEvidenceRows(evidence.published, releasesResult.value.body, window.location.href);
+          if (releases.length) {
+            const publications = el("div", "publication-list");
+            append(publications, ...releases.map((release) => publicationCard(release, copy.transitionLabel)));
+            append(releasePanel.body, publications);
+          }
           if (releases.length) append(releasePanel.body, table(["Dataset", "Research area", "Published version", "Records", "Coverage", "Published"], releases, ({ item, href }) => {
             const tr = el("tr");
             const dataset = el("div", "table-primary");

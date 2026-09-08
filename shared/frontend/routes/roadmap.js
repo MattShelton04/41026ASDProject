@@ -1,11 +1,11 @@
 import { capabilityManifest, capabilityState, RELEASE_STAGES } from "../capabilities.js";
 import { append, badge, cell, el, link, notice, pageHeader, panel, requestJson, table } from "../core.js";
 
-function stageCard(stage) {
+function stageCard(stage, index) {
   const card = el("article", `ps-card roadmap-card roadmap-card--${stage.state}`);
   const body = el("div", "ps-card__body");
   const label = stage.state === "current" ? "Available" : stage.state === "implemented" ? "Implemented · runtime dependent" : "Planned";
-  append(body, badge(label, stage.state === "current" ? "confirmed" : stage.state === "implemented" ? "unknown" : "planned"), el("p", "ps-card__eyebrow", stage.id), el("h2", "", stage.label), el("p", "", stage.summary));
+  append(body, el("span", "roadmap-number", String(index + 1).padStart(2, "0")), badge(label, stage.state === "current" ? "confirmed" : stage.state === "implemented" ? "unknown" : "planned"), el("p", "ps-card__eyebrow", stage.id), el("h2", "", stage.label), el("p", "", stage.summary));
   const list = el("ul", "roadmap-list");
   for (const item of stage.capabilities) append(list, el("li", "", item));
   append(body, list);
@@ -20,12 +20,12 @@ export function createRoadmapRoute({ config, requestJson: requestJsonFn = reques
     const mode = notice("success", "Workspaces, not a service-health guarantee", "Enabled research areas are listed below. Open Data status to check their current service availability.");
     append(root, mode);
     const stages = el("div", "ps-grid ps-grid-3 roadmap-grid");
-    append(stages, ...RELEASE_STAGES.map((stage) => stageCard(stage.state === "current" ? {
+    append(stages, ...RELEASE_STAGES.map((stage, index) => stageCard(stage.state === "current" ? {
       ...stage,
       label: "Evidence-led research",
       summary: "The research workspaces enabled in this deployment. Source coverage and live service health are separate checks.",
       capabilities: manifest.features.filter((item) => item.implemented && item.enabled).map((item) => item.label),
-    } : stage)));
+    } : stage, index)));
     append(root, stages);
 
     const capabilityPanel = panel("Detailed availability", "Planned tools are shown separately from services that are temporarily unavailable.");
