@@ -29,7 +29,7 @@ SCREENSHOTS = (
     ReadmeScreenshot(
         filename="propertyscope-home.png",
         path="/?scenario=populated#home",
-        heading="Research a property",
+        heading="A clearer view of your next move.",
         ready_selector="#feature-area-list [data-feature-id]",
     ),
     ReadmeScreenshot(

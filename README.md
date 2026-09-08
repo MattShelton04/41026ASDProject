@@ -59,8 +59,8 @@ development mode does not satisfy that requirement. Release 2 cloud hosting rema
 
 ## Application preview
 
-The shared research workspace keeps property evidence, source coverage, and uncertainty visible
-from the start.
+The Fieldbook research workspace pairs a persistent sidebar with property search, illustrated
+research areas, and visible source coverage.
 
 ![PropertyScope NSW research workspace](docs/images/readme/propertyscope-home.png)
 
