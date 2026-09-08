@@ -102,8 +102,10 @@ only for documented, non-secret defaults.
 
 The source-only `check.py` stages are cross-platform and require no shell-specific syntax. They do
 not install a second frontend dependency tree: the browser code is dependency-free ES modules, so
-Node performs syntax and behavior checks directly. The canonical aggregate deliberately excludes
-browser tests; install Chromium once and use the separate commands below when changing rendered UI.
+Node performs syntax and behavior checks directly. Feature `tests/e2e/` suites remain separate.
+The shared script tests also contain Chromium audit canaries: these run when Chromium is installed
+and skip when its executable is absent. Install Chromium once and use the separate commands below
+when changing rendered UI; optional canaries do not replace the required feature browser suites.
 
 For a Shared-only change, run the `format`, `lint`, `styles`, `compile` and relevant Shared Node
 tests while iterating, then audit with

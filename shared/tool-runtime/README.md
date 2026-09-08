@@ -9,6 +9,8 @@ AI-mode retains `ToolRegistry` and policy composition in its compatibility facad
 allows only startup-defined origins and paths, rejects redirects, propagates run/request/trace
 and idempotency headers, bounds request/response bytes and validates registered output schemas.
 It does not discover model-supplied URLs or own feature persistence/business rules.
+Redirect rejection is applied per invocation, including injected clients. Malformed compressed
+responses return a safe typed encoding failure; they do not escape as upstream decoder exceptions.
 
 `sign_invocation` is called only by the orchestrator adapter after deterministic authorization.
 Its HMAC binds the feature, complete call identity, tool version, argument digest, approval,
