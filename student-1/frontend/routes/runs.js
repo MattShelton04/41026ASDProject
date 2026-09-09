@@ -132,12 +132,15 @@ function requestSuffix(error) {
 }
 
 function resolveFeed(result, cache, key) {
+  cache.failures ||= {};
   if (result.status === "fulfilled") {
     const items = collection(result.value.body);
     cache[key] = items;
+    delete cache.failures[key];
     return { items, available: true, cached: false, error: null };
   }
   const cached = Object.hasOwn(cache, key);
+  cache.failures[key] = result.reason;
   return { items: cached ? cache[key] : [], available: false, cached, error: result.reason };
 }
 
@@ -262,7 +265,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       const run = entity(detailResult.body, "run");
       const refreshEvidence = !polling || cache.runStatus !== run.status || Date.now() - (cache.evidenceAt || 0) > 15000;
       const evidenceRequest = (key, path) => !refreshEvidence && Object.hasOwn(cache, key)
-        ? Promise.resolve({ body: { items: cache[key] } })
+        ? cache.failures?.[key] ? Promise.reject(cache.failures[key]) : Promise.resolve({ body: { items: cache[key] } })
         : request(path, { signal: refresh.signal });
       const supportingFeeds = Promise.allSettled([
         request(`ingestion-runs/${id}/tasks?limit=100`, { signal: refresh.signal }),

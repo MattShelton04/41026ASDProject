@@ -1461,7 +1461,11 @@ def test_run_poll_keeps_cached_supporting_evidence_disclosure_focus_and_scroll(
     expect(
         page.get_by_text("Update steps are temporarily unavailable", exact=False)
     ).to_be_visible()
-    expect(page.get_by_text("Data checks are temporarily unavailable", exact=False)).to_be_visible()
+    # Supporting evidence refreshes every 15 seconds; task liveness stays fast.
+    assert counts["Data checks"] == 1
+    expect(page.get_by_text("Data checks are temporarily unavailable", exact=False)).to_be_visible(
+        timeout=20_000
+    )
     expect(
         page.get_by_text("File and lineage details are temporarily unavailable", exact=False)
     ).to_be_visible()
@@ -1469,6 +1473,13 @@ def test_run_poll_keeps_cached_supporting_evidence_disclosure_focus_and_scroll(
         page.get_by_text("Published-version details are temporarily unavailable", exact=False)
     ).to_be_visible()
     expect(page.locator(".timeline li").first).to_be_visible()
+    task_reads = counts["Update steps"]
+    deadline = time.monotonic() + 5
+    while counts["Update steps"] <= task_reads and time.monotonic() < deadline:
+        page.wait_for_timeout(50)
+    assert counts["Update steps"] > task_reads
+    # Reusing cached data on the next fast poll must not erase the outage warning.
+    expect(page.get_by_text("Data checks are temporarily unavailable", exact=False)).to_be_visible()
 
     restored_summary = page.locator("details.technical > summary").last
     expect(restored_summary.locator("..")).to_have_attribute("open", "")
@@ -1719,8 +1730,9 @@ def test_run_and_failed_ai_details_remain_clear_at_mobile_width(
     _open(page, fixture_origin, f"runs/{RUN_ID}")
 
     expect(page.get_by_role("heading", name="Example property records update")).to_be_visible()
-    for label in ("Use downloaded file", "Ask AI about update", "Review candidate data"):
+    for label in ("Use downloaded file", "Ask AI about update", "Ask AI to review candidate"):
         expect(page.get_by_role("button", name=label)).to_be_visible()
+    expect(page.get_by_role("link", name="Open candidate")).to_be_visible()
     assert page.evaluate(
         "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
