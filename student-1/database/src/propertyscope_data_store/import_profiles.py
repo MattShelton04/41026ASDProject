@@ -183,6 +183,9 @@ def iter_bocsar_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str
 
 def iter_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str, Any]]:
     """Dispatch a registered profile to its exact typed Parquet contract."""
+    if profile == "gnaf-nsw":
+        yield from iter_gnaf_parquet_import(path)
+        return
     if profile == "bocsar-sparse":
         yield from iter_bocsar_parquet_import(path, profile=profile)
         return
@@ -190,6 +193,52 @@ def iter_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str, Any]]
         yield from iter_psi_parquet_import(path, profile=profile)
         return
     raise ImportProfileError("canonical Parquet is not registered for this import profile")
+
+
+def iter_gnaf_parquet_import(path: Path) -> Iterable[dict[str, Any]]:
+    """Verify the exact source contract, then use the same normalization as legacy JSON."""
+    # Deliberately database-owned: this service does not import backend implementation code.
+    schema = pa.schema(
+        [
+            pa.field("gnaf_pid", pa.string(), nullable=False),
+            pa.field("property_ref", pa.string()),
+            pa.field("address_display", pa.string(), nullable=False),
+            pa.field("flat_type", pa.string()),
+            pa.field("unit_number", pa.string()),
+            pa.field("street_number_first", pa.int32()),
+            pa.field("street_number_suffix", pa.string()),
+            pa.field("street_number_last", pa.int32()),
+            pa.field("street_name", pa.string()),
+            pa.field("street_type", pa.string()),
+            pa.field("locality", pa.string(), nullable=False),
+            pa.field("postcode", pa.string(), nullable=False),
+            pa.field("source_status", pa.string(), nullable=False),
+            pa.field("geocode_type", pa.string(), nullable=False),
+            pa.field("source_crs", pa.int32(), nullable=False),
+            pa.field("latitude", pa.float64(), nullable=False),
+            pa.field("longitude", pa.float64(), nullable=False),
+        ],
+        metadata={
+            b"propertyscope.schema_version": b"propertyscope.canonical-gnaf-parquet.v1",
+            b"propertyscope.import_profile": b"gnaf-nsw",
+        },
+    )
+    try:
+        with pq.ParquetFile(path) as parquet:
+            actual = parquet.schema_arrow
+            if not actual.remove_metadata().equals(schema.remove_metadata()):
+                raise ImportProfileError("canonical G-NAF Parquet schema is not registered")
+            if any((actual.metadata or {}).get(k) != v for k, v in schema.metadata.items()):
+                raise ImportProfileError("canonical G-NAF Parquet metadata is not registered")
+            if parquet.metadata.num_rows == 0:
+                raise ImportProfileError("canonical import artifact must not be empty")
+            index = 0
+            for batch in parquet.iter_batches(batch_size=65_536):
+                for row in batch.to_pylist():
+                    index += 1
+                    yield _gnaf(row, index)
+    except (OSError, pa.ArrowException) as exc:
+        raise ImportProfileError("canonical G-NAF Parquet artifact is unreadable") from exc
 
 
 def iter_psi_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str, Any]]:

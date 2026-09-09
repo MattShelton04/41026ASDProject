@@ -39,6 +39,11 @@ from propertyscope_data_platform.bocsar_parquet import (
     BOCSAR_PARQUET_SCHEMA_VERSION,
     write_bocsar_parquet,
 )
+from propertyscope_data_platform.gnaf_parquet import (
+    GNAF_PARQUET_MEDIA_TYPE,
+    GNAF_PARQUET_SCHEMA_VERSION,
+    write_gnaf_parquet,
+)
 from propertyscope_data_platform.psi_parquet import (
     PSI_PARQUET_MEDIA_TYPE,
     PSI_PARQUET_SCHEMA_VERSION,
@@ -313,12 +318,13 @@ class AcquisitionRunner:
                     )
                     schema_version = PSI_PARQUET_SCHEMA_VERSION
                 else:
-                    canonical_chunks = self._live_gnaf_chunks(task, scope, counter)
-                    artifact = self.artifacts.put(
-                        canonical_chunks,
-                        media_type="application/x-ndjson",
+                    artifact = self.artifacts.put_generated(
+                        lambda destination: write_gnaf_parquet(
+                            destination, self._live_gnaf_records(task, scope, counter)
+                        ),
+                        media_type=GNAF_PARQUET_MEDIA_TYPE,
                     )
-                    schema_version = "propertyscope.canonical-import.v1"
+                    schema_version = GNAF_PARQUET_SCHEMA_VERSION
                 self._register_stage_artifact(
                     task,
                     stage=stage,
@@ -889,9 +895,9 @@ class AcquisitionRunner:
         candidate = root / "weekly" / f"{week.strftime('%Y%m%d')}.zip"
         return candidate if candidate.is_file() else None
 
-    def _live_gnaf_chunks(
+    def _live_gnaf_records(
         self, task: dict[str, Any], scope: dict[str, object], counter: list[int]
-    ) -> Iterable[bytes]:
+    ) -> Iterable[dict[str, object]]:
         """Stream the complete registered NSW address generation without retaining it in RAM."""
         source_url, declared_crs = self._discovered_gnaf_source(task)
         if self.settings.gnaf_archive_path and self.settings.gnaf_archive_path.is_file():
@@ -955,10 +961,7 @@ class AcquisitionRunner:
         )
         for item in parsed:
             counter[0] += 1
-            yield (
-                json.dumps(_gnaf_record(item), sort_keys=True, separators=(",", ":")).encode()
-                + b"\n"
-            )
+            yield _gnaf_record(item)
 
     def _discovered_gnaf_source(self, task: dict[str, Any]) -> tuple[str, str]:
         snapshot = task.get("source_snapshot_json")
