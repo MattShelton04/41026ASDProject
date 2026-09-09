@@ -2,16 +2,55 @@ import { collection, entity, queryString } from "../core/api.js";
 import { disposeTableRegions } from "../browser/index.js";
 import { collectionPagination, pageOffset } from "../components/pagination.js";
 import { append, button, el, link } from "../core/dom.js";
-import { displayName, durationMilliseconds, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js";
+import { displayName, formatBytes, formatDate, formatDuration, formatNumber, humanise, stateLabel, statusTone } from "../core/formats.js";
 import { actionAvailability, createLatestRequestGuard, nextRunDetailPollDelay, retainRecent } from "../core/polling.js";
 import { parseRoute, routeQuery } from "../core/router.js";
 import { failureExplanationDraft, reconcileTimelineTask, runFailureSummary } from "../core/run-failure.js";
+import { mergeActivity, taskProgress } from "../core/run-progress.js";
+import { runActivity } from "../components/run-activity.js";
 import { filterToolbar } from "../components/forms.js";
-import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
+import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState, renderLoading } from "../components/states.js";
 import { cell, makeTable, primaryCell, technicalReference } from "../components/tables.js";
 
 const RUN_FILTERS = ["", "queued", "running", "succeeded", "failed", "cancelled", "interrupted"];
+
+function activeStageCard(run, tasks) {
+  if (!actionAvailability(run.status).cancel && run.status !== "cancelling") return null;
+  const task = tasks.map((item) => reconcileTimelineTask(run, item)).find((item) => ["running", "claimed"].includes(item.status));
+  const card = el("section", "run-stage-card");
+  card.setAttribute("aria-label", "Current update stage");
+  const pulse = el("span", "run-stage-pulse"); pulse.setAttribute("aria-hidden", "true");
+  append(card, pulse);
+  if (!task) {
+    append(card, el("h2", "", "Waiting for the acquisition worker"), el("p", "", "Updates share one serial worker. A full-history update ahead of this one can take several minutes. This page updates automatically."));
+    return card;
+  }
+  const progress = taskProgress(task);
+  card.classList.toggle("is-stale", progress.stale);
+  const awaitingLoader = task.stage === "import" && ["planned", "queued", "interrupted"].includes(task.import_status);
+  const phase = awaitingLoader ? "Waiting for the database loader" : humanise(task.progress_phase || task.stage);
+  append(card, el("p", "eyebrow", `Attempt ${task.attempt_number || 1} · ${humanise(task.stage)}`), el("h2", "", phase));
+  const metrics = el("div", "run-stage-metrics");
+  const rowsLabel = task.stage === "acquire" ? "Source records prepared" : task.stage === "build_release" ? "Release records exported" : task.progress_phase_key === "typed_staging" ? "Canonical rows copied" : "Canonical rows staged";
+  append(metrics, el("strong", "", `${formatNumber(progress.rows)} ${rowsLabel.toLowerCase()}`));
+  if (progress.bytes > 0) append(metrics, el("span", "", `${formatBytes(progress.bytes)} read`));
+  append(metrics, el("span", "", progress.elapsed === null ? "Starting" : `${formatDuration(0, progress.elapsed)} this attempt`));
+  append(card, metrics);
+  if (awaitingLoader) append(card, el("p", "", "The canonical file is ready. Another import or publication may own the serial database loader; this stage has not started loading yet."));
+  else if (task.import_started_at) append(card, el("p", "", `Loader preparation and queue wait: ${formatDuration(task.started_at, task.import_started_at)}. Current loader attempt started ${formatDate(task.import_started_at)}.`));
+  if (progress.ratio !== null) {
+    const bar = el("progress", "run-stage-progress"); bar.max = 1; bar.value = progress.ratio;
+    bar.setAttribute("aria-label", `${humanise(task.stage)} progress`);
+    append(card, bar, el("p", "", progress.usesRows ? `${formatNumber(progress.rows)} of ${formatNumber(progress.total)} rows` : `${formatBytes(progress.bytes)} of ${formatBytes(progress.total)}`));
+  } else append(card, el("p", "", "The source does not provide a reliable total for this phase. No completion estimate is available."));
+  const heartbeat = progress.heartbeatAge === null ? "No heartbeat recorded yet" : `Worker heartbeat ${formatDuration(0, progress.heartbeatAge)} ago`;
+  const activity = progress.progressAge === null ? "No progress checkpoint yet" : `Progress checkpoint ${formatDuration(0, progress.progressAge)} ago`;
+  append(card, el("p", "run-stage-health", `${heartbeat} · ${activity}`));
+  if (progress.stale) append(card, el("p", "notice warning", "The worker heartbeat is stale. Processing may have stopped; recovery becomes available after its lease expires."));
+  else if (progress.stalled) append(card, el("p", "notice warning", "The worker is responding, but counters have not advanced recently. Database sorting, joins and indexes may be working between checkpoints."));
+  return card;
+}
 
 function runFailureNotice(run, tasks) {
   const failure = runFailureSummary(run, tasks);
@@ -38,11 +77,12 @@ function runTimeline(run, tasks, { available = true } = {}) {
     : "No update-step details can be shown until this feed recovers."));
   for (const rawTask of tasks) {
     const task = reconcileTimelineTask(run, rawTask);
+    const live = taskProgress(task);
     const item = el("li");
     const tone = statusTone(task.status);
     const marker = el("span", `timeline-marker ${tone}`, stateLabel(task.status).symbol);
     const detail = el("div");
-    const durableRows = Math.max(Number(task.rows_out || 0), Number(task.progress_rows || 0));
+    const durableRows = live.rows;
     const phase = task.progress_phase ? ` · ${task.progress_phase}` : "";
     const finished = task.finished_at || Date.now();
     const elapsed = task.started_at ? formatDuration(task.started_at, finished) : "not started";
@@ -60,9 +100,7 @@ function runTimeline(run, tasks, { available = true } = {}) {
       : Number.isFinite(total) && total > 0
         ? `${formatBytes(processed)} of ${formatBytes(total)}`
         : `${formatNumber(durableRows)} rows · ${indeterminate ? "remaining work indeterminate" : "total not recorded"}`;
-    const elapsedMs = task.started_at ? durationMilliseconds(task.started_at, finished) : null;
-    const remainingMs = task.status === "running" && progressRatio > 0 && progressRatio < 1
-      && elapsedMs >= 10_000 ? elapsedMs * ((1 - progressRatio) / progressRatio) : null;
+    const remainingMs = null; // Stage elapsed includes earlier phases; it is not a valid ETA.
     const timing = task.started_at
       ? task.finished_at
         ? `took ${elapsed}`
@@ -71,7 +109,7 @@ function runTimeline(run, tasks, { available = true } = {}) {
         ? "not run (cached result reused)"
         : "not started";
     append(detail,
-      el("h3", "", `${humanise(task.stage)} · ${task.logical_key || "Task"}`),
+      el("h3", "", humanise(task.stage)),
       el("p", "", `${humanise(task.status)}${phase} · attempt ${task.attempt_number ?? 1}`),
       el("span", "timeline-meta", `${unitProgress}${progressRatio === null ? "" : ` (${Math.round(progressRatio * 100)}%)`} · ${timing}`),
     );
@@ -120,12 +158,12 @@ function annotateRefreshState(root) {
     details.dataset.refreshKey = `details:${label}:${count}`;
   }
   const focusKeys = new Map();
-  for (const target of root.querySelectorAll("a[href], button, summary")) {
+  for (const target of root.querySelectorAll("a[href], button, summary, select, input, [tabindex]")) {
     const base = target.matches("a[href]")
       ? `link:${target.getAttribute("href")}`
       : target.matches("summary")
         ? target.closest("details")?.dataset.refreshKey || `summary:${target.textContent?.trim()}`
-        : `button:${target.textContent?.trim()}`;
+        : `${target.tagName}:${target.getAttribute("aria-label") || target.name || target.textContent?.trim()}`;
     const count = focusKeys.get(base) || 0;
     focusKeys.set(base, count + 1);
     target.dataset.refreshFocusKey = `${base}:${count}`;
@@ -217,27 +255,38 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       if (status) status.textContent = "Refreshing update status…";
     }
     try {
-      const supportingFeeds = Promise.allSettled([
-        request(`ingestion-runs/${id}/tasks?limit=100`, { signal: refresh.signal }),
-        request(`ingestion-runs/${id}/quality-results?limit=100`, { signal: refresh.signal }),
-        request(`ingestion-runs/${id}/artifacts?limit=100`, { signal: refresh.signal }),
-        request(`dataset-releases?ingestion_run_id=${encodeURIComponent(id)}&limit=100`, { signal: refresh.signal }),
-      ]);
+      const cache = retainRecent(feedCache, id, feedCache.get(id) || {});
       const detailResult = await request(`ingestion-runs/${id}`, { signal: refresh.signal });
       if (!isCurrent()) return;
-      const [tasksResult, qualityResult, artifactsResult, releasesResult] = await supportingFeeds;
+      const run = entity(detailResult.body, "run");
+      const refreshEvidence = !polling || cache.runStatus !== run.status || Date.now() - (cache.evidenceAt || 0) > 15000;
+      const evidenceRequest = (key, path) => !refreshEvidence && Object.hasOwn(cache, key)
+        ? Promise.resolve({ body: { items: cache[key] } })
+        : request(path, { signal: refresh.signal });
+      const supportingFeeds = Promise.allSettled([
+        request(`ingestion-runs/${id}/tasks?limit=100`, { signal: refresh.signal }),
+        evidenceRequest("quality", `ingestion-runs/${id}/quality-results?limit=100`),
+        evidenceRequest("artifacts", `ingestion-runs/${id}/artifacts?limit=100`),
+        evidenceRequest("releases", `dataset-releases?ingestion_run_id=${encodeURIComponent(id)}&limit=100`),
+        request(`ingestion-runs/${id}/activity?limit=${!polling || cache.runStatus !== run.status ? 1000 : 100}`, { signal: refresh.signal }),
+      ]);
+      const [tasksResult, qualityResult, artifactsResult, releasesResult, activityResult] = await supportingFeeds;
       if (!isCurrent()) return;
-      const cache = retainRecent(feedCache, id, feedCache.get(id) || {});
+      if (refreshEvidence) cache.evidenceAt = Date.now();
+      cache.runStatus = run.status;
       const tasksFeed = resolveFeed(tasksResult, cache, "tasks");
       const qualityFeed = resolveFeed(qualityResult, cache, "quality");
       const artifactsFeed = resolveFeed(artifactsResult, cache, "artifacts");
       const releasesFeed = resolveFeed(releasesResult, cache, "releases");
-      const tasks = tasksFeed.items;
+      const activityFeed = resolveFeed(activityResult, cache, "activity");
+      cache.activityHistory = mergeActivity(cache.activityHistory || [], activityFeed.items);
+      cache.logOptions ||= { filter: "all", paused: false, frozen: [], autoscroll: true };
+      const latestActivity = new Map(cache.activityHistory.map((event) => [event.task_id, event.recorded_at]));
+      const tasks = tasksFeed.items.map((task) => ({ ...task, progress_changed_at: latestActivity.get(task.id) }));
       const quality = qualityFeed.items;
       const artifacts = artifactsFeed.items;
       const linkedRelease = releasesFeed.items.find((release) => release.ingestion_run_id === id && !["accepted", "superseded"].includes(release.status));
       const refreshState = polling ? captureRefreshState(view) : null;
-      const run = entity(detailResult.body, "run");
       disposeTableRegions(view);
       view.replaceChildren();
       const availability = actionAvailability(run.status);
@@ -257,7 +306,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
         if (child?.id && child.id !== id) location.hash = `#runs/${child.id}`;
         else renderRunDetail(id);
       }));
-      if (availability.resume) runAction("resume", "Resume update", "Continue this interrupted update from its last saved step.");
+      if (availability.resume) runAction("resume", "Resume update", "Restart the interrupted stage from its verified input. COPY and export restart that stage from the beginning; earlier completed stages are reused.");
       if (availability.retry) runAction("retry", "Retry update", "Start the full update again while keeping this failed attempt in the history.");
       if (availability.reprocess) runAction("reprocess-cached", "Use downloaded file", "Start again with the already downloaded and verified file.");
       if (availability.cancel) runAction("cancel", "Cancel update", "Stop the update. Completed steps will remain in its history.", "danger");
@@ -272,12 +321,17 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
           },
         ));
         if (linkedRelease) {
-          actions.push(button("Review candidate data", "button secondary", () => {
+          actions.push(link("Open candidate", `#releases/${linkedRelease.id}`, "button primary"));
+          actions.push(button("Ask AI to review candidate", "button secondary", () => {
             location.hash = `#ai/release:${linkedRelease.id}?goal=${failed ? "quality" : "compare"}`;
           }));
         }
       }
-      append(view, pageHeading("Data update", displayName(run.job_name || `Update ${String(id).slice(0, 8)}`), `${humanise(run.run_mode)} · started ${formatDate(run.requested_at)}`, actions));
+      const sourceName = displayName(run.source_name || run.job_name || run.dataset_id || `Update ${String(id).slice(0, 8)}`);
+      const activeCard = activeStageCard(run, tasks);
+      append(view, pageHeading("Data update", activeCard ? `Updating ${sourceName}` : sourceName, `${humanise(run.run_mode)} · requested ${formatDate(run.requested_at)} · reference ${String(id).slice(0, 8)}`, actions));
+      if (activeCard) append(view, activeCard);
+      if (run.status === "succeeded" && linkedRelease) append(view, el("div", "notice positive", `Candidate prepared with ${formatNumber(linkedRelease.record_count)} records. Open the candidate to inspect its checks and make a separate publication decision.`));
       const nextDelay = nextRunDetailPollDelay(
         run.status,
         0,
@@ -302,7 +356,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       for (const [label, value] of [["Found", formatNumber(run.rows_discovered)], ["Prepared", formatNumber(run.rows_staged)], ["Loaded", formatNumber(run.rows_accepted)], ["Rejected", formatNumber(run.rows_rejected)]]) {
         const metric = el("div"); append(metric, el("span", "", label), el("strong", "", value)); append(metrics, metric);
       }
-      append(view, metrics);
+      if (!activeCard) append(view, metrics);
       const grid = el("div", "dashboard-grid");
       const runBody = el("div");
       const tasksWarning = feedWarning("Update steps", tasksFeed);
@@ -316,7 +370,7 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
       if (artifactsWarning) append(evidenceAvailability, artifactsWarning);
       append(evidence,
         panel("Update status", "Current state", detailList([["Status", badge(run.status)], ["Last activity", formatDate(run.last_activity_at || run.finished_at || run.heartbeat_at)], ["Attempt", run.attempt_number], ["Previous update", run.parent_run_id ? link(String(run.parent_run_id), `#runs/${run.parent_run_id}`) : "None"], ["Reference", el("code", "mono", run.request_id || detailResult.requestId)], ["Finished", formatDate(run.finished_at)]])),
-        panel("Saved progress", "Technical checkpoints used if the update must resume", detailList([["Input checkpoint", JSON.stringify(run.input_checkpoint_json || {})], ["Candidate checkpoint", JSON.stringify(run.output_checkpoint_json || {})], ["Published watermark", JSON.stringify(run.accepted_watermark_json || {})]])),
+        disclosurePanel("Saved progress", "Stage inputs used for recovery; not row-level restart positions", detailList([["Input checkpoint", JSON.stringify(run.input_checkpoint_json || {})], ["Candidate checkpoint", JSON.stringify(run.output_checkpoint_json || {})], ["Published watermark", JSON.stringify(run.accepted_watermark_json || {})]])),
         panel("Checks and files", "Specialist details for this update", el("div", "stack", "")),
       );
       const evidencePanelBody = evidence.lastElementChild.querySelector(".panel-body");
@@ -329,6 +383,10 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
         : tasksFeed.cached ? `${tasks.length} recorded steps · last loaded` : "Steps temporarily unavailable";
       append(grid, panel("Update timeline", timelineSubtitle, runBody), evidence);
       append(view, grid);
+      const activityBody = runActivity(cache.activityHistory, id, cache.logOptions);
+      const activityWarning = feedWarning("Saved activity", activityFeed);
+      if (activityWarning) activityBody.prepend(activityWarning);
+      append(view, disclosurePanel("Live activity", "Saved stage changes, progress and bounded failure codes", activityBody, { open: true }));
       append(view, panel("Technical run details", "Expandable record for troubleshooting and audit", technicalDetails(detailResult.body)));
       annotateRefreshState(view);
       if (refreshState) restoreRefreshState(view, refreshState);

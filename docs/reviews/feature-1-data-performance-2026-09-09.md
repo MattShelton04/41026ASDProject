@@ -411,5 +411,28 @@ Two ordering/cleanup tests and two challenge-path tests cover this behavior.
 The normal `data sync-psi --week 2026-09-07` command subsequently succeeded: 264,926 bytes,
 SHA-256 `e5f768cc00f665895c978f59bed4ffb9bd1de1ecc29a18aa7320b2269f752791`.
 Fresh complete run `a1547f33-a89c-43b4-8884-fbe03a72d5e4` includes this new weekly partition;
-its final result is pending at this checkpoint. It is not expected to match the earlier snapshot's
+acquisition completed in 988.24 seconds with 7,406,670 canonical source records. Import/export
+are pending at this checkpoint. It is not expected to match the earlier snapshot's
 whole-file hash because its source coverage has advanced.
+
+The retained full Parquet acquisition took 1,298.87 seconds: this run's acquisition was 23.9%
+shorter with a slightly newer source snapshot and different host contention. This is an observed
+full-size outcome; the controlled 100,000-record parser benchmarks are the stronger causal evidence.
+
+### Operator follow-up
+
+The same branch now implements the practical first operator improvements from the UI brief:
+source names and clearer actions, a running-stage card, honest progress/heartbeat/recovery display,
+Parquet COPY totals, bounded durable activity with filtering/pause/download, an in-app notification
+inbox, and collapsed previous downstream operations. The activity trigger adds a small indexed
+write only when task state/counters change, with at most 1,000 retained events per run. Pure
+heartbeats create no events. An integration test drives 1,005 progress updates and checks retention
+and sensitive-field exclusion; another verifies reset attempt state with retained prior activity.
+
+The UI still polls. Task/run/activity refreshes remain responsive; checks, artifacts and releases
+refresh every 15 seconds during otherwise unchanged active runs, and immediately on status changes.
+Notifications use one bounded projection of the latest 100 run/publication/delivery states every
+15 seconds, without large source snapshots or manifests. This trades a small amount of polling/local storage for useful operator
+visibility without an event broker, SSE service, email or service worker. The inbox is local to a
+browser origin, and desktop delivery only happens with explicit browser permission while open.
+The UI brief distinguishes implemented behavior from remaining larger ideas.

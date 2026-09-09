@@ -38,6 +38,10 @@ def register_ingestion_routes(
 ) -> None:
     """Register source definitions, jobs, and ingestion-run lifecycle routes."""
 
+    @api.get(f"{base}/notifications")
+    def operator_notifications() -> Response:
+        return forward(store.request("GET", f"{internal}/notifications", headers=request.headers))
+
     def lineage_scope(
         run_data: Mapping[str, Any], *, run_mode: str
     ) -> tuple[dict[str, Any] | None, Response | None]:
@@ -236,7 +240,7 @@ def register_ingestion_routes(
     def run(run_id: uuid.UUID) -> Response:
         return forward(store.request("GET", f"{internal}/runs/{run_id}", headers=request.headers))
 
-    for child in ("tasks", "artifacts", "quality-results"):
+    for child in ("tasks", "artifacts", "quality-results", "activity"):
         endpoint = child.replace("-", "_")
 
         def run_child(run_id: uuid.UUID, child: str = child) -> Response:

@@ -14,6 +14,8 @@ from pathlib import Path
 from threading import Event, Thread
 from typing import Any
 
+import pyarrow.parquet as pq  # type: ignore[import-untyped]
+
 from propertyscope_data_store.configuration import StoreSettings
 from propertyscope_data_store.import_profiles import (
     CANONICAL_PARQUET_MEDIA_TYPE,
@@ -432,12 +434,15 @@ class DatabaseLoader:
                 ),
                 raise_if_cancelled=raise_if_cancelled,
             )
+            with pq.ParquetFile(path) as parquet:
+                total_rows = int(parquet.metadata.num_rows)
             self._update_import_progress(
                 operation_id,
                 phase_key="typed_staging",
                 rows_processed=0,
                 bytes_processed=0,
-                total_bytes=total_bytes,
+                total_rows=total_rows,
+                total_bytes=None,
             )
             rows = iter_parquet_import(path, profile=profile)
             cancellable_rows = _raise_between_rows(
@@ -448,6 +453,7 @@ class DatabaseLoader:
                     phase_key="typed_staging",
                     rows_processed=count,
                     bytes_processed=0,
+                    total_rows=total_rows,
                     total_bytes=None,
                 ),
             )

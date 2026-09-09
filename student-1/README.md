@@ -448,3 +448,28 @@ verified property point and popup meaning through its existing public `map-conte
 shared package owns GeoJSON validation, renderer/provider lifecycle, tile failure fallback and
 camera interactions. See the [shared mapping README](../shared/frontend/mapping/README.md) for
 adding schools, suburb/area polygons, viewport-backed layers and a different basemap provider.
+
+### Operator progress and activity
+
+Run detail leads with the registered source name, current stage, attempt elapsed time, heartbeat
+age and last observed progress change. Verified Parquet metadata supplies COPY row totals;
+SQL joins/index phases remain indeterminate. Resume restarts the interrupted stage and clears
+its attempt counters/timestamps while the earlier attempt remains in saved activity.
+
+`GET /api/data-platform/v1/ingestion-runs/{id}/activity` relays the database owner's bounded
+`ops.run_activity` log. The database records stage/status/attempt/counter changes atomically
+with task updates, omits heartbeat-only noise and retains the latest 1,000 events per run.
+Only phase names, counts and bounded error codes are logged: no lease tokens, raw exception
+messages or property records. Existing tasks receive an explicitly labelled migration snapshot.
+The UI polls overlapping recent windows, deduplicates event IDs, and supports pause, filtering,
+autoscroll and a text download. It is an operator progress log, not raw container stdout.
+
+The in-app notification inbox observes job completion, failure, interruption, cancellation,
+publication and downstream-delivery outcomes
+every 15 seconds while open (30 seconds in background tabs). Read state and deduplication are
+stored on this browser origin; the initial historical list does not create a notification storm.
+One bounded `/notifications` projection returns the latest 100 states by activity time without
+source snapshots, manifests or credentials. Desktop notifications are optional and permission
+is requested only from the explicit enable button. There is no email, service worker or off-device
+delivery service. Detailed follow-up scope and limitations are in
+[`docs/ui/feature-1-operator-improvements.md`](../docs/ui/feature-1-operator-improvements.md).

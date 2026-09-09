@@ -110,6 +110,93 @@ def test_retryable_task_failure_does_not_wait_for_import_provenance_lock(
     ).fetchone() == {"status": "interrupted"}
 
 
+def test_run_activity_is_bounded_durable_and_excludes_private_fields(
+    identity_database: psycopg.Connection[dict[str, Any]],
+) -> None:
+    conn = identity_database
+    task = conn.execute("SELECT id,ingestion_run_id FROM ops.run_task LIMIT 1").fetchone()
+    assert task is not None
+    run_id = task["ingestion_run_id"]
+    original_count = conn.execute(
+        "SELECT count(*) AS count FROM ops.run_activity WHERE ingestion_run_id=%s", (run_id,)
+    ).fetchone()
+    assert original_count is not None
+    conn.execute(
+        "UPDATE ops.run_task SET heartbeat_at=now(),lease_token='private-token' WHERE id=%s",
+        (task["id"],),
+    )
+    heartbeat_count = conn.execute(
+        "SELECT count(*) AS count FROM ops.run_activity WHERE ingestion_run_id=%s", (run_id,)
+    ).fetchone()
+    assert heartbeat_count == original_count
+    for number in range(1005):
+        conn.execute(
+            "UPDATE ops.run_task SET progress_rows=%s,progress_phase='COPY' WHERE id=%s",
+            (number, task["id"]),
+        )
+    conn.execute(
+        """UPDATE ops.run_task SET error_json=
+        '{"code":"source_failed","message":"private-database-message"}' WHERE id=%s""",
+        (task["id"],),
+    )
+    conn.commit()
+    events = conn.execute(
+        "SELECT * FROM ops.run_activity WHERE ingestion_run_id=%s ORDER BY id", (run_id,)
+    ).fetchall()
+    assert len(events) == 1000
+    assert events[-1]["rows_processed"] == 1004
+    assert events[-1]["error_code"] == "source_failed"
+    assert "private-token" not in str(events)
+    assert "private-database-message" not in str(events)
+    assert len({event["id"] for event in events}) == 1000
+
+
+def test_resuming_resets_attempt_display_and_retains_previous_activity(
+    identity_database: psycopg.Connection[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conn = identity_database
+    task = conn.execute("SELECT * FROM ops.run_task LIMIT 1").fetchone()
+    assert task is not None
+    conn.execute(
+        """UPDATE ops.ingestion_run SET status='interrupted',requested_scope_json=
+        '{"profile":"full-data","all_records":true}' WHERE id=%s""",
+        (task["ingestion_run_id"],),
+    )
+    conn.execute(
+        """UPDATE ops.run_task SET status='interrupted',started_at=now(),finished_at=now(),
+        progress_rows=123,progress_phase='COPY' WHERE id=%s""",
+        (task["id"],),
+    )
+    conn.commit()
+
+    @contextmanager
+    def connected() -> Iterator[psycopg.Connection[dict[str, Any]]]:
+        yield conn
+
+    store = PropertyScopeStore.__new__(PropertyScopeStore)
+    monkeypatch.setattr(store, "connection", connected)
+    run = store.get_run(task["ingestion_run_id"])
+    assert run["job_name"] and run["source_name"]
+    notifications = store.operator_notifications()
+    assert any(item["kind"] == "run" for item in notifications)
+    assert any(item["kind"] == "publication" for item in notifications)
+    assert len(notifications) <= 100
+    assert all(
+        "manifest_json" not in item and "source_snapshot_json" not in item for item in notifications
+    )
+    store.resume_run(task["ingestion_run_id"])
+    resumed = conn.execute("SELECT * FROM ops.run_task WHERE id=%s", (task["id"],)).fetchone()
+    assert resumed is not None
+    assert resumed["status"] == "pending"
+    assert resumed["started_at"] is None and resumed["finished_at"] is None
+    assert resumed["progress_rows"] == 0
+    events = store.run_activity(task["ingestion_run_id"], limit=100, offset=0)
+    assert any(
+        event["status"] == "interrupted" and event["rows_processed"] == 123 for event in events
+    )
+    assert any(event["status"] == "pending" and event["rows_processed"] == 0 for event in events)
+
+
 def test_gnaf_anchor_cannot_outlive_accepted_identity(
     identity_database: psycopg.Connection[dict[str, Any]],
 ) -> None:

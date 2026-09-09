@@ -1425,3 +1425,13 @@ unrelated replacement document.
 with a durable 202/status workflow, bounded streaming and invisible replayable generation batches.
 Feature 1 pushes release metadata; each consumer pulls bytes and owns its own accepted-generation
 switch. Full-size consumer import is independent of producer publication under ADR-041.
+
+Feature 1 operator observability stays inside its existing database/backend HTTP boundary.
+Migration 052 adds a bounded `ops.run_activity` projection of task changes: status, stage, attempt,
+phase, row/byte counters and error code. It records changes in the task transaction, skips pure
+heartbeats, and retains at most 1,000 events per run. Existing tasks get labelled current-state
+snapshots. Public activity reads relay through the backend; browsers never read the database or
+container logs. Overlapping recent-window polling plus event-ID deduplication deliberately avoids
+treating PostgreSQL sequence allocation as transaction commit order. No event broker or SSE
+service is needed for this scale. Local browser notifications derive from observed run transitions,
+with bounded origin-local read/deduplication state and explicitly opt-in desktop delivery.

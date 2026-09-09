@@ -44,6 +44,10 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     def overview() -> Response:
         return jsonify(store.overview())
 
+    @api.get("/internal/data-platform/v1/notifications")
+    def operator_notifications() -> Response:
+        return jsonify({"items": store.operator_notifications()})
+
     @api.get("/internal/data-platform/v1/artifact-retention")
     def artifact_retention() -> Response:
         items = store.artifact_retention_inventory()
@@ -162,6 +166,15 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         return jsonify(
             envelope(
                 store.run_tasks(run_id, limit=limit, offset=offset), limit=limit, offset=offset
+            )
+        )
+
+    @api.get("/internal/data-platform/v1/runs/<uuid:run_id>/activity")
+    def run_activity(run_id: uuid.UUID) -> Response:
+        limit, offset = pagination(maximum_limit=1000, default_limit=100)
+        return jsonify(
+            envelope(
+                store.run_activity(run_id, limit=limit, offset=offset), limit=limit, offset=offset
             )
         )
 

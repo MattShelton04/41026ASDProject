@@ -1,7 +1,47 @@
 # Feature 1 operator experience follow-up
 
-Observed in the real Docker/PostgreSQL interface on 9 September 2026. This is an implementation
-brief for a later UI agent; recommendations below are not claims of shipped functionality.
+Observed in the real Docker/PostgreSQL interface on 9 September 2026. The performance PR now
+includes an operator follow-up at the user's request. The original observations below remain
+useful context; this section identifies what has actually been implemented.
+
+## Implemented in PR #110
+
+- Source names on run detail; fresh-source/canonical-reuse explanations; direct **Open candidate**
+  action separated from optional AI review.
+- A prominent running-stage card with restrained reduced-motion-aware animation, attempt elapsed
+  time, verified row/byte totals when available, heartbeat age and last observed progress change.
+  Stage-wide ETAs were removed because elapsed time includes earlier phases and queueing.
+- Explicit serial-worker queue copy, cleaner stage labels, collapsed technical checkpoints,
+  truthful stage-level recovery copy and reset attempt counters/timestamps on resume.
+- Verified Parquet row totals during COPY, while SQL join/index phases remain indeterminate.
+- Durable, bounded activity via the existing database/backend HTTP boundary: latest 1,000 stage,
+  status, attempt and counter changes per run, heartbeat noise excluded. Raw exception bodies,
+  credentials and property rows are excluded. Existing tasks get labelled snapshots, not invented
+  historical events. The UI supports pause, filters, autoscroll and a sanitized text download.
+- Recent-window activity polling with event-ID deduplication, and slower 15-second checks/files/
+  release refreshes during otherwise unchanged active runs. State changes refresh evidence immediately.
+- In-app notification inbox with origin-local read/deduplication state, no historical notification
+  flood, and opt-in desktop notifications while the app is open. It watches job completion,
+  failure, interruption, cancellation, publication and downstream delivery. A small state projection
+  avoids downloading full run snapshots or release manifests. No email or service-worker infrastructure was added.
+- Previous downstream delivery operations collapse below the newest outcome; heartbeat and next
+  check/retry timestamps are visible when the producer has recorded them.
+- Specific publisher-challenge errors identify the missing PSI archive and cache/retry action;
+  all PSI downloads occur before historical parsing so a late inaccessible week fails early.
+
+## Remaining ideas and limits
+
+The richer ideas below are still follow-ups where they exceed the small implementation above:
+phase-level historical comparison charts; an identified preceding queue job; row counts and next
+retry details supplied by each downstream consumer;
+cross-device notification state; and raw sanitized service-log aggregation or SSE if polling proves
+insufficient. Activity retention deliberately expires older checkpoints after 1,000 changes per run.
+The browser downloads its currently retained activity window, not an unlimited historical audit.
+The page still reconstructs most detail markup on polls while restoring focus/disclosures/scroll;
+a larger UI rewrite could patch only changed nodes. The activity panel retains paused content and
+filter/follow settings across these refreshes. Product-home routing already accepts the shared
+`PROPERTYSCOPE_HOME_URL` configuration; isolated environments must supply a matching workspace
+instead of relying on the default port 5100. No alternative workspace URL is guessed.
 
 ## First priorities
 
