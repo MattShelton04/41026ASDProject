@@ -1,6 +1,7 @@
 # Feature 1 data performance review
 
-Work in progress on `codex/feature-1-data-performance`, starting at `9459a11`.
+[PR #110](https://github.com/MattShelton04/41026ASDProject/pull/110) on
+`codex/feature-1-data-performance`, starting at `9459a11`.
 Measurements below distinguish retained historical timings, controlled component benchmarks,
 and new end-to-end runs. Network download time is not counted as a CPU improvement.
 
@@ -351,7 +352,7 @@ laptop minimum. G-NAF used the checksum-verified registered raw ZIP in the expli
 PSI used the explicit annual/weekly archive cache. Small official sources and BOCSAR used their
 registered publisher paths. No full official dataset was committed to Git.
 
-Completed fresh source runs so far:
+Completed fresh source runs:
 
 | Source | Run ID | Records | Recorded stages |
 | --- | --- | ---: | --- |
@@ -361,6 +362,7 @@ Completed fresh source runs so far:
 | G-NAF | `0a4b3b46-da22-4b1b-b927-f2d7beb6805d` | 5,190,134 | acquire 248.57 s; import 378.95 s; export recovered after restart |
 | G-NAF cached replay | `d5ffca49-7b95-4fa7-b2a1-32dab0291184` | 5,190,134 | actual loader operation 416.35 s; uninterrupted export 233.96 s |
 | BOCSAR | `9a6f8946-979a-4a68-b7be-036edddd260b` | 10,114,565 canonical rows → 318,122 series | acquire 268.58 s; resumed import approximately 800.80 s; export 208.96 s |
+| PSI, including 7 September weekly archive | `a1547f33-a89c-43b4-8884-fbe03a72d5e4` | 7,406,670 | acquire 988.24 s; import 1,888.84 s; export 551.81 s |
 
 G-NAF was reviewed and published through the browser in the isolated stack. Its activation took
 981.94 s, separately from import/export. Schools and SEIFA were also published locally. The fresh
@@ -379,11 +381,13 @@ bytes took 326.95 s (18% less recorded time). Retained G-NAF acquisitions took 2
 versus 248.57 s here. These are historical comparisons with publisher/cache/host-contention
 differences, so the isolated benchmarks above are the stronger evidence for individual changes.
 
-- Final canonical gate (`uv run python scripts/check.py`): shared 929 passed/1 skipped;
-  Feature 1 717 passed/37 skipped; Feature 2 24 passed; Feature 3 105 passed/1 skipped;
-  Feature 4 83 passed; Feature 5 136 passed; 211 JavaScript tests passed; Ruff, architecture,
-  syntax and 255-file type checks passed. The 37 Feature 1 opt-in PostgreSQL tests were also
+- Canonical gate (`uv run python scripts/check.py`): shared 935 passed/1 skipped;
+  Feature 1 722 passed/39 skipped; Feature 2 24 passed; Feature 3 105 passed/1 skipped;
+  Feature 4 83 passed; Feature 5 136 passed; 216 JavaScript tests passed; Ruff, architecture,
+  syntax and 256-file type checks passed. The 39 Feature 1 opt-in PostgreSQL tests were also
   run explicitly against a separate migrated PostGIS test container: all passed.
+- After the final PSI statistics change, all 22 PostgreSQL reliability tests plus 52 import-profile
+  unit tests passed together (74 total), and the complete canonical gate and CI passed again.
 - Initial canonical gate: 925 passed, one skipped, one pre-existing browser audit failure. The
   source-conflict named flow looks for a `More actions` menu which is absent in that source UI.
 - Two intermediate full-gate attempts encountered transient Feature 3 local HTTP test failures
@@ -393,7 +397,9 @@ differences, so the isolated benchmarks above are the stronger evidence for indi
   malformed coordinates/postcodes, unreadable/empty files and bounded row groups.
 - Live browser: opened real port 5200, previewed and started the official schools workflow.
 
-Further changes, final checks and full-size run outcomes will be recorded before handoff.
+The GitHub checks also passed: canonical quality, Feature 1 browser forms and integrated stack,
+Feature 3 integrated stack/quality, and Features 2/4/5 quality. Browser forms include attachment
+download verification; live browser checks confirmed the same HTTP download in the in-app browser.
 
 ### PSI acquisition preflight
 
@@ -411,13 +417,50 @@ Two ordering/cleanup tests and two challenge-path tests cover this behavior.
 The normal `data sync-psi --week 2026-09-07` command subsequently succeeded: 264,926 bytes,
 SHA-256 `e5f768cc00f665895c978f59bed4ffb9bd1de1ecc29a18aa7320b2269f752791`.
 Fresh complete run `a1547f33-a89c-43b4-8884-fbe03a72d5e4` includes this new weekly partition;
-acquisition completed in 988.24 seconds with 7,406,670 canonical source records. Import/export
-are pending at this checkpoint. It is not expected to match the earlier snapshot's
-whole-file hash because its source coverage has advanced.
+acquisition completed in 988.24 seconds with 7,406,670 canonical source records. Import completed
+in 1,888.84 seconds and export in 551.81 seconds, with zero rejected rows. The run was reviewed
+and published through the browser as release `51e686e0-a4fa-4e13-9654-3fb9c5a46593`.
+It is not expected to match the earlier snapshot's whole-file hash because coverage has advanced.
+
+The cold import was slower than the retained cached 1,571.28-second import. Its materialisation
+phase alone spent approximately 1,225 seconds inserting sales and 2.31 million required identity
+anchors, with PostgreSQL data-file I/O visible. The isolated fresh database had no such anchors.
+No general PSI database-import speedup is established by this run. Keeping accepted volumes is
+still substantially cheaper than rebuilding all history; compressing inputs cannot remove those writes.
+
+The fresh export exposed a statistics gap: its first three 20,000-row checkpoints arrived at
+15:40:24, 15:41:02 and 15:41:37 UTC; PostgreSQL first auto-analyzed `warehouse.psi_sale` at
+15:41:31. Later pages settled around one second each. Cache warming and competing I/O also
+contribute, so this timing alone is not proof of a particular query-plan change. The loader now
+explicitly runs `ANALYZE warehouse.psi_sale` after materialisation, before the transaction commits
+and export starts. A real PostgreSQL regression test failed with missing release-column statistics
+before this change and passes afterward while preserving deduplication, revisions and exact matches.
+A manual full-table ANALYZE on the populated fresh database took 1.38 seconds including Docker CLI
+overhead (warm table); this diagnostic ran during the measured export, after automatic analysis.
+The automatic loader refresh was added after that full run completed. It adds sampled statistics
+work to import and removes dependence on
+background auto-analysis timing; no controlled whole-export speedup is claimed. This follows
+[PostgreSQL's bulk-loading guidance](https://www.postgresql.org/docs/17/populate.html).
 
 The retained full Parquet acquisition took 1,298.87 seconds: this run's acquisition was 23.9%
 shorter with a slightly newer source snapshot and different host contention. This is an observed
 full-size outcome; the controlled 100,000-record parser benchmarks are the stronger causal evidence.
+
+A complete Arrow batch comparison checked every column of the new snapshot against the previous
+canonical Parquet: all **7,402,643 historical rows are identical in the same order**, followed by
+exactly **4,027 new weekly rows**. The comparison used aligned slices of 32,768-row batches without
+loading either dataset into memory; it took 17.10 seconds in a temporary Feature 1 utility
+container with read-only artifact volumes. Old canonical SHA-256:
+`7747032c17e2ed12cf224a7d342a6524dbd5723b3ccf3957c7e41160bac1395f`;
+new canonical SHA-256: `893f574e0eec7e6d002df78f4b3349fa75bf9311300862557c3d49efb3167f03`.
+The new file is 585,864,252 bytes. Comparison checked logical values, not Parquet encoding bytes.
+The complete gzip product is 1,162,708,432 bytes, SHA-256
+`dd99f307c455aaaace1474d935d0c028bfcd859ff78ea91350764ac1a5d52352`.
+The live property page for 2 Aaron Street, Box Hill displayed the accepted release and its
+29 April 2022 contract, $1,224,900 recorded price, 11 August 2023 settlement and exact match.
+Independent Feature 2 delivery uses operation `6b65eeb0-32b4-446c-822a-127b0bfb4977`;
+its final receipt and browser cross-check are recorded in the PR validation result. The consumer
+streams the complete product and keeps the old accepted pointer until all rows pass validation.
 
 ### Operator follow-up
 
@@ -436,3 +479,18 @@ Notifications use one bounded projection of the latest 100 run/publication/deliv
 visibility without an event broker, SSE service, email or service worker. The inbox is local to a
 browser origin, and desktop delivery only happens with explicit browser permission while open.
 The UI brief distinguishes implemented behavior from remaining larger ideas.
+
+On the fresh stack the notification projection carried 30 states in 9,803 bytes, versus 73,640
+bytes for the full run list. These are different projections, not a query-speed benchmark:
+the smaller response includes publication/delivery outcomes while omitting bulky run snapshots.
+Real-browser checks confirmed queued-job cancellation, one notification, persisted read state,
+and paused activity retaining its old last event while the SQL phase changed, then catching up
+on resume. The paused button now has a stable focus key independent of its changing label.
+The complete PSI run subsequently produced a candidate-ready notification; local publication
+produced a separate publication notification. The ordinary HTTP activity attachment downloaded
+successfully in the live in-app browser, with filename/content verification in the browser suite.
+
+The PSI cache sync command also now rejects empty ZIPs and CRC failures instead of reporting
+them as retained valid sources. Four deterministic cases cover valid, empty, corrupt-CRC and
+non-ZIP cache files. The audit fixture host was extended for both new public feeds; expected
+failure audits continue to distinguish deliberate HTTP errors from accidental missing routes.
