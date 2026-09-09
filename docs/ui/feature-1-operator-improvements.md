@@ -66,6 +66,12 @@ SQL phase started/completed, export checkpoint, candidate ready, publication com
 import failed, cancellation acknowledged and worker lease expired. A heartbeat is liveness
 evidence, not proof that rows advanced; show both independently.
 
+The live bulk test exposed a lock stall that also made property pages time out. The backend lock
+cycle is fixed in the performance pass, but the UI should still distinguish “worker reachable,
+no recent progress” from “actively processing”. Show queue wait separately from loader duration;
+the current import task timer also includes time waiting for G-NAF publication. A resumed task's
+cumulative timer must not be presented as a clean performance comparison.
+
 ## Notifications with limited complexity
 
 A small in-app bell/inbox for “candidate ready”, failed/interrupted jobs, publication complete and

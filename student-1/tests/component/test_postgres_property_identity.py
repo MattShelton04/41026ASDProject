@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from typing import Any
 
 import psycopg
@@ -21,6 +22,7 @@ from propertyscope_data_store._property_reads import _CanonicalPropertyReads
 from propertyscope_data_store.errors import NotFoundError
 from propertyscope_data_store.import_profiles import execute_stream_import
 from propertyscope_data_store.migrations import migrate
+from propertyscope_data_store.repository import PropertyScopeStore
 
 ADMIN_URL = os.getenv("PROPERTYSCOPE_TEST_POSTGRES_URL", "").strip()
 pytestmark = pytest.mark.skipif(not ADMIN_URL, reason="requires disposable PostgreSQL test URL")
@@ -57,6 +59,55 @@ def identity_database() -> Iterator[psycopg.Connection[dict[str, Any]]]:
     finally:
         with psycopg.connect(ADMIN_URL, autocommit=True) as admin:
             admin.execute(sql.SQL("DROP DATABASE {}").format(sql.Identifier(database)))
+
+
+def test_retryable_task_failure_does_not_wait_for_import_provenance_lock(
+    identity_database: psycopg.Connection[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    connection = identity_database
+    task = connection.execute("SELECT id,ingestion_run_id FROM ops.run_task LIMIT 1").fetchone()
+    assert task is not None
+    connection.execute(
+        "CREATE TABLE warehouse.failure_probe (run_id UUID REFERENCES ops.ingestion_run(id))"
+    )
+    connection.execute(
+        "UPDATE ops.ingestion_run SET status='staging',cancel_requested_at=NULL WHERE id=%s",
+        (task["ingestion_run_id"],),
+    )
+    connection.execute(
+        """UPDATE ops.run_task SET status='running',lease_owner='probe',lease_token='probe',
+        lease_expires_at=now()+interval '2 minutes' WHERE id=%s""",
+        (task["id"],),
+    )
+    connection.commit()
+    url = make_conninfo(ADMIN_URL, dbname=str(connection.info.dbname))
+
+    @contextmanager
+    def finishing_connection() -> Iterator[psycopg.Connection[dict[str, Any]]]:
+        with psycopg.connect(url, row_factory=dict_row) as finisher:
+            finisher.execute("SET LOCAL statement_timeout='1s'")
+            yield finisher
+
+    store = PropertyScopeStore.__new__(PropertyScopeStore)
+    monkeypatch.setattr(store, "connection", finishing_connection)
+    with psycopg.connect(url) as loader:
+        # Model the long COPY transaction's real FK KEY SHARE lock, while a
+        # separate control connection reports a transient failure for its task.
+        loader.execute(
+            "INSERT INTO warehouse.failure_probe VALUES (%s)", (task["ingestion_run_id"],)
+        )
+        result = store.fail_task(
+            task["id"],
+            worker_id="probe",
+            lease_token="probe",
+            error={"code": "dependency_unavailable"},
+            retryable=True,
+        )
+        assert result["status"] == "retry_wait"
+        loader.rollback()
+    assert connection.execute(
+        "SELECT status FROM ops.ingestion_run WHERE id=%s", (task["ingestion_run_id"],)
+    ).fetchone() == {"status": "interrupted"}
 
 
 def test_gnaf_anchor_cannot_outlive_accepted_identity(

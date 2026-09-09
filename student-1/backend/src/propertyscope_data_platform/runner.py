@@ -236,6 +236,12 @@ class AcquisitionRunner:
         except httpx.TransportError as exc:
             logger.exception("Run task %s (%s) lost a dependency", task_id, task.get("stage"))
             self._report_failure(task, lease_token, exc, retryable=True)
+        except httpx.HTTPStatusError as exc:
+            retryable = exc.response.status_code >= 500 or exc.response.status_code in {408, 429}
+            logger.warning(
+                "Run task %s control request returned %s", task_id, exc.response.status_code
+            )
+            self._report_failure(task, lease_token, exc, retryable=retryable)
         except Exception as exc:
             logger.exception("Run task %s (%s) failed", task_id, task.get("stage"))
             self._report_failure(task, lease_token, exc, retryable=False)
@@ -1127,14 +1133,16 @@ class AcquisitionRunner:
             raise TaskCancelledError("Run task cancelled by operator")
 
     def _control_request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        """Retry brief control-plane disconnects without losing durable work."""
+        """Retry brief control-plane disconnects/unavailability without losing durable work."""
         for attempt in range(5):
             try:
-                return self.client.request(method, url, **kwargs)
+                response = self.client.request(method, url, **kwargs)
+                if response.status_code not in {502, 503, 504} or attempt == 4:
+                    return response
             except httpx.TransportError:
                 if attempt == 4:
                     raise
-                self.stop_event.wait(min(2**attempt, 5))
+            self.stop_event.wait(min(2**attempt, 5))
         raise AssertionError("unreachable")
 
     def _headers(self) -> dict[str, str]:

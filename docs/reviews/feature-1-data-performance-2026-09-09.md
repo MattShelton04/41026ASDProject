@@ -210,6 +210,29 @@ services became healthy, and the same accepted datasets remained available. The 
 stack was left running to avoid interrupting its active loader; do not attribute a mid-session
 change in host contention solely to a code optimization.
 
+## Live stall found and fixed
+
+The fresh BOCSAR run exposed an application-level lock cycle after a transient control-service
+503. The long COPY transaction held the batch provenance foreign key's `KEY SHARE` lock on its
+run. Task failure handling first locked the task, then requested `FOR UPDATE` on that run. The
+loader's separate progress transaction needed the locked task before Python could send more
+COPY rows. PostgreSQL saw COPY waiting for client input, so this was not a normal SQL deadlock
+that its detector could resolve. Progress, heartbeats and eventually UI reads stalled.
+
+Task completion/failure now uses `FOR NO KEY UPDATE` for the cancellation-state decision. It
+still serializes changes to the run, but is compatible with the import's foreign-key lock.
+A fully migrated PostgreSQL regression test holds an actual foreign-key lock on a separate
+connection and proves retryable failure can finish within a one-second statement timeout.
+The runner also retries brief 502/503/504 control responses with bounded backoff and classifies
+exhausted transient HTTP errors as recoverable, instead of a permanent source-data failure.
+
+For recovery of the observed stall, only the blocked statement in the isolated test database
+was cancelled. The import lease then expired and its incomplete transaction rolled back;
+the verified full Parquet acquisition remained available. BOCSAR, queued PSI discovery and
+the cached G-NAF task were explicitly resumed through the public API. These interrupted timings
+are kept separate from clean stage measurements. No accepted dataset or original environment
+volume was deleted.
+
 ## Experiments rejected
 
 Increasing transaction sort memory from 4 MB to 128 MB halved temporary blocks written in a

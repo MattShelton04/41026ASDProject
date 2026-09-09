@@ -2402,7 +2402,10 @@ class PropertyScopeStore:
                 raise LeaseConflictError("task lease is stale or owned by another worker")
             run_id = row["ingestion_run_id"]
             cancellation = connection.execute(
-                "SELECT cancel_requested_at FROM ops.ingestion_run WHERE id=%s FOR UPDATE",
+                # Batch provenance holds a foreign-key KEY SHARE lock throughout COPY.
+                # A stronger UPDATE lock here would block behind that loader while
+                # holding its task row, which the loader needs for progress callbacks.
+                "SELECT cancel_requested_at FROM ops.ingestion_run WHERE id=%s FOR NO KEY UPDATE",
                 (run_id,),
             ).fetchone()
             if cancellation and cancellation["cancel_requested_at"] is not None:

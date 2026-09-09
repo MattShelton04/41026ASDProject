@@ -266,8 +266,9 @@ def test_runner_stops_cooperatively_cancelled_work_without_reporting_a_failure(
     ]
 
 
+@pytest.mark.parametrize("failure_status", [None, 503, 429])
 def test_runner_marks_exhausted_dependency_timeout_as_retryable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_status: int | None
 ) -> None:
     failure: dict[str, object] = {}
 
@@ -295,9 +296,16 @@ def test_runner_marks_exhausted_dependency_timeout_as_retryable(
         RunnerSettings("http://backend", "token", tmp_path, "runner-1", 0.1, 300),
         client=httpx.Client(transport=httpx.MockTransport(control_plane)),
     )
-    monkeypatch.setattr(
-        runner, "_execute", lambda _task: (_ for _ in ()).throw(httpx.ReadTimeout("slow page"))
+    error = (
+        httpx.HTTPStatusError(
+            "dependency unavailable",
+            request=httpx.Request("GET", "http://backend/health"),
+            response=httpx.Response(failure_status),
+        )
+        if failure_status is not None
+        else httpx.ReadTimeout("slow page")
     )
+    monkeypatch.setattr(runner, "_execute", lambda _task: (_ for _ in ()).throw(error))
 
     assert runner.run_once() is True
     assert failure["retryable"] is True
@@ -775,13 +783,18 @@ def test_psi_archive_detects_legacy_rows_inside_official_2001_archive() -> None:
     assert sale.area_square_metres == 44330
 
 
-def test_runner_retries_transient_control_plane_disconnect(tmp_path: Path) -> None:
+@pytest.mark.parametrize("status", [None, 502, 503, 504])
+def test_runner_retries_transient_control_plane_disconnect(
+    tmp_path: Path, status: int | None
+) -> None:
     attempts = 0
 
     def control(_: httpx.Request) -> httpx.Response:
         nonlocal attempts
         attempts += 1
         if attempts == 1:
+            if status is not None:
+                return httpx.Response(status)
             raise httpx.ReadError("connection reset")
         return httpx.Response(200, json={"ok": True})
 
