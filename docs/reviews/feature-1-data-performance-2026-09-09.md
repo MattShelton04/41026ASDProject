@@ -119,6 +119,28 @@ On the same 500-series page of the retained official release, four interleaved r
 (12.9% less time), and shared buffer hits **12,076 → 7,098** (41.2% fewer). Result rows matched.
 The sample is deliberately reported as a page query, not an end-to-end crime-job improvement.
 
+## PSI parsing without recursive copies
+
+PSI fingerprinting previously called `dataclasses.asdict` for every sale, recursively copying
+all fields before encoding them. `PsiSale` contains flat immutable values, so the new projection
+reads its declared fields directly. It retains the same standard-library JSON encoding and
+fingerprint bytes. Bounded caches reuse parsed dates (32,768 entries, including the ordered
+format tuple in the key) and publisher timestamps (4,096 entries). Invalid direct dates still
+raise; the official-source wrapper still retains malformed publisher dates as unknown.
+
+On 100,000 real records per archive, with empty caches at each parser's start:
+
+| Archive | Previous parsing | Updated parsing | Reduction |
+| --- | ---: | ---: | ---: |
+| 1999 | 11.918 s | 6.888 s | 42.2% |
+| 2025 | 19.312 s | 7.674 s | 60.3% |
+
+These are local Windows parser measurements, excluding Parquet writing/database work and the
+subsequent parity check. Ordered business keys and complete sale fingerprints matched in both
+eras. The tradeoff is a bounded per-process date cache; no revisions, dates, decimal precision
+or source facts are discarded. Reproduce with `uv run python scripts/benchmark_feature1_psi.py
+--archive .propertyscope-source-cache/psi/2025.zip --year 2025 --rows 100000`.
+
 ## Release CPU and compatibility
 
 The database API now encodes normalized private export pages with `orjson`; the backend continues
@@ -254,6 +276,10 @@ not model all six warehouse indexes or WAL. PostgreSQL explains this
 
 ## Prototype and prebuilt datasets
 
+For ordinary development, ingest once and preserve the named volumes: `stack down` followed by
+`stack up` does not rerun acquisition or import. Use `stack reset` only when a genuinely empty
+database is needed. This is the cheapest daily workflow and avoids the entire processing cost.
+
 `C:/git/prototype/property/prototype/analysis/_common.py` caches derived suburb/postcode/year
 aggregates and long-form crime data as Parquet. That is useful precedent for caching expensive
 derived results. Its `build_db.py` is a smaller, filtered SQLite workflow, so timings cannot be
@@ -266,8 +292,45 @@ old versions indefinitely. G-NAF already has a license-controlled redistribution
 change does not grant permission to publish its bytes. The current registered canonical replay
 is the simplest reusable cache for imports; a future reviewed database snapshot would additionally
 avoid COPY/index rebuilding but would be larger and coupled to migrations/PostGIS.
+The new 192 MB G-NAF and 346 MB crime canonical files also exceed GitHub's normal 100 MiB
+per-file limit; a downloadable release asset or explicit local bundle avoids putting them into
+every clone. See [GitHub's large-file guidance](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github).
+If clean-machine setup is the priority, make that bundle a separate, reproducible export step:
+bind source checksums, scope, schema versions and attribution to the files, then register them
+through the existing canonical replay boundary. Parquet reuse avoids acquisition and parsing;
+it still pays validation, COPY, joins and indexes. A tested database snapshot is the option that
+also avoids those database costs, with a stronger dependency on the exact migration/runtime
+version. Neither bundle mechanism was silently introduced in this PR.
 
 ## Validation log
+
+The original `ps-dev` stack was started with the canonical offline workflow. A separate `ps-perf`
+Compose project then used new PostgreSQL/artifact volumes and Feature 1 port 5210. Feature 2/3
+were also started in that project on ports 5310/5610 for downstream validation. The original
+accepted data and named volumes were preserved. The isolated database capacity was explicitly
+set to 500 GiB after checking physical headroom; this is a test-host allowance, not a recommended
+laptop minimum. G-NAF used the checksum-verified registered raw ZIP in the explicit source cache;
+PSI used the explicit annual/weekly archive cache. Small official sources and BOCSAR used their
+registered publisher paths. No full official dataset was committed to Git.
+
+Completed fresh source runs so far:
+
+| Source | Run ID | Records | Recorded stages |
+| --- | --- | ---: | --- |
+| Synthetic fixture | `84ea5019-f2e0-4e9d-bb56-eb2eb62ec1d0` | 10 | 1.223 s total |
+| NSW schools | `a97cf9fc-2dc7-41d9-9044-4dfdba95f122` | 2,210 | 2.507 s total |
+| ABS SEIFA | `41a99e9e-166e-4420-ac29-ae0573d8a2f9` | 4,320 | 4.745 s total |
+| G-NAF | `0a4b3b46-da22-4b1b-b927-f2d7beb6805d` | 5,190,134 | acquire 248.57 s; import 378.95 s; export recovered after restart |
+
+G-NAF was reviewed and published through the browser in the isolated stack. Its activation took
+981.94 s, separately from import/export. Schools and SEIFA were also published locally. The fresh
+property page showed the correct G-NAF identity, map and all four SEIFA indexes for Aarons Pass.
+After the lock fix, five property reads during BOCSAR COPY took 206, 31, 28, 31 and 23 ms.
+
+BOCSAR's fresh acquisition took 268.58 s; the retained full acquisition of the same canonical
+bytes took 326.95 s (18% less recorded time). Retained G-NAF acquisitions took 267.59/291.90 s,
+versus 248.57 s here. These are historical comparisons with publisher/cache/host-contention
+differences, so the isolated benchmarks above are the stronger evidence for individual changes.
 
 - Initial canonical gate: 925 passed, one skipped, one pre-existing browser audit failure. The
   source-conflict named flow looks for a `More actions` menu which is absent in that source UI.

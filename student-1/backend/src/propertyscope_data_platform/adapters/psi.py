@@ -6,9 +6,11 @@ import hashlib
 import io
 import json
 from collections.abc import Iterator
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
+from dataclasses import fields as dataclass_fields
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 from io import TextIOWrapper
 from pathlib import Path
 from shutil import copyfileobj
@@ -56,6 +58,11 @@ class PsiSale:
     component_code: str | None = None
     sale_code: str | None = None
     interest_of_sale: str | None = None
+
+
+_SALE_FACT_FIELDS = tuple(
+    field.name for field in dataclass_fields(PsiSale) if field.name != "source_business_key"
+)
 
 
 def parse_psi_b_record(fields: tuple[str, ...], *, source_year: int) -> PsiSale:
@@ -251,11 +258,12 @@ def _iter_psi_zip(
 
 def _sale_fingerprint(sale: PsiSale) -> str:
     """Distinguish corrected retransmissions while collapsing byte-equivalent source facts."""
-    payload = {
-        name: str(value) if isinstance(value, (date, Decimal)) else value
-        for name, value in asdict(sale).items()
-        if name != "source_business_key"
-    }
+    # PsiSale is flat and its fields are immutable. Recursive dataclass deepcopy is
+    # unnecessary for a read-only projection performed millions of times per archive.
+    payload: dict[str, object] = {}
+    for name in _SALE_FACT_FIELDS:
+        value = getattr(sale, name)
+        payload[name] = str(value) if isinstance(value, (date, Decimal)) else value
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
@@ -536,6 +544,7 @@ def _street_number_last(value: str) -> int | None:
     return number if number <= POSTGRES_INTEGER_MAX else None
 
 
+@lru_cache(maxsize=4_096)
 def _source_datetime(value: str) -> datetime | None:
     if not value.strip():
         return None
@@ -547,6 +556,7 @@ def _source_datetime(value: str) -> datetime | None:
     return None
 
 
+@lru_cache(maxsize=32_768)
 def _date(value: str, patterns: tuple[str, ...]) -> date | None:
     if not value.strip():
         return None
