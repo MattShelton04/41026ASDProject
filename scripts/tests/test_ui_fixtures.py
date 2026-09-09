@@ -97,6 +97,16 @@ def _json(url: str, *, cookie: str | None = None) -> tuple[dict[str, object], ob
         return json.load(response), response.headers
 
 
+@pytest.mark.parametrize("path", ["notifications", f"ingestion-runs/{RUN_ID}/activity"])
+def test_operator_feeds_have_bounded_empty_and_populated_fixtures(path: str) -> None:
+    url = f"/api/data-platform/v1/{path}"
+    populated = fixture_response("GET", url, "", "populated")
+    assert populated.status == 200
+    assert populated.body["items"]
+    assert "lease_token" not in str(populated.body)
+    assert fixture_response("GET", url, "", "empty").body["items"] == []
+
+
 def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
     fixture_origin: str,
 ) -> None:

@@ -159,6 +159,7 @@ function annotateRefreshState(root) {
   }
   const focusKeys = new Map();
   for (const target of root.querySelectorAll("a[href], button, summary, select, input, [tabindex]")) {
+    if (target.dataset.refreshFocusKey) continue;
     const base = target.matches("a[href]")
       ? `link:${target.getAttribute("href")}`
       : target.matches("summary")

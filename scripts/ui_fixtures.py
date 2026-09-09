@@ -575,6 +575,28 @@ def fixture_response(
         return _problem(404, "Fixture route not found", path, "fixture_route_not_found")
     route = path.removeprefix(prefix).strip("/")
 
+    if route == "notifications":
+        return FixtureResponse(
+            200,
+            _collection(
+                [
+                    {
+                        "id": f"run:{run['id']}",
+                        "kind": "run",
+                        "target_id": run["id"],
+                        "status": run["status"],
+                        "source_name": run.get("job_name", "Example update"),
+                        "requested_at": TIMESTAMP,
+                        "finished_at": TIMESTAMP,
+                        "activity_at": TIMESTAMP,
+                    }
+                    for run in runs
+                ],
+                scenario,
+            ),
+            delay_seconds=delay,
+        )
+
     if route == "overview":
         if partial_optional:
             return _optional_unavailable()
@@ -1008,6 +1030,24 @@ def _artifacts() -> list[dict[str, Any]]:
 
 
 def _run_response(route: str, run: dict[str, Any], scenario: str) -> dict[str, Any]:
+    if route.endswith("/activity"):
+        return _collection(
+            [
+                {
+                    "id": 1,
+                    "task_id": TASK_ID,
+                    "recorded_at": TIMESTAMP,
+                    "stage": "import",
+                    "status": "succeeded",
+                    "attempt_number": 1,
+                    "phase": "Complete",
+                    "rows_processed": 10,
+                    "bytes_processed": 0,
+                    "event_kind": "snapshot",
+                }
+            ],
+            scenario,
+        )
     if route.endswith("/tasks"):
         return {
             "items": [
