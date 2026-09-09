@@ -851,6 +851,9 @@ def _insert_psi_rows(
             cursor.execute("ANALYZE propertyscope_psi_address_resolution")
         else:
             inserted = max(0, int(cursor.rowcount))
+    # Export starts immediately after commit. A fresh generation must not wait for
+    # autovacuum to discover millions of rows before planning its first keyset pages.
+    cursor.execute("ANALYZE warehouse.psi_sale")
     if inserted:
         return inserted
     cursor.execute(_PROFILE_COUNT_SQL["psi-sales"], parameters)

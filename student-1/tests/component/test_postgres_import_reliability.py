@@ -1323,6 +1323,13 @@ def test_psi_retransmissions_revisions_and_exact_address_cardinality(
         (release_id,),
     ).fetchall()
     assert accepted == 6
+    # The next worker can export immediately after commit, before autovacuum runs.
+    statistics = connection.execute(
+        "SELECT most_common_freqs FROM pg_stats WHERE schemaname='warehouse' "
+        "AND tablename='psi_sale' AND attname='dataset_release_id'"
+    ).fetchone()
+    assert statistics is not None
+    assert statistics["most_common_freqs"] == [1.0]
     assert [row for row in rows if row["source_business_key"] == "revision"] == [
         {
             "source_business_key": "revision",
