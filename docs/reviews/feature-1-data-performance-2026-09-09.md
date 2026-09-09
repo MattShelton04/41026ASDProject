@@ -98,6 +98,11 @@ falling from 21,017,582 to 141,010 bytes (**99.3% lower**). That is parser alloc
 RSS or a full import measurement. Both produced 190,000 positive observations, 10,000 coverage
 records and identical summed counts. No network or database is involved in this benchmark.
 
+The subsequent full official acquisition produced 10,114,565 canonical observation/coverage
+records and **byte-identical Parquet** to the retained previous run: 345,600,226 bytes, SHA-256
+`b356cd70396d7b9a8e627c113ec31d3870df3715b86b0a8f49fb231c3823ade4`. This checks the complete
+acquisition output, not merely the synthetic benchmark's counts.
+
 The complete crime export previously performed three correlated indexed observation lookups for
 each coverage series: first offence label, first subcategory label, and all observations. It now
 limits the coverage page first, then performs one lateral aggregate per series. Ordered label
@@ -188,12 +193,37 @@ dataset bundle, not removing durable provenance or making features share a datab
 work also prevents several full-history sorts competing for laptop memory. No new queue service,
 distributed scheduler, global PostgreSQL memory override or cross-feature coupling was added.
 
+## Long data sessions versus development reload
+
+Live `docker stats` showed several idle development Gunicorn services using approximately
+40–55% of one CPU core each on this Windows/Docker Desktop checkout. Source polling over bind
+mounts is a separate resource cost from data processing. The new
+`uv run scripts/dev.py stack up --offline --no-reload --build` command uses the existing base
+images without the development overlay. It explicitly preserves the development project name
+and durable volumes, retains the selected AI runtime, and does not alter source/job contracts.
+The tradeoff is deliberate: source edits require image rebuilding during that session. Plain
+`stack up` restores the default editing workflow. Switch while workers are idle.
+After switching the existing stack, sampled idle CPU fell from approximately 40–55% per service
+to 0.47% (Feature 1 backend), 0.46% (Feature 1 database API), 0.12% (Feature 2 backend) and 0.02%
+(Feature 3 backend). These are Docker CPU snapshots rather than job-speed multipliers. All
+services became healthy, and the same accepted datasets remained available. The fresh long-run
+stack was left running to avoid interrupting its active loader; do not attribute a mid-session
+change in host contention solely to a code optimization.
+
 ## Experiments rejected
 
 Increasing transaction sort memory from 4 MB to 128 MB halved temporary blocks written in a
 one-million-observation BOCSAR deduplication experiment, but elapsed times overlapped (4.18–5.01 s
 versus 4.32–5.76 s). No global memory tuning is justified by that evidence. Concurrent sort/hash
 nodes multiply `work_mem`, making a speculative increase undesirable on student laptops.
+See PostgreSQL's [resource-consumption documentation](https://www.postgresql.org/docs/16/runtime-config-resource.html).
+
+For G-NAF activation, a temporary 200,000-address table with the same published-only normalized
+trigram index was updated under 4 MB and 64 MB GIN pending-list limits, including explicit final
+`gin_clean_pending_list`. Total times overlapped: 5.07–5.27 s versus 5.19–5.35 s. The larger list
+only moved work into deferred cleanup, so it was not adopted. This isolated index experiment does
+not model all six warehouse indexes or WAL. PostgreSQL explains this
+[pending-list tradeoff](https://www.postgresql.org/docs/16/gin-tips.html).
 
 ## Prototype and prebuilt datasets
 

@@ -240,6 +240,31 @@ def test_up_build_is_explicit(
     assert "--build" in captured_commands[1]
 
 
+def test_long_data_run_uses_images_without_development_reload_overlay(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["stack", "up", "--no-reload", "--build"]) == 0
+    command = captured_commands[1]
+    assert "docker-compose.dev.yml" not in command
+    assert command[command.index("--project-name") + 1] == dev.DEFAULT_PROJECT_NAME
+    assert all(filename in command for filename in dev.PRODUCTION_COMPOSE_FILES)
+    assert "--build" in command
+    assert command[-len(dev.APPLICATION_SERVICES) :] == dev.APPLICATION_SERVICES
+    assert "--volumes" not in command
+
+
+def test_no_reload_retains_selected_ai_runtime_overlay() -> None:
+    command = dev._compose_command("up", placement="docker", reload=False)
+    assert dev.ai_runtime.OVERLAY in command
+    assert "docker-compose.dev.yml" not in command
+
+
+def test_no_reload_preserves_explicit_compose_project(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "isolated-data-test")
+    command = dev._compose_command("up", placement="host", reload=False)
+    assert command[command.index("--project-name") + 1] == "isolated-data-test"
+
+
 def test_restart_can_target_one_service(
     captured_commands: list[tuple[str, ...]],
 ) -> None:

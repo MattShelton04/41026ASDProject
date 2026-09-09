@@ -175,6 +175,7 @@ Common lifecycle commands:
 | Stop while preserving data | `uv run scripts/dev.py stack down` |
 | Restart selected containers | `uv run scripts/dev.py stack restart [service ...]` |
 | Rebuild selected services | `uv run scripts/dev.py stack rebuild [service ...]` |
+| Run long data jobs without development reload polling | `uv run scripts/dev.py stack up --offline --no-reload --build` |
 | Delete this stack's labelled volumes | `uv run scripts/dev.py stack reset` |
 
 ## UI-only workflow

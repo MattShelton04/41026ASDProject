@@ -172,6 +172,13 @@ Use `uv run scripts/dev.py stack up --offline` when validating Feature 1 without
 Database migrations and the deterministic showcase baseline are automatic in both modes; no SQL,
 seed script, or Docker Desktop action is required.
 
+For a long full-history data session, use
+`uv run scripts/dev.py stack up --offline --no-reload --build` before starting jobs. This uses
+built images and avoids development reload polling (particularly expensive on Windows bind mounts).
+It preserves the same project/volumes. Rebuild after edits in this mode; plain `stack up` restores
+the usual source mounts and reload behavior. Switching modes can recreate workers, so do it while
+idle. The performance review separates this runtime choice from parser/query improvements.
+
 For frontend-only browser work, `uv run scripts/dev.py ui serve` serves Shared and Feature 1 together on
 loopback with explicit deterministic UI scenarios and no Docker, database or model credential. See
 [`docs/ui/feature-1-fixture-mode.md`](../docs/ui/feature-1-fixture-mode.md) for URLs and the
