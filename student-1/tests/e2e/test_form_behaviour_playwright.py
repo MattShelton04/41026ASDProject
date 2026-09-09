@@ -1788,3 +1788,21 @@ def test_ai_active_poll_preserves_disclosure_without_stealing_external_focus(
         page.get_by_text("Technical run references", exact=True).locator("..")
     ).to_have_attribute("open", "")
     expect(external_focus).to_be_focused()
+
+
+def test_activity_download_uses_a_browser_attachment(page: Page, fixture_origin: str) -> None:
+    attachment = "stage | status | rows_processed\nimport | succeeded | 10\n"
+    page.route(
+        f"**/api/data-platform/v1/ingestion-runs/{RUN_ID}/activity/download",
+        lambda route: route.fulfill(
+            status=200,
+            body=attachment,
+            content_type="text/plain",
+            headers={"Content-Disposition": 'attachment; filename="activity.txt"'},
+        ),
+    )
+    _open(page, fixture_origin, f"runs/{RUN_ID}")
+    with page.expect_download() as downloaded:
+        page.get_by_role("link", name="Download activity log", exact=True).click()
+    assert downloaded.value.suggested_filename == "activity.txt"
+    assert Path(downloaded.value.path()).read_text(encoding="utf-8") == attachment

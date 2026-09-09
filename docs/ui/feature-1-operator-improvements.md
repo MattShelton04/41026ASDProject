@@ -36,7 +36,7 @@ phase-level historical comparison charts; an identified preceding queue job; row
 retry details supplied by each downstream consumer;
 cross-device notification state; and raw sanitized service-log aggregation or SSE if polling proves
 insufficient. Activity retention deliberately expires older checkpoints after 1,000 changes per run.
-The browser downloads its currently retained activity window, not an unlimited historical audit.
+The download endpoint returns the server's retained window, not an unlimited historical audit.
 The page still reconstructs most detail markup on polls while restoring focus/disclosures/scroll;
 a larger UI rewrite could patch only changed nodes. The activity panel retains paused content and
 filter/follow settings across these refreshes. Product-home routing already accepts the shared

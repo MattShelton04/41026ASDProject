@@ -1,4 +1,5 @@
-import { append, button, el } from "../core/dom.js";
+import { API_BASE } from "../core/api.js";
+import { append, button, el, link } from "../core/dom.js";
 import { activityLine } from "../core/run-progress.js";
 
 export function runActivity(events, runId, options) {
@@ -41,12 +42,7 @@ export function runActivity(events, runId, options) {
   follow.addEventListener("change", () => { options.autoscroll = follow.checked; draw(); });
   append(followLabel, follow, document.createTextNode("Follow latest"));
   output.addEventListener("scroll", () => { options.scrollTop = output.scrollTop; });
-  const download = button("Download activity log", "button secondary small", () => {
-    const blob = new Blob([events.map(activityLine).join("\n") + "\n"], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = el("a"); anchor.href = url; anchor.download = `update-${runId}-activity.txt`;
-    anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-  });
+  const download = link("Download activity log", `${API_BASE}/ingestion-runs/${encodeURIComponent(runId)}/activity/download`, "button secondary small");
   download.dataset.refreshFocusKey = "activity:download";
   append(controls, filterLabel, pause, followLabel, download);
   append(body, controls, output);
