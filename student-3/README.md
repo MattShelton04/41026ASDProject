@@ -154,6 +154,12 @@ differences; duplicate ABS locality matches are shown as ambiguous. No rates are
 2021 population against recent crime. Missing amenities/area/LGA boundaries are not invented.
 Existing demo maps, comparisons and AI tools remain explicitly fixture-based and separate.
 
+The owned record index includes `(operation_id, locality, record_key)` so locality context can
+filter and return records in order without scanning an entire imported release. Startup upgrades
+the older two-column index in place, preserving imported records and receipts. See the
+[Feature 1 performance review](../docs/reviews/feature-1-data-performance-2026-09-09.md) for the
+full-source query measurements.
+
 Local activation check (3 September 2026): the producer's accepted synthetic crime and school
 artifact endpoints returned HTTP 503 `artifact_unavailable`; the full BOCSAR candidate returned
 409 `artifact_not_publishable`. Population has no accepted release. These upstream prerequisites

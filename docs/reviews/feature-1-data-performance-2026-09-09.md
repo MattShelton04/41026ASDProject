@@ -77,7 +77,9 @@ flat (7.692 vs 7.509 s). The gain is smaller artifact storage and less hashing/f
 the tradeoff is a slightly slower typed decode in this sample. Exact ordered normalized row
 hashes matched. This is not a claim of an 11.8x end-to-end speedup.
 The full fresh file was 191,912,851 bytes versus 2,222,419,699 bytes for retained NDJSON (91.4%
-smaller). G-NAF's loader preflight now retains a 9 GiB database-growth floor, preserving the
+smaller). A subsequent complete read of both files verified all 5,190,134 ordered normalized
+row hashes, with aggregate SHA-256 `e5463ddebf88c68c3d26383ddd5743d31a59e814574c5b34e96ac7e3bd2364c5`.
+G-NAF's loader preflight now retains a 9 GiB database-growth floor, preserving the
 previous full NDJSON/default-expansion allowance: a compressed file does not imply smaller SQL
 tables, indexes or temporary work. Existing temporary-file and reserve allowances still apply.
 
@@ -259,7 +261,7 @@ the cached G-NAF task were explicitly resumed through the public API. These inte
 are kept separate from clean stage measurements. No accepted dataset or original environment
 volume was deleted.
 
-## Experiments rejected
+## Download policy correctness
 
 The full downstream test also exposed a policy-list drift: SEIFA's manifest declared
 `attributed-derived-release` and `download_permitted=true`, while the download route's copied
@@ -267,6 +269,35 @@ allowlist omitted that already-supported policy and returned 403. The route now 
 builder's public policy set, retaining the historical fixture alias. Component tests exercise
 all five permitted policies and still reject restricted/unknown policies. This fixes the existing
 Feature 3 SEIFA replica without changing source rights, the product schema or service ownership.
+
+## Downstream locality query
+
+After Feature 3 accepted the full crime, school and SEIFA releases, the first Parramatta context
+request timed out at its four-second database HTTP deadline. `EXPLAIN QUERY PLAN` showed SQLite
+using the release/record-key unique index to satisfy ordering, then testing locality while
+scanning the release. The two-column locality index did not also satisfy the requested order.
+
+The database-owned startup upgrade replaces it with `(operation_id, locality, record_key)`.
+The same query now searches by both equality predicates and returns records in key order without
+a temporary sort. It retains all records/receipts and changes no HTTP schema or feature boundary.
+On the complete fresh crime release, three alternating read-only measurements forced the
+previously observed index for the baseline and used normal planning for the updated query:
+
+| Query | Timings | Median |
+| --- | --- | ---: |
+| Previous release-wide index path | 601.1, 478.1, 461.4 ms | 478.1 ms |
+| Locality-and-order index | 2.90, 1.72, 1.69 ms | 1.72 ms |
+
+All 62 ordered JSON records were byte-identical (aggregate SHA-256
+`51950e7af8e3cdb8beca78aee2e957d18627d35ae48ecd9977a7e34d890c3717`). This is a **99.6% reduction
+in this SQL lookup**, not a 278x faster page. Complete public context responses still took
+537, 488 and 426 ms because approximately 2 MB of complete evidence passes through HTTP/JSON.
+The browser displayed Parramatta population, eight government schools and 62 crime categories.
+The wider replacement index occupies 40.8 MB on these imports and adds key storage/write work;
+the old redundant locality index is removed. A regression test upgrades the old index, preserves
+1,000 records and asserts a lookup using both predicates without a temporary sort.
+
+## Experiments rejected
 
 Increasing transaction sort memory from 4 MB to 128 MB halved temporary blocks written in a
 one-million-observation BOCSAR deduplication experiment, but elapsed times overlapped (4.18–5.01 s
@@ -328,19 +359,36 @@ Completed fresh source runs so far:
 | NSW schools | `a97cf9fc-2dc7-41d9-9044-4dfdba95f122` | 2,210 | 2.507 s total |
 | ABS SEIFA | `41a99e9e-166e-4420-ac29-ae0573d8a2f9` | 4,320 | 4.745 s total |
 | G-NAF | `0a4b3b46-da22-4b1b-b927-f2d7beb6805d` | 5,190,134 | acquire 248.57 s; import 378.95 s; export recovered after restart |
+| G-NAF cached replay | `d5ffca49-7b95-4fa7-b2a1-32dab0291184` | 5,190,134 | actual loader operation 416.35 s; uninterrupted export 233.96 s |
+| BOCSAR | `9a6f8946-979a-4a68-b7be-036edddd260b` | 10,114,565 canonical rows → 318,122 series | acquire 268.58 s; resumed import approximately 800.80 s; export 208.96 s |
 
 G-NAF was reviewed and published through the browser in the isolated stack. Its activation took
 981.94 s, separately from import/export. Schools and SEIFA were also published locally. The fresh
 property page showed the correct G-NAF identity, map and all four SEIFA indexes for Aarons Pass.
 After the lock fix, five property reads during BOCSAR COPY took 206, 31, 28, 31 and 23 ms.
 
+The cached G-NAF replay's actual operation/export completed without a loader restart. It was
+slower than the retained September 5 timing (650.32 vs 557.84 s), while another feature was
+importing crime and a full-file parity check ran on the same host. G-NAF's CPU improvement is
+therefore **not established**; its measured win is canonical storage. Crime export was 11.0%
+shorter than the historical 234.76 s, while its resumed import remained effectively flat. These
+are observed full-size outcomes under different contention, not controlled causal speedups.
+
 BOCSAR's fresh acquisition took 268.58 s; the retained full acquisition of the same canonical
 bytes took 326.95 s (18% less recorded time). Retained G-NAF acquisitions took 267.59/291.90 s,
 versus 248.57 s here. These are historical comparisons with publisher/cache/host-contention
 differences, so the isolated benchmarks above are the stronger evidence for individual changes.
 
+- Final canonical gate (`uv run python scripts/check.py`): shared 929 passed/1 skipped;
+  Feature 1 717 passed/37 skipped; Feature 2 24 passed; Feature 3 104 passed/1 skipped;
+  Feature 4 83 passed; Feature 5 136 passed; 211 JavaScript tests passed; Ruff, architecture,
+  syntax and 255-file type checks passed. The 37 Feature 1 opt-in PostgreSQL tests were also
+  run explicitly against a separate migrated PostGIS test container: all passed.
 - Initial canonical gate: 925 passed, one skipped, one pre-existing browser audit failure. The
   source-conflict named flow looks for a `More actions` menu which is absent in that source UI.
+- Two intermediate full-gate attempts encountered transient Feature 3 local HTTP test failures
+  under concurrent host load; targeted reruns and the final complete gate passed. No unrelated
+  Feature 3 test expectations were weakened.
 - G-NAF handoff tests: seven passing tests for ordered hash parity, typed schema/metadata,
   malformed coordinates/postcodes, unreadable/empty files and bounded row groups.
 - Live browser: opened real port 5200, previewed and started the official schools workflow.

@@ -596,6 +596,41 @@ def test_transport_retry_is_bounded_and_fresh_key_preserves_failed_receipt(
         assert db.execute("SELECT COUNT(*) FROM source_attempt_receipts").fetchone()[0] == 4
 
 
+def test_locality_index_upgrade_preserves_rows_and_bounds_ordered_lookup(database: Imports) -> None:
+    with database.repository.connect() as db:
+        db.execute("DROP INDEX source_locality_record")
+        db.execute("CREATE INDEX source_locality ON source_records(operation_id,locality)")
+        db.executemany(
+            "INSERT INTO source_records VALUES (?,?,?,?,?)",
+            [
+                (
+                    "index-fixture",
+                    index,
+                    f"key-{index:04}",
+                    "PARRAMATTA" if index in {7, 13, 311} else "OTHER",
+                    "{}",
+                )
+                for index in range(1_000)
+            ],
+        )
+    Imports(database.repository)
+    with database.repository.connect() as db:
+        query = (
+            "SELECT record_key FROM source_records WHERE operation_id=? AND locality=? "
+            "ORDER BY record_key LIMIT 501"
+        )
+        parameters = ("index-fixture", "PARRAMATTA")
+        assert [row[0] for row in db.execute(query, parameters)] == [
+            "key-0007",
+            "key-0013",
+            "key-0311",
+        ]
+        assert db.execute("SELECT count(*) FROM source_records").fetchone()[0] == 1_000
+        plan = " ".join(row[3] for row in db.execute("EXPLAIN QUERY PLAN " + query, parameters))
+        assert "operation_id=? AND locality=?" in plan
+        assert "TEMP B-TREE" not in plan
+
+
 def test_legacy_import_migration_preserves_failed_operation(database: Imports) -> None:
     payload, _, _ = fixture()
     ack = database.enqueue({"request": payload, "correlation": CORRELATION})

@@ -85,6 +85,17 @@ state and direct actions to inspect/retry. Browser desktop notifications can be 
 app is open; ask for browser permission only after the operator selects that option. Email, push
 infrastructure and service workers can wait until there is an actual off-device requirement.
 
+## Downstream delivery visibility
+
+The real Feature 3 crime import retried transient database failures while its public status showed
+only `running` and the declared total. Include attempt number, current-attempt rows, retained
+staged rows, last successful batch time and next retry time in the consumer receipt projection.
+Those are different measures: replay can validate old staged rows without increasing their count.
+Show the current operation first and collapse historical failures, so a recovered release does
+not keep presenting obsolete retry buttons as the main action. Include the failing phase,
+structured error code and HTTP status where appropriate; a generic “validation or transport”
+message hid the SEIFA download-policy mismatch found during this pass.
+
 ## Acceptance checks for the UI follow-up
 
 - Real-origin job launch, cancellation, cached replay, completion and recoverable failure flows.
