@@ -257,8 +257,10 @@ class _PreflightStore:
         self.recovery_requested = operation_id
 
 
+@pytest.mark.parametrize("profile", ["psi-sales", "bocsar-sparse", "gnaf-nsw"])
 def test_insufficient_database_capacity_fails_despite_artifact_headroom_and_preserves_predecessor(
     tmp_path: Path,
+    profile: str,
 ) -> None:
     payload = b'{"record":1}\n'
     digest = hashlib.sha256(payload).hexdigest()
@@ -268,7 +270,7 @@ def test_insufficient_database_capacity_fails_despite_artifact_headroom_and_pres
     artifact.write_bytes(payload)
     work = {
         "id": "70000000-0000-0000-0000-000000000051",
-        "import_profile_key": "psi-sales",
+        "import_profile_key": profile,
         "storage_key": relative.as_posix(),
         "artifact_bytes": len(payload),
         "content_sha256": digest,
@@ -277,8 +279,8 @@ def test_insufficient_database_capacity_fails_despite_artifact_headroom_and_pres
     }
     store = _PreflightStore(work)
     predecessor = store.accepted_predecessor
-    database_growth = SOURCE_SCALE_DATABASE_GROWTH_FLOORS_BYTES["psi-sales"]
-    wal_growth = SOURCE_SCALE_WAL_FLOORS_BYTES["psi-sales"]
+    database_growth = SOURCE_SCALE_DATABASE_GROWTH_FLOORS_BYTES[profile]
+    wal_growth = SOURCE_SCALE_WAL_FLOORS_BYTES.get(profile, 0)
     required_headroom = database_growth + wal_growth + 64 * 1024 * 1024 + 100
     loader = DatabaseLoader(
         cast(Any, store),

@@ -43,6 +43,9 @@ GIBIBYTE = 1024 * 1024 * 1024
 # official-source record counts with the documented 2.5 safety factor, rounded upward.
 # PSI includes accepted G-NAF identity anchors and their provenance (ADR-038).
 SOURCE_SCALE_DATABASE_GROWTH_FLOORS_BYTES = {
+    # Preserve the old full G-NAF NDJSON headroom (~2.22 GB * default factor 4)
+    # when its canonical Parquet is only ~192 MB; compression cannot shrink SQL growth.
+    "gnaf-nsw": 9 * GIBIBYTE,
     "psi-sales": 24 * GIBIBYTE,
     "bocsar-sparse": 8 * GIBIBYTE,
 }

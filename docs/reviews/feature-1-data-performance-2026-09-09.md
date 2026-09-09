@@ -76,6 +76,10 @@ was 1.927 vs 1.257 s; read plus validation was 5.765 vs 6.252 s. Combined CPU ti
 flat (7.692 vs 7.509 s). The gain is smaller artifact storage and less hashing/file traffic;
 the tradeoff is a slightly slower typed decode in this sample. Exact ordered normalized row
 hashes matched. This is not a claim of an 11.8x end-to-end speedup.
+The full fresh file was 191,912,851 bytes versus 2,222,419,699 bytes for retained NDJSON (91.4%
+smaller). G-NAF's loader preflight now retains a 9 GiB database-growth floor, preserving the
+previous full NDJSON/default-expansion allowance: a compressed file does not imply smaller SQL
+tables, indexes or temporary work. Existing temporary-file and reserve allowances still apply.
 
 Reproduce with `uv run python scripts/benchmark_feature1_gnaf.py --rows 200000`; add `--source`
 pointing to a registered legacy canonical NDJSON file for real-row measurements. The default

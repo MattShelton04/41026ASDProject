@@ -71,6 +71,10 @@ cycle is fixed in the performance pass, but the UI should still distinguish “w
 no recent progress” from “actively processing”. Show queue wait separately from loader duration;
 the current import task timer also includes time waiting for G-NAF publication. A resumed task's
 cumulative timer must not be presented as a clean performance comparison.
+Explain recovery at stage granularity: an interrupted COPY transaction restarts from the verified
+canonical file, and an interrupted gzip export rebuilds from its first record. “Resume” does not
+mean the displayed processed-row counter is a durable row-level checkpoint. Reset the attempt
+display explicitly while preserving the failed attempt's evidence in history.
 
 ## Notifications with limited complexity
 
