@@ -18,7 +18,10 @@ from propertyscope_data_platform.http_support import (
     proxy_collection,
     proxy_item,
 )
-from propertyscope_data_platform.release_builders import ReleaseManifestV1
+from propertyscope_data_platform.release_builders import (
+    PUBLIC_REDISTRIBUTION_POLICIES,
+    ReleaseManifestV1,
+)
 from propertyscope_data_platform.release_imports import (
     ensure_import_operation,
     finalize_candidate_release,
@@ -99,11 +102,9 @@ def register_release_routes(
         artifact = upstream.json()["artifact"]
         if artifact["release_status"] not in {"awaiting_review", "accepted", "superseded"}:
             return problem(409, "artifact_not_publishable", "Release artifact is not publishable")
-        if artifact["redistribution_policy"] not in {
-            "fixture-redistributable",
-            "committed-synthetic-fixture",
-            "bounded-derived-release",
-            "approved-bounded-extract",
+        # Use the manifest builder's policy set; preserve the historical fixture alias.
+        if artifact["redistribution_policy"] not in PUBLIC_REDISTRIBUTION_POLICIES | {
+            "fixture-redistributable"
         }:
             return problem(
                 403,

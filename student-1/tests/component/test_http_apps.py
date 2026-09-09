@@ -10,6 +10,7 @@ import pytest
 import yaml
 
 from propertyscope_data_platform.app import create_app as create_backend_app
+from propertyscope_data_platform.artifacts import LocalArtifactStore
 from propertyscope_data_platform.assistant import ASSISTANT_TOOL_ALLOWLIST
 from propertyscope_data_platform.clients import (
     AiModeClient,
@@ -32,6 +33,58 @@ def _backend_with_database(database: Any) -> Any:
             client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))),
         ),
     )
+
+
+@pytest.mark.parametrize(
+    ("policy", "status"),
+    [
+        ("attributed-derived-release", 200),
+        ("bounded-derived-release", 200),
+        ("approved-bounded-extract", 200),
+        ("committed-synthetic-fixture", 200),
+        ("fixture-redistributable", 200),
+        ("licence-controlled", 403),
+        ("unknown-policy", 403),
+    ],
+)
+def test_artifact_download_matches_public_manifest_policies(
+    tmp_path: Path, policy: str, status: int
+) -> None:
+    payload = b'{"synthetic":true}\n'
+    artifact = LocalArtifactStore(tmp_path).put((payload,), media_type="application/x-ndjson")
+    app = create_backend_app(
+        artifact_root=tmp_path,
+        store_client=DataStoreClient(
+            "http://database",
+            "secret",
+            client=httpx.Client(
+                transport=httpx.MockTransport(
+                    lambda _: httpx.Response(
+                        200,
+                        json={
+                            "artifact": {
+                                "release_status": "accepted",
+                                "redistribution_policy": policy,
+                                "artifact_kind": "release_export",
+                                "bytes": artifact.bytes,
+                                "storage_key": artifact.storage_key,
+                                "content_sha256": artifact.sha256,
+                                "media_type": artifact.media_type,
+                            }
+                        },
+                    )
+                )
+            ),
+        ),
+    )
+    with app.test_client().get(
+        "/api/data-platform/v1/dataset-releases/60000000-0000-0000-0000-000000000099/artifact"
+    ) as response:
+        assert response.status_code == status
+        if status == 200:
+            assert response.data == payload
+        else:
+            assert response.get_json()["code"] == "redistribution_not_permitted"
 
 
 def test_cancel_reconciles_a_lost_response_after_durable_persistence() -> None:

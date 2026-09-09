@@ -261,6 +261,13 @@ volume was deleted.
 
 ## Experiments rejected
 
+The full downstream test also exposed a policy-list drift: SEIFA's manifest declared
+`attributed-derived-release` and `download_permitted=true`, while the download route's copied
+allowlist omitted that already-supported policy and returned 403. The route now reuses the
+builder's public policy set, retaining the historical fixture alias. Component tests exercise
+all five permitted policies and still reject restricted/unknown policies. This fixes the existing
+Feature 3 SEIFA replica without changing source rights, the product schema or service ownership.
+
 Increasing transaction sort memory from 4 MB to 128 MB halved temporary blocks written in a
 one-million-observation BOCSAR deduplication experiment, but elapsed times overlapped (4.18–5.01 s
 versus 4.32–5.76 s). No global memory tuning is justified by that evidence. Concurrent sort/hash
