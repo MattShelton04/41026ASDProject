@@ -416,12 +416,13 @@ def _sync_psi(*, years: Sequence[int], weeks: Sequence[date]) -> None:
             if destination.is_file():
                 try:
                     with ZipFile(destination) as archive:
-                        archive.testzip()
-                    print(
-                        f"PSI cache retained: {destination.relative_to(REPOSITORY_ROOT)}",
-                        flush=True,
-                    )
-                    continue
+                        valid_cache = bool(archive.namelist()) and archive.testzip() is None
+                    if valid_cache:
+                        print(
+                            f"PSI cache retained: {destination.relative_to(REPOSITORY_ROOT)}",
+                            flush=True,
+                        )
+                        continue
                 except BadZipFile:
                     pass
             print(f"PSI source: {url}", flush=True)

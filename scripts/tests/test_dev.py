@@ -2,15 +2,50 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
+from zipfile import ZipFile
 
 import httpx
 import pytest
 from scripts import dev
+
+
+@pytest.mark.parametrize("cached_kind", ["valid", "empty", "bad_crc", "not_zip"])
+def test_psi_sync_reuses_only_nonempty_crc_verified_archives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cached_kind: str
+) -> None:
+    monkeypatch.setattr(dev, "REPOSITORY_ROOT", tmp_path)
+    payload = io.BytesIO()
+    with ZipFile(payload, "w") as archive:
+        archive.writestr("source.DAT", "valid source payload")
+    valid = payload.getvalue()
+    empty = io.BytesIO()
+    with ZipFile(empty, "w"):
+        pass
+    contents = {
+        "valid": valid,
+        "empty": empty.getvalue(),
+        "bad_crc": valid.replace(b"valid source", b"wrong source"),
+        "not_zip": b"not a source archive",
+    }
+    destination = tmp_path / ".propertyscope-source-cache" / "psi" / "2025.zip"
+    destination.parent.mkdir(parents=True)
+    destination.write_bytes(contents[cached_kind])
+    downloads: list[str] = []
+
+    def download(_client: httpx.Client, url: str) -> bytes:
+        downloads.append(url)
+        return valid
+
+    monkeypatch.setattr(dev, "_download_psi_archive", download)
+    dev._sync_psi(years=[2025], weeks=[])
+    assert len(downloads) == (0 if cached_kind == "valid" else 1)
+    assert destination.read_bytes() == valid
 
 
 @pytest.fixture(autouse=True)
