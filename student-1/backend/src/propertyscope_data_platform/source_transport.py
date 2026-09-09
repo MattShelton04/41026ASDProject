@@ -33,6 +33,17 @@ ALLOWED_MEDIA_TYPES = frozenset(
 )
 
 
+class SourceAccessError(RuntimeError):
+    """A publisher requires operator action before a registered download can proceed."""
+
+    def __init__(self, url: str) -> None:
+        archive = Path(urlparse(url).path).name[:80]
+        super().__init__(
+            f"Publisher challenged download of {archive}. Download the official ZIP "
+            "into the configured PSI source cache, then retry the run."
+        )
+
+
 class RegisteredSourceTransport:
     """Acquire only allowlisted HTTPS sources."""
 
@@ -93,6 +104,7 @@ class RegisteredSourceTransport:
         with self._client.stream(
             "GET", url, headers={"Accept": "*/*", "User-Agent": "PropertyScope/1.0"}
         ) as response:
+            self._check_source_access(response, url)
             if allow_forbidden and response.status_code == 403:
                 return False
             response.raise_for_status()
@@ -127,6 +139,7 @@ class RegisteredSourceTransport:
                         "User-Agent": "PropertyScope/1.0",
                     },
                 )
+                self._check_source_access(candidate, url)
                 if candidate.status_code == 206:
                     response = candidate
                     break
@@ -150,6 +163,11 @@ class RegisteredSourceTransport:
             offset = range_end + 1
             if progress is not None:
                 progress(len(response.content))
+
+    @staticmethod
+    def _check_source_access(response: httpx.Response, url: str) -> None:
+        if response.headers.get("cf-mitigated", "").lower() == "challenge":
+            raise SourceAccessError(url)
 
     @staticmethod
     def _validate_url(url: str) -> None:

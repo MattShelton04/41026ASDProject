@@ -380,7 +380,7 @@ versus 248.57 s here. These are historical comparisons with publisher/cache/host
 differences, so the isolated benchmarks above are the stronger evidence for individual changes.
 
 - Final canonical gate (`uv run python scripts/check.py`): shared 929 passed/1 skipped;
-  Feature 1 717 passed/37 skipped; Feature 2 24 passed; Feature 3 104 passed/1 skipped;
+  Feature 1 717 passed/37 skipped; Feature 2 24 passed; Feature 3 105 passed/1 skipped;
   Feature 4 83 passed; Feature 5 136 passed; 211 JavaScript tests passed; Ruff, architecture,
   syntax and 255-file type checks passed. The 37 Feature 1 opt-in PostgreSQL tests were also
   run explicitly against a separate migrated PostGIS test container: all passed.
@@ -394,3 +394,22 @@ differences, so the isolated benchmarks above are the stronger evidence for indi
 - Live browser: opened real port 5200, previewed and started the official schools workflow.
 
 Further changes, final checks and full-size run outcomes will be recorded before handoff.
+
+### PSI acquisition preflight
+
+The first full current PSI run parsed 7.4 million cached records before the publisher challenged
+the newest required weekly ZIP. It failed after 1,014.16 seconds without a complete canonical
+artifact. Acquisition now obtains all required archives before parsing the first record, and
+cleans temporary downloads on failure/cancellation. Explicit publisher challenges stop futile
+range retries and produce `source_access_challenged` with the archive name and cache/retry action.
+Generic publisher 403 responses retain the existing verified-range download fallback.
+
+The tradeoff is temporary disk space for all uncached archives during acquisition, instead of
+one archive at a time. Explicit source-cache files are reused and never deleted by this step.
+Two ordering/cleanup tests and two challenge-path tests cover this behavior.
+
+The normal `data sync-psi --week 2026-09-07` command subsequently succeeded: 264,926 bytes,
+SHA-256 `e5f768cc00f665895c978f59bed4ffb9bd1de1ecc29a18aa7320b2269f752791`.
+Fresh complete run `a1547f33-a89c-43b4-8884-fbe03a72d5e4` includes this new weekly partition;
+its final result is pending at this checkpoint. It is not expected to match the earlier snapshot's
+whole-file hash because its source coverage has advanced.

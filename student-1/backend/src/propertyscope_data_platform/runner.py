@@ -9,7 +9,7 @@ import signal
 import time
 import uuid
 from collections.abc import Callable, Iterable, Mapping
-from contextlib import AbstractContextManager, closing, nullcontext
+from contextlib import AbstractContextManager, ExitStack, closing, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -56,7 +56,10 @@ from propertyscope_data_platform.release_builders import (
     validate_feature_registration,
 )
 from propertyscope_data_platform.release_stream import ReleaseRowStream
-from propertyscope_data_platform.source_transport import RegisteredSourceTransport
+from propertyscope_data_platform.source_transport import (
+    RegisteredSourceTransport,
+    SourceAccessError,
+)
 
 SCHOOLS_MASTER_URL = (
     "https://data.nsw.gov.au/data/dataset/"
@@ -225,6 +228,9 @@ class AcquisitionRunner:
             result.raise_for_status()
         except TaskCancelledError:
             logger.info("Run task %s (%s) cancelled by operator", task_id, task.get("stage"))
+        except SourceAccessError as exc:
+            logger.warning("Run task %s requires a publisher-approved source download", task_id)
+            self._report_failure(task, lease_token, exc, retryable=True)
         except RegisteredImportError as exc:
             logger.warning("Run task %s import requires recovery", task_id)
             self._report_failure(
@@ -870,17 +876,23 @@ class AcquisitionRunner:
         )
         if not sources:
             raise RuntimeError("PSI acquisition scope contains no annual or weekly partitions")
-        for source_year, url, cached in sources:
-            source: AbstractContextManager[Path]
-            if cached is not None:
-                source = nullcontext(cached)
-            else:
-                source = self.source_transport.psi_archive_path(
-                    url,
-                    directory=self.settings.artifact_root,
-                    progress=self._heartbeat_progress(task),
-                )
-            with source as path:
+        # Acquire every required archive before spending CPU on history. A blocked
+        # latest week must not invalidate twenty minutes of already parsed sales.
+        # ExitStack also removes downloaded temporaries on failure/cancellation.
+        with ExitStack() as downloads:
+            partitions: list[tuple[int, Path]] = []
+            for source_year, url, cached in sources:
+                path = cached
+                if path is None:
+                    path = downloads.enter_context(
+                        self.source_transport.psi_archive_path(
+                            url,
+                            directory=self.settings.artifact_root,
+                            progress=self._heartbeat_progress(task),
+                        )
+                    )
+                partitions.append((source_year, path))
+            for source_year, path in partitions:
                 yield source_year, iter_psi_archive_path(path, source_year=source_year)
 
     def _note_psi_record(self, task: dict[str, Any], counter: list[int]) -> None:
@@ -1157,6 +1169,13 @@ def _safe_task_error(
 ) -> dict[str, object]:
     if isinstance(exc, RegisteredImportError):
         return exc.error
+    if isinstance(exc, SourceAccessError):
+        return {
+            "code": "source_access_challenged",
+            "category": "acquisition",
+            "message": str(exc),
+            "retryable": True,
+        }
     safe_code = (
         "quality_gate_failed" if str(task.get("stage")) == "quality" else "stage_execution_failed"
     )

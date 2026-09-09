@@ -51,6 +51,7 @@ from propertyscope_data_platform.runner import (
     _cancellation_poll_interval,
     _safe_task_error,
 )
+from propertyscope_data_platform.source_transport import SourceAccessError
 
 
 def test_schools_preserves_and_normalises_locality() -> None:
@@ -929,6 +930,74 @@ def test_live_psi_reuses_bounded_official_archive_cache(tmp_path: Path) -> None:
     assert records[0]["source_business_key"] == "001:P1:1"
     assert cast(dict[str, object], document["source"])["cached_source_years"] == [2025]
     assert runner._live_objects("psi-sales", {"years": [2025]})[0]["cached"] is True
+
+
+def test_psi_acquires_all_sources_before_parsing_and_cleans_on_late_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    def source(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path.endswith("2025.zip"):
+            return httpx.Response(403, headers={"cf-mitigated": "challenge"})
+        return httpx.Response(
+            200, content=b"first archive", headers={"Content-Type": "application/zip"}
+        )
+
+    def must_not_parse(*args: object, **kwargs: object) -> None:
+        pytest.fail("history must not be parsed before every required source is acquired")
+
+    monkeypatch.setattr("propertyscope_data_platform.runner.iter_psi_archive_path", must_not_parse)
+    with httpx.Client(transport=httpx.MockTransport(source)) as client:
+        runner = AcquisitionRunner(
+            RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30),
+            client=client,
+        )
+        with pytest.raises(SourceAccessError):
+            list(runner._live_psi_partitions({}, {"years": [2024, 2025]}))
+    assert calls == ["/__psi/yearly/2024.zip", "/__psi/yearly/2025.zip"]
+    assert list(tmp_path.glob("psi-source-*.zip")) == []
+
+
+def test_psi_preacquisition_preserves_order_and_cached_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    cached = cache / "2024.zip"
+    cached.write_bytes(b"cached")
+    downloaded = False
+    paths: list[Path] = []
+
+    def source(_: httpx.Request) -> httpx.Response:
+        nonlocal downloaded
+        downloaded = True
+        return httpx.Response(
+            200, content=b"downloaded", headers={"Content-Type": "application/zip"}
+        )
+
+    def parse(path: Path, *, source_year: int) -> tuple[()]:
+        assert downloaded
+        assert path.read_bytes() == (b"cached" if source_year == 2024 else b"downloaded")
+        paths.append(path)
+        return ()
+
+    monkeypatch.setattr("propertyscope_data_platform.runner.iter_psi_archive_path", parse)
+    with httpx.Client(transport=httpx.MockTransport(source)) as client:
+        runner = AcquisitionRunner(
+            RunnerSettings(
+                "http://backend", "token", tmp_path, "worker", 0.1, 30, psi_archive_root=cache
+            ),
+            client=client,
+        )
+        assert [year for year, _ in runner._live_psi_partitions({}, {"years": [2024, 2025]})] == [
+            2024,
+            2025,
+        ]
+    assert cached.read_bytes() == b"cached"
+    assert len(paths) == 2
+    assert not paths[1].exists()
 
 
 def test_live_bocsar_runner_emits_real_canonical_records(tmp_path: Path) -> None:
