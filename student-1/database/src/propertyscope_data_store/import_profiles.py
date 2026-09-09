@@ -10,6 +10,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -482,9 +483,14 @@ def _bocsar_parquet_row(source: dict[str, Any], index: int) -> dict[str, Any]:
     raw_months = source.get("observed_months")
     if not isinstance(raw_months, list) or not raw_months:
         raise ImportProfileError(f"record {index} observed_months must be non-empty")
-    months = tuple(_parquet_date_value(value, "observed_months", index) for value in raw_months)
-    if months != tuple(sorted(set(months))):
-        raise ImportProfileError(f"record {index} observed_months must be sorted and unique")
+    if any(not isinstance(value, date) or isinstance(value, datetime) for value in raw_months):
+        raise ImportProfileError(f"record {index} observed_months must contain dates")
+    try:
+        months, expected_completeness = _bocsar_coverage_values(tuple(raw_months))
+    except ValueError as exc:
+        raise ImportProfileError(
+            f"record {index} observed_months must be sorted and unique"
+        ) from exc
     first_month = _parquet_date(source, "first_month", index)
     last_month = _parquet_date(source, "last_month", index)
     if first_month != months[0] or last_month != months[-1]:
@@ -496,9 +502,6 @@ def _bocsar_parquet_row(source: dict[str, Any], index: int) -> dict[str, Any]:
     if not isinstance(zero_semantics, bool):
         raise ImportProfileError(f"record {index} zero semantics must be boolean")
     completeness = _parquet_sha256(source, "completeness_sha256", index)
-    expected_completeness = hashlib.sha256(
-        json.dumps(months, separators=(",", ":")).encode()
-    ).hexdigest()
     if completeness != expected_completeness:
         raise ImportProfileError(f"record {index} completeness checksum does not match coverage")
     return {
@@ -512,6 +515,16 @@ def _bocsar_parquet_row(source: dict[str, Any], index: int) -> dict[str, Any]:
         "month_or_coverage": "coverage",
         "source_row_sha256": source_hash,
     }
+
+
+@lru_cache(maxsize=64)
+def _bocsar_coverage_values(months: tuple[date, ...]) -> tuple[tuple[str, ...], str]:
+    """Cache only immutable month-vector derivation; each row's evidence is still checked."""
+    values = tuple(month.isoformat() for month in months)
+    if values != tuple(sorted(set(values))):
+        raise ValueError("coverage months must be sorted and unique")
+    checksum = hashlib.sha256(json.dumps(values, separators=(",", ":")).encode()).hexdigest()
+    return values, checksum
 
 
 def _parquet_text(source: Mapping[str, Any], field: str, index: int) -> str:

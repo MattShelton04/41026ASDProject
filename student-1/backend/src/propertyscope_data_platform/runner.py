@@ -17,6 +17,7 @@ from threading import Event, Thread
 from typing import Any
 
 import httpx
+import orjson
 
 from propertyscope_data_platform.acquisition_scope import acquisition_scope_error
 from propertyscope_data_platform.adapters.bocsar import (
@@ -111,10 +112,13 @@ class RunnerSettings:
     gnaf_archive_crs: str = "GDA94"
     psi_archive_root: Path | None = None
     release_projection_workers: int = 2
+    release_compression_level: int = 3
 
     def __post_init__(self) -> None:
         if not 0 <= self.release_projection_workers <= 4:
             raise ValueError("release projection workers must be between zero and four")
+        if not 1 <= self.release_compression_level <= 9:
+            raise ValueError("release compression level must be between one and nine")
 
     @classmethod
     def from_environment(cls) -> RunnerSettings:
@@ -134,6 +138,9 @@ class RunnerSettings:
             psi_archive_root=_optional_path(os.environ.get("PROPERTYSCOPE_PSI_ARCHIVE_ROOT")),
             release_projection_workers=int(
                 os.environ.get("PROPERTYSCOPE_RELEASE_PROJECTION_WORKERS", "2")
+            ),
+            release_compression_level=int(
+                os.environ.get("PROPERTYSCOPE_RELEASE_COMPRESSION_LEVEL", "3")
             ),
         )
 
@@ -408,7 +415,7 @@ class AcquisitionRunner:
                 timeout=httpx.Timeout(120, connect=10, pool=10),
             )
             response.raise_for_status()
-            page = response.json()
+            page = orjson.loads(response.content)
             if not isinstance(page, dict):
                 raise RuntimeError("Release product page is malformed")
             return page
@@ -444,6 +451,7 @@ class AcquisitionRunner:
                 if context.import_profile == "bocsar-sparse"
                 else self.settings.release_projection_workers,
                 heartbeat=lambda: heartbeat(product.record_count, pages.total),
+                compression_level=self.settings.release_compression_level,
             )
             artifact = self.artifacts.put(
                 product.chunks(),

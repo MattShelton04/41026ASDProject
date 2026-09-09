@@ -21,11 +21,15 @@ brief for a later UI agent; recommendations below are not claims of shipped func
    broken when a full-history job owns the serial worker for half an hour.
 5. **Completion should lead somewhere.** Turn success into a candidate summary with row count,
    quality result and a clear “Review new version” action. Keep “loaded” separate from “published”.
+   In the fresh schools run, “Review candidate data” opened the optional AI review instead of the
+   release detail. Separate “Open candidate” from “Ask AI to review”.
 
 ## Progress and motion
 
 - Use determinate progress only where a trustworthy byte/row total exists. SQL sort/join/index
   work should display elapsed time and activity, not a fabricated percentage or deadline.
+  The G-NAF Parquet file already knows its row count; propagate that verified total to COPY
+  progress instead of leaving a 5.19-million-row phase indeterminate.
 - Preserve the last meaningful phase/counters while refreshing; avoid re-rendering the entire
   timeline on every poll. Update text nodes and animate a small active-stage accent.
 - Label units: source rows, unique sales revisions, positive crime observations and exported
@@ -34,6 +38,14 @@ brief for a later UI agent; recommendations below are not claims of shipped func
   and acquisition mode. Separate downloads from parsing/import/export in comparison charts.
 - Use skeletons for first load; retain data with a quiet refresh indicator for subsequent loads.
   Show a stale-data indicator and a retry action after connection loss.
+- During a worker restart, the G-NAF screen continued saying “Running” and increased its ETA
+  while no progress occurred. Show stale heartbeat age before lease expiry, suspend the ETA,
+  and explain that recovery becomes available when the lease expires. After resume, distinguish
+  attempt elapsed time from total elapsed time: old `started_at`/`finished_at` and counters
+  currently make a restarted export look partially complete before it has rebuilt those rows.
+- Remove internal task prefixes such as `Discover · 00/discover` from the primary timeline.
+  In isolated environments, configure product-home links to the matching environment: the
+  fresh port 5210 UI currently links to the existing port 5100 workspace.
 
 ## Operator observability
 

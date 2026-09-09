@@ -15,6 +15,8 @@ from contextlib import closing
 from statistics import median
 from typing import Any
 
+import orjson
+
 from propertyscope_data_platform.release_builders import BuildContext, default_release_builders
 from propertyscope_data_platform.release_stream import ReleaseRowStream
 from propertyscope_data_store.export_pages import columnar_export_page
@@ -24,7 +26,7 @@ PAGE_SIZE = 20_000
 
 
 def benchmark(
-    rows: int, repetitions: int, product_key: str = "property-snapshot"
+    rows: int, repetitions: int, product_key: str = "property-snapshot", compression_level: int = 6
 ) -> dict[str, Any]:
     """Report comparable bounded runs, requiring byte-identical portable products."""
     if not 1 <= rows <= 1_000_000 or not 1 <= repetitions <= 10:
@@ -81,9 +83,13 @@ def benchmark(
                 }
                 if layout != "record_pages":
                     page = columnar_export_page(page)
-                encoded = json.dumps(page, sort_keys=True, separators=(",", ":")).encode()
+                encoded = (
+                    json.dumps(page, sort_keys=True, separators=(",", ":")).encode()
+                    if layout == "record_pages"
+                    else orjson.dumps(page, option=orjson.OPT_SORT_KEYS)
+                )
                 transport_bytes += len(encoded)
-                return json.loads(encoded)
+                return json.loads(encoded) if layout == "record_pages" else orjson.loads(encoded)
 
             def sequential() -> Iterator[dict[str, Any]]:
                 cursor = None
@@ -115,6 +121,7 @@ def benchmark(
                     context,
                     source,
                     projection_workers=2 if variant == "column_pages_parallel" else 0,
+                    compression_level=compression_level,
                 )
                 for chunk in product.chunks():
                     digest.update(chunk)
@@ -130,6 +137,7 @@ def benchmark(
         "rows": rows,
         "product": product_key,
         "repetitions": repetitions,
+        "compression_level": compression_level,
         "gzip_sha256": reference[0] if reference else None,
         "gzip_bytes": reference[1] if reference else None,
         "variants": {
@@ -209,10 +217,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rows", type=int, default=100_000)
     parser.add_argument("--repetitions", type=int, default=3)
+    parser.add_argument("--compression-level", type=int, choices=range(1, 10), default=6)
     parser.add_argument(
         "--product",
         choices=["property-snapshot", "property-sales", "crime-series"],
         default="property-snapshot",
     )
     arguments = parser.parse_args()
-    print(json.dumps(benchmark(arguments.rows, arguments.repetitions, arguments.product), indent=2))
+    print(
+        json.dumps(
+            benchmark(
+                arguments.rows,
+                arguments.repetitions,
+                arguments.product,
+                arguments.compression_level,
+            ),
+            indent=2,
+        )
+    )

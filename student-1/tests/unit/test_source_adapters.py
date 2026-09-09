@@ -398,7 +398,7 @@ def test_bocsar_preserves_leading_zero_and_sparse_zero() -> None:
     assert [item.count for item in observations] == [3]
 
 
-def test_bocsar_archive_filters_geography_and_months() -> None:
+def test_bocsar_archive_filters_geography_and_months(monkeypatch: pytest.MonkeyPatch) -> None:
     stream = io.BytesIO()
     with ZipFile(stream, "w") as archive:
         archive.writestr(
@@ -406,6 +406,11 @@ def test_bocsar_archive_filters_geography_and_months() -> None:
             "Postcode,Offence,Subcategory,Dec 2024,Jan 2025,Feb 2025\n"
             "2000,Theft,Other,7,2,0\n2007,Theft,Other,8,9,10\n",
         )
+
+    def forbid_full_member_read(*args: Any, **kwargs: Any) -> bytes:
+        raise AssertionError("source-scale CSV members must be streamed")
+
+    monkeypatch.setattr(ZipFile, "read", forbid_full_member_read)
     observations, coverage = parse_bocsar_archive(
         stream.getvalue(),
         geography_kind="postcode",
@@ -417,6 +422,23 @@ def test_bocsar_archive_filters_geography_and_months() -> None:
     )
     assert [(item.geography_value, item.count) for item in observations] == [("2000", 2)]
     assert coverage[0].observed_months == (date(2025, 1, 1), date(2025, 2, 1))
+
+
+def test_bocsar_stream_reports_short_rows_and_preserves_quoted_counts() -> None:
+    with pytest.raises(ValueError, match="missing registered columns"):
+        parse_bocsar_csv(
+            b"Postcode,Offence,Subcategory,Jan 2025\n2000,A,B\n",
+            geography_kind="postcode",
+            maximum_rows=None,
+        )
+    observations, coverage = parse_bocsar_csv(
+        b'Postcode,Offence,Subcategory,Jan 2025\n\n0077,"Theft, other",Total,"1,234"\n',
+        geography_kind="postcode",
+        maximum_rows=None,
+    )
+    assert observations[0].count == 1234
+    assert observations[0].offence_label == "Theft, other"
+    assert coverage[0].geography_value == "0077"
 
 
 def test_full_data_bocsar_has_no_row_or_expansion_ceiling(

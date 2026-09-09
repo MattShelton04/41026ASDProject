@@ -188,6 +188,15 @@ but that mode is slower for the measured nested workload. Small products retain 
 CPU parallelism; acquisition tasks and database import/activation ownership remain unchanged.
 See [the review and measured limits](../reviews/shared-feature-1-improvements-55.md).
 
+The September 9 data pass adds a versioned G-NAF Parquet canonical handoff, retaining legacy
+JSON/NDJSON replay, existing row hashes and database ownership. BOCSAR streams ZIP members,
+reuses bounded immutable month metadata, and exports each series with one indexed observation
+aggregation. Native JSON handles the private page hop and validated portable records. The
+runner defaults to gzip level 3 (configurable 1..9) and batches serial projection; compression
+bytes may change between settings but every release registers its actual checksum. Consumer
+schemas and the human publication boundary are unchanged. See the
+[flow, benchmark evidence and tradeoffs](../reviews/feature-1-data-performance-2026-09-09.md).
+
 The five feature slices now have implemented manifests and enabled routes. Their approved owners
 and boundaries remain in [`registered-feature-scope.md`](registered-feature-scope.md). This shared
 increment does not establish each owner's complete Release 1 submission evidence. Live diagnostics

@@ -83,6 +83,19 @@ def test_parquet_round_trip_is_semantically_identical_to_legacy_ndjson(tmp_path:
     }
 
 
+def test_cached_coverage_still_checks_each_records_checksum(tmp_path: Path) -> None:
+    path = tmp_path / "bocsar.parquet"
+    write_bocsar_parquet(path, [_records()[1], _records()[1]])
+    table = pq.read_table(path)
+    records = table.to_pylist()
+    records[1]["completeness_sha256"] = b"x" * 32
+    pq.write_table(pa.Table.from_pylist(records, schema=table.schema), path)
+    rows = iter(iter_bocsar_parquet_import(path, profile="bocsar-sparse"))
+    assert next(rows)["month_count"] == 2
+    with pytest.raises(ImportProfileError, match="completeness checksum"):
+        next(rows)
+
+
 def test_parquet_writer_is_deterministic_and_materially_smaller_than_ndjson(
     tmp_path: Path,
 ) -> None:

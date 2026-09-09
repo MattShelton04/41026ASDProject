@@ -19,6 +19,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal, Protocol, Self, cast
 
+import orjson
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
 
 from .configuration import (
@@ -435,13 +436,15 @@ def _stable_property_ref(source_id: str) -> uuid.UUID:
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
-    return json.dumps(
-        payload,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
+    # Only Pydantic-validated product records reach this encoder: coordinates are
+    # finite, dates/decimals are already strings, and the shape is JSON-native.
+    # Preserve the public integer contract beyond the native encoder's 64-bit range.
+    try:
+        return orjson.dumps(payload, option=orjson.OPT_SORT_KEYS)
+    except orjson.JSONEncodeError:
+        return json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
 
 
 def _point(row: Mapping[str, Any]) -> tuple[float, float]:
@@ -540,6 +543,7 @@ class RegisteredReleaseBuilder:
         *,
         projection_workers: int = 0,
         heartbeat: Callable[[], None] | None = None,
+        compression_level: int = 6,
     ) -> StreamingProduct:
         """Build the complete deterministic product without retaining it in memory."""
         if context.import_profile not in self.spec.import_profiles:
@@ -550,7 +554,11 @@ class RegisteredReleaseBuilder:
             raise ValueError("release builder/redistribution policy mismatch")
         if not 0 <= projection_workers <= 4:
             raise ValueError("release projection workers must be between zero and four")
-        return StreamingProduct(self, context, rows, projection_workers, heartbeat)
+        if not 1 <= compression_level <= 9:
+            raise ValueError("release compression level must be between one and nine")
+        return StreamingProduct(
+            self, context, rows, projection_workers, heartbeat, compression_level
+        )
 
     def _records(
         self, context: BuildContext, rows: Iterable[Mapping[str, Any]]
@@ -904,12 +912,14 @@ class StreamingProduct:
         rows: Iterable[Mapping[str, Any]],
         projection_workers: int = 0,
         heartbeat: Callable[[], None] | None = None,
+        compression_level: int = 6,
     ) -> None:
         self._builder = builder
         self._context = context
         self._rows = rows
         self._projection_workers = projection_workers
         self._heartbeat = heartbeat
+        self._compression_level = compression_level
         self._consumed = False
         self._record_count = 0
         self._geographies: set[str] = set()
@@ -925,7 +935,7 @@ class StreamingProduct:
         if self._consumed:
             raise RuntimeError("release product stream is single-use")
         self._consumed = True
-        compressor = zlib.compressobj(level=6, method=zlib.DEFLATED, wbits=31)
+        compressor = zlib.compressobj(level=self._compression_level, method=zlib.DEFLATED, wbits=31)
         with closing(self._batches()) as batches:
             for payload, count, summary in batches:
                 if (
@@ -958,10 +968,13 @@ class StreamingProduct:
         rows = iter(self._rows)
         first = list(islice(rows, batch_size)) if self._projection_workers > 1 else []
         if self._projection_workers <= 1 or len(first) < batch_size:
-            for row in first:
-                yield _project_batch(self._builder, self._context, [row])
-            for row in rows:
-                yield _project_batch(self._builder, self._context, [row])
+            if first:
+                yield _project_batch(self._builder, self._context, first)
+            # Avoid per-record summary/set construction and compressor calls. Keep
+            # nested crime batches small, and retain bounded source consumption.
+            serial_batch_size = 32 if self._builder.spec.key == "crime-series" else 256
+            while batch := list(islice(rows, serial_batch_size)):
+                yield _project_batch(self._builder, self._context, batch)
             return
         # A fixed queue avoids Executor.map's eager input consumption on Python 3.12.
         executor = ProcessPoolExecutor(

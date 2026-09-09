@@ -520,7 +520,7 @@ def _apply_setup(page: Page, steps: tuple[dict[str, Any], ...]) -> None:
 def _named_flow(page: Page, name: str) -> None:
     if name in {"edit-job-submit", "edit-source-submit", "edit-source-conflict-submit"}:
         edit = page.locator("button").filter(has_text=re.compile(r"^Edit$")).first
-        if not edit.is_visible():
+        if name == "edit-job-submit" and not edit.is_visible():
             page.get_by_role("button", name=re.compile(r"^More actions for ")).first.click(
                 timeout=5_000
             )

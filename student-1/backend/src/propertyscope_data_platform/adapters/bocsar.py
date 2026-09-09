@@ -73,35 +73,59 @@ def iter_bocsar_csv(
     maximum_records: int | None = None,
 ) -> Iterator[CrimeObservation | CrimeCoverage]:
     """Yield canonical sparse records without retaining a complete source-scale output."""
-    reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig"), newline=""))
-    headers = tuple(reader.fieldnames or ())
+    yield from _iter_bocsar_text(
+        io.StringIO(content.decode("utf-8-sig"), newline=""),
+        geography_kind=geography_kind,
+        maximum_rows=maximum_rows,
+        geography_values=geography_values,
+        start_month=start_month,
+        end_month=end_month,
+        maximum_records=maximum_records,
+    )
+
+
+def _iter_bocsar_text(
+    content: io.TextIOBase,
+    *,
+    geography_kind: str,
+    maximum_rows: int | None,
+    geography_values: frozenset[str] | None,
+    start_month: date | None,
+    end_month: date | None,
+    maximum_records: int | None,
+) -> Iterator[CrimeObservation | CrimeCoverage]:
+    reader = csv.reader(content)
+    headers = tuple(next(reader, ()))
     if len(headers) < 4:
         raise ValueError("BOCSAR source has no month columns")
     month_headers = [
-        (header, month)
-        for header in headers[3:]
+        (column, month)
+        for column, header in enumerate(headers[3:], start=3)
         if (month := _month(header))
         and (start_month is None or month >= start_month)
         and (end_month is None or month <= end_month)
     ]
     if not month_headers:
         raise ValueError("BOCSAR source has no months inside the requested range")
+    months = tuple(month for _, month in month_headers)
     emitted = 0
-    for index, row in enumerate(reader):
+    # DictReader previously allocated a dictionary for every geography/category
+    # across hundreds of columns. Column positions are fixed for the whole file.
+    for index, row in enumerate(row for row in reader if row):
         if maximum_rows is not None and index >= maximum_rows:
             raise ValueError("BOCSAR source exceeds registered row limit")
-        geography = str(row[headers[0]]).strip()
-        offence = str(row[headers[1]]).strip()
-        subcategory = str(row[headers[2]]).strip()
+        if len(row) < len(headers):
+            raise ValueError("BOCSAR row is missing registered columns")
+        geography = row[0].strip()
+        offence = row[1].strip()
+        subcategory = row[2].strip()
         if geography_kind == "postcode":
             geography = geography.zfill(4)
         if geography_values is not None and geography not in geography_values:
             continue
         category_key = re.sub(r"[^a-z0-9]+", "-", f"{offence}-{subcategory}".lower()).strip("-")
-        months: list[date] = []
-        for header, month in month_headers:
-            months.append(month)
-            raw = str(row.get(header, "")).strip().replace(",", "")
+        for column, month in month_headers:
+            raw = row[column].strip().replace(",", "")
             count = 0 if raw == "" else int(raw)
             if count < 0:
                 raise ValueError("BOCSAR count must not be negative")
@@ -121,7 +145,7 @@ def iter_bocsar_csv(
         emitted += 1
         if maximum_records is not None and emitted > maximum_records:
             raise ValueError("BOCSAR canonical output exceeds the requested record limit")
-        yield CrimeCoverage(geography_kind, geography, category_key, tuple(months))
+        yield CrimeCoverage(geography_kind, geography, category_key, months)
     if emitted == 0:
         raise ValueError("BOCSAR source is empty")
 
@@ -184,15 +208,19 @@ def iter_bocsar_archive(
                 and member.file_size > maximum_uncompressed_bytes
             ):
                 raise ValueError("BOCSAR archive exceeds the uncompressed byte limit")
-            yield from iter_bocsar_csv(
-                archive.read(member),
-                geography_kind=geography_kind,
-                maximum_rows=maximum_rows,
-                geography_values=geography_values,
-                start_month=start_month,
-                end_month=end_month,
-                maximum_records=maximum_records,
-            )
+            with (
+                archive.open(member) as raw,
+                io.TextIOWrapper(raw, encoding="utf-8-sig", newline="") as text,
+            ):
+                yield from _iter_bocsar_text(
+                    text,
+                    geography_kind=geography_kind,
+                    maximum_rows=maximum_rows,
+                    geography_values=geography_values,
+                    start_month=start_month,
+                    end_month=end_month,
+                    maximum_records=maximum_records,
+                )
     except BadZipFile as exc:
         raise ValueError("BOCSAR source is not a valid ZIP archive") from exc
 

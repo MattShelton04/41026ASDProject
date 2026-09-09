@@ -317,31 +317,30 @@ def release_export_query(
                 coverage.last_month::text,coverage.month_count,coverage.blank_means_observed_zero,
                 coverage.completeness_sha256,coverage.source_row_sha256,
                 coverage.normalisation_version,
-                (SELECT observation.offence_label FROM warehouse.bocsar_observation observation
-                 WHERE observation.dataset_release_id=coverage.dataset_release_id
-                   AND observation.geography_kind=coverage.geography_kind
-                   AND observation.geography_value=coverage.geography_value
-                   AND observation.source_category_key=coverage.source_category_key
-                 ORDER BY observation.month LIMIT 1) AS offence_label,
-                (SELECT observation.subcategory_label FROM warehouse.bocsar_observation observation
-                 WHERE observation.dataset_release_id=coverage.dataset_release_id
-                   AND observation.geography_kind=coverage.geography_kind
-                   AND observation.geography_value=coverage.geography_value
-                   AND observation.source_category_key=coverage.source_category_key
-                 ORDER BY observation.month LIMIT 1) AS subcategory_label,
-                COALESCE((SELECT jsonb_agg(jsonb_build_object(
-                    'month',observation.month::text,'count',observation.count,
-                    'source_row_sha256',observation.source_row_sha256) ORDER BY observation.month)
-                 FROM warehouse.bocsar_observation observation
-                 WHERE observation.dataset_release_id=coverage.dataset_release_id
-                   AND observation.geography_kind=coverage.geography_kind
-                   AND observation.geography_value=coverage.geography_value
-                   AND observation.source_category_key=coverage.source_category_key),'[]'::jsonb)
-                 AS observations
-                FROM warehouse.bocsar_coverage coverage
-                WHERE coverage.dataset_release_id=%s{predicate}
+                detail.offence_label,detail.subcategory_label,detail.observations
+                FROM (
+                    SELECT * FROM warehouse.bocsar_coverage coverage
+                    WHERE coverage.dataset_release_id=%s{predicate}
+                    ORDER BY coverage.geography_kind,coverage.geography_value,
+                        coverage.source_category_key LIMIT %s
+                ) coverage
+                CROSS JOIN LATERAL (
+                    SELECT (array_agg(observation.offence_label
+                        ORDER BY observation.month))[1] AS offence_label,
+                        (array_agg(observation.subcategory_label
+                        ORDER BY observation.month))[1] AS subcategory_label,
+                        COALESCE(jsonb_agg(jsonb_build_object(
+                            'month',observation.month::text,'count',observation.count,
+                            'source_row_sha256',observation.source_row_sha256)
+                            ORDER BY observation.month),'[]'::jsonb) AS observations
+                    FROM warehouse.bocsar_observation observation
+                    WHERE observation.dataset_release_id=coverage.dataset_release_id
+                        AND observation.geography_kind=coverage.geography_kind
+                        AND observation.geography_value=coverage.geography_value
+                        AND observation.source_category_key=coverage.source_category_key
+                ) detail
                 ORDER BY coverage.geography_kind,coverage.geography_value,
-                    coverage.source_category_key LIMIT %s""",
+                    coverage.source_category_key""",
             params,
             "SELECT count(*) AS count FROM warehouse.bocsar_coverage WHERE dataset_release_id=%s",
             (release_id,),

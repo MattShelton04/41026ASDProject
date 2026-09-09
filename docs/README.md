@@ -4,6 +4,10 @@ Store maintained project documentation here throughout all three releases.
 
 - [Shared setup refinement audit](reviews/shared-setup-refinement-2026-09-08.md): reviewed
   findings, implementation plan, regression evidence and runtime validation.
+- [Feature 1 data performance](reviews/feature-1-data-performance-2026-09-09.md): data flows,
+  query analysis, measured changes and fresh-environment validation.
+- [Feature 1 operator UI follow-up](ui/feature-1-operator-improvements.md): live observations,
+  running-job design, logs and notification suggestions for the next UI pass.
 
 ## First-class documentation map
 

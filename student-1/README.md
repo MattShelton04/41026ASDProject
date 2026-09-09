@@ -78,6 +78,12 @@ loader retains JSON/NDJSON compatibility for historical registered artifacts. Th
 canonical optimisation does not change the complete gzip-NDJSON release export or consumer
 contract, and it never reads unregistered developer/prototype caches.
 
+New G-NAF acquisitions also use typed, bounded Parquet through
+`propertyscope.canonical-gnaf-parquet.v1`. The loader retains legacy JSON/NDJSON replay and
+the same normalization and source hashes. This primarily reduces staging storage and file
+traffic, rather than PostgreSQL materialisation time. BOCSAR CSV members stream directly
+from their ZIP, and shared month coverage is validated once per distinct bounded vector.
+
 New PSI acquisitions use the partition-aware
 `propertyscope.canonical-psi-parquet.v1` handoff. Annual and weekly archives remain in registered
 source order, with typed, bounded, Zstandard-compressed row groups and the same retransmission row
@@ -102,7 +108,7 @@ one page ahead while building the current page, with 20,000 address/sale rows or
 per page. Generation, count and cursor checks still fence the whole export.
 
 Two spawned projection workers validate and serialize bounded batches for large flat products. A
-single runner-owned compressor preserves the existing gzip bytes, ordering and checksum; only
+single runner-owned compressor preserves ordering and deterministic bytes at a fixed compression level; only
 the runner handles HTTP, files, leases and registration. Small products avoid process startup.
 `PROPERTYSCOPE_RELEASE_PROJECTION_WORKERS` accepts 0..4 (default 2); use 0 for serial projection
 on constrained hosts. The Compose CPU/memory limits still apply to the worker children together.
@@ -110,6 +116,15 @@ Crime series retain serial projection: linear-time month membership checks remov
 and measurements showed process transfer overhead outweighed parallel gains for nested series.
 Cancellation stops further scheduling, and unfinished read-only HTTP work retains a 120-second
 transport read timeout. Import and publication transactions remain serial and atomic.
+
+`PROPERTYSCOPE_RELEASE_COMPRESSION_LEVEL` accepts 1..9 (runner default 3; set 6 for the previous
+compression setting). Level 3 reduces export CPU at the cost of larger release downloads.
+Native JSON encoding/decoding handles the private export hop and validated product records;
+the public schemas, source hashes, generation fences and complete-record validation remain.
+Rebuild the affected services after dependency changes. See the
+[performance review](../docs/reviews/feature-1-data-performance-2026-09-09.md) for measurements,
+tradeoffs and the full flow, and the [operator UI brief](../docs/ui/feature-1-operator-improvements.md)
+for proposed follow-up work.
 
 Reproduce the synthetic export measurements without a network or database:
 
@@ -120,7 +135,8 @@ uv run python scripts/benchmark_feature1_exports.py --product crime-series --row
 ```
 
 These measure transport encoding/decoding and product building, not complete source job duration.
-Each variant must produce identical portable gzip bytes. PSI/BOCSAR Parquet staging now reports
+Each variant must produce identical portable gzip bytes at the selected compression level
+(`--compression-level 3` measures the runner default). Parquet staging reports
 consumed row checkpoints during COPY, including the final partial batch, rather than leaving
 Update history at zero until materialisation begins.
 

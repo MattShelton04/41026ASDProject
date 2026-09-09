@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterable
+from datetime import date
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -128,10 +130,7 @@ def _parquet_row(record: CrimeObservation | CrimeCoverage) -> dict[str, Any]:
             "source_row_sha256": _canonical_sha256(canonical),
         }
 
-    month_values = tuple(month.isoformat() for month in record.observed_months)
-    if not month_values or month_values != tuple(sorted(set(month_values))):
-        raise ValueError("BOCSAR coverage months must be non-empty, sorted and unique")
-    completeness = hashlib.sha256(json.dumps(month_values, separators=(",", ":")).encode()).digest()
+    month_values, completeness = _coverage_values(record.observed_months)
     canonical = {
         **common,
         "observed_months": month_values,
@@ -152,6 +151,16 @@ def _parquet_row(record: CrimeObservation | CrimeCoverage) -> dict[str, Any]:
         "completeness_sha256": completeness,
         "source_row_sha256": _canonical_sha256(canonical),
     }
+
+
+@lru_cache(maxsize=64)
+def _coverage_values(months: tuple[date, ...]) -> tuple[tuple[str, ...], bytes]:
+    """Reuse immutable coverage vectors repeated across geography/category rows."""
+    values = tuple(month.isoformat() for month in months)
+    if not values or values != tuple(sorted(set(values))):
+        raise ValueError("BOCSAR coverage months must be non-empty, sorted and unique")
+    digest = hashlib.sha256(json.dumps(values, separators=(",", ":")).encode()).digest()
+    return values, digest
 
 
 def _validate_common(row: dict[str, Any]) -> None:

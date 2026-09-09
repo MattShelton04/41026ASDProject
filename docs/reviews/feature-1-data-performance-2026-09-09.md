@@ -81,6 +81,113 @@ Reproduce with `uv run python scripts/benchmark_feature1_gnaf.py --rows 200000`;
 pointing to a registered legacy canonical NDJSON file for real-row measurements. The default
 uses synthetic addresses and does not contact publishers or write to a database.
 
+## BOCSAR parsing and export queries
+
+The old adapter expanded a complete CSV member into bytes and then a decoded string, constructed
+a dictionary with hundreds of month keys for every input row, and rebuilt the same month tuple.
+The new adapter streams the ZIP member through `TextIOWrapper` and `csv.reader`, resolves column
+positions once, and reuses the immutable coverage vector. Bounded 64-entry caches in the writer
+and loader reuse ISO month strings and the coverage checksum; each individual record still has
+its own identity hash and its supplied coverage metadata/checksum checked. Positive counts,
+explicit observed-zero coverage, quoted CSV fields and leading-zero postcodes are preserved.
+
+`scripts/benchmark_feature1_bocsar.py` compares the adapter at `9459a11` with the working adapter
+using 10,000 synthetic wide rows and 312 months. Uninstrumented parser time fell from 1.644 to
+0.955 seconds (**42% less time**). A separate tracemalloc pass measured peak Python allocations
+falling from 21,017,582 to 141,010 bytes (**99.3% lower**). That is parser allocation, not container
+RSS or a full import measurement. Both produced 190,000 positive observations, 10,000 coverage
+records and identical summed counts. No network or database is involved in this benchmark.
+
+The complete crime export previously performed three correlated indexed observation lookups for
+each coverage series: first offence label, first subcategory label, and all observations. It now
+limits the coverage page first, then performs one lateral aggregate per series. Ordered label
+arrays select the first observation's labels; ordered JSON aggregation builds its observations.
+An aggregate without input still returns the coverage series with null labels and `[]` observations.
+The `(release, geography kind, geography value, category, month)` index supports these lookups.
+
+On the same 500-series page of the retained official release, four interleaved read-only
+`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` runs gave median execution **407.80 → 355.28 ms**
+(12.9% less time), and shared buffer hits **12,076 → 7,098** (41.2% fewer). Result rows matched.
+The sample is deliberately reported as a page query, not an end-to-end crime-job improvement.
+
+## Release CPU and compatibility
+
+The database API now encodes normalized private export pages with `orjson`; the backend continues
+its existing byte relay and the runner decodes the received bytes natively. Portable product
+records still pass Pydantic validation before native encoding. Unsupported large native integers
+fall back to the previous encoder, preserving the existing integer contract; invalid coordinates
+are rejected before encoding. No normalization/source-row hash computation was replaced.
+Serial projection now processes bounded batches (256 flat records or 32 nested crime series),
+reducing repeated summary allocation and compressor calls. Existing bounded flat-product
+process workers remain available; crime remains serial because process transfer costs more.
+
+Runner gzip defaults to level 3 instead of 6. The setting is explicit and reversible through
+`PROPERTYSCOPE_RELEASE_COMPRESSION_LEVEL`; library callers retain level 6 by default. Portable
+NDJSON schemas and records remain compatible. Compression settings and native number formatting
+can change artifact bytes, so new artifacts register their actual SHA-256 as usual; historical
+artifacts remain immutable. This does not promise a new artifact hash identical to an old release.
+
+Using the first 64 MiB of decompressed retained release data, timings below include compression
+**and verification decompression**. They are single component samples, not whole release times:
+
+| Product | Level 6 time | Level 3 time | Level 6 bytes | Level 3 bytes | Size cost |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Addresses | 0.820 s | 0.441 s | 7,104,897 | 8,280,872 | +16.6% |
+| Crime | 1.981 s | 1.160 s | 20,289,949 | 22,092,989 | +8.9% |
+| Sales | 0.776 s | 0.409 s | 5,777,584 | 7,256,709 | +25.6% |
+
+The extra native dependency is pinned through `uv.lock` and requires rebuilding service images.
+It avoids maintaining a custom JSON serializer. See the [orjson implementation and supported
+types](https://github.com/ijl/orjson). Use level 6 when download bandwidth/storage matters more
+than local export CPU. A format migration for every downstream feature was unnecessary.
+
+## Query inventory and remaining costs
+
+All SQL is fixed/parameterized in the database service. The runner never connects to PostgreSQL.
+The important query families, in execution order, are:
+
+1. **Task claim and recovery** (`repository.py`, `_import_operations.py`): short transactional
+   claims persist worker leases; heartbeats use separate requests. One acquisition task and one
+   bulk loader operation run at a time. Restarted workers do not silently steal active leases.
+2. **Import staging** (`import_profiles.py`, `source_materialisation.py`): verify the registered
+   complete artifact, stream normalized tuples through PostgreSQL COPY into a transaction-local
+   typed table, then insert warehouse rows. `COPY ... FREEZE` is used where the temporary table
+   was created in that transaction. There is no per-record HTTP or INSERT transaction.
+3. **G-NAF materialisation**: fixed typed projection and `ST_Transform` produce EPSG:4326 points
+   from the declared input CRS, preserving source coordinates/identity evidence. Candidate rows
+   avoid the expensive partial published search indexes until activation. Parquet cannot remove
+   geometry transformation, warehouse index writes, WAL or full record validation.
+4. **PSI revisions**: group `(source_business_key, source_row_sha256)` to the minimum source
+   ordinal; `row_number()` ordered by first ordinal assigns revisions. This intentionally retains
+   changed facts while coalescing retransmissions. Sorting/hashing millions of rows is expensive
+   but replacing it with “latest row only” would sacrifice sales history and was not done.
+5. **PSI address resolution**: materialize distinct eligible addresses, aggregate accepted G-NAF
+   candidates plus recognized street-type equivalents, aggregate the non-G-NAF registry fallback,
+   and batch left-join the eight exact address components. Ambiguous G-NAF matches cannot fall
+   through to a convenient registry match. Insert only missing matched registry anchors before
+   the sales insert, preserving property foreign keys. This already avoids the old per-sale
+   correlated aggregate bottleneck; this pass does not claim credit for that earlier change.
+6. **BOCSAR materialisation**: ordered `DISTINCT ON` over geography/category/month chooses the
+   first source ordinal for observations; a second ordered pass materializes coverage. Positive
+   observations and coverage remain separate. Temporary sort spill and target index/WAL writes
+   are still substantial for complete history.
+7. **Quality and complete exports** (`query_specs.py`, `_release_records.py`): count the candidate
+   generation and compare with validated input semantics. G-NAF uses PID keyset pages, PSI uses
+   `(business key, revision)`, crime uses `(geography kind, value, category)`. Complete-export
+   counts are obtained once, not per page. User previews retain their separate bounded queries.
+8. **Publication and reads**: verify the registered product, prepare published indexes/summary
+   data through the loader, then atomically change `serving.accepted_generation` and create an
+   independent delivery outbox. Property search reads only accepted published rows, caps candidates
+   at 500, and uses exact numeric/postcode predicates or the normalized trigram search expression.
+   PSI history and SEIFA context hydrate separately from property identity. Full G-NAF activation
+   still writes millions of published flags/index entries; it is not a constant-time pointer-only
+   operation. Consumer imports cannot delay the producer's accepted-pointer switch.
+
+For a uni project, the biggest remaining simplification would be an explicit reusable prepared
+dataset bundle, not removing durable provenance or making features share a database. Serial bulk
+work also prevents several full-history sorts competing for laptop memory. No new queue service,
+distributed scheduler, global PostgreSQL memory override or cross-feature coupling was added.
+
 ## Experiments rejected
 
 Increasing transaction sort memory from 4 MB to 128 MB halved temporary blocks written in a
