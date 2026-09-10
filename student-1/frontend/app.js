@@ -19,6 +19,7 @@ import { createPropertyRoutes } from "./routes/properties.js?v=50";
 import { createReleaseRoutes } from "./routes/releases.js?v=49";
 import { createRunPlanner } from "./routes/run-plan.js";
 import { createRunRoutes } from "./routes/runs.js";
+import { mountNotifications } from "./components/notifications.js";
 import { createSourceHtmxRoute } from "./routes/sources-htmx.js";
 
 const view = document.querySelector("#view");
@@ -83,6 +84,8 @@ function loading(title = "Loading evidence") { renderLoading(view, title); }
 function request(path, options = {}) {
   return requestJson(fetch, path.startsWith("/") ? path : `${API_BASE}/${path}`, options);
 }
+
+mountNotifications(document.querySelector(".topbar-actions"), request, announce);
 
 function routeRequest(path, options = {}) {
   return request(path, {

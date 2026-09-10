@@ -78,6 +78,12 @@ loader retains JSON/NDJSON compatibility for historical registered artifacts. Th
 canonical optimisation does not change the complete gzip-NDJSON release export or consumer
 contract, and it never reads unregistered developer/prototype caches.
 
+New G-NAF acquisitions also use typed, bounded Parquet through
+`propertyscope.canonical-gnaf-parquet.v1`. The loader retains legacy JSON/NDJSON replay and
+the same normalization and source hashes. This primarily reduces staging storage and file
+traffic, rather than PostgreSQL materialisation time. BOCSAR CSV members stream directly
+from their ZIP, and shared month coverage is validated once per distinct bounded vector.
+
 New PSI acquisitions use the partition-aware
 `propertyscope.canonical-psi-parquet.v1` handoff. Annual and weekly archives remain in registered
 source order, with typed, bounded, Zstandard-compressed row groups and the same retransmission row
@@ -102,7 +108,7 @@ one page ahead while building the current page, with 20,000 address/sale rows or
 per page. Generation, count and cursor checks still fence the whole export.
 
 Two spawned projection workers validate and serialize bounded batches for large flat products. A
-single runner-owned compressor preserves the existing gzip bytes, ordering and checksum; only
+single runner-owned compressor preserves ordering and deterministic bytes at a fixed compression level; only
 the runner handles HTTP, files, leases and registration. Small products avoid process startup.
 `PROPERTYSCOPE_RELEASE_PROJECTION_WORKERS` accepts 0..4 (default 2); use 0 for serial projection
 on constrained hosts. The Compose CPU/memory limits still apply to the worker children together.
@@ -110,6 +116,15 @@ Crime series retain serial projection: linear-time month membership checks remov
 and measurements showed process transfer overhead outweighed parallel gains for nested series.
 Cancellation stops further scheduling, and unfinished read-only HTTP work retains a 120-second
 transport read timeout. Import and publication transactions remain serial and atomic.
+
+`PROPERTYSCOPE_RELEASE_COMPRESSION_LEVEL` accepts 1..9 (runner default 3; set 6 for the previous
+compression setting). Level 3 reduces export CPU at the cost of larger release downloads.
+Native JSON encoding/decoding handles the private export hop and validated product records;
+the public schemas, source hashes, generation fences and complete-record validation remain.
+Rebuild the affected services after dependency changes. See the
+[performance review](../docs/reviews/feature-1-data-performance-2026-09-09.md) for measurements,
+tradeoffs and the full flow, and the [operator UI brief](../docs/ui/feature-1-operator-improvements.md)
+for proposed follow-up work.
 
 Reproduce the synthetic export measurements without a network or database:
 
@@ -120,7 +135,8 @@ uv run python scripts/benchmark_feature1_exports.py --product crime-series --row
 ```
 
 These measure transport encoding/decoding and product building, not complete source job duration.
-Each variant must produce identical portable gzip bytes. PSI/BOCSAR Parquet staging now reports
+Each variant must produce identical portable gzip bytes at the selected compression level
+(`--compression-level 3` measures the runner default). Parquet staging reports
 consumed row checkpoints during COPY, including the final partial batch, rather than leaving
 Update history at zero until materialisation begins.
 
@@ -155,6 +171,13 @@ uv run scripts/dev.py stack up
 Use `uv run scripts/dev.py stack up --offline` when validating Feature 1 without an OpenAI credential.
 Database migrations and the deterministic showcase baseline are automatic in both modes; no SQL,
 seed script, or Docker Desktop action is required.
+
+For a long full-history data session, use
+`uv run scripts/dev.py stack up --offline --no-reload --build` before starting jobs. This uses
+built images and avoids development reload polling (particularly expensive on Windows bind mounts).
+It preserves the same project/volumes. Rebuild after edits in this mode; plain `stack up` restores
+the usual source mounts and reload behavior. Switching modes can recreate workers, so do it while
+idle. The performance review separates this runtime choice from parser/query improvements.
 
 For frontend-only browser work, `uv run scripts/dev.py ui serve` serves Shared and Feature 1 together on
 loopback with explicit deterministic UI scenarios and no Docker, database or model credential. See
@@ -425,3 +448,28 @@ verified property point and popup meaning through its existing public `map-conte
 shared package owns GeoJSON validation, renderer/provider lifecycle, tile failure fallback and
 camera interactions. See the [shared mapping README](../shared/frontend/mapping/README.md) for
 adding schools, suburb/area polygons, viewport-backed layers and a different basemap provider.
+
+### Operator progress and activity
+
+Run detail leads with the registered source name, current stage, attempt elapsed time, heartbeat
+age and last observed progress change. Verified Parquet metadata supplies COPY row totals;
+SQL joins/index phases remain indeterminate. Resume restarts the interrupted stage and clears
+its attempt counters/timestamps while the earlier attempt remains in saved activity.
+
+`GET /api/data-platform/v1/ingestion-runs/{id}/activity` relays the database owner's bounded
+`ops.run_activity` log. The database records stage/status/attempt/counter changes atomically
+with task updates, omits heartbeat-only noise and retains the latest 1,000 events per run.
+Only phase names, counts and bounded error codes are logged: no lease tokens, raw exception
+messages or property records. Existing tasks receive an explicitly labelled migration snapshot.
+The UI polls overlapping recent windows, deduplicates event IDs, and supports pause, filtering,
+autoscroll and a text download. It is an operator progress log, not raw container stdout.
+
+The in-app notification inbox observes job completion, failure, interruption, cancellation,
+publication and downstream-delivery outcomes
+every 15 seconds while open (30 seconds in background tabs). Read state and deduplication are
+stored on this browser origin; the initial historical list does not create a notification storm.
+One bounded `/notifications` projection returns the latest 100 states by activity time without
+source snapshots, manifests or credentials. Desktop notifications are optional and permission
+is requested only from the explicit enable button. There is no email, service worker or off-device
+delivery service. Detailed follow-up scope and limitations are in
+[`docs/ui/feature-1-operator-improvements.md`](../docs/ui/feature-1-operator-improvements.md).

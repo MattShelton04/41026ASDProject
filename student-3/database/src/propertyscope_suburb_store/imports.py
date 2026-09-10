@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS source_records (
  locality TEXT, record_json TEXT NOT NULL,
  PRIMARY KEY(operation_id, ordinal), UNIQUE(operation_id, record_key)
 );
-CREATE INDEX IF NOT EXISTS source_locality ON source_records(operation_id, locality);
+CREATE INDEX IF NOT EXISTS source_locality_record
+ ON source_records(operation_id, locality, record_key);
+DROP INDEX IF EXISTS source_locality;
 CREATE TABLE IF NOT EXISTS source_current (dataset_id TEXT PRIMARY KEY, operation_id TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS source_deliveries (
  delivery_key TEXT PRIMARY KEY, operation_id TEXT NOT NULL);

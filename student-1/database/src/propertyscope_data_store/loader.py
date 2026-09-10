@@ -14,6 +14,8 @@ from pathlib import Path
 from threading import Event, Thread
 from typing import Any
 
+import pyarrow.parquet as pq  # type: ignore[import-untyped]
+
 from propertyscope_data_store.configuration import StoreSettings
 from propertyscope_data_store.import_profiles import (
     CANONICAL_PARQUET_MEDIA_TYPE,
@@ -43,6 +45,9 @@ GIBIBYTE = 1024 * 1024 * 1024
 # official-source record counts with the documented 2.5 safety factor, rounded upward.
 # PSI includes accepted G-NAF identity anchors and their provenance (ADR-038).
 SOURCE_SCALE_DATABASE_GROWTH_FLOORS_BYTES = {
+    # Preserve the old full G-NAF NDJSON headroom (~2.22 GB * default factor 4)
+    # when its canonical Parquet is only ~192 MB; compression cannot shrink SQL growth.
+    "gnaf-nsw": 9 * GIBIBYTE,
     "psi-sales": 24 * GIBIBYTE,
     "bocsar-sparse": 8 * GIBIBYTE,
 }
@@ -429,12 +434,15 @@ class DatabaseLoader:
                 ),
                 raise_if_cancelled=raise_if_cancelled,
             )
+            with pq.ParquetFile(path) as parquet:
+                total_rows = int(parquet.metadata.num_rows)
             self._update_import_progress(
                 operation_id,
                 phase_key="typed_staging",
                 rows_processed=0,
                 bytes_processed=0,
-                total_bytes=total_bytes,
+                total_rows=total_rows,
+                total_bytes=None,
             )
             rows = iter_parquet_import(path, profile=profile)
             cancellable_rows = _raise_between_rows(
@@ -445,6 +453,7 @@ class DatabaseLoader:
                     phase_key="typed_staging",
                     rows_processed=count,
                     bytes_processed=0,
+                    total_rows=total_rows,
                     total_bytes=None,
                 ),
             )

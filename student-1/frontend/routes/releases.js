@@ -17,7 +17,7 @@ import {
 } from "./release-publication.js?v=48";
 import { runDialogForm } from "../components/dialogs.js";
 import { formField, filterToolbar } from "../components/forms.js";
-import { badge, detailList, pageHeading, panel, technicalDetails } from "../components/layout.js";
+import { badge, detailList, disclosurePanel, pageHeading, panel, technicalDetails } from "../components/layout.js";
 import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable, primaryCell, technicalReference } from "../components/tables.js";
 import { disposeTableRegions } from "../browser/index.js";
@@ -432,18 +432,22 @@ export function createReleaseRoutes({
     for (const receipt of [...receipts].reverse()) append(receiptBody, detailList([["Research area", receipt.consumer_operation_id?.startsWith("feature-1-local:") ? "Data platform verification" : researchAreaLabel(receipt.target_feature || release.target_feature)], ["Status", badge(receipt.status === "accepted" ? (receipt.consumer_operation_id?.startsWith("feature-1-local:") ? "verified" : "imported") : receipt.status)], ["Rows received", formatNumber(receipt.rows_received)], ["Rows accepted", formatNumber(receipt.rows_accepted)], ["Failure details", receipt.error ? technicalDetails(receipt.error, "Inspect failure") : "None recorded"]]));
     append(side, panel("Publication receipts", "Producer verification and downstream import outcomes", receiptBody));
     const consumerImportBody = el("div");
+    const previousImports = el("div", "stack");
     if (!consumerImports.length) append(consumerImportBody, el("p", "", "No consumer import operations recorded."));
-    for (const operation of [...consumerImports].reverse()) append(consumerImportBody, detailList([
+    for (const [index, operation] of [...consumerImports].reverse().entries()) append(index === 0 ? consumerImportBody : previousImports, detailList([
       ["Status", badge(operation.status)],
       ["Phase", displayName(operation.phase_key || "Not recorded")],
       ["Consumer status", displayName(operation.remote_status || "Not reported")],
       ["Attempt", formatNumber(operation.attempt_number)],
+      ["Last worker heartbeat", formatDate(operation.heartbeat_at)],
+      ["Next check or retry", ["interrupted", "polling", "queued"].includes(operation.status) ? formatDate(operation.next_attempt_at) : "Not scheduled"],
       ["Requested", formatDate(operation.requested_at)],
       ["Started", formatDate(operation.started_at)],
       ["Finished", formatDate(operation.finished_at)],
       ["Budgets", operation.budgets ? technicalDetails(operation.budgets, "Inspect limits") : "Not recorded"],
       ["Failure details", operation.error_json ? technicalDetails(operation.error_json, "Inspect failure") : "None recorded"],
     ]));
+    if (consumerImports.length > 1) append(consumerImportBody, disclosurePanel("Previous delivery attempts", `${consumerImports.length - 1} historical operations; latest outcome shown above`, previousImports));
     append(side, panel("Consumer import operations", "Independent downstream delivery and import outcomes", consumerImportBody));
     const activationBody = el("div");
     if (!activations.length) append(activationBody, el("p", "", "No background publication operations recorded."));

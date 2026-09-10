@@ -43,6 +43,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
     assert document["openapi"] == "3.1.0"
     expected_paths = {
         "/overview",
+        "/notifications",
         "/health/live",
         "/health/ready",
         "/artifact-retention",
@@ -68,6 +69,8 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/ingestion-runs",
         "/ingestion-runs/{run_id}",
         "/ingestion-runs/{run_id}/tasks",
+        "/ingestion-runs/{run_id}/activity",
+        "/ingestion-runs/{run_id}/activity/download",
         "/ingestion-runs/{run_id}/artifacts",
         "/ingestion-runs/{run_id}/quality-results",
         "/ingestion-runs/{run_id}/cancel",

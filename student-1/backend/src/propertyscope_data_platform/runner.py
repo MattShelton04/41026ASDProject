@@ -9,7 +9,7 @@ import signal
 import time
 import uuid
 from collections.abc import Callable, Iterable, Mapping
-from contextlib import AbstractContextManager, closing, nullcontext
+from contextlib import AbstractContextManager, ExitStack, closing, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -17,6 +17,7 @@ from threading import Event, Thread
 from typing import Any
 
 import httpx
+import orjson
 
 from propertyscope_data_platform.acquisition_scope import acquisition_scope_error
 from propertyscope_data_platform.adapters.bocsar import (
@@ -39,6 +40,11 @@ from propertyscope_data_platform.bocsar_parquet import (
     BOCSAR_PARQUET_SCHEMA_VERSION,
     write_bocsar_parquet,
 )
+from propertyscope_data_platform.gnaf_parquet import (
+    GNAF_PARQUET_MEDIA_TYPE,
+    GNAF_PARQUET_SCHEMA_VERSION,
+    write_gnaf_parquet,
+)
 from propertyscope_data_platform.psi_parquet import (
     PSI_PARQUET_MEDIA_TYPE,
     PSI_PARQUET_SCHEMA_VERSION,
@@ -50,7 +56,10 @@ from propertyscope_data_platform.release_builders import (
     validate_feature_registration,
 )
 from propertyscope_data_platform.release_stream import ReleaseRowStream
-from propertyscope_data_platform.source_transport import RegisteredSourceTransport
+from propertyscope_data_platform.source_transport import (
+    RegisteredSourceTransport,
+    SourceAccessError,
+)
 
 SCHOOLS_MASTER_URL = (
     "https://data.nsw.gov.au/data/dataset/"
@@ -106,10 +115,13 @@ class RunnerSettings:
     gnaf_archive_crs: str = "GDA94"
     psi_archive_root: Path | None = None
     release_projection_workers: int = 2
+    release_compression_level: int = 3
 
     def __post_init__(self) -> None:
         if not 0 <= self.release_projection_workers <= 4:
             raise ValueError("release projection workers must be between zero and four")
+        if not 1 <= self.release_compression_level <= 9:
+            raise ValueError("release compression level must be between one and nine")
 
     @classmethod
     def from_environment(cls) -> RunnerSettings:
@@ -129,6 +141,9 @@ class RunnerSettings:
             psi_archive_root=_optional_path(os.environ.get("PROPERTYSCOPE_PSI_ARCHIVE_ROOT")),
             release_projection_workers=int(
                 os.environ.get("PROPERTYSCOPE_RELEASE_PROJECTION_WORKERS", "2")
+            ),
+            release_compression_level=int(
+                os.environ.get("PROPERTYSCOPE_RELEASE_COMPRESSION_LEVEL", "3")
             ),
         )
 
@@ -213,6 +228,9 @@ class AcquisitionRunner:
             result.raise_for_status()
         except TaskCancelledError:
             logger.info("Run task %s (%s) cancelled by operator", task_id, task.get("stage"))
+        except SourceAccessError as exc:
+            logger.warning("Run task %s requires a publisher-approved source download", task_id)
+            self._report_failure(task, lease_token, exc, retryable=True)
         except RegisteredImportError as exc:
             logger.warning("Run task %s import requires recovery", task_id)
             self._report_failure(
@@ -224,6 +242,12 @@ class AcquisitionRunner:
         except httpx.TransportError as exc:
             logger.exception("Run task %s (%s) lost a dependency", task_id, task.get("stage"))
             self._report_failure(task, lease_token, exc, retryable=True)
+        except httpx.HTTPStatusError as exc:
+            retryable = exc.response.status_code >= 500 or exc.response.status_code in {408, 429}
+            logger.warning(
+                "Run task %s control request returned %s", task_id, exc.response.status_code
+            )
+            self._report_failure(task, lease_token, exc, retryable=retryable)
         except Exception as exc:
             logger.exception("Run task %s (%s) failed", task_id, task.get("stage"))
             self._report_failure(task, lease_token, exc, retryable=False)
@@ -313,12 +337,13 @@ class AcquisitionRunner:
                     )
                     schema_version = PSI_PARQUET_SCHEMA_VERSION
                 else:
-                    canonical_chunks = self._live_gnaf_chunks(task, scope, counter)
-                    artifact = self.artifacts.put(
-                        canonical_chunks,
-                        media_type="application/x-ndjson",
+                    artifact = self.artifacts.put_generated(
+                        lambda destination: write_gnaf_parquet(
+                            destination, self._live_gnaf_records(task, scope, counter)
+                        ),
+                        media_type=GNAF_PARQUET_MEDIA_TYPE,
                     )
-                    schema_version = "propertyscope.canonical-import.v1"
+                    schema_version = GNAF_PARQUET_SCHEMA_VERSION
                 self._register_stage_artifact(
                     task,
                     stage=stage,
@@ -402,7 +427,7 @@ class AcquisitionRunner:
                 timeout=httpx.Timeout(120, connect=10, pool=10),
             )
             response.raise_for_status()
-            page = response.json()
+            page = orjson.loads(response.content)
             if not isinstance(page, dict):
                 raise RuntimeError("Release product page is malformed")
             return page
@@ -438,6 +463,7 @@ class AcquisitionRunner:
                 if context.import_profile == "bocsar-sparse"
                 else self.settings.release_projection_workers,
                 heartbeat=lambda: heartbeat(product.record_count, pages.total),
+                compression_level=self.settings.release_compression_level,
             )
             artifact = self.artifacts.put(
                 product.chunks(),
@@ -850,17 +876,23 @@ class AcquisitionRunner:
         )
         if not sources:
             raise RuntimeError("PSI acquisition scope contains no annual or weekly partitions")
-        for source_year, url, cached in sources:
-            source: AbstractContextManager[Path]
-            if cached is not None:
-                source = nullcontext(cached)
-            else:
-                source = self.source_transport.psi_archive_path(
-                    url,
-                    directory=self.settings.artifact_root,
-                    progress=self._heartbeat_progress(task),
-                )
-            with source as path:
+        # Acquire every required archive before spending CPU on history. A blocked
+        # latest week must not invalidate twenty minutes of already parsed sales.
+        # ExitStack also removes downloaded temporaries on failure/cancellation.
+        with ExitStack() as downloads:
+            partitions: list[tuple[int, Path]] = []
+            for source_year, url, cached in sources:
+                path = cached
+                if path is None:
+                    path = downloads.enter_context(
+                        self.source_transport.psi_archive_path(
+                            url,
+                            directory=self.settings.artifact_root,
+                            progress=self._heartbeat_progress(task),
+                        )
+                    )
+                partitions.append((source_year, path))
+            for source_year, path in partitions:
                 yield source_year, iter_psi_archive_path(path, source_year=source_year)
 
     def _note_psi_record(self, task: dict[str, Any], counter: list[int]) -> None:
@@ -889,9 +921,9 @@ class AcquisitionRunner:
         candidate = root / "weekly" / f"{week.strftime('%Y%m%d')}.zip"
         return candidate if candidate.is_file() else None
 
-    def _live_gnaf_chunks(
+    def _live_gnaf_records(
         self, task: dict[str, Any], scope: dict[str, object], counter: list[int]
-    ) -> Iterable[bytes]:
+    ) -> Iterable[dict[str, object]]:
         """Stream the complete registered NSW address generation without retaining it in RAM."""
         source_url, declared_crs = self._discovered_gnaf_source(task)
         if self.settings.gnaf_archive_path and self.settings.gnaf_archive_path.is_file():
@@ -955,10 +987,7 @@ class AcquisitionRunner:
         )
         for item in parsed:
             counter[0] += 1
-            yield (
-                json.dumps(_gnaf_record(item), sort_keys=True, separators=(",", ":")).encode()
-                + b"\n"
-            )
+            yield _gnaf_record(item)
 
     def _discovered_gnaf_source(self, task: dict[str, Any]) -> tuple[str, str]:
         snapshot = task.get("source_snapshot_json")
@@ -1116,14 +1145,16 @@ class AcquisitionRunner:
             raise TaskCancelledError("Run task cancelled by operator")
 
     def _control_request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        """Retry brief control-plane disconnects without losing durable work."""
+        """Retry brief control-plane disconnects/unavailability without losing durable work."""
         for attempt in range(5):
             try:
-                return self.client.request(method, url, **kwargs)
+                response = self.client.request(method, url, **kwargs)
+                if response.status_code not in {502, 503, 504} or attempt == 4:
+                    return response
             except httpx.TransportError:
                 if attempt == 4:
                     raise
-                self.stop_event.wait(min(2**attempt, 5))
+            self.stop_event.wait(min(2**attempt, 5))
         raise AssertionError("unreachable")
 
     def _headers(self) -> dict[str, str]:
@@ -1138,6 +1169,13 @@ def _safe_task_error(
 ) -> dict[str, object]:
     if isinstance(exc, RegisteredImportError):
         return exc.error
+    if isinstance(exc, SourceAccessError):
+        return {
+            "code": "source_access_challenged",
+            "category": "acquisition",
+            "message": str(exc),
+            "retryable": True,
+        }
     safe_code = (
         "quality_gate_failed" if str(task.get("stage")) == "quality" else "stage_execution_failed"
     )

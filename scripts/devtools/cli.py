@@ -44,6 +44,11 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
         action="store_true",
         help="Rebuild application images before starting the stack",
     )
+    up.add_argument(
+        "--no-reload",
+        action="store_true",
+        help="Use built images without source mounts/reload polling; add --build after edits",
+    )
     _add_offline_option(up)
     _add_env_file_option(up)
     up.add_argument(

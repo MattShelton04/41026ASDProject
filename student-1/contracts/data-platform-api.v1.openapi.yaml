@@ -27,6 +27,38 @@ paths:
           content: {application/json: {schema: {$ref: '#/components/schemas/TypedHealthProjection'}}}
   /overview:
     get: {operationId: getOverview, responses: {'200': {description: Platform overview}}}
+  /notifications:
+    get:
+      operationId: listOperatorNotificationStates
+      description: Latest 100 run, publication and downstream-delivery state projections ordered by activity. Contains names, identifiers, statuses and timestamps only; browser read state is local.
+      responses:
+        '200': {description: Bounded notification state list}
+        '503': {$ref: '#/components/responses/Problem'}
+  /ingestion-runs/{run_id}/activity:
+    get:
+      operationId: listRunActivity
+      description: Recent durable task changes, newest first. Retains 1000 events per run. Poll overlapping windows and deduplicate event IDs; sequence allocation is not transaction commit order. Includes phase, counters and bounded error codes, without credentials or raw errors.
+      parameters:
+        - {$ref: '#/components/parameters/RunId'}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 1000, default: 100}
+        - {$ref: '#/components/parameters/Offset'}
+      responses:
+        '200': {description: Paginated recent activity list}
+        '404': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+  /ingestion-runs/{run_id}/activity/download:
+    get:
+      operationId: downloadRunActivity
+      description: Download the current retained window of up to 1000 sanitized events as a plain-text attachment, oldest first.
+      parameters: [{$ref: '#/components/parameters/RunId'}]
+      responses:
+        '200':
+          description: Sanitized activity attachment
+          content: {text/plain: {schema: {type: string}}}
+        '404': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
   /artifact-retention:
     get:
       operationId: getArtifactRetention

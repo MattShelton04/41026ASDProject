@@ -51,6 +51,7 @@ from propertyscope_data_platform.runner import (
     _cancellation_poll_interval,
     _safe_task_error,
 )
+from propertyscope_data_platform.source_transport import SourceAccessError
 
 
 def test_schools_preserves_and_normalises_locality() -> None:
@@ -266,8 +267,9 @@ def test_runner_stops_cooperatively_cancelled_work_without_reporting_a_failure(
     ]
 
 
+@pytest.mark.parametrize("failure_status", [None, 503, 429])
 def test_runner_marks_exhausted_dependency_timeout_as_retryable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_status: int | None
 ) -> None:
     failure: dict[str, object] = {}
 
@@ -295,9 +297,16 @@ def test_runner_marks_exhausted_dependency_timeout_as_retryable(
         RunnerSettings("http://backend", "token", tmp_path, "runner-1", 0.1, 300),
         client=httpx.Client(transport=httpx.MockTransport(control_plane)),
     )
-    monkeypatch.setattr(
-        runner, "_execute", lambda _task: (_ for _ in ()).throw(httpx.ReadTimeout("slow page"))
+    error = (
+        httpx.HTTPStatusError(
+            "dependency unavailable",
+            request=httpx.Request("GET", "http://backend/health"),
+            response=httpx.Response(failure_status),
+        )
+        if failure_status is not None
+        else httpx.ReadTimeout("slow page")
     )
+    monkeypatch.setattr(runner, "_execute", lambda _task: (_ for _ in ()).throw(error))
 
     assert runner.run_once() is True
     assert failure["retryable"] is True
@@ -398,7 +407,7 @@ def test_bocsar_preserves_leading_zero_and_sparse_zero() -> None:
     assert [item.count for item in observations] == [3]
 
 
-def test_bocsar_archive_filters_geography_and_months() -> None:
+def test_bocsar_archive_filters_geography_and_months(monkeypatch: pytest.MonkeyPatch) -> None:
     stream = io.BytesIO()
     with ZipFile(stream, "w") as archive:
         archive.writestr(
@@ -406,6 +415,11 @@ def test_bocsar_archive_filters_geography_and_months() -> None:
             "Postcode,Offence,Subcategory,Dec 2024,Jan 2025,Feb 2025\n"
             "2000,Theft,Other,7,2,0\n2007,Theft,Other,8,9,10\n",
         )
+
+    def forbid_full_member_read(*args: Any, **kwargs: Any) -> bytes:
+        raise AssertionError("source-scale CSV members must be streamed")
+
+    monkeypatch.setattr(ZipFile, "read", forbid_full_member_read)
     observations, coverage = parse_bocsar_archive(
         stream.getvalue(),
         geography_kind="postcode",
@@ -417,6 +431,23 @@ def test_bocsar_archive_filters_geography_and_months() -> None:
     )
     assert [(item.geography_value, item.count) for item in observations] == [("2000", 2)]
     assert coverage[0].observed_months == (date(2025, 1, 1), date(2025, 2, 1))
+
+
+def test_bocsar_stream_reports_short_rows_and_preserves_quoted_counts() -> None:
+    with pytest.raises(ValueError, match="missing registered columns"):
+        parse_bocsar_csv(
+            b"Postcode,Offence,Subcategory,Jan 2025\n2000,A,B\n",
+            geography_kind="postcode",
+            maximum_rows=None,
+        )
+    observations, coverage = parse_bocsar_csv(
+        b'Postcode,Offence,Subcategory,Jan 2025\n\n0077,"Theft, other",Total,"1,234"\n',
+        geography_kind="postcode",
+        maximum_rows=None,
+    )
+    assert observations[0].count == 1234
+    assert observations[0].offence_label == "Theft, other"
+    assert coverage[0].geography_value == "0077"
 
 
 def test_full_data_bocsar_has_no_row_or_expansion_ceiling(
@@ -753,13 +784,18 @@ def test_psi_archive_detects_legacy_rows_inside_official_2001_archive() -> None:
     assert sale.area_square_metres == 44330
 
 
-def test_runner_retries_transient_control_plane_disconnect(tmp_path: Path) -> None:
+@pytest.mark.parametrize("status", [None, 502, 503, 504])
+def test_runner_retries_transient_control_plane_disconnect(
+    tmp_path: Path, status: int | None
+) -> None:
     attempts = 0
 
     def control(_: httpx.Request) -> httpx.Response:
         nonlocal attempts
         attempts += 1
         if attempts == 1:
+            if status is not None:
+                return httpx.Response(status)
             raise httpx.ReadError("connection reset")
         return httpx.Response(200, json={"ok": True})
 
@@ -894,6 +930,74 @@ def test_live_psi_reuses_bounded_official_archive_cache(tmp_path: Path) -> None:
     assert records[0]["source_business_key"] == "001:P1:1"
     assert cast(dict[str, object], document["source"])["cached_source_years"] == [2025]
     assert runner._live_objects("psi-sales", {"years": [2025]})[0]["cached"] is True
+
+
+def test_psi_acquires_all_sources_before_parsing_and_cleans_on_late_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    def source(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path.endswith("2025.zip"):
+            return httpx.Response(403, headers={"cf-mitigated": "challenge"})
+        return httpx.Response(
+            200, content=b"first archive", headers={"Content-Type": "application/zip"}
+        )
+
+    def must_not_parse(*args: object, **kwargs: object) -> None:
+        pytest.fail("history must not be parsed before every required source is acquired")
+
+    monkeypatch.setattr("propertyscope_data_platform.runner.iter_psi_archive_path", must_not_parse)
+    with httpx.Client(transport=httpx.MockTransport(source)) as client:
+        runner = AcquisitionRunner(
+            RunnerSettings("http://backend", "token", tmp_path, "worker", 0.1, 30),
+            client=client,
+        )
+        with pytest.raises(SourceAccessError):
+            list(runner._live_psi_partitions({}, {"years": [2024, 2025]}))
+    assert calls == ["/__psi/yearly/2024.zip", "/__psi/yearly/2025.zip"]
+    assert list(tmp_path.glob("psi-source-*.zip")) == []
+
+
+def test_psi_preacquisition_preserves_order_and_cached_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    cached = cache / "2024.zip"
+    cached.write_bytes(b"cached")
+    downloaded = False
+    paths: list[Path] = []
+
+    def source(_: httpx.Request) -> httpx.Response:
+        nonlocal downloaded
+        downloaded = True
+        return httpx.Response(
+            200, content=b"downloaded", headers={"Content-Type": "application/zip"}
+        )
+
+    def parse(path: Path, *, source_year: int) -> tuple[()]:
+        assert downloaded
+        assert path.read_bytes() == (b"cached" if source_year == 2024 else b"downloaded")
+        paths.append(path)
+        return ()
+
+    monkeypatch.setattr("propertyscope_data_platform.runner.iter_psi_archive_path", parse)
+    with httpx.Client(transport=httpx.MockTransport(source)) as client:
+        runner = AcquisitionRunner(
+            RunnerSettings(
+                "http://backend", "token", tmp_path, "worker", 0.1, 30, psi_archive_root=cache
+            ),
+            client=client,
+        )
+        assert [year for year, _ in runner._live_psi_partitions({}, {"years": [2024, 2025]})] == [
+            2024,
+            2025,
+        ]
+    assert cached.read_bytes() == b"cached"
+    assert len(paths) == 2
+    assert not paths[1].exists()
 
 
 def test_live_bocsar_runner_emits_real_canonical_records(tmp_path: Path) -> None:

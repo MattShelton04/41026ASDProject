@@ -29,6 +29,11 @@ Run `uv run scripts/dev.py --help` for the workflow groups. The common container
 reuses healthy containers and builds only missing images. Use `stack up --build` or targeted
 `stack rebuild` after Docker or dependency inputs change. `stack up --offline` keeps data workflows
 available without an OpenAI credential.
+For long data jobs, `stack up --no-reload --build --offline` uses built images without development
+source mounts or reload polling. It keeps the same project and durable volumes. Source edits then
+require rebuilding images; plain `stack up` returns to automatic development reload. The option is
+per invocation, and `stack rebuild`/`stack restart` retain their development behavior. Start or
+switch modes before queueing work so worker recreation does not interrupt an active job.
 Use `uv run python scripts/check.py` for source quality; `dev.py` does not proxy that command.
 
 | Workflow | Actions | Responsibility |

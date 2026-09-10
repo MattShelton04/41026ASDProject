@@ -28,6 +28,15 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
     if (isBackfill) mode.disabled = true;
     append(modeLabel, mode);
     append(wrapper, modeLabel);
+    const methodHelp = el("p", "field-help");
+    const explainMethod = () => {
+      methodHelp.textContent = mode.value === "reprocess_cached"
+        ? "Skip downloading and parsing by reusing the verified canonical file. Database loading, checks and export run again. The result is a new candidate for review."
+        : "Acquire the complete registered source (using configured official ZIP caches where available), parse, load, check and export a new candidate. Publication is a separate review decision.";
+    };
+    mode.addEventListener("change", explainMethod);
+    explainMethod();
+    append(wrapper, methodHelp);
 
     let scopeProfile = null;
     let yearFields = null;

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+import orjson
 from flask import Blueprint, Response, current_app, jsonify, request
 
 from propertyscope_data_store.errors import (
@@ -42,6 +43,10 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     @api.get("/internal/data-platform/v1/overview")
     def overview() -> Response:
         return jsonify(store.overview())
+
+    @api.get("/internal/data-platform/v1/notifications")
+    def operator_notifications() -> Response:
+        return jsonify({"items": store.operator_notifications()})
 
     @api.get("/internal/data-platform/v1/artifact-retention")
     def artifact_retention() -> Response:
@@ -161,6 +166,15 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         return jsonify(
             envelope(
                 store.run_tasks(run_id, limit=limit, offset=offset), limit=limit, offset=offset
+            )
+        )
+
+    @api.get("/internal/data-platform/v1/runs/<uuid:run_id>/activity")
+    def run_activity(run_id: uuid.UUID) -> Response:
+        limit, offset = pagination(maximum_limit=1000, default_limit=100)
+        return jsonify(
+            envelope(
+                store.run_activity(run_id, limit=limit, offset=offset), limit=limit, offset=offset
             )
         )
 
@@ -313,7 +327,12 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         page = store.release_product_records(
             release_id, limit=limit, cursor=request.args.get("cursor") or None
         )
-        return jsonify(columnar_export_page(page) if layout == "columns" else page)
+        payload = columnar_export_page(page) if layout == "columns" else page
+        # The fixed projections normalize UUIDs, decimals and dates before this
+        # boundary. Encode the large private page once without Flask's Python walk.
+        return Response(
+            orjson.dumps(payload, option=orjson.OPT_SORT_KEYS), mimetype="application/json"
+        )
 
     @api.get("/internal/data-platform/v1/releases/<uuid:release_id>/sales-source-records")
     def releases_sales_source_records(release_id: uuid.UUID) -> Response:

@@ -188,6 +188,15 @@ but that mode is slower for the measured nested workload. Small products retain 
 CPU parallelism; acquisition tasks and database import/activation ownership remain unchanged.
 See [the review and measured limits](../reviews/shared-feature-1-improvements-55.md).
 
+The September 9 data pass adds a versioned G-NAF Parquet canonical handoff, retaining legacy
+JSON/NDJSON replay, existing row hashes and database ownership. BOCSAR streams ZIP members,
+reuses bounded immutable month metadata, and exports each series with one indexed observation
+aggregation. Native JSON handles the private page hop and validated portable records. The
+runner defaults to gzip level 3 (configurable 1..9) and batches serial projection; compression
+bytes may change between settings but every release registers its actual checksum. Consumer
+schemas and the human publication boundary are unchanged. See the
+[flow, benchmark evidence and tradeoffs](../reviews/feature-1-data-performance-2026-09-09.md).
+
 The five feature slices now have implemented manifests and enabled routes. Their approved owners
 and boundaries remain in [`registered-feature-scope.md`](registered-feature-scope.md). This shared
 increment does not establish each owner's complete Release 1 submission evidence. Live diagnostics
@@ -1416,3 +1425,13 @@ unrelated replacement document.
 with a durable 202/status workflow, bounded streaming and invisible replayable generation batches.
 Feature 1 pushes release metadata; each consumer pulls bytes and owns its own accepted-generation
 switch. Full-size consumer import is independent of producer publication under ADR-041.
+
+Feature 1 operator observability stays inside its existing database/backend HTTP boundary.
+Migration 052 adds a bounded `ops.run_activity` projection of task changes: status, stage, attempt,
+phase, row/byte counters and error code. It records changes in the task transaction, skips pure
+heartbeats, and retains at most 1,000 events per run. Existing tasks get labelled current-state
+snapshots. Public activity reads relay through the backend; browsers never read the database or
+container logs. Overlapping recent-window polling plus event-ID deduplication deliberately avoids
+treating PostgreSQL sequence allocation as transaction commit order. No event broker or SSE
+service is needed for this scale. Local browser notifications derive from observed run transitions,
+with bounded origin-local read/deduplication state and explicitly opt-in desktop delivery.

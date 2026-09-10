@@ -10,6 +10,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -183,6 +184,9 @@ def iter_bocsar_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str
 
 def iter_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str, Any]]:
     """Dispatch a registered profile to its exact typed Parquet contract."""
+    if profile == "gnaf-nsw":
+        yield from iter_gnaf_parquet_import(path)
+        return
     if profile == "bocsar-sparse":
         yield from iter_bocsar_parquet_import(path, profile=profile)
         return
@@ -190,6 +194,52 @@ def iter_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str, Any]]
         yield from iter_psi_parquet_import(path, profile=profile)
         return
     raise ImportProfileError("canonical Parquet is not registered for this import profile")
+
+
+def iter_gnaf_parquet_import(path: Path) -> Iterable[dict[str, Any]]:
+    """Verify the exact source contract, then use the same normalization as legacy JSON."""
+    # Deliberately database-owned: this service does not import backend implementation code.
+    schema = pa.schema(
+        [
+            pa.field("gnaf_pid", pa.string(), nullable=False),
+            pa.field("property_ref", pa.string()),
+            pa.field("address_display", pa.string(), nullable=False),
+            pa.field("flat_type", pa.string()),
+            pa.field("unit_number", pa.string()),
+            pa.field("street_number_first", pa.int32()),
+            pa.field("street_number_suffix", pa.string()),
+            pa.field("street_number_last", pa.int32()),
+            pa.field("street_name", pa.string()),
+            pa.field("street_type", pa.string()),
+            pa.field("locality", pa.string(), nullable=False),
+            pa.field("postcode", pa.string(), nullable=False),
+            pa.field("source_status", pa.string(), nullable=False),
+            pa.field("geocode_type", pa.string(), nullable=False),
+            pa.field("source_crs", pa.int32(), nullable=False),
+            pa.field("latitude", pa.float64(), nullable=False),
+            pa.field("longitude", pa.float64(), nullable=False),
+        ],
+        metadata={
+            b"propertyscope.schema_version": b"propertyscope.canonical-gnaf-parquet.v1",
+            b"propertyscope.import_profile": b"gnaf-nsw",
+        },
+    )
+    try:
+        with pq.ParquetFile(path) as parquet:
+            actual = parquet.schema_arrow
+            if not actual.remove_metadata().equals(schema.remove_metadata()):
+                raise ImportProfileError("canonical G-NAF Parquet schema is not registered")
+            if any((actual.metadata or {}).get(k) != v for k, v in schema.metadata.items()):
+                raise ImportProfileError("canonical G-NAF Parquet metadata is not registered")
+            if parquet.metadata.num_rows == 0:
+                raise ImportProfileError("canonical import artifact must not be empty")
+            index = 0
+            for batch in parquet.iter_batches(batch_size=65_536):
+                for row in batch.to_pylist():
+                    index += 1
+                    yield _gnaf(row, index)
+    except (OSError, pa.ArrowException) as exc:
+        raise ImportProfileError("canonical G-NAF Parquet artifact is unreadable") from exc
 
 
 def iter_psi_parquet_import(path: Path, *, profile: str) -> Iterable[dict[str, Any]]:
@@ -433,9 +483,14 @@ def _bocsar_parquet_row(source: dict[str, Any], index: int) -> dict[str, Any]:
     raw_months = source.get("observed_months")
     if not isinstance(raw_months, list) or not raw_months:
         raise ImportProfileError(f"record {index} observed_months must be non-empty")
-    months = tuple(_parquet_date_value(value, "observed_months", index) for value in raw_months)
-    if months != tuple(sorted(set(months))):
-        raise ImportProfileError(f"record {index} observed_months must be sorted and unique")
+    if any(not isinstance(value, date) or isinstance(value, datetime) for value in raw_months):
+        raise ImportProfileError(f"record {index} observed_months must contain dates")
+    try:
+        months, expected_completeness = _bocsar_coverage_values(tuple(raw_months))
+    except ValueError as exc:
+        raise ImportProfileError(
+            f"record {index} observed_months must be sorted and unique"
+        ) from exc
     first_month = _parquet_date(source, "first_month", index)
     last_month = _parquet_date(source, "last_month", index)
     if first_month != months[0] or last_month != months[-1]:
@@ -447,9 +502,6 @@ def _bocsar_parquet_row(source: dict[str, Any], index: int) -> dict[str, Any]:
     if not isinstance(zero_semantics, bool):
         raise ImportProfileError(f"record {index} zero semantics must be boolean")
     completeness = _parquet_sha256(source, "completeness_sha256", index)
-    expected_completeness = hashlib.sha256(
-        json.dumps(months, separators=(",", ":")).encode()
-    ).hexdigest()
     if completeness != expected_completeness:
         raise ImportProfileError(f"record {index} completeness checksum does not match coverage")
     return {
@@ -463,6 +515,16 @@ def _bocsar_parquet_row(source: dict[str, Any], index: int) -> dict[str, Any]:
         "month_or_coverage": "coverage",
         "source_row_sha256": source_hash,
     }
+
+
+@lru_cache(maxsize=64)
+def _bocsar_coverage_values(months: tuple[date, ...]) -> tuple[tuple[str, ...], str]:
+    """Cache only immutable month-vector derivation; each row's evidence is still checked."""
+    values = tuple(month.isoformat() for month in months)
+    if values != tuple(sorted(set(values))):
+        raise ValueError("coverage months must be sorted and unique")
+    checksum = hashlib.sha256(json.dumps(values, separators=(",", ":")).encode()).hexdigest()
+    return values, checksum
 
 
 def _parquet_text(source: Mapping[str, Any], field: str, index: int) -> str:
@@ -789,6 +851,9 @@ def _insert_psi_rows(
             cursor.execute("ANALYZE propertyscope_psi_address_resolution")
         else:
             inserted = max(0, int(cursor.rowcount))
+    # Export starts immediately after commit. A fresh generation must not wait for
+    # autovacuum to discover millions of rows before planning its first keyset pages.
+    cursor.execute("ANALYZE warehouse.psi_sale")
     if inserted:
         return inserted
     cursor.execute(_PROFILE_COUNT_SQL["psi-sales"], parameters)

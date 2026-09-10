@@ -67,9 +67,17 @@ ENVIRONMENT_FILE_COMMANDS = frozenset(
 )
 
 
-def _compose_command(*arguments: str, placement: str | None = None) -> tuple[str, ...]:
+def _compose_command(
+    *arguments: str, placement: str | None = None, reload: bool = True
+) -> tuple[str, ...]:
     command = ["docker", "compose"]
-    for filename in COMPOSE_FILES:
+    if not reload:
+        # The development overlay also supplies name: ps-dev. Omitting it must
+        # retain the same containers/volumes rather than start the base "ps" project.
+        command.extend(
+            ("--project-name", os.environ.get("COMPOSE_PROJECT_NAME") or DEFAULT_PROJECT_NAME)
+        )
+    for filename in COMPOSE_FILES if reload else PRODUCTION_COMPOSE_FILES:
         command.extend(("--file", filename))
     if (placement or ai_runtime.selection()) == "docker":
         command.extend(("--file", ai_runtime.OVERLAY))
@@ -408,12 +416,13 @@ def _sync_psi(*, years: Sequence[int], weeks: Sequence[date]) -> None:
             if destination.is_file():
                 try:
                     with ZipFile(destination) as archive:
-                        archive.testzip()
-                    print(
-                        f"PSI cache retained: {destination.relative_to(REPOSITORY_ROOT)}",
-                        flush=True,
-                    )
-                    continue
+                        valid_cache = bool(archive.namelist()) and archive.testzip() is None
+                    if valid_cache:
+                        print(
+                            f"PSI cache retained: {destination.relative_to(REPOSITORY_ROOT)}",
+                            flush=True,
+                        )
+                        continue
                 except BadZipFile:
                     pass
             print(f"PSI source: {url}", flush=True)
@@ -462,7 +471,9 @@ def _compose_environment(*, offline: bool) -> Mapping[str, str]:
     return environment
 
 
-def _up(*, offline: bool, build: bool = False, placement: str | None = None) -> None:
+def _up(
+    *, offline: bool, build: bool = False, placement: str | None = None, reload: bool = True
+) -> None:
     # Validate even an explicit switch before touching credentials or existing owners.
     ai_runtime.read_state()
     selected_placement = placement or ai_runtime.selection()
@@ -512,6 +523,7 @@ def _up(*, offline: bool, build: bool = False, placement: str | None = None) -> 
                 "180",
                 *ai_runtime.services(mode),
                 placement=selected_placement,
+                reload=reload,
             ),
             environment=compose_environment,
         )
@@ -532,11 +544,16 @@ def _up(*, offline: bool, build: bool = False, placement: str | None = None) -> 
         )
     )
     _run(
-        _compose_command(*up_arguments, placement=selected_placement),
+        _compose_command(*up_arguments, placement=selected_placement, reload=reload),
         environment=compose_environment,
     )
     _reload_shared_edge(environment=compose_environment, placement=selected_placement)
     print(f"AI runtime:         {selected_placement} ({mode})", flush=True)
+    print(
+        "Source refresh:     "
+        + ("development reload" if reload else "built images; use --build after edits"),
+        flush=True,
+    )
     ports = _resolved_host_ports(APPLICATION_SERVICES)
     shared_port = ports["shared-frontend"][1]
     print(f"\nAI-mode health:     http://localhost:{shared_port}/api/shared-health/ai-mode")
@@ -826,7 +843,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if arguments.group in {"stack", "ai"} and command != ("stack", "up"):
             ai_runtime.require_same_placement()
         if command == ("stack", "up"):
-            _up(offline=arguments.offline, build=arguments.build, placement=arguments.ai_runtime)
+            _up(
+                offline=arguments.offline,
+                build=arguments.build,
+                placement=arguments.ai_runtime,
+                reload=not arguments.no_reload,
+            )
         elif command == ("stack", "build"):
             _production_build(arguments.services)
         elif command == ("stack", "rebuild"):

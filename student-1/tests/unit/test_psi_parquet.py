@@ -178,6 +178,10 @@ def test_psi_parquet_rejects_empty_and_corrupt_artifacts(tmp_path: Path) -> None
 class _StreamStore:
     def __init__(self) -> None:
         self.rows: list[dict[str, Any]] = []
+        self.progress: list[dict[str, Any]] = []
+
+    def update_import_progress(self, _operation_id: uuid.UUID, **values: Any) -> None:
+        self.progress.append(values)
 
     def import_cancel_requested(self, _operation_id: uuid.UUID) -> bool:
         return False
@@ -229,3 +233,5 @@ def test_loader_routes_verified_psi_parquet_to_the_existing_postgres_import(
     assert counts == {"rows_in": 1, "rows_staged": 1, "rows_accepted": 1, "rows_rejected": 0}
     assert store.rows == _legacy_rows(partitions)
     assert evidence["staging_method"] == "postgresql-copy"
+    staging = [event for event in store.progress if event["phase_key"] == "typed_staging"]
+    assert staging and all(event["total_rows"] == 1 for event in staging)

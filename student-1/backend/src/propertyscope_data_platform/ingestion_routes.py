@@ -38,6 +38,54 @@ def register_ingestion_routes(
 ) -> None:
     """Register source definitions, jobs, and ingestion-run lifecycle routes."""
 
+    @api.get(f"{base}/notifications")
+    def operator_notifications() -> Response:
+        return forward(store.request("GET", f"{internal}/notifications", headers=request.headers))
+
+    @api.get(f"{base}/ingestion-runs/<uuid:run_id>/activity/download")
+    def download_run_activity(run_id: uuid.UUID) -> Response:
+        response = store.request(
+            "GET",
+            f"{internal}/runs/{run_id}/activity",
+            headers=request.headers,
+            params={"limit": 1000},
+        )
+        if response.status_code >= 400:
+            return forward(response)
+        fields = (
+            "recorded_at",
+            "stage",
+            "status",
+            "attempt_number",
+            "phase",
+            "rows_processed",
+            "bytes_processed",
+            "error_code",
+            "event_kind",
+        )
+        lines = [" | ".join(fields)]
+        for event in reversed(response.json().get("items", [])[:1000]):
+            lines.append(
+                " | ".join(
+                    "".join(
+                        character
+                        for character in str(
+                            event.get(field) if event.get(field) is not None else ""
+                        )[:150]
+                        if character.isprintable()
+                    )
+                    for field in fields
+                )
+            )
+        return Response(
+            "\n".join(lines) + "\n",
+            mimetype="text/plain",
+            headers={
+                "Content-Disposition": f'attachment; filename="update-{run_id}-activity.txt"',
+                "Cache-Control": "no-store",
+            },
+        )
+
     def lineage_scope(
         run_data: Mapping[str, Any], *, run_mode: str
     ) -> tuple[dict[str, Any] | None, Response | None]:
@@ -236,7 +284,7 @@ def register_ingestion_routes(
     def run(run_id: uuid.UUID) -> Response:
         return forward(store.request("GET", f"{internal}/runs/{run_id}", headers=request.headers))
 
-    for child in ("tasks", "artifacts", "quality-results"):
+    for child in ("tasks", "artifacts", "quality-results", "activity"):
         endpoint = child.replace("-", "_")
 
         def run_child(run_id: uuid.UUID, child: str = child) -> Response:

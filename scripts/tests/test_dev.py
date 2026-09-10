@@ -2,15 +2,50 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
+from zipfile import ZipFile
 
 import httpx
 import pytest
 from scripts import dev
+
+
+@pytest.mark.parametrize("cached_kind", ["valid", "empty", "bad_crc", "not_zip"])
+def test_psi_sync_reuses_only_nonempty_crc_verified_archives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cached_kind: str
+) -> None:
+    monkeypatch.setattr(dev, "REPOSITORY_ROOT", tmp_path)
+    payload = io.BytesIO()
+    with ZipFile(payload, "w") as archive:
+        archive.writestr("source.DAT", "valid source payload")
+    valid = payload.getvalue()
+    empty = io.BytesIO()
+    with ZipFile(empty, "w"):
+        pass
+    contents = {
+        "valid": valid,
+        "empty": empty.getvalue(),
+        "bad_crc": valid.replace(b"valid source", b"wrong source"),
+        "not_zip": b"not a source archive",
+    }
+    destination = tmp_path / ".propertyscope-source-cache" / "psi" / "2025.zip"
+    destination.parent.mkdir(parents=True)
+    destination.write_bytes(contents[cached_kind])
+    downloads: list[str] = []
+
+    def download(_client: httpx.Client, url: str) -> bytes:
+        downloads.append(url)
+        return valid
+
+    monkeypatch.setattr(dev, "_download_psi_archive", download)
+    dev._sync_psi(years=[2025], weeks=[])
+    assert len(downloads) == (0 if cached_kind == "valid" else 1)
+    assert destination.read_bytes() == valid
 
 
 @pytest.fixture(autouse=True)
@@ -238,6 +273,31 @@ def test_up_build_is_explicit(
     assert dev.main(["stack", "up", "--build"]) == 0
 
     assert "--build" in captured_commands[1]
+
+
+def test_long_data_run_uses_images_without_development_reload_overlay(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["stack", "up", "--no-reload", "--build"]) == 0
+    command = captured_commands[1]
+    assert "docker-compose.dev.yml" not in command
+    assert command[command.index("--project-name") + 1] == dev.DEFAULT_PROJECT_NAME
+    assert all(filename in command for filename in dev.PRODUCTION_COMPOSE_FILES)
+    assert "--build" in command
+    assert command[-len(dev.APPLICATION_SERVICES) :] == dev.APPLICATION_SERVICES
+    assert "--volumes" not in command
+
+
+def test_no_reload_retains_selected_ai_runtime_overlay() -> None:
+    command = dev._compose_command("up", placement="docker", reload=False)
+    assert dev.ai_runtime.OVERLAY in command
+    assert "docker-compose.dev.yml" not in command
+
+
+def test_no_reload_preserves_explicit_compose_project(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "isolated-data-test")
+    command = dev._compose_command("up", placement="host", reload=False)
+    assert command[command.index("--project-name") + 1] == "isolated-data-test"
 
 
 def test_restart_can_target_one_service(

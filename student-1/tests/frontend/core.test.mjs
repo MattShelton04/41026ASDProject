@@ -72,6 +72,66 @@ import {
 import {
   failureExplanationDraft, reconcileTimelineTask, runFailureSummary,
 } from "../../frontend/core/run-failure.js";
+import { activityLine, mergeActivity, taskProgress } from "../../frontend/core/run-progress.js";
+import { notificationLink, notificationTitle, reconcileNotifications } from "../../frontend/core/notifications.js";
+
+test("progress separates worker liveness from advancement and ignores old queued counters", () => {
+  const now = Date.parse("2026-09-09T12:00:00Z");
+  const task = { status: "running", started_at: now - 300000, heartbeat_at: now - 2000, progress_updated_at: now - 1000, progress_changed_at: now - 180000, progress_rows: 50, progress_total_rows: 100 };
+  assert.equal(taskProgress(task, now).stalled, true);
+  assert.equal(taskProgress(task, now).stale, false);
+  assert.equal(taskProgress(task, now).ratio, .5);
+  assert.equal(taskProgress({ ...task, heartbeat_at: now - 60000 }, now).stale, true);
+  const pending = taskProgress({ ...task, status: "pending", rows_out: 1000 }, now);
+  assert.equal(pending.rows, 0);
+  assert.equal(pending.ratio, null);
+  assert.equal(pending.elapsed, null);
+  assert.equal(taskProgress({ ...task, progress_total_rows: null }, now).ratio, null);
+});
+
+test("activity merges overlapping windows, bounds retained entries and exports only display fields", () => {
+  const entries = Array.from({ length: 1100 }, (_, id) => ({ id, task_id: "task", stage: "import", status: "running", rows_processed: id }));
+  const merged = mergeActivity(entries.slice(0, 900), entries.slice(800));
+  assert.equal(merged.length, 1000);
+  assert.equal(merged[0].id, 100);
+  assert.equal(merged.at(-1).id, 1099);
+  assert.equal(activityLine({ ...entries[0], lease_token: "SECRET", error_json: { message: "PRIVATE" } }).includes("SECRET"), false);
+  assert.equal(activityLine({ ...entries[0], error_json: { message: "PRIVATE" } }).includes("PRIVATE"), false);
+});
+
+test("notifications ignore historical completion then persist and deduplicate observed transitions", () => {
+  const run = { id: "one", status: "running", requested_at: "2026-09-09T11:00:00Z" };
+  const now = Date.parse("2026-09-09T12:00:00Z");
+  const first = reconcileNotifications(null, [run, { ...run, id: "old", status: "failed" }], now);
+  assert.equal(first.added.length, 0);
+  const done = { ...run, status: "succeeded", finished_at: "2026-09-09T12:01:00Z" };
+  const completed = reconcileNotifications(JSON.parse(JSON.stringify(first.state)), [done], now + 60000);
+  assert.equal(completed.added.length, 1);
+  completed.state.items[0].read = true;
+  const repeated = reconcileNotifications(completed.state, [done], now + 90000);
+  assert.equal(repeated.added.length, 0);
+  assert.equal(repeated.state.items[0].read, true);
+});
+
+test("notifications catch short jobs between polls and retain only fifty outcomes", () => {
+  const now = Date.parse("2026-09-09T12:00:00Z");
+  const first = reconcileNotifications(null, [], now);
+  const runs = Array.from({ length: 70 }, (_, id) => ({ id: String(id), status: "failed", requested_at: new Date(now + 1000).toISOString() }));
+  const next = reconcileNotifications(first.state, runs, now + 15000);
+  assert.equal(next.added.length, 70);
+  assert.equal(next.state.items.length, 50);
+  assert.equal(reconcileNotifications(next.state, runs, now + 30000).added.length, 0);
+});
+
+test("publication and downstream notifications use release links and distinct outcomes", () => {
+  const now = Date.parse("2026-09-09T12:00:00Z");
+  const state = reconcileNotifications(null, [], now).state;
+  const result = reconcileNotifications(state, [{ id: "publication:one", target_id: "release-one", kind: "publication", status: "published", requested_at: "2026-01-01", activity_at: new Date(now + 1000).toISOString() }, { id: "delivery:two", target_id: "release-two", kind: "delivery", status: "failed", activity_at: new Date(now + 1000).toISOString() }], now + 2000);
+  assert.equal(result.added.length, 2);
+  assert.equal(notificationLink(result.added[0]), "#releases/release-one");
+  assert.match(notificationTitle(result.added[1]), /downstream delivery failed/);
+  assert.equal(reconcileNotifications(result.state, [], now + 3000).added.length, 0);
+});
 
 function response(body, { status = 200, headers = {} } = {}) {
   return {

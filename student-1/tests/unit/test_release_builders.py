@@ -122,6 +122,48 @@ def test_parallel_projection_preserves_gzip_bytes_source_order_and_manifest() ->
     ]
 
 
+def test_fast_compression_preserves_complete_uncompressed_product_and_is_repeatable() -> None:
+    builder = default_release_builders()["property-snapshot"]
+    rows = [_property_row(index) for index in range(513)]
+    outputs = [
+        b"".join(builder.stream(_context(), rows, compression_level=level).chunks())
+        for level in (6, 3, 3)
+    ]
+    assert gzip.decompress(outputs[0]) == gzip.decompress(outputs[1])
+    assert outputs[1] == outputs[2]
+    with pytest.raises(ValueError, match="compression level"):
+        builder.stream(_context(), rows, compression_level=0)
+
+
+def test_native_release_encoding_matches_legacy_json_for_validated_records() -> None:
+    builder = default_release_builders()["property-snapshot"]
+    rows = [_property_row(index) for index in range(257)]
+    rows[0]["address_display"] = 'Café "Example" Lane\nSydney'
+    records = [builder._records(_context(), [row])[0] for row in rows]
+    expected = b"".join(
+        json.dumps(
+            record, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+        ).encode()
+        + b"\n"
+        for record in records
+    )
+    assert gzip.decompress(b"".join(builder.stream(_context(), rows).chunks())) == expected
+
+
+def test_native_release_encoding_retains_unbounded_integer_contract() -> None:
+    from propertyscope_data_platform.release_builders import _canonical_bytes
+
+    value = {"price_aud": 10**80}
+    assert json.loads(_canonical_bytes(value)) == value
+
+
+@pytest.mark.parametrize("latitude", [float("nan"), float("inf"), float("-inf")])
+def test_native_release_encoding_cannot_hide_invalid_coordinates(latitude: float) -> None:
+    row = {**_property_row(), "latitude": latitude, "longitude": 151.0}
+    with pytest.raises(ValueError):
+        b"".join(default_release_builders()["property-snapshot"].stream(_context(), [row]).chunks())
+
+
 def test_parallel_projection_failure_removes_partial_artifact(tmp_path: Path) -> None:
     rows = [_property_row(index) for index in range(5_001)]
     rows[5_000]["postcode"] = "invalid"

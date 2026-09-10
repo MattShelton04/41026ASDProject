@@ -720,13 +720,63 @@ class PropertyScopeStore:
 
     def get_run(self, run_id: uuid.UUID) -> JsonObject:
         return _run_projection(
-            self._required("SELECT * FROM ops.ingestion_run WHERE id=%s", (run_id,))
+            self._required(
+                """SELECT run.*,job.name AS job_name,source.name AS source_name
+                FROM ops.ingestion_run run
+                JOIN ops.job_definition job ON job.id=run.job_definition_id
+                JOIN ops.source_definition source ON source.id=run.source_definition_id
+                WHERE run.id=%s""",
+                (run_id,),
+            )
+        )
+
+    def run_activity(self, run_id: uuid.UUID, *, limit: int, offset: int) -> list[JsonObject]:
+        """Return recent sanitized changes; overlapping polls avoid sequence commit races."""
+        self.get_run(run_id)
+        return self._fetch_all(
+            """SELECT * FROM ops.run_activity WHERE ingestion_run_id=%s
+            ORDER BY id DESC LIMIT %s OFFSET %s""",
+            (run_id, limit, offset),
+        )
+
+    def operator_notifications(self) -> list[JsonObject]:
+        """Small state projection; never send source snapshots or manifests to the inbox."""
+        return self._fetch_all(
+            """SELECT * FROM (
+                SELECT 'run:'||run.id AS id,'run' AS kind,run.id AS target_id,run.status,
+                    source.name AS source_name,run.requested_at,run.finished_at,
+                    GREATEST(run.requested_at,run.heartbeat_at,run.finished_at) AS activity_at
+                FROM ops.ingestion_run run JOIN ops.source_definition source
+                    ON source.id=run.source_definition_id
+                UNION ALL
+                SELECT 'publication:'||release.id,'publication',release.id,'published',
+                    source.name,release.created_at,release.accepted_at,release.accepted_at
+                FROM ops.dataset_release release JOIN ops.source_definition source
+                    ON source.id=release.source_definition_id
+                WHERE release.accepted_at IS NOT NULL
+                UNION ALL
+                SELECT 'delivery:'||operation.id,'delivery',operation.dataset_release_id,
+                    CASE WHEN operation.status='succeeded' THEN 'delivered'
+                        ELSE operation.status END,source.name,
+                    operation.requested_at,operation.finished_at,
+                    GREATEST(operation.requested_at,operation.heartbeat_at,
+                        operation.started_at,operation.finished_at)
+                FROM ops.consumer_import_operation operation
+                JOIN ops.dataset_release release ON release.id=operation.dataset_release_id
+                JOIN ops.source_definition source ON source.id=release.source_definition_id
+            ) activity ORDER BY activity_at DESC,id DESC LIMIT 100""",
+            (),
         )
 
     def run_tasks(self, run_id: uuid.UUID, *, limit: int, offset: int) -> list[JsonObject]:
         self.get_run(run_id)
         return self._fetch_all(
-            "SELECT * FROM ops.run_task WHERE ingestion_run_id=%s ORDER BY created_at,logical_key LIMIT %s OFFSET %s",
+            """SELECT task.*,operation.status AS import_status,
+                operation.started_at AS import_started_at
+            FROM ops.run_task task LEFT JOIN ops.import_operation operation
+                ON operation.run_task_id=task.id
+            WHERE task.ingestion_run_id=%s ORDER BY task.created_at,task.logical_key
+            LIMIT %s OFFSET %s""",
             (run_id, limit, offset),
         )
 
@@ -871,6 +921,9 @@ class PropertyScopeStore:
             connection.execute(
                 """UPDATE ops.run_task SET status='pending',lease_owner=NULL,lease_token=NULL,
                 lease_expires_at=NULL,heartbeat_at=NULL,attempt_number=attempt_number+1,
+                started_at=NULL,finished_at=NULL,error_json=NULL,progress_phase=NULL,
+                progress_rows=0,progress_bytes=0,progress_total_rows=NULL,
+                progress_total_bytes=NULL,progress_updated_at=NULL,
                 version=version+1,updated_at=%s
                 WHERE ingestion_run_id=%s
                 AND status IN ('claimed','running','retry_wait','cancelled','interrupted')""",
@@ -956,7 +1009,7 @@ class PropertyScopeStore:
                     ORDER BY task.created_at,task.logical_key FOR UPDATE SKIP LOCKED LIMIT 1
                 )
                 UPDATE ops.run_task task SET status='claimed',lease_owner=%s,lease_token=%s,
-                    lease_expires_at=%s,heartbeat_at=%s,started_at=COALESCE(started_at,%s),
+                    lease_expires_at=%s,heartbeat_at=%s,started_at=%s,finished_at=NULL,
                     updated_at=%s,version=version+1 FROM candidate
                 WHERE task.id=candidate.id RETURNING task.*
                 """,
@@ -2402,7 +2455,10 @@ class PropertyScopeStore:
                 raise LeaseConflictError("task lease is stale or owned by another worker")
             run_id = row["ingestion_run_id"]
             cancellation = connection.execute(
-                "SELECT cancel_requested_at FROM ops.ingestion_run WHERE id=%s FOR UPDATE",
+                # Batch provenance holds a foreign-key KEY SHARE lock throughout COPY.
+                # A stronger UPDATE lock here would block behind that loader while
+                # holding its task row, which the loader needs for progress callbacks.
+                "SELECT cancel_requested_at FROM ops.ingestion_run WHERE id=%s FOR NO KEY UPDATE",
                 (run_id,),
             ).fetchone()
             if cancellation and cancellation["cancel_requested_at"] is not None:
