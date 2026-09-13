@@ -67,7 +67,17 @@ export function normalizeAssistantContexts(contexts = []) {
         placeholder: typeof parameter.placeholder === "string" ? parameter.placeholder : "",
         pattern: typeof parameter.pattern === "string" ? parameter.pattern : "",
         help: typeof parameter.help === "string" ? parameter.help : "",
+        searchParameter: typeof parameter.searchParameter === "string" ? parameter.searchParameter : "",
       }) : null,
     })];
   });
+}
+
+/** Feature-owned search text stays distinct from exact entity identity. */
+export function assistantContextFromInput(definition, rawValue) {
+  const value = String(rawValue || "").trim();
+  const parameter = definition.parameter;
+  if (!value || !parameter) return { ...definition.context };
+  const exact = !parameter.searchParameter || !parameter.pattern || new RegExp(`^(?:${parameter.pattern})$`).test(value);
+  return { ...definition.context, [exact ? parameter.name : parameter.searchParameter]: value };
 }

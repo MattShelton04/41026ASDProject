@@ -10,12 +10,14 @@ The suite owns a random loopback fixture port and never uses Docker or canonical
 from __future__ import annotations
 
 import json
+import re
 import socket
 import subprocess
 import sys
 import time
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 from urllib.request import urlopen
 
 import pytest
@@ -154,6 +156,145 @@ def _temporary_read_failure(route: Route, label: str) -> None:
 
 def _abort_external_map(page: Page) -> None:
     page.route("**/tiles.openfreemap.org/**", lambda route: route.abort())
+
+
+@pytest.mark.parametrize("reduced_motion", ["reduce", "no-preference"])
+def test_chat_applies_answer_when_events_fail_and_opens_inline_sources(
+    page: Page, fixture_origin: str, reduced_motion: str
+) -> None:
+    page.emulate_media(reduced_motion=reduced_motion)  # type: ignore[arg-type]
+    call_id = "80000000-0000-4000-8000-000000000001"
+    summary = "The accepted dataset contains 42 registered addresses in the requested locality."
+
+    def assistant(route: Route) -> None:
+        if "/events?" in route.request.url:
+            route.fulfill(status=503, json={"detail": "Events temporarily unavailable"})
+        elif route.request.method == "POST":
+            route.fulfill(json={"id": AGENT_RUN_ID, "status": "queued"})
+        else:
+            route.fulfill(
+                json={
+                    "run": {
+                        "id": AGENT_RUN_ID,
+                        "status": "succeeded",
+                        "final_result": {
+                            "summary": summary,
+                            "confidence": "moderate",
+                            "grounding_status": "ready",
+                            "findings": [
+                                {
+                                    "text": "42 address records were counted.",
+                                    "kind": "tool_fact",
+                                    "citation_ids": [],
+                                    "tool_call_ids": [call_id],
+                                }
+                            ],
+                            "citations": [],
+                            "evidence_gaps": [],
+                            "confidence_reason": "Recorded count.",
+                            "safety_boundary": "Address count only.",
+                            "next_step": "",
+                        },
+                    },
+                    "steps": [
+                        {
+                            "id": "step",
+                            "status": "succeeded",
+                            "phase": "act",
+                            "input": {
+                                "tool_calls": [
+                                    {"id": call_id, "tool_name": "property.locality_summary.v1"}
+                                ],
+                            },
+                            "output": {
+                                "tool_results": [
+                                    {
+                                        "call_id": call_id,
+                                        "outcome": "succeeded",
+                                        "content": {"count": 42},
+                                        "duration_ms": 10,
+                                    }
+                                ]
+                            },
+                        }
+                    ],
+                }
+            )
+
+    page.route("**/api/data-platform/v1/assistant/turns**", assistant)
+    _open(page, fixture_origin, "assistant")
+    page.get_by_role("textbox", name="Message PropertyScope assistant").fill("Count the addresses")
+    page.get_by_role("button", name="Send message", exact=True).click()
+    expect(page.locator(".ps-ai-chat__answer-section--summary > p")).to_have_text(summary)
+    expect(page.get_by_role("button", name="Send message", exact=True)).to_be_visible()
+    expect(page.get_by_role("complementary", name="Answer sources and activity")).to_be_hidden()
+    page.get_by_role("button", name="Inspect source: Count accepted addresses", exact=True).click()
+    inspection = page.get_by_role("complementary", name="Answer sources and activity")
+    expect(inspection).to_be_visible()
+    expect(inspection.get_by_text("42", exact=True)).to_be_visible()
+    expect(page.get_by_role("link", name="Open full activity")).to_have_attribute(
+        "href", re.compile(f".*run={AGENT_RUN_ID}.*")
+    )
+    inspection.get_by_role("button", name="Close details").click()
+    expect(inspection).to_be_hidden()
+
+
+def test_embedded_chat_keeps_context_draft_and_run_when_closed(
+    page: Page, fixture_origin: str
+) -> None:
+    _abort_external_map(page)
+    submissions: list[dict[str, Any]] = []
+    cancelled = False
+    reads = 0
+
+    def assistant(route: Route) -> None:
+        nonlocal cancelled, reads
+        reads += 1
+        if route.request.url.endswith("/cancel"):
+            cancelled = True
+        elif route.request.method == "POST":
+            payload = route.request.post_data_json
+            assert isinstance(payload, dict)
+            submissions.append(payload)
+        if "/events?" in route.request.url:
+            route.fulfill(json={"items": [], "next_cursor": 0})
+        else:
+            route.fulfill(
+                json={
+                    "id": AGENT_RUN_ID,
+                    "status": "cancelled" if cancelled else "acting" if reads % 3 else "planning",
+                }
+            )
+
+    page.route("**/api/data-platform/v1/assistant/turns**", assistant)
+    _open(page, fixture_origin, f"properties/{PROPERTY_ID}")
+    page.get_by_role("button", name="Ask about this property").click()
+    composer = page.get_by_role("textbox", name="Message PropertyScope assistant")
+    composer.fill("Is sale history available?")
+    page.get_by_role("button", name="Close assistant").click()
+    page.get_by_role("button", name="Ask about this property").click()
+    expect(composer).to_have_value("Is sale history available?")
+    page.get_by_role("button", name="Send message", exact=True).click()
+    expect(page.get_by_role("button", name="Stop response", exact=True)).to_be_enabled()
+    inspect = page.get_by_role("button", name="Sources & activity", exact=True)
+    original_trigger = inspect.element_handle()
+    inspect.click()
+    inspection = page.get_by_role("complementary", name="Answer sources and activity")
+    page.wait_for_function("node => !node.isConnected", arg=original_trigger)
+    inspection.get_by_role("button", name="Close details").click()
+    expect(inspect).to_be_focused()
+    inspect.click()
+    inspection.get_by_role("button", name="Close details").press("Escape")
+    expect(inspection).to_be_hidden()
+    expect(page.get_by_role("button", name="Close assistant", exact=True)).to_be_visible()
+    page.get_by_role("button", name="Close assistant").click()
+    page.get_by_role("button", name="Ask about this property").click()
+    expect(page.locator(".ps-ai-chat__turn")).to_have_count(1)
+    assert submissions[0]["context"]["property_ref"] == PROPERTY_ID
+    assert submissions[0]["context"]["display_label"]
+    page.get_by_role("button", name="Stop response", exact=True).click()
+    expect(page.get_by_role("button", name="Send message", exact=True)).to_be_visible()
+    assert cancelled
 
 
 def _track_table_observers(page: Page) -> None:

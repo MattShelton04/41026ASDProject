@@ -1,6 +1,7 @@
 import { append, el } from "../browser/index.js";
-import { assistantStatus, ACTIVE_ASSISTANT_STATES } from "./definitions.js";
+import { assistantStatus } from "./definitions.js";
 import { isGroundedAnswer, renderGroundedAnswer } from "./grounding.js";
+import { recordedToolChecks, renderActivityProgress, toolSourceCard } from "./activity.js";
 import {
   answerSections, evidenceSteps, formatAssistantDate, humaniseAssistantValue, shortRunId,
 } from "./formats.js";
@@ -22,24 +23,31 @@ export function contextSummary(context = {}) {
   const entries = Object.entries(context).filter(([, value]) => value !== null && value !== undefined && value !== "");
   append(host, el("span", "ps-ai-chat__context-label", entries.length ? "Page context" : "Context"));
   if (!entries.length) append(host, el("span", "ps-ai-chat__context-empty", "No page entity attached"));
-  else for (const [name, value] of entries) append(host, contextChip(name, value));
+  else if (context.display_label || context.query) {
+    append(host, el("strong", "ps-ai-chat__context-name", context.display_label || context.query));
+    const details = el("details", "ps-ai-chat__context-reference");
+    details.dataset.disclosure = "context-reference";
+    append(details, el("summary", "", context.query ? "Search context" : "Linked record"));
+    for (const [name, value] of entries.filter(([name]) => name !== "display_label")) append(details, contextChip(name, value));
+    append(host, details);
+  } else for (const [name, value] of entries) append(host, contextChip(name, value));
   return host;
 }
 
-function answerContent(run) {
-  if (isGroundedAnswer(run.final_result)) return renderGroundedAnswer(run.final_result);
+function answerContent(run, toolLabels, inspection) {
+  const checks = recordedToolChecks(run, toolLabels);
+  if (isGroundedAnswer(run.final_result)) return renderGroundedAnswer(run.final_result, { toolChecks: checks, inspection });
   const host = el("div", "ps-ai-chat__answer");
   const sections = answerSections(run.final_result);
   if (!sections.length) {
-    const status = assistantStatus(run.status);
-    const progress = el("p", "ps-ai-chat__progress-copy", status.detail);
-    if (ACTIVE_ASSISTANT_STATES.has(String(run.status || "").toLowerCase()) && run.status !== "review_required") {
-      const dots = el("span", "ps-ai-chat__typing-dots");
-      dots.setAttribute("aria-hidden", "true");
-      append(dots, el("i"), el("i"), el("i"));
-      append(progress, dots);
+    append(host, renderActivityProgress(run, toolLabels));
+    const available = checks.filter((check) => check.status === "succeeded" && !check.result?.retrieval);
+    if (available.length) {
+      const sources = el("div", "ps-ai-chat__arriving-sources");
+      append(sources, el("p", "ps-ai-chat__grounding-note", "Sources checked so far"));
+      for (const check of available) append(sources, toolSourceCard(check));
+      append(inspection?.host || host, sources);
     }
-    append(host, progress);
     return host;
   }
   for (const section of sections) {
@@ -81,7 +89,7 @@ function evidenceDisclosure(turn) {
 }
 
 export function renderAssistantTurn(turn, {
-  activityHref, onCancel, onRetry, assistantLabel = "PropertyScope assistant",
+  activityHref, onCancel, onRetry, toolLabels = {}, assistantLabel = "PropertyScope assistant", inspection = null,
 } = {}) {
   const article = el("article", "ps-ai-chat__turn");
   article.dataset.runId = turn.id || "pending";
@@ -95,12 +103,12 @@ export function renderAssistantTurn(turn, {
   if (turn.run?.status) append(header, assistantBadge(turn.run.status));
   append(response, header);
   const scopeUsed = el("p", "ps-ai-chat__scope-used", `Scope: ${turn.scopeLabel || humaniseAssistantValue(turn.scope)}`);
-  append(response, scopeUsed);
+  append(inspection?.host || response, scopeUsed);
   if (Object.values(turn.context || {}).some((value) => value != null && value !== "")) {
     const contextUsed = el("details", "ps-ai-chat__context-used");
     contextUsed.dataset.disclosure = "context";
     append(contextUsed, el("summary", "", "Context used for this answer"), contextSummary(turn.context));
-    append(response, contextUsed);
+    append(inspection?.host || response, contextUsed);
   }
 
   if (turn.error) {
@@ -131,9 +139,9 @@ export function renderAssistantTurn(turn, {
       append(failure, retry);
     }
     append(response, failure);
-    if (turn.id) append(response, evidenceDisclosure(turn));
+    if (turn.id) append(inspection?.host || response, evidenceDisclosure(turn));
   } else {
-    append(response, answerContent(turn.run || { status: "queued" }));
+    append(response, answerContent(turn.run || { status: "queued" }, toolLabels, inspection));
     if (turn.pollWarning) {
       const warning = el("p", "ps-ai-chat__poll-warning", "Activity updates are temporarily unavailable. The last recorded state is shown; this view will retry automatically.");
       warning.setAttribute("role", "status");
@@ -144,11 +152,17 @@ export function renderAssistantTurn(turn, {
       warning.setAttribute("role", "alert");
       append(response, warning);
     }
-    if (turn.id) append(response, evidenceDisclosure(turn));
+    if (turn.id) append(inspection?.host || response, evidenceDisclosure(turn));
   }
 
   const footer = el("footer", "ps-ai-chat__turn-meta");
   if (turn.id) {
+    if (inspection) {
+      const inspect = el("button", "ps-ai-chat__inspect-toggle", "Sources & activity");
+      inspect.type = "button"; inspect.dataset.action = "inspect-evidence";
+      inspect.addEventListener("click", () => inspection.open());
+      append(footer, inspect);
+    }
     append(footer, el("code", "", `Run ${shortRunId(turn.id)}`));
     if (turn.run?.created_at) append(footer, el("span", "", formatAssistantDate(turn.run.created_at)));
     if (activityHref) {
@@ -167,7 +181,7 @@ export function renderAssistantTurn(turn, {
       append(footer, cancel);
     }
   } else if (!turn.error) {
-    const creating = el("span", "ps-ai-chat__creating", "Creating durable run");
+    const creating = el("span", "ps-ai-chat__creating", "Starting your question");
     const dots = el("span", "ps-ai-chat__typing-dots");
     dots.setAttribute("aria-hidden", "true");
     append(dots, el("i"), el("i"), el("i"));
@@ -176,5 +190,6 @@ export function renderAssistantTurn(turn, {
   }
   append(response, footer);
   append(article, question, response);
+  inspection?.refresh();
   return article;
 }

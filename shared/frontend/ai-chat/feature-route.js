@@ -44,7 +44,7 @@ export function createFeatureAssistant({
   contextOptions = [],
   initialScope = "feature",
   fetcher = globalThis.fetch?.bind(globalThis),
-  announce = () => {},
+  announce = null,
   operationsPath = "/operations/ai-mode/",
   title = `Ask ${featureLabel || "PropertyScope"}`,
   description,

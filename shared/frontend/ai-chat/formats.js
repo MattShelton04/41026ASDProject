@@ -92,7 +92,14 @@ export function completedTurnHistory(turns = [], { maxMessages = 8 } = {}) {
 
 export function evidenceSteps(detail, events = []) {
   const steps = Array.isArray(detail?.steps) && detail.steps.length ? detail.steps : events;
-  return steps.map((step) => {
+  return steps.flatMap((step) => {
+    if (!Array.isArray(step.input?.tool_calls)) return [step];
+    const results = Array.isArray(step.output?.tool_results) ? step.output.tool_results : [];
+    return step.input.tool_calls.map((call) => ({
+      ...step, input: { tool_call: call },
+      output: { tool_result: results.find((result) => result?.call_id === call?.id) },
+    }));
+  }).map((step) => {
     const call = step.input?.tool_call;
     const result = step.output?.tool_result || step.input?.tool_result;
     const plan = step.output?.plan;

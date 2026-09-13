@@ -163,32 +163,6 @@
 .evidence-definitions > div { border-radius: 0; border-width: 0 1px 0 0; padding: var(--ps-space-4); }
 .evidence-definitions > div:last-child { border: 0; }
 .evidence-definitions dd { font-size: .75rem; line-height: 1.7; }
-.shared-assistant-page .ps-ai-chat { max-width: none; grid-template-columns: minmax(0, 1fr) 240px; gap: var(--ps-space-6) var(--ps-space-8); }
-.shared-assistant-page .ps-ai-chat > * { grid-column: 1; }
-.shared-assistant-page .ps-ai-chat > .ps-ai-chat__intro { grid-column: 1/-1; border-bottom: 1px solid var(--ps-color-border); padding-bottom: var(--ps-space-8); }
-.shared-assistant-page .ps-ai-chat__intro h1 { font: 400 clamp(2rem, 3.2vw, 3.25rem)/1.07 var(--ps-font-editorial); letter-spacing: -.045em; max-width: none; margin: var(--ps-space-4) 0 var(--ps-space-5); }
-.shared-assistant-page .ps-ai-chat__intro > p:last-child { font-size: .875rem; line-height: 1.8; max-width: 66ch; }
-.shared-assistant-page .ps-ai-chat > .assistant-guide { grid-column: 2; grid-row: 2/8; align-self: start; border-left: 1px solid var(--ps-color-border); padding-left: var(--ps-space-6); }
-.assistant-guide h2 { font: 400 1.75rem/1.2 var(--ps-font-editorial); letter-spacing: -.025em; }
-.assistant-guide__item { border-top: 1px solid var(--ps-color-border); margin-top: var(--ps-space-6); padding-top: var(--ps-space-5); }
-.assistant-guide__item > span { font-size: .625rem; color: var(--ps-color-accent); }
-.assistant-guide__item h3 { margin: var(--ps-space-3) 0 var(--ps-space-2); font-size: .8125rem; }
-.assistant-guide__item p { font-size: .75rem; line-height: 1.8; }
-.assistant-guide > a { display: flex; min-height: 44px; align-items: center; font-size: .6875rem; color: var(--ps-color-accent); }
-.shared-assistant-page .ps-ai-chat__scope { border: 0; padding: 0; grid-template-columns: minmax(0, 1fr) minmax(120px, .55fr); gap: var(--ps-space-4); }
-.shared-assistant-page .ps-ai-chat__scope select { background: var(--ps-color-surface-elevated); }
-.shared-assistant-page .ps-ai-chat__welcome { background: var(--ps-color-surface-elevated); border-radius: var(--ps-radius-xs); padding: var(--ps-space-6); }
-.shared-assistant-page .ps-ai-chat__welcome h2 { font: 400 1.625rem/1.2 var(--ps-font-editorial); letter-spacing: -.035em; }
-.shared-assistant-page .ps-ai-chat__welcome > p { font-size: .8125rem; line-height: 1.8; }
-.shared-assistant-page .ps-ai-chat__suggestions { grid-template-columns: 1fr 1fr; }
-.shared-assistant-page .ps-ai-chat__suggestion { font-size: .75rem; border-radius: var(--ps-radius-xs); background: var(--ps-color-background); }
-.shared-assistant-page .ps-ai-chat__message--user { background: var(--ps-ocean-100); border-radius: var(--ps-radius-xs); font-size: .875rem; }
-.shared-assistant-page .ps-ai-chat__answer { font-size: .875rem; line-height: 1.8; }
-.shared-assistant-page .ps-ai-chat__composer { background: var(--ps-color-surface-elevated); border-radius: var(--ps-radius-xs); }
-.shared-assistant-page .ps-ai-chat__composer textarea { font-size: .875rem; }
-.shared-assistant-page .ps-ai-chat__composer-footer { flex-wrap: wrap; }
-.shared-assistant-page .ps-ai-chat__composer-footer .ps-button { min-width: 0; font-size: .75rem; }
-.shared-assistant-page .ps-ai-chat__session-note { font-size: .6875rem; line-height: 1.6; }
 @media (min-width: 961px) {
   .topbar__nav > a:not([href='#assistant']), .topbar__nav .mobile-only { display: none; }
   .topbar__nav > a[href='#assistant'] { gap: var(--ps-space-3); color: var(--ps-color-accent); }
@@ -239,10 +213,6 @@
   .publication-card__footer { flex-direction: column; align-items: start; gap: var(--ps-space-2); }
   .evidence-definitions { grid-template-columns: 1fr; }
   .evidence-definitions > div { border-width: 0 0 1px; }
-  .shared-assistant-page .ps-ai-chat { grid-template-columns: 1fr; }
-  .shared-assistant-page .ps-ai-chat__scope, .shared-assistant-page .ps-ai-chat__suggestions { grid-template-columns: 1fr; }
-  .shared-assistant-page .ps-ai-chat > .assistant-guide { grid-column: 1; grid-row: auto; padding: var(--ps-space-6) 0 0; border-left: 0; border-top: 1px solid var(--ps-color-border); }
-  .shared-assistant-page .ps-ai-chat__intro h1 { font-size: 2.5rem; }
   .home-content, .dashboard { padding-inline: var(--ps-space-5); }
   .home-hero { grid-template-columns: 1fr; padding: var(--ps-space-8) 0; gap: var(--ps-space-6); }
   .home-hero h1 { font-size: clamp(2.5rem, 9vw, 3.5rem); }
