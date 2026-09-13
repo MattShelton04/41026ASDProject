@@ -1,4 +1,5 @@
 import { collection, entity, queryString } from "../core/api.js";
+import { groupJobItems, presentationForJob, presentedName } from "../core/catalogue.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, humanise, researchAreaLabel } from "../core/formats.js";
 import { isPsiJob } from "../core/forms.js";
@@ -44,9 +45,14 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
     const offset = pageOffset(params);
     renderLoading(view, "Loading jobs");
     try {
-      const { body } = await request(`jobs${queryString({ q: filters.q, status: filters.status === "all" ? "" : filters.status, limit: 100, offset })}`);
+      const [jobResult, presentationResult] = await Promise.all([
+        request(`jobs${queryString({ q: filters.q, status: filters.status === "all" ? "" : filters.status, limit: 100, offset })}`),
+        request("catalogue-presentation"),
+      ]);
+      const { body } = jobResult;
       if (!routeEpoch.isCurrent()) return;
       const items = collection(body);
+      const groups = groupJobItems(items, presentationResult.body);
       view.replaceChildren();
       append(
         view,
@@ -88,10 +94,13 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
         { label: "Status" },
         { label: "Actions" },
       ];
-      const table = makeTable(
+      const groupHost = el("div", "catalogue-groups");
+      groupHost.setAttribute("aria-label", `${items.length} saved data updates`);
+      for (const group of groups) {
+        const table = makeTable(
         columns,
-        items,
-        (item) => {
+        group.items,
+        ({ item, presentation }) => {
           const row = el("tr");
           const actions = el("div", "row-actions");
           const viewDetails = link("View details", `#jobs/${item.id}`, "button secondary small");
@@ -132,7 +141,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
           }
           append(
             row,
-            cell(primaryCell(link(displayName(item.name), `#jobs/${item.id}`), displayName(item.profile_key))),
+            cell(primaryCell(link(displayName(presentedName(presentation, item.name)), `#jobs/${item.id}`), presentation?.purpose || displayName(item.profile_key))),
             cell(
               primaryCell(
                 displayName(item.dataset_id || item.target?.contract),
@@ -146,11 +155,12 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
           );
           return row;
         },
-        "Saved data updates",
+        `${group.label} data updates`,
         { responsive: true },
       );
-      const resultLabel = items.length === 1 ? "data update" : "data updates";
-      append(view, panel(`${items.length} ${resultLabel}`, "Showing up to 100 results", table));
+        append(groupHost, panel(group.label, `${group.description} · ${group.items.length} ${group.items.length === 1 ? "update" : "updates"}`, table));
+      }
+      append(view, groupHost);
     } catch (error) {
       if (!routeEpoch.isCurrent()) return;
       view.replaceChildren(errorState(error, rerender));
@@ -161,8 +171,12 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
     const routeEpoch = generationGuard.capture();
     renderLoading(view, "Loading job");
     try {
-      const result = await request(`jobs/${encodeURIComponent(id)}`);
+      const [result, presentationResult] = await Promise.all([
+        request(`jobs/${encodeURIComponent(id)}`),
+        request("catalogue-presentation"),
+      ]);
       const item = entity(result.body, "job");
+      const presentation = presentationForJob(presentationResult.body, item);
       let capabilities = null;
       let capabilitiesError = null;
       try {
@@ -186,8 +200,8 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
         view,
         pageHeading(
           "Data update",
-          displayName(item.name || "job"),
-          `${displayName(item.dataset_id || item.target?.contract || "Data update")} · Version ${item.version ?? "—"}`,
+          displayName(presentedName(presentation, item.name || "job")),
+          `${presentation?.purpose ? `${presentation.purpose} · ` : ""}${displayName(item.dataset_id || item.target?.contract || "Data update")} · Version ${item.version ?? "—"}`,
           actions,
         ),
       );
@@ -208,6 +222,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
         detailList([
           ["Status", badge(item.status)],
           ["Dataset", displayName(item.dataset_id || item.target?.contract)],
+          ["Catalogue group", presentationResult.body?.groups?.find((group) => group.key === presentation?.group_key)?.label || "Other datasets"],
           ["Research area", researchAreaLabel(item.target_feature || item.target?.feature)],
           ["Update profile", displayName(item.profile_key)],
           ["Refresh strategy", humanise(item.refresh_strategy)],

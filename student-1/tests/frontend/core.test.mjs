@@ -74,6 +74,55 @@ import {
 } from "../../frontend/core/run-failure.js";
 import { activityLine, mergeActivity, taskProgress } from "../../frontend/core/run-progress.js";
 import { notificationLink, notificationTitle, reconcileNotifications } from "../../frontend/core/notifications.js";
+import {
+  catalogueIndex,
+  groupCatalogueItems,
+  groupJobItems,
+  presentationFor,
+  presentedName,
+} from "../../frontend/core/catalogue.js";
+
+test("catalogue presentation groups datasets and preserves customized operation names", () => {
+  const payload = {
+    groups: [
+      { key: "foundational-property", label: "Foundational property data", description: "Core records." },
+      { key: "economic-context", label: "Economic context", description: "Economic series." },
+    ],
+    datasets: [
+      {
+        source_key: "gnaf-nsw",
+        job_profile: "gnaf-update",
+        group_key: "foundational-property",
+        display_name: "G-NAF addresses",
+        purpose: "Foundational address identity and location.",
+        default_names: ["G-NAF Open NSW", "Old G-NAF update"],
+      },
+      {
+        source_key: "abs-cpi",
+        job_profile: "cpi-update",
+        group_key: "economic-context",
+        display_name: "Inflation context (ABS CPI)",
+        purpose: "Consumer price indexes.",
+        default_names: ["Old CPI update"],
+      },
+    ],
+  };
+  const index = catalogueIndex(payload);
+  assert.equal(presentationFor(index, "gnaf-nsw").display_name, "G-NAF addresses");
+  assert.equal(presentedName(presentationFor(index, "gnaf-nsw"), "G-NAF Open NSW"), "G-NAF addresses");
+  assert.equal(presentedName(presentationFor(index, "gnaf-nsw"), "Team custom G-NAF"), "Team custom G-NAF");
+  assert.deepEqual(
+    groupCatalogueItems([{ source_key: "abs-cpi" }, { source_key: "gnaf-nsw" }], payload, (item) => item.source_key).map((group) => group.label),
+    ["Foundational property data", "Economic context"],
+  );
+  const groupedJobs = groupJobItems([
+    { profile_key: "cpi-update", name: "Old CPI update" },
+    { profile_key: "gnaf-update", name: "My address update" },
+  ], payload);
+  assert.equal(groupedJobs[0].items[0].item.name, "My address update");
+  assert.equal(presentedName(groupedJobs[0].items[0].presentation, "My address update"), "My address update");
+  assert.equal(presentedName(groupedJobs[1].items[0].presentation, "Old CPI update"), "Inflation context (ABS CPI)");
+});
 
 test("progress separates worker liveness from advancement and ignores old queued counters", () => {
   const now = Date.parse("2026-09-09T12:00:00Z");

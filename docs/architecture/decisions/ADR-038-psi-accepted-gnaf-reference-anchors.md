@@ -77,3 +77,41 @@ an abbreviation stored by G-NAF does not acquire a reverse full-name equivalence
 property-reference counts preserve ambiguity across both spellings. Legacy fallback is allowed
 only when G-NAF has no candidate, and only a unique reference is returned. No matching confidence,
 source facts, identity anchors, quality policy or activation behavior changes.
+
+### Conservative matching and coverage review (13 September 2026)
+
+`psi-exact-address.v2` extends exact equivalences using the explicit NSW SIX
+[Road Name Types catalogue](https://maps.six.nsw.gov.au/sws/AddressLocation.html).
+Previously unparsed street text such as `EXAMPLE CCT` can resolve to `EXAMPLE CIRCUIT`.
+No spelling similarity, locality-only fallback, missing-unit inference, range containment,
+or unverified PSI-to-G-NAF property identifier propagation is permitted.
+
+House-number matching accepts spaces around a single suffix or a range separator (`10 A`,
+`20 - 24`). It does not join separated digits, strip LOT labels, interpret slash units or
+discard a range's last-number suffix. Parsed first and last numbers must agree with the
+existing typed components. The raw house number participates in the resolution key, preventing
+an old missing derived suffix from leaking the `10 A` result into a `10` sale. Full postcode,
+locality, street, first number, last number, suffix and unit equality, accepted-generation
+fencing, and distinct-property ambiguity checks remain required.
+
+Derivation occurs in transaction-local matching dictionaries so cached canonical artifacts
+benefit without rewriting source facts, source hashes, revision identity, or immutable accepted
+releases. Only streets represented in eligible sales contribute G-NAF dictionary entries;
+type equivalences use a single catalogue join rather than repeated catalogue scans per address.
+Eligible addresses are materialized and analyzed before dictionary joins. Without this boundary,
+the correlated raw/typed-number equality predicates caused PostgreSQL to estimate one eligible
+address and choose an unboundedly expensive nested-loop plan on real source data.
+
+Quality evidence identifies the matching policy and reports linked and unmatched counts and
+fraction. Any unmatched coverage is an explicit review warning. Zero linkage, or a lost or
+changed property link for an identical accepted `(business key, revision, source hash)`, is a
+blocking quality result. This is a regression comparison, not a completeness assertion:
+new/changed revisions and old unresolved sales are not independently verified by that check.
+Exact address equivalence alone does not prove parcel continuity over historical decades.
+
+`scripts/audit_feature1_psi_matching.py` compares the matcher with accepted links, weighted by
+all retained source revisions and split by era and original address shape. It operates inside
+the owning database using temporary tables and rollback, without publication or downstream
+effects. Its optional repeatable block sample is explicitly labelled; only an unsampled run
+establishes full-generation recovery counts. The PostgreSQL integration suite separately tests
+false-match defenses and the same-revision regression comparison in disposable databases.

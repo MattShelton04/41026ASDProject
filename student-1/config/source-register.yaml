@@ -66,3 +66,123 @@ sources:
     redistribution_policy: attributed-derived-release
     catalogue_status: executable_live
     target_features: [feature-1]
+  - key: nsw-cadastre
+    display_name: NSW cadastral lots
+    publisher: NSW Spatial Services
+    adapter_key: nsw-cadastre-source
+    source_url: https://portal.spatial.nsw.gov.au/server/rest/services/NSW_Land_Parcel_Property_Theme_multiCRS/FeatureServer/8
+    cadence: source-release-driven
+    licence_id: cc-by-4-0
+    licence_url: https://www.spatial.nsw.gov.au/copyright
+    redistribution_policy: attributed-derived-release
+    catalogue_status: executable_live
+    target_features:
+    - feature-1
+  - key: nsw-planning-controls
+    display_name: NSW EPI planning controls
+    publisher: NSW Department of Planning, Housing and Infrastructure
+    adapter_key: nsw-planning-controls-source
+    source_url: https://mapprod1.environment.nsw.gov.au/arcgis/rest/services/Planning/EPI_Primary_Planning_Layers/MapServer
+    cadence: source-release-driven
+    licence_id: cc-by
+    licence_url: https://www.planningportal.nsw.gov.au/opendata/dataset/
+    redistribution_policy: attributed-derived-release
+    catalogue_status: executable_live
+    target_features:
+    - feature-1
+  - key: nsw-bushfire-prone-land
+    display_name: NSW bushfire prone land
+    publisher: NSW Rural Fire Service
+    adapter_key: nsw-bushfire-prone-land-source
+    source_url: https://portal.spatial.nsw.gov.au/server/rest/services/Hosted/NSW_BushFire_Prone_Land/FeatureServer/0
+    cadence: source-release-driven
+    licence_id: cc-by-4-0
+    licence_url: https://creativecommons.org/licenses/by/4.0/
+    redistribution_policy: attributed-derived-release
+    catalogue_status: executable_live
+    target_features:
+    - feature-1
+  - key: nsw-flood-planning
+    display_name: NSW published flood planning controls
+    publisher: NSW Department of Planning, Housing and Infrastructure
+    adapter_key: nsw-flood-planning-source
+    source_url: https://mapprod1.environment.nsw.gov.au/arcgis/rest/services/Planning/EPI_Protection_Layers/MapServer/1
+    cadence: source-release-driven
+    licence_id: cc-by
+    licence_url: https://www.planningportal.nsw.gov.au/opendata/dataset/
+    redistribution_policy: attributed-derived-release
+    catalogue_status: executable_live
+    target_features:
+    - feature-1
+  - key: abs-geography-2021
+    display_name: ABS 2021 NSW statistical locality and LGA boundaries
+    publisher: Australian Bureau of Statistics
+    adapter_key: abs-geography-2021-source
+    source_url: https://geo.abs.gov.au/arcgis/rest/services/ASGS2021/SAL/MapServer/0
+    cadence: census-release-driven
+    licence_id: cc-by-4-0
+    licence_url: https://www.abs.gov.au/website-privacy-copyright-and-disclaimer
+    redistribution_policy: attributed-derived-release
+    catalogue_status: executable_live
+    target_features:
+    - feature-1
+  - key: nsw-suburb-boundaries
+    display_name: NSW gazetted suburb boundaries
+    publisher: NSW Spatial Services
+    adapter_key: nsw-suburb-boundaries-source
+    source_url: https://portal.spatial.nsw.gov.au/server/rest/services/NSW_Administrative_Boundaries_Theme_multiCRS/FeatureServer/2
+    cadence: source-release-driven
+    licence_id: cc-by
+    licence_url: https://www.spatial.nsw.gov.au/copyright
+    redistribution_policy: attributed-derived-release
+    catalogue_status: executable_live
+    target_features:
+    - feature-1
+  - key: nsw-school-catchments
+    display_name: NSW government school catchments
+    publisher: NSW Department of Education
+    adapter_key: nsw-school-catchments-source
+    source_url: https://data.nsw.gov.au/data/dataset/nsw-education-school-intake-zones-catchment-areas-for-nsw-government-schools
+    cadence: source-release-driven
+    licence_id: cc-by
+    licence_url: https://data.nsw.gov.au/data/dataset/nsw-education-school-intake-zones-catchment-areas-for-nsw-government-schools
+    redistribution_policy: attributed-derived-release
+    catalogue_status: executable_live
+    target_features:
+    - feature-1
+  - key: nsw-strata-schemes
+    display_name: NSW strata scheme boundaries and register facts
+    publisher: NSW Spatial Services
+    adapter_key: nsw-strata-schemes-source
+    source_url: https://portal.spatial.nsw.gov.au/server/rest/services/StrataHub/FeatureServer/0
+    cadence: source-release-driven
+    licence_id: cc-by
+    licence_url: https://www.spatial.nsw.gov.au/copyright
+    redistribution_policy: attributed-derived-release
+    catalogue_status: executable_live
+    target_features:
+    - feature-1
+  - key: nsw-amenities
+    display_name: NSW official amenity and facility locations
+    publisher: NSW Spatial Services
+    adapter_key: nsw-amenities-source
+    source_url: https://portal.spatial.nsw.gov.au/server/rest/services
+    cadence: source-release-driven
+    licence_id: cc-by
+    licence_url: https://www.spatial.nsw.gov.au/copyright
+    redistribution_policy: attributed-derived-release
+    catalogue_status: executable_live
+    target_features:
+    - feature-1
+  - key: abs-cpi
+    display_name: ABS All groups CPI Sydney and Australia
+    publisher: Australian Bureau of Statistics
+    adapter_key: abs-cpi-source
+    source_url: https://data.api.abs.gov.au/rest/data/ABS,CPI,2.0.0
+    cadence: monthly-and-quarterly
+    licence_id: cc-by-4-0
+    licence_url: https://www.abs.gov.au/website-privacy-copyright-and-disclaimer
+    redistribution_policy: attributed-derived-release
+    catalogue_status: executable_live
+    target_features:
+    - feature-1

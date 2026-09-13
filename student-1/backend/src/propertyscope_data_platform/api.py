@@ -29,6 +29,7 @@ from propertyscope_data_platform.http_support import (
 )
 from propertyscope_data_platform.ingestion_routes import register_ingestion_routes
 from propertyscope_data_platform.property_routes import register_property_routes
+from propertyscope_data_platform.reference_catalog import REFERENCE_PROFILES
 from propertyscope_data_platform.release_builders import data_product_catalogue
 from propertyscope_data_platform.release_projection import (
     public_receipt as public_receipt,
@@ -43,6 +44,7 @@ from propertyscope_data_platform.release_routes import (
     register_release_routes,
     release_inspection,
 )
+from propertyscope_data_platform.source_catalog import catalogue_presentation_payload
 from propertyscope_data_platform.worker_routes import register_worker_routes
 from shared_contracts import HealthStatus, ReadinessCheckProjection, project_readiness
 
@@ -148,17 +150,16 @@ def create_blueprint(
             "gnaf-nsw",
             "psi-sales",
             "seifa-2021-sal-nsw",
+            *sorted(REFERENCE_PROFILES),
         ]
         return jsonify(
             {
-                "implemented_live_profiles": [
-                    "schools-master",
-                    "bocsar-sparse",
-                    "gnaf-nsw",
-                    "psi-sales",
-                    "seifa-2021-sal-nsw",
-                ],
-                "host_verified_profiles": ["psi-sales"],
+                "implemented_live_profiles": connected,
+                "host_verified_profiles": [],
+                "capability_semantics": (
+                    "Registered transport support; source access and accepted local releases "
+                    "are separate evidence."
+                ),
                 "connected_live_profiles": connected,
                 "cached_live_profiles": ["psi-sales"] if psi_cached_years else [],
                 "cached_source_years": {"psi-sales": list(psi_cached_years)},
@@ -173,6 +174,13 @@ def create_blueprint(
         if request.args:
             return problem(422, "invalid_query", "Assistant capabilities take no query fields")
         return jsonify(capability_guide())
+
+    @api.get(f"{BASE}/catalogue-presentation")
+    def catalogue_presentation() -> Response:
+        """Expose labels and grouping without changing operational API contracts."""
+        if request.args:
+            return problem(422, "invalid_query", "Catalogue presentation takes no query fields")
+        return jsonify(catalogue_presentation_payload())
 
     register_contract_distribution_routes(api, feature_root=resolved_feature_root, base=BASE)
 

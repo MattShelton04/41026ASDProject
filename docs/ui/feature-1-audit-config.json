@@ -233,7 +233,7 @@
           "query": ["q", "status"],
           "source": "student-1/frontend/routes/entities.js; student-1/frontend/routes/run-plan.js",
           "requiredStates": ["loading", "populated", "empty", "filtered-empty", "disabled", "validation", "conflict", "error", "slow", "long-content"],
-          "api": ["GET/POST /api/data-platform/v1/jobs", "PUT/DELETE /api/data-platform/v1/jobs/{id}", "GET runtime-capabilities", "POST jobs/{id}/plans", "POST jobs/{id}/runs"],
+          "api": ["GET/POST /api/data-platform/v1/jobs", "PUT/DELETE /api/data-platform/v1/jobs/{id}", "GET catalogue-presentation", "POST jobs/{id}/plans", "POST jobs/{id}/runs"],
           "interactions": ["apply-filter", "create-job", "edit-job", "delete-confirmation", "open-job", "start-update-confirmation", "backfill-confirmation", "preview-plan", "open-history", "mobile-menu"]
         },
         {
@@ -241,7 +241,7 @@
           "path": "#jobs/{job_id}",
           "source": "student-1/frontend/routes/entities.js; student-1/frontend/routes/run-plan.js",
           "requiredStates": ["loading", "populated", "capabilities-unavailable", "disabled", "validation", "conflict", "error", "slow", "long-content"],
-          "api": ["GET/PUT /api/data-platform/v1/jobs/{id}", "GET jobs/{id}/capabilities", "GET runtime-capabilities", "POST jobs/{id}/plans", "POST jobs/{id}/runs"],
+          "api": ["GET/PUT /api/data-platform/v1/jobs/{id}", "GET jobs/{id}/capabilities", "GET catalogue-presentation", "POST jobs/{id}/plans", "POST jobs/{id}/runs"],
           "interactions": ["edit-job", "open-history", "select-run-mode", "select-source-profile", "edit-bounded-scope", "toggle-advanced-json", "preview-plan", "start-update-confirmation", "backfill-confirmation", "mobile-menu"]
         },
         {
@@ -307,7 +307,7 @@
           "path": "#data-products",
           "source": "student-1/frontend/routes/data-products.js",
           "requiredStates": ["loading", "populated", "empty", "error", "long-content"],
-          "api": ["GET data-products"],
+          "api": ["GET data-products", "GET catalogue-presentation"],
           "interactions": ["open-data-product", "mobile-menu"]
         },
         {
@@ -315,7 +315,7 @@
           "path": "#data-products/{dataset_id}",
           "source": "student-1/frontend/routes/data-products.js",
           "requiredStates": ["loading", "populated", "no-published-version", "error", "long-content"],
-          "api": ["GET data-products/{id}"],
+          "api": ["GET data-products/{id}", "GET catalogue-presentation"],
           "interactions": ["toggle-published-version-details", "mobile-menu"]
         },
         {

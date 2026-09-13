@@ -81,6 +81,10 @@ def register_worker_routes(
     for action in ("heartbeat", "complete", "fail", "artifacts"):
 
         def worker_action(task_id: uuid.UUID, action: str = action) -> Response:
+            if action == "artifacts":
+                # Complete EPI field schemas exceed the ordinary 256 KiB control body.
+                # Only the authenticated artifact/snapshot registration gets this bound.
+                request.max_content_length = 2 * 1024 * 1024
             return forward(
                 store.request(
                     "POST",

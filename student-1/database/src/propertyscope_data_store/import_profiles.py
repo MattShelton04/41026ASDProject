@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from functools import lru_cache
+from functools import lru_cache, partial
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +19,12 @@ import pyarrow.parquet as pq  # type: ignore[import-untyped]
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from propertyscope_data_store.reference_import import (
+    REFERENCE_COUNT_SQL,
+    REFERENCE_INSERT_SQL,
+    REFERENCE_PROFILES,
+    validate_reference_row,
+)
 from propertyscope_data_store.source_materialisation import (
     BOCSAR_COPY_SQL,
     BOCSAR_COVERAGE_INSERT_SQL,
@@ -52,15 +58,18 @@ IMPORT_PHASE_LABELS: Mapping[str, str] = {
     "target_materialisation": "Materialising isolated candidate generation",
     "verification": "Verifying candidate generation",
 }
-REGISTERED_PROFILES = frozenset(
-    {
-        "property-fixture",
-        "gnaf-nsw",
-        "psi-sales",
-        "bocsar-sparse",
-        "schools-master",
-        "seifa-2021-sal-nsw",
-    }
+REGISTERED_PROFILES = (
+    frozenset(
+        {
+            "property-fixture",
+            "gnaf-nsw",
+            "psi-sales",
+            "bocsar-sparse",
+            "schools-master",
+            "seifa-2021-sal-nsw",
+        }
+    )
+    | REFERENCE_PROFILES
 )
 _PSI_QUALITY_WARNINGS_KEY = "_propertyscope_import_quality_warnings"
 _PSI_ADDRESS_NUMBER_OUT_OF_RANGE = "address_number_out_of_range"
@@ -741,16 +750,19 @@ def execute_stream_import(
             phase_callback=phase_callback,
         )
         linked_property_rows: int | None = None
+        linkage_evidence: dict[str, Any] | None = None
         if profile == "psi-sales":
+            from .psi_matching import PSI_LINKAGE_COUNTS_SQL
+
             cursor.execute(
-                "SELECT count(*) AS count FROM warehouse.psi_sale "
-                "WHERE dataset_release_id=%s AND property_ref IS NOT NULL",
+                PSI_LINKAGE_COUNTS_SQL,
                 (release_id,),
             )
             linked = cursor.fetchone()
             if linked is None:
                 raise ImportProfileError("PSI property-linkage count is unavailable")
             linked_property_rows = int(linked["count"])
+            linkage_evidence = dict(linked)
         if phase_callback is not None:
             phase_callback("verification", accepted)
         quality_checks = _record_quality(
@@ -763,6 +775,7 @@ def execute_stream_import(
             quality_warning_rows=quality_warning_rows,
             quality_warning_counts=quality_warning_counts,
             linked_property_rows=linked_property_rows,
+            linkage_evidence=linkage_evidence,
         )
         cursor.execute(
             """UPDATE ops.dataset_release SET record_count=%s,
@@ -971,6 +984,7 @@ def _record_quality(
     quality_warning_rows: int = 0,
     quality_warning_counts: Mapping[str, int] | None = None,
     linked_property_rows: int | None = None,
+    linkage_evidence: Mapping[str, Any] | None = None,
 ) -> int:
     # BOCSAR has two candidate tables, so accepted rows can exceed source envelope rows.
     load_complete = accepted >= expected
@@ -998,23 +1012,42 @@ def _record_quality(
         ),
     ]
     if linked_property_rows is not None:
+        from .psi_matching import MATCHING_VERSION
+
+        evidence = linkage_evidence or {}
+        lost_links = int(evidence.get("lost_links", 0))
+        changed_links = int(evidence.get("changed_links", 0))
+        requires_review = linked_property_rows < accepted or lost_links > 0 or changed_links > 0
         results.append(
             (
                 "import.psi-sales.property-linkage",
                 "referential",
-                "blocking",
-                "pass" if linked_property_rows > 0 else "fail",
+                "blocking"
+                if linked_property_rows == 0 or lost_links or changed_links
+                else "warning",
+                "fail"
+                if linked_property_rows == 0 or lost_links or changed_links
+                else "warn"
+                if requires_review
+                else "pass",
                 {
                     "linked": linked_property_rows,
                     "unmatched": max(0, accepted - linked_property_rows),
+                    "linked_fraction": linked_property_rows / accepted if accepted else 0,
+                    "matching_version": MATCHING_VERSION,
+                    "previously_linked_same_revision": int(evidence.get("previously_linked", 0)),
+                    "lost_links_same_revision": lost_links,
+                    "changed_links_same_revision": changed_links,
                 },
-                {"minimum_linked": 1},
-                "At least one sale is linked to a registered property."
-                if linked_property_rows > 0
-                else (
-                    "No sales are linked to registered properties; publish or repair the "
-                    "accepted address registry before publishing this sales generation."
-                ),
+                {
+                    "lost_links_same_revision": 0,
+                    "changed_links_same_revision": 0,
+                    "unmatched_requires_review": True,
+                },
+                "Review unmatched coverage and any lost or changed links against identical "
+                "source revisions in the accepted PSI generation. Exact address equivalence "
+                "does not establish historical parcel continuity. Zero links or regressions "
+                "block publication; unmatched rows remain preserved and require review.",
             )
         )
     if profile == "seifa-2021-sal-nsw":
@@ -1064,6 +1097,27 @@ def _record_quality(
                 "available.",
             )
         )
+    if profile in REFERENCE_PROFILES:
+        cursor.execute(
+            "SELECT geometry_status,count(*) AS count FROM warehouse.reference_feature "
+            "WHERE dataset_release_id=%s GROUP BY geometry_status",
+            (release_id,),
+        )
+        geometry_counts = {
+            item["geometry_status"]: int(item["count"]) for item in cursor.fetchall()
+        }
+        results.append(
+            (
+                f"import.{profile}.geometry-evidence",
+                "validity",
+                "warning",
+                "warn" if geometry_counts.get("invalid", 0) else "pass",
+                geometry_counts,
+                {"invalid": 0},
+                "Publisher geometry is preserved without repair; invalid geometry is labelled "
+                "and excluded from spatial lookup. Missing geometry is not inferred.",
+            )
+        )
     for rule_key, dimension, severity, status, observed, expected_value, message in results:
         cursor.execute(
             """INSERT INTO ops.quality_result (
@@ -1103,6 +1157,7 @@ def _validate_natural_keys(profile: str, rows: tuple[dict[str, Any], ...]) -> No
         ),
         "schools-master": ("school_code",),
         "seifa-2021-sal-nsw": ("sal_code",),
+        **dict.fromkeys(REFERENCE_PROFILES, ("layer", "record_id")),
     }[profile]
     keys = [tuple(row[field] for field in key_fields) for row in rows]
     if len(keys) != len(set(keys)):
@@ -1586,12 +1641,20 @@ def _postcode_value(value: str) -> bool:
     return len(value) == 4 and value.isdigit()
 
 
+def _reference(row: object, index: int, *, profile: str) -> dict[str, Any]:
+    try:
+        return validate_reference_row(row, index, profile=profile)
+    except (ValueError, TypeError, KeyError, OverflowError) as exc:
+        raise ImportProfileError(f"reference record {index} is invalid: {exc}") from exc
+
+
 def _with_hash(row: dict[str, Any]) -> dict[str, Any]:
     canonical = json.dumps(row, sort_keys=True, separators=(",", ":")).encode()
     return {**row, "source_row_sha256": hashlib.sha256(canonical).hexdigest()}
 
 
-_VALIDATORS = {
+_VALIDATORS: Mapping[str, Callable[[object, int], dict[str, Any]]] = {
+    **{profile: partial(_reference, profile=profile) for profile in REFERENCE_PROFILES},
     "property-fixture": _fixture,
     "gnaf-nsw": _gnaf,
     "psi-sales": _psi,
@@ -1601,6 +1664,7 @@ _VALIDATORS = {
 }
 
 _PROFILE_INSERT_SQL = {
+    **dict.fromkeys(REFERENCE_PROFILES, REFERENCE_INSERT_SQL),
     "property-fixture": """
         INSERT INTO warehouse.gnaf_address (
             dataset_release_id,gnaf_pid,property_ref,address_display,locality,postcode,
@@ -1818,6 +1882,7 @@ _LEGACY_PSI_PHASE_SQL = (
 )
 
 _PROFILE_COUNT_SQL = {
+    **dict.fromkeys(REFERENCE_PROFILES, REFERENCE_COUNT_SQL),
     "property-fixture": """
         SELECT count(*) AS count FROM warehouse.gnaf_address
         WHERE dataset_release_id=%s AND artifact_record_id=%s AND ingestion_run_id=%s

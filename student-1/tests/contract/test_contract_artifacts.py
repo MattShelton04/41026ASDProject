@@ -48,6 +48,7 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/health/ready",
         "/artifact-retention",
         "/runtime-capabilities",
+        "/catalogue-presentation",
         "/assistant/capabilities",
         "/assistant/turns",
         "/assistant/turns/{run_id}",

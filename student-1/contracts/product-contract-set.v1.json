@@ -3,6 +3,16 @@
   "contract_set_version": "propertyscope.product-contract-set.v1",
   "contracts": [
     {
+      "builder_key": "reference-feature",
+      "builder_version": "1.0.0",
+      "content_encoding": "gzip",
+      "media_type": "application/x-ndjson",
+      "record_framing": "one-json-object-per-line",
+      "schema_path": "reference-feature.v1.schema.json",
+      "schema_version": "propertyscope.reference-feature.v1",
+      "target_feature": "feature-1"
+    },
+    {
       "builder_key": "property-snapshot",
       "builder_version": "3.0.0",
       "content_encoding": "gzip",

@@ -71,6 +71,30 @@ path. Complete source remains the default and there is no operator row ceiling. 
 inclusive completed publisher archive-year range; this is explicitly partial, is not an exact
 contract-date filter, and cannot replace the accepted complete sales-history generation.
 
+Ten additional producer-owned profiles cover NSW cadastral lots, five planning controls,
+bushfire-prone land, published flood-planning controls, ABS 2021 SAL/LGA boundaries,
+gazetted suburbs, government school catchments, strata schemes, selected official amenities
+and ABS CPI. They retain full declared coverage, source schemas, attributes, dates, CRS and
+explicit geometry validity in `propertyscope.reference-feature.v1`. Their target is Feature 1;
+downstream joins and feature integration are separate work. See the
+[integration plan](../docs/release-1/reference-data-integration-plan.md),
+[operations guide](../docs/release-1/reference-data-operations.md) and
+[consumer guide](DATA_PRODUCT_CONSUMER_GUIDE.md) for scope and limitations.
+
+Source support does not imply that this developer's environment contains a successfully
+accepted release. `/runtime-capabilities` reports implemented transports and configured caches;
+the product catalogue's accepted release, run evidence, artifact verification and publication
+state establish what is actually available locally. No startup operation automatically
+downloads or publishes these datasets.
+
+The Sources, Data updates and Dataset publishing settings pages present the 16 registered
+datasets in six plain groups: foundational property data, geography and boundaries, planning and
+hazards, community and amenities, economic context, and development fixtures. G-NAF is labelled
+as foundational address identity and location, while PSI is labelled as official NSW sale
+history. These labels and one-line purposes are presentation metadata: they do not change source
+keys, job profiles, product contracts, URLs, or claim that a configured source has an accepted
+local release.
+
 New BOCSAR acquisitions use the versioned sparse
 `propertyscope.canonical-bocsar-parquet.v1` handoff: positive observations and explicit coverage are
 written as typed, Zstandard-compressed Parquet and completely checksum-verified before COPY. The

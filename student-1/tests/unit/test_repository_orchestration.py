@@ -59,6 +59,9 @@ class ScriptedConnection:
     def fetchone(self) -> Mapping[str, Any] | None:
         return self.current
 
+    def fetchall(self) -> list[Mapping[str, Any]]:
+        return [] if self.current is None else [self.current]
+
     def commit(self) -> None:
         self.committed = True
         self.commit_count += 1
@@ -670,6 +673,10 @@ def test_resume_requeues_cancelled_unfinished_task_from_interrupted_run() -> Non
     connection = ScriptedConnection(
         [
             None,
+            None,
+            None,
+            {"status": "interrupted"},
+            None,
             {"id": run_id, "status": "queued", "run_mode": "full_refresh", "parent_run_id": None},
         ]
     )
@@ -685,8 +692,8 @@ def test_resume_requeues_cancelled_unfinished_task_from_interrupted_run() -> Non
     run = store.resume_run(run_id)
 
     assert run["status"] == "queued"
-    assert "'cancelled'" in connection.queries[0]
-    assert "'interrupted'" in connection.queries[0]
+    assert "'cancelled'" in connection.queries[4]
+    assert "'interrupted'" in connection.queries[4]
 
 
 def test_run_projection_truthfully_describes_retry_execution() -> None:

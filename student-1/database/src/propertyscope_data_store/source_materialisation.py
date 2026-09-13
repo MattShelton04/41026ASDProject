@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .psi_matching import HOUSE_NUMBER_SQL_PATTERN, STREET_TYPE_CASE_SQL, STREET_TYPE_VALUES_SQL
+
 PSI_STREAM_COLUMNS = (
     "ordinal",
     "source_business_key",
@@ -124,23 +126,53 @@ PSI_IDENTITY_SQL = """
 # Aggregate each reference source once. Correlated aggregate lookups for every
 # eligible address took over 18 minutes on the full sales history. Materialized
 # dictionaries let PostgreSQL batch-join the eight exact components instead.
-PSI_ADDRESS_RESOLUTION_SQL = """
-    CREATE TEMP TABLE propertyscope_psi_address_resolution ON COMMIT DROP AS
-    WITH eligible_addresses AS MATERIALIZED (
+PSI_ADDRESS_RESOLUTION_SQL = f"""
+    CREATE TEMP TABLE propertyscope_psi_eligible_addresses ON COMMIT DROP AS
+    WITH street_types(full_name,code) AS (VALUES {STREET_TYPE_VALUES_SQL}),
+    street_tokens(token,code) AS (
+        SELECT full_name,code FROM street_types UNION SELECT code,code FROM street_types
+    ),
+    eligible_addresses AS MATERIALIZED (
         SELECT DISTINCT source.postcode,source.locality,source.street_name_normalised,
             source.street_type,source.street_number_first,source.street_number_last,
-            source.street_number_suffix,source.unit_number
+            source.street_number_suffix,source.unit_number,source.house_number,
+            CASE WHEN source.street_type IS NULL THEN
+                left(source.street_name_normalised,
+                    length(source.street_name_normalised)-length(ending.token)-1)
+                ELSE source.street_name_normalised END AS match_street_name,
+            COALESCE(source.street_type,parsed_type.code) AS match_street_type,
+            COALESCE(substring(replace(source.house_number,' ','')
+                from '^[0-9]+([A-Z])'),'') AS match_number_suffix
         FROM propertyscope_psi_identity_stage identity
         JOIN propertyscope_psi_import_stage source
           ON source.ordinal=identity.first_ordinal
+        CROSS JOIN LATERAL (
+            SELECT substring(source.street_name_normalised from '[^ ]+$') AS token
+        ) ending
+        LEFT JOIN street_tokens parsed_type ON parsed_type.token=ending.token
         WHERE source.property_ref IS NULL
           AND source.postcode IS NOT NULL
           AND source.locality IS NOT NULL
           AND source.street_name_normalised IS NOT NULL
-          AND source.street_type IS NOT NULL
+          AND COALESCE(source.street_type,parsed_type.code) IS NOT NULL
+          AND (source.street_type IS NOT NULL OR
+              length(source.street_name_normalised)>length(ending.token)+1)
           AND source.street_number_first IS NOT NULL
-          AND source.house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
+          AND source.house_number ~ '{HOUSE_NUMBER_SQL_PATTERN}'
+          AND source.street_number_first::numeric=
+              substring(source.house_number from '^([0-9]+)')::numeric
+          AND COALESCE(source.street_number_last::numeric,-1)=COALESCE(
+              substring(source.house_number from '- *([0-9]+)$')::numeric,-1)
 
+    ) SELECT * FROM eligible_addresses;
+    ANALYZE propertyscope_psi_eligible_addresses;
+
+    CREATE TEMP TABLE propertyscope_psi_address_resolution ON COMMIT DROP AS
+    WITH street_types(full_name,code) AS (VALUES {STREET_TYPE_VALUES_SQL}),
+    eligible_addresses AS MATERIALIZED (
+        SELECT * FROM propertyscope_psi_eligible_addresses
+    ), eligible_streets AS MATERIALIZED (
+        SELECT DISTINCT postcode,locality,match_street_name FROM eligible_addresses
     ), accepted_gnaf_candidates AS MATERIALIZED (
         SELECT address.postcode,address.locality,address.street_name AS street_name_normalised,
             types.street_type,address.street_number_first,
@@ -155,17 +187,13 @@ PSI_ADDRESS_RESOLUTION_SQL = """
             min(address.gnaf_pid) AS gnaf_pid,
             min(address.dataset_release_id::text)::uuid AS gnaf_release_id
         FROM warehouse.gnaf_address address
+        JOIN eligible_streets needed
+          ON needed.postcode=address.postcode AND needed.locality=address.locality
+         AND needed.match_street_name=address.street_name
         CROSS JOIN LATERAL (
             SELECT address.street_type
             UNION
-            SELECT CASE address.street_type
-                WHEN 'AVENUE' THEN 'AV' WHEN 'CLOSE' THEN 'CL'
-                WHEN 'COURT' THEN 'CT' WHEN 'CRESCENT' THEN 'CR'
-                WHEN 'DRIVE' THEN 'DR' WHEN 'HIGHWAY' THEN 'HWY'
-                WHEN 'PARADE' THEN 'PDE' WHEN 'PLACE' THEN 'PL'
-                WHEN 'ROAD' THEN 'RD' WHEN 'STREET' THEN 'ST'
-                WHEN 'TERRACE' THEN 'TCE'
-            END
+            SELECT CASE address.street_type {STREET_TYPE_CASE_SQL} END
         ) types
         WHERE address.dataset_release_id=(
                 SELECT accepted.dataset_release_id FROM serving.accepted_generation accepted
@@ -195,7 +223,7 @@ PSI_ADDRESS_RESOLUTION_SQL = """
     )
     SELECT eligible.postcode,eligible.locality,eligible.street_name_normalised,
         eligible.street_type,eligible.street_number_first,eligible.street_number_last,
-        eligible.street_number_suffix,eligible.unit_number,
+        eligible.street_number_suffix,eligible.unit_number,eligible.house_number,
         COALESCE(gnaf_match.match_count,registry_match.match_count,0) AS match_count,
         CASE WHEN gnaf_match.match_count=1 THEN gnaf_match.exact_property_ref
             WHEN gnaf_match.match_count IS NULL AND registry_match.match_count=1
@@ -206,20 +234,20 @@ PSI_ADDRESS_RESOLUTION_SQL = """
     LEFT JOIN accepted_gnaf_candidates gnaf_match
       ON gnaf_match.postcode=eligible.postcode
       AND gnaf_match.locality=eligible.locality
-      AND gnaf_match.street_name_normalised=eligible.street_name_normalised
-      AND gnaf_match.street_type=eligible.street_type
+      AND gnaf_match.street_name_normalised=eligible.match_street_name
+      AND gnaf_match.street_type=eligible.match_street_type
       AND gnaf_match.street_number_first=eligible.street_number_first
       AND gnaf_match.street_number_last=COALESCE(eligible.street_number_last,-1)
-      AND gnaf_match.street_number_suffix=COALESCE(eligible.street_number_suffix,'')
+      AND gnaf_match.street_number_suffix=eligible.match_number_suffix
       AND gnaf_match.unit_number=COALESCE(eligible.unit_number,'')
     LEFT JOIN registry_fallback_candidates registry_match
       ON registry_match.postcode=eligible.postcode
       AND registry_match.locality=eligible.locality
-      AND registry_match.street_name_normalised=eligible.street_name_normalised
-      AND registry_match.street_type=eligible.street_type
+      AND registry_match.street_name_normalised=eligible.match_street_name
+      AND registry_match.street_type=eligible.match_street_type
       AND registry_match.street_number_first=eligible.street_number_first
       AND registry_match.street_number_last=COALESCE(eligible.street_number_last,-1)
-      AND registry_match.street_number_suffix=COALESCE(eligible.street_number_suffix,'')
+      AND registry_match.street_number_suffix=eligible.match_number_suffix
       AND registry_match.unit_number=COALESCE(eligible.unit_number,'')
       AND gnaf_match.match_count IS NULL
 """
@@ -227,7 +255,7 @@ PSI_ADDRESS_RESOLUTION_SQL = """
 # Accepted G-NAF identities are normally virtual. Materialise only the unique identities
 # referenced by this import, with provenance, so PSI retains its registry foreign key.
 # These anchors never update canonical fields and are excluded from legacy read fallbacks.
-PSI_TARGET_INSERT_SQL = """
+PSI_TARGET_INSERT_SQL = f"""
     WITH matched_addresses AS MATERIALIZED (
         SELECT DISTINCT ON (resolution.exact_property_ref)
             resolution.exact_property_ref,address.*
@@ -297,10 +325,11 @@ PSI_TARGET_INSERT_SQL = """
     JOIN propertyscope_psi_import_stage source
       ON source.ordinal=identity.first_ordinal
     LEFT JOIN propertyscope_psi_address_resolution resolution
-      ON resolution.postcode=source.postcode
+      ON resolution.house_number=source.house_number
+     AND resolution.postcode=source.postcode
      AND resolution.locality=source.locality
      AND resolution.street_name_normalised=source.street_name_normalised
-     AND resolution.street_type=source.street_type
+     AND COALESCE(resolution.street_type,'')=COALESCE(source.street_type,'')
      AND resolution.street_number_first=source.street_number_first
      AND COALESCE(resolution.street_number_last,-1)=COALESCE(source.street_number_last,-1)
      AND COALESCE(resolution.street_number_suffix,'')=COALESCE(source.street_number_suffix,'')
@@ -308,9 +337,8 @@ PSI_TARGET_INSERT_SQL = """
      AND source.postcode IS NOT NULL
      AND source.locality IS NOT NULL
      AND source.street_name_normalised IS NOT NULL
-     AND source.street_type IS NOT NULL
      AND source.street_number_first IS NOT NULL
-     AND source.house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
+     AND source.house_number ~ '{HOUSE_NUMBER_SQL_PATTERN}'
     ON CONFLICT (dataset_release_id,source_business_key,source_revision) DO NOTHING
 """
 

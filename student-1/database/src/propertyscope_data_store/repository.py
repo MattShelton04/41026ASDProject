@@ -40,6 +40,7 @@ from propertyscope_data_store.import_profiles import (
     ImportResult,
     PreparedImport,
 )
+from propertyscope_data_store.import_resume import prepare_import_resume
 from propertyscope_data_store.migrations import migrate, schema_fingerprint
 from propertyscope_data_store.orchestration_policy import (
     TERMINAL_RUN_STATES,
@@ -260,6 +261,7 @@ class PropertyScopeStore:
             "warehouse.bocsar_coverage",
             "warehouse.school",
             "warehouse.seifa_sal",
+            "warehouse.reference_feature",
             "warehouse.spatial_feature",
             "serving.accepted_generation",
             "serving.property_coverage",
@@ -924,6 +926,13 @@ class PropertyScopeStore:
             raise ConflictError("historical run scope is no longer supported")
         now = datetime.now(UTC)
         with self.connection() as connection:
+            prepare_import_resume(connection, run_id)
+            locked = connection.execute(
+                "SELECT status FROM ops.ingestion_run WHERE id=%s FOR NO KEY UPDATE",
+                (run_id,),
+            ).fetchone()
+            if locked is None or locked["status"] != "interrupted":
+                raise ConflictError("only interrupted runs can resume")
             connection.execute(
                 """UPDATE ops.run_task SET status='pending',lease_owner=NULL,lease_token=NULL,
                 lease_expires_at=NULL,heartbeat_at=NULL,attempt_number=attempt_number+1,

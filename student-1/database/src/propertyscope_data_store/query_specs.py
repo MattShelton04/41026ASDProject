@@ -10,6 +10,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from propertyscope_data_store.errors import ConflictError
+from propertyscope_data_store.reference_import import (
+    REFERENCE_COLUMNS,
+    REFERENCE_PROFILES,
+    REFERENCE_SELECT,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +59,15 @@ PROPERTY_RECORD_SPEC = ReleasePreviewSpec(
 )
 
 PREVIEW_SPECS: dict[str, ReleasePreviewSpec] = {
+    **{
+        key: ReleasePreviewSpec(
+            REFERENCE_SELECT
+            + " WHERE dataset_release_id=%s ORDER BY layer,record_id LIMIT %s OFFSET %s",
+            "SELECT count(*) AS count FROM warehouse.reference_feature WHERE dataset_release_id=%s",
+            REFERENCE_COLUMNS,
+        )
+        for key in REFERENCE_PROFILES
+    },
     "gnaf-nsw": PROPERTY_RECORD_SPEC,
     "psi-sales": ReleasePreviewSpec(
         """SELECT source_business_key,source_revision,source_era,district_code,property_id,
@@ -227,6 +241,18 @@ def release_export_query(
     cursor: str | None,
 ) -> ReleaseExportQuery:
     """Resolve a complete deterministic keyset projection; count is executed only on page one."""
+    if profile in REFERENCE_PROFILES:
+        reference_columns = ("layer", "record_id")
+        reference_values = decode_export_cursor(cursor, reference_columns)
+        predicate = " AND (layer,record_id)>(%s,%s)" if reference_values else ""
+        return ReleaseExportQuery(
+            REFERENCE_SELECT
+            + f" WHERE dataset_release_id=%s{predicate} ORDER BY layer,record_id LIMIT %s",
+            (release_id, *(reference_values or ()), limit),
+            "SELECT count(*) AS count FROM warehouse.reference_feature WHERE dataset_release_id=%s",
+            (release_id,),
+            reference_columns,
+        )
     if profile in {"property-fixture", "gnaf-nsw"}:
         columns: tuple[str, ...] = ("source_address_id",)
         values = decode_export_cursor(cursor, columns)

@@ -2032,6 +2032,34 @@ def test_jobs_list_error_retry_restores_route_heading_focus(
     assert reads == 2
 
 
+def test_dataset_catalogues_use_plain_groups_and_purpose_labels(
+    page: Page, fixture_origin: str
+) -> None:
+    _open(page, fixture_origin, "sources")
+    expect(page.get_by_role("heading", name="Development fixtures", exact=True)).to_be_visible()
+    expect(page.get_by_role("region", name="Development fixtures data sources")).to_be_visible()
+    expect(page.get_by_text("Example property records", exact=True)).to_be_visible()
+    expect(page.get_by_text("Synthetic NSW property records", exact=False)).to_be_visible()
+
+    _open(page, fixture_origin, "jobs")
+    expect(
+        page.get_by_role("heading", name="Foundational property data", exact=True)
+    ).to_be_visible()
+    expect(page.get_by_role("heading", name="Development fixtures", exact=True)).to_be_visible()
+    expect(page.get_by_text("NSW property sale history (PSI)", exact=True)).to_be_visible()
+    expect(
+        page.get_by_role("region", name="Foundational property data data updates")
+    ).to_be_visible()
+    expect(page.get_by_role("region", name="Development fixtures data updates")).to_be_visible()
+
+    _open(page, fixture_origin, "data-products")
+    expect(page.get_by_role("heading", name="Development fixtures", exact=True)).to_be_visible()
+    expect(page.get_by_role("link", name="Example property records", exact=True)).to_be_visible()
+    expect(
+        page.get_by_role("region", name="Development fixtures PropertyScope data products")
+    ).to_be_visible()
+
+
 def test_leaving_jobs_aborts_its_request_without_replacing_the_new_route(
     page: Page, fixture_origin: str
 ) -> None:

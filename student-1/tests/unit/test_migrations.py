@@ -74,6 +74,14 @@ def test_supported_contract_migrations_align_every_registered_builder() -> None:
         builder.spec.key: builder.spec.version for builder in default_release_builders().values()
     }
     for builder_key, version in expected_versions.items():
+        if builder_key == "reference-feature":
+            reference_sql = (
+                files(MIGRATION_PACKAGE)
+                .joinpath("057_register_reference_sources.sql")
+                .read_text("utf-8")
+            )
+            assert reference_sql.count(f"'{builder_key}','{version}'") == 10
+            continue
         migration = seifa_sql if builder_key == "seifa-area" else established_sql
         assert f"release_builder_key = '{builder_key}'" in migration
         assert f"release_builder_version <> '{version}'" in migration
