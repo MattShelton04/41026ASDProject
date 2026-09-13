@@ -104,6 +104,10 @@ def test_large_official_bushfire_record_has_a_scoped_finite_byte_allowance() -> 
     record = _record()
     record["attributes"]["publisher_payload"] = "x" * (16 * 1024 * 1024)
     assert _normalise(record, "nsw-bushfire-prone-land")["geometry"] == record["geometry"]
+    assert _normalise(record, "nsw-planning-controls")["geometry"] == record["geometry"]
+    with pytest.raises(ImportProfileError, match="per-feature byte bound"):
+        _normalise(record, "nsw-cadastre")
+    record["attributes"]["publisher_payload"] = "x" * (32 * 1024 * 1024)
     with pytest.raises(ImportProfileError, match="per-feature byte bound"):
         _normalise(record, "nsw-planning-controls")
     record["attributes"]["publisher_payload"] = "x" * (64 * 1024 * 1024)

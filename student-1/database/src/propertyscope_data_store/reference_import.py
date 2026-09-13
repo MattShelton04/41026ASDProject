@@ -95,8 +95,13 @@ def validate_reference_row(
     encoded = json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
     # The current official BFPL service contains a verified 47 MB polygon with
     # 1,176,284 positions. Preserve its full geometry within the same 64 MiB
-    # ceiling as the source reader; other profiles retain their smaller bound.
-    maximum_bytes = (64 if profile == "nsw-bushfire-prone-land" else 16) * 1024 * 1024
+    # ceiling as the source reader. The complete planning artifact also contains
+    # one verified 19.6 MB zoning polygon; its allowance is separately capped.
+    maximum_mib = {
+        "nsw-bushfire-prone-land": 64,
+        "nsw-planning-controls": 32,
+    }.get(profile or "", 16)
+    maximum_bytes = maximum_mib * 1024 * 1024
     if len(encoded) > maximum_bytes:
         raise ValueError(f"reference record {index} exceeds the per-feature byte bound")
     result["source_row_sha256"] = hashlib.sha256(encoded).hexdigest()

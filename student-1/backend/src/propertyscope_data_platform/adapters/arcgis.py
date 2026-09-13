@@ -44,6 +44,14 @@ class _FeaturePage(list[dict[str, Any]]):
         self.response_bytes = response_bytes
 
 
+class _NativeProjectedGeometry(dict[str, Any]):
+    """Trusted native ring membership, retained through coordinate transformation."""
+
+    def __init__(self, rings: list[Any], polygons: list[Any]) -> None:
+        super().__init__(rings=rings)
+        self.polygons = polygons
+
+
 @dataclass
 class _PageWindow:
     ceiling: int
@@ -471,7 +479,11 @@ def _esri_page(page: dict[str, Any]) -> dict[str, Any]:
                 if not rings or any(len(ring) < 4 or ring[0] != ring[-1] for ring in rings):
                     raise ValueError("ArcGIS polygon contains empty or unclosed rings")
                 errors: dict[str, Any] = {}
-                polygons = shapefile.organize_polygon_rings(rings, errors)
+                polygons = (
+                    geometry.polygons
+                    if isinstance(geometry, _NativeProjectedGeometry)
+                    else shapefile.organize_polygon_rings(rings, errors)
+                )
                 if errors:
                     raise ValueError("ArcGIS polygon rings have ambiguous topology")
                 geometry = {
@@ -567,6 +579,20 @@ def _recover_projected_empty(
                     raise ValueError("Native fallback produced coordinates outside EPSG:4326")
                 converted.append([longitude, latitude])
             transformed.append(converted)
+        # Determine exterior/hole membership in the native CRS. A very thin
+        # publisher triangle can reverse its apparent winding after projecting
+        # only its supplied vertices; reclassifying it would invent a hole.
+        native_errors: dict[str, Any] = {}
+        native_polygons = shapefile.organize_polygon_rings(rings, native_errors)
+        if native_errors:
+            raise ValueError("Native fallback polygon rings have ambiguous topology")
+        transformed_by_identity = {
+            id(native_ring): converted
+            for native_ring, converted in zip(rings, transformed, strict=True)
+        }
+        polygons = [
+            [transformed_by_identity[id(ring)] for ring in polygon] for polygon in native_polygons
+        ]
         evidence_key = "_propertyscope_geometry_provenance"
         if evidence_key in attributes:
             raise ValueError("Publisher attributes conflict with geometry provenance")
@@ -579,5 +605,5 @@ def _recover_projected_empty(
                 "publisher_projected_geometry": projected,
             },
         }
-        feature["geometry"] = {"rings": transformed}
+        feature["geometry"] = _NativeProjectedGeometry(transformed, polygons)
     return extra_bytes

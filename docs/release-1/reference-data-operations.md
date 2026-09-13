@@ -124,7 +124,9 @@ The current official NSW RFS hosted BFPL service replaces the legacy MapServer t
 versioned migration 063. The legacy service could not serialize one polygon even when queried
 alone; the current service returned its 739 rings and 1,176,284 coordinate positions. Its
 canonical record is 47,393,221 bytes. BFPL therefore has a profile-specific 64 MiB canonical
-record limit; other reference profiles retain 16 MiB. No geometry simplification or omission
+record limit. Planning has a separate 32 MiB limit: a complete 235,350-record scan found
+exactly one record over 16 MiB, a 19,615,386-byte zoning polygon (`land-zoning:890585`).
+Other reference profiles retain 16 MiB. No geometry simplification or omission
 is used to fit these bounds. The checked-in source URL and adapter handle the hosted service's
 `fid` identity, lower-case attributes and EPSG:3857 native CRS.
 
@@ -175,6 +177,12 @@ attempt evidence. A non-retryable quality failure requires a corrected new run. 
 later storage-recovery observations remain separate, append-only evidence. Historical upgrade
 events whose attempt ownership cannot be proved are exposed as unattributed, rather than
 attached to a guessed attempt.
+
+After correcting a source validation bound, `reprocess-cached` creates a new run from the
+complete verified canonical artifact, avoiding another publisher download. It requires a terminal
+parent. Close an interrupted coordinator only after its import has stopped; never replace the
+recorded failure or change an import's retryability by hand. The planning polygon correction
+used this existing workflow and retained the original 19m41s complete acquisition.
 
 ## Validation
 

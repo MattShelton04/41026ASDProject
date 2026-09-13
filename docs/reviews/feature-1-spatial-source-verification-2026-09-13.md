@@ -315,3 +315,24 @@ hashes. The verification body took 1.924 seconds (11.97 seconds including the fu
 pytest fixture lifecycle). It remained awaiting review without publication or an
 accepted pointer, and the disposable database was dropped afterward. The small
 exact sample is retained in ignored `tmp/bfpl_hosted_fid21.ndjson.gz`.
+
+### Further complete-run boundary cases
+
+The complete 235,350-record planning artifact contains exactly one canonical record larger
+than 16 MiB: `land-zoning:890585`, at 19,615,386 bytes. A full artifact scan established that
+maximum, so planning now has a separate 32 MiB allowance. Its corrected import reuses the
+verified 1,694,382,363-byte canonical artifact rather than repeating the 19m41s acquisition.
+The failed attempt remains recorded; other source profiles retain their existing bounds.
+
+The full BFPL run also exposed native feature `fid=169866`: its supplied thin triangle
+changes apparent winding when its four vertices are transformed to geographic coordinates.
+Ring membership is now determined in the validated native CRS and retained through projection,
+instead of reclassifying the exterior as a hole. No positions are added, removed or repaired.
+The local conversion marker cannot originate in publisher JSON, and ambiguous native topology
+still fails explicitly. Both publisher representations remain in provenance.
+
+The exact feature passed isolated HTTP/PostGIS/export validation as one valid polygon with
+four positions, matching all canonical and native-provenance hashes; its gzip export was
+844 bytes. Test-body time was 1.697 seconds (11.91 seconds including fixtures). All 96 spatial
+and reference unit tests passed, and independent review found no outstanding issue in these
+two corrections. The disposable sample remained awaiting review and was never published.

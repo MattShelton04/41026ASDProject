@@ -716,6 +716,30 @@ def test_projected_empty_bfpl_retains_native_polygon_and_explicit_provenance() -
     assert record["source_crs"] == "EPSG:3857"
 
 
+def test_native_polygon_membership_survives_projected_winding_reversal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Exact published native vertices of BFPL fid169866. Reclassifying the
+    # projected triangle by winding alone incorrectly calls its exterior a hole.
+    native_ring = [
+        [16593561.3389, -3497806.2982],
+        [16595175.768299997, -3498041.0757],
+        [16591946.909500003, -3497571.5249000005],
+        [16593561.3389, -3497806.2982],
+    ]
+    monkeypatch.setattr(f"{__name__}._THIN_BFPL_RING", native_ring)
+    client, _ = _empty_projection_client()
+    with client:
+        descriptors = discover_spatial_sources("nsw-bushfire-prone-land", client)
+        record = next(iter_spatial_records("nsw-bushfire-prone-land", client, descriptors))
+    assert record["geometry"]["type"] == "Polygon"
+    ring = record["geometry"]["coordinates"][0]
+    assert len(ring) == 4 and ring[0] == ring[-1]
+    assert ring[0] == pytest.approx([149.0624976870866, -29.955307237211187], abs=1e-12)
+    evidence = record["attributes"]["_propertyscope_geometry_provenance"]
+    assert evidence["native_geometry"] == {"rings": [native_ring]}
+
+
 @pytest.mark.parametrize(
     "failure",
     [

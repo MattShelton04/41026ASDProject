@@ -52,7 +52,8 @@ their existing limit. Large source facts remain in artifacts, not request bodies
 BFPL uses the current official NSW RFS hosted service because its legacy service cannot
 serialize a verified million-position polygon. That real canonical feature exceeds 47 MB;
 the BFPL importer allows at most 64 MiB per record, while other reference profiles retain
-16 MiB. BFPL exports use ten-record pages and serial projection batches of one. Adaptive
+16 MiB except planning, whose verified 19.6 MB zoning polygon requires a separate 32 MiB
+allowance. BFPL exports use ten-record pages and serial projection batches of one. Adaptive
 publisher page recovery restores throughput after a large feature without dropping it;
 byte-headroom checks, the original page ceiling and a failed-growth cooldown bound retries.
 An empty projected BFPL polygon can be recovered from its validated native EPSG:3857
