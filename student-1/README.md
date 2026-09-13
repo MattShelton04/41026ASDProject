@@ -236,6 +236,18 @@ compatible accepted dataset is missing, tools return typed availability evidence
 dynamically hidden. Address resolution, quality and catalogue questions continue to use the existing
 search, release-inspection and source/release tools rather than duplicating overlapping tools.
 
+Property search accepts short suburb names such as Glebe and Sydney and optional NSW/postcode
+suffixes. It prefers exact locality or street-name matches before substring matching, returning
+25 results per page from a fixed 500-candidate window. Add more address detail to narrow a broad
+search. Property records reuse one snapshot for location, coverage and source summary; sale
+history and area evidence load when their sections first open. Release previews fetch one extra
+row to determine continuation and label totals as lower bounds instead of counting the entire
+source on each page. Complete downloads retain all records.
+
+The [API map and performance review](../docs/reviews/feature-1-api-performance-2026-09-13.md)
+documents the measured before/after results, indexes, interactive SQL deadlines, compatibility
+boundaries, and the `scripts/benchmark_feature1_api.py` reproduction command.
+
 ### Which local URL and container should I use?
 
 The Docker stack and the frontend-only fixture server are separate environments:
