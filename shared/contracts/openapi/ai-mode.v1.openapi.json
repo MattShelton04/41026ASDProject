@@ -566,7 +566,8 @@
               "default.v5",
               "default.v6",
               "default.v7",
-              "default.v8"
+              "default.v8",
+              "default.v9"
             ],
             "title": "Prompt Set",
             "type": "string"

@@ -72,7 +72,7 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
     if corpus is not None:
         if effective_payload.get("grounding") is None:
             effective_payload["grounding"] = {"corpus_id": corpus}
-        effective_payload["prompt_set"] = "default.v8"
+        effective_payload["prompt_set"] = "default.v9"
         allowlist = effective_payload.get("tool_allowlist")
         if isinstance(allowlist, list) and RETRIEVAL_TOOL not in allowlist:
             effective_payload["tool_allowlist"] = [*allowlist, RETRIEVAL_TOOL]

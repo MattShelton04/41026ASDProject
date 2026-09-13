@@ -149,6 +149,40 @@ def test_assistant_context_rejects_noncanonical_route_parameter_combinations(
         AssistantTurnRequest.model_validate({"message": "Explain this", "context": context})
 
 
+def test_readable_context_is_bounded_and_never_becomes_identifier_authorization() -> None:
+    command = AssistantTurnRequest.model_validate(
+        {
+            "message": "Explain this property",
+            "context": {"route": "properties/detail", "query": "  Auburn Street  "},
+        }
+    )
+    assert command.context.query == "Auburn Street"
+    assert command.context.trusted_identifiers() == []
+    objective = build_assistant_objective(command)
+    assert "untrusted display/search text" in objective
+    assert "Auburn Street" in objective
+    assert "never silently choose one" in objective
+
+
+@pytest.mark.parametrize(
+    "context",
+    [
+        {"query": "Auburn Street"},
+        {"route": "properties/detail", "query": "x"},
+        {"route": "properties/detail", "query": "x" * 201},
+        {"route": "properties/detail", "query": "Auburn", "display_label": "x" * 201},
+        {
+            "route": "properties/detail",
+            "query": "Auburn",
+            "property_ref": "2c8a15ce-2f3d-9c88-a648-c28b2da0de38",
+        },
+    ],
+)
+def test_search_context_rejects_ambiguous_or_unbounded_contracts(context: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        AssistantTurnRequest.model_validate({"message": "Explain this", "context": context})
+
+
 def test_assistant_context_projects_only_validated_page_identifiers_into_trust() -> None:
     run_id = "70000000-0000-0000-0000-000000000012"
     command = AssistantTurnRequest.model_validate(
