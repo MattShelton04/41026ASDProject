@@ -53,12 +53,14 @@ def validate_grounded_answer(
         if result.outcome is ToolOutcome.SUCCEEDED and result.retrieval is None
     }
     used: set[str] = set()
+    supported_tool_facts = False
     for claim in answer.findings:
         if not set(claim.citation_ids).issubset(citations):
             raise ValueError("claim references evidence that was not retrieved")
         if not set(claim.tool_call_ids).issubset(tool_ids):
             raise ValueError("claim references an unsuccessful or unrelated tool call")
         used.update(claim.citation_ids)
+        supported_tool_facts |= claim.kind == "tool_fact"
     insufficient = latest.status != "ready" or not citations or answer.confidence == "insufficient"
     if insufficient:
         if latest.status == "ready" and not answer.evidence_gaps:
@@ -70,10 +72,14 @@ def validate_grounded_answer(
         answer = answer.evolve(
             confidence="insufficient",
             confidence_reason="Relevant document context is unavailable or insufficient.",
-            summary="Insufficient context to provide a grounded explanation.",
+            summary=(
+                answer.summary
+                if run.prompt_set == "default.v9" and supported_tool_facts
+                else "Insufficient context to provide a grounded explanation."
+            ),
             evidence_gaps=tuple(dict.fromkeys((latest.detail, *answer.evidence_gaps)))[:10],
         )
-    elif not used:
+    elif not used and not (run.prompt_set == "default.v9" and supported_tool_facts):
         raise ValueError("grounded explanation must cite at least one retrieved passage")
     elif answer.evidence_gaps and answer.confidence in {"high", "moderate"}:
         answer = answer.evolve(

@@ -733,9 +733,13 @@ function renderOutcome(run, finalResult, error) {
   ));
 }
 
+function stepTools(step) {
+  return Array.isArray(step.tools) && step.tools.length ? step.tools : [step.tool].filter(Boolean);
+}
+
 function workloadTelemetry(steps) {
   const modelInvocations = steps.map((step) => step.model_invocation).filter(Boolean);
-  const toolSteps = steps.filter((step) => step.tool);
+  const tools = steps.flatMap(stepTools);
   const sum = (values) => values.reduce((total, value) => total + (Number(value) || 0), 0);
   return {
     modelCalls: modelInvocations.length,
@@ -746,7 +750,7 @@ function workloadTelemetry(steps) {
     repairs: sum(modelInvocations.map((item) => item.repair_count)),
     providerRetries: sum(modelInvocations.map((item) => item.provider_retry_count)),
     transportRetries: sum(modelInvocations.map((item) => item.metrics.retry_count)),
-    toolFailures: toolSteps.filter((step) => step.tool.outcome === "failed").length,
+    toolFailures: tools.filter((tool) => tool.outcome === "failed").length,
     replans: Math.max(0, steps.filter((step) => step.phase === "plan").length - 1),
   };
 }
@@ -775,6 +779,7 @@ function metric(labelText, value) {
 
 function evidenceSummary(step) {
   if (step.plan) return `${step.plan.actions.length} planned action${step.plan.actions.length === 1 ? "" : "s"}`;
+  if (stepTools(step).length > 1) return `${stepTools(step).length} source checks · ${label(step.status)}`;
   if (step.tool) return `${step.tool.tool_name} · ${label(step.tool.outcome || step.tool.approval_status)}`;
   if (step.observation) return `${step.observation.facts.length} persisted fact${step.observation.facts.length === 1 ? "" : "s"}`;
   if (step.adaptation) return `Decision: ${label(step.adaptation.decision)}`;
@@ -812,8 +817,7 @@ function renderStep(step, isLatest) {
       body.append(node("h5", "", "Success criteria"), criteria);
     }
   }
-  if (step.tool) {
-    const tool = step.tool;
+  for (const tool of stepTools(step)) {
     const toolHeader = node("div", "tool-heading");
     toolHeader.append(node("h5", "", `${tool.tool_name}@${tool.tool_version}`), copyButton("Call", String(tool.call_id)));
     body.append(toolHeader);

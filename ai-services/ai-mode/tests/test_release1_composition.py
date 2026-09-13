@@ -134,7 +134,7 @@ def test_backend_run_scope_automatically_adds_retrieval_without_widening_tools(
     assert response.status_code == 202
     result = response.get_json()
     assert result["grounding"] == {"corpus_id": "operator-guidance"}
-    assert result["prompt_set"] == "default.v8"
+    assert result["prompt_set"] == "default.v9"
     assert result["tool_allowlist"] == ["data.sources.v1", RETRIEVAL_TOOL]
 
 
@@ -170,7 +170,7 @@ def test_explicit_null_cannot_bypass_configured_grounding(app_services: AppServi
     )
     assert response.status_code == 202
     assert response.get_json()["grounding"] == {"corpus_id": "operator-guidance"}
-    assert response.get_json()["prompt_set"] == "default.v8"
+    assert response.get_json()["prompt_set"] == "default.v9"
 
 
 @pytest.mark.parametrize(

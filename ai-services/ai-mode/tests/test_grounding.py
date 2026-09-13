@@ -165,6 +165,42 @@ def test_material_gaps_limit_confidence(tmp_path: Path):
     assert validate_grounded_answer(run, value, (result,))["confidence"] == "low"
 
 
+@pytest.mark.parametrize("status", ["ready", "no_match", "unavailable"])
+def test_v9_preserves_supported_tool_answer_without_irrelevant_guidance(
+    tmp_path: Path, status: str
+):
+    _, run = setup_run(tmp_path)
+    run = run.evolve(prompt_set="default.v9")
+    fact = ToolResult(
+        call_id=uuid4(), outcome=ToolOutcome.SUCCEEDED, duration_ms=1, content={"count": 42}
+    )
+    source = ToolResult(
+        call_id=uuid4(), outcome=ToolOutcome.SUCCEEDED, duration_ms=1, retrieval=retrieval(status)
+    )
+    value = answer()
+    value.update(
+        summary="There are 42 accepted addresses.",
+        findings=[
+            {
+                "text": "The accepted address count is 42.",
+                "kind": "tool_fact",
+                "citation_ids": [],
+                "tool_call_ids": [str(fact.call_id)],
+            }
+        ],
+    )
+    final = validate_grounded_answer(run, value, (fact, source))
+    assert final["summary"] == "There are 42 accepted addresses."
+    assert final["citations"] == []
+    assert final["grounding_status"] == status
+    if status != "ready":
+        assert final["confidence"] == "insufficient"
+        assert final["evidence_gaps"]
+    value["findings"][0]["tool_call_ids"] = [str(uuid4())]
+    with pytest.raises(ValueError, match="unrelated tool"):
+        validate_grounded_answer(run, value, (fact, source))
+
+
 def test_similar_but_irrelevant_context_can_be_insufficient(tmp_path: Path):
     _, run = setup_run(tmp_path)
     value = answer()

@@ -2,6 +2,7 @@
 
 export { createAssistantClient, assistantRequest, AssistantApiError } from "./client.js";
 export { createAiChat } from "./controller.js";
+export { createAssistantSidecar } from "./sidecar.js";
 export { createFeatureAssistant, featureActivityHref } from "./feature-route.js";
 export {
   ACTIVE_ASSISTANT_STATES,

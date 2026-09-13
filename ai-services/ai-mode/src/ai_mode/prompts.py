@@ -143,6 +143,10 @@ class RegistryPromptBuilder(PromptBuilder):
             ModelRole.PLANNER: ("planner", "v8"),
             ModelRole.ADAPTER: ("adapter", "v8"),
         },
+        "default.v9": {
+            ModelRole.PLANNER: ("planner", "v8"),
+            ModelRole.ADAPTER: ("adapter", "v9"),
+        },
     }
 
     def __init__(self, registry: PromptRegistry) -> None:
@@ -233,7 +237,16 @@ class RegistryPromptBuilder(PromptBuilder):
                     "call_id": str(latest.call_id),
                     "response": latest.retrieval.model_dump(mode="json"),
                 }
-        if prompt.metadata.version not in {"v7", "v8"}:
+        if prompt.metadata.version == "v9":
+            dynamic = {
+                "tool_fact_sources": [
+                    {"tool_name": action.tool_name, "call_id": str(result.call_id)}
+                    for action, result in zip(plan.actions, tool_results, strict=False)
+                    if result.outcome.value == "succeeded" and result.retrieval is None
+                ],
+                **dynamic,
+            }
+        if prompt.metadata.version not in {"v7", "v8", "v9"}:
             dynamic.pop("limits")
             dynamic = {
                 "objective": dynamic.pop("objective"),

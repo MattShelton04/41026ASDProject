@@ -321,7 +321,8 @@ export function createRunRoutes({ view, request, mutate, confirmAction, announce
           `button ${failed ? "primary" : "secondary"}`,
           () => {
             const draft = failed ? `&draft=${encodeURIComponent(failureExplanationDraft(run, tasks))}` : "";
-            location.hash = `#assistant?route=runs/detail&ingestion_run_id=${encodeURIComponent(id)}${draft}`;
+            const label = String(run.source_name || run.job_name || run.dataset_id || "Data update").slice(0, 200);
+            location.hash = `#assistant?route=runs/detail&ingestion_run_id=${encodeURIComponent(id)}&display_label=${encodeURIComponent(label)}${draft}`;
           },
         ));
         if (linkedRelease) {

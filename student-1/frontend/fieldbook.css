@@ -152,3 +152,9 @@ table td.numeric { white-space: nowrap; }
   html { scroll-behavior: auto; }
   .result-card { transition: none; }
 }
+
+@media (min-width: 1200px) {
+  .ps-ai-context-layout--open > .property-detail-grid,
+  .ps-ai-context-layout--open .property-summary-column { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) { .notification-body { position: fixed; top: 96px; left: var(--ps-space-4); right: var(--ps-space-4); width: auto; } }

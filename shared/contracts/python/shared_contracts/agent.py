@@ -24,6 +24,7 @@ PromptSet = Literal[
     "default.v6",
     "default.v7",
     "default.v8",
+    "default.v9",
 ]
 SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = (
     "default.v1",
@@ -34,6 +35,7 @@ SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = (
     "default.v6",
     "default.v7",
     "default.v8",
+    "default.v9",
 )
 DEFAULT_PROMPT_SET: PromptSet = "default.v7"
 DEFAULT_EVENT_PAGE_SIZE = 100

@@ -10,6 +10,8 @@ import { emptyState, errorState } from "../components/states.js";
 import { cell, makeTable } from "../components/tables.js";
 import { propertySections } from "../components/property-sections.js";
 import { createMap, createOpenFreeMapProvider, featureCollection, mountMapHelp, pointFeature } from "../mapping/index.js";
+import { createAssistantSidecar } from "../ai-chat/index.js";
+import { propertyAssistantOptions } from "../integration/assistant.js";
 
 const PROPERTY_SEARCH_PAGE_SIZE = 25;
 
@@ -244,7 +246,8 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
       const initialCoverage = detailPayload.coverage || [];
       view.replaceChildren();
       const identityHero = el("section", "property-identity-hero");
-      append(identityHero, pageHeading("Published property record", property.address_display || property.display_address || "Property record", `${property.locality || "NSW"} · ${property.state || "NSW"} ${property.postcode || ""} · Updated ${formatDate(property.updated_at)}`, [propertyBackLink(query, propertyRef)]));
+      const ask = button("✳ Ask about this property", "button secondary");
+      append(identityHero, pageHeading("Published property record", property.address_display || property.display_address || "Property record", `${property.locality || "NSW"} · ${property.state || "NSW"} ${property.postcode || ""} · Updated ${formatDate(property.updated_at)}`, [propertyBackLink(query, propertyRef), ask]));
       const referenceStrip = el("div", "property-reference-strip");
       const coverageCount = el("span", "", `${initialCoverage.length} research datasets available`);
       append(referenceStrip, el("span", "", humanise(property.resolution_status || "unknown")), el("span", "", `${detailPayload.identifiers?.length || 0} source identifiers checked`), coverageCount);
@@ -283,7 +286,21 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
         { key: "sources", label: "Sources and identifiers", content: sourcesPanel },
       ]));
       append(detailGrid, summaryColumn, contentColumn);
-      append(view, detailGrid);
+      const contextLayout = el("div", "ps-ai-context-layout");
+      append(contextLayout, detailGrid);
+      append(view, contextLayout);
+      const sidecar = createAssistantSidecar({
+        ...propertyAssistantOptions({ announce, context: {
+          route: "properties/detail", property_ref: property.property_ref,
+          display_label: String(property.address_display || property.display_address || "Property record").slice(0, 200),
+        } }),
+        root: contextLayout, trigger: ask,
+        title: "Ask about this property",
+        description: property.address_display || property.display_address || "Property record",
+        draftKey: "propertyscope:property-sidecar",
+        suggestions: ["What research is available for this property?", "Is there any recorded sale history?", "Explain this property's address match."],
+      });
+      routeEpoch.signal.addEventListener("abort", () => sidecar.destroy(), { once: true });
 
       void mapResult.then((result) => {
         if (!canHydrate(routeEpoch, mapHost, propertyRef)) return;

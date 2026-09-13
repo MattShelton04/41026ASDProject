@@ -35,7 +35,8 @@
           "propertyscope_data_store"
         ],
         "node_test_files": [
-          "student-1/tests/frontend/core.test.mjs"
+          "student-1/tests/frontend/core.test.mjs",
+          "student-1/tests/frontend/assistant.test.mjs"
         ],
         "python_test_paths": [
           "student-1/tests"

@@ -1,20 +1,5 @@
-import { propertyActivityUrl } from "../integration/activity.js";
-import { createAiChat, createAssistantClient } from "../ai-chat/index.js";
-import {
-  FEATURE_ASSISTANT_SCOPES,
-  FEATURE_ASSISTANT_CONTEXTS,
-  assistantContextFromHash,
-  assistantDraftFromHash,
-  featureAssistantSuggestions,
-} from "../integration/assistant.js";
-
-function activityHref(runId) {
-  return propertyActivityUrl(runId, {
-    baseUrl: document.baseURI,
-    activityUrl: window.PROPERTYSCOPE_AGENT_ACTIVITY_URL,
-    returnTo: "/features/data-platform/#assistant",
-  });
-}
+import { createAiChat } from "../ai-chat/index.js";
+import { assistantContextFromHash, assistantDraftFromHash, propertyAssistantOptions } from "../integration/assistant.js";
 
 export function createFeatureAssistantRoute({ view, announce = () => {} }) {
   let active = null;
@@ -22,19 +7,12 @@ export function createFeatureAssistantRoute({ view, announce = () => {} }) {
     render() {
       active?.destroy();
       active = createAiChat({
+        ...propertyAssistantOptions({ announce, context: assistantContextFromHash(location.hash) }),
         root: view,
         draftKey: "propertyscope:property-data-assistant",
-        client: createAssistantClient({ apiRoot: "/api/data-platform/v1/assistant" }),
-        initialScope: "feature",
-        scopes: FEATURE_ASSISTANT_SCOPES,
-        contextOptions: FEATURE_ASSISTANT_CONTEXTS,
-        suggestions: featureAssistantSuggestions,
-        context: assistantContextFromHash(location.hash),
         initialMessage: assistantDraftFromHash(location.hash),
-        activityHref,
-        announce,
-        title: "Ask about Property data",
-        description: "Ask about property records, sources, updates and published data. Link a page to keep the answer close to its evidence.",
+        title: "What would you like to check?",
+        description: "Search property records, compare published sources, or ask about a data update.",
       });
       return active;
     },

@@ -1,0 +1,5 @@
+prompt_id: adapter
+version: v9
+role: adapter
+template: v9.system.j2
+description: Direct evidence briefs with separate tool facts and document guidance, including factual answers without forced guidance citations.

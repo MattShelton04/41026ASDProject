@@ -135,6 +135,7 @@ class AgentStepEvidence(ContractModel):
     summary: str = Field(min_length=1, max_length=500)
     plan: PlanEvidence | None = None
     tool: ToolCallEvidence | None = None
+    tools: tuple[ToolCallEvidence, ...] = ()
     observation: ObservationEvidence | None = None
     adaptation: AdaptationEvidence | None = None
     model_invocation: ModelInvocationEvidence | None = None

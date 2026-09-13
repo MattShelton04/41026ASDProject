@@ -1,7 +1,7 @@
 import { append, el, link, notice, parseShellRoute, requestJson, requestText } from "./core.js";
 import { ENABLED_FEATURES } from "./generated/enabled-features.js";
 import { createEvidenceRoute, loadEvidenceAdapter } from "./routes/evidence.js?v=3";
-import { createAssistantRoute } from "./routes/assistant.js?v=3";
+import { createAssistantRoute } from "./routes/assistant.js?v=4";
 import { createFeaturesRoute } from "./routes/features.js?v=3";
 import { createRoadmapRoute } from "./routes/roadmap.js?v=3";
 import { createStatusRoute } from "./routes/status.js?v=3";

@@ -76,16 +76,23 @@ def test_enabled_run_index_filters_and_returns_projected_detail(
         f"/api/v1/operations/agent-runs/{run_id}",
         headers={"If-None-Match": evidence.headers["ETag"]},
     )
+    previous_projection = client.get(
+        f"/api/v1/operations/agent-runs/{run_id}",
+        headers={
+            "If-None-Match": evidence.headers["ETag"].replace("operations-v3", "operations-v2")
+        },
+    )
 
     assert page.status_code == 200
     assert page.headers[REQUEST_ID_HEADER]
     assert [item["id"] for item in page.get_json()["items"]] == [run_id]
     assert evidence.status_code == 200
-    assert evidence.headers["ETag"].startswith('W/"operations-v2:')
+    assert evidence.headers["ETag"].startswith('W/"operations-v3:')
     assert evidence.get_json()["objective"] == "Inspect safe records"
     assert evidence.get_json()["correlation"]["request_id"] == "operations-api-test"
     assert unchanged.status_code == 304
     assert unchanged.data == b""
+    assert previous_projection.status_code == 200
 
 
 def test_run_index_rejects_unknown_filters_bounds_and_cursors(

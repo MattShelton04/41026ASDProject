@@ -1,5 +1,6 @@
 import { append, el } from "../browser/index.js";
 import { formatAssistantDate, humaniseAssistantValue } from "./formats.js";
+import { toolSourceCard } from "./activity.js";
 
 const CONFIDENCE = new Set(["high", "moderate", "low", "insufficient"]);
 const STATES = Object.freeze({
@@ -79,7 +80,7 @@ function citationCard(citation) {
   return details;
 }
 
-export function renderGroundedAnswer(result, { inActivityHistory = false } = {}) {
+export function renderGroundedAnswer(result, { inActivityHistory = false, toolChecks = [], inspection = null } = {}) {
   const host = el("div", "ps-ai-chat__answer ps-ai-chat__answer--grounded");
   append(host, paragraphSection("summary", "Answer", [result.summary]));
   const state = groundingState(result);
@@ -88,10 +89,13 @@ export function renderGroundedAnswer(result, { inActivityHistory = false } = {})
   append(labels, el("span", `ps-badge ps-badge--${state.tone}`, state.label));
   append(labels, el("span", "ps-badge ps-badge--unknown", CONFIDENCE.has(result.confidence) ? `Confidence: ${humaniseAssistantValue(result.confidence)}` : "Confidence not recorded"));
   append(confidence, labels, el("p", "ps-ai-chat__grounding-note", "Confidence describes recorded evidence support, not a probability of correctness. Retrieval is recorded for this answer; current service health is checked separately."));
-  append(host, confidence);
+  const qualifications = el("details", "ps-ai-chat__qualifications");
+  qualifications.dataset.disclosure = "qualifications";
+  append(qualifications, el("summary", "", "Scope and evidence support"), confidence);
 
   const citations = Array.isArray(result.citations) ? result.citations.filter((item) => item && typeof item === "object" && typeof item.citation_id === "string").slice(0, 10) : [];
   const sourceCards = new Map(citations.map((citation) => [citation.citation_id, citationCard(citation)]));
+  const toolCards = new Map(toolChecks.filter((check) => check.status === "succeeded" && !check.result?.retrieval).map((check) => [check.id, toolSourceCard(check)]));
   const findings = Array.isArray(result.findings) ? result.findings.filter((item) => item && typeof item.text === "string").slice(0, 10) : [];
   if (findings.length) {
     const section = paragraphSection("findings", "Key findings", []);
@@ -104,16 +108,24 @@ export function renderGroundedAnswer(result, { inActivityHistory = false } = {})
         if (!target) { append(item, el("p", "", `Source ${String(id)} was not included in this answer.`)); continue; }
         const button = el("button", "ps-ai-chat__source-inspect", `Inspect source: ${citations.find((citation) => citation.citation_id === id)?.title || id}`);
         button.type = "button"; button.dataset.action = `inspect:${index}:${id}`;
-        button.addEventListener("click", () => { target.open = true; target.querySelector("summary").focus(); });
+        button.addEventListener("click", () => { if (inspection) inspection.open(target); else { target.open = true; target.querySelector("summary").focus(); } });
         append(item, button);
       }
       const ids = (Array.isArray(finding.tool_call_ids) ? finding.tool_call_ids : []).filter((id) => typeof id === "string").slice(0, 5);
       if (ids.length) {
+        for (const id of ids) {
+          const target = toolCards.get(id);
+          if (!target) continue;
+          const button = el("button", "ps-ai-chat__source-inspect", `Inspect source: ${toolChecks.find((check) => check.id === id)?.label || "Recorded source"}`);
+          button.type = "button"; button.dataset.action = `inspect-tool:${index}:${id}`;
+          button.addEventListener("click", () => { if (inspection) inspection.open(target); else { target.open = true; target.querySelector("summary").focus(); } });
+          append(item, button);
+        }
         const support = el("details", "ps-ai-chat__tool-support");
         support.dataset.disclosure = `tool-support:${index}`;
         append(support, el("summary", "", `Recorded tool support · ${ids.length} call${ids.length === 1 ? "" : "s"}`), el("p", "", inActivityHistory ? "These calls support this finding. Inspect their recorded results in the activity steps below." : "These calls support this finding. Open full activity below to inspect their recorded results."));
         for (const id of ids) append(support, el("code", "ps-ai-chat__reference", id));
-        append(item, support);
+        if (ids.some((id) => !toolCards.has(id))) append(item, support);
       }
       append(list, item);
     }
@@ -121,12 +133,21 @@ export function renderGroundedAnswer(result, { inActivityHistory = false } = {})
   }
   const gaps = (Array.isArray(result.evidence_gaps) ? result.evidence_gaps : []).filter((value) => typeof value === "string" && value.trim()).slice(0, 10);
   if (gaps.length) append(host, paragraphSection("gaps", "Evidence gaps", gaps));
-  if (result.next_step) append(host, paragraphSection("recommended_next_step", "Useful next step", [result.next_step]));
-  if (result.safety_boundary) append(host, paragraphSection("safety_boundary", "Safety boundary", [result.safety_boundary]));
-  const sources = paragraphSection("sources", "Document sources", []);
-  append(sources, el("p", "ps-ai-chat__grounding-note", "Excerpts are pinned to the recorded corpus version. Source dates and indexing dates describe different events; neither guarantees current coverage."));
+  if (result.next_step) {
+    const next = paragraphSection("recommended_next_step", "Useful next step", [result.next_step]);
+    if (inspection) {
+      const optional = el("details", "ps-ai-chat__next-step");
+      optional.dataset.disclosure = "next-step";
+      append(optional, el("summary", "", "Suggested next step"), next);
+      append(host, optional);
+    } else append(host, next);
+  }
+  if (result.safety_boundary) append(qualifications, paragraphSection("safety_boundary", "Scope", [result.safety_boundary]));
+  const sources = paragraphSection("sources", "Sources", []);
+  if (sourceCards.size) append(qualifications, el("p", "ps-ai-chat__grounding-note", "Excerpts are pinned to the recorded corpus version. Source dates and indexing dates describe different events; neither guarantees current coverage."));
   if (sourceCards.size) append(sources, ...sourceCards.values());
   else append(sources, el("p", "", "No document citations were recorded for this answer."));
-  append(host, sources);
+  append(sources, ...toolCards.values());
+  append(inspection?.host || host, sources, qualifications);
   return host;
 }
