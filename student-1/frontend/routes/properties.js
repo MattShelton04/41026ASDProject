@@ -115,7 +115,11 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
         }
       } catch (error) {
         if (!isCurrent()) return;
-        resultHost.replaceChildren(errorState(error, () => form.requestSubmit()));
+        const copy = error.code === "read_budget_exceeded" ? {
+          title: "Search took too long",
+          message: "Try a more specific suburb, postcode or street address, or try again.",
+        } : {};
+        resultHost.replaceChildren(errorState(error, () => form.requestSubmit(), copy));
       } finally {
         if (task.isCurrent()) {
           pendingQuery = null;
