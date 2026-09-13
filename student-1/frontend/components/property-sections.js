@@ -31,6 +31,7 @@ export function propertySections(sections) {
       tabs[index].setAttribute("aria-selected", String(active));
       tabs[index].tabIndex = active ? 0 : -1;
       if (active && focus) tabs[index].focus();
+      if (active) queueMicrotask(() => section.onActivate?.());
     });
     if (remember) {
       const query = routeQuery(location.hash);

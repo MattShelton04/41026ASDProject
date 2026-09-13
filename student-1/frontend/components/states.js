@@ -29,11 +29,11 @@ export function emptyState(title, message, action = null) {
   return section;
 }
 
-export function errorState(error, retry) {
+export function errorState(error, retry, { title, message } = {}) {
   const section = el("section", "error-state");
   section.setAttribute("role", "alert");
   const box = el("div");
-  append(box, icon("alert", "state-icon"), el("h2", "", error.status === 503 ? "Service temporarily unavailable" : "We couldn’t load this view"), el("p", "", error.message));
+  append(box, icon("alert", "state-icon"), el("h2", "", title ?? (error.status === 503 ? "Service temporarily unavailable" : "We couldn’t load this view")), el("p", "", message ?? error.message));
   if (error.requestId) append(box, el("code", "request-id", `Request ID: ${error.requestId}`));
   if (retry) {
     const retryButton = button("Try again", "button primary", retry);

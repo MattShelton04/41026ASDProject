@@ -1001,7 +1001,7 @@ def test_property_search_does_not_broaden_punctuation_only_input() -> None:
     assert store.query == ""
 
 
-@pytest.mark.parametrize("query", ["street", "NSW", "street nsw", "road", "Sydney", "Sydney NSW"])
+@pytest.mark.parametrize("query", ["street", "NSW", "street nsw", "road", "ab"])
 def test_property_search_rejects_underspecified_common_queries(query: str) -> None:
     store = PropertyQueryStore()
 
@@ -1011,7 +1011,9 @@ def test_property_search_rejects_underspecified_common_queries(query: str) -> No
     assert store.query == ""
 
 
-@pytest.mark.parametrize("query", ["2000", "Parramatta", "11 Example Street"])
+@pytest.mark.parametrize(
+    "query", ["2000", "Parramatta", "11 Example Street", "Sydney", "Sydney NSW", "Glebe", "Ryde"]
+)
 def test_property_search_accepts_selective_property_queries(query: str) -> None:
     store = PropertyQueryStore()
 
@@ -1529,10 +1531,12 @@ def test_release_preview_uses_fixed_profile_projection_and_bounds() -> None:
 
     assert "FROM warehouse.school" in store.preview_query
     assert "dataset_release_id=%s" in store.preview_query
-    assert store.preview_parameters == (release_id, 25, 50)
+    assert store.preview_parameters == (release_id, 26, 50)
     assert preview["profile"] == "schools-master"
-    assert preview["total"] == 2210
-    assert preview["next_offset"] == 51
+    assert preview["total"] == 51
+    assert preview["total_is_lower_bound"] is False
+    assert preview["next_offset"] is None
+    assert store.required_calls == 1
 
 
 def test_gnaf_preview_derives_stable_property_ref_without_warehouse_rewrite() -> None:
@@ -1584,9 +1588,10 @@ def test_release_preview_uses_the_same_registered_psi_scope_as_the_export() -> N
     preview = store.preview_release_records(release_id, limit=25, offset=0)
 
     assert "source_partition_year=ANY(%s)" in store.select_query
-    assert store.select_parameters == (release_id, [2025], 25, 0)
-    assert store.count_parameters == (release_id, [2025])
-    assert preview["total"] == 237_349
+    assert store.select_parameters == (release_id, [2025], 26, 0)
+    assert store.count_parameters == ()
+    assert preview["total"] == 1
+    assert preview["next_offset"] is None
     assert preview["items"] == [
         {
             "source_business_key": "001:P1:1",

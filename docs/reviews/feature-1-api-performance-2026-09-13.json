@@ -1,0 +1,855 @@
+{
+  "baseline_commit": "d1e28ec",
+  "implementation_checkpoint": "b34a5b0",
+  "measured_at": "2026-09-13T03:35:35.675251+00:00",
+  "environment": "existing local Docker stack; accepted data; sequential samples with caches retained",
+  "samples_per_case": 20,
+  "http_cases": [
+    {
+      "label": "search:Parramatta",
+      "method": "GET",
+      "p50_ms": 30.468,
+      "p95_ms": 45.646,
+      "max_ms": 49.078,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9498.0
+    },
+    {
+      "label": "search:Sutherland",
+      "method": "GET",
+      "p50_ms": 29.191,
+      "p95_ms": 47.257,
+      "max_ms": 48.87,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9436.0
+    },
+    {
+      "label": "search:2000",
+      "method": "GET",
+      "p50_ms": 28.479,
+      "p95_ms": 42.705,
+      "max_ms": 43.285,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9619.0
+    },
+    {
+      "label": "search:Glebe",
+      "method": "GET",
+      "p50_ms": 39.712,
+      "p95_ms": 62.713,
+      "max_ms": 69.853,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9019.0
+    },
+    {
+      "label": "search:Sydney",
+      "method": "GET",
+      "p50_ms": 26.524,
+      "p95_ms": 48.314,
+      "max_ms": 51.206,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9257.0
+    },
+    {
+      "label": "search:Sydney NSW 2000",
+      "method": "GET",
+      "p50_ms": 146.113,
+      "p95_ms": 307.1,
+      "max_ms": 325.576,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9266.0
+    },
+    {
+      "label": "search:St Marys",
+      "method": "GET",
+      "p50_ms": 29.786,
+      "p95_ms": 42.685,
+      "max_ms": 44.317,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9311.0
+    },
+    {
+      "label": "search:George",
+      "method": "GET",
+      "p50_ms": 38.093,
+      "p95_ms": 54.548,
+      "max_ms": 55.679,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9296.0
+    },
+    {
+      "label": "search:North",
+      "method": "GET",
+      "p50_ms": 38.805,
+      "p95_ms": 64.5,
+      "max_ms": 65.884,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9132.0
+    },
+    {
+      "label": "search:11 George",
+      "method": "GET",
+      "p50_ms": 127.621,
+      "p95_ms": 157.53,
+      "max_ms": 203.286,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9633.0
+    },
+    {
+      "label": "search:zzzznonexistent",
+      "method": "GET",
+      "p50_ms": 32.316,
+      "p95_ms": 53.578,
+      "max_ms": 55.803,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 146.0
+    },
+    {
+      "label": "overview",
+      "method": "GET",
+      "p50_ms": 12.27,
+      "p95_ms": 32.191,
+      "max_ms": 33.332,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 436.0
+    },
+    {
+      "label": "notifications",
+      "method": "GET",
+      "p50_ms": 12.341,
+      "p95_ms": 32.472,
+      "max_ms": 42.148,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 18339.0
+    },
+    {
+      "label": "sources?limit=25",
+      "method": "GET",
+      "p50_ms": 23.968,
+      "p95_ms": 31.506,
+      "max_ms": 32.151,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 4354.0
+    },
+    {
+      "label": "jobs?limit=25",
+      "method": "GET",
+      "p50_ms": 13.801,
+      "p95_ms": 29.008,
+      "max_ms": 30.651,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 4930.0
+    },
+    {
+      "label": "ingestion-runs?limit=25",
+      "method": "GET",
+      "p50_ms": 22.696,
+      "p95_ms": 36.063,
+      "max_ms": 42.499,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 94967.0
+    },
+    {
+      "label": "dataset-releases?limit=25",
+      "method": "GET",
+      "p50_ms": 54.621,
+      "p95_ms": 73.103,
+      "max_ms": 74.954,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 651714.0
+    },
+    {
+      "label": "dataset-releases?view=summary&limit=25",
+      "method": "GET",
+      "p50_ms": 12.083,
+      "p95_ms": 32.192,
+      "max_ms": 35.776,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 14019.0
+    },
+    {
+      "label": "data-products",
+      "method": "GET",
+      "p50_ms": 19.492,
+      "p95_ms": 38.61,
+      "max_ms": 40.275,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 6243.0
+    },
+    {
+      "label": "runtime-capabilities",
+      "method": "GET",
+      "p50_ms": 15.352,
+      "p95_ms": 26.463,
+      "max_ms": 27.611,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 1050.0
+    },
+    {
+      "label": "properties/locality-summary?locality=Parramatta&include_streets=true",
+      "method": "GET",
+      "p50_ms": 87.087,
+      "p95_ms": 150.977,
+      "max_ms": 207.832,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 1681.0
+    },
+    {
+      "label": "property:identity",
+      "method": "GET",
+      "p50_ms": 70.969,
+      "p95_ms": 117.023,
+      "max_ms": 142.005,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 3693.0
+    },
+    {
+      "label": "property:/map-context",
+      "method": "GET",
+      "p50_ms": 40.662,
+      "p95_ms": 59.54,
+      "max_ms": 65.539,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 235.0
+    },
+    {
+      "label": "property:/coverage",
+      "method": "GET",
+      "p50_ms": 64.957,
+      "p95_ms": 90.262,
+      "max_ms": 95.29,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 1092.0
+    },
+    {
+      "label": "property:/sale-history?limit=50",
+      "method": "GET",
+      "p50_ms": 35.394,
+      "p95_ms": 54.644,
+      "max_ms": 61.014,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 466.0
+    },
+    {
+      "label": "property:/seifa",
+      "method": "GET",
+      "p50_ms": 40.438,
+      "p95_ms": 47.862,
+      "max_ms": 56.739,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 1478.0
+    },
+    {
+      "label": "property:/report-section",
+      "method": "GET",
+      "p50_ms": 50.529,
+      "p95_ms": 82.327,
+      "max_ms": 90.875,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 1470.0
+    },
+    {
+      "label": "tool:search",
+      "method": "POST",
+      "p50_ms": 25.431,
+      "p95_ms": 44.202,
+      "max_ms": 46.031,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 3579.0
+    },
+    {
+      "label": "tool:locality",
+      "method": "POST",
+      "p50_ms": 26.695,
+      "p95_ms": 44.534,
+      "max_ms": 138.72,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 740.0
+    },
+    {
+      "label": "accepted:abs-seifa-2021",
+      "method": "GET",
+      "p50_ms": 22.697,
+      "p95_ms": 31.952,
+      "max_ms": 32.464,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 71294.0
+    },
+    {
+      "label": "preview:abs-seifa-2021:0",
+      "method": "GET",
+      "p50_ms": 20.547,
+      "p95_ms": 32.488,
+      "max_ms": 32.982,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9382.0
+    },
+    {
+      "label": "preview:abs-seifa-2021:25",
+      "method": "GET",
+      "p50_ms": 23.819,
+      "p95_ms": 32.158,
+      "max_ms": 33.116,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9407.0
+    },
+    {
+      "label": "accepted:fixture-property",
+      "method": "GET",
+      "p50_ms": 8.604,
+      "p95_ms": 25.797,
+      "max_ms": 30.874,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 1912.0
+    },
+    {
+      "label": "preview:fixture-property:0",
+      "method": "GET",
+      "p50_ms": 11.485,
+      "p95_ms": 33.756,
+      "max_ms": 37.684,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 594.0
+    },
+    {
+      "label": "preview:fixture-property:25",
+      "method": "GET",
+      "p50_ms": 17.799,
+      "p95_ms": 30.744,
+      "max_ms": 31.388,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 594.0
+    },
+    {
+      "label": "accepted:gnaf-nsw",
+      "method": "GET",
+      "p50_ms": 26.396,
+      "p95_ms": 35.988,
+      "max_ms": 45.285,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 100449.0
+    },
+    {
+      "label": "preview:gnaf-nsw:0",
+      "method": "GET",
+      "p50_ms": 30.355,
+      "p95_ms": 34.458,
+      "max_ms": 40.943,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 16200.0
+    },
+    {
+      "label": "preview:gnaf-nsw:25",
+      "method": "GET",
+      "p50_ms": 21.589,
+      "p95_ms": 32.009,
+      "max_ms": 33.578,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 15954.0
+    },
+    {
+      "label": "accepted:nsw-psi-sales",
+      "method": "GET",
+      "p50_ms": 30.245,
+      "p95_ms": 31.378,
+      "max_ms": 31.995,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 2122.0
+    },
+    {
+      "label": "preview:nsw-psi-sales:0",
+      "method": "GET",
+      "p50_ms": 18.574,
+      "p95_ms": 33.777,
+      "max_ms": 36.112,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 24797.0
+    },
+    {
+      "label": "preview:nsw-psi-sales:25",
+      "method": "GET",
+      "p50_ms": 16.369,
+      "p95_ms": 33.527,
+      "max_ms": 36.195,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 24918.0
+    },
+    {
+      "label": "accepted:bocsar-crime",
+      "method": "GET",
+      "p50_ms": 29.465,
+      "p95_ms": 35.195,
+      "max_ms": 36.578,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 103562.0
+    },
+    {
+      "label": "preview:bocsar-crime:0",
+      "method": "GET",
+      "p50_ms": 20.899,
+      "p95_ms": 32.424,
+      "max_ms": 33.829,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9347.0
+    },
+    {
+      "label": "preview:bocsar-crime:25",
+      "method": "GET",
+      "p50_ms": 21.2,
+      "p95_ms": 34.423,
+      "max_ms": 35.84,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 9348.0
+    },
+    {
+      "label": "accepted:nsw-government-schools",
+      "method": "GET",
+      "p50_ms": 12.526,
+      "p95_ms": 30.896,
+      "max_ms": 32.828,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 1855.0
+    },
+    {
+      "label": "preview:nsw-government-schools:0",
+      "method": "GET",
+      "p50_ms": 20.412,
+      "p95_ms": 33.015,
+      "max_ms": 33.069,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 2949.0
+    },
+    {
+      "label": "preview:nsw-government-schools:25",
+      "method": "GET",
+      "p50_ms": 15.521,
+      "p95_ms": 33.497,
+      "max_ms": 35.717,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 419.0
+    },
+    {
+      "label": "psi-source-year",
+      "method": "GET",
+      "p50_ms": 69.945,
+      "p95_ms": 93.041,
+      "max_ms": 94.223,
+      "successes": 20,
+      "within_500ms": 20,
+      "response_bytes_median": 28810.0
+    }
+  ],
+  "baseline_http": [
+    {
+      "path": "properties/search?q=Parramatta&limit=25",
+      "elapsed_ms": 3752.66,
+      "status": 200,
+      "bytes": 9563,
+      "count": 25,
+      "total": 500
+    },
+    {
+      "path": "properties/search?q=Sutherland&limit=25",
+      "elapsed_ms": 1730.12,
+      "status": 200,
+      "bytes": 9423,
+      "count": 25,
+      "total": 500
+    },
+    {
+      "path": "properties/search?q=2000&limit=25",
+      "elapsed_ms": 372.38,
+      "status": 200,
+      "bytes": 9634,
+      "count": 25,
+      "total": 500
+    },
+    {
+      "path": "properties/search?q=11+Example+Street&limit=25",
+      "elapsed_ms": 163.88,
+      "status": 200,
+      "bytes": 148,
+      "count": 0,
+      "total": 0
+    },
+    {
+      "path": "properties/search?q=Glebe&limit=25",
+      "elapsed_ms": 7.2,
+      "status": 422,
+      "bytes": 271,
+      "count": null,
+      "total": null
+    },
+    {
+      "path": "properties/search?q=Sydney&limit=25",
+      "elapsed_ms": 5.49,
+      "status": 422,
+      "bytes": 271,
+      "count": null,
+      "total": null
+    },
+    {
+      "path": "properties/search?q=zzzznonexistent&limit=25",
+      "elapsed_ms": 98.94,
+      "status": 200,
+      "bytes": 146,
+      "count": 0,
+      "total": 0
+    },
+    {
+      "path": "overview",
+      "elapsed_ms": 12.62,
+      "status": 200,
+      "bytes": 436,
+      "count": null,
+      "total": null
+    },
+    {
+      "path": "notifications",
+      "elapsed_ms": 36.91,
+      "status": 200,
+      "bytes": 18339,
+      "count": null,
+      "total": null
+    },
+    {
+      "path": "sources?limit=25",
+      "elapsed_ms": 9.94,
+      "status": 200,
+      "bytes": 4354,
+      "count": 6,
+      "total": null
+    },
+    {
+      "path": "jobs?limit=25",
+      "elapsed_ms": 34.13,
+      "status": 200,
+      "bytes": 4930,
+      "count": 6,
+      "total": null
+    },
+    {
+      "path": "ingestion-runs?limit=25",
+      "elapsed_ms": 14.96,
+      "status": 200,
+      "bytes": 94967,
+      "count": 25,
+      "total": null
+    },
+    {
+      "path": "dataset-releases?limit=25",
+      "elapsed_ms": 80.14,
+      "status": 200,
+      "bytes": 651714,
+      "count": 21,
+      "total": null
+    },
+    {
+      "path": "data-products",
+      "elapsed_ms": 29.26,
+      "status": 200,
+      "bytes": 6243,
+      "count": 6,
+      "total": null
+    },
+    {
+      "path": "properties/locality-summary?locality=Parramatta&include_streets=true",
+      "elapsed_ms": 4023.87,
+      "status": 200,
+      "bytes": 1681,
+      "count": null,
+      "total": null
+    },
+    {
+      "path": "properties/0449066e-5949-da5e-dd2c-f6fac1c62304",
+      "elapsed_ms": 144.71,
+      "status": 200,
+      "bytes": 2206,
+      "count": null,
+      "total": null
+    },
+    {
+      "path": "properties/0449066e-5949-da5e-dd2c-f6fac1c62304/map-context",
+      "elapsed_ms": 151.91,
+      "status": 200,
+      "bytes": 235,
+      "count": null,
+      "total": null
+    },
+    {
+      "path": "properties/0449066e-5949-da5e-dd2c-f6fac1c62304/coverage",
+      "elapsed_ms": 204.78,
+      "status": 200,
+      "bytes": 1092,
+      "count": 2,
+      "total": null
+    },
+    {
+      "path": "properties/0449066e-5949-da5e-dd2c-f6fac1c62304/sale-history?limit=50",
+      "elapsed_ms": 68.52,
+      "status": 200,
+      "bytes": 466,
+      "count": 0,
+      "total": null
+    },
+    {
+      "path": "properties/0449066e-5949-da5e-dd2c-f6fac1c62304/seifa",
+      "elapsed_ms": 70.47,
+      "status": 200,
+      "bytes": 1478,
+      "count": null,
+      "total": null
+    },
+    {
+      "path": "properties/0449066e-5949-da5e-dd2c-f6fac1c62304/report-section",
+      "elapsed_ms": 115.09,
+      "status": 200,
+      "bytes": 1470,
+      "count": null,
+      "total": null
+    },
+    {
+      "flow": "property-detail-six-requests",
+      "elapsed_ms": 224.27
+    }
+  ],
+  "sql_plans": {
+    "before": [
+      {
+        "query": "Parramatta",
+        "execution_ms": 2790.35,
+        "shared_hit_blocks": 15816,
+        "shared_read_blocks": 8589
+      },
+      {
+        "query": "Sutherland",
+        "execution_ms": 1698.276,
+        "shared_hit_blocks": 5531,
+        "shared_read_blocks": 3513
+      },
+      {
+        "query": "2000",
+        "execution_ms": 354.461,
+        "shared_hit_blocks": 510,
+        "shared_read_blocks": 520
+      },
+      {
+        "query": "11 Example Street",
+        "execution_ms": 146.062,
+        "shared_hit_blocks": 507,
+        "shared_read_blocks": 118
+      },
+      {
+        "query": "zzzznonexistent",
+        "execution_ms": 92.33,
+        "shared_hit_blocks": 112,
+        "shared_read_blocks": 0
+      }
+    ],
+    "after": [
+      {
+        "query": "Parramatta",
+        "execution_ms": 24.99,
+        "shared_hit_blocks": 485,
+        "shared_read_blocks": 0
+      },
+      {
+        "query": "Sutherland",
+        "execution_ms": 26.619,
+        "shared_hit_blocks": 126,
+        "shared_read_blocks": 393
+      },
+      {
+        "query": "2000",
+        "execution_ms": 22.984,
+        "shared_hit_blocks": 227,
+        "shared_read_blocks": 286
+      },
+      {
+        "query": "11 Example Street",
+        "execution_ms": 91.816,
+        "shared_hit_blocks": 865,
+        "shared_read_blocks": 290
+      },
+      {
+        "query": "zzzznonexistent",
+        "execution_ms": 10.162,
+        "shared_hit_blocks": 125,
+        "shared_read_blocks": 46
+      }
+    ]
+  },
+  "integrations": [
+    {
+      "feature": "feature-2",
+      "samples": 20,
+      "p50_ms": 58.05,
+      "p95_ms": 72.51,
+      "states": [
+        "verified"
+      ],
+      "collect_ms": null
+    },
+    {
+      "feature": "feature-5",
+      "samples": 20,
+      "p50_ms": 90.41499999999999,
+      "p95_ms": 175.18,
+      "states": [
+        "validated"
+      ],
+      "collect_ms": 223.49
+    },
+    {
+      "feature": "feature-3",
+      "samples": 20,
+      "p50_ms": 47.614999999999995,
+      "p95_ms": 92.4,
+      "states": [
+        "200"
+      ],
+      "collect_ms": null
+    },
+    {
+      "feature": "feature-4-search",
+      "samples": 20,
+      "p50_ms": 67.775,
+      "p95_ms": 135.25,
+      "states": [
+        "200"
+      ],
+      "collect_ms": null
+    },
+    {
+      "feature": "feature-4-validation",
+      "samples": 20,
+      "p50_ms": 68.635,
+      "p95_ms": 91.71,
+      "states": [
+        "200"
+      ],
+      "collect_ms": null
+    }
+  ],
+  "concurrent_search": {
+    "concurrent_requests": 4,
+    "p50_ms": 38.432500000000005,
+    "p95_ms": 91.474,
+    "max_ms": 234.141,
+    "successes": 80
+  },
+  "browser": {
+    "events": [
+      {
+        "flow": "search",
+        "query": "Glebe",
+        "ms": 129,
+        "cards": 25
+      },
+      {
+        "flow": "search",
+        "query": "Sydney",
+        "ms": 130,
+        "cards": 25
+      },
+      {
+        "flow": "search",
+        "query": "2000",
+        "ms": 64,
+        "cards": 25
+      },
+      {
+        "flow": "search",
+        "query": "St Marys",
+        "ms": 140,
+        "cards": 25
+      },
+      {
+        "flow": "search",
+        "query": "North",
+        "ms": 125,
+        "cards": 25
+      },
+      {
+        "flow": "search",
+        "query": "Sydney NSW 2000",
+        "ms": 340,
+        "cards": 25
+      },
+      {
+        "flow": "search",
+        "query": "Parramatta",
+        "ms": 53,
+        "cards": 25
+      },
+      {
+        "flow": "detail-initial",
+        "ms": 192,
+        "request_count": 1
+      },
+      {
+        "flow": "Sale history",
+        "ms": 295,
+        "request_count": 1
+      },
+      {
+        "flow": "Area context",
+        "ms": 368,
+        "request_count": 1
+      },
+      {
+        "flow": "shared-entry-search",
+        "ms": 53
+      }
+    ],
+    "page_errors": [],
+    "external_map_tiles": "disabled; not a map-provider test"
+  }
+}

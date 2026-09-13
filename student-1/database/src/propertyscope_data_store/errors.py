@@ -21,3 +21,7 @@ class ValidationError(StoreError):
 
 class LeaseConflictError(ConflictError):
     """Worker does not own the current live lease."""
+
+
+class ReadBudgetExceededError(StoreError):
+    """An interactive read was cancelled before its HTTP caller gives up."""

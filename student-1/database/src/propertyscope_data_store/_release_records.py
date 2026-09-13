@@ -62,10 +62,23 @@ class _ReleaseRecords:
         ingestion_run_id: str | None = None,
         query_text: str | None = None,
         lifecycle: str | None = None,
+        summary: bool = False,
         limit: int,
         offset: int,
     ) -> list[JsonObject]:
-        query = """SELECT release.*,
+        projection = (
+            "release.id,release.dataset_id,release.target_feature,release.release_version,"
+            "release.schema_version,release.status,release.record_count,release.content_sha256,"
+            "release.accepted_at,release.created_at,release.updated_at,release.version,"
+            "release.ingestion_run_id,release.source_definition_id,"
+            "jsonb_strip_nulls(jsonb_build_object("
+            "'state',release.coverage_json->'state','locality',release.coverage_json->'locality',"
+            "'complete',release.coverage_json->'complete',"
+            "'source_record_count',release.coverage_json->'source_record_count')) AS coverage_json"
+            if summary
+            else "release.*"
+        )
+        query = f"""SELECT {projection},
         CASE WHEN release.status='accepted' THEN 'completed'
           WHEN EXISTS (SELECT 1 FROM ops.release_activation activation
             WHERE activation.dataset_release_id=release.id
@@ -235,19 +248,24 @@ class _ReleaseRecords:
             and not isinstance(release_scope.get("maximum_records"), bool)
         )
         if profile != "bocsar-sparse" and has_registered_bound and isinstance(coverage, Mapping):
-            query = release_product_query(profile, release_id, coverage, limit=limit, offset=offset)
+            query = release_product_query(
+                profile, release_id, coverage, limit=limit + 1, offset=offset
+            )
             projected = self._owner._fetch_all(query.select_sql, query.select_params)
             items = [
                 {column: row[column] for column in spec.columns if column in row}
                 for row in projected
             ]
-            total_row = self._owner._required(query.count_sql, query.count_params)
         else:
             # Historical seed releases predate explicit product scopes. BOCSAR's
             # preview intentionally remains observation-oriented while its export
             # aggregates those observations into coverage-aware series.
-            items = self._owner._fetch_all(spec.select_sql, (release_id, limit, offset))
-            total_row = self._owner._required(spec.count_sql, (release_id,))
+            items = self._owner._fetch_all(spec.select_sql, (release_id, limit + 1, offset))
+        # A preview is a bounded sample, not a source-scale statistics request.
+        # The extra row proves continuation without recounting the whole release.
+        has_more = len(items) > limit
+        total = offset + len(items) if items else 0
+        items = items[:limit]
         return {
             "release": {
                 key: context[key]
@@ -257,12 +275,11 @@ class _ReleaseRecords:
             "columns": list(spec.columns),
             "items": items,
             "count": len(items),
-            "total": int(total_row["count"]),
+            "total": total,
+            "total_is_lower_bound": has_more or (offset > 0 and not items),
             "limit": limit,
             "offset": offset,
-            "next_offset": offset + len(items)
-            if offset + len(items) < int(total_row["count"])
-            else None,
+            "next_offset": offset + len(items) if has_more else None,
         }
 
     def release_build_context(self, run_id: uuid.UUID) -> JsonObject:

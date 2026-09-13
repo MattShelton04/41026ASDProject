@@ -60,6 +60,11 @@ from propertyscope_data_store.persistence_support import require_source_snapshot
 from propertyscope_data_store.persistence_support import (
     validate_artifact_replay as _validate_artifact_replay,
 )
+from propertyscope_data_store.read_budget import (
+    apply_read_budget,
+    interactive_read,
+    remaining_read_seconds,
+)
 from propertyscope_data_store.runtime_registry import (
     RuntimeProfile,
     RuntimeRegistry,
@@ -148,8 +153,9 @@ class PropertyScopeStore:
 
     @contextmanager
     def connection(self) -> Iterator[Connection[Any]]:
-        with self._pool.connection() as connection:
+        with self._pool.connection(timeout=remaining_read_seconds()) as connection:
             self._apply_loader_transaction_limits(connection)
+            apply_read_budget(connection)
             yield connection
 
     def _apply_loader_transaction_limits(self, connection: Connection[Any]) -> None:
@@ -1210,6 +1216,7 @@ class PropertyScopeStore:
         ingestion_run_id: str | None = None,
         query_text: str | None = None,
         lifecycle: str | None = None,
+        summary: bool = False,
         limit: int,
         offset: int,
     ) -> list[JsonObject]:
@@ -1221,6 +1228,7 @@ class PropertyScopeStore:
             ingestion_run_id=ingestion_run_id,
             query_text=query_text,
             lifecycle=lifecycle,
+            summary=summary,
             limit=limit,
             offset=offset,
         )
@@ -1283,6 +1291,7 @@ class PropertyScopeStore:
     ) -> JsonObject:
         return self._consumer_imports().record_activation_outcome(operation_id, **values)
 
+    @interactive_read()
     def preview_release_records(
         self, release_id: uuid.UUID, *, limit: int, offset: int
     ) -> JsonObject:
@@ -2129,17 +2138,25 @@ class PropertyScopeStore:
             self._property_reads = reads
         return reads
 
+    @interactive_read()
     def search_properties(
         self, query: str, *, state: str, limit: int, offset: int = 0
     ) -> PropertySearchResults:
         return self._properties().search_properties(query, state=state, limit=limit, offset=offset)
 
+    @interactive_read()
     def property_snapshot(self, property_ref: uuid.UUID) -> JsonObject:
         return self._properties().property_snapshot(property_ref)
 
+    @interactive_read()
+    def property_map_context(self, property_ref: uuid.UUID) -> JsonObject:
+        return self._properties().property_map_context(property_ref)
+
+    @interactive_read()
     def property_coverage(self, property_ref: uuid.UUID) -> list[JsonObject]:
         return self._properties().property_coverage(property_ref)
 
+    @interactive_read()
     def locality_summary(
         self,
         *,
@@ -2153,9 +2170,11 @@ class PropertyScopeStore:
             include_streets=include_streets,
         )
 
+    @interactive_read()
     def property_sale_history(self, property_ref: uuid.UUID, *, limit: int) -> JsonObject:
         return self._properties().property_sale_history(property_ref, limit=limit)
 
+    @interactive_read()
     def property_seifa(self, property_ref: uuid.UUID) -> JsonObject:
         return self._properties().property_seifa(property_ref)
 

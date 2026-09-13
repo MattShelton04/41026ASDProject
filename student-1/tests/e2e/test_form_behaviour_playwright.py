@@ -655,16 +655,20 @@ def test_property_identity_renders_before_optional_calls_settle(
     )
     expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
     expect(page.get_by_text("Identity status")).to_be_visible()
-    expect(page.get_by_text("Loading spatial context…")).to_be_visible()
-    assert page.evaluate("window.__pendingPropertyOptionalCount()") == 5
+    expect(page.locator(".map-context")).to_be_visible()
+    assert page.evaluate("window.__pendingPropertyOptionalCount()") == 0
 
     page.evaluate("window.__releasePropertyOptional()")
     expect(page.get_by_role("heading", name="Research available")).to_be_visible()
     page.get_by_role("tab", name="Sale history", exact=True).click()
     expect(page.get_by_role("heading", name="Sale history")).to_be_visible()
+    page.wait_for_function("() => window.__pendingPropertyOptionalCount() === 1")
+    page.evaluate("window.__releasePropertyOptional()")
     expect(page.get_by_text("$760,000", exact=True)).to_be_visible()
     page.get_by_role("tab", name="Area context", exact=True).click()
     expect(page.get_by_role("heading", name="Socio-economic area context")).to_be_visible()
+    page.wait_for_function("() => window.__pendingPropertyOptionalCount() === 1")
+    page.evaluate("window.__releasePropertyOptional()")
     expect(page.get_by_text("10 of 10", exact=True).first).to_be_visible()
     expect(page.get_by_text("Based on Australian Bureau of Statistics data")).to_be_visible()
     expect(page.locator(".map-context")).to_be_visible()
@@ -689,7 +693,14 @@ def test_property_sections_keep_loaded_evidence_and_restore_deep_link(
     expect(page.get_by_text("10 of 10", exact=True).first).to_be_visible()
     page.get_by_role("tab", name="Area context", exact=True).press("End")
     expect(page.get_by_role("heading", name="Source summary")).to_be_visible()
-    assert len([url for url in reads if f"/properties/{PROPERTY_ID}" in url]) == initial_reads
+    assert len([url for url in reads if f"/properties/{PROPERTY_ID}" in url]) == initial_reads + 1
+    assert not any(
+        "/map-context" in url or "/coverage" in url or "/report-section" in url for url in reads
+    )
+    page.get_by_role("tab", name="Sale history", exact=True).click()
+    expect(page.get_by_text("$760,000", exact=True)).to_be_visible()
+    assert len([url for url in reads if f"/properties/{PROPERTY_ID}" in url]) == initial_reads + 1
+    page.get_by_role("tab", name="Sources and identifiers", exact=True).click()
     assert "q=Sydney" in page.url and "section=sources" in page.url
     page.reload()
     expect(page.get_by_role("tab", name="Sources and identifiers", exact=True)).to_have_attribute(
@@ -747,6 +758,7 @@ def test_property_sources_stay_readable_when_expanded(
                         "is_current": False,
                     }
                 ]
+                payload["coverage"][0]["release_version"] = long_identifier
             elif route.request.url.endswith("/report-section"):
                 payload["release_evidence"][0]["release_version"] = long_identifier
             route.fulfill(response=response, json=payload)
@@ -811,16 +823,16 @@ def test_property_partial_and_fatal_states_keep_local_recovery(
     detail = f"properties/{PROPERTY_ID}?q=11%20Example%20Street"
     page.goto(f"{fixture_origin}{FEATURE_PATH}?scenario=partial&test={time.time_ns()}#{detail}")
     expect(page.get_by_role("heading", name="11 Example Street, Sydney NSW 2000")).to_be_visible()
+    expect(page.locator(".map-context")).to_be_visible()
+    expect(page.get_by_role("heading", name="Research available")).to_be_visible()
+    page.get_by_role("tab", name="Sale history", exact=True).click()
+    expect(page.get_by_text("Sale history is temporarily unavailable", exact=False)).to_be_visible()
+    page.get_by_role("tab", name="Area context", exact=True).click()
     expect(
-        page.get_by_text("Spatial context is temporarily unavailable", exact=False)
-    ).to_be_visible()
-    expect(
-        page.get_by_text("Coverage details are temporarily unavailable", exact=False)
+        page.get_by_text("SEIFA area evidence is temporarily unavailable", exact=False)
     ).to_be_visible()
     page.get_by_role("tab", name="Sources and identifiers", exact=True).click()
-    expect(
-        page.get_by_text("The source summary is temporarily unavailable", exact=False)
-    ).to_be_visible()
+    expect(page.get_by_role("heading", name="Source summary")).to_be_visible()
 
     detail_calls = 0
 
@@ -1373,7 +1385,7 @@ def test_operations_overview_job_and_release_states_are_truthful(
     overview_paths = {
         "sources?limit=100",
         "ingestion-runs?limit=25",
-        "dataset-releases?limit=100",
+        "dataset-releases?view=summary&limit=100",
     }
     failed_once: set[str] = set()
 

@@ -232,6 +232,28 @@ source reload in the development overlay. Data remains a deterministic partial d
 fixture and saved comparisons retain the documented single-user demo assumption. Enablement does
 not claim official-data ingestion, authentication, or completion of remaining delivery evidence.
 
+### Interactive Feature 1 reads (13 September 2026)
+
+Property discovery probes accepted locality/street indexes before substring search, then
+ranks a fixed 500-document window. Generation-scoped ordered indexes let suburb, postcode
+and street-name lookups stop at that window. Numeric and text inputs retain bounded
+validation; short real suburb names are supported. Full locality statistics remain a
+separate exact aggregate API.
+
+Interactive property and preview reads have a request-local 3.5-second budget covering
+pool acquisition and all their statements. PostgreSQL cancels SQL before the backend's
+five-second HTTP timeout; transaction-local settings are reset before a connection returns
+to the pool. Loader, publication and complete export work retain their separate limits.
+Release previews read one sentinel row in source-key order and label lower-bound totals.
+The PSI year feed retains its exact count and complete contract, using a matching index.
+Release lists offer an opt-in summary view; existing full metadata remains the default.
+
+The property frontend reuses a single snapshot for map, coverage and source summary;
+sale history and SEIFA load once on first tab selection. Feature 3's map-context endpoint
+performs one point lookup; the Feature 5 report-section contract remains available and
+is also included in the property snapshot. Database ownership and publication boundaries
+are unchanged. See [the API map and measured evidence](../reviews/feature-1-api-performance-2026-09-13.md).
+
 ## 1. Executive decision
 
 Build a compliance-first, contract-driven microservices platform with five repeated

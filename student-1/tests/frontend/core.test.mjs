@@ -484,7 +484,9 @@ test("Feature 1 form parsers reject coercion and explain the required correction
   assert.equal(propertySearchQuery("Parramatta"), "Parramatta");
   assert.equal(propertySearchQuery("2000"), "2000");
   assert.throws(() => propertySearchQuery("x"), /2 to 200 characters/);
-  assert.throws(() => propertySearchQuery("Sydney NSW"), /distinctive locality/);
+  for (const query of ["Sydney NSW", "Glebe", "Ryde", "St Marys", "Sydney 2000"]) {
+    assert.equal(propertySearchQuery(query), query);
+  }
   assert.throws(() => propertySearchQuery("street"), /distinctive locality/);
   assert.equal(parseIntegerField("12", "Rows", { minimum: 1 }), 12);
   assert.throws(() => parseIntegerField("12.5", "Rows", { minimum: 1 }), /whole number/);

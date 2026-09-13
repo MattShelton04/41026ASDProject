@@ -222,7 +222,7 @@ export function createReleaseRoutes({
       const selectedState = RELEASE_STATES.some((state) => state.key === requestedState) ? requestedState : "all";
       const filters = { q: params.get("q") || "", status: params.get("status") || "" };
       const offset = pageOffset(params);
-      const listPath = `dataset-releases${queryString({ ...filters, lifecycle: selectedState, limit: 100, offset })}`;
+      const listPath = `dataset-releases${queryString({ ...filters, lifecycle: selectedState, view: "summary", limit: 100, offset })}`;
       const { body } = await request(listPath);
       if (!routeEpoch.isCurrent()) return;
       view.replaceChildren();

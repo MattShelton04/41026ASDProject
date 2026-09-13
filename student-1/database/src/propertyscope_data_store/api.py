@@ -11,6 +11,7 @@ from flask import Blueprint, Response, current_app, jsonify, request
 from propertyscope_data_store.errors import (
     ConflictError,
     NotFoundError,
+    ReadBudgetExceededError,
     StoreError,
     ValidationError,
 )
@@ -271,12 +272,15 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             "ingestion_run_id",
             "q",
             "lifecycle",
+            "view",
             "limit",
             "offset",
         }
         unknown = set(request.args) - allowed
         if unknown:
             raise ValidationError("unknown release query parameter")
+        if request.args.get("view", "full") not in {"full", "summary"}:
+            raise ValidationError("view must be full or summary")
         items = store.list_releases(
             status=request.args.get("status"),
             dataset_id=request.args.get("dataset_id"),
@@ -285,6 +289,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             ingestion_run_id=request.args.get("ingestion_run_id"),
             query_text=optional_query_text(),
             lifecycle=request.args.get("lifecycle"),
+            summary=request.args.get("view") == "summary",
             limit=limit,
             offset=offset,
         )
@@ -579,6 +584,10 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
         items = store.property_coverage(property_ref)
         return jsonify({"items": items, "count": len(items)})
 
+    @api.get("/internal/data-platform/v1/properties/<uuid:property_ref>/map-context")
+    def property_map_context(property_ref: uuid.UUID) -> Response:
+        return jsonify(store.property_map_context(property_ref))
+
     @api.get("/internal/data-platform/v1/properties/<uuid:property_ref>/sale-history")
     def property_sale_history(property_ref: uuid.UUID) -> Response:
         limit = query_integer("limit", minimum=1, maximum=100, default=50)
@@ -659,6 +668,7 @@ def register_error_handlers(app: Any) -> None:
         (NotFoundError, 404, "not_found"),
         (ConflictError, 409, "conflict"),
         (ValidationError, 422, "invalid_request"),
+        (ReadBudgetExceededError, 503, "read_budget_exceeded"),
     )
     for exception_type, status, code in mappings:
 

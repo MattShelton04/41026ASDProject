@@ -96,7 +96,7 @@ export function propertySearchQuery(value, fieldName = "q") {
   const commonTerms = new Set(["australia", "nsw", "street", "st", "road", "rd", "avenue", "ave", "drive", "dr", "lane", "ln", "court", "ct", "place", "pl", "highway", "hwy", "unit", "lot"]);
   const normalised = query.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const distinctive = normalised.split(" ").filter((token) => token && !commonTerms.has(token));
-  if (!distinctive.length || (distinctive.length === 1 && /^[a-z]+$/.test(distinctive[0]) && distinctive[0].length < 8)) {
+  if (!distinctive.length || (distinctive.length === 1 && /^[a-z]+$/.test(distinctive[0]) && distinctive[0].length < 3)) {
     return validationError(fieldName, "Property search must include a street number, postcode, distinctive locality, or a more complete address.", (candidate) => {
       try { propertySearchQuery(candidate, fieldName); return true; } catch { return false; }
     });

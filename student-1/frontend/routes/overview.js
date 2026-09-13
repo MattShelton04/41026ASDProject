@@ -27,7 +27,7 @@ export async function renderOverview({ view, request, generationGuard, rerender 
   const routeEpoch = generationGuard.capture();
   renderLoading(view, "Loading operations overview");
   const results = await Promise.allSettled([
-    request("sources?limit=100"), request("ingestion-runs?limit=25"), request("dataset-releases?limit=100"),
+    request("sources?limit=100"), request("ingestion-runs?limit=25"), request("dataset-releases?view=summary&limit=100"),
   ]);
   if (!routeEpoch.isCurrent()) return;
   const feeds = projectOverviewFeeds(results);
