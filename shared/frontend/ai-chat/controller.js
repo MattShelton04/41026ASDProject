@@ -44,6 +44,7 @@ export function createAiChat({
   composerLabel = "Message PropertyScope assistant",
   placeholder = "Ask about this research area, its evidence or an available record…",
   initialMessage = "",
+  initialTurns = [],
   draftKey = "",
   layout = "page",
   toolLabels = {},
@@ -266,7 +267,7 @@ export function createAiChat({
         append(parameterHost, search, matches);
       }
     };
-    type.addEventListener("change", () => { saveDraft(); updateParameter(); restoreDraft(); });
+    type.addEventListener("change", () => { saveDraft(); updateParameter(); restoreDraft(); updateComposerAvailability(); });
     updateParameter();
     append(editor, typeLabel, parameterHost);
     append(contextHost, editor);
@@ -276,15 +277,17 @@ export function createAiChat({
     const busy = state.turns.some(activeTurn);
     submit.disabled = busy;
     submit.hidden = busy;
-    stop.hidden = !busy;
     const running = state.turns.find(activeTurn);
+    stop.hidden = !busy || running?.canCancel === false;
     stop.disabled = !running?.id || Boolean(running?.cancelPending);
     stop.textContent = running?.cancelPending ? "Requesting stop…" : "Stop response";
     submit.setAttribute("aria-busy", String(busy));
     scope.disabled = busy;
     for (const control of contextHost.querySelectorAll("input, select, button")) control.disabled = busy;
     const paused = state.turns.some((turn) => turn.run?.status === "review_required");
-    helper.textContent = paused
+    helper.textContent = busy && running?.canCancel === false
+      ? "This recorded review is still active. Open full activity to manage it; you can draft a follow-up here."
+      : paused
       ? "Human review is required. Inspect full activity or cancel this turn before continuing."
       : busy ? "A response is in progress. You can draft your next question here."
         : "Enter to send · Shift+Enter for a new line";
@@ -298,7 +301,7 @@ export function createAiChat({
   function turnArticle(turn) {
     const article = renderAssistantTurn(turn, {
       activityHref,
-      onCancel: cancelTurn,
+      onCancel: turn.canCancel === false ? null : cancelTurn,
       onRetry: retryTurn,
       assistantLabel,
       toolLabels,
@@ -493,6 +496,7 @@ export function createAiChat({
     scopeDescription.textContent = findAssistantScope(state.scope, scopeDefinitions).description;
     renderSuggestions();
     restoreDraft();
+    updateComposerAvailability();
   });
   textarea.addEventListener("input", () => {
     textarea.setCustomValidity("");
@@ -511,7 +515,11 @@ export function createAiChat({
     textarea.setCustomValidity(textarea.value.trim().length < 2 ? "Enter a question with at least two non-space characters." : "");
     if (!form.reportValidity()) return;
     const contextInput = contextHost.querySelector("input[required]");
-    if (contextInput && !contextInput.reportValidity()) return;
+    if (contextInput && !contextInput.checkValidity()) {
+      settings.open = true;
+      contextInput.reportValidity();
+      return;
+    }
     const message = textarea.value.trim();
     textarea.value = "";
     saveDraft();
@@ -522,9 +530,24 @@ export function createAiChat({
   renderSuggestions();
   renderContext();
   updateComposerAvailability();
-  append(shell, intro, form, welcome, settings, transcript, sessionNote, liveRegion, evidencePanel.element);
+  append(shell, intro, welcome, form, settings, transcript, sessionNote, liveRegion, evidencePanel.element);
   root.replaceChildren(shell);
-  if (!textarea.value) restoreDraft();
+  for (const initial of initialTurns) {
+    const run = normalizeTurnDetail(initial.run);
+    if (!run.id) continue;
+    const turn = {
+      ...initial, run, id: run.id, clientId: `${instanceId}-${run.id}`,
+      scope: initial.scope || state.scope,
+      scopeLabel: initial.scopeLabel || findAssistantScope(initial.scope || state.scope, scopeDefinitions).label,
+      context: { ...(initial.context || state.context) },
+      events: initial.events || [], cursor: 0, answerRevealed: true,
+    };
+    state.turns.push(turn);
+    renderTurn(turn);
+    // Fetch recorded events once even for a completed historical answer.
+    pollTurn(turn);
+  }
+  if (assistantDrafts.read(draftId()) || !textarea.value) restoreDraft();
   requestAnimationFrame(resizeComposer);
   const elapsedTimer = setInterval(() => {
     if (state.destroyed || document.hidden || shell.hidden) return;

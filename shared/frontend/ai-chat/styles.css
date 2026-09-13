@@ -123,6 +123,7 @@
 .ps-ai-chat__welcome { border: 0; background: transparent; padding: 0; }
 .ps-ai-chat__welcome > h2, .ps-ai-chat__welcome > h3, .ps-ai-chat__welcome > p { display: none; }
 .ps-ai-chat__suggestions { margin: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ps-space-3); }
+.ps-ai-chat__suggestion:last-child:nth-child(odd) { grid-column: 1 / -1; width: calc((100% - var(--ps-space-3)) / 2); justify-self: center; }
 .ps-ai-chat__suggestion { position: relative; min-height: 92px; padding: var(--ps-space-4); border-radius: var(--ps-radius-md); background: var(--ps-color-surface-elevated); font-size: var(--ps-text-label); line-height: 1.6; transition: transform var(--ps-motion-slow), box-shadow var(--ps-motion-slow), border-color var(--ps-duration); }
 .ps-ai-chat__suggestion:hover { transform: translateY(-4px); box-shadow: var(--ps-shadow-sm); }
 .ps-ai-chat__suggestion:active { transform: translateY(0); }
@@ -182,6 +183,7 @@
 .ps-ai-chat--embedded .ps-ai-chat__intro .ps-eyebrow, .ps-ai-chat--embedded .ps-ai-chat__emblem { display: none; }
 .ps-ai-chat--embedded .ps-ai-chat__suggestions, .ps-ai-chat--embedded .ps-ai-chat__scope { grid-template-columns: 1fr; }
 .ps-ai-chat--embedded .ps-ai-chat__suggestion { min-height: 44px; padding: var(--ps-space-3); }
+.ps-ai-chat--embedded .ps-ai-chat__suggestion:last-child:nth-child(odd) { width: 100%; }
 .ps-ai-chat--embedded .ps-ai-chat__message { padding: var(--ps-space-4); }
 .ps-ai-chat--embedded .ps-ai-chat__composer { position: static; padding: var(--ps-space-3); box-shadow: var(--ps-shadow-sm); }
 .ps-ai-chat--embedded .ps-ai-chat__composer-footer { flex-wrap: wrap; gap: var(--ps-space-2); }
@@ -198,6 +200,7 @@
   .ps-ai-chat__intro h1 { font-size: 2.25rem; }
   .ps-ai-chat__suggestions { grid-template-columns: 1fr; }
   .ps-ai-chat__suggestion { min-height: 56px; }
+  .ps-ai-chat__suggestion:last-child:nth-child(odd) { width: 100%; }
   .ps-ai-chat__message--assistant { padding: var(--ps-space-4); }
   .ps-ai-chat__composer { padding: var(--ps-space-4); }
   .ps-ai-chat__composer-footer { flex-direction: row; flex-wrap: wrap; }

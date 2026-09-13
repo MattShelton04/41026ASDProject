@@ -21,6 +21,17 @@ Use `announce(message)` to integrate an existing page announcer. Omit it to use 
 own polite live region. Each instance has distinct input IDs. Call `setDraft(message)` and
 `focusComposer()` for page-local actions; these do not submit a turn.
 
+Use `initialTurns: [{run, message, context, canCancel}]` to reopen recorded work in the same
+transcript. The feature projects its durable envelope, original question and validated identifiers;
+Shared renders the answer, fetches events and polls active runs through the injected client.
+Set `canCancel: false` when that historical run cannot use the client's cancel endpoint; its
+activity link remains available. Reopening does not create or replay a run. Completed answers
+participate in the bounded history sent with an explicit follow-up.
+
+Suggestions appear above the composer in visual and keyboard order. An odd final suggestion
+is centred at the same width as its neighbours; narrow and embedded layouts use full-width rows.
+Context-specific saved drafts take precedence over an initial suggested message.
+
 The reading surface contains the answer, attributed findings and relevant evidence gaps.
 Suggested next steps are collapsed. Sources, context, scope, evidence support and recorded steps
 share one inspection panel, displayed alongside the answer on wide screens and within the flow
