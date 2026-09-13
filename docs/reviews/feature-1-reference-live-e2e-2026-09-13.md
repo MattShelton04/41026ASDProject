@@ -17,6 +17,7 @@ validated source acquisition. Invalid publisher topology is retained and flagged
 | `abs-cpi` | 680 | 47,154 | 0 / 0 / 680 | Awaiting review |
 | `abs-geography-2021` | 4,675 | 80,887,860 | 4,668 / 3 / 4 | Awaiting review |
 | `nsw-amenities` | 9,866 | 27,961,787 | 9,857 / 9 / 0 | Awaiting review |
+| `nsw-cadastre` | 3,355,160 | 1,376,481,049 | 3,354,937 / 223 / 0 | Awaiting review |
 | `nsw-flood-planning` | 622 | 13,898,811 | 611 / 11 / 0 | Awaiting review |
 | `nsw-planning-controls` | 235,350 | 551,891,331 | 234,783 / 567 / 0 | Awaiting review |
 | `nsw-school-catchments` | 2,191 | 12,240,226 | 2,191 / 0 / 0 | Awaiting review |
@@ -38,6 +39,7 @@ as continuous active runtime.
 | `abs-cpi` | 1.69 | 0.21 | 1.07 | 0.21 | 0.87 |
 | `abs-geography-2021` | 0.11 | 36.07 | 58.35 | 37.34 | 57.31 |
 | `nsw-amenities` | 6.77 | 65.50 | 1437.71 | 32.86 | 36.69 |
+| `nsw-cadastre` | 20.23 | 1390.24 | 1335.82 | 1815.93 | 1335.49 |
 | `nsw-flood-planning` | 0.51 | 17.13 | 163.03 | 6.54 | 11.87 |
 | `nsw-planning-controls` | Cached | Cached | 504.76 | 441.36 | 503.99 |
 | `nsw-school-catchments` | 2.63 | 8.58 | 9.26 | 4.38 | 8.36 |
@@ -49,6 +51,7 @@ as continuous active runtime.
 - `abs-cpi`: release `e9df11fb-5221-4746-ad0d-d8066405855e`; SHA-256 `b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d`.
 - `abs-geography-2021`: release `d91279f1-5628-44ea-a037-f8de0a0ad4ff`; SHA-256 `26a6429d9431136a76165c58678baaf74a4f6284abbbd706f43dfa8fd3fe9410`.
 - `nsw-amenities`: release `36460dde-c3fe-4ca4-8e5e-f3c12c645bcd`; SHA-256 `f9f371f007291c9319dbc02253d3aabb6f4a5ded2c8aee1ae7241e499596734b`.
+- `nsw-cadastre`: release `0ce38fb3-dabf-4248-a6b0-c315d0ba746a`; SHA-256 `750c9797617d97c9e849d8f94184e3e8af3290fcf81008a64dc3ed5f26cc9d7e`.
 - `nsw-flood-planning`: release `3949d345-2310-4205-b2d6-f3c350cbaf9d`; SHA-256 `01a2ef6caeb852e2f7c4cad49ffa996fa41339c49d2db030645665a3127fa785`.
 - `nsw-planning-controls`: release `b42dd939-de0a-4b6c-8eee-cdac7ccc68a7`; SHA-256 `a442cf43d3db3a6c10dc9055b62ae06e32579b1e15dc27e6fa8e0b6cd67f1625`.
 - `nsw-school-catchments`: release `ab41d18a-fa19-4cdd-aae7-312052da814c`; SHA-256 `80cd3dc2ee54b323f0e0567d52933eae6a088c4f4b83c0bbc6cc87f660e05d12`.
@@ -58,7 +61,7 @@ as continuous active runtime.
 ## Validation and limits
 
 The canonical `uv run python scripts/check.py` completed successfully: 943 shared/script,
-857 Feature 1, 24 Feature 2, 105 Feature 3, 83 Feature 4 and 136 Feature 5 Python tests passed,
+858 Feature 1, 24 Feature 2, 105 Feature 3, 83 Feature 4 and 136 Feature 5 Python tests passed,
 plus 222 frontend tests. Default-run skips cover platform-dependent cases and opt-in PostgreSQL
 tests. Separately, 29 reference/resume integration tests passed against disposable PostGIS
 databases; independent final BFPL/reference review passed 82 focused tests. Two additional BFPL
