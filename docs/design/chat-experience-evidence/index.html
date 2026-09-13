@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PropertyScope chat — before and after</title>
+  <link rel="stylesheet" href="comparison.css">
+</head>
+<body><main>
+  <p class="eyebrow">PropertyScope / Chat implementation</p>
+  <h1>Before and after</h1>
+  <p>The selected Focus and Canvas direction, with the same chat embedded on property pages.
+    These are screenshots of the live application and actual model-backed answers, captured on 13 September 2026.</p>
+  <nav aria-label="Review links">
+    <a href="http://127.0.0.1:5100/#assistant">Try the main assistant ↗</a>
+    <a href="http://127.0.0.1:5100/features/data-platform/#properties/2c8a15ce-2f3d-9c88-a648-c28b2da0de38?q=Sutherland">Try the property sidecar ↗</a>
+    <a href="http://127.0.0.1:5318/index.html">Five prototype studies ↗</a>
+  </nav>
+  <section><h2>A focused entry</h2><p>The composer is the main action, with a few useful starting questions and compact scope controls.</p>
+    <div class="pair"><figure><figcaption>Before</figcaption><a href="propertyscope-chat-before-shared.png"><img src="propertyscope-chat-before-shared.png" alt="Original Shared assistant entry with expanded settings and supporting panels"></a></figure><figure><figcaption>After</figcaption><a href="propertyscope-chat-after-shared.png"><img src="propertyscope-chat-after-shared.png" alt="New Focus entry with prominent composer and compact suggestions"></a></figure></div>
+  </section>
+  <section><h2>The answer, with details nearby</h2><p>Sources, scope and recorded activity move into an optional panel. The answer and relevant gaps stay in the conversation. Suggested next steps are collapsed.</p>
+    <div class="pair"><figure><figcaption>Before</figcaption><a href="propertyscope-chat-before-answer.png"><img loading="lazy" src="propertyscope-chat-before-answer.png" alt="Original answer with long stacked source and evidence sections"></a></figure><figure><figcaption>After · details open</figcaption><a href="propertyscope-chat-after-answer.png"><img loading="lazy" src="propertyscope-chat-after-answer.png" alt="Completed live address-count answer with sources and activity alongside it"></a></figure></div>
+  </section>
+  <section><h2>Ask without leaving the property</h2><p>The sidecar reuses the same controller, answers and evidence panel. It carries the exact record ID and readable address. Closing and reopening preserves the current conversation.</p>
+    <div class="pair"><figure><figcaption>Before</figcaption><a href="propertyscope-chat-before-property.png"><img loading="lazy" src="propertyscope-chat-before-property.png" alt="Property detail before the embedded assistant"></a></figure><figure><figcaption>After</figcaption><a href="propertyscope-chat-after-property.png"><img loading="lazy" src="propertyscope-chat-after-property.png" alt="Property record with the shared assistant answering alongside it"></a></figure></div>
+  </section>
+  <section><h2>Motion and smaller screens</h2><p>The live activity indicator follows recorded phases and checks. Once validated, the summary reveals quickly in words (at most 1.1 seconds); reduced motion shows it immediately. Images cannot demonstrate the animation—use the live links above.</p>
+    <div class="pair"><figure><figcaption>Recorded progress</figcaption><a href="propertyscope-chat-after-property-progress.png"><img loading="lazy" src="propertyscope-chat-after-property-progress.png" alt="Embedded assistant showing real work in progress"></a></figure><figure class="mobile"><figcaption>390 px viewport · details in the page</figcaption><a href="propertyscope-chat-after-mobile.png"><img loading="lazy" src="propertyscope-chat-after-mobile.png" alt="Responsive answer and evidence panel at a phone-sized viewport"></a></figure></div>
+  </section>
+  <p class="note">Before and after captures use the existing local dataset. Model wording varies between runs. No photograph is a synthetic prototype; each image opens at its original capture size.</p>
+</main></body></html>

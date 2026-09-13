@@ -990,6 +990,31 @@ date and version, with safe HTTP(S) links and native keyboard disclosures. Polli
 and open sources. Capability health is separately observed at `/api/v1/capabilities` (shared edge:
 `/api/ai-mode/capabilities`); healthy MCP/RAG does not establish per-feature corpus coverage.
 
+Eligible local grounded runs now select immutable `default.v9` (planner v8, adapter v9).
+Successful tool facts can answer a factual question without adding irrelevant document citations.
+Retrieval remains mandatory; missing guidance still produces insufficient document support, while
+independently referenced tool facts retain their direct answer. Historical v8 validation is unchanged.
+The adapter receives a compact successful-call identity index alongside the recorded results.
+This improves attribution instructions without claiming semantic entailment validation.
+
+Shared chat owns the page, embedded sidecar, source/activity inspection panel and fast word reveal
+of an already validated summary. This visual reveal is not provider token streaming. Phase/check
+updates come from persisted run snapshots, including parallel calls; time never implies evidence.
+A failed event request does not discard a successful run snapshot. Closing the sidecar hides it and
+retains its local conversation; route departure aborts browser polling, not server work. Full activity
+history continues to render the same structured results with independently inspectable run steps.
+The operations projection carries all calls in `tools`, matching results by call ID, while keeping
+the legacy first `tool` field for existing clients. Projection version 3 invalidates earlier ETags.
+The shared gateway resolves the AI service through Docker DNS at request time so recreating the
+local AI container does not strand activity links on its previous container address.
+
+Feature 1 owns readable context lookup through its existing public search/inventory endpoints.
+The context contract accepts either a canonical UUID plus optional bounded `display_label`, or a
+bounded `query` for a declared route. Only the UUID enters the trusted identifier ledger. Labels and
+queries remain untrusted display/search data; ambiguous results require selection. No shared
+component imports feature entities, and no service gains direct access to another owner's database.
+See the [implementation and validation plan](../prototype/chat-experience/implementation-plan.md).
+
 ## 12. Security and responsible-AI baseline
 
 The project is low sensitivity, so use a proportionate baseline:

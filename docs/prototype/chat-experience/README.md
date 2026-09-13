@@ -11,4 +11,6 @@ failed checks and cancellation. Context identifiers and addresses are synthetic.
 simulation timings, not provider benchmarks. No network calls, external dependencies or storage.
 
 Native dialogs, labelled controls, live announcements and reduced-motion styling are included.
-The production plan and measured runtime findings live in `docs/design/chat-experience-plan.md`.
+The [implementation record](implementation-plan.md) covers the production plan, measured runtime
+findings, final validation and review limits. The [comparison index](../../design/chat-experience-evidence/index.html)
+contains actual live before/after screenshots.
