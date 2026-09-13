@@ -234,8 +234,8 @@
       "cases": [
         "loading-slow", "populated", "empty", "error", "long-content",
         {"id": "history-unavailable", "scenario": "populated", "states": ["history-unavailable"], "expectedFailures": [{"method": "GET", "target": "/api/data-platform/v1/agent-runs?limit=10", "statuses": [503]}], "overrides": [{"method": "GET", "urlContains": "/agent-runs?limit=10", "status": 503, "problemCode": "dependency_unavailable"}]},
-        {"id": "provider-unavailable", "scenario": "populated", "states": ["provider-unavailable"], "expectedFailures": [{"method": "POST", "targetPattern": "^/api/data-platform/v1/dataset-releases/[^/?]+/agent-runs$", "statuses": [503]}], "overrides": [{"method": "POST", "urlContains": "/agent-runs", "status": 503, "problemCode": "provider_unavailable"}], "setup": [{"action": "named-flow", "name": "start-ai-review"}]},
-        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "expectedFailures": [{"method": "POST", "targetPattern": "^/api/data-platform/v1/dataset-releases/[^/?]+/agent-runs$", "statuses": [422]}], "setup": [{"action": "named-flow", "name": "start-ai-review"}]}
+        {"id": "provider-unavailable", "scenario": "populated", "states": ["provider-unavailable"], "expectedFailures": [{"method": "POST", "target": "/api/data-platform/v1/assistant/turns", "statuses": [503]}], "overrides": [{"method": "POST", "urlContains": "/assistant/turns", "status": 503, "problemCode": "provider_unavailable"}], "setup": [{"action": "named-flow", "name": "start-ai-review"}]},
+        {"id": "validation", "scenario": "validation-error", "states": ["validation"], "expectedFailures": [{"method": "POST", "target": "/api/data-platform/v1/assistant/turns", "statuses": [422]}], "setup": [{"action": "named-flow", "name": "start-ai-review"}]}
       ],
       "deferredStates": {}
     },

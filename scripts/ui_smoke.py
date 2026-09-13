@@ -124,19 +124,18 @@ def _verify_ai_submit(page: Page, base_url: str, scenario: str) -> None:
         f"{base_url}/features/data-platform/?scenario={scenario}#ai/release:{CANDIDATE_RELEASE_ID}"
     )
     page.goto(url, wait_until="networkidle")
-    submit = page.get_by_role("button", name="Start AI review")
+    submit = page.get_by_role("button", name="Send message", exact=True)
     submit.wait_for(state="visible")
     with page.expect_response(
         lambda response: (
-            response.request.method == "POST"
-            and response.url.endswith(f"/dataset-releases/{CANDIDATE_RELEASE_ID}/agent-runs")
+            response.request.method == "POST" and response.url.endswith("/assistant/turns")
         )
     ) as response_info:
         submit.click()
-    if response_info.value.status != 201:
-        raise RuntimeError(f"AI review fixture returned HTTP {response_info.value.status}, not 201")
+    if response_info.value.status != 202:
+        raise RuntimeError(f"AI review fixture returned HTTP {response_info.value.status}, not 202")
     page.wait_for_url(f"**#ai/{AGENT_RUN_ID}")
-    page.locator(f'[data-agent-trace="{AGENT_RUN_ID}"][aria-busy="false"]').wait_for(
+    page.locator(f'[data-run-id="{AGENT_RUN_ID}"] .ps-ai-chat__answer-section--summary').wait_for(
         state="visible"
     )
     if failures:

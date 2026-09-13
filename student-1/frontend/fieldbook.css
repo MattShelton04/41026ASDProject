@@ -58,7 +58,7 @@ table td.numeric { white-space: nowrap; }
 .sub-cell { font-size: .6875rem; }
 .row-actions { gap: var(--ps-space-2); }
 .collection-pagination { font-size: .75rem; margin: var(--ps-space-4) 0; }
-.state-tabs { margin-bottom: var(--ps-space-5); gap: var(--ps-space-5); }
+.state-tabs { margin-bottom: var(--ps-space-5); gap: 0; }
 .state-tab { min-height: 44px; font-size: .8125rem; }
 .evidence-navigation { overflow-x: auto; flex-wrap: nowrap; }
 .evidence-navigation a { white-space: nowrap; }

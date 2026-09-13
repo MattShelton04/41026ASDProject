@@ -144,10 +144,15 @@ def test_configured_named_flows_reach_their_response_state(tmp_path: Path) -> No
         ("ai-review-new", "provider-unavailable"): (
             "POST",
             503,
-            "/agent-runs",
-            "temporarily unavailable",
+            "/assistant/turns",
+            "Deterministic UI audit case",
         ),
-        ("ai-review-new", "validation"): ("POST", 422, "/agent-runs", "submitted value conflicts"),
+        ("ai-review-new", "validation"): (
+            "POST",
+            422,
+            "/assistant/turns",
+            "submitted value conflicts",
+        ),
     }
     batches = tuple(
         batch

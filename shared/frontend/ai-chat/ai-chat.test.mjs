@@ -175,6 +175,7 @@ test("drafts are opt-in, context-isolated, bounded, truncated and removable", ()
   assert.equal(drafts.read(""), "");
   const recordA = draftContextKey("workspace-a", "feature", { route: "record", id: "a" });
   assert.equal(recordA, draftContextKey("workspace-a", "feature", { id: "a", route: "record", empty: "" }));
+  assert.equal(recordA, draftContextKey("workspace-a", "feature", { id: "a", route: "record", display_label: "A newly resolved label" }));
   const recordB = draftContextKey("workspace-a", "feature", { route: "record", id: "b" });
   const scopeB = draftContextKey("workspace-a", "application", { route: "record", id: "a" });
   assert.notEqual(recordA, recordB);

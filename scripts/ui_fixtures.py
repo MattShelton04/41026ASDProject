@@ -38,7 +38,7 @@ class FixtureResponse:
 
 REQUEST_ID = "ui-fixture-request-0001"
 FIXTURE_IDENTITY = "propertyscope-ui-fixture"
-FIXTURE_REVISION = 3
+FIXTURE_REVISION = 4
 TIMESTAMP = "2026-08-23T00:00:00Z"
 SOURCE_ID = "10000000-0000-0000-0000-000000000001"
 JOB_ID = "20000000-0000-0000-0000-000000000001"
@@ -553,6 +553,7 @@ def fixture_response(
     for agent_prefix in (
         "/api/ai-mode/agent-runs/",
         "/api/data-platform/v1/agent-runs/",
+        "/api/data-platform/v1/assistant/turns/",
         "/api/v1/agent-runs/",
         "/api/v1/operations/agent-runs/",
     ):
@@ -565,6 +566,14 @@ def fixture_response(
                 if partial_optional:
                     return _optional_unavailable()
                 return FixtureResponse(200, _agent_event_page(summary["id"]), delay_seconds=delay)
+            if (
+                agent_prefix == "/api/data-platform/v1/assistant/turns/"
+                and path.endswith("/cancel")
+                and method == "POST"
+            ):
+                detail = _agent_run_detail(summary, scenario)
+                detail["run"].update(status="cancelled", final_result=None, cancel_requested=True)
+                return FixtureResponse(200, detail, delay_seconds=delay)
             if agent_prefix == "/api/v1/operations/agent-runs/":
                 return FixtureResponse(
                     200, _agent_evidence_detail(summary, scenario), delay_seconds=delay
@@ -642,6 +651,8 @@ def fixture_response(
         from propertyscope_data_platform.assistant import capability_guide
 
         return FixtureResponse(200, capability_guide(), delay_seconds=delay)
+    if route == "assistant/turns" and method == "POST":
+        return FixtureResponse(202, _created_agent_run(scenario), delay_seconds=delay)
     if route == "properties/search":
         matches = [] if scenario == "empty" else _expanded(properties, scenario)
         limit = min(100, max(1, int(params.get("limit", ["25"])[0])))

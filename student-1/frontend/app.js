@@ -2,7 +2,7 @@ import { API_BASE, newRequestId, requestJson } from "./core/api.js";
 import { append, el } from "./core/dom.js";
 import { humanise } from "./core/formats.js";
 import { parseIntegerField, parseJsonField, propertySearchQuery } from "./core/forms.js";
-import { ACTIVE_AGENT_STATES, ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
+import { ACTIVE_RUN_STATES, createGenerationGuard } from "./core/polling.js";
 import { parseRoute } from "./core/router.js";
 import { requestActiveDialogClose, runDialogForm } from "./components/dialogs.js";
 import { createDrawerController, createToastController, disposeTableRegions } from "./browser/index.js";
@@ -48,7 +48,6 @@ const healthUrl = window.location.pathname.startsWith("/features/data-platform/"
 const state = {
   pollTimer: null,
   lastRunStatus: "",
-  lastAgentStatus: "",
   interruptedReconciliationAttempts: 0,
 };
 const generationGuard = createGenerationGuard();
@@ -213,7 +212,7 @@ const { renderProperties } = createPropertyRoutes({ view, request: routeRequest,
 const { renderDataProducts } = createDataProductRoutes({ view, request: routeRequest, loading, generationGuard, rerender: retryRoute });
 const { renderReleases } = createReleaseRoutes({ view, request: routeRequest, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender: retryRoute });
 const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request: routeRequest, loading, generationGuard, rerender: retryRoute });
-const { renderAi, resumeAgentTrace } = createAiDiagnosisRoutes({ view, request: routeRequest, loading, mutate, state, generationGuard, rerender: retryRoute });
+const aiReview = createAiDiagnosisRoutes({ view, request: routeRequest, loading, generationGuard, rerender: retryRoute, announce });
 const featureAssistant = createFeatureAssistantRoute({ view, announce });
 
 async function checkHealth() {
@@ -224,8 +223,9 @@ async function checkHealth() {
 async function renderRoute({ focus = false } = {}) {
   disposeTableRegions(view);
   featureAssistant.destroy();
+  aiReview.destroy();
   const routeEpoch = generationGuard.begin();
-  clearTimeout(state.pollTimer); state.lastRunStatus = ""; state.lastAgentStatus = "";
+  clearTimeout(state.pollTimer); state.lastRunStatus = "";
   state.interruptedReconciliationAttempts = 0;
   liveRegion.textContent = "";
   const requestedHash = location.hash;
@@ -249,7 +249,7 @@ async function renderRoute({ focus = false } = {}) {
     else if (route === "coverage") await renderCoverage();
     else if (route === "properties") await renderProperties(id);
     else if (route === "assistant") featureAssistant.render();
-    else if (route === "ai") await renderAi(id);
+    else if (route === "ai") await aiReview.renderAi(id);
   } catch (error) {
     if (!routeEpoch.isCurrent()) return;
     view.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`));
@@ -340,9 +340,8 @@ document.addEventListener("visibilitychange", () => {
   if (current.route === "runs" && current.id && (ACTIVE_RUN_STATES.has(state.lastRunStatus) || state.lastRunStatus === "interrupted")) {
     renderRunDetail(current.id, { polling: true, resetInterruptedReconciliation: true });
   }
-  else if (current.route === "ai" && current.id && ACTIVE_AGENT_STATES.has(state.lastAgentStatus)) resumeAgentTrace(current.id);
 });
 
 checkHealth(); renderRoute(); setInterval(checkHealth, 30000);
 
-window.addEventListener("pagehide", () => { disposeTableRegions(view); drawerController?.destroy(); toastController.hide(); }, { once: true });
+window.addEventListener("pagehide", () => { aiReview.destroy(); featureAssistant.destroy(); disposeTableRegions(view); drawerController?.destroy(); toastController.hide(); }, { once: true });

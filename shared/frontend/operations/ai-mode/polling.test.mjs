@@ -146,7 +146,12 @@ test("activity handoff preserves only approved assistant return destinations", a
   assert.equal(resolveResearchAreaContext(params).returnTo, "/features/data-platform/#assistant");
   params.set("return_to", "/#assistant");
   assert.equal(resolveResearchAreaContext(params).returnTo, "/#assistant");
-  for (const unsafe of ["//external.invalid/", "/unapproved", "https://external.invalid/"]) {
+  const review = "/features/data-platform/#ai/577e8221-e393-442f-9e6f-b81505dc24ab";
+  for (const safe of [review, review.replace("#ai/", "#ai/release:") + "?goal=quality"]) {
+    params.set("return_to", safe);
+    assert.equal(resolveResearchAreaContext(params).returnTo, safe);
+  }
+  for (const unsafe of ["//external.invalid/", "/unapproved", "https://external.invalid/", review + "?next=//external.invalid", review + "/extra", review.replace("577e8221", "invalid"), review + "?goal=publish"]) {
     params.set("return_to", unsafe);
     assert.equal(resolveResearchAreaContext(params), null);
   }

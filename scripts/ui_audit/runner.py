@@ -581,11 +581,11 @@ def _named_flow(page: Page, name: str) -> None:
             page.locator(f'[name="{field}"]').fill(value)
         page.get_by_role("button", name="Save changes", exact=True).click(timeout=5_000)
     elif name == "start-ai-review":
-        page.get_by_role("button", name="Start AI review", exact=True).click(timeout=5_000)
+        page.get_by_role("button", name="Send message", exact=True).click(timeout=5_000)
     else:
         raise RuntimeError(f"unknown configured audit setup flow: {name}")
     feedback = (
-        page.locator(".notice.warning").last
+        page.locator(".ps-ai-chat__turn-error").last
         if name == "start-ai-review"
         else page.locator("#toast:not([hidden])")
     )
