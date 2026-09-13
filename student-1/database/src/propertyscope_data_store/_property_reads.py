@@ -71,7 +71,7 @@ def _property_query_is_underspecified(normalised: str) -> bool:
     )
     if not distinctive:
         return bool(tokens)
-    return len(distinctive) == 1 and distinctive[0].isalpha() and len(distinctive[0]) < 8
+    return len(distinctive) == 1 and distinctive[0].isalpha() and len(distinctive[0]) < 3
 
 
 class _PropertyReadOwner(Protocol):
@@ -100,8 +100,24 @@ class _CanonicalPropertyReads:
             raise ValidationError(
                 "q must include a street number, postcode, locality, or distinctive address term"
             )
+        postcode_match = re.search(r" (\d{4})$", normalised)
+        postcode = postcode_match[1] if postcode_match else None
+        address_query = normalised[: postcode_match.start()] if postcode_match else normalised
+        address_query = re.sub(r" nsw$", "", address_query)
+        locality = self._search_locality(address_query)
+        street_name = self._search_street_name(address_query) if locality is None else None
         numeric_value: int | str | None = None
-        if normalised.isdigit() and len(normalised) == 4:
+        if locality is not None:
+            warehouse_match = "address.locality=%s"
+            legacy_match = "property.locality=%s"
+            alias_match = "FALSE"
+            numeric_value = locality
+        elif street_name is not None:
+            warehouse_match = "address.street_name=%s"
+            legacy_match = "property.street_name=%s"
+            alias_match = "FALSE"
+            numeric_value = street_name
+        elif normalised.isdigit() and len(normalised) == 4:
             warehouse_match = "address.postcode=%s"
             legacy_match = "property.postcode=%s"
             alias_match = "FALSE"
@@ -118,10 +134,21 @@ class _CanonicalPropertyReads:
             )
             legacy_match = "property.address_search LIKE '%%' || %s || '%%'"
             alias_match = "alias.alias_search LIKE '%%' || %s || '%%'"
+        match_values: list[Any] = [numeric_value if numeric_value is not None else address_query]
+        if postcode:
+            warehouse_match += " AND address.postcode=%s"
+            legacy_match += " AND property.postcode=%s"
+            match_values.append(postcode)
+        legacy_values = list(match_values)
+        if street_name is not None:
+            # Compatibility rows have a trigram document index, not a street-name
+            # index. Keep rare (<500 hit) street lookups off a registry-wide scan.
+            legacy_match += " AND property.address_search LIKE '%%' || %s || '%%'"
+            legacy_values.append(street_name.lower())
         search_params: list[Any] = [
-            numeric_value if numeric_value is not None else normalised,
+            *match_values,
             PROPERTY_SEARCH_CANDIDATE_LIMIT + 1,
-            numeric_value if numeric_value is not None else normalised,
+            *legacy_values,
         ]
         if numeric_value is None:
             search_params.append(normalised)
@@ -142,7 +169,15 @@ class _CanonicalPropertyReads:
         )
         rows = self._owner._fetch_all(
             f"""
-            WITH accepted_addresses AS MATERIALIZED (
+            WITH selected_generations AS MATERIALIZED (
+                SELECT accepted.dataset_release_id
+                FROM serving.accepted_generation accepted
+                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+                WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
+                  AND accepted.target_feature='feature-1' AND release.status='accepted'
+                ORDER BY CASE WHEN release.dataset_id='gnaf-nsw' THEN 0 ELSE 1 END,
+                         accepted.dataset_release_id
+            ), accepted_addresses AS MATERIALIZED (
                 SELECT COALESCE(address.property_ref,
                            md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
                        address.address_display,address.locality,address.postcode,'NSW' AS state,
@@ -151,14 +186,14 @@ class _CanonicalPropertyReads:
                        trim(regexp_replace(lower(address.address_display),
                            '[^a-z0-9]+',' ','g')) AS search_text,
                        address.address_display AS matched_address,'canonical' AS match_kind
-                FROM warehouse.gnaf_address address
-                JOIN serving.accepted_generation accepted
-                  ON accepted.dataset_release_id=address.dataset_release_id
-                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
-                WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
-                  AND address.published
-                  AND {warehouse_match}
-                LIMIT %s
+                FROM selected_generations accepted
+                CROSS JOIN LATERAL (
+                    SELECT address.* FROM warehouse.gnaf_address address
+                    WHERE accepted.dataset_release_id=address.dataset_release_id
+                      AND address.published AND {warehouse_match}
+                    {"ORDER BY address.gnaf_pid" if numeric_value is not None else ""}
+                    LIMIT %s
+                ) address
             ), legacy_documents AS (
                 SELECT property.property_ref,property.address_display,property.locality,
                        property.postcode,property.state,property.resolution_status,property.geom,
@@ -239,7 +274,7 @@ class _CanonicalPropertyReads:
                            ELSE 'contains'
                        END AS match_method
                 FROM best_matches
-                ORDER BY match_rank,score DESC,address_display LIMIT %s OFFSET %s
+                ORDER BY match_rank,score DESC,address_display,property_ref LIMIT %s OFFSET %s
             ) page ON true
             """,
             search_params,
@@ -257,6 +292,45 @@ class _CanonicalPropertyReads:
             total=total,
             total_is_lower_bound=total_is_lower_bound,
         )
+
+    def _search_locality(self, normalised: str) -> str | None:
+        """Recognise a complete suburb before considering address substrings.
+
+        This probes the generation/locality index, never the statewide trigram
+        index. A trailing NSW is optional; unknown names keep substring search.
+        """
+        locality = re.sub(r" nsw$", "", normalised).upper()
+        if not locality or any(character.isdigit() for character in locality):
+            return None
+        matches = self._owner._fetch_all(
+            """SELECT address.locality FROM serving.accepted_generation accepted
+            CROSS JOIN LATERAL (
+                SELECT locality FROM warehouse.gnaf_address
+                WHERE dataset_release_id=accepted.dataset_release_id AND published
+                  AND locality=%s LIMIT 1
+            ) address
+            WHERE accepted.target_feature='feature-1'
+              AND accepted.dataset_id IN ('gnaf-nsw','fixture-property') LIMIT 1""",
+            (locality,),
+        )
+        return str(matches[0]["locality"]) if matches and matches[0].get("locality") else None
+
+    def _search_street_name(self, normalised: str) -> str | None:
+        """Resolve an exact street name before a broad statewide substring scan."""
+        if not normalised or any(character.isdigit() for character in normalised):
+            return None
+        matches = self._owner._fetch_all(
+            """SELECT address.street_name FROM serving.accepted_generation accepted
+            CROSS JOIN LATERAL (
+                SELECT street_name FROM warehouse.gnaf_address
+                WHERE dataset_release_id=accepted.dataset_release_id AND published
+                  AND street_name=%s LIMIT 1
+            ) address
+            WHERE accepted.target_feature='feature-1'
+              AND accepted.dataset_id IN ('gnaf-nsw','fixture-property') LIMIT 1""",
+            (normalised.upper(),),
+        )
+        return str(matches[0]["street_name"]) if matches and matches[0].get("street_name") else None
 
     def locality_summary(
         self,
@@ -392,6 +466,25 @@ class _CanonicalPropertyReads:
                 )
             },
         }
+
+    def property_map_context(self, property_ref: uuid.UUID) -> JsonObject:
+        """A single indexed point lookup for Feature 3, without coverage or SEIFA."""
+        return self._owner._required(
+            f"""SELECT COALESCE(address.property_ref,
+                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
+                address.address_display,ST_X(address.geom) AS longitude,
+                ST_Y(address.geom) AS latitude,ST_AsGeoJSON(address.geom)::jsonb AS geometry
+            FROM warehouse.gnaf_address address
+            JOIN serving.accepted_generation accepted
+              ON accepted.dataset_release_id=address.dataset_release_id
+            WHERE address.published AND COALESCE(address.property_ref,
+                md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
+            UNION ALL SELECT property.property_ref,property.address_display,
+                ST_X(property.geom),ST_Y(property.geom),ST_AsGeoJSON(property.geom)::jsonb
+            FROM registry.property property WHERE property.property_ref=%s
+              AND {_REGISTRY_COMPATIBILITY_PREDICATE} LIMIT 1""",
+            (property_ref, property_ref),
+        )
 
     def property_snapshot(self, property_ref: uuid.UUID) -> JsonObject:
         accepted_address = self._owner._fetch_one(

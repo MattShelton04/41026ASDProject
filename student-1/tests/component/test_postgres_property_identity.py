@@ -10,6 +10,7 @@ import os
 import uuid
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -221,6 +222,7 @@ def test_gnaf_anchor_cannot_outlive_accepted_identity(
     )
     assert reads.property_snapshot(property_ref)["property"]["locality"] == "SYDNEY"
     assert reads.property_seifa(property_ref)["locality"] == "SYDNEY"
+    assert reads.property_map_context(property_ref)["address_display"].startswith("123 Current")
     assert reads.property_coverage(property_ref)
     assert reads.property_sale_history(property_ref, limit=10)["count"] >= 0
     assert not reads.search_properties("999 stale anchor", state="NSW", limit=25).items
@@ -238,6 +240,7 @@ def test_gnaf_anchor_cannot_outlive_accepted_identity(
     assert not reads.search_properties("11 example st", state="NSW", limit=25).items
     for read in (
         reads.property_snapshot,
+        reads.property_map_context,
         reads.property_coverage,
         reads.property_seifa,
         lambda ref: reads.property_sale_history(ref, limit=10),
@@ -294,6 +297,71 @@ def test_non_gnaf_registry_identity_keeps_compatibility_reads(
         item["property_ref"] == property_ref
         for item in reads.search_properties("21 example", state="NSW", limit=25).items
     )
+
+
+def test_search_pages_bound_and_order_accepted_suburb_and_street_matches(
+    identity_database: psycopg.Connection[dict[str, Any]],
+) -> None:
+    conn = identity_database
+    conn.execute(
+        """INSERT INTO warehouse.gnaf_address SELECT (jsonb_populate_record(
+            NULL::warehouse.gnaf_address,to_jsonb(address) || jsonb_build_object(
+                'gnaf_pid','API-PAGE-' || lpad(number::text,4,'0'),
+                'property_ref',NULL,'locality','GLEBE','street_name','NORTH',
+                'postcode',CASE WHEN number<=600 THEN '2037' ELSE '2999' END,
+                'street_number_first',number,
+                'address_display',number::text || ' North Street, Glebe NSW 2037',
+                'published',number<=610
+            ))).* FROM (SELECT * FROM warehouse.gnaf_address
+                WHERE dataset_release_id='60000000-0000-0000-0000-000000000001'
+                LIMIT 1) address CROSS JOIN generate_series(1,620) number"""
+    )
+    reads = _CanonicalPropertyReads(ReadOwner(conn))
+    first = reads.search_properties("Glebe NSW 2037", state="NSW", limit=25)
+    second = reads.search_properties("Glebe NSW 2037", state="NSW", limit=25, offset=25)
+    repeated = reads.search_properties("Glebe NSW 2037", state="NSW", limit=25)
+    assert first.total == 500 and first.total_is_lower_bound
+    assert len(first.items) == len(second.items) == 25
+    assert first.items == repeated.items
+    assert {row["property_ref"] for row in first.items}.isdisjoint(
+        row["property_ref"] for row in second.items
+    )
+    assert all(row["postcode"] == "2037" for row in first.items + second.items)
+    assert reads.search_properties("North", state="NSW", limit=25).total_is_lower_bound
+    assert reads.search_properties("137 North Street", state="NSW", limit=25).total == 1
+    assert reads.search_properties("Glebe 2999", state="NSW", limit=25).total == 10
+    assert not reads.search_properties("Glebe 2000", state="NSW", limit=25).items
+
+
+def test_interactive_timeout_cancels_sql_and_resets_the_pooled_connection(
+    identity_database: psycopg.Connection[dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from propertyscope_data_store import read_budget
+    from propertyscope_data_store.errors import ReadBudgetExceededError
+    from propertyscope_data_store.runtime_registry import load_runtime_registry
+
+    store = PropertyScopeStore(
+        make_conninfo(ADMIN_URL, dbname=identity_database.info.dbname),
+        runtime_registry=load_runtime_registry(
+            Path(__file__).resolve().parents[2] / "config" / "job-profiles"
+        ),
+    )
+    monkeypatch.setattr(read_budget, "INTERACTIVE_READ_SECONDS", 0.1)
+    try:
+        with (
+            pytest.raises(ReadBudgetExceededError),
+            read_budget.interactive_read(),
+            store.connection() as connection,
+        ):
+            connection.execute("SELECT pg_sleep(1)")
+        with store.connection() as connection:
+            assert connection.execute("SHOW statement_timeout").fetchone() == {
+                "statement_timeout": "0"
+            }
+            assert connection.execute("SELECT 1 AS usable").fetchone() == {"usable": 1}
+    finally:
+        store.close()
 
 
 def test_bulk_provenance_migration_retains_existing_references(

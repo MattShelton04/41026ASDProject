@@ -46,7 +46,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     search.type = "submit";
     append(form, searchField, search);
     const searchError = el("p", "form-error"); searchError.id = "property-search-error"; searchError.setAttribute("role", "alert");
-    const searchHelp = el("p", "search-help", "Use a postcode, a distinctive locality, or a fuller street address. Punctuation is optional."); searchHelp.id = "property-search-help";
+    const searchHelp = el("p", "search-help", "Enter a suburb, postcode or part of an address. Add more detail to narrow broad results. Punctuation is optional."); searchHelp.id = "property-search-help";
     append(searchCopy, form, searchError, searchHelp);
     const illustration = el("aside", "discovery-illustration");
     illustration.setAttribute("aria-hidden", "true");
@@ -233,17 +233,31 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     }
     view.replaceChildren(el("section", "loading-state", "Loading property details…"));
     const encodedRef = encodeURIComponent(propertyRef);
-    const mapResult = settled(request(`properties/${encodedRef}/map-context`));
-    const coverageResult = settled(request(`properties/${encodedRef}/coverage`));
-    const saleHistoryResult = settled(request(`properties/${encodedRef}/sale-history?limit=50`));
-    const seifaResult = settled(request(`properties/${encodedRef}/seifa`));
-    const reportResult = settled(request(`properties/${encodedRef}/report-section`));
+    const lazyEvidence = (path) => {
+      let start;
+      const result = new Promise((resolve) => { start = () => resolve(settled(request(path))); });
+      let started = false;
+      return { result, load: () => {
+        if (started || !isCurrentRoute(routeEpoch, propertyRef)) return;
+        started = true;
+        start();
+      } };
+    };
+    const sales = lazyEvidence(`properties/${encodedRef}/sale-history?limit=50`);
+    const seifa = lazyEvidence(`properties/${encodedRef}/seifa`);
     try {
       const detailResult = await request(`properties/${encodedRef}`);
       if (!isCurrentRoute(routeEpoch, propertyRef)) return;
       const detailPayload = detailResult.body;
       const property = entity(detailPayload, "property");
       const initialCoverage = detailPayload.coverage || [];
+      const mapResult = settled(Promise.resolve({ body: property }));
+      const coverageResult = settled(Promise.resolve({ body: { items: initialCoverage } }));
+      const reportResult = settled(Promise.resolve({ body: detailPayload.report_section || {
+        property_ref: property.property_ref, address_display: property.address_display,
+        identity: { ...property, gnaf_pid: detailPayload.identifiers?.find((item) => ["gnaf_pid", "gnaf"].includes(item.scheme))?.identifier_value },
+        release_evidence: initialCoverage.slice(0, 25), evidence_count: Math.min(initialCoverage.length, 25),
+      } }));
       view.replaceChildren();
       const identityHero = el("section", "property-identity-hero");
       const ask = button("✳ Ask about this property", "button secondary");
@@ -281,8 +295,8 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
       const sourcesPanel = panel("Sources and identifiers", "References, coordinates, aliases and report evidence", technicalBody);
       append(contentColumn, propertySections([
         { key: "research", label: "Research available", content: coveragePanel },
-        { key: "sales", label: "Sale history", content: saleHistoryPanel },
-        { key: "area", label: "Area context", content: seifaPanel },
+        { key: "sales", label: "Sale history", content: saleHistoryPanel, onActivate: sales.load },
+        { key: "area", label: "Area context", content: seifaPanel, onActivate: seifa.load },
         { key: "sources", label: "Sources and identifiers", content: sourcesPanel },
       ]));
       append(detailGrid, summaryColumn, contentColumn);
@@ -323,7 +337,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
         resolvePendingSection(coverageHost);
         coverageHost.replaceChildren(coverageSection(coverage, result));
       });
-      void saleHistoryResult.then((result) => {
+      void sales.result.then((result) => {
         if (!canHydrate(routeEpoch, saleHistoryHost, propertyRef)) return;
         if (result.status === "rejected") {
           resolvePendingSection(saleHistoryHost);
@@ -339,7 +353,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
         resolvePendingSection(saleHistoryHost);
         saleHistoryHost.replaceChildren(saleHistorySection(result.value.body, items));
       });
-      void seifaResult.then((result) => {
+      void seifa.result.then((result) => {
         if (!canHydrate(routeEpoch, seifaHost, propertyRef)) return;
         resolvePendingSection(seifaHost);
         if (result.status === "rejected") {

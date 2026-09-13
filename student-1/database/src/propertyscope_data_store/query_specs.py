@@ -29,7 +29,7 @@ PROPERTY_RECORD_SPEC = ReleasePreviewSpec(
         street_name,street_type,locality,postcode,source_status,geocode_type,source_crs,
         ST_AsGeoJSON(geom)::jsonb AS geometry,source_row_sha256,normalisation_version
         FROM warehouse.gnaf_address WHERE dataset_release_id=%s
-        ORDER BY locality,postcode,address_display,gnaf_pid LIMIT %s OFFSET %s""",
+        ORDER BY gnaf_pid LIMIT %s OFFSET %s""",
     "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
     (
         "source_address_id",
@@ -64,7 +64,7 @@ PREVIEW_SPECS: dict[str, ReleasePreviewSpec] = {
         interest_of_sale,contract_date::text,settlement_date::text,price_aud,
         area_square_metres::text,property_ref,match_tier,match_confidence::float8,
         geographic_precision FROM warehouse.psi_sale WHERE dataset_release_id=%s
-        ORDER BY contract_date NULLS LAST,source_business_key,source_revision LIMIT %s OFFSET %s""",
+        ORDER BY source_business_key,source_revision LIMIT %s OFFSET %s""",
         "SELECT count(*) AS count FROM warehouse.psi_sale WHERE dataset_release_id=%s",
         (
             "source_business_key",

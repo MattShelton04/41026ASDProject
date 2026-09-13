@@ -21,7 +21,8 @@ export function releasePreviewPanel(releaseId, initialPage, { request, isCurrent
     disposeTableRegions(body);
     body.replaceChildren();
     const release = page.release || {};
-    append(body, el("div", "notice", `${humanise(displayState || release.status)} version · ${formatNumber(page.total)} previewable ${humanise(page.profile)} records. No other version is included.`));
+    const totalLabel = `${page.total_is_lower_bound ? "at least " : ""}${formatNumber(page.total)}`;
+    append(body, el("div", "notice", `${humanise(displayState || release.status)} version · ${totalLabel} previewable ${humanise(page.profile)} records. No other version is included.`));
     if (!page.items?.length) {
       append(body, emptyState("No preview rows", "This release has no rows in its registered warehouse projection."));
       return;
@@ -68,7 +69,7 @@ export function releasePreviewPanel(releaseId, initialPage, { request, isCurrent
     };
     previous.addEventListener("click", () => load(Math.max(0, page.offset - page.limit)));
     next.addEventListener("click", () => load(page.next_offset));
-    const summary = el("span", "field-help", `Showing ${formatNumber(page.offset + 1)}–${formatNumber(page.offset + page.count)} of ${formatNumber(page.total)}`);
+    const summary = el("span", "field-help", `Showing ${formatNumber(page.offset + 1)}–${formatNumber(page.offset + page.count)} of ${totalLabel}`);
     summary.tabIndex = -1;
     summary.setAttribute("role", "status");
     append(controls, summary, previous, next);
