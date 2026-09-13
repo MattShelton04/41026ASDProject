@@ -1007,6 +1007,9 @@ The operations projection carries all calls in `tools`, matching results by call
 the legacy first `tool` field for existing clients. Projection version 3 invalidates earlier ETags.
 The shared gateway resolves the AI service through Docker DNS at request time so recreating the
 local AI container does not strand activity links on its previous container address.
+Before nginx template substitution, its entrypoint resolves explicit `/etc/hosts` mappings
+(including Linux `host.docker.internal:host-gateway`) to an address. Nginx's asynchronous resolver
+does not read that file. Unmapped service names retain runtime DNS resolution.
 
 Feature 1 owns readable context lookup through its existing public search/inventory endpoints.
 The context contract accepts either a canonical UUID plus optional bounded `display_label`, or a

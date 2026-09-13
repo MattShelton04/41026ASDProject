@@ -14,4 +14,7 @@ local dataset. Baseline and implementation runs have different IDs and model wor
 [implementation record](../../prototype/chat-experience/implementation-plan.md) documents
 observations, scope, validation and the limits of the independent review.
 
+The [integration verification](integration-verification.md) records the Linux CI routing fix,
+live AI runs across all five features, and remaining cross-feature evidence limitations.
+
 ![Completed answer with adjacent evidence](propertyscope-chat-after-answer.png)

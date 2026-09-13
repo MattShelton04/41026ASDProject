@@ -54,6 +54,11 @@ relative static assets and namespaced public API allow the same image to work at
 Features 2–5 are enabled through manifest-generated live edge routes. Feature 3 uses
 `/features/suburb-analytics/#suburbs` and is also reachable directly at `http://localhost:5600`.
 
+The AI proxy supports both host and container placement. The image entrypoint resolves explicit
+`/etc/hosts` mappings before rendering nginx configuration so Linux `host-gateway` works;
+unmapped container service names keep runtime Docker DNS resolution after service recreation.
+Rebuild the shared frontend image after changing `deployment/nginx/19-ai-mode-host.envsh`.
+
 A deployment may override them in the same-origin `config.js` loaded before `app.js`:
 
 ```js
