@@ -50,7 +50,10 @@
 .filter-row { gap: var(--ps-space-3); }
 .toolbar .active-filters { margin: 0; padding-top: var(--ps-space-2); }
 #source-crud-region td > strong, #source-crud-region td > small { display: block; }
+#source-crud-region td > .sub-cell { display: block; max-width: 32rem; margin-top: var(--ps-space-1); }
 #source-crud-region td > small { margin-top: var(--ps-space-2); color: var(--muted); overflow-wrap: anywhere; }
+.catalogue-groups { display: grid; gap: var(--ps-space-5); }
+.catalogue-groups > .panel + .panel { margin-top: 0; }
 table th { font-size: .625rem; letter-spacing: .07em; text-transform: uppercase; background: var(--ps-color-background); }
 table td { font-size: .8125rem; line-height: 1.6; padding-block: var(--ps-space-4); }
 table td.numeric { white-space: nowrap; }

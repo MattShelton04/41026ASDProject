@@ -1,4 +1,4 @@
-<section id="source-crud-region" class="stack" data-source-route-hash="#sources{% if query or status != 'active' %}?{% if query %}q={{ query|urlencode }}{% endif %}{% if query and status != 'active' %}&amp;{% endif %}{% if status != 'active' %}status={{ status|urlencode }}{% endif %}{% endif %}">
+<section id="source-crud-region" class="stack" data-source-route-hash="{{ route_hash }}">
   <div class="page-heading">
     <div><p class="eyebrow">Property data</p><h1 tabindex="-1">Data sources</h1><p>Manage the publishers, licences and schedules behind property data.</p></div>
     <div class="page-actions">
@@ -17,16 +17,23 @@
     {% if query or status != 'all' %}<div class="active-filters"><span class="field-help">{{ (1 if query else 0) + (1 if status != 'all' else 0) }} active {{ 'filter' if ((1 if query else 0) + (1 if status != 'all' else 0)) == 1 else 'filters' }}</span></div>{% endif %}
   </form>
   <span id="source-list-indicator" class="htmx-indicator field-help" role="status">Loading source definitions…</span>
+  {% if items or previous_url or next_url %}<nav class="collection-pagination" aria-label="Source result pages">
+    {% if previous_url %}<a class="button secondary" href="{{ previous_hash }}" hx-get="{{ previous_url }}" hx-target="#source-crud-region" hx-swap="outerHTML" hx-indicator="#source-list-indicator" hx-disabled-elt="this">Previous page</a>{% endif %}
+    <span class="field-help">{% if items %}Showing {{ page_start }}–{{ page_end }}{% else %}No more results on this page.{% endif %}</span>
+    {% if next_url %}<a class="button secondary" href="{{ next_hash }}" hx-get="{{ next_url }}" hx-target="#source-crud-region" hx-swap="outerHTML" hx-indicator="#source-list-indicator" hx-disabled-elt="this">Next page</a>{% endif %}
+  </nav>{% endif %}
   {% if not items %}
     <section class="empty-state"><h2>No sources found</h2><p>{% if query or status != 'all' %}Try clearing the current filters.{% else %}Create the first source record.{% endif %}</p></section>
   {% else %}
-    <section class="panel"><div class="panel-heading"><div><h2>{{ items|length }} {{ 'source' if items|length == 1 else 'sources' }}</h2><p>Showing up to 100 results</p></div></div>
-      <div class="ps-table-region" role="region" aria-label="Registered data sources" tabindex="0"><table><caption class="visually-hidden">Registered data sources</caption><thead><tr><th scope="col">Source</th><th scope="col">Publisher</th><th scope="col">Adapter</th><th scope="col">Cadence</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>
-      {% for source in items %}<tr>
-        <td><strong>{{ source.name }}</strong><small class="mono">{{ source.id }}</small></td><td>{{ source.publisher }}</td><td class="mono">{{ source.adapter_key }}</td><td>{{ source.cadence }}</td><td><span class="badge {{ source.status }}">{{ source.status|replace('_',' ')|title }}</span></td>
+    <div class="catalogue-groups" aria-label="{{ items|length }} registered {{ 'source' if items|length == 1 else 'sources' }}">
+    {% for group in groups %}<section class="panel catalogue-group" aria-labelledby="source-group-{{ group.key }}"><div class="panel-heading"><div><h2 id="source-group-{{ group.key }}">{{ group.label }}</h2><p>{{ group.description }} · {{ group['items']|length }} {{ 'source' if group['items']|length == 1 else 'sources' }}</p></div></div>
+      <div class="ps-table-region" role="region" aria-label="{{ group.label }} data sources" tabindex="0"><table><caption class="visually-hidden">{{ group.label }} data sources</caption><thead><tr><th scope="col">Source</th><th scope="col">Publisher</th><th scope="col">Adapter</th><th scope="col">Cadence</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>
+      {% for source in group['items'] %}<tr>
+        <td><strong>{{ source.presentation_name }}</strong>{% if source.presentation_purpose %}<span class="sub-cell">{{ source.presentation_purpose }}</span>{% endif %}<small class="mono">{{ source.id }}</small></td><td>{{ source.publisher }}</td><td class="mono">{{ source.adapter_key }}</td><td>{{ source.cadence }}</td><td><span class="badge {{ source.status }}">{{ source.status|replace('_',' ')|title }}</span></td>
         <td class="actions-cell"><div class="row-actions"><a class="button secondary small" href="#sources/{{ source.id }}">View details</a><button class="button secondary small" type="button" aria-label="Edit {{ source.name }}" hx-get="{{ fragment_base }}/{{ source.id }}/edit" hx-target="#entity-form" hx-swap="innerHTML" hx-indicator="#source-list-indicator" hx-disabled-elt="this">Edit</button><button class="button small danger" type="button" aria-label="Delete {{ source.name }}" hx-get="{{ fragment_base }}/{{ source.id }}/delete-confirmation" hx-target="#action-form" hx-swap="innerHTML" hx-indicator="#source-list-indicator" hx-disabled-elt="this">Delete</button></div></td>
       </tr>{% endfor %}
       </tbody></table></div>
-    </section>
+    </section>{% endfor %}
+    </div>
   {% endif %}
 </section>

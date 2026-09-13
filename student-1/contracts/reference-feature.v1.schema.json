@@ -1,0 +1,176 @@
+{
+  "$defs": {
+    "JsonValue": {},
+    "ProductProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_generation_id": {
+          "format": "uuid",
+          "title": "Candidate Generation Id",
+          "type": "string"
+        },
+        "normalisation_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Normalisation Version",
+          "type": "string"
+        },
+        "release_id": {
+          "format": "uuid",
+          "title": "Release Id",
+          "type": "string"
+        },
+        "release_version": {
+          "maxLength": 150,
+          "minLength": 1,
+          "title": "Release Version",
+          "type": "string"
+        },
+        "source_record_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Record Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "release_id",
+        "release_version",
+        "candidate_generation_id",
+        "source_record_sha256",
+        "normalisation_version"
+      ],
+      "title": "ProductProvenance",
+      "type": "object"
+    }
+  },
+  "$id": "https://propertyscope.local/contracts/reference-feature.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Publisher reference facts; attribute names are retained in the source schema snapshot.",
+  "properties": {
+    "attributes": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Attributes",
+      "type": "object"
+    },
+    "dataset_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "geometry": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Geometry"
+    },
+    "geometry_status": {
+      "enum": [
+        "valid",
+        "invalid",
+        "not_provided"
+      ],
+      "title": "Geometry Status",
+      "type": "string"
+    },
+    "layer": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Layer",
+      "type": "string"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "maxLength": 1000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Name"
+    },
+    "provenance": {
+      "$ref": "#/$defs/ProductProvenance"
+    },
+    "record_id": {
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Record Id",
+      "type": "string"
+    },
+    "source_crs": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Source Crs",
+      "type": "string"
+    },
+    "source_updated_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Source Updated At"
+    },
+    "source_url": {
+      "maxLength": 4000,
+      "pattern": "^https://",
+      "title": "Source Url",
+      "type": "string"
+    },
+    "valid_from": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Valid From"
+    },
+    "valid_to": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Valid To"
+    }
+  },
+  "required": [
+    "dataset_id",
+    "record_id",
+    "layer",
+    "geometry",
+    "geometry_status",
+    "attributes",
+    "source_url",
+    "source_crs",
+    "source_updated_at",
+    "valid_from",
+    "valid_to",
+    "provenance"
+  ],
+  "title": "ReferenceFeatureRecord",
+  "type": "object"
+}

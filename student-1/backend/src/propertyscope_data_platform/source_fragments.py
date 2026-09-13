@@ -6,6 +6,7 @@ import json
 import uuid
 from collections.abc import Mapping
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 from flask import Blueprint, Response, g, make_response, render_template, request
@@ -13,10 +14,16 @@ from pydantic import ValidationError
 
 from propertyscope_data_platform.clients import DataStoreClient, DependencyUnavailableError
 from propertyscope_data_platform.domain import SourceDefinitionCreate, SourceDefinitionUpdate
+from propertyscope_data_platform.source_catalog import (
+    group_sources,
+    presented_name,
+    source_presentation,
+)
 
 FRAGMENT_BASE = "/fragments/data-platform/v1/sources"
 INTERNAL_BASE = "/internal/data-platform/v1/sources"
 _STATUSES = {"active", "draft", "disabled", "retired", "all"}
+_PAGE_SIZE = 100
 _SOURCE_FIELDS = (
     "name",
     "publisher",
@@ -38,10 +45,10 @@ def create_source_fragment_blueprint(store: DataStoreClient) -> Blueprint:
 
     @fragments.get(FRAGMENT_BASE)
     def source_list() -> Response:
-        query, status, error = _filters()
+        query, status, offset, error = _filters()
         if error is not None:
             return _region_error(error, status_code=422, query=query, status=status)
-        return _render_list(store, query=query, status=status)
+        return _render_list(store, query=query, status=status, offset=offset)
 
     @fragments.post(FRAGMENT_BASE)
     def source_create() -> Response:
@@ -186,14 +193,20 @@ def create_source_fragment_blueprint(store: DataStoreClient) -> Blueprint:
     return fragments
 
 
-def _filters() -> tuple[str, str, str | None]:
+def _filters() -> tuple[str, str, int, str | None]:
     query = request.args.get("q", "").strip()
     status = request.args.get("status", "active").strip() or "active"
     if len(query) > 200:
-        return query[:200], status, "Search text must be at most 200 characters."
+        return query[:200], status, 0, "Search text must be at most 200 characters."
     if status not in _STATUSES:
-        return query, "active", "Lifecycle status is not recognised."
-    return query, status, None
+        return query, "active", 0, "Lifecycle status is not recognised."
+    try:
+        offset = int(request.args.get("offset", "0"))
+    except ValueError:
+        return query, status, 0, "Page offset must be a non-negative integer."
+    if not 0 <= offset <= 1_000_000:
+        return query, status, 0, "Page offset must be between 0 and 1000000."
+    return query, status, offset, None
 
 
 def _render_list(
@@ -201,10 +214,11 @@ def _render_list(
     *,
     query: str,
     status: str,
+    offset: int = 0,
     success: str = "",
     success_status: int = 200,
 ) -> Response:
-    params: dict[str, Any] = {"limit": 100}
+    params: dict[str, Any] = {"limit": _PAGE_SIZE, "offset": offset}
     if query:
         params["q"] = query
     if status != "all":
@@ -226,12 +240,46 @@ def _render_list(
             query=query,
             status=status,
         )
-    items = [_source_values(item) for item in upstream.json().get("items", [])]
+    payload = upstream.json()
+    items = [_source_values(item) for item in payload.get("items", [])]
+    raw_next = payload.get("next_offset")
+    next_offset = (
+        raw_next
+        if isinstance(raw_next, int)
+        and not isinstance(raw_next, bool)
+        and offset < raw_next <= 1_000_000
+        else None
+    )
+    previous_offset = max(0, offset - _PAGE_SIZE) if offset else None
     response = _html(
         "fragments/sources/region.html",
         items=items,
+        groups=group_sources(items),
         query=query,
         status=status,
+        route_hash=_source_location(query=query, status=status, offset=offset, fragment=False),
+        previous_url=(
+            _source_location(query=query, status=status, offset=previous_offset, fragment=True)
+            if previous_offset is not None
+            else ""
+        ),
+        previous_hash=(
+            _source_location(query=query, status=status, offset=previous_offset, fragment=False)
+            if previous_offset is not None
+            else ""
+        ),
+        next_url=(
+            _source_location(query=query, status=status, offset=next_offset, fragment=True)
+            if next_offset is not None
+            else ""
+        ),
+        next_hash=(
+            _source_location(query=query, status=status, offset=next_offset, fragment=False)
+            if next_offset is not None
+            else ""
+        ),
+        page_start=offset + 1 if items else 0,
+        page_end=offset + len(items),
         success=success,
         fragment_base=FRAGMENT_BASE,
         status_code=success_status,
@@ -241,6 +289,18 @@ def _render_list(
             {"propertyscope:source-mutated": {"message": success, "requestId": g.request_id}}
         )
     return response
+
+
+def _source_location(*, query: str, status: str, offset: int, fragment: bool) -> str:
+    values: dict[str, str | int] = {}
+    if query:
+        values["q"] = query
+    if status != "active":
+        values["status"] = status
+    if offset:
+        values["offset"] = offset
+    suffix = f"?{urlencode(values)}" if values else ""
+    return f"{FRAGMENT_BASE if fragment else '#sources'}{suffix}"
 
 
 def _validated_form(model: type[SourceDefinitionCreate]) -> tuple[dict[str, Any], dict[str, str]]:
@@ -418,4 +478,8 @@ def _source_values(source: Mapping[str, Any]) -> dict[str, Any]:
     values["id"] = str(source.get("id", ""))
     values["created_at"] = source.get("created_at", "")
     values["updated_at"] = source.get("updated_at", "")
+    presentation = source_presentation(values)
+    values["presentation_name"] = presented_name(presentation, values["name"])
+    values["presentation_purpose"] = presentation.purpose if presentation else ""
+    values["presentation_group"] = presentation.group_key if presentation else "other-sources"
     return values

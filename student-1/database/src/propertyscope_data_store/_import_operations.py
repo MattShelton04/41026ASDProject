@@ -27,9 +27,11 @@ from propertyscope_data_store.persistence_support import (
 )
 from propertyscope_data_store.persistence_support import json_document as _json
 from propertyscope_data_store.persistence_support import normalise_row as _dict
+from propertyscope_data_store.reference_import import REFERENCE_PROFILES
 
 JsonObject = dict[str, Any]
 _IMPORT_TARGET_RELATIONS: Mapping[str, tuple[str, ...]] = {
+    **dict.fromkeys(REFERENCE_PROFILES, ("warehouse.reference_feature",)),
     "property-fixture": ("warehouse.gnaf_address",),
     "gnaf-nsw": ("warehouse.gnaf_address",),
     "psi-sales": (
@@ -121,7 +123,42 @@ class _RegisteredImportOperations:
 
     def get_import(self, operation_id: uuid.UUID) -> JsonObject:
         return self._owner._required(
-            "SELECT * FROM ops.import_operation WHERE id=%s", (operation_id,)
+            """SELECT operation.*,COALESCE((
+                SELECT jsonb_agg(attempt ORDER BY attempt.attempt_number DESC)
+                FROM (
+                    SELECT attempt_number,status,started_at,finished_at,progress_phase_key,
+                        progress_rows,rows_staged,rows_accepted,error_json,recorded_at,
+                        space_recovery_policy_json,COALESCE((
+                            SELECT jsonb_agg(event ORDER BY event.id DESC) FROM (
+                                SELECT id,recovery_status,policy_json,recorded_at
+                                FROM ops.import_recovery_evidence recovery
+                                WHERE recovery.import_operation_id=evidence.import_operation_id
+                                    AND recovery.attempt_number=evidence.attempt_number
+                                    AND NOT EXISTS (
+                                        SELECT 1 FROM ops.import_recovery_attribution attribution
+                                        WHERE attribution.recovery_evidence_id=recovery.id
+                                    )
+                                ORDER BY id DESC LIMIT 20
+                            ) event
+                        ),'[]'::jsonb) AS recovery_events
+                    FROM ops.import_attempt_evidence evidence
+                    WHERE import_operation_id=operation.id
+                    ORDER BY attempt_number DESC LIMIT 20
+                ) attempt
+            ),'[]'::jsonb) AS failure_attempts,COALESCE((
+                SELECT jsonb_agg(event ORDER BY event.id DESC) FROM (
+                    SELECT recovery.id,recovery.attempt_number AS recorded_attempt_number,
+                        recovery.recovery_status,recovery.policy_json,recovery.recorded_at,
+                        attribution.attribution,attribution.reason
+                    FROM ops.import_recovery_evidence recovery
+                    JOIN ops.import_recovery_attribution attribution
+                        ON attribution.recovery_evidence_id=recovery.id
+                    WHERE recovery.import_operation_id=operation.id
+                    ORDER BY recovery.id DESC LIMIT 20
+                ) event
+            ),'[]'::jsonb) AS unattributed_recovery_events
+            FROM ops.import_operation operation WHERE operation.id=%s""",
+            (operation_id,),
         )
 
     def import_work(self, operation_id: uuid.UUID) -> JsonObject:
@@ -326,7 +363,9 @@ class _RegisteredImportOperations:
                 space_recovery_policy_json=jsonb_build_object(
                     'policy','measure_then_target_exact_relations',
                     'trigger','cancelled_import_lease_expired_after_possible_rollback',
-                    'relations',to_jsonb(CASE operation.import_profile_key
+                    'relations',to_jsonb(CASE WHEN operation.import_profile_key=ANY(%s)
+                        THEN ARRAY['warehouse.reference_feature']::text[]
+                        ELSE CASE operation.import_profile_key
                         WHEN 'psi-sales' THEN ARRAY[
                             'warehouse.psi_sale','registry.property',
                             'registry.property_identifier']::text[]
@@ -334,7 +373,7 @@ class _RegisteredImportOperations:
                             'warehouse.bocsar_observation','warehouse.bocsar_coverage']::text[]
                         WHEN 'schools-master' THEN ARRAY['warehouse.school']::text[]
                         WHEN 'seifa-2021-sal-nsw' THEN ARRAY['warehouse.seifa_sal']::text[]
-                        ELSE ARRAY['warehouse.gnaf_address']::text[] END),
+                        ELSE ARRAY['warehouse.gnaf_address']::text[] END END),
                     'destination_may_have_been_touched',COALESCE(
                         operation.progress_phase_key IN ('target_materialisation','verification'),
                         false),
@@ -344,7 +383,7 @@ class _RegisteredImportOperations:
                 WHERE run.id=operation.ingestion_run_id AND run.cancel_requested_at IS NOT NULL
                 AND operation.status IN ('claimed','running')
                 AND operation.lease_expires_at<=%s""",
-                (now, _json(_cancellation_error()), now),
+                (now, _json(_cancellation_error()), sorted(REFERENCE_PROFILES), now),
             )
             # Import work follows the same explicit-resume policy as acquisition tasks.
             # A replacement loader records the expired boundary but never steals work.

@@ -12,6 +12,7 @@ from propertyscope_data_platform.acquisition_scope import (
     PSI_YEAR_RANGE_PROFILE,
     acquisition_scope_error,
 )
+from propertyscope_data_platform.reference_catalog import REFERENCE_PROFILES
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +85,7 @@ def validate_job_scope(
         "psi-sales",
         "seifa-2021-sal-nsw",
     }
+    connected = connected or import_profile in REFERENCE_PROFILES
     if run_mode == "full_refresh" and not connected:
         return None, ScopeProblem(
             422,

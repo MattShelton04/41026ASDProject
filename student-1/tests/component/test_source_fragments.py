@@ -83,6 +83,90 @@ def test_source_list_fragment_is_html_escaped_and_uses_real_htmx_actions() -> No
     assert response.headers["X-Request-ID"] == "fragment-list-request"
 
 
+def test_source_list_groups_registered_defaults_and_keeps_custom_names() -> None:
+    def database(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    _source(name="G-NAF Open NSW", adapter_key="gnaf-bulk"),
+                    _source(name="Team sales source", adapter_key="psi-bulk"),
+                ]
+            },
+        )
+
+    response = _client(database).get("/fragments/data-platform/v1/sources?status=all")
+
+    assert response.status_code == 200
+    assert b"Foundational property data" in response.data
+    assert b"G-NAF addresses" in response.data
+    assert b"Foundational address identity and location" in response.data
+    assert b"Team sales source" in response.data
+
+
+def test_source_groups_have_unique_accessible_names_and_bounded_paging() -> None:
+    observed_query: dict[str, str] = {}
+
+    def database(request: httpx.Request) -> httpx.Response:
+        observed_query.update(dict(request.url.params))
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    _source(name="G-NAF Open NSW", adapter_key="gnaf-bulk"),
+                    _source(
+                        name="ABS All groups CPI Sydney and Australia", adapter_key="abs-cpi-source"
+                    ),
+                ],
+                "count": 2,
+                "limit": 100,
+                "offset": 100,
+                "next_offset": 200,
+            },
+        )
+
+    response = _client(database).get(
+        "/fragments/data-platform/v1/sources?q=NSW%20data&status=all&offset=100"
+    )
+
+    assert response.status_code == 200
+    assert observed_query == {"limit": "100", "offset": "100", "q": "NSW data"}
+    assert b'aria-label="Foundational property data data sources"' in response.data
+    assert (
+        b'<caption class="visually-hidden">Economic context data sources</caption>' in response.data
+    )
+    assert b"Showing 101\xe2\x80\x93102" in response.data
+    assert (
+        b'hx-get="/fragments/data-platform/v1/sources?q=NSW+data&amp;status=all"' in response.data
+    )
+    assert (
+        b'hx-get="/fragments/data-platform/v1/sources?q=NSW+data&amp;status=all&amp;offset=200"'
+        in response.data
+    )
+
+
+def test_source_page_offset_is_bounded() -> None:
+    response = _client(lambda _: httpx.Response(500)).get(
+        "/fragments/data-platform/v1/sources?offset=1000001"
+    )
+
+    assert response.status_code == 422
+    assert b"Page offset must be between 0 and 1000000" in response.data
+
+
+def test_catalogue_presentation_endpoint_is_read_only_and_bounded() -> None:
+    client = _client(lambda _: httpx.Response(500))
+
+    response = client.get("/api/data-platform/v1/catalogue-presentation")
+    invalid = client.get("/api/data-platform/v1/catalogue-presentation?status=ready")
+
+    assert response.status_code == 200
+    assert response.get_json()["schema_version"] == "propertyscope.catalogue-presentation.v1"
+    assert len(response.get_json()["groups"]) == 6
+    assert len(response.get_json()["datasets"]) == 16
+    assert invalid.status_code == 422
+
+
 def test_create_and_edit_form_fragments_are_populated_without_browser_domain_logic() -> None:
     def database(request: httpx.Request) -> httpx.Response:
         assert request.url.path == f"/internal/data-platform/v1/sources/{SOURCE_ID}"

@@ -256,6 +256,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
 
     @api.post("/internal/data-platform/v1/worker/tasks/<uuid:task_id>/artifacts")
     def artifacts_register(task_id: uuid.UUID) -> tuple[Response, int]:
+        request.max_content_length = 2 * 1024 * 1024
         body = payload()
         body["run_task_id"] = str(task_id)
         artifact, created = store.register_artifact(body)

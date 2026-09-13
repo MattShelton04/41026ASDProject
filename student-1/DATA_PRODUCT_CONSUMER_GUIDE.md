@@ -21,10 +21,23 @@ connect to its PostgreSQL/PostGIS database.
 | `nsw-psi-sales` | `property-sales 4.0.0` | `propertyscope.property-sales.v3` | Feature 2 | Complete cached/live transport | Bounded derived artifact |
 | `bocsar-crime` | `crime-series 3.0.0` | `propertyscope.crime-series.v2` | Feature 3 | Complete live transport | Approved bounded extract |
 | `nsw-government-schools` | `school-points 3.0.0` | `propertyscope.school-points.v2` | Feature 3 | Complete live transport | Approved bounded extract |
+| `nsw-cadastre` | `reference-feature 1.0.0` | `propertyscope.reference-feature.v1` | Feature 1 | Registered complete Lot layer | CC BY 4.0; attributed derived release with extraction date |
+| `nsw-planning-controls` | `reference-feature 1.0.0` | `propertyscope.reference-feature.v1` | Feature 1 | Five complete EPI layers | Attributed derived release |
+| `nsw-bushfire-prone-land` | `reference-feature 1.0.0` | `propertyscope.reference-feature.v1` | Feature 1 | Complete published BFPL layer | Attributed derived release |
+| `nsw-flood-planning` | `reference-feature 1.0.0` | `propertyscope.reference-feature.v1` | Feature 1 | Published flood-planning controls only | Attributed derived release |
+| `abs-geography-2021` | `reference-feature 1.0.0` | `propertyscope.reference-feature.v1` | Feature 1 | NSW 2021 SAL/LGA boundaries | Attributed derived release |
+| `nsw-suburb-boundaries` | `reference-feature 1.0.0` | `propertyscope.reference-feature.v1` | Feature 1 | NSW gazetted suburb boundaries | Attributed derived release |
+| `nsw-school-catchments` | `reference-feature 1.0.0` | `propertyscope.reference-feature.v1` | Feature 1 | Published primary, secondary and future zones | Attributed derived release |
+| `nsw-strata-schemes` | `reference-feature 1.0.0` | `propertyscope.reference-feature.v1` | Feature 1 | Published StrataHub scheme polygons and facts | Attributed derived release |
+| `nsw-amenities` | `reference-feature 1.0.0` | `propertyscope.reference-feature.v1` | Feature 1 | Declared official facility layers | Attributed derived release |
+| `abs-cpi` | `reference-feature 1.0.0` | `propertyscope.reference-feature.v1` | Feature 1 | All groups Sydney/Australia, monthly and quarterly | Attributed derived release |
 
-Feature 4 and Feature 5 have no registered source jobs. Spatial database capability is not a data
-product, and this feature does not invent planning, hazard, zoning, strata, building, or dossier
-data.
+The reference products are owned and activated within Feature 1. No new downstream consumer is
+wired: Features 2–5 retain their independent contracts and stores. Source features do not establish
+property matches, legal applicability, school eligibility, building condition or hazard absence.
+See the [reference integration plan](../docs/release-1/reference-data-integration-plan.md) and source verification
+records for exact scope. Catalogue capability is separate from local readiness: inspect accepted
+releases and consumer-operation evidence to determine which data is active on a particular setup.
 
 ## Five-minute consumer quickstart
 
@@ -301,8 +314,8 @@ earlier facts.
 
 ### Crime series
 
-Release 0 uses verified BOCSAR **postcode** geography. The registered scopes and integration
-fixtures use `geography_kind=postcode`; no postcode-to-suburb translation occurs. The builder
+The complete registered BOCSAR source includes **postcode and suburb** geography. Early Release 0
+fixtures used postcode alone; no postcode-to-suburb translation occurs. The builder
 retains one exact sorted `observed_months` universe per geography/category, first/last/count,
 completeness hash, `blank_means_observed_zero`, sparse positive observations, and coverage-only
 series. The v2 coverage capacity is 600 months; the August 2026 official archives currently
@@ -319,6 +332,21 @@ ordering is school code. A point does not prove catchment, eligibility, quality,
 recommendation. Feature 3 owns distance queries and presentation.
 
 ## Registering a future product
+
+Reference products use `propertyscope.reference-feature.v1`: dataset and layer identity, source
+record identifier, optional name and EPSG:4326 GeoJSON, explicit geometry validity, publisher
+attributes, source URL/CRS/dates and normalisation/release provenance. Publisher field definitions,
+counts, filters, edition and geographic extent are retained in the run's source-snapshot artifact.
+The source-release identifier is a labelled metadata fingerprint when no common publisher edition
+exists. It must not be interpreted as a publication date or an immutable upstream snapshot.
+Invalid geometry is retained and labelled rather than silently repaired; missing geometry remains
+missing. A source feature's appearance or non-appearance is not a property-level determination.
+
+Reference acquisition is complete within its fixed registered layers and filters. The unchanged
+generic run API does not accept arbitrary URLs, bounding boxes or row caps. Canonical rows stream
+through JSONB COPY into the owning reference warehouse, and exports use keyset pagination and the
+existing verified immutable artifact/review/activation lifecycle. CPI preserves frequency, geography,
+period and reference basis; it supplies no inflation-adjustment calculation.
 
 A future owner must complete all of these before startup accepts a registration:
 

@@ -144,11 +144,13 @@ remains exact for PostgreSQL `NUMERIC`. The loader performs the same complete ch
 schema/metadata/row validation before the unchanged PostgreSQL typed staging, identity derivation,
 address resolution and candidate materialisation. Legacy PSI JSON/NDJSON remains replayable.
 
-Parquet is intentionally limited to the measured high-volume BOCSAR and PSI handoffs. Schools and
-ABS SEIFA remain JSON because their source sizes do not justify another internal contract. G-NAF
-requires a separate source-scale benchmark and ADR before any equivalent change.
+New G-NAF acquisitions also use the versioned `propertyscope.canonical-gnaf-parquet.v1`
+handoff, with bounded Zstandard-compressed row groups and legacy replay compatibility. See the
+[9 September measured evidence](../reviews/feature-1-data-performance-2026-09-09.md). Schools and
+ABS SEIFA remain JSON. The new reference-source profiles use streamed canonical NDJSON; their
+[operations guide](../release-1/reference-data-operations.md) records paging and concurrency limits.
 
-The local Compose default declares a 64 GiB Feature 1 PostgreSQL capacity budget, 16 GiB of
+The local Compose default now declares a 192 GiB Feature 1 PostgreSQL capacity budget, 16 GiB of
 transaction-local temporary files and a 4 GiB reserve. PSI reserves 24 GiB for relation/index growth
 and 64 GiB for WAL, including the accepted G-NAF identity anchors and provenance needed by linked
 sales. BOCSAR retains its 8 GiB and 20 GiB allowances. These floors project measured one-million-row
@@ -157,10 +159,11 @@ growth allowance wins only when it is larger than the measured floor. Preflight 
 physical server observation and current database size against the declared ceiling to cover every
 applicable allowance.
 
-The default 64 GiB declaration therefore cannot admit PSI materialisation. After observing adequate
-physical data/WAL capacity, an operator can explicitly configure
-`PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES=137438953472` (128 GiB) in the ignored local `.env`, then
-recreate the idle loader with `uv run scripts/dev.py stack restart f1-db-loader`. This is a declared
+The previous 64 GiB default could not admit PSI materialisation; a previous 128 GiB local override
+also became insufficient once the retained database reached about 27 GB. The September reference
+increment raises the versioned default to `PROPERTYSCOPE_POSTGRES_CAPACITY_BYTES=206158430208`
+(192 GiB). Existing explicit `.env` overrides still take precedence. Recreate an idle loader after
+changing its budget with `uv run scripts/dev.py stack restart f1-db-loader`. This is a declared
 capacity ceiling, not disk provisioning; the independent physical-capacity gate still applies.
 The conservative PSI floors also apply to selected-year runs. Override resource settings only from
 measured evidence. The disposable benchmark sequence and evidence fields are specified in

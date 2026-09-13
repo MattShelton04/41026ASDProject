@@ -36,12 +36,22 @@ def test_checked_in_profiles_form_one_stable_runtime_registry() -> None:
     registry = load_runtime_registry(FEATURE_ROOT / "config" / "job-profiles")
 
     assert registry.keys() == (
+        "abs-cpi",
+        "abs-geography-2021",
         "abs-seifa-2021-sal-nsw",
         "bocsar-crime-quarterly",
         "fixture-property-full",
         "gnaf-nsw-address-registry",
+        "nsw-amenities",
+        "nsw-bushfire-prone-land",
+        "nsw-cadastre",
+        "nsw-flood-planning",
         "nsw-government-schools-master",
+        "nsw-planning-controls",
         "nsw-psi-sales-year",
+        "nsw-school-catchments",
+        "nsw-strata-schemes",
+        "nsw-suburb-boundaries",
     )
     fixture = registry.profile("fixture-property-full")
     assert fixture.adapter.version == "1.0.0"

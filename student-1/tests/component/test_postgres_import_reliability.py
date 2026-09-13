@@ -1171,6 +1171,137 @@ def test_psi_accepts_registered_street_type_equivalences_without_changing_source
     }
 
 
+def test_psi_cached_match_repairs_type_and_spacing_without_crossing_property_components(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    connection = isolated_postgres
+    accepted = uuid.uuid4()
+    connection.execute(
+        "INSERT INTO serving.accepted_generation VALUES ('gnaf-nsw',%s)", (accepted,)
+    )
+    for pid, number, last, suffix, unit in [
+        ("plain", 10, None, None, None),
+        ("suffix", 10, None, "A", None),
+        ("range", 20, 24, None, None),
+        ("unit", 30, None, None, "2"),
+        ("duplicate-a", 40, None, None, None),
+        ("duplicate-b", 40, None, None, None),
+    ]:
+        connection.execute(
+            "INSERT INTO warehouse.gnaf_address (dataset_release_id,gnaf_pid,postcode,"
+            "locality,street_name,street_type,street_number_first,street_number_last,"
+            "street_number_suffix,unit_number,published) "
+            "VALUES (%s,%s,'2000','SYDNEY','EXAMPLE','CIRCUIT',%s,%s,%s,%s,true)",
+            (accepted, pid, number, last, suffix, unit),
+        )
+    cases = [
+        ("plain", "10", 10, None, None, "plain"),
+        ("suffix", "10 A", 10, None, None, "suffix"),
+        ("range", "20 - 24", 20, 24, None, "range"),
+        ("unit", "30", 30, None, "2", "unit"),
+        ("ambiguous", "40", 40, None, None, None),
+        ("lot", "LOT 10", 10, None, None, None),
+        ("digit-gap", "1 0", 10, None, None, None),
+        ("last-suffix", "20-24A", 20, 24, None, None),
+        ("no-unit", "30", 30, None, None, None),
+        ("wrong-range", "20-22", 20, 22, None, None),
+        ("wrong-first", "10", 11, None, None, None),
+        ("wrong-last-component", "20-24", 20, 22, None, None),
+    ]
+    rows = [
+        {
+            **_psi_row(key=key, house_number=house, street_number_first=first),
+            "street_number_last": last,
+            "unit_number": unit,
+            "street_name": "EXAMPLE CCT",
+            "street_name_normalised": "EXAMPLE CCT",
+            "street_type": None,
+        }
+        for key, house, first, last, unit, _expected in cases
+    ]
+    _stage_typed_psi_rows(connection, rows)
+    import_profiles._insert_psi_rows(
+        connection.cursor(),
+        release_id=uuid.uuid4(),
+        artifact_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        phase_rows=len(rows),
+        phase_callback=None,
+    )
+    persisted = connection.execute(
+        "SELECT source_business_key,property_ref,house_number,street_type,source_row_sha256 "
+        "FROM warehouse.psi_sale"
+    ).fetchall()
+    expected_refs = {
+        key: uuid.UUID(hashlib.md5(f"propertyscope-gnaf:{pid}".encode()).hexdigest())
+        if pid
+        else None
+        for key, _house, _first, _last, _unit, pid in cases
+    }
+    assert {row["source_business_key"]: row["property_ref"] for row in persisted} == expected_refs
+    assert all(row["street_type"] is None for row in persisted)
+    assert {row["source_business_key"]: row["house_number"] for row in persisted} == {
+        row["source_business_key"]: row["house_number"] for row in rows
+    }
+    assert {row["source_business_key"]: row["source_row_sha256"] for row in persisted} == {
+        row["source_business_key"]: row["source_row_sha256"] for row in rows
+    }
+
+
+def test_psi_linkage_regression_only_compares_identical_accepted_source_revisions(
+    isolated_postgres: psycopg.Connection[dict[str, object]],
+) -> None:
+    from propertyscope_data_store.psi_matching import PSI_LINKAGE_COUNTS_SQL
+
+    connection = isolated_postgres
+    first_ref, other_ref, previous, candidate = [uuid.uuid4() for _ in range(4)]
+    connection.execute(
+        "INSERT INTO registry.property(property_ref) VALUES (%s),(%s)", (first_ref, other_ref)
+    )
+    keys = ["same", "lost", "changed", "different-hash", "different-revision"]
+    for release in (previous, candidate):
+        rows = [{**_psi_row(key=key), "property_ref": first_ref} for key in keys]
+        _stage_typed_psi_rows(connection, rows)
+        import_profiles._insert_psi_rows(
+            connection.cursor(),
+            release_id=release,
+            artifact_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+            phase_rows=len(rows),
+            phase_callback=None,
+        )
+        connection.commit()
+    connection.execute(
+        "INSERT INTO serving.accepted_generation VALUES ('nsw-psi-sales',%s)", (previous,)
+    )
+    connection.execute(
+        "UPDATE warehouse.psi_sale SET property_ref=NULL WHERE dataset_release_id=%s "
+        "AND source_business_key IN ('lost','different-hash','different-revision')",
+        (candidate,),
+    )
+    connection.execute(
+        "UPDATE warehouse.psi_sale SET property_ref=%s WHERE dataset_release_id=%s "
+        "AND source_business_key='changed'",
+        (other_ref, candidate),
+    )
+    connection.execute(
+        "UPDATE warehouse.psi_sale SET source_row_sha256=%s WHERE dataset_release_id=%s "
+        "AND source_business_key='different-hash'",
+        ("1" * 64, candidate),
+    )
+    connection.execute(
+        "UPDATE warehouse.psi_sale SET source_revision=2 WHERE dataset_release_id=%s "
+        "AND source_business_key='different-revision'",
+        (candidate,),
+    )
+    assert connection.execute(PSI_LINKAGE_COUNTS_SQL, (candidate,)).fetchone() == {
+        "count": 2,
+        "previously_linked": 3,
+        "lost_links": 1,
+        "changed_links": 1,
+    }
+
+
 def test_psi_batch_match_keeps_alias_ambiguity_and_full_name_direction(
     isolated_postgres: psycopg.Connection[dict[str, object]],
 ) -> None:

@@ -20,7 +20,15 @@ from types import MappingProxyType
 from typing import Any, Literal, Protocol, Self, cast
 
 import orjson
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    TypeAdapter,
+    ValidationError,
+    model_validator,
+)
 
 from .configuration import (
     ConfigurationError,
@@ -36,6 +44,7 @@ from .domain import (
     ConsumerPublicationRequest,
     PublicationReceiptResult,
 )
+from .reference_catalog import REFERENCE_LIMITATIONS, REFERENCE_PROFILES, reference_limitations
 
 PUBLIC_REDISTRIBUTION_POLICIES = frozenset(
     {
@@ -212,6 +221,37 @@ class SeifaAreaRecord(ProductModel):
                 getattr(self, f"{key}_australia_decile") is None
             ):
                 raise ValueError(f"{key} score and Australia decile must both be present")
+        return self
+
+
+class ReferenceFeatureRecord(ProductModel):
+    """Publisher reference facts; attribute names are retained in the source schema snapshot."""
+
+    dataset_id: str = Field(min_length=1, max_length=100)
+    record_id: str = Field(min_length=1, max_length=300)
+    layer: str = Field(min_length=1, max_length=100)
+    name: str | None = Field(default=None, max_length=1000)
+    geometry: dict[str, JsonValue] | None
+    geometry_status: Literal["valid", "invalid", "not_provided"]
+    attributes: dict[str, JsonValue]
+    source_url: str = Field(pattern=r"^https://", max_length=4000)
+    source_crs: str = Field(min_length=1, max_length=100)
+    source_updated_at: str | None
+    valid_from: str | None
+    valid_to: str | None
+    provenance: ProductProvenance
+
+    @model_validator(mode="after")
+    def coherent_reference(self) -> ReferenceFeatureRecord:
+        if self.dataset_id not in REFERENCE_PROFILES:
+            raise ValueError("reference dataset is not registered")
+        if (self.geometry is None) != (self.geometry_status == "not_provided"):
+            raise ValueError("reference geometry and its status disagree")
+        if len(self.attributes) > 250:
+            raise ValueError("reference attributes exceed the registered bound")
+        for value in (self.source_updated_at, self.valid_from, self.valid_to):
+            if value is not None:
+                datetime.fromisoformat(value.replace("Z", "+00:00"))
         return self
 
 
@@ -573,6 +613,8 @@ class RegisteredReleaseBuilder:
             return self._school_records(context, rows)
         if self.spec.key == "seifa-area":
             return self._seifa_records(context, rows)
+        if self.spec.key == "reference-feature":
+            return self._reference_records(context, rows)
         raise AssertionError("unreachable registered release builder")
 
     def _property_records(
@@ -822,7 +864,47 @@ class RegisteredReleaseBuilder:
             raise ValueError("release product contains duplicate SAL codes")
         return result
 
+    def _reference_records(
+        self, context: BuildContext, rows: Iterable[Mapping[str, Any]]
+    ) -> list[dict[str, Any]]:
+        fields = (
+            "record_id",
+            "layer",
+            "name",
+            "geometry",
+            "geometry_status",
+            "attributes",
+            "source_url",
+            "source_crs",
+            "source_updated_at",
+            "valid_from",
+            "valid_to",
+        )
+        result = [
+            ReferenceFeatureRecord.model_validate(
+                {
+                    **{field: row.get(field) for field in fields},
+                    "dataset_id": context.dataset_id,
+                    "provenance": _provenance(context, row),
+                }
+            ).model_dump(mode="json")
+            for row in rows
+        ]
+        result.sort(key=lambda item: (item["layer"], item["record_id"]))
+        if len({(item["layer"], item["record_id"]) for item in result}) != len(result):
+            raise ValueError("reference product contains duplicate layer/record identifiers")
+        return result
+
     def _summary(self, context: BuildContext, records: list[dict[str, Any]]) -> ReleaseSummary:
+        if self.spec.key == "reference-feature":
+            return (
+                {"Australia", "Sydney"} if context.dataset_id == "abs-cpi" else {"NSW"},
+                None,
+                set(),
+                {item["layer"] for item in records},
+                "number of unique layer and source-record identifiers in the declared source",
+                reference_limitations(context.dataset_id),
+            )
         if self.spec.key == "property-snapshot":
             return (
                 {f"NSW:{item['locality']}:{item['postcode']}" for item in records},
@@ -972,7 +1054,15 @@ class StreamingProduct:
                 yield _project_batch(self._builder, self._context, first)
             # Avoid per-record summary/set construction and compressor calls. Keep
             # nested crime batches small, and retain bounded source consumption.
-            serial_batch_size = 32 if self._builder.spec.key == "crime-series" else 256
+            # A real BFPL polygon alone is 47 MB. Avoid retaining another 255
+            # geometries while projecting/compressing it; HTTP pages stay bounded too.
+            serial_batch_size = (
+                1
+                if self._context.import_profile == "nsw-bushfire-prone-land"
+                else 32
+                if self._builder.spec.key == "crime-series"
+                else 256
+            )
             while batch := list(islice(rows, serial_batch_size)):
                 yield _project_batch(self._builder, self._context, batch)
             return
@@ -1115,6 +1205,20 @@ def _project_registered_batch(
 def default_release_builders() -> Mapping[str, RegisteredReleaseBuilder]:
     definitions = (
         ReleaseBuilderSpec(
+            "reference-feature",
+            "1.0.0",
+            REFERENCE_PROFILES,
+            "propertyscope.reference-feature.v1",
+            "feature-1",
+            "application/x-ndjson",
+            "gzip",
+            "layer, record_id",
+            None,
+            None,
+            frozenset({"attributed-derived-release", "licence-controlled"}),
+            TypeAdapter(ReferenceFeatureRecord),
+        ),
+        ReleaseBuilderSpec(
             "property-snapshot",
             "3.0.0",
             frozenset({"property-fixture", "gnaf-nsw"}),
@@ -1232,6 +1336,7 @@ def validate_release_job(
 
 def validate_product_record(schema_version: str, payload: Mapping[str, Any]) -> None:
     adapters: dict[str, TypeAdapter[Any]] = {
+        "propertyscope.reference-feature.v1": TypeAdapter(ReferenceFeatureRecord),
         "propertyscope.property-snapshot.v2": TypeAdapter(PropertySnapshotRecord),
         "propertyscope.property-sales.v3": TypeAdapter(PropertySaleRecord),
         "propertyscope.crime-series.v2": TypeAdapter(CrimeSeriesRecord),
@@ -1250,6 +1355,7 @@ def validate_product_record(schema_version: str, payload: Mapping[str, Any]) -> 
 def product_schema_documents() -> dict[str, dict[str, Any]]:
     """Return the checked-in JSON Schema source documents for drift validation."""
     models: dict[str, type[BaseModel]] = {
+        "reference-feature.v1.schema.json": ReferenceFeatureRecord,
         "property-snapshot.v1.schema.json": PropertySnapshotProduct,
         "property-snapshot.v2.schema.json": PropertySnapshotRecord,
         "property-sales.v2.schema.json": PropertySalesProduct,
@@ -1313,6 +1419,7 @@ def product_schema_documents() -> dict[str, dict[str, Any]]:
 def product_contract_set_document() -> dict[str, Any]:
     """Return the supported producer-owned record-schema distribution index."""
     paths = {
+        "propertyscope.reference-feature.v1": "reference-feature.v1.schema.json",
         "propertyscope.property-snapshot.v2": "property-snapshot.v2.schema.json",
         "propertyscope.property-sales.v3": "property-sales.v3.schema.json",
         "propertyscope.crime-series.v2": "crime-series.v2.schema.json",
@@ -1402,6 +1509,7 @@ def data_product_catalogue(feature_root: Path) -> tuple[DataProductCatalogueEntr
     sources = load_source_register(feature_root / "config" / "source-register.yaml")
     entries: list[DataProductCatalogueEntry] = []
     limitations = {
+        "reference-feature": REFERENCE_LIMITATIONS,
         "property-snapshot": (
             "Address identity is not legal title, parcel, ownership, valuation, "
             "or occupancy evidence.",
@@ -1449,7 +1557,11 @@ def data_product_catalogue(feature_root: Path) -> tuple[DataProductCatalogueEntr
                 ordering_rule=builder.spec.ordering_rule,
                 max_rows=builder.spec.max_rows,
                 max_bytes=builder.spec.max_bytes,
-                known_limitations=limitations[builder.spec.key],
+                known_limitations=(
+                    reference_limitations(job.source_key)
+                    if builder.spec.key == "reference-feature"
+                    else limitations[builder.spec.key]
+                ),
             )
         )
     return tuple(sorted(entries, key=lambda item: (item.target_feature, item.dataset_id)))

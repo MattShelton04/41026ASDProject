@@ -18,12 +18,22 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_checked_in_profiles_load_in_stable_order() -> None:
     registry = load_job_profiles(ROOT / "config" / "job-profiles")
     assert registry.keys() == (
+        "abs-cpi",
+        "abs-geography-2021",
         "abs-seifa-2021-sal-nsw",
         "bocsar-crime-quarterly",
         "fixture-property-full",
         "gnaf-nsw-address-registry",
+        "nsw-amenities",
+        "nsw-bushfire-prone-land",
+        "nsw-cadastre",
+        "nsw-flood-planning",
         "nsw-government-schools-master",
+        "nsw-planning-controls",
         "nsw-psi-sales-year",
+        "nsw-school-catchments",
+        "nsw-strata-schemes",
+        "nsw-suburb-boundaries",
     )
     fixture = registry.get_profile("fixture-property-full")
     assert fixture.scope == {
@@ -40,7 +50,7 @@ def test_unknown_profile_fails_closed() -> None:
 
 def test_checked_in_source_register_is_allowlisted() -> None:
     registry = load_source_register(ROOT / "config" / "source-register.yaml")
-    assert len(registry) == 6
+    assert len(registry) == 16
     assert registry.get_profile("bocsar-crime").adapter_key == "bocsar-bulk"
     assert registry.get_profile("abs-seifa-2021").adapter_key == "abs-seifa-xlsx"
 

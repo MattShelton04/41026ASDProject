@@ -50,6 +50,13 @@ owner responsibilities. Multi-agent runtime and Azure deployment remain Release 
 
 ### Retained Release 0 foundation
 
+The September reference-data increment adds ten producer-owned Feature 1 profiles for
+parcel, planning, geographic, catchment, strata, amenity, CPI and scoped hazard facts.
+They use the existing lifecycle and a Feature 1-owned reference warehouse/record contract;
+no downstream feature is newly connected. [ADR-045](decisions/ADR-045-reference-source-facts.md)
+records the persistence and contract decision. Actual local releases and runtime evidence
+are recorded separately from the application's supported source profiles.
+
 The redesigned shared shell is now a first-class, independently built Release 0 service in the
 canonical root Compose and `scripts/dev.py` workflow. Feature 1 consumes the shared design tokens
 from its own image/development mount and has begun the contract-preserving browser decomposition:

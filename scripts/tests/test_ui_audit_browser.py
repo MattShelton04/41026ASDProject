@@ -12,9 +12,42 @@ import pytest
 from playwright.sync_api import sync_playwright
 from scripts.ui_audit.config import AuditSelection, compile_batches, load_config
 from scripts.ui_audit.inventory import _destructive, inventory_controls
-from scripts.ui_audit.models import AuditBatch, AuditCase, Viewport
-from scripts.ui_audit.runner import _batch_url, _context, audit_batch
+from scripts.ui_audit.models import AuditBatch, AuditCase, ExpectedFailure, Viewport
+from scripts.ui_audit.runner import _batch_url, _configured_edit_button, _context, audit_batch
 from scripts.ui_fixture_server import LOOPBACK_HOST, UIFixtureServer
+
+
+def test_configured_edit_waits_for_the_exact_source_fragment() -> None:
+    with sync_playwright() as playwright:
+        if not Path(playwright.chromium.executable_path).is_file():
+            pytest.skip("Playwright Chromium is not installed")
+        browser = playwright.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+            page.set_content('<h1>Data sources</h1><div id="source-crud-region"></div>')
+            page.evaluate(
+                """() => setTimeout(() => {
+                    document.querySelector('#source-crud-region').innerHTML =
+                        '<table><tbody><tr><td>' +
+                        '<a href="#sources/10000000-0000-0000-0000-000000000001">View</a>' +
+                        '<button aria-label="Edit expected source">Edit</button>' +
+                        '</td></tr></tbody></table>';
+                }, 200)"""
+            )
+            button = _configured_edit_button(
+                page,
+                collection="sources",
+                expected_failures=(
+                    ExpectedFailure(
+                        method="PUT",
+                        statuses=(422,),
+                        target="/sources/10000000-0000-0000-0000-000000000001",
+                    ),
+                ),
+            )
+            assert button.get_attribute("aria-label") == "Edit expected source"
+        finally:
+            browser.close()
 
 
 def _batch(kind: str) -> AuditBatch:

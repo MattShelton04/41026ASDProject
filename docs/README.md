@@ -2,6 +2,15 @@
 
 Store maintained project documentation here throughout all three releases.
 
+- [Feature 1 reference-data integration](release-1/reference-data-integration-plan.md): approved datasets,
+  producer/consumer boundaries, implementation sequence and validation approach.
+- [Reference-data operations](release-1/reference-data-operations.md): reproducible job setup,
+  concurrent acquisition, complete-source scope, capacity and recovery.
+- [Complete local reference validation](reviews/feature-1-reference-live-e2e-2026-09-13.md):
+  actual candidate counts, geometry flags, artifact hashes and measured stage durations.
+- [Dataset audit](reviews/feature-1-dataset-audit-2026-09-13.md): earlier local-state observations
+  and dataset recommendations, explicitly distinct from application capabilities.
+
 - [Shared setup refinement audit](reviews/shared-setup-refinement-2026-09-08.md): reviewed
   findings, implementation plan, regression evidence and runtime validation.
 - [Feature 1 data performance](reviews/feature-1-data-performance-2026-09-09.md): data flows,

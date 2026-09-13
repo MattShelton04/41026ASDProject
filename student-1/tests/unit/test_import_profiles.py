@@ -606,7 +606,51 @@ def test_zero_psi_property_linkage_is_a_blocking_quality_failure() -> None:
     assert checks == 3
     assert linkage[4] == "referential"
     assert linkage[5:7] == ("blocking", "fail")
-    assert cast(Any, linkage[7]).obj == {"linked": 0, "unmatched": 10}
+    assert cast(Any, linkage[7]).obj["linked"] == 0
+    assert cast(Any, linkage[7]).obj["unmatched"] == 10
+
+
+@pytest.mark.parametrize(
+    ("linked", "lost", "changed", "severity", "status"),
+    [
+        (6, 0, 0, "warning", "warn"),
+        (10, 0, 0, "warning", "pass"),
+        (6, 1, 0, "blocking", "fail"),
+        (10, 0, 1, "blocking", "fail"),
+    ],
+)
+def test_psi_coverage_and_same_revision_regressions_are_explicit(
+    linked: int,
+    lost: int,
+    changed: int,
+    severity: str,
+    status: str,
+) -> None:
+    class Cursor:
+        def __init__(self) -> None:
+            self.results: list[tuple[object, ...]] = []
+
+        def execute(self, _statement: str, parameters: tuple[object, ...]) -> None:
+            self.results.append(parameters)
+
+    cursor = Cursor()
+    _record_quality(
+        cursor,
+        profile="psi-sales",
+        run_id=uuid.uuid4(),
+        release_id=uuid.uuid4(),
+        expected=10,
+        accepted=10,
+        linked_property_rows=linked,
+        linkage_evidence={"previously_linked": 6, "lost_links": lost, "changed_links": changed},
+    )
+    quality = cursor.results[-1]
+    assert quality[5:7] == (severity, status)
+    observed = cast(Any, quality[7]).obj
+    assert observed["linked_fraction"] == linked / 10
+    assert observed["lost_links_same_revision"] == lost
+    assert observed["changed_links_same_revision"] == changed
+    assert "minimum_linked" not in cast(Any, quality[8]).obj
 
 
 def test_import_phase_registry_has_stable_indeterminate_set_sql_boundaries() -> None:
@@ -651,8 +695,8 @@ def test_psi_import_versions_changed_hashes_and_collapses_exact_retransmissions(
     assert "property.street_number_last" in source
     assert "property.street_number_suffix" in source
     assert "property.unit_number" in source
-    assert "source.street_type IS NOT NULL" in source
-    assert "source.house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'" in source
+    assert "COALESCE(source.street_type,parsed_type.code) IS NOT NULL" in source
+    assert "source.house_number ~ '^[0-9]+ *[A-Z]?( *- *[0-9]+)?$'" in source
 
 
 def test_psi_phase_callbacks_immediately_precede_their_real_sql_boundaries() -> None:
@@ -714,7 +758,7 @@ def test_psi_source_scale_path_casts_once_and_avoids_a_final_wide_sort() -> None
     assert "identifier.scheme='gnaf_pid'" in PSI_ADDRESS_RESOLUTION_SQL
     assert "AND gnaf_match.match_count IS NULL" in PSI_ADDRESS_RESOLUTION_SQL
     assert "WHEN gnaf_match.match_count=1" in PSI_ADDRESS_RESOLUTION_SQL
-    assert "WHEN 'STREET' THEN 'ST'" in PSI_ADDRESS_RESOLUTION_SQL
+    assert "('STREET','ST')" in PSI_ADDRESS_RESOLUTION_SQL
     assert "address.postcode=eligible.postcode" not in PSI_ADDRESS_RESOLUTION_SQL
     assert "property.postcode=eligible.postcode" not in PSI_ADDRESS_RESOLUTION_SQL
     assert "match_count" in PSI_ADDRESS_RESOLUTION_SQL
@@ -723,7 +767,9 @@ def test_psi_source_scale_path_casts_once_and_avoids_a_final_wide_sort() -> None
     assert "ON source.ordinal=identity.first_ordinal" in PSI_TARGET_INSERT_SQL
     assert "source.source_business_key=identity.source_business_key" not in PSI_TARGET_INSERT_SQL
     assert "source.source_row_sha256=identity.source_row_sha256" not in PSI_TARGET_INSERT_SQL
-    assert PSI_TARGET_INSERT_SQL.count("source.house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'") == 1
+    assert (
+        PSI_TARGET_INSERT_SQL.count("source.house_number ~ '^[0-9]+ *[A-Z]?( *- *[0-9]+)?$'") == 1
+    )
     assert "payload" not in source
     assert "ORDER BY identity.source_business_key" not in PSI_TARGET_INSERT_SQL
 

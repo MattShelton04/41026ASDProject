@@ -71,8 +71,13 @@ paths:
   /runtime-capabilities:
     get:
       operationId: getRuntimeCapabilities
-      description: Reports connected official acquisition profiles and locally cached source partitions.
+      description: Reports implemented official acquisition profiles and locally configured source caches. Capability is distinct from publisher availability, successful host verification and accepted local releases.
       responses: {'200': {description: Runtime acquisition capabilities}}
+  /catalogue-presentation:
+    get:
+      operationId: getCataloguePresentation
+      description: Read-only versioned dataset names, purposes and ordered groups for Sources, Data updates and Dataset publishing. Machine keys and release contracts are unchanged; presentation metadata does not establish local readiness.
+      responses: {'200': {description: Catalogue presentation groups and registered dataset metadata}}
   /product-contracts/v1:
     get:
       operationId: discoverProductContractPackage

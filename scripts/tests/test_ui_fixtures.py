@@ -253,6 +253,17 @@ def test_fixture_payload_is_stable_and_uses_contract_envelopes() -> None:
     } <= set(first.body["items"][0])
 
 
+def test_fixture_exposes_the_production_catalogue_presentation() -> None:
+    response = fixture_response(
+        "GET", "/api/data-platform/v1/catalogue-presentation", "", "populated"
+    )
+
+    assert response.status == 200
+    assert len(response.body["groups"]) == 6
+    assert len(response.body["datasets"]) == 16
+    assert response.body["datasets"][0]["display_name"] == "G-NAF addresses"
+
+
 def test_data_product_routes_match_the_direct_production_catalogue_shape(
     fixture_origin: str,
 ) -> None:

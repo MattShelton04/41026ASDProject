@@ -91,6 +91,16 @@ def test_preview_registry_has_fixed_generation_scoped_queries() -> None:
     assert PREVIEW_SPECS["property-fixture"] is PROPERTY_RECORD_SPEC
     assert PREVIEW_SPECS["gnaf-nsw"] is PROPERTY_RECORD_SPEC
     assert set(PREVIEW_SPECS) == {
+        "abs-cpi",
+        "abs-geography-2021",
+        "nsw-amenities",
+        "nsw-bushfire-prone-land",
+        "nsw-cadastre",
+        "nsw-flood-planning",
+        "nsw-planning-controls",
+        "nsw-school-catchments",
+        "nsw-strata-schemes",
+        "nsw-suburb-boundaries",
         "property-fixture",
         "gnaf-nsw",
         "psi-sales",

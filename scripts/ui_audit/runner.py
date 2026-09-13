@@ -15,7 +15,15 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse
 from urllib.request import urlopen
 
-from playwright.sync_api import Browser, BrowserContext, Error, Page, Route, sync_playwright
+from playwright.sync_api import (
+    Browser,
+    BrowserContext,
+    Error,
+    Locator,
+    Page,
+    Route,
+    sync_playwright,
+)
 
 from scripts.ui_audit.config import AuditConfig, AuditSelection, compile_batches
 from scripts.ui_audit.inventory import (
@@ -24,7 +32,7 @@ from scripts.ui_audit.inventory import (
     inventory_controls,
     replay_controls,
 )
-from scripts.ui_audit.models import AuditBatch, Finding
+from scripts.ui_audit.models import AuditBatch, ExpectedFailure, Finding
 from scripts.ui_audit.report import load_completed_batch, summary_for, write_reports
 from scripts.ui_audit.rules import classify_page
 from scripts.ui_fixtures import FIXTURE_IDENTITY, FIXTURE_REVISION, fixture_response
@@ -239,7 +247,11 @@ def audit_batch(
             page.screenshot(path=loading_screenshot, full_page=True, animations="disabled")
         if batch.case.capture_phase == "loading-and-settled":
             _wait_for_readiness(page, batch.case.settled_readiness, batch.case.settle_ms)
-        _apply_setup(page, batch.case.setup)
+        _apply_setup(
+            page,
+            batch.case.setup,
+            expected_failures=batch.case.expected_request_failures,
+        )
         layout = page.evaluate(HELPER_PATH.read_text(encoding="utf-8"))
         page.screenshot(path=screenshot, full_page=True, animations="disabled")
         controls = inventory_controls(page)
@@ -492,11 +504,20 @@ def _json_pointer_set(document: object, pointer: str, value: object) -> None:
         raise RuntimeError(f"fixture override pointer cannot set {pointer!r}")
 
 
-def _apply_setup(page: Page, steps: tuple[dict[str, Any], ...]) -> None:
+def _apply_setup(
+    page: Page,
+    steps: tuple[dict[str, Any], ...],
+    *,
+    expected_failures: tuple[ExpectedFailure, ...] = (),
+) -> None:
     for step in steps:
         action = step.get("action")
         if action == "named-flow":
-            _named_flow(page, str(step.get("name", "")))
+            _named_flow(
+                page,
+                str(step.get("name", "")),
+                expected_failures=expected_failures,
+            )
             continue
         selector = step.get("selector")
         if not isinstance(selector, str) or not isinstance(action, str):
@@ -517,13 +538,48 @@ def _apply_setup(page: Page, steps: tuple[dict[str, Any], ...]) -> None:
         page.wait_for_timeout(int(step.get("settleMs", 100)))
 
 
-def _named_flow(page: Page, name: str) -> None:
+def _configured_edit_button(
+    page: Page,
+    *,
+    collection: str,
+    expected_failures: tuple[ExpectedFailure, ...],
+) -> Locator:
+    target_pattern = re.compile(rf"/{re.escape(collection)}/([0-9a-fA-F-]+)$")
+    target_ids = {
+        match.group(1)
+        for failure in expected_failures
+        if failure.method == "PUT"
+        and failure.target
+        and (match := target_pattern.search(failure.target))
+    }
+    if len(target_ids) != 1:
+        raise RuntimeError(f"{collection} edit flow requires one exact configured PUT target")
+    target_id = target_ids.pop()
+    if urlparse(page.url).fragment.split("?", 1)[0] == f"{collection}/{target_id}":
+        return page.get_by_role("button", name="Edit", exact=True).first
+    row = page.locator("tr").filter(has=page.locator(f'a[href="#{collection}/{target_id}"]')).first
+    # The route shell can be ready before its HTMX source fragment arrives.
+    # Wait for this exact configured entity, rather than inspecting a transient count.
+    row.wait_for(state="visible", timeout=5_000)
+    edit = row.get_by_role("button", name=re.compile(r"^Edit(?:\s|$)")).first
+    if not edit.is_visible():
+        row.get_by_role("button", name=re.compile(r"^More actions for ")).click(timeout=5_000)
+    return edit
+
+
+def _named_flow(
+    page: Page,
+    name: str,
+    *,
+    expected_failures: tuple[ExpectedFailure, ...] = (),
+) -> None:
     if name in {"edit-job-submit", "edit-source-submit", "edit-source-conflict-submit"}:
-        edit = page.locator("button").filter(has_text=re.compile(r"^Edit$")).first
-        if name == "edit-job-submit" and not edit.is_visible():
-            page.get_by_role("button", name=re.compile(r"^More actions for ")).first.click(
-                timeout=5_000
-            )
+        collection = "jobs" if name == "edit-job-submit" else "sources"
+        edit = _configured_edit_button(
+            page,
+            collection=collection,
+            expected_failures=expected_failures,
+        )
         edit.click(timeout=5_000)
         page.locator("#entity-dialog[open]").wait_for(state="visible")
         if name == "edit-source-conflict-submit":

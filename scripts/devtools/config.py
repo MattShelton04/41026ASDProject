@@ -52,14 +52,7 @@ OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"
 SUPPORTED_LLM_PROVIDERS = frozenset({"gemini", "openai"})
 PROPERTYSCOPE_API_URL = "http://127.0.0.1:5200/api/data-platform/v1"
 JOB_PROFILE_DIRECTORY = REPOSITORY_ROOT / "student-1" / "config" / "job-profiles"
-COLLECTION_JOBS = (
-    "fixture-property",
-    "schools-master",
-    "bocsar-crime",
-    "gnaf-nsw",
-    "psi-sales",
-    "abs-seifa-2021",
-)
+COLLECTION_JOBS = tuple(path.stem for path in sorted(JOB_PROFILE_DIRECTORY.glob("*.yaml")))
 TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
 HOST_PORTS: dict[str, tuple[str, int]] = {
     "shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),

@@ -647,6 +647,10 @@ def fixture_response(
             },
             delay_seconds=delay,
         )
+    if route == "catalogue-presentation":
+        from propertyscope_data_platform.source_catalog import catalogue_presentation_payload
+
+        return FixtureResponse(200, catalogue_presentation_payload(), delay_seconds=delay)
     if route == "assistant/capabilities":
         from propertyscope_data_platform.assistant import capability_guide
 

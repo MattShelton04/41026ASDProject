@@ -1,7 +1,8 @@
-"""Serial acquisition runner using only the backend worker HTTP contract."""
+"""Bounded acquisition workers using only the backend worker HTTP contract."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -50,6 +51,13 @@ from propertyscope_data_platform.psi_parquet import (
     PSI_PARQUET_SCHEMA_VERSION,
     write_psi_parquet,
 )
+from propertyscope_data_platform.reference_acquisition import (
+    discover_reference_objects as discover_reference_objects,
+)
+from propertyscope_data_platform.reference_acquisition import (
+    iter_reference_records,
+)
+from propertyscope_data_platform.reference_catalog import REFERENCE_PROFILES
 from propertyscope_data_platform.release_builders import (
     BuildContext,
     resolve_release_builder,
@@ -116,8 +124,11 @@ class RunnerSettings:
     psi_archive_root: Path | None = None
     release_projection_workers: int = 2
     release_compression_level: int = 3
+    acquisition_workers: int = 1
 
     def __post_init__(self) -> None:
+        if isinstance(self.acquisition_workers, bool) or not 1 <= self.acquisition_workers <= 4:
+            raise ValueError("acquisition workers must be between one and four")
         if not 0 <= self.release_projection_workers <= 4:
             raise ValueError("release projection workers must be between zero and four")
         if not 1 <= self.release_compression_level <= 9:
@@ -145,6 +156,7 @@ class RunnerSettings:
             release_compression_level=int(
                 os.environ.get("PROPERTYSCOPE_RELEASE_COMPRESSION_LEVEL", "3")
             ),
+            acquisition_workers=int(os.environ.get("PROPERTYSCOPE_ACQUISITION_WORKERS", "1")),
         )
 
 
@@ -166,14 +178,29 @@ class AcquisitionRunner:
         self.stop_event = Event()
 
     def run_forever(self) -> None:
+        # HTTPX's synchronous client supports threads. Each task keeps its own
+        # lease token, progress, source iterator and atomic artifact temporary.
+        # Database imports still belong to the single credential-owning loader.
+        acquisition_workers = [
+            Thread(
+                target=self._run_acquisition_forever,
+                name=f"acquisition-{index + 2}",
+                daemon=True,
+            )
+            for index in range(self.settings.acquisition_workers - 1)
+        ]
         publication_worker = Thread(
             target=self._run_publications_forever, name="publication-delivery", daemon=True
         )
         publication_worker.start()
+        for worker in acquisition_workers:
+            worker.start()
         try:
             self._run_acquisition_forever()
         finally:
             self.stop_event.set()
+            for worker in acquisition_workers:
+                worker.join(timeout=5)
             publication_worker.join(timeout=15)
 
     def _run_publications_forever(self) -> None:
@@ -315,6 +342,10 @@ class AcquisitionRunner:
             scope_error = acquisition_scope_error(profile, scope)
             if scope_error is not None:
                 raise RuntimeError(f"Invalid acquisition scope: {scope_error}")
+            if profile in REFERENCE_PROFILES:
+                return self._execute_reference_source(
+                    task, stage=stage, profile=profile, scope=scope
+                )
             if profile in {"psi-sales", "gnaf-nsw", "bocsar-sparse"} and stage == "acquire":
                 scope = task.get("partition_json") or {}
                 if not isinstance(scope, dict):
@@ -389,6 +420,96 @@ class AcquisitionRunner:
             return self._execute_release_build(task)
         return 0, 0
 
+    def _execute_reference_source(
+        self, task: dict[str, Any], *, stage: str, profile: str, scope: dict[str, Any]
+    ) -> tuple[int, int]:
+        stopped = Event()
+        failed = Event()
+        counter = [0]
+
+        def renew() -> None:
+            while not stopped.wait(_cancellation_poll_interval(self.settings.lease_seconds)):
+                try:
+                    self._heartbeat(
+                        str(task["id"]),
+                        str(task["lease_token"]),
+                        progress={
+                            "phase": "discovering reference source"
+                            if stage == "discover"
+                            else "streaming reference source",
+                            "rows_processed": counter[0],
+                        },
+                    )
+                except Exception:
+                    failed.set()
+                    return
+
+        heartbeater = Thread(target=renew, name="reference-source-heartbeat", daemon=True)
+        heartbeater.start()
+        try:
+            if stage == "discover":
+                objects = discover_reference_objects(profile, self.client)
+                for item in objects:
+                    item.setdefault("source_url", item.get("url"))
+                metadata_hash = hashlib.sha256(
+                    orjson.dumps(objects, option=orjson.OPT_SORT_KEYS)
+                ).hexdigest()
+                document = {
+                    "schema_version": "propertyscope.source-snapshot.v1",
+                    "adapter_key": task.get("adapter_key"),
+                    "source_release": f"{profile}-metadata-{metadata_hash[:16]}",
+                    "scope": scope,
+                    "objects": objects,
+                }
+                artifact = self.artifacts.put(
+                    (orjson.dumps(document, option=orjson.OPT_SORT_KEYS),),
+                    media_type="application/json",
+                )
+                self._register_stage_artifact(
+                    task,
+                    stage=stage,
+                    artifact=artifact,
+                    schema_version="propertyscope.source-snapshot.v1",
+                    source_snapshot=document,
+                )
+                return 0, 0
+            snapshot = task.get("source_snapshot_json") or {}
+            if not isinstance(snapshot, dict):
+                raise RuntimeError("Reference source discovery is malformed")
+            registered_objects = snapshot.get("objects")
+            if not isinstance(registered_objects, list) or not registered_objects:
+                raise RuntimeError("Reference acquisition requires its persisted source discovery")
+
+            def chunks() -> Iterable[bytes]:
+                for record in iter_reference_records(profile, self.client, registered_objects):
+                    if failed.is_set() or self.stop_event.is_set():
+                        raise TaskCancelledError(
+                            "Reference source acquisition lost its lease or stopped"
+                        )
+                    counter[0] += 1
+                    # Refuse non-finite publisher values; orjson would silently turn them
+                    # into null and lose the distinction from source-provided unknowns.
+                    yield (
+                        json.dumps(
+                            record, sort_keys=True, separators=(",", ":"), allow_nan=False
+                        ).encode("utf-8")
+                        + b"\n"
+                    )
+
+            artifact = self.artifacts.put(chunks(), media_type="application/x-ndjson")
+            if counter[0] == 0 or failed.is_set():
+                raise RuntimeError("Reference acquisition is empty or lost its lease")
+            self._register_stage_artifact(
+                task,
+                stage=stage,
+                artifact=artifact,
+                schema_version="propertyscope.canonical-import.v1",
+            )
+            return counter[0], counter[0]
+        finally:
+            stopped.set()
+            heartbeater.join(timeout=2)
+
     def _execute_release_build(self, task: dict[str, Any]) -> tuple[int, int]:
         run_id = str(task["ingestion_run_id"])
         context_response = self._control_request(
@@ -411,7 +532,13 @@ class AcquisitionRunner:
         context = BuildContext.model_validate(payload.get("context"))
         release_id = str(payload["release_id"])
         # Crime pages contain whole monthly series, not individual observations.
-        page_size = 500 if context.import_profile == "bocsar-sparse" else 20_000
+        page_size = (
+            10
+            if context.import_profile == "nsw-bushfire-prone-land"
+            else 100
+            if context.import_profile in REFERENCE_PROFILES
+            else (500 if context.import_profile == "bocsar-sparse" else 20_000)
+        )
 
         def fetch_page(cursor: str | None) -> dict[str, Any]:
             params: dict[str, int | str] = {"limit": page_size, "layout": "columns"}
@@ -461,6 +588,7 @@ class AcquisitionRunner:
                 # than they save after linear-time coverage validation.
                 projection_workers=0
                 if context.import_profile == "bocsar-sparse"
+                or context.import_profile in REFERENCE_PROFILES
                 else self.settings.release_projection_workers,
                 heartbeat=lambda: heartbeat(product.record_count, pages.total),
                 compression_level=self.settings.release_compression_level,
