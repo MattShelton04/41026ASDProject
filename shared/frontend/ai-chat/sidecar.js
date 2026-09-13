@@ -25,7 +25,8 @@ export function createAssistantSidecar({ root, trigger, ...options }) {
     trigger.setAttribute("aria-expanded", "true");
     root.classList.add("ps-ai-context-layout--open");
     controller ||= createAiChat({ ...options, root: host, layout: "embedded" });
-    controller.focusComposer();
+    if (host.querySelector(".ps-ai-chat--inspecting")) host.querySelector(".ps-ai-chat__inspection-head button")?.focus();
+    else controller.focusComposer();
   };
   const hide = () => {
     panel.hidden = true;

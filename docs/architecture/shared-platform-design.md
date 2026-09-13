@@ -998,7 +998,7 @@ The adapter receives a compact successful-call identity index alongside the reco
 This improves attribution instructions without claiming semantic entailment validation.
 
 Shared chat owns the page, embedded sidecar, source/activity inspection panel and fast word reveal
-of an already validated summary. This visual reveal is not provider token streaming. Phase/check
+of an already validated overview and findings. This visual reveal is not provider token streaming. Phase/check
 updates come from persisted run snapshots, including parallel calls; time never implies evidence.
 A failed event request does not discard a successful run snapshot. Closing the sidecar hides it and
 retains its local conversation; route departure aborts browser polling, not server work. Full activity

@@ -163,6 +163,24 @@ def test_chat_applies_answer_when_events_fail_and_opens_inline_sources(
     page: Page, fixture_origin: str, reduced_motion: str
 ) -> None:
     page.emulate_media(reduced_motion=reduced_motion)  # type: ignore[arg-type]
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    page.add_init_script("""
+        window.chatRevealFrames = [];
+        const requestFrame = window.requestAnimationFrame;
+        window.requestAnimationFrame = callback => requestFrame.call(window, time => {
+            callback(time);
+            const summary = document.querySelector('.ps-ai-chat__answer-section--summary > p');
+            const finding = document.querySelector('.ps-ai-chat__findings > li > p');
+            if (summary?.querySelector('[aria-hidden]') && window.chatRevealFrames.length < 160) {
+                window.chatRevealFrames.push({
+                    summary: summary.querySelector('[aria-hidden]').textContent,
+                    finding: finding?.querySelector('[aria-hidden]')?.textContent || '',
+                    accessibleSummary: summary.querySelector('.ps-ai-chat__sr-only')?.textContent,
+                    accessibleFinding: finding?.querySelector('.ps-ai-chat__sr-only')?.textContent,
+                });
+            }
+        });
+    """)
     call_id = "80000000-0000-4000-8000-000000000001"
     summary = "The accepted dataset contains 42 registered addresses in the requested locality."
 
@@ -226,11 +244,23 @@ def test_chat_applies_answer_when_events_fail_and_opens_inline_sources(
     page.get_by_role("textbox", name="Message PropertyScope assistant").fill("Count the addresses")
     page.get_by_role("button", name="Send message", exact=True).click()
     expect(page.locator(".ps-ai-chat__answer-section--summary > p")).to_have_text(summary)
+    finding_text = "42 address records were counted."
+    expect(page.locator(".ps-ai-chat__findings > li > p")).to_have_text(finding_text)
+    frames = page.evaluate("window.chatRevealFrames")
+    if reduced_motion == "reduce":
+        assert frames == []
+    else:
+        assert any(0 < len(frame["summary"]) < len(summary) for frame in frames)
+        assert any(0 < len(frame["finding"]) < len(finding_text) for frame in frames)
+        assert all(frame["accessibleSummary"] == summary for frame in frames)
+        assert all(frame["accessibleFinding"] == finding_text for frame in frames)
     expect(page.get_by_role("button", name="Send message", exact=True)).to_be_visible()
     expect(page.get_by_role("complementary", name="Answer sources and activity")).to_be_hidden()
     page.get_by_role("button", name="Inspect source: Count accepted addresses", exact=True).click()
     inspection = page.get_by_role("complementary", name="Answer sources and activity")
     expect(inspection).to_be_visible()
+    panel_box = inspection.bounding_box()
+    assert panel_box and panel_box["width"] >= 360
     expect(inspection.get_by_text("42", exact=True)).to_be_visible()
     expect(page.get_by_role("link", name="Open full activity")).to_have_attribute(
         "href", re.compile(f".*run={AGENT_RUN_ID}.*")
@@ -239,10 +269,12 @@ def test_chat_applies_answer_when_events_fail_and_opens_inline_sources(
     expect(inspection).to_be_hidden()
 
 
+@pytest.mark.parametrize("viewport_width", [1440, 390])
 def test_embedded_chat_keeps_context_draft_and_run_when_closed(
-    page: Page, fixture_origin: str
+    page: Page, fixture_origin: str, viewport_width: int
 ) -> None:
     _abort_external_map(page)
+    page.set_viewport_size({"width": viewport_width, "height": 1000})
     submissions: list[dict[str, Any]] = []
     cancelled = False
     reads = 0
@@ -270,21 +302,38 @@ def test_embedded_chat_keeps_context_draft_and_run_when_closed(
     _open(page, fixture_origin, f"properties/{PROPERTY_ID}")
     page.get_by_role("button", name="Ask about this property").click()
     composer = page.get_by_role("textbox", name="Message PropertyScope assistant")
-    composer.fill("Is sale history available?")
+    question = (
+        "Explain the accepted sources for this property, including missing data and coverage. " * 12
+    )
+    composer.fill(question)
     page.get_by_role("button", name="Close assistant").click()
     page.get_by_role("button", name="Ask about this property").click()
-    expect(composer).to_have_value("Is sale history available?")
+    expect(composer).to_have_value(question)
     page.get_by_role("button", name="Send message", exact=True).click()
     expect(page.get_by_role("button", name="Stop response", exact=True)).to_be_enabled()
     inspect = page.get_by_role("button", name="Sources & activity", exact=True)
     original_trigger = inspect.element_handle()
+    inspect.scroll_into_view_if_needed()
+    # Capture at activation, after the browser may scroll the nested control into view.
+    page.evaluate("""() => document.addEventListener('click', () => {
+        window.chatReadingScroll = window.scrollY;
+    }, {capture: true, once: true})""")
     inspect.click()
+    reading_scroll = page.evaluate("window.chatReadingScroll")
     inspection = page.get_by_role("complementary", name="Answer sources and activity")
+    expect(page.get_by_role("region", name="Assistant conversation")).to_be_hidden()
+    panel_box = inspection.bounding_box()
+    assert panel_box and panel_box["width"] >= (400 if viewport_width >= 1200 else 260)
+    assert inspection.evaluate("node => getComputedStyle(node).overflowY") == "visible"
     page.wait_for_function("node => !node.isConnected", arg=original_trigger)
-    inspection.get_by_role("button", name="Close details").click()
+    inspection.get_by_role("button", name="Back to answer").click()
     expect(inspect).to_be_focused()
+    assert abs(page.evaluate("window.scrollY") - reading_scroll) < 48
     inspect.click()
-    inspection.get_by_role("button", name="Close details").press("Escape")
+    page.get_by_role("button", name="Close assistant", exact=True).click()
+    page.get_by_role("button", name="Ask about this property").click()
+    expect(inspection.get_by_role("button", name="Back to answer")).to_be_focused()
+    inspection.get_by_role("button", name="Back to answer").press("Escape")
     expect(inspection).to_be_hidden()
     expect(page.get_by_role("button", name="Close assistant", exact=True)).to_be_visible()
     page.get_by_role("button", name="Close assistant").click()

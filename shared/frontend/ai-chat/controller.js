@@ -10,7 +10,7 @@ import { mergeAssistantEvents, nextAssistantPollDelay } from "./polling.js";
 import { assistantDrafts, draftContextKey, turnPresentationKey } from "./experience.js";
 import { activityPresentation } from "./activity.js";
 import { createEvidencePanel } from "./evidence-panel.js";
-import { revealAnswerSummary } from "./reveal.js";
+import { revealAnswer } from "./reveal.js";
 
 let assistantInstance = 0;
 
@@ -338,7 +338,7 @@ export function createAiChat({
     else append(transcript, article);
     if (turn.run?.status === "succeeded" && !turn.answerRevealed) {
       turn.answerRevealed = true;
-      reveals.add(revealAnswerSummary(article));
+      reveals.add(revealAnswer(article));
     }
     updateComposerAvailability();
     const restoredFocus = activeKey ? [...article.querySelectorAll("[data-transcript-focus-key]")]
@@ -353,7 +353,7 @@ export function createAiChat({
         const scrolling = document.documentElement;
         const previousBehavior = scrolling.style.scrollBehavior;
         scrolling.style.scrollBehavior = "auto";
-        const pane = shell.closest(".ps-ai-sidecar");
+        const pane = shell.closest(".ps-ai-sidecar__body");
         if (pane && pane.scrollHeight > pane.clientHeight) pane.scrollTop += delta;
         else window.scrollBy(0, delta);
         scrolling.style.scrollBehavior = previousBehavior;

@@ -135,6 +135,31 @@ Before/after images and live entry links are in the [comparison index](../../des
 The scratch gallery also links the comparison and implementation. Persistent history remains
 available after navigation; the conversation itself is local to its current mounted view.
 
+## Follow-up: progressive findings and more space
+
+The user's screenshot review led to a wider dedicated sources column (flexible, minimum 360 px),
+larger source typography and a property assistant taking the larger share of its desktop split.
+Property summary and map stack in the narrower property column. The embedded sources panel now
+replaces the conversation temporarily, with **Back to answer**, so it has the full reading area
+and does not introduce a nested scrollbar. Closing/reopening preserves the selected view.
+
+The overview and findings reveal in reading order within 320–1800 ms total. Browser regressions
+observe actual partial word frames for both paragraphs and verify complete accessible text during
+reveal. Reduced motion renders both immediately. Source buttons remain intact throughout.
+
+A new final subagent review identified loss of the document's reading position when returning
+from sources. The issue was reproduced at 390 and 1440 px with a long question: the page moved
+1,206 and 230 px respectively. Saving/restoring both the document and assistant-body scroll
+positions fixed both regressions. The reviewer found no additional actionable issues in the
+scoped polish diff; this review does not replace a full independent backend review of PR #111.
+
+Validation for the polish update: `uv run python scripts/check.py` passed (2,015 Python and
+221 Node tests; 41 existing optional/platform skips). The final Feature 1 browser suite passed
+all 48 tests, and the final type check passed. Live desktop views were inspected at 1280/1440 px;
+the embedded sources view at 390 px had a 309 px panel and 375 px document width without horizontal
+overflow. Updated captures are at the top of the comparison index. No backend behavior or
+provider/retrieval policy changed in this follow-up.
+
 ## Final validation
 
 - `uv run python scripts/check.py`: passed, exit 0; 2,015 Python tests and 221 Node tests

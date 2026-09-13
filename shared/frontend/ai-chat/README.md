@@ -24,13 +24,15 @@ own polite live region. Each instance has distinct input IDs. Call `setDraft(mes
 The reading surface contains the answer, attributed findings and relevant evidence gaps.
 Suggested next steps are collapsed. Sources, context, scope, evidence support and recorded steps
 share one inspection panel, displayed alongside the answer on wide screens and within the flow
-on small or embedded surfaces. Full activity links retain the feature and return-page context.
+on small screens. Embedded chat switches to a full-width sources view with **Back to answer**;
+its one scrolling body retains the conversation and reading position. Full activity links retain
+the feature and return-page context.
 
 Progress is derived from durable snapshots and events, including parallel tools matched by call
 ID. A failed events request does not discard a successful snapshot. The elapsed timer never
-invents progress. The 240–1100 ms word reveal decorates an already validated summary; it is not
-provider streaming. Reduced motion shows the full answer immediately, and assistive technology
-receives the complete summary instead of repeated word announcements.
+invents progress. The 320–1800 ms word reveal decorates an already validated overview and findings
+in reading order; it is not provider streaming. Reduced motion shows the full answer immediately,
+and assistive technology receives the complete text instead of repeated word announcements.
 
 Pure projections are covered by Node tests; Feature 1's browser suite covers success, event
 failure, normal/reduced motion, embedded drafts, cancellation and nested-panel keyboard focus.
