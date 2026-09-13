@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Iterator
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
@@ -280,6 +281,66 @@ def test_review_draft_survives_back_to_newly_saved_url(page: Page, fixture_origi
     expect(page).to_have_url(re.compile(f"#ai/{AGENT_RUN_ID}$"))
     expect(composer).to_have_value("Keep this question when I return to the saved review")
     assert len(submissions) == 1
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_notifications_dismiss_outside_and_restore_focus_for_explicit_close(
+    page: Page, fixture_origin: str, width: int
+) -> None:
+    page.set_viewport_size({"width": width, "height": 1000})
+    _open(page, fixture_origin, "releases")
+    inbox = page.locator(".notification-inbox")
+    trigger = inbox.locator("summary")
+    popup = page.locator(".notification-body")
+    trigger.click()
+    expect(popup).to_be_visible()
+    popup.get_by_role("heading", name="Data updates", exact=True).click()
+    expect(popup).to_be_visible()
+
+    search = page.get_by_role("searchbox", name="Search (optional)", exact=True)
+    search.click()
+    expect(popup).to_be_hidden()
+    expect(search).to_be_focused()
+
+    trigger.click()
+    dismiss = popup.get_by_role("button", name="Close notifications", exact=True)
+    dismiss.click()
+    expect(popup).to_be_hidden()
+    expect(trigger).to_be_focused()
+
+    trigger.press("Enter")
+    expect(popup).to_be_visible()
+    dismiss.focus()
+    dismiss.press("Escape")
+    expect(popup).to_be_hidden()
+    expect(trigger).to_be_focused()
+
+    trigger.click()
+    expect(popup).to_be_visible()
+    trigger.click()
+    expect(popup).to_be_hidden()
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+@pytest.mark.parametrize("route", ["releases?state=review", "quality", "artifacts", "coverage"])
+def test_filter_segments_fill_the_bar_without_unshaded_gaps(
+    page: Page, fixture_origin: str, width: int, route: str
+) -> None:
+    page.set_viewport_size({"width": width, "height": 1000})
+    _open(page, fixture_origin, route)
+    navigation = page.locator(".state-tabs")
+    expect(navigation.locator('[aria-current="page"]')).to_be_visible()
+    bounds = navigation.locator(".state-tab").evaluate_all("""
+        tabs => tabs.map(tab => {
+            const rect = tab.getBoundingClientRect();
+            return {left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom};
+        })
+    """)
+    assert len(bounds) >= 3
+    for previous, current in pairwise(bounds):
+        assert abs(previous["right"] - current["left"]) <= 1
+        assert abs(previous["top"] - current["top"]) <= 1
+        assert abs(previous["bottom"] - current["bottom"]) <= 1
 
 
 @pytest.mark.parametrize("reduced_motion", ["reduce", "no-preference"])

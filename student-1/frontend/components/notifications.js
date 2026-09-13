@@ -14,11 +14,19 @@ export function mountNotifications(host, request, announce) {
   const summary = el("summary", "button secondary small", "Notifications");
   const body = el("div", "notification-body stack");
   append(inbox, summary, body); append(host, inbox);
+  const close = ({ restoreFocus = false } = {}) => {
+    inbox.open = false;
+    if (restoreFocus) summary.focus();
+  };
   const persist = () => { try { localStorage.setItem(storageKey, JSON.stringify(saved)); } catch { /* In-memory operation remains available. */ } };
   const render = (warning = "") => {
     const unread = saved?.items.filter((item) => !item.read).length || 0;
     summary.textContent = `Notifications${unread ? ` (${unread})` : ""}`;
-    body.replaceChildren(el("h2", "", "Data updates"));
+    const heading = el("div", "notification-heading");
+    const dismiss = button("×", "button secondary small", () => close({ restoreFocus: true }));
+    dismiss.setAttribute("aria-label", "Close notifications");
+    append(heading, el("h2", "", "Data updates"), dismiss);
+    body.replaceChildren(heading);
     append(body, el("p", "", "Updates observed on this browser. Checked every 15 seconds while the app is open; read state is saved on this device."));
     if (warning) append(body, el("p", "notice warning", warning));
     if (saved?.items.length) append(body, button("Mark all as read", "button secondary small", () => {
@@ -63,6 +71,14 @@ export function mountNotifications(host, request, announce) {
     finally { pending = false; timer = setTimeout(poll, document.hidden ? 30000 : 15000); }
   };
   inbox.addEventListener("toggle", () => { if (inbox.open) render(); });
+  document.addEventListener("pointerdown", (event) => {
+    if (inbox.open && !inbox.contains(event.target)) close();
+  }, true);
+  inbox.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !inbox.open) return;
+    event.preventDefault();
+    close({ restoreFocus: true });
+  });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
   window.addEventListener("storage", (event) => {
     if (event.key !== storageKey) return;
