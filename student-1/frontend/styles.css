@@ -406,7 +406,7 @@ pre.json { max-height: 350px; overflow: auto; padding: .75rem; border-radius: 8p
 .service-state { padding: .36rem .62rem; font-size: var(--ps-text-caption); }
 .workspace-strip { min-height: 29px; display: flex; align-items: center; justify-content: center; gap: 1rem; border-bottom: 1px solid var(--line); background: var(--ps-color-surface); color: var(--muted); font-size: var(--ps-text-caption); font-weight: 650; }
 .workspace-strip span { display: inline-flex; align-items: center; gap: .35rem; }
-.workspace-strip span + span::before { content: "•"; margin-right: .6rem; color: var(--line-strong); }
+.workspace-strip > span + span::before { content: "•"; margin-right: .6rem; color: var(--line-strong); }
 .workspace-strip i { width: 6px; height: 6px; border-radius: 50%; background: var(--positive); }
 .workspace-strip .workspace-strip__area { color: var(--navy); }
 .workspace-strip__area b { color: var(--ocean-dark); font-size: var(--ps-text-caption); letter-spacing: .06em; text-transform: uppercase; }

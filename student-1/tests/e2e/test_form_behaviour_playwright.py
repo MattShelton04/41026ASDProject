@@ -284,6 +284,27 @@ def test_review_draft_survives_back_to_newly_saved_url(page: Page, fixture_origi
 
 
 @pytest.mark.parametrize("width", [1440, 390])
+def test_service_status_has_one_dot_without_a_nested_section_separator(
+    page: Page, fixture_origin: str, width: int
+) -> None:
+    page.set_viewport_size({"width": width, "height": 1000})
+    _open(page, fixture_origin, "releases")
+    status = page.locator("#service-state")
+    expect(status).to_have_text("Data service available")
+    expect(status.locator(".status-dot")).to_be_visible()
+    expect(status.locator(".status-dot")).to_have_count(1)
+    assert status.locator("span:last-child").evaluate(
+        "label => getComputedStyle(label, '::before').content"
+    ) in ("none", "normal", '""')
+    assert (
+        page.locator("[data-workspace-context]").evaluate(
+            "label => getComputedStyle(label, '::before').content"
+        )
+        == '"•"'
+    )
+
+
+@pytest.mark.parametrize("width", [1440, 390])
 def test_notifications_dismiss_outside_and_restore_focus_for_explicit_close(
     page: Page, fixture_origin: str, width: int
 ) -> None:
