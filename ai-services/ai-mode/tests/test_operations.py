@@ -239,6 +239,34 @@ def test_projection_attributes_evidence_and_redacts_nested_secrets() -> None:
     assert "this-must-not-appear" not in projected.model_dump_json()
 
 
+def test_parallel_evidence_preserves_every_call_and_matches_reordered_results() -> None:
+    detail = _detail()
+    original = detail.steps[1]
+    first = ToolCall.model_validate(original.input["tool_call"])
+    first_result = ToolResult.model_validate(original.output["tool_result"])
+    second = first.evolve(id=uuid4(), tool_name="records.inspect.v1")
+    second_result = first_result.evolve(call_id=second.id, content={"count": 42})
+    parallel = original.evolve(
+        input={"tool_calls": [first.model_dump(mode="json"), second.model_dump(mode="json")]},
+        output={
+            "tool_results": [
+                second_result.model_dump(mode="json"),
+                first_result.model_dump(mode="json"),
+            ]
+        },
+    )
+    detail = detail.evolve(steps=(detail.steps[0], parallel, *detail.steps[2:]))
+    projected = OperationsService(StubReader(detail)).get_evidence(detail.run.id, as_of=NOW)
+    assert projected is not None
+    checks = projected.steps[1].tools
+    assert len(checks) == 2
+    assert checks[0].call_id == first.id
+    assert checks[1].redacted_result == {"count": 42}
+    assert projected.steps[1].tool == checks[0]
+    assert "do-not-display" not in projected.model_dump_json()
+    assert "this-must-not-appear" not in projected.model_dump_json()
+
+
 def test_metadata_only_policy_hides_restricted_values() -> None:
     detail = _detail()
     projected = OperationsService(

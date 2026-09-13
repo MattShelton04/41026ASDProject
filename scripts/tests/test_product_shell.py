@@ -123,6 +123,8 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "resolver 127.0.0.11" in nginx
     assert "proxy_pass $enabled_feature_0_backend" in enabled_nginx
     assert "proxy_pass $ai_mode_upstream" in nginx
+    assert "set $ai_mode_upstream http://${AI_MODE_HOST}:${AI_MODE_PORT};" in nginx
+    assert "upstream ai_mode_host" not in nginx
     assert "location /api/" in nginx
     assert "application/problem+json" in nginx
     assert "location /operations/ai-mode/" in nginx

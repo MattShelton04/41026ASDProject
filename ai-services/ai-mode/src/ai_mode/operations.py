@@ -207,6 +207,7 @@ class OperationsService:
         duration_ms = None
         if step.started_at is not None and step.completed_at is not None:
             duration_ms = max(0, int((step.completed_at - step.started_at).total_seconds() * 1_000))
+        tools = self._tool_evidences(step)
         return AgentStepEvidence(
             id=step.id,
             sequence=step.sequence,
@@ -218,26 +219,45 @@ class OperationsService:
             source=source,
             summary=f"{step.phase.value.title()} step {step.status.value.replace('_', ' ')}",
             plan=_plan_evidence(step.output.get("plan")),
-            tool=self._tool_evidence(step),
+            tool=tools[0] if tools else None,
+            tools=tools,
             observation=_observation_evidence(step.output.get("observation")),
             adaptation=self._adaptation_evidence(step.output.get("adaptation")),
             model_invocation=invocation,
             error=step.error,
         )
 
-    def _tool_evidence(self, step: AgentStep) -> ToolCallEvidence | None:
-        call_value = step.input.get("tool_call")
-        if call_value is None:
-            calls = step.input.get("tool_calls")
-            call_value = calls[0] if isinstance(calls, list) and calls else None
+    def _tool_evidences(self, step: AgentStep) -> tuple[ToolCallEvidence, ...]:
+        calls = step.input.get("tool_calls")
+        if not isinstance(calls, list):
+            calls = [step.input.get("tool_call")]
+        results = step.output.get("tool_results")
+        if not isinstance(results, list):
+            results = [step.output.get("tool_result")]
+        evidence = []
+        for call in calls:
+            if not isinstance(call, dict):
+                continue
+            result = next(
+                (
+                    item
+                    for item in results
+                    if isinstance(item, dict) and item.get("call_id") == call.get("id")
+                ),
+                None,
+            )
+            projected = self._tool_evidence(call, result)
+            if projected is not None:
+                evidence.append(projected)
+        return tuple(evidence)
+
+    def _tool_evidence(
+        self, call_value: JsonValue | None, result_value: JsonValue | None
+    ) -> ToolCallEvidence | None:
         try:
             call = ToolCall.model_validate(call_value)
         except ValidationError:
             return None
-        result_value = step.output.get("tool_result")
-        if result_value is None:
-            results = step.output.get("tool_results")
-            result_value = results[0] if isinstance(results, list) and results else None
         try:
             result = ToolResult.model_validate(result_value)
         except ValidationError:

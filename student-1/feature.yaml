@@ -41,6 +41,7 @@ onboarding:
       - student-1/tests
     node_test_files:
       - student-1/tests/frontend/core.test.mjs
+      - student-1/tests/frontend/assistant.test.mjs
     coverage_packages:
       - propertyscope_data_platform
       - propertyscope_data_store

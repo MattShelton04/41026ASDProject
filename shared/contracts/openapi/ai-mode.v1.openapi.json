@@ -972,6 +972,14 @@
               }
             ],
             "default": null
+          },
+          "tools": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ToolCallEvidence"
+            },
+            "title": "Tools",
+            "type": "array"
           }
         },
         "required": [

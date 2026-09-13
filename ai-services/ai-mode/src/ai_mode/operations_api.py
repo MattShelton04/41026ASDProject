@@ -40,6 +40,8 @@ ALLOWED_DESIGN_SYSTEM_ASSETS = frozenset({"tokens.css"})
 ALLOWED_SHARED_ASSETS = frozenset(
     {
         "ai-chat/grounding.js",
+        "ai-chat/activity.js",
+        "ai-chat/definitions.js",
         "ai-chat/formats.js",
         "ai-chat/styles.css",
         "browser/index.js",
@@ -52,7 +54,7 @@ ALLOWED_SHARED_ASSETS = frozenset(
     }
 )
 IDENTIFIER_ADAPTER = TypeAdapter(Identifier)
-OPERATIONS_PROJECTION_VERSION = 2
+OPERATIONS_PROJECTION_VERSION = 3
 
 
 def create_operations_blueprint(assets_path: Path) -> Blueprint:
