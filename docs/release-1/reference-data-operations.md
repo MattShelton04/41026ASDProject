@@ -33,6 +33,8 @@ The local verification used supported job APIs/CLI, container lifecycle commands
 diagnostic SQL. Temporary additional runners allowed the existing PSI worker to finish while
 new reference code was tested; they are not deployment prerequisites. Disposable PostgreSQL
 databases were used for destructive integration fixtures, separate from retained local data.
+The temporary runners and disposable test container were removed after their work completed;
+the retained development stack uses its normal runner and single loader.
 
 Queue any registered job; omit `--no-wait` to follow its run:
 
@@ -134,7 +136,9 @@ The hosted service also collapses one verified tiny native polygon to an empty s
 server projection. For this source only, an empty projected polygon triggers a bounded native
 re-fetch. Identical identity/attributes and EPSG:3857 are required before local conversion;
 both original geometries are retained in `_propertyscope_geometry_provenance`. Empty or
-malformed native shapes still fail. In a paired 1,000-feature comparison, only this known
+malformed native shapes still fail. Exterior/hole membership is determined in the native CRS
+and retained during conversion: another verified thin triangle changes apparent winding after
+projection. No vertices are removed or repaired. In a paired 1,000-feature comparison, only this known
 record differed in ring/position counts. This is bounded evidence, not a claim that every
 native vertex in the complete source equals the publisher's projected representation.
 

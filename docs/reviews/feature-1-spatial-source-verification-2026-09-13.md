@@ -336,3 +336,26 @@ four positions, matching all canonical and native-provenance hashes; its gzip ex
 844 bytes. Test-body time was 1.697 seconds (11.91 seconds including fixtures). All 96 spatial
 and reference unit tests passed, and independent review found no outstanding issue in these
 two corrections. The disposable sample remained awaiting review and was never published.
+
+## Complete current BFPL release
+
+Run `8639e285-f47e-48eb-8ff8-464ef7378fe6` completed the full hosted layer: 235,550
+records acquired, imported, classified and exported. The resulting candidate
+`e8fc243a-068d-46d7-8e4b-44d596e9c993` remains awaiting review without activation.
+Full verification parsed every exported record, checked schema, provenance, key order and
+count, and matched the 1,304,306,747 compressed bytes and SHA-256 to the public manifest.
+The [complete live report](feature-1-reference-live-e2e-2026-09-13.md) records the checksum
+and measured task durations: 33m31s acquisition, 17m17s import and 12m47s export.
+
+PostGIS classified 231,086 geometries valid, 4,453 invalid and 11 absent. Six records retain
+the native-projection provenance described above. No invalid topology was repaired to produce
+these counts. The largest exported record is `bushfire-prone-land:231814`, at 53,402,214
+bytes including its newline and release provenance; the earlier 47 MB fixture was a useful
+edge case, not a maximum-size claim. Full artifact verification took 79.66 seconds.
+
+A final read-only PostGIS check classified all 4,453 invalid geometries as ring
+self-intersections. Direct publisher queries for every absent-geometry ID returned the same
+11 records with null geometry in both native EPSG:3857 and geographic EPSG:4326. Their IDs
+are 8575, 13056, 13426, 14577, 15953, 15992, 47655, 51061, 128837, 169393 and 211640.
+All six native-projection fallback records were valid after import. The nulls and invalid
+topology remain explicit source limitations for any future spatial consumer.

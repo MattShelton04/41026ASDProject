@@ -17,6 +17,7 @@ validated source acquisition. Invalid publisher topology is retained and flagged
 | `abs-cpi` | 680 | 47,154 | 0 / 0 / 680 | Awaiting review |
 | `abs-geography-2021` | 4,675 | 80,887,860 | 4,668 / 3 / 4 | Awaiting review |
 | `nsw-amenities` | 9,866 | 27,961,787 | 9,857 / 9 / 0 | Awaiting review |
+| `nsw-bushfire-prone-land` | 235,550 | 1,304,306,747 | 231,086 / 4,453 / 11 | Awaiting review |
 | `nsw-cadastre` | 3,355,160 | 1,376,481,049 | 3,354,937 / 223 / 0 | Awaiting review |
 | `nsw-flood-planning` | 622 | 13,898,811 | 611 / 11 / 0 | Awaiting review |
 | `nsw-planning-controls` | 235,350 | 551,891,331 | 234,783 / 567 / 0 | Awaiting review |
@@ -39,6 +40,7 @@ as continuous active runtime.
 | `abs-cpi` | 1.69 | 0.21 | 1.07 | 0.21 | 0.87 |
 | `abs-geography-2021` | 0.11 | 36.07 | 58.35 | 37.34 | 57.31 |
 | `nsw-amenities` | 6.77 | 65.50 | 1437.71 | 32.86 | 36.69 |
+| `nsw-bushfire-prone-land` | 0.43 | 2011.05 | 1036.78 | 767.16 | 1036.60 |
 | `nsw-cadastre` | 20.23 | 1390.24 | 1335.82 | 1815.93 | 1335.49 |
 | `nsw-flood-planning` | 0.51 | 17.13 | 163.03 | 6.54 | 11.87 |
 | `nsw-planning-controls` | Cached | Cached | 504.76 | 441.36 | 503.99 |
@@ -51,6 +53,7 @@ as continuous active runtime.
 - `abs-cpi`: release `e9df11fb-5221-4746-ad0d-d8066405855e`; SHA-256 `b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d`.
 - `abs-geography-2021`: release `d91279f1-5628-44ea-a037-f8de0a0ad4ff`; SHA-256 `26a6429d9431136a76165c58678baaf74a4f6284abbbd706f43dfa8fd3fe9410`.
 - `nsw-amenities`: release `36460dde-c3fe-4ca4-8e5e-f3c12c645bcd`; SHA-256 `f9f371f007291c9319dbc02253d3aabb6f4a5ded2c8aee1ae7241e499596734b`.
+- `nsw-bushfire-prone-land`: release `e8fc243a-068d-46d7-8e4b-44d596e9c993`; SHA-256 `68e70d39535cf5436653e9f4117623b36a4b3b71366e1252fac7ba499c9586f8`.
 - `nsw-cadastre`: release `0ce38fb3-dabf-4248-a6b0-c315d0ba746a`; SHA-256 `750c9797617d97c9e849d8f94184e3e8af3290fcf81008a64dc3ed5f26cc9d7e`.
 - `nsw-flood-planning`: release `3949d345-2310-4205-b2d6-f3c350cbaf9d`; SHA-256 `01a2ef6caeb852e2f7c4cad49ffa996fa41339c49d2db030645665a3127fa785`.
 - `nsw-planning-controls`: release `b42dd939-de0a-4b6c-8eee-cdac7ccc68a7`; SHA-256 `a442cf43d3db3a6c10dc9055b62ae06e32579b1e15dc27e6fa8e0b6cd67f1625`.
@@ -78,5 +81,19 @@ The [PSI report](feature-1-psi-matching-2026-09-13.md) records the separate full
 comparison and export. The reference-source reports explain scope, coverage, edition and licence
 limits, including flood-planning controls that cannot establish absence of flood risk.
 
-The remaining source-scale runs are still being validated. A publisher count or partial acquisition
-is not presented as a completed local dataset; this report is updated only after full artifact checks.
+The complete BFPL run subsequently passed import, geometry classification and export for
+all 235,550 source records. Full artifact verification took 79.66 seconds.
+Its largest exported record was `bushfire-prone-land:231814` at
+53,402,214 bytes including its newline and release provenance.
+Native projection provenance was retained for 6 records.
+These export measurements are distinct from raw publisher response and canonical-input sizes.
+All six recovered native shapes were valid after import. A final database check identified
+all 4,453 invalid geometries as ring self-intersections. Direct official-source queries confirmed
+all 11 absent geometries are null in both native and geographic coordinates; see the
+[spatial source report](feature-1-spatial-source-verification-2026-09-13.md) for their identifiers.
+
+All ten registered reference profiles have complete real-source local artifact evidence.
+They remain awaiting review, as does the improved PSI candidate; accepted local releases
+are unchanged. Activation in a disposable integration database was tested separately.
+The implementation and operating configuration are checked in, so another developer can
+reproduce the workflow without administrator UI configuration or these local cache files.
