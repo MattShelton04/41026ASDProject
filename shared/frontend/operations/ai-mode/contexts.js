@@ -13,6 +13,8 @@ const CONTEXTS = Object.freeze({
   }),
 });
 
+const REVIEW_RETURN_PATH = /^\/features\/data-platform\/#ai\/(?:release:)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\?goal=(?:compare|quality|consumer))?$/i;
+
 function safeLocalPath(value) {
   if (typeof value !== "string" || value.length > 160 || !value.startsWith("/") || value.startsWith("//")) return false;
   if (value.includes("\\") || /[\u0000-\u001f\u007f]/.test(value)) return false;
@@ -27,7 +29,8 @@ export function resolveResearchAreaContext(params) {
   const returnTo = params.get("return_to") || "";
   if (key.length > 100 || label.length > 80 || !safeLocalPath(returnTo)) return null;
   const context = CONTEXTS[key];
-  if (!context || label !== context.label || !context.returnPaths.includes(returnTo)) return null;
+  if (!context || label !== context.label) return null;
+  if (!context.returnPaths.includes(returnTo) && !(context.key === "student-1-propertyscope-data-platform" && REVIEW_RETURN_PATH.test(returnTo))) return null;
   return Object.freeze({ ...context, returnTo });
 }
 

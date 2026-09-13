@@ -217,11 +217,14 @@ Open <http://localhost:5200>. The main product path is:
    is reported separately and can be retried with **Retry downstream import** on the published
    release. Feature 1 publishes all records without truncation.
 6. When a version needs interpretation, select **Review with AI**. AI review is optional, cannot
-   publish changes and remains available later in **Activity history**.
+   publish changes and remains available later in **Activity history**. Dataset, failed-check and
+   publishing entry points use the shared chat with the exact dataset attached and an editable
+   suggested question. Existing `#ai/<run-id>` links reopen their saved answer and source inspection
+   in that same component, with follow-up questions available after the review finishes.
 
 Use **Ask about Property data** for free-form, read-only questions about the feature, its sources,
-updates, releases, coverage or accepted property evidence. This shared chat interface is separate
-from the fixed Data review flow; each message creates a durable AI-mode run, shows its evidence and
+updates, releases, coverage or accepted property evidence. Both this page and **AI review** use the
+shared chat interface; each new message creates a read-only durable AI-mode run, shows its evidence and
 activity link, and supplies a bounded copy of completed visible exchanges to the next follow-up.
 Only one response runs at a time. From an update detail page, **Ask AI about update** supplies the
 exact run as validated page context, allowing the assistant to explain the current stage, durable counters,

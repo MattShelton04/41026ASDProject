@@ -7,7 +7,7 @@ export function propertyActivityUrl(runId = "", {
   const current = new URL(baseUrl);
   const integrated = current.pathname.startsWith("/features/data-platform/");
   const root = activityUrl || (integrated ? "/operations/ai-mode/"
-    : `${current.protocol}//${current.hostname}:5005/operations/ai-mode/`);
+    : `${current.protocol}//${current.hostname}:5100/operations/ai-mode/`);
   const url = new URL(root, current);
   if (!["http:", "https:"].includes(url.protocol)) {
     throw new TypeError("Activity URL must use HTTP or HTTPS");

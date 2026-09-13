@@ -1165,7 +1165,7 @@ test("activity handoff uses the mounted document base and preserves explicit sco
   assert.equal(integrated.searchParams.get("run"), "run-one");
   assert.equal(integrated.searchParams.get("feature_key"), "student-1-propertyscope-data-platform");
   const standalone = new URL(propertyActivityUrl("", {baseUrl: "http://localhost:5010/"}));
-  assert.equal(standalone.port, "5005");
+  assert.equal(standalone.port, "5100");
   const overridden = new URL(propertyActivityUrl("run", {baseUrl: "https://example.test/", activityUrl: "https://audit.test/operations/ai-mode/"}));
   assert.equal(overridden.origin, "https://audit.test");
   assert.throws(() => propertyActivityUrl("run", {baseUrl: "https://example.test/", activityUrl: "javascript:alert(1)"}), /HTTP/);

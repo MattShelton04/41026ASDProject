@@ -1,7 +1,7 @@
 # PropertyScope AI chat
 
 Status: implemented shared capability, with Property data as the first feature adapter
-Updated: 26 August 2026
+Updated: 13 September 2026
 
 ## Open the assistant
 
@@ -18,9 +18,20 @@ about the website and current application capabilities; **Property data** focuse
 the implemented Feature 1 tools. Research areas that are not implemented are reported as planned,
 not silently routed to Property data.
 
-Feature 1 also keeps its fixed-objective **Data review** workflow. Data review starts from an exact
-candidate release and uses preset comparison/quality objectives. AI chat is a separate route for
-free-form, read-only questions; it does not replace publication review or recovery controls.
+Feature 1's **AI review** route now uses this same shared chat. Dataset and update entry points
+attach the exact release and prepare an editable comparison, quality or delivery question. The
+standard record picker also offers recent candidates and lookup by name or ID. New review messages
+use the read-only assistant endpoint. Publication review and recovery controls remain separate.
+Existing `#ai/<run-id>` links reopen the recorded question, answer, sources and activity through
+the shared transcript. Legacy reviews are read through their existing agent-run API; they retain
+their original permissions and are managed through full activity. Follow-ups create new read-only
+turns with explicit context projected from the saved run's trusted identifiers.
+Review URLs remain reloadable after the first submitted turn. Unsent drafts follow the exact
+dataset context when returning through browser history. Full activity opens through the shared
+application so its return link works from both standalone and integrated Feature 1 entry points.
+
+Suggested questions sit above the composer. Odd final cards are centred on wide screens and use
+full-width rows on narrow screens and in the embedded assistant.
 
 ## What one turn means
 

@@ -141,7 +141,7 @@ export function propertyAssistantOptions({ announce = null, context = {} } = {})
     context, announce,
     activityHref: (runId) => propertyActivityUrl(runId, {
       baseUrl: document.baseURI, activityUrl: window.PROPERTYSCOPE_AGENT_ACTIVITY_URL,
-      returnTo: `${location.pathname}${location.hash}`,
+      returnTo: `/features/data-platform/${location.hash.startsWith("#ai") ? location.hash : location.hash.startsWith("#assistant") ? "#assistant" : "#properties"}`,
     }),
   };
 }

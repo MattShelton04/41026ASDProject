@@ -158,6 +158,130 @@ def _abort_external_map(page: Page) -> None:
     page.route("**/tiles.openfreemap.org/**", lambda route: route.abort())
 
 
+def _review_chat(
+    page: Page, *, fail_first: bool = False, active: bool = False
+) -> list[dict[str, Any]]:
+    submissions: list[dict[str, Any]] = []
+    cancelled = False
+
+    def assistant(route: Route) -> None:
+        nonlocal cancelled
+        if route.request.url.endswith("/cancel"):
+            cancelled = True
+        elif route.request.method == "POST":
+            payload = route.request.post_data_json
+            assert isinstance(payload, dict)
+            submissions.append(payload)
+            if fail_first and len(submissions) == 1:
+                route.fulfill(status=503, json={"detail": "Review temporarily unavailable"})
+                return
+        if "/events?" in route.request.url:
+            route.fulfill(json={"items": [], "next_cursor": 0})
+            return
+        route.fulfill(
+            json={
+                "id": AGENT_RUN_ID,
+                "objective": "Current user question: "
+                + json.dumps(submissions[0]["message"] if submissions else "Review the dataset"),
+                "trusted_identifiers": [
+                    {"kind": "release_id", "value": submissions[0]["context"]["release_id"]}
+                ]
+                if submissions and submissions[0]["context"].get("release_id")
+                else [],
+                "status": "cancelled" if cancelled else "acting" if active else "succeeded",
+                "final_result": None
+                if active
+                else {"summary": "The review checked the selected dataset."},
+            }
+        )
+
+    page.route("**/api/data-platform/v1/assistant/turns**", assistant)
+    page.route(f"**/api/data-platform/v1/agent-runs/{AGENT_RUN_ID}", assistant)
+    return submissions
+
+
+@pytest.mark.parametrize("viewport_width", [1440, 390])
+def test_shared_suggestions_precede_composer_and_centre_odd_card(
+    page: Page, fixture_origin: str, viewport_width: int
+) -> None:
+    page.set_viewport_size({"width": viewport_width, "height": 1000})
+    _open(page, fixture_origin, "assistant")
+    suggestions = page.locator(".ps-ai-chat__suggestion")
+    expect(suggestions).to_have_count(3)
+    first = suggestions.first.bounding_box()
+    last = suggestions.last.bounding_box()
+    group = page.locator(".ps-ai-chat__suggestions").bounding_box()
+    composer = page.locator(".ps-ai-chat__composer").bounding_box()
+    assert first and last and group and composer
+    assert group["y"] + group["height"] <= composer["y"]
+    assert abs(last["width"] - first["width"]) < 1
+    assert abs(last["x"] + last["width"] / 2 - group["x"] - group["width"] / 2) < 1
+    suggestions.last.click()
+    text = page.get_by_role("textbox", name="Message PropertyScope assistant")
+    expect(text).to_be_focused()
+    expect(text).to_have_value("Find an accepted property record in Parramatta.")
+    expect(page.locator(".ps-ai-chat__turn")).to_have_count(0)
+
+
+@pytest.mark.parametrize(
+    "goal, expected",
+    [
+        ("compare", "Compare this dataset"),
+        ("quality", "Explain each required or failed"),
+        ("consumer", "Explain each failed or retryable delivery"),
+    ],
+)
+def test_review_goals_attach_exact_dataset_and_keep_followup_history(
+    page: Page, fixture_origin: str, goal: str, expected: str
+) -> None:
+    submissions = _review_chat(page)
+    _open(page, fixture_origin, f"ai/release:{CANDIDATE_ID}?goal={goal}")
+    composer = page.get_by_role("textbox", name="Message PropertyScope assistant")
+    assert expected in composer.input_value()
+    page.get_by_role("button", name="Send message", exact=True).click()
+    expect(page.get_by_text("The review checked the selected dataset.", exact=True)).to_be_visible()
+    expect(page).to_have_url(re.compile(f"#ai/{AGENT_RUN_ID}$"))
+    composer.fill("What should I check next?")
+    composer.press("Enter")
+    expect(page.locator(".ps-ai-chat__turn")).to_have_count(2)
+    assert len(submissions) == 2
+    assert submissions[0]["context"]["release_id"] == CANDIDATE_ID
+    assert submissions[1]["context"] == submissions[0]["context"]
+    assert [item["role"] for item in submissions[1]["history"]] == ["user", "assistant"]
+    assert "selected dataset" in submissions[1]["history"][1]["content"]
+
+
+def test_review_stop_and_route_disposal_keep_next_draft(page: Page, fixture_origin: str) -> None:
+    submissions = _review_chat(page, active=True)
+    _open(page, fixture_origin, f"ai/release:{CANDIDATE_ID}")
+    composer = page.get_by_role("textbox", name="Message PropertyScope assistant")
+    page.get_by_role("button", name="Send message", exact=True).click()
+    expect(page.get_by_role("button", name="Stop response", exact=True)).to_be_enabled()
+    composer.fill("Keep this unsent follow-up")
+    page.get_by_role("button", name="Stop response", exact=True).click()
+    expect(page.locator(".ps-ai-chat__message-head .ps-badge")).to_have_text("Cancelled")
+    expect(composer).to_have_value("Keep this unsent follow-up")
+    page.get_by_role("link", name="Back to dataset", exact=True).click()
+    page.get_by_role("button", name="Review with AI", exact=True).click()
+    expect(composer).to_have_value("Keep this unsent follow-up")
+    assert len(submissions) == 1
+
+
+def test_review_draft_survives_back_to_newly_saved_url(page: Page, fixture_origin: str) -> None:
+    submissions = _review_chat(page)
+    _open(page, fixture_origin, f"ai/release:{CANDIDATE_ID}")
+    page.get_by_role("button", name="Send message", exact=True).click()
+    expect(page).to_have_url(re.compile(f"#ai/{AGENT_RUN_ID}$"))
+    composer = page.get_by_role("textbox", name="Message PropertyScope assistant")
+    composer.fill("Keep this question when I return to the saved review")
+    page.get_by_role("link", name="New AI review", exact=True).click()
+    expect(page).to_have_url(re.compile("#ai$"))
+    page.go_back()
+    expect(page).to_have_url(re.compile(f"#ai/{AGENT_RUN_ID}$"))
+    expect(composer).to_have_value("Keep this question when I return to the saved review")
+    assert len(submissions) == 1
+
+
 @pytest.mark.parametrize("reduced_motion", ["reduce", "no-preference"])
 def test_chat_applies_answer_when_events_fail_and_opens_inline_sources(
     page: Page, fixture_origin: str, reduced_motion: str
@@ -1133,16 +1257,18 @@ def test_planner_release_decisions_and_ai_retry_in_the_open_form(
     expect(page.locator("#action-dialog")).not_to_be_visible()
 
     _open(page, fixture_origin, "ai")
-    selected_release = page.locator("#diagnosis-release").input_value()
-    selected_objective = page.locator("#diagnosis-objective").input_value()
-    ai_writes = _fail_first_write(page, "**/api/data-platform/v1/dataset-releases/*/agent-runs")
-    page.get_by_role("button", name="Start AI review").click()
-    expect(page.get_by_text("selected dataset and review goal are unchanged")).to_be_visible()
-    expect(page.locator("#diagnosis-release")).to_have_value(selected_release)
-    expect(page.locator("#diagnosis-objective")).to_have_value(selected_objective)
-    page.get_by_role("button", name="Start AI review").click()
-    page.wait_for_function("() => location.hash.startsWith('#ai/')")
+    selected_release = page.locator(".ps-ai-chat__context-editor select").input_value()
+    composer = page.get_by_role("textbox", name="Message PropertyScope assistant")
+    question = composer.input_value()
+    ai_writes = _review_chat(page, fail_first=True)
+    page.get_by_role("button", name="Send message", exact=True).click()
+    expect(page.get_by_text("This turn could not start", exact=True)).to_be_visible()
+    expect(page.locator(".ps-ai-chat__context-editor select")).to_have_value(selected_release)
+    expect(composer).to_have_value(question)
+    page.get_by_role("button", name="Send message", exact=True).click()
+    expect(page.get_by_text("The review checked the selected dataset.", exact=True)).to_be_visible()
     assert len(ai_writes) == 2
+    assert ai_writes[1] == ai_writes[0]
 
 
 def test_guarded_confirmations_dirty_navigation_and_controller_generation(
@@ -1874,8 +2000,9 @@ def test_ai_review_history_and_specialist_routes_render_from_live_fixture_contra
     recent_reviews.click()
     page.get_by_role("link", name="View result").click()
     page.wait_for_function(f"() => location.hash === '#ai/{AGENT_RUN_ID}'")
-    expect(page.get_by_role("heading", name="AI review result", exact=True)).to_be_visible()
-    expect(page.get_by_role("heading", name="Recommended next step")).to_be_visible()
+    expect(page.get_by_role("heading", name="AI review", exact=True)).to_be_visible()
+    expect(page.get_by_text("No blocking issue was found.", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Sources & activity", exact=True)).to_be_visible()
 
     _open(page, fixture_origin, "quality")
     expect(page.get_by_role("heading", name="Choose a data update")).to_be_visible()
@@ -1910,19 +2037,20 @@ def test_jobs_list_secondary_actions_use_keyboard_accessible_overflow(
     expect(more).to_have_attribute("aria-expanded", "false")
 
 
-def test_ai_manual_refresh_preserves_disclosure_and_refresh_focus(
+def test_saved_ai_review_survives_inventory_history_and_event_outages(
     page: Page, fixture_origin: str
 ) -> None:
+    for pattern in ("**/dataset-releases?**", "**/agent-runs?**", "**/agent-runs/*/events?**"):
+        page.route(pattern, lambda route: _temporary_read_failure(route, "optional-review-data"))
     _open(page, fixture_origin, f"ai/{AGENT_RUN_ID}")
-    technical_summary = page.get_by_text("Technical run references", exact=True)
-    technical_summary.click()
-    refresh = page.get_by_role("button", name="Refresh result")
-
-    refresh.click()
-
-    refreshed_summary = page.get_by_text("Technical run references", exact=True)
-    expect(refreshed_summary.locator("..")).to_have_attribute("open", "")
-    expect(page.get_by_role("button", name="Refresh result")).to_be_focused()
+    expect(page.get_by_text("No blocking issue was found.", exact=True)).to_be_visible()
+    expect(
+        page.get_by_text("AI review history is temporarily unavailable.", exact=False)
+    ).to_be_visible()
+    inspect = page.get_by_role("button", name="Sources & activity", exact=True)
+    inspect.click()
+    page.get_by_role("button", name="Close details", exact=True).click()
+    expect(inspect).to_be_focused()
 
 
 def test_run_and_failed_ai_details_remain_clear_at_mobile_width(
@@ -1953,10 +2081,11 @@ def test_run_and_failed_ai_details_remain_clear_at_mobile_width(
     page.route(f"**/api/data-platform/v1/agent-runs/{AGENT_RUN_ID}", failed_agent_run)
     _open(page, fixture_origin, f"ai/{AGENT_RUN_ID}")
 
-    expect(page.get_by_role("heading", name="AI review failed", exact=True)).to_be_visible()
     expect(
-        page.get_by_text("retained activity record and cannot be changed", exact=False)
+        page.get_by_text("The assistant could not complete this turn", exact=True)
     ).to_be_visible()
+    expect(page.get_by_text("Deterministic AI review failure", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Prepare question again", exact=True)).to_be_visible()
     expect(page.get_by_role("heading", name="AI review in progress", exact=True)).to_have_count(0)
     assert page.evaluate(
         "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
@@ -1974,21 +2103,22 @@ def test_ai_active_poll_preserves_disclosure_without_stealing_external_focus(
         response = route.fetch()
         payload = response.json()
         payload["run"]["status"] = "acting"
+        payload["run"]["final_result"] = None
         route.fulfill(response=response, json=payload)
 
     page.route(f"**/api/data-platform/v1/agent-runs/{AGENT_RUN_ID}", active_agent_run)
     _open(page, fixture_origin, f"ai/{AGENT_RUN_ID}")
-    technical_summary = page.get_by_text("Technical run references", exact=True)
-    technical_summary.click()
+    page.get_by_role("button", name="Sources & activity", exact=True).click()
+    activity = page.locator(".ps-ai-chat__inspection details[data-disclosure='evidence']")
+    activity.locator("summary").click()
+    expect(page.get_by_role("button", name="Stop response", exact=True)).to_be_hidden()
     external_focus = page.get_by_role("link", name="New AI review")
     external_focus.focus()
 
     page.wait_for_timeout(1_200)
 
     assert detail_reads >= 2
-    expect(
-        page.get_by_text("Technical run references", exact=True).locator("..")
-    ).to_have_attribute("open", "")
+    expect(activity).to_have_attribute("open", "")
     expect(external_focus).to_be_focused()
 
 

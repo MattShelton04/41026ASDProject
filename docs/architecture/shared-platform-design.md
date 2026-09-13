@@ -550,6 +550,9 @@ and Property data routes therefore stay with Feature 1.
 Feature transitions into the Shared AI activity view use one bounded metadata tuple. Unknown keys,
 spoofed labels, protocol-relative destinations and any non-matching return route are ignored; query
 parameters are not a general-purpose branding or redirect contract.
+The allowed Feature 1 return destinations include UUID-based `#ai/<run-id>` and
+`#ai/release:<release-id>` links with only the named comparison, quality or consumer review goal.
+Other query parameters and arbitrary paths remain rejected.
 
 #### 6.4.1 Release 0 HTMX request paths
 

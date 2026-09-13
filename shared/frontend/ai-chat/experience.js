@@ -17,7 +17,7 @@ export function turnPresentationKey(turn) {
 
 export function draftContextKey(namespace, scope, context = {}) {
   if (!namespace) return "";
-  const entries = Object.entries(context).filter(([, value]) => value != null && value !== "").sort(([a], [b]) => a.localeCompare(b));
+  const entries = Object.entries(context).filter(([name, value]) => name !== "display_label" && value != null && value !== "").sort(([a], [b]) => a.localeCompare(b));
   return JSON.stringify([namespace, scope, entries]);
 }
 

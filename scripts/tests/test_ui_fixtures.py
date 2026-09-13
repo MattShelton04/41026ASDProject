@@ -483,6 +483,21 @@ def test_release_ai_creation_and_operator_mutation_statuses_match_production() -
     assert retry.body["created"] is reprocess.body["created"] is True
 
 
+def test_shared_review_fixture_exposes_create_read_events_and_cancel() -> None:
+    root = "/api/data-platform/v1/assistant/turns"
+    created = fixture_response("POST", root, "", "populated")
+    assert created.status == 202
+    AgentRun.model_validate(created.body)
+    detail = fixture_response("GET", f"{root}/{AGENT_RUN_ID}", "", "populated")
+    assert AgentRunDetail.model_validate(detail.body).run.status.value == "succeeded"
+    events = fixture_response(
+        "GET", f"{root}/{AGENT_RUN_ID}/events", "after=0&limit=100", "populated"
+    )
+    AgentRunEventPage.model_validate(events.body)
+    cancelled = fixture_response("POST", f"{root}/{AGENT_RUN_ID}/cancel", "", "populated")
+    assert AgentRunDetail.model_validate(cancelled.body).run.status.value == "cancelled"
+
+
 def test_release_update_and_publish_use_production_envelopes() -> None:
     update = fixture_response(
         "PUT", f"/api/data-platform/v1/dataset-releases/{RELEASE_ID}", "", "populated"
