@@ -25,6 +25,19 @@ from propertyscope_data_platform.scope_policy import (
     validate_job_scope,
 )
 
+_SUPPORTED_RUN_MODES = ("full_refresh", "reprocess_cached")
+
+
+def _requested_run_mode(body: Mapping[str, Any]) -> tuple[str, Response | None]:
+    mode = str(body.get("run_mode", "full_refresh"))
+    if mode not in _SUPPORTED_RUN_MODES:
+        return mode, problem(
+            422,
+            "capability_unsupported",
+            "Only full_refresh and reprocess_cached are supported",
+        )
+    return mode, None
+
 
 def register_ingestion_routes(
     api: Blueprint,
@@ -89,6 +102,7 @@ def register_ingestion_routes(
     def lineage_scope(
         run_data: Mapping[str, Any], *, run_mode: str
     ) -> tuple[dict[str, Any] | None, Response | None]:
+        """Resolve a follow-up scope, refusing runs whose scope is no longer supported."""
         job_id = run_data["job_definition_id"]
         job_response = store.request("GET", f"{internal}/jobs/{job_id}", headers=request.headers)
         if job_response.status_code >= 400:
@@ -106,6 +120,12 @@ def register_ingestion_routes(
         if scope_error is not None:
             return None, problem(scope_error.status, scope_error.code, scope_error.detail)
         assert scope is not None
+        if run_data.get("requested_scope_json") != scope:
+            return None, problem(
+                409,
+                "incomplete_legacy_run",
+                "This historical run does not match a currently supported acquisition scope",
+            )
         return scope, None
 
     @api.route(f"{base}/sources", methods=["GET", "POST"])
@@ -158,7 +178,7 @@ def register_ingestion_routes(
                 "job_id": str(job_id),
                 "profile_key": job_data["profile_key"],
                 "refresh_strategy": job_data["refresh_strategy"],
-                "supported_modes": ["full_refresh", "reprocess_cached"],
+                "supported_modes": list(_SUPPORTED_RUN_MODES),
                 "supported_scope_profiles": (
                     ["full-data", "psi-year-range"] if is_psi else ["full-data"]
                 ),
@@ -191,13 +211,9 @@ def register_ingestion_routes(
         if response.status_code >= 400:
             return forward(response)
         job_data = response.json()["job"]
-        mode = str(body.get("run_mode", "full_refresh"))
-        if mode not in {"full_refresh", "reprocess_cached"}:
-            return problem(
-                422,
-                "capability_unsupported",
-                "Only full_refresh and reprocess_cached are supported",
-            )
+        mode, mode_error = _requested_run_mode(body)
+        if mode_error is not None:
+            return mode_error
         scope, scope_error = validate_job_scope(
             job_data,
             resolve_registered_scope(job_data, body.get("scope"), job_profiles),
@@ -250,13 +266,9 @@ def register_ingestion_routes(
         job_response = store.request("GET", f"{internal}/jobs/{job_id}", headers=request.headers)
         if job_response.status_code >= 400:
             return forward(job_response)
-        mode = str(body.get("run_mode", "full_refresh"))
-        if mode not in {"full_refresh", "reprocess_cached"}:
-            return problem(
-                422,
-                "capability_unsupported",
-                "Only full_refresh and reprocess_cached are supported",
-            )
+        mode, mode_error = _requested_run_mode(body)
+        if mode_error is not None:
+            return mode_error
         job_data = job_response.json()["job"]
         scope, scope_error = validate_job_scope(
             job_data,
@@ -347,12 +359,6 @@ def register_ingestion_routes(
         scope, scope_response = lineage_scope(run_data, run_mode=run_mode)
         if scope_response is not None:
             return scope_response
-        if run_data.get("requested_scope_json") != scope:
-            return problem(
-                409,
-                "incomplete_legacy_run",
-                "This historical run does not match a currently supported acquisition scope",
-            )
         body = {
             "run_mode": run_mode,
             "scope": scope,
@@ -375,15 +381,9 @@ def register_ingestion_routes(
         if original.status_code >= 400:
             return forward(original)
         run_data = original.json()["run"]
-        scope, scope_response = lineage_scope(run_data, run_mode=str(run_data["run_mode"]))
+        _, scope_response = lineage_scope(run_data, run_mode=str(run_data["run_mode"]))
         if scope_response is not None:
             return scope_response
-        if run_data.get("requested_scope_json") != scope:
-            return problem(
-                409,
-                "incomplete_legacy_run",
-                "This historical run does not match a currently supported acquisition scope",
-            )
         return forward(
             store.request(
                 "POST",

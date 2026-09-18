@@ -1359,6 +1359,43 @@ def test_complete_fixture_plan_does_not_claim_network_work() -> None:
     assert response.get_json()["network_required"] is False
 
 
+@pytest.mark.parametrize(
+    ("path", "headers"),
+    [("plans", {}), ("runs", {"Idempotency-Key": "unsupported-mode"})],
+)
+def test_plans_and_runs_reject_unsupported_run_modes(path: str, headers: dict[str, str]) -> None:
+    job_id = "20000000-0000-0000-0000-000000000010"
+    requests: list[httpx.Request] = []
+
+    def database(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "job": {
+                    "id": job_id,
+                    "profile_key": "fixture-property-full",
+                    "release_builder_key": "property-snapshot",
+                    "import_profile_key": "property-fixture",
+                }
+            },
+        )
+
+    response = (
+        _backend_with_database(database)
+        .test_client()
+        .post(
+            f"/api/data-platform/v1/jobs/{job_id}/{path}",
+            json={"run_mode": "incremental", "scope": {"profile": "full-data"}},
+            headers=headers,
+        )
+    )
+
+    assert response.status_code == 422
+    assert response.get_json()["code"] == "capability_unsupported"
+    assert [request.method for request in requests] == ["GET"]
+
+
 def test_default_runtime_reports_and_allows_official_acquisition() -> None:
     job_id = "20000000-0000-0000-0000-000000000004"
 
