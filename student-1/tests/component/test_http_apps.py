@@ -380,6 +380,19 @@ def test_backend_protects_runner_and_publication() -> None:
     )
     client = app.test_client()
     assert client.post("/internal/data-platform/v1/worker/tasks/claim", json={}).status_code == 401
+    for token in ("", "local-runner-onl", "local-runner-only-", "wrong-token"):
+        rejected = client.post(
+            "/internal/data-platform/v1/worker/tasks/claim",
+            json={},
+            headers={"X-PropertyScope-Runner-Token": token},
+        )
+        assert rejected.status_code == 401
+    accepted = client.post(
+        "/internal/data-platform/v1/worker/tasks/claim",
+        json={},
+        headers={"X-PropertyScope-Runner-Token": "local-runner-only"},
+    )
+    assert accepted.status_code != 401
     response = client.post(
         "/api/data-platform/v1/dataset-releases/60000000-0000-0000-0000-000000000011/publish",
         json={"version": 1, "comment": "reviewed", "approved": False},
