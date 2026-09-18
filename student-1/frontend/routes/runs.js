@@ -100,11 +100,11 @@ function runTimeline(run, tasks, { available = true } = {}) {
       : Number.isFinite(total) && total > 0
         ? `${formatBytes(processed)} of ${formatBytes(total)}`
         : `${formatNumber(durableRows)} rows · ${indeterminate ? "remaining work indeterminate" : "total not recorded"}`;
-    const remainingMs = null; // Stage elapsed includes earlier phases; it is not a valid ETA.
+    // No remaining-time estimate: stage elapsed time includes earlier phases, so it is not a valid ETA.
     const timing = task.started_at
       ? task.finished_at
         ? `took ${elapsed}`
-        : `${elapsed} elapsed${remainingMs === null ? "" : ` · about ${formatDuration(0, remainingMs)} remaining`}`
+        : `${elapsed} elapsed`
       : task.status === "skipped"
         ? "not run (cached result reused)"
         : "not started";
