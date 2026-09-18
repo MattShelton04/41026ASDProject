@@ -10,6 +10,14 @@ import httpx
 from flask import Response, jsonify, request
 
 from propertyscope_data_platform.clients import DataStoreClient, DependencyUnavailableError
+from shared_contracts import (
+    AGENT_RUN_ID_HEADER,
+    PROBLEM_DETAIL_MEDIA_TYPE,
+    REQUEST_ID_HEADER,
+    TRACEPARENT_HEADER,
+)
+
+_FORWARDED_HEADERS = ("Location", REQUEST_ID_HEADER, AGENT_RUN_ID_HEADER, TRACEPARENT_HEADER)
 
 
 def proxy_collection(store: DataStoreClient, path: str) -> Response:
@@ -82,9 +90,9 @@ def forward(upstream: httpx.Response) -> Response:
         else jsonify(upstream_json_object(upstream))
     )
     response.status_code = upstream.status_code
-    if upstream.headers.get("content-type", "").split(";", 1)[0] == "application/problem+json":
-        response.content_type = "application/problem+json"
-    for name in ("Location", "X-Request-ID", "X-Agent-Run-ID", "traceparent"):
+    if upstream.headers.get("content-type", "").split(";", 1)[0] == PROBLEM_DETAIL_MEDIA_TYPE:
+        response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
+    for name in _FORWARDED_HEADERS:
         if name in upstream.headers:
             response.headers[name] = upstream.headers[name]
     return response
@@ -100,7 +108,7 @@ def forward_json_bytes(upstream: httpx.Response) -> Response:
     response = Response(
         upstream.content, status=upstream.status_code, content_type="application/json"
     )
-    for name in ("X-Request-ID", "traceparent"):
+    for name in (REQUEST_ID_HEADER, TRACEPARENT_HEADER):
         if name in upstream.headers:
             response.headers[name] = upstream.headers[name]
     return response
@@ -114,11 +122,11 @@ def problem(status: int, code: str, detail: str) -> Response:
             "status": status,
             "detail": detail,
             "code": code,
-            "request_id": request.headers.get("X-Request-ID", "unknown"),
+            "request_id": request.headers.get(REQUEST_ID_HEADER, "unknown"),
         }
     )
     response.status_code = status
-    response.content_type = "application/problem+json"
+    response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
     return response
 
 
