@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+MIN_LOADER_TEMP_FILE_LIMIT_KIB = 64 * 1024
+MAX_LOADER_TEMP_FILE_LIMIT_KIB = 64 * 1024 * 1024
 DEFAULT_LOADER_TEMP_FILE_LIMIT_KIB = 16 * 1024 * 1024
 DEFAULT_LOADER_DISK_RESERVE_BYTES = 4 * 1024 * 1024 * 1024
 DEFAULT_LOADER_ARTIFACT_EXPANSION_FACTOR = 3
@@ -55,8 +57,8 @@ class StoreSettings:
             loader_temp_file_limit_kib=_bounded_integer(
                 "PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB",
                 default=DEFAULT_LOADER_TEMP_FILE_LIMIT_KIB,
-                minimum=64 * 1024,
-                maximum=64 * 1024 * 1024,
+                minimum=MIN_LOADER_TEMP_FILE_LIMIT_KIB,
+                maximum=MAX_LOADER_TEMP_FILE_LIMIT_KIB,
             ),
             loader_disk_reserve_bytes=_bounded_integer(
                 "PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES",
