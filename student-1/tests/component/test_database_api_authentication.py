@@ -39,6 +39,20 @@ def test_private_routes_reject_missing_or_mismatched_credentials(headers: dict[s
     assert response.get_json()["code"] == "unauthorised"
 
 
+def test_problem_details_echo_a_valid_request_id() -> None:
+    response = _client().get(_FINGERPRINT_PATH, headers={"X-Request-ID": "req-123:abc"})
+
+    assert response.get_json()["request_id"] == "req-123:abc"
+
+
+@pytest.mark.parametrize("request_id", ["", "<script>", "-leading-dash", "a" * 201])
+def test_problem_details_do_not_echo_an_invalid_request_id(request_id: str) -> None:
+    response = _client().get(_FINGERPRINT_PATH, headers={"X-Request-ID": request_id})
+
+    assert response.status_code == 401
+    assert response.get_json()["request_id"] == "unknown"
+
+
 def test_private_routes_accept_the_configured_credential() -> None:
     response = _client().get(
         _FINGERPRINT_PATH, headers={"X-PropertyScope-Internal-Token": "internal-token"}

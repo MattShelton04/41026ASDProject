@@ -19,6 +19,7 @@ from propertyscope_data_store.errors import (
 from propertyscope_data_store.export_pages import columnar_export_page
 from propertyscope_data_store.migrations import SCHEMA_FINGERPRINT_POLICY_VERSION
 from propertyscope_data_store.repository import PropertyScopeStore
+from shared_contracts import PROBLEM_DETAIL_MEDIA_TYPE, REQUEST_ID_HEADER, is_valid_request_id
 
 
 def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Blueprint:
@@ -783,6 +784,8 @@ def envelope(items: list[dict[str, Any]], *, limit: int, offset: int) -> dict[st
 
 
 def problem(status: int, code: str, detail: str) -> Response:
+    # Only echo a correlation ID that satisfies the shared contract; anything else is untrusted.
+    supplied = request.headers.get(REQUEST_ID_HEADER, "").strip()
     response = jsonify(
         {
             "type": f"https://propertyscope.local/problems/{code}",
@@ -790,9 +793,9 @@ def problem(status: int, code: str, detail: str) -> Response:
             "status": status,
             "detail": detail,
             "code": code,
-            "request_id": request.headers.get("X-Request-ID", "unknown"),
+            "request_id": supplied if is_valid_request_id(supplied) else "unknown",
         }
     )
     response.status_code = status
-    response.content_type = "application/problem+json"
+    response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
     return response
