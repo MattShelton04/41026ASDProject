@@ -100,7 +100,7 @@ export async function requestJson(fetcher, url, options = {}) {
       throw new Error(`${response.status}: response was not JSON`);
     }
     if (!response.ok) {
-      throw new Error(`${response.status}: ${body.detail || body.code || "request failed"}`);
+      throw new Error(`${response.status}: ${body?.detail || body?.code || "request failed"}`);
     }
     return { response, body };
   } catch (error) {

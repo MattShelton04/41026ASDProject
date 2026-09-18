@@ -91,6 +91,10 @@ test("requestJson preserves conditional responses and safe API errors", async ()
     requestJson(async () => response({ code: "unavailable" }, { status: 503 }), "/detail"),
     /503: unavailable/,
   );
+  await assert.rejects(
+    requestJson(async () => response(null, { status: 502 }), "/detail"),
+    /502: request failed/,
+  );
 });
 
 test("cursor restoration is safe and duplicate events stay bounded", () => {
