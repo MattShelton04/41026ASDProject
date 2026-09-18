@@ -155,7 +155,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             scope=object_value(body.get("scope", {})),
             idempotency_key=required_text(body, "idempotency_key"),
             request_id=required_text(body, "request_id"),
-            parent_run_id=uuid.UUID(str(body["parent_run_id"]))
+            parent_run_id=uuid_value(body["parent_run_id"], "parent_run_id")
             if body.get("parent_run_id")
             else None,
         )
@@ -457,7 +457,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             operation_id,
             worker_id=required_text(body, "worker_id"),
             lease_token=required_text(body, "lease_token"),
-            receipt_id=uuid.UUID(required_text(body, "publication_receipt_id")),
+            receipt_id=required_uuid(body, "publication_receipt_id"),
             receipt_status=required_text(body, "receipt_status"),
         )
         return jsonify({"operation": operation})
@@ -469,7 +469,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             operation_id,
             worker_id=required_text(body, "worker_id"),
             lease_token=required_text(body, "lease_token"),
-            activation_id=uuid.UUID(required_text(body, "release_activation_id")),
+            activation_id=required_uuid(body, "release_activation_id"),
         )
         return jsonify({"operation": operation})
 
@@ -722,12 +722,7 @@ def optional_query_text() -> str | None:
 
 def optional_uuid_query(name: str) -> uuid.UUID | None:
     value = request.args.get(name, "").strip()
-    if not value:
-        return None
-    try:
-        return uuid.UUID(value)
-    except ValueError as exc:
-        raise ValidationError(f"{name} must be a UUID") from exc
+    return uuid_value(value, name) if value else None
 
 
 def bounded_integer(
@@ -758,6 +753,17 @@ def required_text(body: dict[str, Any], name: str) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > 500:
         raise ValidationError(f"{name} is required and must be at most 500 characters")
     return value.strip()
+
+
+def required_uuid(body: dict[str, Any], name: str) -> uuid.UUID:
+    return uuid_value(required_text(body, name), name)
+
+
+def uuid_value(value: Any, name: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(str(value))
+    except ValueError as exc:
+        raise ValidationError(f"{name} must be a UUID") from exc
 
 
 def object_value(value: Any) -> dict[str, Any]:
