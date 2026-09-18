@@ -7,11 +7,17 @@ from pathlib import Path
 from typing import Any
 
 import pyarrow as pa  # type: ignore[import-untyped]
-import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
-GNAF_PARQUET_MEDIA_TYPE = "application/vnd.apache.parquet"
+from propertyscope_data_platform.canonical_parquet import (
+    CANONICAL_PARQUET_BATCH_ROWS,
+    CANONICAL_PARQUET_MEDIA_TYPE,
+    canonical_parquet_writer,
+    write_row_group,
+)
+
+GNAF_PARQUET_MEDIA_TYPE = CANONICAL_PARQUET_MEDIA_TYPE
 GNAF_PARQUET_SCHEMA_VERSION = "propertyscope.canonical-gnaf-parquet.v1"
-GNAF_PARQUET_BATCH_ROWS = 65_536
+GNAF_PARQUET_BATCH_ROWS = CANONICAL_PARQUET_BATCH_ROWS
 
 
 def gnaf_parquet_schema() -> pa.Schema:
@@ -55,12 +61,10 @@ def write_gnaf_parquet(
     schema = gnaf_parquet_schema()
     count = 0
     rows: list[Mapping[str, Any]] = []
-    with pq.ParquetWriter(
+    with canonical_parquet_writer(
         destination,
         schema,
-        compression="zstd",
-        compression_level=3,
-        use_dictionary=[
+        dictionary_columns=(
             "flat_type",
             "street_type",
             "locality",
@@ -68,16 +72,16 @@ def write_gnaf_parquet(
             "source_status",
             "geocode_type",
             "source_crs",
-        ],
+        ),
     ) as writer:
         for record in records:
             rows.append(record)
             count += 1
             if len(rows) == batch_rows:
-                writer.write_table(pa.Table.from_pylist(rows, schema=schema))
+                write_row_group(writer, rows, schema)
                 rows.clear()
         if rows:
-            writer.write_table(pa.Table.from_pylist(rows, schema=schema))
+            write_row_group(writer, rows, schema)
     if count == 0:
         destination.unlink(missing_ok=True)
         raise ValueError("canonical G-NAF artifact must not be empty")

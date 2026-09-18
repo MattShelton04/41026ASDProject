@@ -2,23 +2,27 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Callable, Iterable
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import pyarrow as pa  # type: ignore[import-untyped]
-import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
 from propertyscope_data_platform.adapters.psi import PsiSale
+from propertyscope_data_platform.canonical_parquet import (
+    CANONICAL_PARQUET_BATCH_ROWS,
+    CANONICAL_PARQUET_MEDIA_TYPE,
+    POSTGRES_INTEGER_MAX,
+    canonical_parquet_writer,
+    canonical_row_sha256,
+    write_row_group,
+)
 
-PSI_PARQUET_MEDIA_TYPE = "application/vnd.apache.parquet"
+PSI_PARQUET_MEDIA_TYPE = CANONICAL_PARQUET_MEDIA_TYPE
 PSI_PARQUET_SCHEMA_VERSION = "propertyscope.canonical-psi-parquet.v1"
-PSI_PARQUET_BATCH_ROWS = 65_536
+PSI_PARQUET_BATCH_ROWS = CANONICAL_PARQUET_BATCH_ROWS
 PSI_ADDRESS_NUMBER_OUT_OF_RANGE = "address_number_out_of_range"
-POSTGRES_INTEGER_MAX = 2_147_483_647
 POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807
 
 _SCHEMA_METADATA = {
@@ -91,13 +95,10 @@ def write_psi_parquet(
     if batch_rows < 1:
         raise ValueError("PSI Parquet batch_rows must be positive")
     schema = psi_parquet_schema()
-    writer = pq.ParquetWriter(
+    writer = canonical_parquet_writer(
         destination,
         schema,
-        version="2.6",
-        compression="zstd",
-        compression_level=3,
-        use_dictionary=(
+        dictionary_columns=(
             "source_era",
             "district_code",
             "source_system",
@@ -111,7 +112,6 @@ def write_psi_parquet(
             "geographic_precision",
             "quality_warnings",
         ),
-        write_statistics=True,
     )
     row_count = 0
     try:
@@ -123,21 +123,17 @@ def write_psi_parquet(
                 if on_record is not None:
                     on_record()
                 if len(rows) >= batch_rows:
-                    _write_rows(writer, rows, schema)
+                    write_row_group(writer, rows, schema)
                     rows.clear()
             # A partition boundary starts a new row group and retains source ordering evidence.
             if rows:
-                _write_rows(writer, rows, schema)
+                write_row_group(writer, rows, schema)
     finally:
         writer.close()
     if row_count == 0:
         destination.unlink(missing_ok=True)
         raise ValueError("canonical PSI artifact must not be empty")
     return row_count
-
-
-def _write_rows(writer: pq.ParquetWriter, rows: list[dict[str, Any]], schema: pa.Schema) -> None:
-    writer.write_table(pa.Table.from_pylist(rows, schema=schema), row_group_size=len(rows))
 
 
 def _parquet_row(sale: PsiSale, *, source_year: int) -> dict[str, Any]:
@@ -207,7 +203,7 @@ def _parquet_row(sale: PsiSale, *, source_year: int) -> dict[str, Any]:
     }
     return {
         **result,
-        "source_row_sha256": _canonical_sha256(facts),
+        "source_row_sha256": canonical_row_sha256(facts),
         "quality_warnings": sorted(warnings) or None,
     }
 
@@ -273,8 +269,3 @@ def _canonical_value(value: object) -> object:
     if hasattr(value, "isoformat"):
         return value.isoformat()
     return value
-
-
-def _canonical_sha256(row: dict[str, Any]) -> bytes:
-    canonical = json.dumps(row, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(canonical).digest()
