@@ -3,6 +3,9 @@ import { append, button, el, link } from "../core/dom.js";
 import { formatDate } from "../core/formats.js";
 import { notificationLink, notificationTitle, reconcileNotifications } from "../core/notifications.js";
 
+const VISIBLE_POLL_MS = 15_000;
+const HIDDEN_POLL_MS = 30_000;
+
 export function mountNotifications(host, request, announce) {
   const storageKey = "propertyscope.data-notifications.v1";
   let saved = null;
@@ -18,16 +21,19 @@ export function mountNotifications(host, request, announce) {
     inbox.open = false;
     if (restoreFocus) summary.focus();
   };
-  const persist = () => { try { localStorage.setItem(storageKey, JSON.stringify(saved)); } catch { /* In-memory operation remains available. */ } };
-  const render = (warning = "") => {
+  const updateSummary = () => {
     const unread = saved?.items.filter((item) => !item.read).length || 0;
     summary.textContent = `Notifications${unread ? ` (${unread})` : ""}`;
+  };
+  const persist = () => { try { localStorage.setItem(storageKey, JSON.stringify(saved)); } catch { /* In-memory operation remains available. */ } };
+  const render = (warning = "") => {
+    updateSummary();
     const heading = el("div", "notification-heading");
     const dismiss = button("×", "button secondary small", () => close({ restoreFocus: true }));
     dismiss.setAttribute("aria-label", "Close notifications");
     append(heading, el("h2", "", "Data updates"), dismiss);
     body.replaceChildren(heading);
-    append(body, el("p", "", "Updates observed on this browser. Checked every 15 seconds while the app is open; read state is saved on this device."));
+    append(body, el("p", "", `Updates observed on this browser. Checked every ${VISIBLE_POLL_MS / 1000} seconds while the app is open; read state is saved on this device.`));
     if (warning) append(body, el("p", "notice warning", warning));
     if (saved?.items.length) append(body, button("Mark all as read", "button secondary small", () => {
       saved.items = saved.items.map((item) => ({ ...item, read: true })); persist(); render();
@@ -54,10 +60,7 @@ export function mountNotifications(host, request, announce) {
       const result = reconcileNotifications(saved, runs); saved = result.state; persist();
       // Keep an open inbox stable so polling cannot steal keyboard focus.
       if (!inbox.open) render();
-      else {
-        const unread = saved.items.filter((item) => !item.read).length;
-        summary.textContent = `Notifications${unread ? ` (${unread})` : ""}`;
-      }
+      else updateSummary();
       for (const item of result.added) {
         announce(notificationTitle(item));
         if ("Notification" in window && Notification.permission === "granted") {
@@ -68,7 +71,7 @@ export function mountNotifications(host, request, announce) {
         }
       }
     } catch { if (!inbox.open) render("Notifications could not refresh. Retrying automatically."); }
-    finally { pending = false; timer = setTimeout(poll, document.hidden ? 30000 : 15000); }
+    finally { pending = false; timer = setTimeout(poll, document.hidden ? HIDDEN_POLL_MS : VISIBLE_POLL_MS); }
   };
   inbox.addEventListener("toggle", () => { if (inbox.open) render(); });
   document.addEventListener("pointerdown", (event) => {
