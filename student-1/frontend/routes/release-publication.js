@@ -1,3 +1,4 @@
+import { requestIdSuffix } from "../core/api.js";
 import { reconcilePublication } from "../core/publication.js";
 
 export function publicationSuccessMessage(body) {
@@ -35,7 +36,7 @@ export async function reconcilePublicationTimeout({
     const progress = outcome === "completed"
       ? "completed"
       : "continues through durable artifact verification and accepted-version activation";
-    showToast(`Publication ${progress}. Request ID ${requestId}`);
+    showToast(`Publication ${progress}.${requestIdSuffix({ requestId })}`);
     return body;
   }
   if (outcome === "failed") {

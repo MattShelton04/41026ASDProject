@@ -151,7 +151,7 @@ async function openEntityDialog(kind, item = null) {
       }
       if (item?.version !== undefined) data.version = item.version;
       const result = await request(`jobs${item ? `/${encodeURIComponent(item.id)}` : ""}`, { method: item ? "PUT" : "POST", body: data });
-      showToast(`${humanise(kind)} ${item ? "updated" : "created"}. Request ID ${result.requestId}`);
+      showToast(`${humanise(kind)} ${item ? "updated" : "created"}.${requestIdSuffix(result)}`);
     },
   });
   if (saved) await renderRoute();
@@ -200,7 +200,7 @@ async function mutate(path, { method = "POST", body = {}, success = "Action comp
     body,
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
   });
-  showToast(`${success}. Request ID ${result.requestId}`); return result.body;
+  showToast(`${success}.${requestIdSuffix(result)}`); return result.body;
 }
 
 const openPlanDialog = createRunPlanner({ request, mutate, confirmAction });

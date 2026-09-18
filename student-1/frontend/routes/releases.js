@@ -150,7 +150,7 @@ export function createReleaseRoutes({
         body: { approved: true, version: release.version, comment },
         headers: { "Idempotency-Key": key.value },
       });
-      showToast(`${publicationSuccessMessage(body)}. Request ID ${requestId}`);
+      showToast(`${publicationSuccessMessage(body)}.${requestIdSuffix({ requestId })}`);
       const operation = body?.consumer_import;
       if (operation?.id && reconcilePublication(body) === "pending") {
         publicationStatusPaths.set(
@@ -201,7 +201,7 @@ export function createReleaseRoutes({
           method: item ? "PUT" : "POST", body: data,
         });
         savedRelease = entity(result.body, "release");
-        showToast(`Draft release ${item ? "updated" : "created"}. Request ID ${result.requestId}`);
+        showToast(`Draft release ${item ? "updated" : "created"}.${requestIdSuffix(result)}`);
       },
     });
     if (!saved) return;

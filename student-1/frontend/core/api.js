@@ -12,9 +12,9 @@ export function requestJson(fetcher, path, options = {}) {
   });
 }
 
-/** Correlation suffix for user-facing error text; empty when no request ID is known. */
-export function requestIdSuffix(error) {
-  return error?.requestId ? ` Request ID ${error.requestId}.` : "";
+/** Correlation suffix for user-facing error or success text; empty when no request ID is known. */
+export function requestIdSuffix(source) {
+  return source?.requestId ? ` Request ID ${source.requestId}.` : "";
 }
 
 export function collection(payload) {
