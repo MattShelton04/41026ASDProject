@@ -104,7 +104,7 @@ def register_assistant_tool_routes(
         )
         upstream = ai_mode.create_run(
             {
-                "feature_key": "student-1-propertyscope-data-platform",
+                "feature_key": ASSISTANT_FEATURE_KEY,
                 "objective": objective,
                 "trusted_identifiers": [
                     {"kind": "release_id", "value": str(release_id)},
@@ -189,9 +189,7 @@ def register_assistant_tool_routes(
 
     @api.get(f"{base}/agent-runs")
     def agent_runs() -> Response:
-        params: dict[str, str | list[str]] = {
-            "feature_key": "student-1-propertyscope-data-platform"
-        }
+        params: dict[str, str | list[str]] = {"feature_key": ASSISTANT_FEATURE_KEY}
         for name in ("status", "model_profile", "cursor", "limit"):
             values = request.args.getlist(name)
             if values:

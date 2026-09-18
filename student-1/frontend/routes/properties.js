@@ -1,4 +1,4 @@
-import { collection, entity, queryString } from "../core/api.js";
+import { collection, entity, queryString, requestIdSuffix } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { confidenceLabel, coverageRows, displayName, formatDate, formatNumber, humanise, reportReleaseRows, researchAreaLabel, statusTone } from "../core/formats.js";
 import { propertySearchQuery } from "../core/forms.js";
@@ -106,7 +106,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
                 if (!isCurrent()) return;
                 control.disabled = false;
                 control.textContent = "Show more matches";
-                errorHost.textContent = `More matches could not be loaded.${problemSuffix(error)}`;
+                errorHost.textContent = `More matches could not be loaded.${requestIdSuffix(error)}`;
               }
             },
           });
@@ -330,7 +330,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
         mapHost.replaceChildren(propertyMap({ property, latitude, longitude, announce, routeEpoch }));
         coordinateHost.replaceChildren(coordinateDetails({ map, property, latitude, longitude }));
         if (result.status === "rejected") {
-          append(mapHost, el("div", "notice warning", `Spatial context is temporarily unavailable; canonical identity remains usable.${problemSuffix(result.reason)}`));
+          append(mapHost, el("div", "notice warning", `Spatial context is temporarily unavailable; canonical identity remains usable.${requestIdSuffix(result.reason)}`));
         }
       });
       void coverageResult.then((result) => {
@@ -345,7 +345,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
         if (!canHydrate(routeEpoch, saleHistoryHost, propertyRef)) return;
         if (result.status === "rejected") {
           resolvePendingSection(saleHistoryHost);
-          saleHistoryHost.replaceChildren(el("div", "notice warning", `Sale history is temporarily unavailable; verified property identity remains usable.${problemSuffix(result.reason)}`));
+          saleHistoryHost.replaceChildren(el("div", "notice warning", `Sale history is temporarily unavailable; verified property identity remains usable.${requestIdSuffix(result.reason)}`));
           return;
         }
         const items = collection(result.value.body);
@@ -361,7 +361,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
         if (!canHydrate(routeEpoch, seifaHost, propertyRef)) return;
         resolvePendingSection(seifaHost);
         if (result.status === "rejected") {
-          seifaHost.replaceChildren(el("div", "notice warning", `SEIFA area evidence is temporarily unavailable.${problemSuffix(result.reason)}`));
+          seifaHost.replaceChildren(el("div", "notice warning", `SEIFA area evidence is temporarily unavailable.${requestIdSuffix(result.reason)}`));
           return;
         }
         seifaHost.replaceChildren(seifaSection(result.value.body));
@@ -410,7 +410,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     append(section, heading);
     const body = el("div", "stack");
     if (result?.error) {
-      append(body, el("div", "notice warning", `The source summary is temporarily unavailable. Property search remains usable.${result.error.requestId ? ` Request ID ${result.error.requestId}` : ""}`));
+      append(body, el("div", "notice warning", `The source summary is temporarily unavailable. Property search remains usable.${requestIdSuffix(result.error)}`));
       append(section, body);
       return section;
     }
@@ -519,10 +519,10 @@ function coordinateDetails({ map, property, latitude, longitude }) {
 function coverageSection(coverage, result) {
   const section = el("section", "stack property-coverage");
   if (result.status === "rejected" && coverage.length) {
-    append(section, el("div", "notice warning", `Coverage details are temporarily unavailable; recorded property coverage remains below.${problemSuffix(result.reason)}`));
+    append(section, el("div", "notice warning", `Coverage details are temporarily unavailable; recorded property coverage remains below.${requestIdSuffix(result.reason)}`));
   }
   if (!coverage.length) {
-    append(section, emptyState("Coverage is unknown", result.status === "rejected" ? `Coverage details are temporarily unavailable.${problemSuffix(result.reason)}` : "No published coverage has been recorded for this property."));
+    append(section, emptyState("Coverage is unknown", result.status === "rejected" ? `Coverage details are temporarily unavailable.${requestIdSuffix(result.reason)}` : "No published coverage has been recorded for this property."));
     return section;
   }
   const cards = el("div", "coverage-grid");
@@ -720,4 +720,3 @@ function propertyMatchLabel(item) {
   return labels[item.match_method] || confidenceLabel(item.score ?? item.match?.score);
 }
 
-function problemSuffix(error) { return error?.requestId ? ` Request ID ${error.requestId}.` : ""; }

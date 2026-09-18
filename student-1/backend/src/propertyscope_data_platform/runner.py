@@ -441,6 +441,8 @@ class AcquisitionRunner:
                         },
                     )
                 except Exception:
+                    # The streaming loop observes ``failed`` and aborts; keep the cause visible.
+                    logger.exception("Reference source heartbeat for task %s failed", task["id"])
                     failed.set()
                     return
 

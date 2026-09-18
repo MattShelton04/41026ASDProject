@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import os
 import uuid
 from pathlib import Path
@@ -99,7 +100,7 @@ def create_app(
         )
     )
     app.register_blueprint(create_source_fragment_blueprint(store))
-    worker_token = os.environ.get("PROPERTYSCOPE_RUNNER_TOKEN", "local-runner-only")
+    worker_token = os.environ.get("PROPERTYSCOPE_RUNNER_TOKEN", "local-runner-only").encode()
 
     @app.before_request
     def establish_correlation() -> None:
@@ -112,10 +113,11 @@ def create_app(
 
     @app.before_request
     def protect_worker_api() -> tuple[dict[str, object], int] | None:
-        if (
-            request.path.startswith("/internal/data-platform/v1/worker/")
-            and request.headers.get("X-PropertyScope-Runner-Token") != worker_token
-        ):
+        if not request.path.startswith("/internal/data-platform/v1/worker/"):
+            return None
+        supplied = request.headers.get("X-PropertyScope-Runner-Token")
+        # Constant-time comparison keeps the credential from leaking through response timing.
+        if supplied is None or not hmac.compare_digest(supplied.encode(), worker_token):
             return {
                 "status": 401,
                 "code": "unauthorised",

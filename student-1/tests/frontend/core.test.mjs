@@ -42,6 +42,7 @@ import {
   retainRecent,
   researchAreaLabel,
   reportReleaseRows,
+  requestIdSuffix,
   requestJson,
   parseRoute,
   routeQuery,
@@ -361,7 +362,14 @@ test("publication timeout reconciliation recognizes durable consumer delivery", 
   });
   assert.equal(body.consumer_imports[0].status, "polling");
   assert.deepEqual(cleared, ["release-1:v4"]);
-  assert.match(toasts[0], /durable artifact verification and accepted-version activation/);
+  assert.equal(toasts[0], "Publication continues through durable artifact verification and accepted-version activation. Request ID reconcile-request.");
+});
+
+test("requestIdSuffix formats error and success correlation consistently", () => {
+  assert.equal(requestIdSuffix(new ApiError("Conflict", { requestId: "req-error" })), " Request ID req-error.");
+  assert.equal(requestIdSuffix({ body: {}, requestId: "req-success" }), " Request ID req-success.");
+  assert.equal(requestIdSuffix({ requestId: "" }), "");
+  assert.equal(requestIdSuffix(null), "");
 });
 
 test("requestJson adds correlation and idempotency-compatible JSON headers", async () => {
@@ -379,6 +387,17 @@ test("requestJson adds correlation and idempotency-compatible JSON headers", asy
   assert.equal(observed.options.headers["Idempotency-Key"], "idem-1");
   assert.equal(observed.options.body, JSON.stringify({ name: "Fixture" }));
   assert.equal(result.requestId, "server-request");
+});
+
+test("requestJson resolves relative paths under the data-platform API base", async () => {
+  const observed = [];
+  const fetcher = async (url) => {
+    observed.push(url);
+    return response({ items: [] });
+  };
+  await requestJson(fetcher, "notifications");
+  await requestJson(fetcher, "/health/ready");
+  assert.deepEqual(observed, ["/api/data-platform/v1/notifications", "/health/ready"]);
 });
 
 test("Problem Details are safe errors with request IDs", async () => {

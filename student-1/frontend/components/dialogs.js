@@ -1,3 +1,4 @@
+import { requestIdSuffix } from "../core/api.js";
 import { FieldValidationError, createSubmissionGuard, formState, formStateChanged } from "../core/forms.js";
 
 const activeDialogs = new WeakMap();
@@ -38,10 +39,6 @@ function openModal(dialog, initialFocus) {
     const target = typeof initialFocus === "string" ? dialog.querySelector?.(initialFocus) : initialFocus;
     if (dialog.open) target?.focus?.();
   });
-}
-
-function requestIdSuffix(error) {
-  return error?.requestId ? ` Request ID ${error.requestId}.` : "";
 }
 
 function fieldLabel(field) {

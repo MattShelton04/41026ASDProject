@@ -1,4 +1,4 @@
-import { API_BASE, newRequestId, requestJson } from "./core/api.js";
+import { newRequestId, requestIdSuffix, requestJson } from "./core/api.js";
 import { append, el } from "./core/dom.js";
 import { humanise } from "./core/formats.js";
 import { parseIntegerField, parseJsonField, propertySearchQuery } from "./core/forms.js";
@@ -81,7 +81,7 @@ function closeNavigation({ restoreFocus = false } = {}) {
 function loading(title = "Loading evidence") { renderLoading(view, title); }
 
 function request(path, options = {}) {
-  return requestJson(fetch, path.startsWith("/") ? path : `${API_BASE}/${path}`, options);
+  return requestJson(fetch, path, options);
 }
 
 mountNotifications(document.querySelector(".topbar-actions"), request, announce);
@@ -151,7 +151,7 @@ async function openEntityDialog(kind, item = null) {
       }
       if (item?.version !== undefined) data.version = item.version;
       const result = await request(`jobs${item ? `/${encodeURIComponent(item.id)}` : ""}`, { method: item ? "PUT" : "POST", body: data });
-      showToast(`${humanise(kind)} ${item ? "updated" : "created"}. Request ID ${result.requestId}`);
+      showToast(`${humanise(kind)} ${item ? "updated" : "created"}.${requestIdSuffix(result)}`);
     },
   });
   if (saved) await renderRoute();
@@ -200,7 +200,7 @@ async function mutate(path, { method = "POST", body = {}, success = "Action comp
     body,
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
   });
-  showToast(`${success}. Request ID ${result.requestId}`); return result.body;
+  showToast(`${success}.${requestIdSuffix(result)}`); return result.body;
 }
 
 const openPlanDialog = createRunPlanner({ request, mutate, confirmAction });
@@ -252,7 +252,7 @@ async function renderRoute({ focus = false } = {}) {
     else if (route === "ai") await aiReview.renderAi(id);
   } catch (error) {
     if (!routeEpoch.isCurrent()) return;
-    view.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`));
+    view.replaceChildren(el("div", "notice negative", `${error.message}${requestIdSuffix(error)}`));
   } finally {
     if (!routeEpoch.isCurrent()) return;
     lastRenderedHash = requestedHash;

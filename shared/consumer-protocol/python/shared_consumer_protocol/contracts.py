@@ -15,7 +15,7 @@ from pydantic import (
 )
 
 from shared_contracts.base import ContractModel
-from shared_contracts.http import RequestId, Traceparent
+from shared_contracts.http import MAX_IDEMPOTENCY_KEY_LENGTH, RequestId, Traceparent
 
 Identifier = Annotated[
     str,
@@ -74,7 +74,7 @@ class PublicationRequest(ContractModel):
     record_count: int = Field(ge=0)
     manifest: dict[str, Any]
     artifact_path: str = Field(min_length=1, max_length=1_000)
-    idempotency_key: str = Field(min_length=1, max_length=200)
+    idempotency_key: str = Field(min_length=1, max_length=MAX_IDEMPOTENCY_KEY_LENGTH)
 
     @field_validator("idempotency_key")
     @classmethod

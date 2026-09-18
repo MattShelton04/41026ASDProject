@@ -1,5 +1,5 @@
 /** Immutable-release pagination with one in-flight read and explicit DOM ownership. */
-import { queryString } from "../core/api.js";
+import { queryString, requestIdSuffix } from "../core/api.js";
 import { append, button, el } from "../core/dom.js";
 import { formatNumber, humanise } from "../core/formats.js";
 import { disposeTableRegions } from "../browser/index.js";
@@ -60,7 +60,7 @@ export function releasePreviewPanel(releaseId, initialPage, { request, isCurrent
         renderPage(result.body, { focus: true });
       } catch (error) {
         if (!host.isConnected || !isCurrent()) return;
-        errorHost.textContent = `${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`;
+        errorHost.textContent = `${error.message}${requestIdSuffix(error)}`;
         errorHost.hidden = false;
       } finally {
         pending = false;

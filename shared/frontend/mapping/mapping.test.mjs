@@ -244,11 +244,11 @@ test("custom providers render validated attribution through MapLibre", async () 
     label: "Council tiles",
     style: { version: 8, sources: {}, layers: [] },
     fallbackStyle: NEUTRAL_STYLE,
-    attribution: [{ label: "Council & community", url: "https://example.test/maps?use=public&v=1" }],
+    attribution: [{ label: "Council & O'Brien community", url: "https://example.test/maps?use=public&v=1" }],
   };
   const controller = await createMap({ container: fakeContainer(), renderer, provider });
   assert.deepEqual(renderer.instances[0].options.attributionControl.customAttribution, [
-    '<a href="https://example.test/maps?use=public&amp;v=1" target="_blank" rel="noopener noreferrer">Council &amp; community</a>',
+    '<a href="https://example.test/maps?use=public&amp;v=1" target="_blank" rel="noopener noreferrer">Council &amp; O&#039;Brien community</a>',
   ]);
   controller.destroy();
 });

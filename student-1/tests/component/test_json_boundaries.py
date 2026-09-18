@@ -426,3 +426,46 @@ def test_import_finish_applies_zero_defaults_to_missing_counts() -> None:
         "rows_accepted": 0,
         "rows_rejected": 0,
     }
+
+
+class UuidBodyStore(StrictScalarStore):
+    def create_run(self, *args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("malformed UUIDs must not reach persistence")
+
+    attach_consumer_import_receipt = create_run
+    attach_consumer_import_activation = create_run
+
+
+@pytest.mark.parametrize(
+    ("path", "body", "field"),
+    [
+        (
+            f"/internal/data-platform/v1/jobs/{uuid.uuid4()}/runs",
+            {"idempotency_key": "key-1", "request_id": "req-1", "parent_run_id": "nope"},
+            "parent_run_id",
+        ),
+        (
+            f"/internal/data-platform/v1/consumer-imports/{uuid.uuid4()}/receipt",
+            {
+                "worker_id": "worker-1",
+                "lease_token": "lease-1",
+                "publication_receipt_id": "nope",
+                "receipt_status": "accepted",
+            },
+            "publication_receipt_id",
+        ),
+        (
+            f"/internal/data-platform/v1/consumer-imports/{uuid.uuid4()}/activation",
+            {"worker_id": "worker-1", "lease_token": "lease-1", "release_activation_id": "nope"},
+            "release_activation_id",
+        ),
+    ],
+)
+def test_malformed_body_uuids_are_validation_problems(
+    path: str, body: dict[str, Any], field: str
+) -> None:
+    response = _store_client(UuidBodyStore()).post(path, headers=_internal_headers(), json=body)
+
+    assert response.status_code == 422
+    assert response.content_type == "application/problem+json"
+    assert response.get_json()["detail"] == f"{field} must be a UUID"

@@ -11,13 +11,20 @@ from pathlib import Path
 from typing import Any
 
 import pyarrow as pa  # type: ignore[import-untyped]
-import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
 from propertyscope_data_platform.adapters.bocsar import CrimeCoverage, CrimeObservation
+from propertyscope_data_platform.canonical_parquet import (
+    CANONICAL_PARQUET_BATCH_ROWS,
+    CANONICAL_PARQUET_MEDIA_TYPE,
+    POSTGRES_INTEGER_MAX,
+    canonical_parquet_writer,
+    canonical_row_sha256,
+    write_row_group,
+)
 
-BOCSAR_PARQUET_MEDIA_TYPE = "application/vnd.apache.parquet"
+BOCSAR_PARQUET_MEDIA_TYPE = CANONICAL_PARQUET_MEDIA_TYPE
 BOCSAR_PARQUET_SCHEMA_VERSION = "propertyscope.canonical-bocsar-parquet.v1"
-BOCSAR_PARQUET_BATCH_ROWS = 65_536
+BOCSAR_PARQUET_BATCH_ROWS = CANONICAL_PARQUET_BATCH_ROWS
 
 _SCHEMA_METADATA = {
     b"propertyscope.schema_version": BOCSAR_PARQUET_SCHEMA_VERSION.encode(),
@@ -63,13 +70,10 @@ def write_bocsar_parquet(
     schema = bocsar_parquet_schema()
     rows: list[dict[str, Any]] = []
     row_count = 0
-    writer = pq.ParquetWriter(
+    writer = canonical_parquet_writer(
         destination,
         schema,
-        version="2.6",
-        compression="zstd",
-        compression_level=3,
-        use_dictionary=(
+        dictionary_columns=(
             "record_kind",
             "geography_kind",
             "geography_value",
@@ -77,27 +81,22 @@ def write_bocsar_parquet(
             "offence_label",
             "subcategory_label",
         ),
-        write_statistics=True,
     )
     try:
         for record in records:
             rows.append(_parquet_row(record))
             row_count += 1
             if len(rows) >= batch_rows:
-                _write_rows(writer, rows, schema)
+                write_row_group(writer, rows, schema)
                 rows.clear()
         if rows:
-            _write_rows(writer, rows, schema)
+            write_row_group(writer, rows, schema)
     finally:
         writer.close()
     if row_count == 0:
         destination.unlink(missing_ok=True)
         raise ValueError("canonical BOCSAR artifact must not be empty")
     return row_count
-
-
-def _write_rows(writer: pq.ParquetWriter, rows: list[dict[str, Any]], schema: pa.Schema) -> None:
-    writer.write_table(pa.Table.from_pylist(rows, schema=schema), row_group_size=len(rows))
 
 
 def _parquet_row(record: CrimeObservation | CrimeCoverage) -> dict[str, Any]:
@@ -111,7 +110,7 @@ def _parquet_row(record: CrimeObservation | CrimeCoverage) -> dict[str, Any]:
     if isinstance(record, CrimeObservation):
         if not record.offence_label.strip() or not record.subcategory_label.strip():
             raise ValueError("BOCSAR observation labels must not be blank")
-        if record.count < 1 or record.count > 2_147_483_647:
+        if record.count < 1 or record.count > POSTGRES_INTEGER_MAX:
             raise ValueError("BOCSAR observation count exceeds PostgreSQL INTEGER range")
         canonical = {
             **common,
@@ -127,7 +126,7 @@ def _parquet_row(record: CrimeObservation | CrimeCoverage) -> dict[str, Any]:
             "subcategory_label": canonical["subcategory_label"],
             "month": record.month,
             "count": record.count,
-            "source_row_sha256": _canonical_sha256(canonical),
+            "source_row_sha256": canonical_row_sha256(canonical),
         }
 
     month_values, completeness = _coverage_values(record.observed_months)
@@ -149,7 +148,7 @@ def _parquet_row(record: CrimeObservation | CrimeCoverage) -> dict[str, Any]:
         "month_count": len(record.observed_months),
         "blank_means_observed_zero": record.blank_means_observed_zero,
         "completeness_sha256": completeness,
-        "source_row_sha256": _canonical_sha256(canonical),
+        "source_row_sha256": canonical_row_sha256(canonical),
     }
 
 
@@ -176,8 +175,3 @@ def _validate_common(row: dict[str, Any]) -> None:
         len(str(row["geography_value"])) != 4 or not str(row["geography_value"]).isdigit()
     ):
         raise ValueError("BOCSAR postcodes must preserve four digits")
-
-
-def _canonical_sha256(row: dict[str, Any]) -> bytes:
-    canonical = json.dumps(row, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(canonical).digest()

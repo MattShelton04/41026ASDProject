@@ -14,6 +14,8 @@ from propertyscope_data_store.configuration import (
     DEFAULT_LOADER_DATABASE_CAPACITY_BYTES,
     DEFAULT_LOADER_DISK_RESERVE_BYTES,
     DEFAULT_LOADER_TEMP_FILE_LIMIT_KIB,
+    MAX_LOADER_TEMP_FILE_LIMIT_KIB,
+    MIN_LOADER_TEMP_FILE_LIMIT_KIB,
     StoreSettings,
 )
 from propertyscope_data_store.loader import (
@@ -107,6 +109,26 @@ def test_store_applies_loader_temp_limit_only_to_the_current_transaction() -> No
     assert all(
         "ALTER SYSTEM" not in query and "SET GLOBAL" not in query for query in connection.queries
     )
+
+
+@pytest.mark.parametrize(
+    "limit_kib", [MIN_LOADER_TEMP_FILE_LIMIT_KIB - 1, MAX_LOADER_TEMP_FILE_LIMIT_KIB + 1]
+)
+def test_store_and_settings_share_the_loader_temp_limit_bounds(
+    limit_kib: int, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(ValueError, match="temp-file limit"):
+        PropertyScopeStore(
+            "postgresql://database",
+            runtime_registry=cast(Any, None),
+            open_pool=False,
+            loader_temp_file_limit_kib=limit_kib,
+        )
+    monkeypatch.setenv("PROPERTYSCOPE_DATABASE_URL", "postgresql://database")
+    monkeypatch.setenv("PROPERTYSCOPE_ARTIFACT_ROOT", str(tmp_path))
+    monkeypatch.setenv("PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB", str(limit_kib))
+    with pytest.raises(RuntimeError, match="must be between"):
+        StoreSettings.from_environment()
 
 
 def test_store_observes_current_database_size_through_the_owning_connection() -> None:

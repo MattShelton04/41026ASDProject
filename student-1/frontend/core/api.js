@@ -12,6 +12,11 @@ export function requestJson(fetcher, path, options = {}) {
   });
 }
 
+/** Correlation suffix for user-facing error or success text; empty when no request ID is known. */
+export function requestIdSuffix(source) {
+  return source?.requestId ? ` Request ID ${source.requestId}.` : "";
+}
+
 export function collection(payload) {
   if (Array.isArray(payload)) return payload;
   for (const key of ["items", "results", "sources", "jobs", "runs", "releases", "quality_results", "artifacts"]) {

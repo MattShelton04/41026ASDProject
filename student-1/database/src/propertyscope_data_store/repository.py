@@ -31,6 +31,10 @@ from propertyscope_data_store._property_reads import (
     _normalise_property_query as _normalise_property_query,
 )
 from propertyscope_data_store._release_records import _ReleaseRecords
+from propertyscope_data_store.configuration import (
+    MAX_LOADER_TEMP_FILE_LIMIT_KIB,
+    MIN_LOADER_TEMP_FILE_LIMIT_KIB,
+)
 from propertyscope_data_store.errors import (
     ConflictError,
     LeaseConflictError,
@@ -133,7 +137,9 @@ class PropertyScopeStore:
         loader_temp_file_limit_kib: int | None = None,
     ) -> None:
         if loader_temp_file_limit_kib is not None and not (
-            64 * 1024 <= loader_temp_file_limit_kib <= 64 * 1024 * 1024
+            MIN_LOADER_TEMP_FILE_LIMIT_KIB
+            <= loader_temp_file_limit_kib
+            <= MAX_LOADER_TEMP_FILE_LIMIT_KIB
         ):
             raise ValueError("loader temp-file limit is outside the supported bound")
         self._runtime_registry = runtime_registry

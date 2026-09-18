@@ -1,4 +1,4 @@
-import { collection, entity, queryString } from "../core/api.js";
+import { collection, entity, queryString, requestIdSuffix } from "../core/api.js";
 import { disposeTableRegions } from "../browser/index.js";
 import { collectionPagination, pageOffset } from "../components/pagination.js";
 import { append, button, el, link } from "../core/dom.js";
@@ -100,11 +100,11 @@ function runTimeline(run, tasks, { available = true } = {}) {
       : Number.isFinite(total) && total > 0
         ? `${formatBytes(processed)} of ${formatBytes(total)}`
         : `${formatNumber(durableRows)} rows · ${indeterminate ? "remaining work indeterminate" : "total not recorded"}`;
-    const remainingMs = null; // Stage elapsed includes earlier phases; it is not a valid ETA.
+    // No remaining-time estimate: stage elapsed time includes earlier phases, so it is not a valid ETA.
     const timing = task.started_at
       ? task.finished_at
         ? `took ${elapsed}`
-        : `${elapsed} elapsed${remainingMs === null ? "" : ` · about ${formatDuration(0, remainingMs)} remaining`}`
+        : `${elapsed} elapsed`
       : task.status === "skipped"
         ? "not run (cached result reused)"
         : "not started";
@@ -127,10 +127,6 @@ function runTimeline(run, tasks, { available = true } = {}) {
   return list;
 }
 
-function requestSuffix(error) {
-  return error?.requestId ? ` Request ID ${error.requestId}.` : "";
-}
-
 function resolveFeed(result, cache, key) {
   cache.failures ||= {};
   if (result.status === "fulfilled") {
@@ -149,7 +145,7 @@ function feedWarning(label, feed) {
   const copy = feed.cached
     ? `${label} are temporarily unavailable. Showing the last loaded details.`
     : `${label} are temporarily unavailable. No previously loaded details are available.`;
-  return el("div", "notice warning", `${copy}${requestSuffix(feed.error)}`);
+  return el("div", "notice warning", `${copy}${requestIdSuffix(feed.error)}`);
 }
 
 function annotateRefreshState(root) {

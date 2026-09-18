@@ -76,7 +76,8 @@ def verify_invocation(
             raise ValueError("invocation metadata is too large")
         payload, signature = signed.rsplit(".", 1)
         expected = hmac.new(service_token.encode(), payload.encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(signature, expected):
+        # Compare bytes: str compare_digest raises TypeError for non-ASCII input.
+        if not hmac.compare_digest(signature.encode(), expected.encode()):
             raise ValueError("invalid invocation signature")
         context = InvocationContext.model_validate_json(base64.urlsafe_b64decode(payload))
     except (ValueError, UnicodeError) as exc:

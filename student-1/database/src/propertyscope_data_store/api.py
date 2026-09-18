@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import uuid
 from typing import Any
 
@@ -18,17 +19,21 @@ from propertyscope_data_store.errors import (
 from propertyscope_data_store.export_pages import columnar_export_page
 from propertyscope_data_store.migrations import SCHEMA_FINGERPRINT_POLICY_VERSION
 from propertyscope_data_store.repository import PropertyScopeStore
+from shared_contracts import PROBLEM_DETAIL_MEDIA_TYPE, REQUEST_ID_HEADER, is_valid_request_id
 
 
 def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Blueprint:
     """Build the private database API around its injected store."""
     api = Blueprint("propertyscope-data-store", __name__)
+    expected_token = internal_token.encode()
 
     @api.before_request
     def authenticate() -> Response | None:
         if request.path.startswith("/health/"):
             return None
-        if request.headers.get("X-PropertyScope-Internal-Token") != internal_token:
+        supplied = request.headers.get("X-PropertyScope-Internal-Token", "").encode()
+        # Constant-time comparison keeps the credential from leaking through response timing.
+        if not hmac.compare_digest(supplied, expected_token):
             return problem(401, "unauthorised", "A valid internal service credential is required")
         return None
 
@@ -151,7 +156,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             scope=object_value(body.get("scope", {})),
             idempotency_key=required_text(body, "idempotency_key"),
             request_id=required_text(body, "request_id"),
-            parent_run_id=uuid.UUID(str(body["parent_run_id"]))
+            parent_run_id=uuid_value(body["parent_run_id"], "parent_run_id")
             if body.get("parent_run_id")
             else None,
         )
@@ -453,7 +458,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             operation_id,
             worker_id=required_text(body, "worker_id"),
             lease_token=required_text(body, "lease_token"),
-            receipt_id=uuid.UUID(required_text(body, "publication_receipt_id")),
+            receipt_id=required_uuid(body, "publication_receipt_id"),
             receipt_status=required_text(body, "receipt_status"),
         )
         return jsonify({"operation": operation})
@@ -465,7 +470,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
             operation_id,
             worker_id=required_text(body, "worker_id"),
             lease_token=required_text(body, "lease_token"),
-            activation_id=uuid.UUID(required_text(body, "release_activation_id")),
+            activation_id=required_uuid(body, "release_activation_id"),
         )
         return jsonify({"operation": operation})
 
@@ -718,12 +723,7 @@ def optional_query_text() -> str | None:
 
 def optional_uuid_query(name: str) -> uuid.UUID | None:
     value = request.args.get(name, "").strip()
-    if not value:
-        return None
-    try:
-        return uuid.UUID(value)
-    except ValueError as exc:
-        raise ValidationError(f"{name} must be a UUID") from exc
+    return uuid_value(value, name) if value else None
 
 
 def bounded_integer(
@@ -756,6 +756,17 @@ def required_text(body: dict[str, Any], name: str) -> str:
     return value.strip()
 
 
+def required_uuid(body: dict[str, Any], name: str) -> uuid.UUID:
+    return uuid_value(required_text(body, name), name)
+
+
+def uuid_value(value: Any, name: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(str(value))
+    except ValueError as exc:
+        raise ValidationError(f"{name} must be a UUID") from exc
+
+
 def object_value(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValidationError("value must be a JSON object")
@@ -773,6 +784,8 @@ def envelope(items: list[dict[str, Any]], *, limit: int, offset: int) -> dict[st
 
 
 def problem(status: int, code: str, detail: str) -> Response:
+    # Only echo a correlation ID that satisfies the shared contract; anything else is untrusted.
+    supplied = request.headers.get(REQUEST_ID_HEADER, "").strip()
     response = jsonify(
         {
             "type": f"https://propertyscope.local/problems/{code}",
@@ -780,9 +793,9 @@ def problem(status: int, code: str, detail: str) -> Response:
             "status": status,
             "detail": detail,
             "code": code,
-            "request_id": request.headers.get("X-Request-ID", "unknown"),
+            "request_id": supplied if is_valid_request_id(supplied) else "unknown",
         }
     )
     response.status_code = status
-    response.content_type = "application/problem+json"
+    response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
     return response

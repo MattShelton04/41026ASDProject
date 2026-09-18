@@ -5,6 +5,8 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import logging
+import time
 import uuid
 from collections.abc import Iterator
 from copy import deepcopy
@@ -13,13 +15,18 @@ from typing import Any
 
 import pytest
 
+from propertyscope_data_platform import runner as runner_module
 from propertyscope_data_platform.reference_catalog import REFERENCE_PROFILES
 from propertyscope_data_platform.release_builders import (
     BuildContext,
     ReferenceFeatureRecord,
     default_release_builders,
 )
-from propertyscope_data_platform.runner import RunnerSettings
+from propertyscope_data_platform.runner import (
+    AcquisitionRunner,
+    RunnerSettings,
+    TaskCancelledError,
+)
 from propertyscope_data_platform.scope_policy import validate_job_scope
 from propertyscope_data_store.import_profiles import ImportProfileError, iter_ndjson_import
 from propertyscope_data_store.query_specs import (
@@ -187,6 +194,39 @@ def test_acquisition_concurrency_has_a_small_explicit_bound(tmp_path: Any, worke
         RunnerSettings(
             "http://backend", "token", tmp_path, "worker", 0.01, 30, acquisition_workers=workers
         )
+
+
+def test_reference_acquisition_logs_the_heartbeat_failure_that_aborts_it(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    def records(*_: object) -> Iterator[dict[str, object]]:
+        for index in range(500):
+            yield {"record_id": index}
+            time.sleep(0.01)
+
+    def lost_lease(*_: object, **__: object) -> None:
+        raise RuntimeError("lease lost")
+
+    monkeypatch.setattr(runner_module, "_cancellation_poll_interval", lambda _: 0.01)
+    monkeypatch.setattr(runner_module, "iter_reference_records", records)
+    acquisition = AcquisitionRunner(
+        RunnerSettings("http://backend", "token", tmp_path, "worker", 0.01, 30)
+    )
+    monkeypatch.setattr(acquisition, "_heartbeat", lost_lease)
+    task = {
+        "id": "task-1",
+        "lease_token": "lease-1",
+        "source_snapshot_json": {"objects": [{"logical_key": "layer"}]},
+    }
+
+    with (
+        caplog.at_level(logging.ERROR, logger=runner_module.__name__),
+        pytest.raises(TaskCancelledError, match="lost its lease"),
+    ):
+        acquisition._execute_reference_source(task, stage="acquire", profile="schools", scope={})
+
+    assert "Reference source heartbeat for task task-1 failed" in caplog.text
+    assert "lease lost" in caplog.text
 
 
 def test_acquisition_concurrency_is_opt_in_and_environment_configured(

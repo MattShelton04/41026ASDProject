@@ -1,3 +1,4 @@
+import { escapeHtml } from "../browser/index.js";
 import {
   featureBounds,
   featureCollection,
@@ -470,11 +471,6 @@ function formatAttribution({ label, url }) {
   return url
     ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`
     : safeLabel;
-}
-
-function escapeHtml(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
 function abortError() {

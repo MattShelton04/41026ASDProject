@@ -1,4 +1,4 @@
-import { collection, entity, newRequestId, queryString } from "../core/api.js";
+import { collection, entity, newRequestId, queryString, requestIdSuffix } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=49";
 import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js";
@@ -150,7 +150,7 @@ export function createReleaseRoutes({
         body: { approved: true, version: release.version, comment },
         headers: { "Idempotency-Key": key.value },
       });
-      showToast(`${publicationSuccessMessage(body)}. Request ID ${requestId}`);
+      showToast(`${publicationSuccessMessage(body)}.${requestIdSuffix({ requestId })}`);
       const operation = body?.consumer_import;
       if (operation?.id && reconcilePublication(body) === "pending") {
         publicationStatusPaths.set(
@@ -201,7 +201,7 @@ export function createReleaseRoutes({
           method: item ? "PUT" : "POST", body: data,
         });
         savedRelease = entity(result.body, "release");
-        showToast(`Draft release ${item ? "updated" : "created"}. Request ID ${result.requestId}`);
+        showToast(`Draft release ${item ? "updated" : "created"}.${requestIdSuffix(result)}`);
       },
     });
     if (!saved) return;
@@ -424,7 +424,7 @@ export function createReleaseRoutes({
         : el(
           "div",
           "notice warning",
-          `Manifest unavailable.${manifestError?.requestId ? ` Request ID: ${manifestError.requestId}.` : ""}`,
+          `Manifest unavailable.${requestIdSuffix(manifestError)}`,
         ),
     ));
     const receiptBody = el("div");

@@ -41,7 +41,10 @@ def test_signature_binds_call_identity_and_canonical_arguments() -> None:
     assert context.deadline == 11
 
 
-@pytest.mark.parametrize("signed", ["invalid", "a.b", "a" * 16385, "%%%%.signature"])
+@pytest.mark.parametrize(
+    "signed",
+    ["invalid", "a.b", "a" * 16385, "%%%%.signature", "a.\u00e9", "\ud800.signature"],
+)
 def test_malformed_context_is_rejected(signed: str) -> None:
     with pytest.raises(ValueError, match="invalid invocation"):
         verify_invocation(signed, service_token=TOKEN, tool_name="test.read.v1", arguments={})

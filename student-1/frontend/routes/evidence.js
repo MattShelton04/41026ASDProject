@@ -1,4 +1,4 @@
-import { collection } from "../core/api.js";
+import { collection, requestIdSuffix } from "../core/api.js";
 import { append, el, link } from "../core/dom.js";
 import { displayName, formatBytes, formatDate, formatNumber, humanise, researchAreaLabel } from "../core/formats.js";
 import { badge, pageHeading, panel, technicalDetails } from "../components/layout.js";
@@ -33,7 +33,7 @@ export function createEvidenceRoutes({ view, request, loading, generationGuard, 
       if (runResult.status === "fulfilled") {
         const run = runResult.value.body.run || runResult.value.body;
         append(view, el("div", "notice", `Update ${run.id || runId} · ${humanise(run.status)} · started ${formatDate(run.requested_at || run.created_at)}.`));
-      } else append(view, el("div", "notice warning", `The update summary is temporarily unavailable. Existing details are unchanged.${problemSuffix(runResult.reason)}`));
+      } else append(view, el("div", "notice warning", `The update summary is temporarily unavailable. Existing details are unchanged.${requestIdSuffix(runResult.reason)}`));
       if (evidenceResult.status === "rejected") { append(view, errorState(evidenceResult.reason, rerender)); return; }
       const items = collection(evidenceResult.value.body);
       if (!items.length) { append(view, emptyState(kind === "quality" ? "No data checks recorded" : "No files recorded", `The selected update has no recorded ${kind === "quality" ? "check results" : "file details"}.`)); return; }
@@ -94,8 +94,4 @@ function qualityTable(items) {
 function artifactTable(items) {
   return makeTable([{ label: "Artifact" }, { label: "Type" }, { label: "Size" }, { label: "SHA-256" }, { label: "Retention" }, { label: "Created" }, { label: "Lineage" }], items,
     (item) => { const row = el("tr"); append(row, cell(primaryCell(item.logical_key, item.id)), cell(`${humanise(item.artifact_kind)} · ${item.media_type || "media type unknown"}`), cell(formatBytes(item.bytes), "numeric"), cell(String(item.content_sha256 || "Not recorded").slice(0, 24), "mono"), cell(badge(item.retention_class || "unknown")), cell(formatDate(item.created_at)), cell(technicalDetails({ ingestion_run_id: item.ingestion_run_id, task_id: item.ingestion_task_id, dataset_release_id: item.dataset_release_id }, "Inspect"))); return row; });
-}
-
-function problemSuffix(error) {
-  return error?.requestId ? ` Request ID ${error.requestId}.` : "";
 }
