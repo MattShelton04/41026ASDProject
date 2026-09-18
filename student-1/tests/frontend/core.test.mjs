@@ -381,6 +381,17 @@ test("requestJson adds correlation and idempotency-compatible JSON headers", asy
   assert.equal(result.requestId, "server-request");
 });
 
+test("requestJson resolves relative paths under the data-platform API base", async () => {
+  const observed = [];
+  const fetcher = async (url) => {
+    observed.push(url);
+    return response({ items: [] });
+  };
+  await requestJson(fetcher, "notifications");
+  await requestJson(fetcher, "/health/ready");
+  assert.deepEqual(observed, ["/api/data-platform/v1/notifications", "/health/ready"]);
+});
+
 test("Problem Details are safe errors with request IDs", async () => {
   await assert.rejects(
     requestJson(async () => response(

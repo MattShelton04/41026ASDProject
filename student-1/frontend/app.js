@@ -1,4 +1,4 @@
-import { API_BASE, newRequestId, requestIdSuffix, requestJson } from "./core/api.js";
+import { newRequestId, requestIdSuffix, requestJson } from "./core/api.js";
 import { append, el } from "./core/dom.js";
 import { humanise } from "./core/formats.js";
 import { parseIntegerField, parseJsonField, propertySearchQuery } from "./core/forms.js";
@@ -81,7 +81,7 @@ function closeNavigation({ restoreFocus = false } = {}) {
 function loading(title = "Loading evidence") { renderLoading(view, title); }
 
 function request(path, options = {}) {
-  return requestJson(fetch, path.startsWith("/") ? path : `${API_BASE}/${path}`, options);
+  return requestJson(fetch, path, options);
 }
 
 mountNotifications(document.querySelector(".topbar-actions"), request, announce);
