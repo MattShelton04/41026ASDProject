@@ -13,7 +13,7 @@ import {
   statusesForFilter,
 } from "/operations/ai-mode/assets/polling.js";
 import { resolveResearchAreaContext, activityAreaLabel } from "/operations/ai-mode/assets/contexts.js";
-import { isGroundedAnswer, renderGroundedAnswer } from "/operations/ai-mode/shared/ai-chat/grounding.js";
+import { isGroundedAnswer, renderGroundedAnswer, safeCitationHref } from "/operations/ai-mode/shared/ai-chat/grounding.js";
 
 const cursorStore = createCursorStore();
 const API_ROOT = "/api/v1";
@@ -582,9 +582,11 @@ function renderCorrelation(correlation) {
     copyButton("Request", correlation.request_id),
   );
   if (correlation.trace_id) ui["correlation-identifiers"].append(copyButton("Trace", correlation.trace_id));
-  if (correlation.telemetry_url) {
+  // Recorded telemetry links are data: render only credential-free HTTP(S) addresses.
+  const telemetryHref = safeCitationHref(correlation.telemetry_url);
+  if (telemetryHref) {
     const link = node("a", "telemetry-link", "Open telemetry");
-    link.href = correlation.telemetry_url;
+    link.href = telemetryHref;
     link.rel = "noreferrer";
     ui["correlation-identifiers"].append(link);
   }

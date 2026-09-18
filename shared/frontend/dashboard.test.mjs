@@ -378,4 +378,7 @@ test("AI workload dashboard leads with outcome and bounded recovery evidence", (
   assert.match(app, /if \(!navigator\.clipboard\?\.writeText\)/);
   assert.doesNotMatch(app, /safe failure/i);
   assert.doesNotMatch(app, /innerHTML/);
+  // Recorded telemetry URLs are data and must pass the shared safe-link filter.
+  assert.match(app, /const telemetryHref = safeCitationHref\(correlation\.telemetry_url\)/);
+  assert.doesNotMatch(app, /\.href = correlation\.telemetry_url/);
 });
