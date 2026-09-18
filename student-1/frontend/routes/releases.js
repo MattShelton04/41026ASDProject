@@ -1,4 +1,4 @@
-import { collection, entity, newRequestId, queryString } from "../core/api.js";
+import { collection, entity, newRequestId, queryString, requestIdSuffix } from "../core/api.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, formatNumber, humanise, releaseComparison, researchAreaLabel } from "../core/formats.js?v=49";
 import { FieldValidationError, parseIntegerField, parseJsonField } from "../core/forms.js";
@@ -424,7 +424,7 @@ export function createReleaseRoutes({
         : el(
           "div",
           "notice warning",
-          `Manifest unavailable.${manifestError?.requestId ? ` Request ID: ${manifestError.requestId}.` : ""}`,
+          `Manifest unavailable.${requestIdSuffix(manifestError)}`,
         ),
     ));
     const receiptBody = el("div");

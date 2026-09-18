@@ -1,4 +1,4 @@
-import { collection, entity, queryString } from "../core/api.js";
+import { collection, entity, queryString, requestIdSuffix } from "../core/api.js";
 import { groupJobItems, presentationForJob, presentedName } from "../core/catalogue.js";
 import { append, button, el, link } from "../core/dom.js";
 import { displayName, formatDate, humanise, researchAreaLabel } from "../core/formats.js";
@@ -212,7 +212,7 @@ export function createEntityRoutes({ view, request, openEntityDialog, openPlanDi
           el(
             "div",
             "notice warning",
-            `Available processing options could not be checked. Saved settings and update history remain available.${capabilitiesError.requestId ? ` Request ID ${capabilitiesError.requestId}.` : ""}`,
+            `Available processing options could not be checked. Saved settings and update history remain available.${requestIdSuffix(capabilitiesError)}`,
           ),
         );
       }

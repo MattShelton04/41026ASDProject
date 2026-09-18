@@ -1,4 +1,4 @@
-import { entity } from "../core/api.js";
+import { entity, requestIdSuffix } from "../core/api.js";
 import { append, button, el } from "../core/dom.js";
 import { humanise } from "../core/formats.js";
 import { createSubmissionGuard, isPsiJob, psiYearRange } from "../core/forms.js";
@@ -13,7 +13,7 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
       ? "Loading earlier data starts a separate update. A selected-year PSI result is a non-publishable partial candidate; complete-source results still require review before publication."
       : "Complete source history is the default. PSI sales can instead load selected completed publisher archive years as a partial candidate."));
     if (capabilitiesError) {
-      append(wrapper, el("div", "notice warning", `Update options could not be checked, so only the complete-source default is available.${capabilitiesError.requestId ? ` Request ID ${capabilitiesError.requestId}.` : ""}`));
+      append(wrapper, el("div", "notice warning", `Update options could not be checked, so only the complete-source default is available.${requestIdSuffix(capabilitiesError)}`));
     }
 
     const modeLabel = el("label", "field");
@@ -116,7 +116,7 @@ export function createRunPlanner({ request, mutate, confirmAction }) {
             : "Complete dataset: all available source records";
         evidence.replaceChildren(el("div", "notice", `Update checked · ${scopeSummary}. Review the work before starting.`), technicalDetails(result.body, "Technical plan details"));
       } catch (error) {
-        evidence.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}.` : ""} Your update settings are unchanged.`));
+        evidence.replaceChildren(el("div", "notice negative", `${error.message}${requestIdSuffix(error)} Your update settings are unchanged.`));
       }
     }, (pending) => {
       preview.disabled = pending;

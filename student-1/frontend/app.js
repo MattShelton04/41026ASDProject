@@ -1,4 +1,4 @@
-import { API_BASE, newRequestId, requestJson } from "./core/api.js";
+import { API_BASE, newRequestId, requestIdSuffix, requestJson } from "./core/api.js";
 import { append, el } from "./core/dom.js";
 import { humanise } from "./core/formats.js";
 import { parseIntegerField, parseJsonField, propertySearchQuery } from "./core/forms.js";
@@ -252,7 +252,7 @@ async function renderRoute({ focus = false } = {}) {
     else if (route === "ai") await aiReview.renderAi(id);
   } catch (error) {
     if (!routeEpoch.isCurrent()) return;
-    view.replaceChildren(el("div", "notice negative", `${error.message}${error.requestId ? ` Request ID ${error.requestId}` : ""}`));
+    view.replaceChildren(el("div", "notice negative", `${error.message}${requestIdSuffix(error)}`));
   } finally {
     if (!routeEpoch.isCurrent()) return;
     lastRenderedHash = requestedHash;

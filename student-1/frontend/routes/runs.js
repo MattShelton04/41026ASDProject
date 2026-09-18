@@ -1,4 +1,4 @@
-import { collection, entity, queryString } from "../core/api.js";
+import { collection, entity, queryString, requestIdSuffix } from "../core/api.js";
 import { disposeTableRegions } from "../browser/index.js";
 import { collectionPagination, pageOffset } from "../components/pagination.js";
 import { append, button, el, link } from "../core/dom.js";
@@ -127,10 +127,6 @@ function runTimeline(run, tasks, { available = true } = {}) {
   return list;
 }
 
-function requestSuffix(error) {
-  return error?.requestId ? ` Request ID ${error.requestId}.` : "";
-}
-
 function resolveFeed(result, cache, key) {
   cache.failures ||= {};
   if (result.status === "fulfilled") {
@@ -149,7 +145,7 @@ function feedWarning(label, feed) {
   const copy = feed.cached
     ? `${label} are temporarily unavailable. Showing the last loaded details.`
     : `${label} are temporarily unavailable. No previously loaded details are available.`;
-  return el("div", "notice warning", `${copy}${requestSuffix(feed.error)}`);
+  return el("div", "notice warning", `${copy}${requestIdSuffix(feed.error)}`);
 }
 
 function annotateRefreshState(root) {
