@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import uuid
 from typing import Any
 
@@ -23,12 +24,15 @@ from propertyscope_data_store.repository import PropertyScopeStore
 def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Blueprint:
     """Build the private database API around its injected store."""
     api = Blueprint("propertyscope-data-store", __name__)
+    expected_token = internal_token.encode()
 
     @api.before_request
     def authenticate() -> Response | None:
         if request.path.startswith("/health/"):
             return None
-        if request.headers.get("X-PropertyScope-Internal-Token") != internal_token:
+        supplied = request.headers.get("X-PropertyScope-Internal-Token", "").encode()
+        # Constant-time comparison keeps the credential from leaking through response timing.
+        if not hmac.compare_digest(supplied, expected_token):
             return problem(401, "unauthorised", "A valid internal service credential is required")
         return None
 
