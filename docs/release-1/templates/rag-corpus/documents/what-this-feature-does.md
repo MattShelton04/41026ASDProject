@@ -13,7 +13,6 @@ State the boundary explicitly. A guidance topic explains the feature; it is not 
 of the database. Current facts belong in your registered MCP tools, which return them with a call
 ID that the grounded answer cites separately from guidance citations.
 
-Do not author official methodology, valuations, legal advice, inspection findings, or any claim a
-real publisher would need to stand behind. Do not restate another owner's feature. Do not paste
-upstream dataset documentation: the CC0 dedication in the manifest covers repository-authored
-guidance only, not upstream datasets, model weights or third-party documents.
+Do not author official methodology, valuations, legal advice or inspection findings. Do not
+restate another owner's feature. Do not paste upstream dataset documentation: the manifest's CC0
+dedication covers repository-authored guidance only.

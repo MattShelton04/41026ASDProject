@@ -230,8 +230,9 @@ def _corpus_scopes() -> tuple[str, ...]:
     """Derive registered RAG scopes from the validated enabled-feature projection.
 
     Owners register guidance in their own ``feature.yaml``; nothing here is per-feature.
-    An empty result leaves the corpus settings unset so each service keeps its own
-    default, rather than starting RAG with an allowlist that scopes nothing.
+    An empty result is returned as-is; callers that enable RAG must reject it rather than
+    leaving the settings unset, because both services would then fall back to their own
+    Feature 1 literal and scope a corpus nobody declared.
     """
     projection = DeploymentProjectionV1.model_validate_json(
         (REPOSITORY_ROOT / "deployment/enabled-features.v1.json").read_text(encoding="utf-8")
@@ -296,9 +297,17 @@ def prepare_environment(
     result["RAG_SERVER_URL"] = f"http://127.0.0.1:{port_for('rag', result)}"
     result.setdefault("RAG_DATABASE_PATH", str(HOST_DIRECTORY / "rag" / "index.sqlite3"))
     result.setdefault("RAG_MODEL_CACHE_PATH", str(HOST_DIRECTORY / "rag" / "models"))
-    if corpora := ",".join(_corpus_scopes()):
+    corpora = ",".join(_corpus_scopes())
+    if corpora:
         result.setdefault("RAG_ALLOWED_CORPORA", corpora)
         result.setdefault("AI_MODE_RAG_CORPORA", corpora)
+    elif mode in {"rag", "combined"} and not result.get("RAG_ALLOWED_CORPORA"):
+        # Leaving these unset would let both services fall back to their own Feature 1
+        # literal, scoping retrieval to a corpus no enabled feature declares.
+        raise RuntimeError(
+            "No enabled feature declares a RAG corpus; add ai.rag_corpus and "
+            "ai.rag_corpus_id to a feature.yaml, or start AI in direct or mcp mode"
+        )
     return result
 
 

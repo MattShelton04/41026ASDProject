@@ -15,11 +15,7 @@ from scripts.devtools.config import (
     PROPERTYSCOPE_API_URL,
     UI_FIXTURE_SCENARIOS,
 )
-from scripts.devtools.runtime_settings import (
-    AI_CAPABILITY_MODES,
-    AI_PLACEMENTS,
-    RELEASE_1_REFERENCE_FEATURE,
-)
+from scripts.devtools.runtime_settings import AI_CAPABILITY_MODES, AI_PLACEMENTS
 
 
 def _add_offline_option(command: argparse.ArgumentParser) -> None:
@@ -190,7 +186,7 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
         "--corpus", default=None, help="Override the feature's registered corpus (RAG mode)"
     )
     validate.add_argument(
-        "--feature", default=RELEASE_1_REFERENCE_FEATURE, help="Feature key to validate"
+        "--feature", default=None, help="Feature key to validate; defaults to Feature 1"
     )
     validate.add_argument(
         "--tool",

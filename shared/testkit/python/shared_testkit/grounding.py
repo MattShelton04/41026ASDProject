@@ -6,7 +6,7 @@ a service, reads an index or downloads a model: these are offline manifest and s
 """
 
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -83,20 +83,40 @@ def assert_corpus_manifest(
 
 
 def assert_grounded_allowlist_accepted(
-    approved: Iterable[Sequence[str]], base_allowlist: Sequence[str]
+    approved: Iterable[Sequence[str]] | Callable[[list[str]], bool],
+    base_allowlist: Sequence[str],
 ) -> None:
     """Fail if a backend would reject its own run once a corpus is registered.
 
-    AI-mode appends the shared retrieval tool to a grounded run's allowlist. A backend that
-    validates an exact historical tuple must approve that variant too, or it stops being able
-    to read the runs it just created. ``grounded_allowlist_variants`` builds both.
+    AI-mode appends the shared retrieval tool to a grounded run's allowlist, so a backend
+    validating an exact historical tuple stops being able to read the runs it just created.
+
+    Pass the backend's own ownership predicate to test the real comparison. It is called
+    with the wire value: a JSON ``list[str]``, exactly as it arrives from AI-mode. A
+    predicate that compares a list against a set of tuples is always False, which is the
+    most common way to get this wrong, and only the predicate form catches it.
+
+    Passing the approved collection instead checks the constant only, which cannot detect
+    a list/tuple mismatch in the comparison itself.
     """
     base = tuple(base_allowlist)
+    grounded = (*base, RETRIEVAL_TOOL)
+    if callable(approved):
+        assert approved(list(base)), (
+            "the pre-grounding allowlist must stay readable, and the comparison must accept "
+            "the JSON list AI-mode actually sends"
+        )
+        assert approved(list(grounded)), (
+            f"accept the grounded variant ending in {RETRIEVAL_TOOL}; AI-mode adds it to "
+            "every run whose feature has a registered corpus. Coerce the wire list before "
+            "comparing it against tuples"
+        )
+        return
     approved_tuples = {tuple(item) for item in approved}
     assert base in approved_tuples, (
         "the pre-grounding allowlist must remain approved so persisted runs stay readable"
     )
-    assert (*base, RETRIEVAL_TOOL) in approved_tuples, (
+    assert grounded in approved_tuples, (
         f"approve the grounded variant ending in {RETRIEVAL_TOOL}; AI-mode adds it to every "
         "run whose feature has a registered corpus"
     )

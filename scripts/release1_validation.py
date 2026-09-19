@@ -33,13 +33,18 @@ from ai_mode.services import UnconfiguredToolExecutor
 from ai_mode.tool_catalog import load_tool_catalogs
 from scripts.devtools import host_runtime
 from scripts.devtools.config import REPOSITORY_ROOT
-from scripts.devtools.runtime_settings import RELEASE_1_REFERENCE_FEATURE
-from shared_contracts import AgentRunRequest, RunStatus, ToolDefinition, ToolOutcome
+from shared_contracts import (
+    AgentRunRequest,
+    RunStatus,
+    SideEffectClass,
+    ToolDefinition,
+    ToolOutcome,
+)
 from shared_contracts.deployment import DeploymentProjectionV1
 from shared_contracts.grounding import RETRIEVAL_TOOL, GroundingRequest
 
 Mode = Literal["mcp", "rag"]
-FEATURE = RELEASE_1_REFERENCE_FEATURE
+FEATURE = "student-1-propertyscope-data-platform"
 CORPUS = "operator-guidance"
 QUERY = "What review and approval are required before publishing a dataset release?"
 
@@ -64,14 +69,28 @@ def resolve_corpus(feature: str) -> str:
     raise RuntimeError(f"{feature} is not an enabled feature")
 
 
+def _validation_callable(definition: ToolDefinition) -> bool:
+    """A validation tool must be safe to call and need no model-supplied arguments.
+
+    The deterministic planner sends an empty argument object, so any required input makes
+    the call fail validation. Restricting to unapproved read-only tools keeps a named
+    validation from dispatching a write against the running local backend.
+    """
+    return (
+        definition.side_effect is SideEffectClass.READ_ONLY
+        and not definition.requires_approval
+        and not definition.input_schema.get("required")
+    )
+
+
 def resolve_mcp_tool(
     catalog_paths: Sequence[Path], feature: str, tool: str | None
 ) -> ToolDefinition:
-    """Pick a registered tool this validation can call with no model-supplied arguments.
+    """Pick a registered read-only tool this validation can call with no arguments.
 
-    The deterministic planner sends an empty argument object, so a validation tool must
-    have no required inputs. Owners without one can pass an explicit ``tool`` whose inputs
-    are all optional, or register a no-argument read-only capabilities tool as Feature 1 does.
+    Owners without one can register a no-argument read-only capabilities tool as Feature 1
+    does. An explicit ``tool`` must satisfy the same rule: the guard exists to keep the
+    loop from dispatching a write, so naming a tool does not bypass it.
     """
     owned = [
         item.definition
@@ -82,14 +101,21 @@ def resolve_mcp_tool(
         raise RuntimeError(f"{feature} has no registered tools in the running host catalogue")
     if tool is not None:
         for definition in owned:
-            if definition.name == tool:
-                return definition
+            if definition.name != tool:
+                continue
+            if not _validation_callable(definition):
+                raise RuntimeError(
+                    f"{tool} is not usable for validation; it must be read-only, need no "
+                    "approval, and have no required inputs"
+                )
+            return definition
         raise RuntimeError(f"{feature} does not register the tool {tool}")
     for definition in owned:
-        if not definition.input_schema.get("required"):
+        if _validation_callable(definition):
             return definition
     raise RuntimeError(
-        f"every {feature} tool requires arguments; pass --tool with an argument-free tool"
+        f"{feature} registers no argument-free read-only tool; add one, as Feature 1's "
+        "platform.capabilities.v1 does, or pass --tool with one"
     )
 
 
@@ -221,6 +247,7 @@ def execute_validation(
         "mode": mode,
         "feature_key": feature,
         "tool_name": definition.name,
+        "corpus_id": corpus if mode == "rag" else None,
         "passed": passed,
         "decision_provider": "deterministic-validation",
         "transport": "live-local-services",

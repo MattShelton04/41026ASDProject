@@ -16,8 +16,6 @@ AI_CONTAINER_SERVICES = {
 }
 AI_PLACEMENTS = ("host", "docker")
 AI_CAPABILITY_MODES = ("direct", "mcp", "rag", "combined")
-# Default subject of the named loop validations; any enabled feature key is accepted.
-RELEASE_1_REFERENCE_FEATURE = "student-1-propertyscope-data-platform"
 
 
 def validate_capability_mode(mode: str) -> None:

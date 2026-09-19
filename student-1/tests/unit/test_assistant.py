@@ -228,7 +228,13 @@ def test_historical_allowlists_keep_their_published_shape() -> None:
 
 
 def test_grounded_runs_stay_readable_by_their_own_backend() -> None:
-    """Registering a corpus must not make Feature 1 reject the runs it just created."""
-    assert_grounded_allowlist_accepted(
-        ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS, ASSISTANT_TOOL_ALLOWLIST
-    )
+    """Registering a corpus must not make Feature 1 reject the runs it just created.
+
+    The predicate mirrors assistant_routes._assistant_detail, including the tuple
+    coercion: AI-mode delivers the allowlist as a JSON list.
+    """
+
+    def accepts(wire_allowlist: list[str]) -> bool:
+        return tuple(wire_allowlist) in ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS
+
+    assert_grounded_allowlist_accepted(accepts, ASSISTANT_TOOL_ALLOWLIST)

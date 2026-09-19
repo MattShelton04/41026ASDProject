@@ -4,19 +4,28 @@ The shortest path from a working Release 0 feature to the Release 1 rubric's MCP
 requirements. [feature-adoption.md](feature-adoption.md) is the full contract and explains *why*
 each boundary exists; this page is the ordered checklist.
 
-**Copy Feature 3, not Feature 1.** Feature 3 is the minimal clean integration: one import, one
-stylesheet, one Dockerfile line. Feature 1 is the full-featured reference with a shared canvas,
-operations routes and its own evidence history, and copying it will give you far more than the
-rubric asks for.
+**Copy Feature 3's UI wiring, not Feature 1's.** Feature 3 is the minimal integration: one
+import, one stylesheet, one Dockerfile line. Feature 1 is the full-featured reference with a
+shared canvas, operations routes and its own evidence history — far more than the rubric asks for.
+
+One caveat: copy Feature 3's *frontend* wiring, not its backend run proxy. Feature 3 forwards
+`GET /api/v1/agent-runs/<id>` for any run id (`student-3/.../app.py:385-389`), with no feature-key
+or allowlist ownership check. Features 1, 2 and 4 all check ownership before returning a run, and
+step 1 above assumes you do too. Do not propagate that gap.
 
 ---
 
 ## Step 1 — Approve the grounded allowlist *before* you register a corpus
 
-Do this first. AI-mode appends `context.retrieve.v1` to the tool allowlist of every run whose
-feature has a registered corpus (`ai-services/ai-mode/src/ai_mode/api.py`). If your backend
-validates an exact allowlist tuple when reading a run back, it will start rejecting its own runs
-the moment step 3 lands.
+Do this first. Once your feature has a registered corpus, `ai-mode` rewrites every run it
+creates (`ai-services/ai-mode/src/ai_mode/api.py:71-78`). It:
+
+1. injects `grounding: {corpus_id: ...}`;
+2. **overwrites `prompt_set` to `default.v9`** — your `default.v7` is silently replaced;
+3. appends `context.retrieve.v1` to `tool_allowlist`.
+
+If your backend validates an exact allowlist when reading a run back, (3) makes it reject its own
+runs the moment step 3 of this guide lands.
 
 ```python
 from shared_contracts.grounding import grounded_allowlist_variants
@@ -25,22 +34,42 @@ TOOL_ALLOWLIST = ("market.cases.inspect.v1", "market.sales.summary.v1")
 APPROVED_TOOL_ALLOWLISTS = grounded_allowlist_variants(TOOL_ALLOWLIST)
 ```
 
-Then compare against `APPROVED_TOOL_ALLOWLISTS` instead of the single tuple. Keep the comparison
-exact — this widens the approved set by one known tool, it does not relax ownership to an
-unrestricted read.
+Now replace the comparison. **Coerce the wire value first** — AI-mode returns `tool_allowlist` as
+a JSON *list*, and `list in tuple-of-tuples` is always `False`, so the obvious transcription
+silently 404s every turn:
 
-Lock it in with the shared assertion:
+```python
+# before
+owned = ... and run.get("tool_allowlist") == list(TOOL_ALLOWLIST)
+
+# after — note tuple(...)
+allowlist = run.get("tool_allowlist")
+owned = ... and isinstance(allowlist, list) and tuple(allowlist) in APPROVED_TOOL_ALLOWLISTS
+```
+
+This widens the approved set by one known tool; it does not relax ownership to an unrestricted
+read. Feature 1's version is `student-1/.../assistant_routes.py:536-541`.
+
+Lock it in by handing the shared assertion **your own predicate**, so the test exercises the real
+comparison rather than the constant:
 
 ```python
 from shared_testkit import assert_grounded_allowlist_accepted
 
 
 def test_grounded_runs_stay_readable() -> None:
-    assert_grounded_allowlist_accepted(APPROVED_TOOL_ALLOWLISTS, TOOL_ALLOWLIST)
+    def accepts(wire_allowlist: list[str]) -> bool:
+        return tuple(wire_allowlist) in APPROVED_TOOL_ALLOWLISTS
+
+    assert_grounded_allowlist_accepted(accepts, TOOL_ALLOWLIST)
 ```
 
-> Features 2 and 4 both compare with `run.get("tool_allowlist") == list(TOOL_ALLOWLIST)` today.
-> Feature 5 creates runs but does not re-validate the allowlist on read, so it is unaffected.
+`shared_testkit` is a dev dependency — add it to your slice's `[dependency-groups].dev` in
+`student-N/pyproject.toml`.
+
+> Features 2 and 4 both compare with `run.get("tool_allowlist") == list(TOOL_ALLOWLIST)` today
+> (`student-2/.../api.py:285`, `student-4/.../api.py:265`). Feature 5 creates runs but does not
+> re-validate the allowlist on read, so it is unaffected.
 
 ## Step 2 — Write your guidance corpus
 
@@ -114,6 +143,11 @@ COPY shared/frontend/ai-chat /usr/share/nginx/html/ai-chat
 ```html
 <link rel="stylesheet" href="./ai-chat/styles.css">
 ```
+
+> **Feature 5:** these three edits assume your backend already exposes `/assistant/turns` with
+> read/events/cancel subroutes, as Features 1-4 do. Feature 5 has no such routes — it has
+> `/buyer-cases/<id>/case-summary-runs` (`student-5/.../api.py:1258`). Add the assistant routes
+> first, or the frontend has nothing to call.
 
 `student-N/frontend/app.js`:
 

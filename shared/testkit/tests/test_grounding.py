@@ -1,6 +1,7 @@
 """Cover the adoption assertions shared by every feature owner."""
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -141,3 +142,45 @@ def test_feature_1_manifest_satisfies_the_shared_assertions() -> None:
         feature_key="student-1-propertyscope-data-platform",
         corpus_id="operator-guidance",
     )
+
+
+def test_shipped_corpus_template_passes_the_assertion_it_documents(tmp_path: Path) -> None:
+    """The template owners copy must satisfy the check the adoption guide tells them to run."""
+    root = Path(__file__).resolve().parents[3]
+    source = root / "docs/release-1/templates/rag-corpus"
+    target = tmp_path / "rag"
+    shutil.copytree(source, target)
+    manifest = target / "corpus.json"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace(
+            "student-N-REPLACE-WITH-YOUR-FEATURE-KEY", "student-9-example"
+        ),
+        encoding="utf-8",
+    )
+
+    assert_corpus_manifest(manifest, feature_key="student-9-example", corpus_id="operator-guidance")
+
+
+def test_loader_agrees_with_the_real_ingest_loader(tmp_path: Path) -> None:
+    """shared_testkit may not depend on rag-server, so pin the duplicated rules instead."""
+    from rag_server.cli import load_manifest
+
+    manifest = _write_manifest(tmp_path)
+
+    assert load_corpus_manifest(manifest) == load_manifest(manifest)
+
+
+def test_predicate_form_catches_a_list_versus_tuple_comparison() -> None:
+    """The most common adoption mistake: comparing the wire list against tuples."""
+    base = ("feature.read.v1",)
+    approved = grounded_allowlist_variants(base)
+
+    def broken(wire_allowlist: list[str]) -> bool:
+        return wire_allowlist in approved  # list is never equal to a tuple
+
+    def correct(wire_allowlist: list[str]) -> bool:
+        return tuple(wire_allowlist) in approved
+
+    assert_grounded_allowlist_accepted(correct, base)
+    with pytest.raises(AssertionError, match="JSON list"):
+        assert_grounded_allowlist_accepted(broken, base)

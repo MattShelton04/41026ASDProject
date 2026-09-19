@@ -468,3 +468,79 @@ volumes:
   f1-postgres-data:
   f1-artifacts:
 """
+
+
+def _declare_corpus(root: Path, *, path: str, corpus_id: str) -> None:
+    manifest = root / "student-1" / "feature.yaml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace(
+            "onboarding:\n",
+            "onboarding:\n"
+            "  ai:\n"
+            "    tool_catalog: student-1/tool-catalog.yaml\n"
+            "    runtime_path: /etc/ai-mode/student-1-tools.yaml\n"
+            f"    rag_corpus: {path}\n"
+            f"    rag_corpus_id: {corpus_id}\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    (root / "student-1" / "tool-catalog.yaml").write_text("tools: []\n", encoding="utf-8")
+
+
+def _write_corpus(root: Path, path: str, payload: str) -> None:
+    target = root / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(payload, encoding="utf-8")
+
+
+def test_matching_corpus_declaration_passes(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    _declare_corpus(root, path="student-1/config/rag/corpus.json", corpus_id="operator-guidance")
+    _write_corpus(
+        root,
+        "student-1/config/rag/corpus.json",
+        '{"feature_key": "student-1-example", "corpus_id": "operator-guidance"}',
+    )
+
+    assert not [v for v in validate_repository(root) if "corpus" in v.message]
+
+
+def test_missing_corpus_manifest_is_reported(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    _declare_corpus(root, path="student-1/config/rag/corpus.json", corpus_id="operator-guidance")
+
+    assert any(
+        "declares a missing corpus manifest" in violation.message
+        for violation in validate_repository(root)
+    )
+
+
+def test_corpus_identity_must_match_the_declaration(tmp_path: Path) -> None:
+    """An identity mismatch would otherwise surface as an opaque scope denial at ingest."""
+    root = _workspace(tmp_path)
+    _declare_corpus(root, path="student-1/config/rag/corpus.json", corpus_id="operator-guidance")
+    _write_corpus(
+        root,
+        "student-1/config/rag/corpus.json",
+        '{"feature_key": "student-2-example", "corpus_id": "other"}',
+    )
+
+    messages = [v.message for v in validate_repository(root)]
+    assert any("feature_key" in message and "does not match" in message for message in messages)
+    assert any("corpus_id" in message and "does not match" in message for message in messages)
+
+
+def test_a_feature_cannot_declare_another_slices_corpus(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    _declare_corpus(root, path="student-2/config/rag/corpus.json", corpus_id="operator-guidance")
+    _write_corpus(
+        root,
+        "student-2/config/rag/corpus.json",
+        '{"feature_key": "student-1-example", "corpus_id": "operator-guidance"}',
+    )
+
+    assert any(
+        "must own its corpus manifest" in violation.message
+        for violation in validate_repository(root)
+    )
