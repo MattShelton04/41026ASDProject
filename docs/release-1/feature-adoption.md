@@ -45,8 +45,11 @@ HTTP(S) display references. The [Feature 1 manifest](../../student-1/config/rag/
 facts belong in owning tools. Private case notes and official publisher ingestion need separate
 scope/permission decisions and are not supported by this public-guidance adapter.
 
-Register the exact `feature-key:corpus-id` pair in both `RAG_ALLOWED_CORPORA` and
-`AI_MODE_RAG_CORPORA`, retaining existing approved pairs. Each is a comma-separated list. RAG
+Declare the corpus once, in your own `feature.yaml`, as `onboarding.ai.rag_corpus` and
+`onboarding.ai.rag_corpus_id`; run `scripts/generate_deployment.py` to refresh the projection.
+The host launcher derives `RAG_ALLOWED_CORPORA` and `AI_MODE_RAG_CORPORA` from every enabled
+feature's declaration, so owners never hand-edit a shared list and never drop each other's pairs.
+Setting either variable explicitly still overrides the derived value. RAG
 checks its allowlist before ingest/search. AI-mode chooses the registered corpus for each feature,
 adds `context.retrieve.v1` to its run allowlist and uses `default.v8`. Supplying a different corpus
 in a request fails closed. Shared does not infer a corpus from a browser label or retrieved text.
@@ -97,7 +100,8 @@ an instruction. A healthy service does not prove that your feature has context f
 
 Run the canonical `uv run python scripts/check.py` and the feature's existing required browser
 tests. CI keeps `AI_MODE_MCP_ENABLED=false` and `AI_MODE_RAG_ENABLED=false`; do not launch local
-servers or download embedding weights there. Local `ai validate mcp`/`rag` currently validate the
-Feature 1 reference path with deterministic model decisions; they do not claim another feature's
-integration. Add owner-specific live evidence and reuse the same public contracts without editing
-another student's implementation. Release 2 roles should reuse these run/review/tool boundaries.
+servers or download embedding weights there. Local `ai validate mcp --feature <your key>` and
+`ai validate rag --feature <your key>` exercise your own registered tool and corpus with
+deterministic model decisions; they prove transport and orchestration, not answer quality, and a
+pass does not substitute for your own browser evidence. Add owner-specific live evidence and reuse
+the same public contracts without editing another student's implementation. Release 2 roles should reuse these run/review/tool boundaries.

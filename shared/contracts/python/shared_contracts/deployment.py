@@ -26,6 +26,8 @@ _AI_CATALOG_RUNTIME_PATH = re.compile(
     r"^/etc/ai-mode/[a-z0-9](?:[a-z0-9._-]{0,98}[a-z0-9])?\.yaml$"
 )
 _RESERVED_BACKEND_NAMESPACES = frozenset({"ai-mode", "shared-health", "v1"})
+# Matches GroundingRequest.corpus_id so a declared scope is always a requestable one.
+_CORPUS_IDENTIFIER = r"^[a-z0-9][a-z0-9_.-]*$"
 
 
 class FrontendOnboarding(ContractModel):
@@ -64,10 +66,12 @@ class BackendOnboarding(ContractModel):
 
 
 class AiOnboarding(ContractModel):
-    """Feature-owned tool catalogue source and fixed AI-mode runtime mount path."""
+    """Feature-owned tool catalogue source, AI-mode mount path and optional guidance corpus."""
 
     tool_catalog: str = Field(min_length=1, max_length=300)
     runtime_path: str = Field(min_length=2, max_length=300)
+    rag_corpus: str | None = Field(default=None, min_length=1, max_length=300)
+    rag_corpus_id: str | None = Field(default=None, pattern=_CORPUS_IDENTIFIER, max_length=100)
 
     @field_validator("tool_catalog")
     @classmethod
@@ -84,6 +88,23 @@ class AiOnboarding(ContractModel):
         if _AI_CATALOG_RUNTIME_PATH.fullmatch(value) is None:
             raise ValueError("runtime_path must be one flat YAML catalogue under /etc/ai-mode")
         return value
+
+    @field_validator("rag_corpus")
+    @classmethod
+    def validate_corpus_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        _validate_repository_path(value)
+        if not value.endswith(".json"):
+            raise ValueError("rag_corpus must be a JSON corpus manifest")
+        return value
+
+    @model_validator(mode="after")
+    def validate_corpus_declaration(self) -> AiOnboarding:
+        """A registered corpus needs both its manifest and the identifier RAG scopes on."""
+        if (self.rag_corpus is None) != (self.rag_corpus_id is None):
+            raise ValueError("rag_corpus and rag_corpus_id must be declared together")
+        return self
 
 
 class QualityOnboarding(ContractModel):
@@ -244,6 +265,19 @@ class DeploymentProjectionV1(ContractModel):
         if tuple(sorted(self.features, key=lambda item: item.feature_key)) != self.features:
             raise ValueError("deployment features must be ordered by feature_key")
         return self
+
+    def corpus_scopes(self) -> tuple[str, ...]:
+        """Return ``feature_key:corpus_id`` for every enabled feature declaring a corpus.
+
+        One derivation for both ``RAG_ALLOWED_CORPORA`` and ``AI_MODE_RAG_CORPORA`` so an
+        owner registers guidance by editing only their own manifest. Features without a
+        declared corpus keep working without retrieval.
+        """
+        return tuple(
+            f"{feature.feature_key}:{feature.ai.rag_corpus_id}"
+            for feature in self.features
+            if feature.ai is not None and feature.ai.rag_corpus_id is not None
+        )
 
 
 class ReadinessCheckProjection(ContractModel):

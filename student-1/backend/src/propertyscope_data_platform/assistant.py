@@ -8,6 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from shared_contracts.grounding import grounded_allowlist_variants
+
 ASSISTANT_FEATURE_KEY = "student-1-propertyscope-data-platform"
 ASSISTANT_TOOL_ALLOWLIST_V1 = (
     "platform.capabilities.v1",
@@ -26,11 +28,9 @@ ASSISTANT_TOOL_ALLOWLIST = (
     *ASSISTANT_TOOL_ALLOWLIST_V1,
     "property.locality_summary.v1",
 )
-ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS = (
+ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS = grounded_allowlist_variants(
     ASSISTANT_TOOL_ALLOWLIST_V1,
     ASSISTANT_TOOL_ALLOWLIST,
-    (*ASSISTANT_TOOL_ALLOWLIST_V1, "context.retrieve.v1"),
-    (*ASSISTANT_TOOL_ALLOWLIST, "context.retrieve.v1"),
 )
 AssistantScope = Literal["application", "feature"]
 AssistantHistoryRole = Literal["user", "assistant"]

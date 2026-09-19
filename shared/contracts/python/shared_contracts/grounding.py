@@ -1,11 +1,48 @@
 """Versioned, domain-neutral grounding intent and model-authored claims."""
 
+from collections.abc import Sequence
 from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
 
 from shared_contracts.base import ContractModel
+
+RETRIEVAL_TOOL = "context.retrieve.v1"
+"""Shared read-only guidance tool AI-mode adds to every grounded run's allowlist."""
+
+
+def grounded_allowlist_variants(
+    *allowlists: Sequence[str], retrieval_tool: str = RETRIEVAL_TOOL
+) -> tuple[tuple[str, ...], ...]:
+    """Expand approved tool allowlists with the grounded variant AI-mode actually records.
+
+    A feature backend that validates an exact historical allowlist tuple before reading its
+    own run must also approve the grounded variant. AI-mode appends ``retrieval_tool`` when
+    the run's feature has a registered corpus, so a backend checking only its pre-grounding
+    tuples rejects its own runs the moment a corpus is registered.
+
+    Returns every supplied allowlist in order, then each grounded variant in the same order.
+    Ownership stays exact: this widens the approved set by one known tool, it does not relax
+    the comparison to an unrestricted read.
+    """
+    if not allowlists:
+        raise ValueError("at least one tool allowlist is required")
+    base: list[tuple[str, ...]] = []
+    for allowlist in allowlists:
+        variant = tuple(allowlist)
+        if not variant:
+            raise ValueError("a tool allowlist must not be empty")
+        if len(set(variant)) != len(variant):
+            raise ValueError("a tool allowlist must not contain duplicates")
+        if retrieval_tool in variant:
+            raise ValueError(
+                f"supply the pre-grounding allowlist; {retrieval_tool} is added by this helper"
+            )
+        if variant in base:
+            raise ValueError("duplicate tool allowlist")
+        base.append(variant)
+    return (*base, *((*variant, retrieval_tool) for variant in base))
 
 
 class GroundingRequest(ContractModel):

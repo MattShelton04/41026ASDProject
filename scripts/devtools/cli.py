@@ -15,7 +15,11 @@ from scripts.devtools.config import (
     PROPERTYSCOPE_API_URL,
     UI_FIXTURE_SCENARIOS,
 )
-from scripts.devtools.runtime_settings import AI_CAPABILITY_MODES, AI_PLACEMENTS
+from scripts.devtools.runtime_settings import (
+    AI_CAPABILITY_MODES,
+    AI_PLACEMENTS,
+    RELEASE_1_REFERENCE_FEATURE,
+)
 
 
 def _add_offline_option(command: argparse.ArgumentParser) -> None:
@@ -182,7 +186,18 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     validate.add_argument("mode", choices=("mcp", "rag"))
     validate.add_argument("--output", type=Path, default=None)
     validate.add_argument("--query", default=None)
-    validate.add_argument("--corpus", default="operator-guidance")
+    validate.add_argument(
+        "--corpus", default=None, help="Override the feature's registered corpus (RAG mode)"
+    )
+    validate.add_argument(
+        "--feature", default=RELEASE_1_REFERENCE_FEATURE, help="Feature key to validate"
+    )
+    validate.add_argument(
+        "--tool",
+        default=None,
+        help="Registered tool to call (MCP mode); defaults to an "
+        "argument-free read-only tool owned by the feature",
+    )
     _add_env_file_option(validate)
     for action in ("stop", "logs"):
         command = commands.add_parser(

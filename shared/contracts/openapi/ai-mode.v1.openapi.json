@@ -995,8 +995,36 @@
       },
       "AiOnboarding": {
         "additionalProperties": false,
-        "description": "Feature-owned tool catalogue source and fixed AI-mode runtime mount path.",
+        "description": "Feature-owned tool catalogue source, AI-mode mount path and optional guidance corpus.",
         "properties": {
+          "rag_corpus": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rag Corpus"
+          },
+          "rag_corpus_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rag Corpus Id"
+          },
           "runtime_path": {
             "maxLength": 300,
             "minLength": 2,

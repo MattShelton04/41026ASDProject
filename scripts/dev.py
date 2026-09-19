@@ -1017,6 +1017,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output=arguments.output,
                 query=arguments.query or QUERY,
                 corpus=arguments.corpus,
+                feature=arguments.feature,
+                tool=arguments.tool,
             )
             print(json.dumps(evidence, indent=2))
             return 0 if evidence["passed"] else 1

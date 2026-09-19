@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import json
 import re
 import sys
 import tomllib
@@ -133,8 +134,59 @@ def validate_repository(root: Path = REPOSITORY_ROOT) -> tuple[ArchitectureViola
         *_validate_python_imports(root, projects, database_owners),
         *_validate_frontend_imports(root),
         *_validate_compose_boundaries(root, projection),
+        *_validate_corpus_declarations(root, projection),
     ]
     return tuple(sorted(violations))
+
+
+def _validate_corpus_declarations(
+    root: Path, projection: DeploymentProjectionV1
+) -> Iterable[ArchitectureViolation]:
+    """A declared RAG scope must match the manifest it points at.
+
+    The host launcher scopes RAG from these declarations, so a manifest whose own identity
+    disagrees with its feature.yaml would otherwise fail later, at ingestion, as an opaque
+    scope-denied error.
+    """
+    for feature in projection.features:
+        if feature.ai is None or feature.ai.rag_corpus is None:
+            continue
+        declared_path = feature.ai.rag_corpus
+        manifest_path = root / declared_path
+        owner_prefix = f"{feature.owner}/"
+        if not declared_path.startswith(owner_prefix):
+            yield ArchitectureViolation(
+                declared_path,
+                0,
+                f"{feature.feature_key} must own its corpus manifest under {owner_prefix}",
+            )
+            continue
+        if not manifest_path.is_file():
+            yield ArchitectureViolation(
+                declared_path, 0, f"{feature.feature_key} declares a missing corpus manifest"
+            )
+            continue
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            yield ArchitectureViolation(declared_path, 0, f"could not read corpus manifest: {exc}")
+            continue
+        if not isinstance(manifest, dict):
+            yield ArchitectureViolation(
+                declared_path, 0, "corpus manifest must contain a JSON object"
+            )
+            continue
+        for field, expected in (
+            ("feature_key", feature.feature_key),
+            ("corpus_id", feature.ai.rag_corpus_id),
+        ):
+            if manifest.get(field) != expected:
+                yield ArchitectureViolation(
+                    declared_path,
+                    0,
+                    f"corpus manifest {field} {manifest.get(field)!r} does not match the "
+                    f"declared {expected!r}",
+                )
 
 
 def _validate_frontend_imports(root: Path) -> Iterable[ArchitectureViolation]:

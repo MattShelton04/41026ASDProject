@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "feature_key": "student-N-REPLACE-WITH-YOUR-FEATURE-KEY",
+  "corpus_id": "operator-guidance",
+  "documents": [
+    {
+      "document_id": "what-this-feature-does",
+      "title": "REPLACE: what this feature does and does not claim",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-N/config/rag/documents/what-this-feature-does.md",
+      "source_date": "2026-09-19",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: what-this-feature-does",
+      "path": "documents/what-this-feature-does.md"
+    },
+    {
+      "document_id": "evidence-limits",
+      "title": "REPLACE: what this feature's data cannot establish",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-N/config/rag/documents/evidence-limits.md",
+      "source_date": "2026-09-19",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: evidence-limits",
+      "path": "documents/evidence-limits.md"
+    }
+  ]
+}

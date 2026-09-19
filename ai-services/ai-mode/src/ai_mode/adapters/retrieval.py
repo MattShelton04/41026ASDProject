@@ -13,9 +13,8 @@ from shared_contracts import (
     ToolOutcome,
     ToolResult,
 )
+from shared_contracts.grounding import RETRIEVAL_TOOL
 from shared_contracts.retrieval import CorpusVersion, RetrievalRequest, RetrievalResponse
-
-RETRIEVAL_TOOL = "context.retrieve.v1"
 
 
 def retrieval_definition() -> ToolDefinition:

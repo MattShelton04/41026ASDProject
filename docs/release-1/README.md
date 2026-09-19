@@ -11,6 +11,8 @@ on 6 September requires non-containerised local AI-mode, MCP, RAG and agent loop
 disabled during CI/CD. Those requirements supersede the older Compose assumptions.
 
 - [Host runtime](host-runtime.md): lifecycle, networking, history migration and named loop validations.
+- [Adopt MCP and RAG](adopt-mcp-and-rag.md): the ordered five-step checklist for feature owners,
+  with the corpus template and shared assertions. Start here.
 - [Feature adoption](feature-adoption.md): existing tools/backend boundary, owned corpus registration,
   grounded-run ownership and shared source UI for other feature owners.
 - [Retrieval evaluation](retrieval-evaluation.md): versioned source recall and negative-case limitations.

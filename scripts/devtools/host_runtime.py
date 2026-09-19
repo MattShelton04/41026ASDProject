@@ -24,6 +24,7 @@ from scripts.devtools.config import DEFAULT_PROJECT_NAME, REPOSITORY_ROOT, RUNTI
 from scripts.devtools.runtime_settings import AI_SERVICE_PORTS, validate_capability_mode
 from scripts.devtools.service_auth import protect_entry as protect_host_entry
 from scripts.devtools.service_auth import validate_service_token
+from shared_contracts.deployment import DeploymentProjectionV1
 
 HOST_DIRECTORY = RUNTIME_DIRECTORY / "host"
 SERVICES = tuple(AI_SERVICE_PORTS)
@@ -225,6 +226,27 @@ def _catalogues(environment: Mapping[str, str]) -> tuple[str, ...]:
     return tuple(paths)
 
 
+def _corpus_scopes() -> tuple[str, ...]:
+    """Derive registered RAG scopes from the validated enabled-feature projection.
+
+    Owners register guidance in their own ``feature.yaml``; nothing here is per-feature.
+    An empty result leaves the corpus settings unset so each service keeps its own
+    default, rather than starting RAG with an allowlist that scopes nothing.
+    """
+    projection = DeploymentProjectionV1.model_validate_json(
+        (REPOSITORY_ROOT / "deployment/enabled-features.v1.json").read_text(encoding="utf-8")
+    )
+    scopes = projection.corpus_scopes()
+    for feature in projection.features:
+        if feature.ai is None or feature.ai.rag_corpus is None:
+            continue
+        if not (REPOSITORY_ROOT / feature.ai.rag_corpus).is_file():
+            raise RuntimeError(
+                f"{feature.feature_key} declares a missing corpus manifest: {feature.ai.rag_corpus}"
+            )
+    return scopes
+
+
 def ai_service_token(environment: Mapping[str, str]) -> str:
     """Return the dedicated host entry credential shared only with backend proxies."""
     value = environment.get("AI_MODE_SERVICE_TOKEN", "")
@@ -274,9 +296,9 @@ def prepare_environment(
     result["RAG_SERVER_URL"] = f"http://127.0.0.1:{port_for('rag', result)}"
     result.setdefault("RAG_DATABASE_PATH", str(HOST_DIRECTORY / "rag" / "index.sqlite3"))
     result.setdefault("RAG_MODEL_CACHE_PATH", str(HOST_DIRECTORY / "rag" / "models"))
-    corpora = "student-1-propertyscope-data-platform:operator-guidance"
-    result.setdefault("RAG_ALLOWED_CORPORA", corpora)
-    result.setdefault("AI_MODE_RAG_CORPORA", corpora)
+    if corpora := ",".join(_corpus_scopes()):
+        result.setdefault("RAG_ALLOWED_CORPORA", corpora)
+        result.setdefault("AI_MODE_RAG_CORPORA", corpora)
     return result
 
 

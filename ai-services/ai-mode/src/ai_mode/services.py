@@ -19,7 +19,7 @@ from agent_core import (
     ToolRegistry,
 )
 from ai_mode.adapters.mcp_tools import McpToolExecutor
-from ai_mode.adapters.retrieval import RETRIEVAL_TOOL, RetrievalToolExecutor, retrieval_definition
+from ai_mode.adapters.retrieval import RetrievalToolExecutor, retrieval_definition
 from ai_mode.adapters.system import SystemClock, UUID4Generator
 from ai_mode.configuration import Settings
 from ai_mode.operations import RunReader
@@ -36,6 +36,7 @@ from shared_contracts import (
     ToolOutcome,
     ToolResult,
 )
+from shared_contracts.grounding import RETRIEVAL_TOOL
 
 
 class UnconfiguredToolExecutor(ToolExecutor):
