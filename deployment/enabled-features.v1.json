@@ -2,6 +2,8 @@
   "features": [
     {
       "ai": {
+        "rag_corpus": "student-1/config/rag/corpus.json",
+        "rag_corpus_id": "operator-guidance",
         "runtime_path": "/etc/ai-mode/propertyscope-tools.yaml",
         "tool_catalog": "student-1/tool-catalog.yaml"
       },
@@ -57,6 +59,8 @@
     },
     {
       "ai": {
+        "rag_corpus": null,
+        "rag_corpus_id": null,
         "runtime_path": "/etc/ai-mode/market-intelligence-tools.yaml",
         "tool_catalog": "student-2/tool-catalog.yaml"
       },
@@ -109,6 +113,8 @@
     },
     {
       "ai": {
+        "rag_corpus": null,
+        "rag_corpus_id": null,
         "runtime_path": "/etc/ai-mode/suburb-analytics-tools.yaml",
         "tool_catalog": "student-3/tool-catalog.yaml"
       },
@@ -161,6 +167,8 @@
     },
     {
       "ai": {
+        "rag_corpus": null,
+        "rag_corpus_id": null,
         "runtime_path": "/etc/ai-mode/due-diligence-tools.yaml",
         "tool_catalog": "student-4/tool-catalog.yaml"
       },
@@ -213,6 +221,8 @@
     },
     {
       "ai": {
+        "rag_corpus": null,
+        "rag_corpus_id": null,
         "runtime_path": "/etc/ai-mode/buyer-workspace-tools.yaml",
         "tool_catalog": "student-5/tool-catalog.yaml"
       },

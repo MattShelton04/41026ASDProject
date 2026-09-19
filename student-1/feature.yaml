@@ -36,6 +36,8 @@ onboarding:
   ai:
     tool_catalog: student-1/tool-catalog.yaml
     runtime_path: /etc/ai-mode/propertyscope-tools.yaml
+    rag_corpus: student-1/config/rag/corpus.json
+    rag_corpus_id: operator-guidance
   quality:
     python_test_paths:
       - student-1/tests

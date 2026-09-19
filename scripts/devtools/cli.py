@@ -182,7 +182,18 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     validate.add_argument("mode", choices=("mcp", "rag"))
     validate.add_argument("--output", type=Path, default=None)
     validate.add_argument("--query", default=None)
-    validate.add_argument("--corpus", default="operator-guidance")
+    validate.add_argument(
+        "--corpus", default=None, help="Override the feature's registered corpus (RAG mode)"
+    )
+    validate.add_argument(
+        "--feature", default=None, help="Feature key to validate; defaults to Feature 1"
+    )
+    validate.add_argument(
+        "--tool",
+        default=None,
+        help="Registered tool to call (MCP mode); defaults to an "
+        "argument-free read-only tool owned by the feature",
+    )
     _add_env_file_option(validate)
     for action in ("stop", "logs"):
         command = commands.add_parser(

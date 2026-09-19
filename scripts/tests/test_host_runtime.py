@@ -281,3 +281,84 @@ def test_named_validation_loads_its_explicit_environment_file(
     monkeypatch.setattr(release1_validation, "validate", validate)
     assert dev.main(["ai", "validate", "rag", "--env-file", str(environment_file)]) == 0
     assert observed == ["6502"]
+
+
+def test_derived_corpus_scope_matches_the_literal_it_replaced(isolated: Path) -> None:
+    """Pins the behaviour-preservation claim: declarations must reproduce the old value."""
+    resolved = runtime.prepare_environment({}, mode="combined")
+
+    assert (
+        resolved["RAG_ALLOWED_CORPORA"] == "student-1-propertyscope-data-platform:operator-guidance"
+    )
+    assert resolved["AI_MODE_RAG_CORPORA"] == resolved["RAG_ALLOWED_CORPORA"]
+
+
+def test_corpus_scopes_come_from_enabled_declarations(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    projection = json.loads(
+        (runtime.REPOSITORY_ROOT / "deployment/enabled-features.v1.json").read_text("utf-8")
+    )
+    for feature in projection["features"]:
+        if feature.get("ai") and feature["feature_key"].startswith("student-2"):
+            feature["ai"]["rag_corpus"] = "student-1/config/rag/corpus.json"
+            feature["ai"]["rag_corpus_id"] = "second-guidance"
+    _write_projection(isolated, monkeypatch, projection)
+
+    assert runtime._corpus_scopes() == (
+        "student-1-propertyscope-data-platform:operator-guidance",
+        "student-2-market-intelligence:second-guidance",
+    )
+
+
+def test_a_declared_but_missing_corpus_manifest_is_rejected(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    projection = json.loads(
+        (runtime.REPOSITORY_ROOT / "deployment/enabled-features.v1.json").read_text("utf-8")
+    )
+    projection["features"][0]["ai"]["rag_corpus"] = "student-1/config/rag/absent.json"
+    _write_projection(isolated, monkeypatch, projection)
+
+    with pytest.raises(RuntimeError, match="missing corpus manifest"):
+        runtime._corpus_scopes()
+
+
+def test_rag_without_any_declared_corpus_refuses_to_start(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Silently falling back would scope RAG to a corpus no enabled feature declares."""
+    projection = json.loads(
+        (runtime.REPOSITORY_ROOT / "deployment/enabled-features.v1.json").read_text("utf-8")
+    )
+    for feature in projection["features"]:
+        if feature.get("ai"):
+            feature["ai"]["rag_corpus"] = None
+            feature["ai"]["rag_corpus_id"] = None
+    _write_projection(isolated, monkeypatch, projection)
+
+    with pytest.raises(RuntimeError, match="No enabled feature declares a RAG corpus"):
+        runtime.prepare_environment({}, mode="combined")
+    # MCP-only and direct placements remain usable without any corpus.
+    assert "RAG_ALLOWED_CORPORA" not in runtime.prepare_environment({}, mode="mcp")
+
+
+def _write_projection(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch, projection: dict[str, object]
+) -> None:
+    root = isolated / "repository"
+    (root / "deployment").mkdir(parents=True, exist_ok=True)
+    (root / "deployment/enabled-features.v1.json").write_text(
+        json.dumps(projection), encoding="utf-8"
+    )
+    for source in ("student-1/config/rag", "student-1", "student-2", "student-3"):
+        (root / source).mkdir(parents=True, exist_ok=True)
+    (root / "student-1/config/rag/corpus.json").write_text("{}", encoding="utf-8")
+    for number in range(1, 6):
+        catalogue = runtime.REPOSITORY_ROOT / f"student-{number}/tool-catalog.yaml"
+        if catalogue.is_file():
+            (root / f"student-{number}").mkdir(parents=True, exist_ok=True)
+            (root / f"student-{number}/tool-catalog.yaml").write_text(
+                catalogue.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+    monkeypatch.setattr(runtime, "REPOSITORY_ROOT", root)

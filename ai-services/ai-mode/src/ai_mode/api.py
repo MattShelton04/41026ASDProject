@@ -17,7 +17,6 @@ from agent_core import (
     apply_human_review,
     create_run,
 )
-from ai_mode.adapters.retrieval import RETRIEVAL_TOOL
 from ai_mode.http import problem_response as _problem
 from ai_mode.http import validation_issues
 from ai_mode.persistence import IdempotencyConflictError, PersistenceError
@@ -37,6 +36,7 @@ from shared_contracts import (
     ModelRoleName,
     ReviewDecision,
 )
+from shared_contracts.grounding import RETRIEVAL_TOOL
 
 api = Blueprint("agent_api", __name__, url_prefix="/api/v1")
 LOGGER = logging.getLogger(__name__)

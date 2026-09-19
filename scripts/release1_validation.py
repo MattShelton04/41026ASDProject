@@ -7,7 +7,7 @@ evidence, never invents citations, and is not a live-provider or semantic-qualit
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Literal
@@ -25,7 +25,7 @@ from agent_core import (
     create_run,
 )
 from ai_mode.adapters.mcp_tools import McpToolExecutor
-from ai_mode.adapters.retrieval import RETRIEVAL_TOOL, RetrievalToolExecutor, retrieval_definition
+from ai_mode.adapters.retrieval import RetrievalToolExecutor, retrieval_definition
 from ai_mode.adapters.system import SystemClock, UUID4Generator
 from ai_mode.persistence import SQLiteRunStore
 from ai_mode.prompts import PromptRegistry, RegistryPromptBuilder
@@ -33,13 +33,90 @@ from ai_mode.services import UnconfiguredToolExecutor
 from ai_mode.tool_catalog import load_tool_catalogs
 from scripts.devtools import host_runtime
 from scripts.devtools.config import REPOSITORY_ROOT
-from shared_contracts import AgentRunRequest, RunStatus, ToolDefinition, ToolOutcome
-from shared_contracts.grounding import GroundingRequest
+from shared_contracts import (
+    AgentRunRequest,
+    RunStatus,
+    SideEffectClass,
+    ToolDefinition,
+    ToolOutcome,
+)
+from shared_contracts.deployment import DeploymentProjectionV1
+from shared_contracts.grounding import RETRIEVAL_TOOL, GroundingRequest
 
 Mode = Literal["mcp", "rag"]
 FEATURE = "student-1-propertyscope-data-platform"
 CORPUS = "operator-guidance"
 QUERY = "What review and approval are required before publishing a dataset release?"
+
+
+def _enabled_projection() -> DeploymentProjectionV1:
+    return DeploymentProjectionV1.model_validate_json(
+        (REPOSITORY_ROOT / "deployment/enabled-features.v1.json").read_text(encoding="utf-8")
+    )
+
+
+def resolve_corpus(feature: str) -> str:
+    """Return the corpus the given feature registered in its own manifest."""
+    for enabled in _enabled_projection().features:
+        if enabled.feature_key != feature:
+            continue
+        if enabled.ai is None or enabled.ai.rag_corpus_id is None:
+            raise RuntimeError(
+                f"{feature} has not registered a RAG corpus; declare ai.rag_corpus and "
+                "ai.rag_corpus_id in its feature.yaml, then ingest the manifest"
+            )
+        return enabled.ai.rag_corpus_id
+    raise RuntimeError(f"{feature} is not an enabled feature")
+
+
+def _validation_callable(definition: ToolDefinition) -> bool:
+    """A validation tool must be safe to call and need no model-supplied arguments.
+
+    The deterministic planner sends an empty argument object, so any required input makes
+    the call fail validation. Restricting to unapproved read-only tools keeps a named
+    validation from dispatching a write against the running local backend.
+    """
+    return (
+        definition.side_effect is SideEffectClass.READ_ONLY
+        and not definition.requires_approval
+        and not definition.input_schema.get("required")
+    )
+
+
+def resolve_mcp_tool(
+    catalog_paths: Sequence[Path], feature: str, tool: str | None
+) -> ToolDefinition:
+    """Pick a registered read-only tool this validation can call with no arguments.
+
+    Owners without one can register a no-argument read-only capabilities tool as Feature 1
+    does. An explicit ``tool`` must satisfy the same rule: the guard exists to keep the
+    loop from dispatching a write, so naming a tool does not bypass it.
+    """
+    owned = [
+        item.definition
+        for item in load_tool_catalogs(tuple(catalog_paths)).tools
+        if item.definition.feature_key == feature
+    ]
+    if not owned:
+        raise RuntimeError(f"{feature} has no registered tools in the running host catalogue")
+    if tool is not None:
+        for definition in owned:
+            if definition.name != tool:
+                continue
+            if not _validation_callable(definition):
+                raise RuntimeError(
+                    f"{tool} is not usable for validation; it must be read-only, need no "
+                    "approval, and have no required inputs"
+                )
+            return definition
+        raise RuntimeError(f"{feature} does not register the tool {tool}")
+    for definition in owned:
+        if _validation_callable(definition):
+            return definition
+    raise RuntimeError(
+        f"{feature} registers no argument-free read-only tool; add one, as Feature 1's "
+        "platform.capabilities.v1 does, or pass --tool with one"
+    )
 
 
 class ValidationProvider:
@@ -121,11 +198,12 @@ def execute_validation(
     *,
     query: str = QUERY,
     corpus: str = CORPUS,
+    feature: str = FEATURE,
 ) -> dict[str, JsonValue]:
     """Run all four production phases; injection keeps the unit suite network-free."""
     clock, ids = SystemClock(), UUID4Generator()
     request = AgentRunRequest(
-        feature_key=FEATURE,
+        feature_key=feature,
         objective=query if mode == "rag" else "Validate local MCP tool dispatch",
         grounding=GroundingRequest(corpus_id=corpus) if mode == "rag" else None,
         prompt_set="default.v8",
@@ -167,6 +245,9 @@ def execute_validation(
     return {
         "schema_version": "1.0",
         "mode": mode,
+        "feature_key": feature,
+        "tool_name": definition.name,
+        "corpus_id": corpus if mode == "rag" else None,
         "passed": passed,
         "decision_provider": "deterministic-validation",
         "transport": "live-local-services",
@@ -186,24 +267,27 @@ def validate(
     *,
     output: Path | None = None,
     query: str = QUERY,
-    corpus: str = CORPUS,
+    corpus: str | None = None,
+    feature: str = FEATURE,
+    tool: str | None = None,
 ) -> dict[str, JsonValue]:
     """Use already running services, without restarting or editing their durable stores."""
     if environment.get("CI", "").lower() in {"true", "1"}:
         raise RuntimeError("Live MCP/RAG validation is local-only; CI uses injected test doubles")
     resolved = host_runtime.prepare_environment(environment, mode=mode)
+    # Only a grounded run needs a scope; MCP validation must not require a registered corpus.
+    resolved_corpus = CORPUS
+    if mode == "rag":
+        resolved_corpus = corpus if corpus is not None else resolve_corpus(feature)
     with TemporaryDirectory(prefix="propertyscope-r1-validation-") as directory:
         store = SQLiteRunStore(Path(directory) / "validation.sqlite3")
         store.initialize()
         executor: ToolExecutor
         if mode == "mcp":
-            catalog = load_tool_catalogs(
-                tuple(Path(path) for path in resolved["AI_MODE_TOOL_CATALOG_PATHS"].split(","))
-            )
-            definition = next(
-                item.definition
-                for item in catalog.tools
-                if item.definition.name == "platform.capabilities.v1"
+            definition = resolve_mcp_tool(
+                tuple(Path(path) for path in resolved["AI_MODE_TOOL_CATALOG_PATHS"].split(",")),
+                feature,
+                tool,
             )
             executor = McpToolExecutor(
                 base_url=resolved["MCP_SERVER_URL"], service_token=resolved["MCP_SERVICE_TOKEN"]
@@ -218,7 +302,13 @@ def validate(
             )
         try:
             evidence = execute_validation(
-                mode, store, definition, executor, query=query, corpus=corpus
+                mode,
+                store,
+                definition,
+                executor,
+                query=query,
+                corpus=resolved_corpus,
+                feature=feature,
             )
         finally:
             executor.close()

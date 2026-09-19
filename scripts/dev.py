@@ -1009,14 +1009,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             host_runtime.serve(arguments.service)
         elif command == ("ai", "validate"):
-            from scripts.release1_validation import QUERY, validate
+            from scripts.release1_validation import FEATURE, QUERY, validate
 
+            # Each flag applies to one mode only; a silent pass would report a
+            # validation the user did not ask for.
+            if arguments.mode == "mcp" and arguments.corpus is not None:
+                raise RuntimeError("--corpus applies to rag mode only")
+            if arguments.mode == "rag" and arguments.tool is not None:
+                raise RuntimeError("--tool applies to mcp mode only")
             evidence = validate(
                 arguments.mode,
                 os.environ,
                 output=arguments.output,
                 query=arguments.query or QUERY,
                 corpus=arguments.corpus,
+                feature=arguments.feature or FEATURE,
+                tool=arguments.tool,
             )
             print(json.dumps(evidence, indent=2))
             return 0 if evidence["passed"] else 1

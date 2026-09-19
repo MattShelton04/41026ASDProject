@@ -27,9 +27,11 @@ where = ["backend/src", "database/src"]
 
 [tool.uv.sources]
 shared-consumer-protocol = { workspace = true }
+shared-testkit = { workspace = true }
 
 [dependency-groups]
 dev = [
     "shared-consumer-protocol",
+    "shared-testkit",
     "types-openpyxl>=3.1,<4",
 ]

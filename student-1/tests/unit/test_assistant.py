@@ -4,11 +4,16 @@ import pytest
 from pydantic import ValidationError
 
 from propertyscope_data_platform.assistant import (
+    ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS,
+    ASSISTANT_TOOL_ALLOWLIST,
+    ASSISTANT_TOOL_ALLOWLIST_V1,
     MAX_ASSISTANT_HISTORY_TOTAL_CHARS,
     AssistantTurnRequest,
     build_assistant_objective,
     capability_guide,
 )
+from shared_contracts.grounding import RETRIEVAL_TOOL
+from shared_testkit import assert_grounded_allowlist_accepted
 
 
 def test_capability_guide_is_bounded_and_honest_about_availability() -> None:
@@ -208,3 +213,28 @@ def test_assistant_context_projects_only_validated_page_identifiers_into_trust()
 def test_assistant_turn_rejects_ambiguous_or_unbounded_input(payload: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         AssistantTurnRequest.model_validate(payload)
+
+
+def test_historical_allowlists_keep_their_published_shape() -> None:
+    """Feature 1 is the reference other owners copy; its approved set must not drift."""
+    expected = (
+        ASSISTANT_TOOL_ALLOWLIST_V1,
+        ASSISTANT_TOOL_ALLOWLIST,
+        (*ASSISTANT_TOOL_ALLOWLIST_V1, RETRIEVAL_TOOL),
+        (*ASSISTANT_TOOL_ALLOWLIST, RETRIEVAL_TOOL),
+    )
+
+    assert expected == ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS
+
+
+def test_grounded_runs_stay_readable_by_their_own_backend() -> None:
+    """Registering a corpus must not make Feature 1 reject the runs it just created.
+
+    The predicate mirrors assistant_routes._assistant_detail, including the tuple
+    coercion: AI-mode delivers the allowlist as a JSON list.
+    """
+
+    def accepts(wire_allowlist: list[str]) -> bool:
+        return tuple(wire_allowlist) in ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS
+
+    assert_grounded_allowlist_accepted(accepts, ASSISTANT_TOOL_ALLOWLIST)

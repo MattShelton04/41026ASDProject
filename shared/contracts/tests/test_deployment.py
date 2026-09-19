@@ -418,3 +418,81 @@ def test_required_health_failure_is_unhealthy_with_503() -> None:
             media_type="application/json",
             checks={"database": ReadinessCheckProjection(required=True, status="unhealthy")},
         )
+
+
+def _corpus_onboarding(owner: str = "student-1", **corpus: object) -> dict[str, Any]:
+    onboarding = _onboarding(owner)
+    ai = onboarding["ai"]
+    assert isinstance(ai, dict)
+    ai.update(corpus)
+    return onboarding
+
+
+def test_corpus_declaration_is_optional() -> None:
+    manifest = _manifest(onboarding=_onboarding())
+    assert manifest.onboarding is not None
+    assert manifest.onboarding.ai is not None
+    assert manifest.onboarding.ai.rag_corpus is None
+    assert manifest.onboarding.ai.rag_corpus_id is None
+
+
+def test_corpus_manifest_and_identifier_are_declared_together() -> None:
+    for partial in (
+        {"rag_corpus": "student-1/config/rag/corpus.json"},
+        {"rag_corpus_id": "operator-guidance"},
+    ):
+        with pytest.raises(ValidationError, match="declared together"):
+            _manifest(onboarding=_corpus_onboarding(**partial))
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("rag_corpus", "student-1/config/rag/corpus.yaml", "JSON corpus manifest"),
+        ("rag_corpus", "/etc/rag/corpus.json", "relative POSIX paths"),
+        ("rag_corpus", "student-1/../student-2/corpus.json", "traverse"),
+        ("rag_corpus_id", "Operator-Guidance", "string_pattern_mismatch"),
+    ],
+)
+def test_corpus_declaration_rejects_unsafe_values(field: str, value: str, message: str) -> None:
+    declaration: dict[str, object] = {
+        "rag_corpus": "student-1/config/rag/corpus.json",
+        "rag_corpus_id": "operator-guidance",
+    }
+    declaration[field] = value
+    with pytest.raises(ValidationError, match=message):
+        _manifest(onboarding=_corpus_onboarding(**declaration))
+
+
+def test_projection_derives_scopes_only_for_declaring_features() -> None:
+    declaring = _manifest(
+        owner="student-1",
+        onboarding=_corpus_onboarding(
+            rag_corpus="student-1/config/rag/corpus.json",
+            rag_corpus_id="operator-guidance",
+        ),
+    )
+    silent = _manifest(owner="student-2", onboarding=_onboarding("student-2"))
+    projection = build_deployment_projection(
+        (declaring, silent),
+        DeploymentSelectionV1.model_validate(
+            {
+                "features": [
+                    {"feature_key": "student-1-example", "enabled": True},
+                    {"feature_key": "student-2-example", "enabled": True},
+                ]
+            }
+        ),
+    )
+    assert projection.corpus_scopes() == ("student-1-example:operator-guidance",)
+
+
+def test_repository_projection_matches_declared_corpora() -> None:
+    """The shipped projection is what the host launcher scopes RAG with."""
+    projection = build_deployment_projection(
+        tuple(load_feature_manifest(path) for path in sorted(ROOT.glob("student-*/feature.yaml"))),
+        DeploymentSelectionV1.model_validate(
+            yaml.safe_load((ROOT / "deployment/features.yaml").read_text(encoding="utf-8"))
+        ),
+    )
+    assert "student-1-propertyscope-data-platform:operator-guidance" in projection.corpus_scopes()

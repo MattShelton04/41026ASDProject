@@ -139,6 +139,12 @@ services:
       PROPERTYSCOPE_RUNNER_TOKEN: ${PROPERTYSCOPE_RUNNER_TOKEN:-propertyscope-local-runner-only}
       AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
       AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
+      # Declares where the shared local MCP/RAG servers listen. This backend does not
+      # call them directly: it reaches AI-mode, which holds the MCP/RAG credentials and
+      # performs tool calls and retrieval. Reachable from here, but no service token is
+      # issued to containers, so a direct call is rejected with 401 by design.
+      MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
+      RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
       PROPERTYSCOPE_PSI_CACHED_YEARS: ${PROPERTYSCOPE_PSI_CACHED_YEARS:-}
       PROPERTYSCOPE_PSI_CACHED_WEEKS: ${PROPERTYSCOPE_PSI_CACHED_WEEKS:-}
@@ -260,6 +266,12 @@ services:
       PROPERTYSCOPE_DATA_PLATFORM_URL: http://f1-backend:5201
       AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
       AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
+      # Declares where the shared local MCP/RAG servers listen. This backend does not
+      # call them directly: it reaches AI-mode, which holds the MCP/RAG credentials and
+      # performs tool calls and retrieval. Reachable from here, but no service token is
+      # issued to containers, so a direct call is rejected with 401 by design.
+      MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
+      RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
     depends_on:
       f2-db-api:
         condition: service_healthy
@@ -329,6 +341,12 @@ services:
       SUBURB_IMPORT_WORKER: "1"
       AI_MODE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
       AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
+      # Declares where the shared local MCP/RAG servers listen. This backend does not
+      # call them directly: it reaches AI-mode, which holds the MCP/RAG credentials and
+      # performs tool calls and retrieval. Reachable from here, but no service token is
+      # issued to containers, so a direct call is rejected with 401 by design.
+      MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
+      RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
       PROPERTY_DATA_URL: http://f1-backend:5201
     depends_on:
       f3-database:
@@ -421,6 +439,12 @@ services:
       PROPERTYSCOPE_DATA_PLATFORM_URL: http://f1-backend:5201
       AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
       AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
+      # Declares where the shared local MCP/RAG servers listen. This backend does not
+      # call them directly: it reaches AI-mode, which holds the MCP/RAG credentials and
+      # performs tool calls and retrieval. Reachable from here, but no service token is
+      # issued to containers, so a direct call is rejected with 401 by design.
+      MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
+      RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
     depends_on:
       f4-db-api:
         condition: service_healthy
@@ -503,6 +527,12 @@ services:
       PROPERTYSCOPE_DUE_DILIGENCE_URL: http://f4-backend:5401
       AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
       AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
+      # Declares where the shared local MCP/RAG servers listen. This backend does not
+      # call them directly: it reaches AI-mode, which holds the MCP/RAG credentials and
+      # performs tool calls and retrieval. Reachable from here, but no service token is
+      # issued to containers, so a direct call is rejected with 401 by design.
+      MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
+      RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
     depends_on:
       f5-db-api:
         condition: service_healthy
