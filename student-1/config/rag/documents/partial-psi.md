@@ -1,7 +1,15 @@
 # Selected PSI archive years are partial
 
-PSI full-data acquisition remains the default. The optional psi-year-range selects an inclusive range of completed publisher archive years from 1990 through the previous calendar year. Archive partitions are not exact contract-date intervals; observed temporal coverage is reported separately.
+A NSW sales update loads the complete history by default. On the Data updates page you can instead choose a first and last archive year to load only those completed annual archives.
 
-A selected-year run consumes every record in its selected archives but records complete: false and coverage_status: partial. Retry, resume and Use downloaded file preserve that exact scope and lineage. Its isolated candidate may be inspected, but both publication and activation reject it. It cannot replace the accepted complete sales-history generation. More rows or a successful import do not make a partial candidate complete.
+## Why a year-range update cannot be published
 
-Basis: ADR-035, bounded PSI publisher-year acquisition; student-1 README. Current scope and accepted generation must be read from owning tools.
+Published sales data must be complete, because other research areas treat it as the full sale history. A year-range update is recorded as partial, so its candidate can be inspected but publishing it is refused. It cannot replace the published complete history, however many records it contains and even if every check passes.
+
+Archive years are the publisher's file years. They are not exact contract-date ranges; the dates actually covered are shown separately on the version.
+
+## What to do instead
+
+Run a complete-source sales update to produce a publishable version. Use a year range when you only want to test or inspect a subset.
+
+Retrying, resuming or using the downloaded file keeps the original scope, so a partial update stays partial.

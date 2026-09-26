@@ -1,7 +1,13 @@
-# Crime observations and coverage
+# Crime data coverage
 
-The crime-series product preserves sparse positive observations and explicit coverage, including coverage-only series. A blank can mean observed zero only where the product's blank_means_observed_zero flag is true and the month is inside declared coverage. Outside-coverage months are unavailable, not zero.
+Property data loads the NSW Bureau of Crime Statistics and Research (BOCSAR) recorded crime archives. They give monthly counts of recorded offences by offence category for each postcode and each suburb, from 1995 onwards.
 
-Missing coverage is not proof that an offence never occurred. Feature 1 does not calculate crime rates or infer suburb safety from missing observations; interpretation belongs to the owning analytics feature. Keep source period, geography and coverage visible and distinguish null or unavailable evidence from measured zero.
+## Zero, blank and unavailable
 
-Basis: data-product consumer guide, crime-series product semantics. These are project data-contract rules, not official publisher methodology or a current crime assessment.
+The dataset stores months that had recorded offences, plus the exact list of months each series covers. A covered month with no stored count means zero recorded offences only when the series is marked as treating blanks as zero; otherwise its value is unknown. A month outside the covered list is unavailable, not zero.
+
+Recorded crime counts offences reported to and recorded by police. A zero does not mean no crime happened, and a missing month says nothing either way.
+
+## What Property data does not do
+
+Property data does not calculate crime rates, rank suburbs by safety or predict crime. The Suburb context research area imports this data and owns that analysis. When describing crime data, state the geography (postcode or suburb), the period and the offence category.

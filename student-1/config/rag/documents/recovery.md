@@ -1,9 +1,19 @@
-# Recover publication and downstream delivery separately
+# Retrying publication and downstream imports
 
-Inspect the current release state, local activation status and retained failure evidence before selecting recovery. Retry publication retries failed local activation with a fresh attempt key and retains earlier receipts. It is not the same as retrying a consumer import.
+Two different things can fail after an operator publishes a version. Check which one before retrying.
 
-For an already published release, Retry downstream import resumes failed delivery separately. A delivery failure does not unpublish the release or replace the producer's accepted generation. Producer verification receipts and consumer receipts attest different operations. Do not infer success from a queued request or a historical accepted receipt without checking the current operation.
+## Retry publication
 
-Accepted artifacts cannot be edited in place. Corrections require a new release; recovery preserves immutable evidence. AI review and read-only assistant explanations do not authorize publication.
+Use this when publishing itself failed, before the new version became current. The previous version is still in use. The retry starts a fresh attempt and keeps the records of earlier attempts.
 
-Basis: student-1 README, operator workflow; ADR-040 as amended by ADR-041; ADR-042.
+## Retry downstream import
+
+Use this when the version is already published but another research area failed to import it. It resumes delivery to that feature only. It does not unpublish the version or change what Property data serves.
+
+## Before retrying
+
+Read the current status of the version and of each downstream import. A queued request or an older successful receipt does not show that the latest attempt succeeded.
+
+## Corrections
+
+Published versions are never edited. To fix published data, run a new update and publish the new version; the old one is kept as superseded.

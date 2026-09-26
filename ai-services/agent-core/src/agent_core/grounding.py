@@ -12,8 +12,9 @@ from shared_contracts.retrieval import EvidenceCitation
 STRONG_MATCH_SCORE = 0.65
 """A cited passage at or above this similarity clearly addresses the question.
 
-Measured with bge-small on the Feature 1 evaluation: expected passages for supported questions
-scored 0.65-0.83, while related-but-wrong passages clustered between 0.55 and 0.65.
+Measured with bge-small on the Feature 1 v2 evaluation: every expected passage for a supported
+question scored at least 0.65, while passages from related but wrong documents mostly scored
+between 0.55 and 0.65.
 """
 
 

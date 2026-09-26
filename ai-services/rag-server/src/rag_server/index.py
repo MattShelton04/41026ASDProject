@@ -8,6 +8,7 @@ import re
 import sqlite3
 import threading
 import unicodedata
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -15,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from rag_server.embeddings import Embedder, EmbeddingUnavailableError, normalized_vector
+from rag_server.ranking import MAX_CHUNKS_PER_DOCUMENT, bm25_scores, fused_order
 from shared_contracts.retrieval import (
     CorpusContents,
     CorpusDocument,
@@ -359,22 +361,33 @@ class CorpusIndex:
                 "SELECT citation,vector FROM chunks WHERE feature=? AND corpus=? AND version=?",
                 (request.feature_key, request.corpus_id, current.corpus_version),
             ).fetchall()
-            ranked: list[EvidenceCitation] = []
-            for row in rows:
+            candidates: list[EvidenceCitation] = []
+            for row in sorted(rows, key=lambda row: str(row[0])):
                 citation = EvidenceCitation.model_validate_json(row[0])
                 if request.document_ids and citation.document_id not in request.document_ids:
                     continue
                 vector = normalized_vector(json.loads(row[1]), self.embedder.dimensions)
                 score = max(-1.0, min(1.0, sum(a * b for a, b in zip(query, vector, strict=True))))
-                if score >= request.min_score:
-                    ranked.append(citation.evolve(score=score))
-            ranked.sort(key=lambda citation: (-citation.score, citation.chunk_id))
+                candidates.append(citation.evolve(score=score))
+            keyword = bm25_scores(
+                request.query,
+                [f"{item.title} {item.location} {item.excerpt}" for item in candidates],
+            )
+            ranked = [
+                candidates[index]
+                for index in fused_order([item.score for item in candidates], keyword)
+                if candidates[index].score >= request.min_score
+            ]
             selected: list[EvidenceCitation] = []
+            per_document: Counter[str] = Counter()
             remaining = request.max_context_chars
             for citation in ranked:
                 if len(citation.excerpt) > remaining:
                     continue  # Never truncate an excerpt while retaining its full-content hash.
+                if per_document[citation.document_id] >= MAX_CHUNKS_PER_DOCUMENT:
+                    continue  # Leave room for other documents that address the question.
                 selected.append(citation)
+                per_document[citation.document_id] += 1
                 remaining -= len(citation.excerpt)
                 if len(selected) >= request.top_k:
                     break

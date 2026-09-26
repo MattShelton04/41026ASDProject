@@ -1,7 +1,19 @@
-# Producer publication and downstream import
+# Publishing a version
 
-Feature 1 publishes a reviewed, verified release independently of downstream imports. Producer verification checks the immutable artifact and manifest binding and queues local activation. The activation worker verifies bytes and prepares required indexes before atomically switching the accepted generation. While Publishing, the previous accepted generation remains live.
+Publishing makes a reviewed candidate the current version of its dataset.
 
-For an external target, that same transaction creates a durable delivery outbox. The runner separately delivers the release and records the consumer's genuine receipt. Consumer rejection, unavailability or exhausted delivery retries cannot roll back producer publication. A producer verification receipt is labelled feature-1-local; it does not prove a downstream import succeeded. Inspect publication state and downstream import status separately.
+## Before publishing
 
-Basis: ADR-041, Producer-owned publication; student-1 README, operator workflow. This project guidance describes behavior, not the current state of any release.
+The candidate must have passed its required data checks. Review its record count, coverage and differences from the currently published version on the Published data page. An AI review can help but does not approve anything; an operator decides.
+
+## What happens when you publish
+
+1. PropertyScope checks that the release file and its manifest still match (record count and SHA-256 checksum).
+2. The version is marked as publishing and a background worker prepares it: it re-checks the file and builds the search indexes.
+3. The current version switches to the new one in a single step. The previous version stays in use until that moment and then becomes superseded.
+
+If step 1 or 2 fails, nothing changes for users; Retry publication starts a fresh attempt.
+
+## Other research areas
+
+Publishing does not wait for other research areas. Where a dataset is delivered to another feature, that feature's import runs afterwards and is reported separately. A failed downstream import does not unpublish the version. Check publication status and downstream import status separately.

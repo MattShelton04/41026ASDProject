@@ -1,7 +1,21 @@
-# Diagnose an acquisition or import failure
+# Diagnosing a failed data update
 
-Read the failed run's phase, structured error, task progress, source scope and artifact evidence before naming a cause. Acquisition, artifact verification, typed staging, candidate materialisation, quality checks and release construction are distinct stages. A failure label alone does not prove a checksum error, network fault or exhausted disk space.
+Open the update in Update history. Before naming a cause, read which stage failed, the recorded error code and message, the progress reached and the update's scope.
 
-After correcting an import failure, Use downloaded file creates a cached reprocess from retained verified evidence with the same scope and lineage. It creates a new candidate, does not redownload by default, and cannot overwrite an accepted artifact. A partial PSI scope remains partial and non-publishable after reprocessing. A failed or cancelled candidate import does not activate candidate data. Report unavailable diagnostic evidence instead of guessing a repair or issuing destructive database commands.
+## Stages fail for different reasons
 
-Basis: student-1 README, cached reprocessing and durable worker phases; ADR-035.
+- Acquisition: the publisher site could not be reached, returned an error or changed its files.
+- Verification: the downloaded file did not match its expected size, format or checksum.
+- Database import: records could not be loaded, for example because of an unexpected column or value.
+- Data checks: the data loaded but a required check failed.
+- Release build: the release file could not be written or verified.
+
+A failure label alone does not prove a network fault, a corrupt download or a full disk. If the recorded error does not say, report that the cause is not recorded rather than guessing.
+
+## Recovering
+
+- Retry update or Resume update continues with the same scope.
+- Use downloaded file rebuilds from the file already downloaded and verified. It skips the download, runs the import, checks and export again, and produces a new candidate.
+- A failed or cancelled update never changes published data.
+
+Do not run database commands by hand to repair an update; use these recovery actions so the history stays complete.

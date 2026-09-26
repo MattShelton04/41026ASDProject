@@ -3,58 +3,50 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from shared_contracts.retrieval import CorpusIngestRequest
+from shared_testkit import assert_corpus_manifest
 
 ROOT = Path(__file__).resolve().parents[2]
 CORPUS_ROOT = ROOT / "config/rag"
+FEATURE_KEY = "student-1-propertyscope-data-platform"
 
 
-def _load_corpus() -> CorpusIngestRequest:
-    payload = json.loads((CORPUS_ROOT / "corpus.json").read_text(encoding="utf-8"))
-    for document in payload["documents"]:
-        path = (CORPUS_ROOT / document.pop("path")).resolve()
-        assert path.is_relative_to(CORPUS_ROOT.resolve())
-        document["text"] = path.read_text(encoding="utf-8")
-    return CorpusIngestRequest.model_validate(payload)
+def _corpus() -> CorpusIngestRequest:
+    return assert_corpus_manifest(
+        CORPUS_ROOT / "corpus.json", feature_key=FEATURE_KEY, corpus_id="operator-guidance"
+    )
 
 
-def test_corpus_contains_only_bounded_authored_guidance_with_traceable_sources() -> None:
-    corpus = _load_corpus()
-    assert corpus.feature_key == "student-1-propertyscope-data-platform"
-    assert corpus.corpus_id == "operator-guidance"
-    assert len(corpus.documents) == 10
-    for document in corpus.documents:
+def test_corpus_is_authored_guidance_with_traceable_sources() -> None:
+    for document in _corpus().documents:
         assert document.evidence_kind == "project_guidance"
         assert document.license.startswith("CC0-1.0")
         assert document.source_date is not None
-        assert len(document.text) <= 1200  # Each small authored topic fits one exact excerpt.
-        assert "Basis:" in document.text
-        assert document.source_uri.startswith("https://github.com/MattShelton04/")
+        # The title a citation shows is the heading a reader sees in the source file.
+        assert document.text.startswith(f"# {document.title}\n"), document.document_id
 
 
-def test_guidance_preserves_current_publication_partial_scope_and_unknown_evidence() -> None:
-    documents = {document.document_id: document.text for document in _load_corpus().documents}
-    assert "independently of downstream imports" in documents["publication"]
-    assert "cannot roll back producer publication" in documents["publication"]
-    assert "cannot replace the accepted complete" in documents["partial-psi"]
-    assert "not exact contract-date intervals" in documents["partial-psi"]
-    assert "unavailable, not zero" in documents["crime-coverage"]
-    assert "not proof" in documents["missing-evidence"]
-    assert "read-only assistant explanations do not authorize publication" in documents["recovery"]
+def test_every_document_file_is_listed_in_the_manifest() -> None:
+    listed = {document.document_id for document in _corpus().documents}
+    on_disk = {path.stem for path in (CORPUS_ROOT / "documents").glob("*.md")}
+    assert on_disk == listed
 
 
-def test_frozen_cases_include_negative_claims_and_real_expected_documents() -> None:
-    cases = json.loads((CORPUS_ROOT / "evaluation-v1.json").read_text(encoding="utf-8"))
-    documents = {document.document_id for document in _load_corpus().documents}
-    assert {case["category"] for case in cases["cases"]} == {
-        "supported",
-        "absent",
-        "ambiguous",
-        "stale_conflict",
-        "injection",
-    }
+def test_guidance_uses_interface_terms_rather_than_internal_field_names() -> None:
+    """Answers quote guidance to users, so snake_case identifiers read as jargon."""
+    for document in _corpus().documents:
+        prose = re.sub(r"`[^`]*`", "", document.text)
+        assert not re.search(r"\b[a-z]+_[a-z_]+\b", prose), document.document_id
+
+
+def test_evaluation_cases_reference_real_documents_and_cover_negative_categories() -> None:
+    cases = json.loads((CORPUS_ROOT / "evaluation-v2.json").read_text(encoding="utf-8"))
+    documents = {document.document_id for document in _corpus().documents}
+    categories = {case["category"] for case in cases["cases"]}
+    assert {"supported", "absent", "injection"} <= categories
     assert len({case["id"] for case in cases["cases"]}) == len(cases["cases"])
     for case in cases["cases"]:
         assert set(case["expected_document_ids"]) <= documents

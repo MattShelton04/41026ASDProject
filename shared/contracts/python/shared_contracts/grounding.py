@@ -17,11 +17,12 @@ GROUNDING_MIN_SCORE = 0.55
 """Relevance floor for passages given to a grounded run.
 
 Calibrated for the prepared ``BAAI/bge-small-en-v1.5`` model, whose cosine scores sit in a
-compressed range: in the Feature 1 evaluation every supported question's expected passage
-scored at least 0.60, while unrelated questions (recipes, weather, sport, astronomy) peaked
-between 0.42 and 0.50. A passage below the floor is not relevant enough to cite, so a run
-with none above it receives ``no_match`` and answers with insufficient context. Recalibrate
-with ``scripts/evaluate_release1_retrieval.py`` if the embedding model changes.
+compressed band. In the Feature 1 v2 evaluation (``student-1/config/rag``) the lowest-scoring
+expected passage for a supported question was 0.65, while unrelated questions about recipes,
+weather, sport and astronomy peaked at 0.50 and now retrieve ``no_match``. A question that
+shares vocabulary with the corpus (a share price and sale prices) can still pass the floor, so
+the model must still refuse when passages do not answer. Recalibrate with
+``scripts/evaluate_release1_retrieval.py`` if the embedding model changes.
 """
 
 

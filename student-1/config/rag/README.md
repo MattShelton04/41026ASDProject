@@ -1,53 +1,41 @@
-# Feature 1 operator-guidance corpus
+# Property data guidance corpus
 
-This complete ingestion batch supports explanations of published property coverage and diagnosis
-of import failures. Ten short topics cover producer publication, partial PSI years, missing evidence,
-provenance, recovery, import diagnosis, accepted discovery, crime coverage, consumer boundaries and
-guidance freshness. They are project-authored explanations derived from the living Feature 1 README,
-consumer guide and cited accepted ADRs, not copies of official publisher material. No operational
-counts, current property facts, raw warehouse data, private notes or new Feature 4 product are included.
+The documents in `documents/` are what the Property data assistant retrieves and cites. They explain
+the datasets, the property page, searching, data updates, publishing and recovery in the same terms
+the interface uses. They contain no current counts or property facts; the assistant gets those from
+Property data's own tools at question time.
 
-The text in `documents/` is dedicated to the public domain under
-[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). This dedication applies only to these
-new authored guidance texts, not to upstream datasets, model weights, other repository content or
-third-party documents. `corpus.json` records that scope with each source's date, stable document ID,
-safe GitHub display URL and `project_guidance` evidence kind. The source date is the guidance review
-date, not a publisher update date. GitHub links use the implementation branch; citation versions and
-exact excerpts remain self-contained if the branch later changes.
+The text is project-written and dedicated to the public domain under
+[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). That covers these documents only, not
+the upstream datasets they describe.
 
-## Explicit ingestion
+## Ingest
 
-With the local Release 1 host stack running, use its RAG token in the shell environment (never in
-this manifest or a prompt) and run from the repository root:
+With the local stack running and `RAG_SERVICE_TOKEN` set in the shell (never in the manifest):
 
 ```text
 uv run rag-server ingest student-1/config/rag/corpus.json
 ```
 
-The manifest loader accepts only explicit Markdown/text files beneath this directory and sends a
-bounded complete replacement. It does not fetch source URLs. Identical replay returns the same
-version and original ingestion time. Edit source metadata and text together when guidance changes;
-reingest the complete manifest. Omitted documents are withdrawn from the active version. Ingestion
-does not happen merely by starting the stack. Model preparation is a separate explicit command.
+Ingestion replaces the whole corpus. Unchanged content keeps its version; removed documents are
+withdrawn. Starting the stack never ingests. Inspect the result at
+`http://localhost:5100/operations/ai-mode/knowledge/`, where you can also test how a question ranks.
 
-## Review and extension
+## Writing guidance
 
-1. Start from an implemented owner-approved behavior and its living document or accepted ADR.
-   Resolve conflicting historical text before authoring guidance. ADR-041 supersedes the old
-   consumer-acceptance publication gate; a consumer receipt and producer receipt are different.
-2. Write a focused bounded topic with a source basis and limitations. Never add unsupported facts,
-   speculative product rules or private material. These initial topics each fit one 1,200-character
-   chunk so boundaries do not split a policy assertion from its qualification.
-3. Add a stable entry to the complete manifest; keep IDs stable across revisions. Register any new
-   feature/corpus pair in the host RAG allowlist and AI-mode feature retrieval configuration before
-   ingestion. Each feature owner supplies its own content and tests; feature backends use AI-mode
-   over HTTP and never open the index.
-4. Add supported and negative cases before evaluating. Version substantive question/expectation
-   changes. Include expected document IDs and forbidden claims; do not change relevance thresholds
-   simply to eliminate inconvenient cases. Run deterministic corpus tests and the semantic command
-   in [the evaluation record](../../../docs/release-1/retrieval-evaluation.md).
+- Start the file with `# Title`, matching `title` in `corpus.json`. Use `##` headings; RAG chunks at
+  headings and keeps each section's heading with its text. Keep each section under 1,200 characters
+  (the shared corpus test reports longer ones).
+- Use the names on screen ("Published data", "Use downloaded file"), not internal field names.
+- Base each statement on implemented behaviour. The main sources are the Feature 1 README,
+  [the consumer guide](../../DATA_PRODUCT_CONSUMER_GUIDE.md), ADR-035, ADR-038, ADR-041 and ADR-043.
+  Measured figures must say when they were measured.
+- Say what the data cannot show. Do not add advice, valuations or rules that are not implemented.
+- Keep `document_id` values stable across revisions and update `source_date` when a document changes.
 
-`evaluation-v1.json` is a small development set frozen before the first semantic execution. Its
-negative cases describe required answer behavior, not a promise that the retriever returns no
-chunks. Retrieval relevance cannot establish a claim's truth, freshness or authorization. Current
-facts need owning tools and generated answers need separate grounding and entailment review.
+## Evaluate
+
+`evaluation-v2.json` holds supported, unrelated, stale and injection cases. After changing documents,
+run the evaluation in [retrieval-evaluation.md](../../../docs/release-1/retrieval-evaluation.md) and
+commit the new baseline. Add cases for new topics before judging the result. The v1 files are kept
+as the 7 September record.

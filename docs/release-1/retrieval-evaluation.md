@@ -1,93 +1,70 @@
 # Release 1 retrieval evaluation
 
-The Feature 1 operator corpus supports coverage explanation and import diagnosis using authored
-guidance plus current owning-tool facts. Its ten bounded documents are project guidance under CC0,
-not official methodology or current property evidence. See the [corpus recipe](../../student-1/config/rag/README.md)
-and [versioned cases](../../student-1/config/rag/evaluation-v1.json).
+The Feature 1 corpus explains Property data's datasets, pages and workflows. It is 19 project-written
+documents under CC0, not official methodology or current property data. See the
+[corpus recipe](../../student-1/config/rag/README.md) and the
+[v2 cases](../../student-1/config/rag/evaluation-v2.json).
 
 ## Reproduce
 
-Prepare the pinned local semantic model explicitly if it is not already prepared. Normal evaluation
-checks the artifact hashes, enables offline loading and never downloads a model. It creates and closes
-its own disposable SQLite index; the running service's index and operational data remain untouched.
+The evaluation uses the prepared local embedding model (it never downloads one) and a disposable
+SQLite index, so the running RAG service is untouched. CI runs only the fixture-based tests.
 
 ```text
-uv run python scripts/evaluate_release1_retrieval.py --output .propertyscope-runtime/release1/retrieval-evaluation-v1.json
+uv run python scripts/evaluate_release1_retrieval.py --output .propertyscope-runtime/release1/retrieval-evaluation-v2.json
 uv run pytest student-1/tests/unit/test_rag_guidance.py scripts/tests/test_evaluate_release1_retrieval.py --no-cov
 ```
 
-The full local JSON includes queries, exact retrieved excerpts, source metadata, immutable versions,
-scores and latency. The committed [baseline](../../student-1/config/rag/evaluation-baseline-v1.json)
-retains the same run's settings, identities, case expectations, ranked source IDs, scores and timings
-without repeating all excerpts. Model weights, SQLite databases and local runtime outputs remain
-outside Git. CI tests use fixtures only; they do not run this semantic evaluation.
+The local JSON holds every retrieved excerpt. The committed
+[baseline](../../student-1/config/rag/evaluation-baseline-v2.json) keeps the settings, versions,
+expectations, ranked sources and scores without the excerpts.
 
-## Measured result, 7 September 2026
+## Result, 26 September 2026 (v2)
 
-The initial questions and expected documents were written before the first semantic run. That run
-achieved recall 1.0. Explicit historical and injection fixture documents were then added to the
-two adversarial scenarios; the supported questions, production corpus and retrieval settings were
-unchanged. The committed baseline records that second run rather than pretending these adversarial
-fixtures were a held-out test.
-
-| Item | Measured configuration or result |
+| Item | Result |
 |---|---|
-| Embedder | FastEmbed 0.7.4, local CPU `BAAI/bge-small-en-v1.5`, 384 dimensions |
-| Prepared artifact identity | `0511f78a94d45299a943282bdc513475ededebbcefcf156b39758f5fe7a1945b` |
-| Production corpus version | `4ec85c9da899a9c086a76bed335aeaa1419793df2110bb2df8eed5a0d510f8c9` |
-| Corpus | 10 project-guidance documents, 10 chunks |
-| Retrieval settings | top-k 5, minimum cosine 0.35, maximum context 5,000 characters |
-| Supported cases | 12; mean expected-document recall@5 **1.0** (target >= 0.9) |
-| Replay | Identical ingestion retained both version and original ingestion timestamp |
-| Local timing | Initial ingest 3.361 s; query median 0.102 s, slowest 0.147 s (single CPU run, not an SLA) |
-| Negative scenarios | 5: unrelated, missing current facts, ambiguous failure, stale/conflicting guidance, injection |
-| Answer model / prompt / tokens | None: this command evaluates retrieval, not generated answers |
+| Embedder | FastEmbed, local CPU `BAAI/bge-small-en-v1.5`, 384 dimensions |
+| Corpus | 19 documents, 46 section chunks, version `da29fbf7…` |
+| Chunking | Markdown sections, title and heading prepended to the embedded text |
+| Ranking | Cosine similarity fused with BM25 by reciprocal rank; at most 2 chunks per document |
+| Settings | top-k 5, relevance floor 0.55 (`GROUNDING_MIN_SCORE`), 5,000 context characters |
+| Supported cases | 27; expected-document recall@5 **0.963** (target 0.9) |
+| Lowest expected passage score | 0.648 |
+| Unrelated questions | 4 of 5 retrieve no context (astronomy, recipe, weather, sport) |
+| Timing | Ingest 13.8 s; query median 0.08 s, slowest 0.13 s (single local run) |
 
-Expected-document recall for each supported case is the proportion of its required document IDs
-present among the returned chunks, averaged over those 12 cases. A multi-source case requires all
-listed documents to score 1.0. This is stricter than merely finding one relevant source, but the
-small authored development set is not evidence of general search quality.
+v2 keeps the 17 v1 cases and adds the 15 questions and 4 unrelated questions used in live testing
+of the Property data assistant. Recall counts the share of each case's expected documents found in
+the top five, averaged over supported cases.
 
-The negatives expose real limitations rather than being counted as successes:
+### What changed from v1 and why
 
-- An unrelated exoplanet question returns `ready`: the highest cosine is about 0.504, although no
-  passage answers it. The default threshold was retained. Empty retrieval and irrelevant retrieval
-  are different; the answer must still report insufficient context when retrieved passages cannot
-  support the requested claim.
-- The current inspection/value question retrieves general guidance, not an inspection or valuation.
-  No current property answer can be supported from this corpus alone.
-- The ambiguous failure question retrieves diagnosis guidance; neither a disk fault nor a network
-  fault is established without current run diagnostics.
-- The deliberately historical consumer-gate fixture ranks first (about 0.796), above current
-  producer-publication guidance. Source date, supersession and conflict matter more than rank.
-- The deliberately malicious instruction fixture ranks first (about 0.842). Retrieval does not
-  sanitize it into authority or certify its claims. Approval and partial-publication invariants must
-  remain enforced by the orchestrator and owning services.
+The v1 run (7 September: 10 documents, 0.35 floor, fixed 1,200-character windows) reached recall
+1.0 on 12 narrow cases but had two problems found in live use:
 
-Historical/injection documents have `fixture` evidence kind and are appended only inside the
-disposable scenario index. They are absent from the production ingestion manifest. Each result
-records the actual searched corpus version so an adversarial version cannot be mislabelled as the
-production corpus. The cases preserve explicit forbidden claims and answer policies for reuse in
-provider-backed evaluation.
+- Unrelated questions returned `ready` with scores of 0.42-0.50, so the insufficient-context
+  answer depended on the model refusing. At the 0.55 floor they return `no_match`.
+- Realistic questions (SEIFA deciles, starting an update, the property page, the dataset list)
+  landed on unrelated documents at 0.57-0.70 because the corpus had nothing on them. The new
+  documents cover those topics. Keyword fusion fixed the remaining case where the dense model
+  ranked "research areas" above the "Research available" section it was asked about.
 
-## What this proves and what it does not
+### Known limits
 
-This run proves prepared semantic embeddings can ingest this bounded corpus, preserve identical
-replay identity and retrieve all expected sources on the supported development questions using
-unchanged default settings. It also proves semantically irrelevant, historical and malicious text
-can rank highly. A source hit is not a measure of entailment, truthful refusal or authorization.
+- A share-price question still retrieves a sales passage (0.58) because it shares "price"
+  vocabulary. The model has to recognise that the passage does not answer it.
+- The current-property question retrieves general guidance; no current property fact can come
+  from this corpus.
+- Deliberately historical and malicious fixture documents still rank first in their scenarios
+  (0.79 and 0.81). Retrieval does not judge authority; the orchestrator and owning services keep
+  approval and publication rules.
+- A source hit is not entailment. Recall on a small authored set does not measure general search
+  quality or answer truthfulness.
 
-The [actual-provider comparison below](#actual-provider-answer-comparison) uses six of the same
-questions twice. It assesses expected support and each forbidden claim against the recorded answer
-and supplied evidence alongside structural grounding validation. The separate live validation
-record owns complete agent-loop and browser evidence. Neither source recall nor this small answer
-sample establishes general truthfulness or safety.
+Extend the cases before changing retrieval settings, keep unsuccessful results, and do not move
+the floor to pass a single case.
 
-Feature owners should extend the set with their agreed guidance and harder paraphrases before
-changing retrieval behavior. Version dataset/expectation changes, retain unsuccessful results and
-investigate them; do not tune a cosine cutoff merely to pass one unrelated negative question.
-
-## Actual-provider answer comparison
+## Actual-provider answer comparison (v1, 7 September)
 
 On 7 September at 10:08 UTC, the configured OpenAI `remote-standard.v1` adapter
 (`gpt-5.6-terra`) answered six selected cases in tool-only and tool-plus-RAG modes. The script used
