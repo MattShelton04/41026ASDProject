@@ -58,7 +58,8 @@ test("grounded findings inspect recorded source text by native disclosure and re
   const nodes = walk(root);
   assert.ok(nodes.some((node) => node.textContent === citation.excerpt));
   assert.ok(nodes.some((node) => node.textContent === citation.title));
-  assert.ok(nodes.some((node) => node.textContent === "Recorded tool fact"));
+  const kinds = nodes.filter((node) => node.className === "ps-ai-chat__finding-kind").map((node) => node.textContent);
+  assert.equal(new Set(kinds).size, 2, "guidance and current-record findings are labelled differently");
   assert.ok(nodes.some((node) => node.textContent === "call-1"));
   assert.ok(nodes.some((node) => node.textContent === "Source date"));
   assert.ok(nodes.some((node) => node.textContent === "Indexed"));
@@ -98,4 +99,20 @@ test("grounding updates refresh presentation and history retains findings withou
   assert.match(history[1].content, /No publication changed/);
   assert.doesNotMatch(history[1].content, /aaaaaaaaaaaa|Content hash|script/);
   assert.equal(answerSections({ summary: "Legacy", findings: ["Existing finding"] })[1].values[0], "Existing finding");
+});
+
+test("the confidence category and its reason are visible beside the answer", () => {
+  const nodes = walk(render(answer));
+  const support = nodes.find((node) => node.className === "ps-ai-chat__support");
+  const text = walk(support).map((node) => node.textContent);
+  assert.ok(text.includes("Confidence: Moderate"));
+  assert.ok(text.includes(answer.confidence_reason));
+  assert.ok(text.some((value) => value.startsWith("1 guidance source")));
+});
+
+test("backtick spans in model text render as code, never as markup", () => {
+  const nodes = walk(render({ ...answer, summary: "Status is `partial` <b>now</b>." }));
+  const code = nodes.find((node) => node.tagName === "code" && node.textContent === "partial");
+  assert.ok(code);
+  assert.equal(nodes.some((node) => node.tagName === "b"), false);
 });
