@@ -141,3 +141,16 @@ def test_history_serves_grounded_renderer_dependencies_but_not_arbitrary_shared_
         assert response.headers["X-Content-Type-Options"] == "nosniff"
     for filename in ("README.md", "ai-chat/grounding.test.mjs", "../README.md", "app.js"):
         assert client.get(f"/operations/ai-mode/shared/{filename}").status_code == 404
+
+
+def test_knowledge_page_and_assets_are_served_with_the_dashboard(
+    app_services: AppServices,
+) -> None:
+    client = _enabled_app(app_services).test_client()
+
+    page = client.get("/operations/ai-mode/knowledge/")
+    assert page.status_code == 200
+    assert "frame-ancestors 'none'" in page.headers["Content-Security-Policy"]
+    for asset in ("knowledge.js", "knowledge-model.js", "knowledge.css"):
+        assert client.get(f"/operations/ai-mode/assets/{asset}").status_code == 200
+    assert client.get("/api/v1/operations/knowledge").status_code == 200
